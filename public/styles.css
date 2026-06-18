@@ -1,0 +1,137 @@
+:root {
+  --navy: #1a2b4a;
+  --navy-light: #2a3f63;
+  --gold: #b8932f;
+  --gold-soft: #c9a94a;
+  --bg: #f5f3ef;
+  --surface: #ffffff;
+  --text: #1f2733;
+  --text-soft: #5a6675;
+  --text-muted: #8a93a3;
+  --border: #e4e0d8;
+  --green: #2e7d52;
+  --red: #c0392b;
+  --amber: #c98a00;
+  --shadow: 0 2px 12px rgba(26, 43, 74, 0.08);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.5;
+}
+.hidden { display: none !important; }
+h1, h2, h3 { font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; }
+
+/* ── Buttons ── */
+.btn-primary {
+  background: var(--navy); color: #fff; border: none; padding: 11px 20px;
+  border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px;
+  transition: background .2s; width: 100%;
+}
+.btn-primary:hover { background: var(--navy-light); }
+.btn-gold { background: var(--gold); color: #fff; border: none; padding: 9px 16px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 13px; }
+.btn-gold:hover { background: var(--gold-soft); }
+.btn-ghost { background: transparent; color: #cdd5e3; border: 1px solid rgba(255,255,255,.2); padding: 6px 14px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.btn-ghost:hover { background: rgba(255,255,255,.1); }
+.btn-icon { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); }
+.btn-sm { padding: 5px 12px; font-size: 12px; border-radius: 6px; border: 1px solid var(--border); background: #fff; cursor: pointer; }
+.btn-sm:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── Login ── */
+.login-view { min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--navy) 0%, #0f1c33 100%); padding: 20px; }
+.login-card { background: var(--surface); border-radius: 16px; padding: 44px 38px; width: 100%; max-width: 400px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.login-brand { text-align: center; margin-bottom: 30px; }
+.login-emblem { font-size: 44px; }
+.login-brand h1 { font-size: 26px; color: var(--navy); margin-top: 8px; }
+.login-brand p { color: var(--text-muted); font-size: 13px; letter-spacing: .5px; }
+#login-form { display: flex; flex-direction: column; gap: 16px; }
+#login-form label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500; color: var(--text-soft); }
+input, select, textarea {
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; font-size: 14px;
+  font-family: inherit; background: #fff; color: var(--text); transition: border-color .2s;
+}
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--gold); }
+.error-msg { color: var(--red); font-size: 13px; text-align: center; min-height: 18px; }
+
+/* ── App layout ── */
+.app-view { display: flex; min-height: 100vh; }
+.sidebar { width: 248px; background: var(--navy); color: #fff; display: flex; flex-direction: column; position: fixed; height: 100vh; }
+.sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 22px 20px; border-bottom: 1px solid rgba(255,255,255,.1); }
+.sidebar-brand .emblem { font-size: 28px; }
+.sidebar-brand strong { display: block; font-size: 15px; }
+.sidebar-brand small { color: var(--gold-soft); font-size: 11px; letter-spacing: .5px; }
+.nav { flex: 1; padding: 18px 12px; display: flex; flex-direction: column; gap: 4px; }
+.nav-item { color: #cdd5e3; text-decoration: none; padding: 11px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; transition: all .15s; }
+.nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
+.nav-item.active { background: var(--gold); color: #fff; }
+.sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+#user-name { color: #cdd5e3; }
+.content { margin-left: 248px; flex: 1; padding: 30px 38px; max-width: 1200px; }
+
+/* ── Page ── */
+.page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+.page-header h2 { font-size: 30px; color: var(--navy); }
+.page-header .sub { color: var(--text-muted); font-size: 14px; }
+
+/* ── Cards / KPIs ── */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 16px; margin-bottom: 28px; }
+.kpi { background: var(--surface); border-radius: 12px; padding: 18px 20px; box-shadow: var(--shadow); border-left: 3px solid var(--gold); }
+.kpi .label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .5px; }
+.kpi .value { font-size: 28px; font-weight: 600; color: var(--navy); margin-top: 4px; font-family: 'Cormorant Garamond', serif; }
+.kpi .value.money { font-size: 22px; }
+
+/* ── Table ── */
+.card { background: var(--surface); border-radius: 12px; box-shadow: var(--shadow); overflow: hidden; }
+.toolbar { display: flex; gap: 10px; margin-bottom: 18px; align-items: center; flex-wrap: wrap; }
+.toolbar input, .toolbar select { min-width: 150px; }
+.toolbar .spacer { flex: 1; }
+table { width: 100%; border-collapse: collapse; }
+thead th { text-align: left; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); padding: 14px 18px; border-bottom: 1px solid var(--border); background: #faf8f4; }
+tbody td { padding: 13px 18px; border-bottom: 1px solid var(--border); font-size: 14px; }
+tbody tr:last-child td { border-bottom: none; }
+tbody tr:hover { background: #faf8f4; }
+.empty { padding: 40px; text-align: center; color: var(--text-muted); }
+
+/* ── Badges ── */
+.badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+.badge.ativo, .badge.convertido, .badge.aceita, .badge.pago { background: #e3f3ea; color: var(--green); }
+.badge.inativo, .badge.perdido, .badge.recusada, .badge.vencido, .badge.descartado { background: #fbe6e3; color: var(--red); }
+.badge.novo, .badge.prospecto, .badge.pendente, .badge.rascunho { background: #eef1f6; color: var(--navy); }
+.badge.contatado, .badge.qualificado, .badge.em_negociacao, .badge.em_triagem, .badge.reuniao_marcada, .badge.enviada { background: #fdf2dc; color: var(--amber); }
+.badge.alta, .badge.critica { background: #fbe6e3; color: var(--red); }
+.badge.media { background: #fdf2dc; color: var(--amber); }
+.badge.baixa { background: #eef1f6; color: var(--text-soft); }
+
+/* ── Kanban ── */
+.kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.kanban-col { background: #efece6; border-radius: 12px; padding: 12px; min-height: 200px; }
+.kanban-col h4 { font-family: 'Inter', sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-soft); margin-bottom: 10px; display: flex; justify-content: space-between; }
+.kanban-col h4 .count { background: var(--navy); color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 11px; }
+.kanban-card { background: #fff; border-radius: 8px; padding: 11px 13px; margin-bottom: 8px; box-shadow: 0 1px 4px rgba(0,0,0,.06); cursor: pointer; }
+.kanban-card:hover { box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.kanban-card strong { font-size: 13px; display: block; }
+.kanban-card small { color: var(--text-muted); font-size: 12px; }
+
+/* ── Modal ── */
+.modal { position: fixed; inset: 0; background: rgba(15,28,51,.55); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
+.modal-card { background: #fff; border-radius: 14px; width: 100%; max-width: 480px; max-height: 90vh; overflow-y: auto; }
+.modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.modal-header h3 { font-size: 22px; color: var(--navy); }
+#modal-body { padding: 24px; }
+.form-grid { display: flex; flex-direction: column; gap: 14px; }
+.form-grid label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; font-weight: 500; color: var(--text-soft); }
+.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+
+/* ── Toast ── */
+.toast { position: fixed; bottom: 24px; right: 24px; background: var(--navy); color: #fff; padding: 14px 22px; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,.25); z-index: 200; font-size: 14px; }
+.toast.success { background: var(--green); }
+.toast.error { background: var(--red); }
+
+@media (max-width: 760px) {
+  .sidebar { width: 100%; height: auto; position: relative; flex-direction: row; flex-wrap: wrap; }
+  .content { margin-left: 0; padding: 20px; }
+  .kanban { grid-template-columns: 1fr; }
+}

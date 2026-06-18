@@ -3,15 +3,25 @@ import { env } from './config/env';
 import { assertDatabaseConnection, closeDatabase } from './config/database';
 import { startCronJobs } from './crons';
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 async function bootstrap() {
-  // 1. Valida conexão com o banco antes de subir o servidor
-  try {
-    await assertDatabaseConnection();
-    console.log('✅ MySQL conectado');
-  } catch (err) {
-    console.error('❌ Falha ao conectar ao MySQL:', (err as Error).message);
-    console.error('   Verifique DB_HOST/DB_PORT/DB_USER/DB_PASSWORD no .env');
-    process.exit(1);
+  // 1. Valida conexão com o banco (com retry — o MySQL pode demorar a ficar pronto no deploy)
+  const maxAttempts = 10;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      await assertDatabaseConnection();
+      console.log('✅ MySQL conectado');
+      break;
+    } catch (err) {
+      if (attempt === maxAttempts) {
+        console.error('❌ Falha ao conectar ao MySQL após', maxAttempts, 'tentativas:', (err as Error).message);
+        console.error('   Verifique DB_HOST/DB_PORT/DB_USER/DB_PASSWORD (ou o plugin MySQL do Railway)');
+        process.exit(1);
+      }
+      console.log(`⏳ MySQL ainda não disponível (tentativa ${attempt}/${maxAttempts})…`);
+      await sleep(3000);
+    }
   }
 
   // 2. Sobe o servidor HTTP

@@ -27,7 +27,18 @@ const envSchema = z.object({
   TELEGRAM_CHAT_ID: z.string().optional(),
 });
 
-const parsed = envSchema.safeParse(process.env);
+// Railway expõe o MySQL como MYSQLHOST/MYSQLPORT/... — usamos como fallback
+// para que o deploy funcione apenas adicionando o plugin MySQL, sem configurar DB_*.
+const raw = {
+  ...process.env,
+  DB_HOST: process.env.DB_HOST ?? process.env.MYSQLHOST,
+  DB_PORT: process.env.DB_PORT ?? process.env.MYSQLPORT,
+  DB_NAME: process.env.DB_NAME ?? process.env.MYSQLDATABASE,
+  DB_USER: process.env.DB_USER ?? process.env.MYSQLUSER,
+  DB_PASSWORD: process.env.DB_PASSWORD ?? process.env.MYSQLPASSWORD,
+};
+
+const parsed = envSchema.safeParse(raw);
 
 if (!parsed.success) {
   console.error('❌ Variáveis de ambiente inválidas:');

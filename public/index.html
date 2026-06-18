@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CRM Jurídico — Advocacia Letícia Barros</title>
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+  <!-- LOGIN -->
+  <div id="login-view" class="login-view">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-emblem">⚖️</div>
+        <h1>Advocacia Letícia Barros</h1>
+        <p>Sistema de Gestão Jurídica</p>
+      </div>
+      <form id="login-form">
+        <label>E-mail
+          <input type="email" id="login-email" required autocomplete="username" />
+        </label>
+        <label>Senha
+          <input type="password" id="login-password" required autocomplete="current-password" />
+        </label>
+        <button type="submit" class="btn-primary">Entrar</button>
+        <p id="login-error" class="error-msg"></p>
+      </form>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app-view" class="app-view hidden">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <span class="emblem">⚖️</span>
+        <div>
+          <strong>Letícia Barros</strong>
+          <small>CRM Jurídico</small>
+        </div>
+      </div>
+      <nav class="nav">
+        <a href="#dashboard" class="nav-item" data-route="dashboard">📊 Dashboard</a>
+        <a href="#clients" class="nav-item" data-route="clients">👥 Clientes</a>
+        <a href="#leads" class="nav-item" data-route="leads">🎯 Leads</a>
+        <a href="#intakes" class="nav-item" data-route="intakes">📞 Atendimentos</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span id="user-name"></span>
+        <button id="logout-btn" class="btn-ghost">Sair</button>
+      </div>
+    </aside>
+
+    <main class="content">
+      <div id="page" class="page"></div>
+    </main>
+  </div>
+
+  <!-- MODAL -->
+  <div id="modal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-title"></h3>
+        <button id="modal-close" class="btn-icon">✕</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

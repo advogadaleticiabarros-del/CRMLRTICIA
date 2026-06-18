@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit",
     "migrate": "node dist/scripts/migrate.js",
     "migrate:dev": "ts-node src/scripts/migrate.ts",
-    "seed:admin": "ts-node src/scripts/seed-admin.ts"
+    "seed:admin": "ts-node src/scripts/seed-admin.ts",
+    "seed:admin:prod": "node dist/scripts/seed-admin.js",
+    "deploy:start": "npm run migrate && npm run seed:admin:prod && npm start"
   },
   "engines": {
     "node": ">=20.0.0"

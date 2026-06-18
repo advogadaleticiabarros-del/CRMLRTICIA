@@ -1,5 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import path from 'path';
 import { env } from './config/env';
 import { authenticate } from './middleware/auth';
 
@@ -45,9 +46,18 @@ export function createApp() {
   app.use('/api/calendar',              authenticate, calendarRoutes);
   app.use('/api/notifications',         authenticate, notificationRoutes);
 
-  // 404
-  app.use((_req: Request, res: Response) => {
+  // ── Frontend (arquivos estáticos) ─────────────────────────────────────────
+  const publicDir = path.join(__dirname, '..', 'public');
+  app.use(express.static(publicDir));
+
+  // 404 apenas para rotas /api desconhecidas
+  app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json({ error: 'Rota não encontrada' });
+  });
+
+  // SPA fallback: qualquer outra rota devolve o index.html
+  app.get('*', (_req: Request, res: Response) => {
+    res.sendFile(path.join(publicDir, 'index.html'));
   });
 
   // Error handler global
