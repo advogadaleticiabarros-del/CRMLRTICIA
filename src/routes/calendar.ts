@@ -155,6 +155,61 @@ router.post('/events', async (req: Request, res: Response) => {
   res.status(201).json(event[0]);
 });
 
+// ── GET /api/calendar/feed?start=&end= — agenda unificada ──────────────────────
+// Reúne eventos, reuniões, audiências, prazos e tarefas no mesmo período.
+router.get('/feed', async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const start = (req.query.start as string) || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+  const end   = (req.query.end as string)   || new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString();
+
+  const [events] = await db.query(
+    `SELECT ce.id, ce.title, ce.event_type AS type, ce.start_datetime AS datetime,
+            ce.video_link, ce.location, cl.name AS client_name, NULL AS status_label
+     FROM calendar_events ce
+     LEFT JOIN clients cl ON cl.id = ce.client_id
+     WHERE ce.user_id = ? AND ce.start_datetime BETWEEN ? AND ?`,
+    [userId, start, end]
+  ) as any;
+
+  const [deadlines] = await db.query(
+    `SELECT d.id, d.description AS title, 'prazo' AS type, d.deadline_date AS datetime,
+            NULL AS video_link, NULL AS location, cl.name AS client_name,
+            CASE
+              WHEN d.status <> 'pendente' THEN d.status
+              WHEN d.deadline_date < NOW() THEN 'vencido'
+              WHEN TIMESTAMPDIFF(HOUR, NOW(), d.deadline_date) <= 24 THEN 'urgente'
+              WHEN TIMESTAMPDIFF(DAY, NOW(), d.deadline_date) <= 3 THEN 'atencao'
+              ELSE 'normal'
+            END AS status_label
+     FROM deadlines d
+     LEFT JOIN cases c ON c.id = d.case_id
+     LEFT JOIN clients cl ON cl.id = c.client_id
+     WHERE d.user_id = ? AND d.status = 'pendente' AND d.deadline_date BETWEEN ? AND ?`,
+    [userId, start, end]
+  ) as any;
+
+  const [tasks] = await db.query(
+    `SELECT t.id, t.title, 'tarefa' AS type, t.due_date AS datetime,
+            NULL AS video_link, NULL AS location, cl.name AS client_name,
+            CASE
+              WHEN t.due_date < NOW() THEN 'vencido'
+              WHEN TIMESTAMPDIFF(HOUR, NOW(), t.due_date) <= 24 THEN 'urgente'
+              WHEN TIMESTAMPDIFF(DAY, NOW(), t.due_date) <= 3 THEN 'atencao'
+              ELSE 'normal'
+            END AS status_label
+     FROM tasks t
+     LEFT JOIN clients cl ON cl.id = t.client_id
+     WHERE t.user_id = ? AND t.status NOT IN ('concluida','cancelada')
+       AND t.due_date IS NOT NULL AND t.due_date BETWEEN ? AND ?`,
+    [userId, start, end]
+  ) as any;
+
+  const all = [...events, ...deadlines, ...tasks].sort(
+    (a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()
+  );
+  res.json(all);
+});
+
 // ── Sync manual ───────────────────────────────────────────────────────────────
 router.post('/google/sync', async (req: Request, res: Response) => {
   const userId = (req as any).user.id;

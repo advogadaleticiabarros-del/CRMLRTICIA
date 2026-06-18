@@ -255,6 +255,57 @@ const ROUTES = {
     await loadDeadlines(); await loadTasks();
   },
 
+  async agenda(page) {
+    let cursor = new Date(); cursor.setDate(1);
+    const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const DOW = ['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'];
+
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Agenda</h2><p class="sub">Eventos, prazos e tarefas</p></div>
+        <button class="btn-gold" id="new-event">+ Evento / Reunião</button></div>
+      <div class="cal-header">
+        <button class="cal-nav" id="cal-prev">‹</button>
+        <h3 id="cal-title"></h3>
+        <button class="cal-nav" id="cal-next">›</button>
+        <button class="btn-sm" id="cal-today">Hoje</button>
+      </div>
+      <div class="cal-grid" id="cal-dows">${DOW.map((d) => `<div class="cal-dow">${d}</div>`).join('')}</div>
+      <div class="cal-grid" id="cal-body"></div>`;
+
+    const render = async () => {
+      const y = cursor.getFullYear(), m = cursor.getMonth();
+      $('#cal-title').textContent = `${MESES[m]} ${y}`;
+      const first = new Date(y, m, 1), last = new Date(y, m + 1, 0);
+      const startGrid = new Date(first); startGrid.setDate(1 - first.getDay());
+      const feed = await api(`/api/calendar/feed?start=${first.toISOString()}&end=${new Date(y, m + 1, 0, 23, 59).toISOString()}`);
+      const byDay = {};
+      feed.forEach((it) => { const k = new Date(it.datetime).toDateString(); (byDay[k] ??= []).push(it); });
+
+      const today = new Date().toDateString();
+      let html = '';
+      for (let i = 0; i < 42; i++) {
+        const d = new Date(startGrid); d.setDate(startGrid.getDate() + i);
+        const other = d.getMonth() !== m ? 'other' : '';
+        const isToday = d.toDateString() === today ? 'today' : '';
+        const items = byDay[d.toDateString()] || [];
+        const chips = items.slice(0, 4).map((it) => {
+          const cls = (it.status_label === 'vencido' || it.status_label === 'urgente') ? it.status_label : it.type;
+          const hora = ['reuniao','audiencia','compromisso'].includes(it.type) ? new Date(it.datetime).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) + ' ' : '';
+          return `<div class="cal-chip ${cls}" title="${it.title}">${hora}${it.title}</div>`;
+        }).join('');
+        const more = items.length > 4 ? `<div class="cal-chip" style="color:var(--text-muted)">+${items.length - 4}</div>` : '';
+        html += `<div class="cal-day ${other} ${isToday}"><span class="num">${d.getDate()}</span>${chips}${more}</div>`;
+      }
+      $('#cal-body').innerHTML = html;
+    };
+
+    $('#cal-prev').onclick = () => { cursor.setMonth(cursor.getMonth() - 1); render(); };
+    $('#cal-next').onclick = () => { cursor.setMonth(cursor.getMonth() + 1); render(); };
+    $('#cal-today').onclick = () => { cursor = new Date(); cursor.setDate(1); render(); };
+    $('#new-event').onclick = () => eventForm(render);
+    await render();
+  },
+
   async intakes(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Atendimentos</h2><p class="sub">Primeiro contato e triagem</p></div>
@@ -525,6 +576,30 @@ async function taskForm(onSave) {
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Nova tarefa', form);
+}
+
+async function eventForm(onSave) {
+  const clients = await api('/api/clients?limit=100');
+  const form = el(`<form class="form-grid">
+    ${field('Título *', 'title')}
+    ${field('Tipo', 'event_type', { options: [['compromisso','Compromisso'],['reuniao','Reunião'],['audiencia','Audiência']].map(([v,t])=>({v,t})) })}
+    ${field('Cliente', 'client_id', { options: [{ v: '', t: '— nenhum —' }, ...clients.data.map((c) => ({ v: c.id, t: c.name }))] })}
+    <div class="form-row">${field('Início *', 'start_datetime', { type: 'datetime-local' })}${field('Fim', 'end_datetime', { type: 'datetime-local' })}</div>
+    ${field('Local', 'location')}
+    ${field('Descrição', 'description', { type: 'textarea' })}
+    <button type="submit" class="btn-primary">Criar evento</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    if (!body.end_datetime) body.end_datetime = body.start_datetime;
+    if (!body.client_id) delete body.client_id;
+    try {
+      await api('/api/calendar/events', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast('Evento criado'); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Novo evento / reunião', form);
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
