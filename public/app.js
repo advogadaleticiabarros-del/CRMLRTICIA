@@ -268,7 +268,7 @@ const ROUTES = {
       $('#cli-table').innerHTML = r.data.length ? `
         <table><thead><tr><th>Nome</th><th>Tipo</th><th>Contato</th><th>Status</th><th></th></tr></thead>
         <tbody>${r.data.map((c) => `<tr>
-          <td><strong>${c.name}</strong><br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
+          <td><strong>${c.name}</strong> ${c.is_dative ? '<span class="badge dativo">DATIVO</span>' : ''}<br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
           <td>${c.tipo}</td><td>${c.phone || c.email || '—'}</td><td>${badge(c.status)}</td>
           <td><button class="btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table>
         <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} cliente(s)</div>`
@@ -1198,18 +1198,36 @@ async function datRecebimentos(c) {
 }
 
 async function dativeCaseForm(onSave) {
+  const clients = await api('/api/clients?limit=100');
   const form = el(`<form class="form-grid">
+    <strong style="color:var(--navy);font-size:13px">👤 Cliente (assistido)</strong>
+    <small style="color:var(--text-muted)">Será criada uma ficha na aba Clientes com a etiqueta DATIVO.</small>
+    ${field('Cliente já cadastrado', 'client_id', { options: [{ v: '', t: '— criar nova ficha —' }, ...clients.data.map((c) => ({ v: c.id, t: c.name }))] })}
+    <div id="new-client-fields">
+      ${field('Nome do assistido *', 'assisted_name')}
+      <div class="form-row">${field('CPF', 'client_cpf')}${field('Telefone', 'client_phone')}</div>
+      ${field('E-mail', 'client_email', { type: 'email' })}
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border)">
+    <strong style="color:var(--navy);font-size:13px">🏛️ Dados da nomeação</strong>
     ${field('Comarca *', 'comarca')}
     <div class="form-row">${field('Nº do processo', 'process_number')}${field('Vara', 'vara')}</div>
-    ${field('Assistido', 'assisted_name')}
     <div class="form-row">${field('Área', 'area', { options: DATIVE_AREAS })}${field('Data da nomeação', 'nomeacao_date', { type: 'date' })}</div>
     ${field('Valor estimado (R$)', 'estimated_value', { type: 'number' })}
     <button type="submit" class="btn-primary">Cadastrar demanda</button>
   </form>`);
+
+  // Se escolher cliente existente, esconde os campos de novo cliente
+  const clientSel = form.querySelector('[name=client_id]');
+  const newFields = form.querySelector('#new-client-fields');
+  clientSel.onchange = () => { newFields.style.display = clientSel.value ? 'none' : 'block'; };
+
   form.onsubmit = async (e) => {
     e.preventDefault();
-    try { await api('/api/dative/cases', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
-      closeModal(); toast('Demanda cadastrada'); onSave(); } catch (err) { toast(err.message, 'error'); }
+    const body = Object.fromEntries(new FormData(form));
+    if (!body.client_id) delete body.client_id;
+    try { await api('/api/dative/cases', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast('Demanda cadastrada e ficha do cliente criada'); onSave(); } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Nova demanda dativa', form);
 }

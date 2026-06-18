@@ -71,7 +71,12 @@ router.get('/cases', async (req: Request, res: Response) => {
 });
 
 router.get('/cases/:id', async (req: Request, res: Response) => {
-  const [rows] = await db.query('SELECT * FROM dative_cases WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  const [rows] = await db.query(
+    `SELECT dc.*, c.name AS client_name FROM dative_cases dc
+     LEFT JOIN clients c ON c.id = dc.client_id
+     WHERE dc.id = ? AND dc.user_id = ?`,
+    [req.params.id, req.user!.id]
+  ) as any;
   if (!rows.length) { res.status(404).json({ error: 'Demanda não encontrada' }); return; }
   const [hearings] = await db.query(
     'SELECT id, hearing_date, comarca, type, act_value, status FROM dative_hearings WHERE dative_case_id = ? ORDER BY hearing_date DESC',
@@ -81,13 +86,35 @@ router.get('/cases/:id', async (req: Request, res: Response) => {
 });
 
 router.post('/cases', async (req: Request, res: Response) => {
-  const { process_number, comarca, vara, assisted_name, area, nomeacao_date, estimated_value, notes } = req.body;
+  const { process_number, comarca, vara, assisted_name, area, nomeacao_date, estimated_value, notes,
+          client_id, client_cpf, client_phone, client_email } = req.body;
   if (!comarca || !String(comarca).trim()) { res.status(400).json({ error: 'A comarca é obrigatória' }); return; }
+  if (!client_id && !(assisted_name && String(assisted_name).trim())) {
+    res.status(400).json({ error: 'Informe o cliente (assistido): selecione um existente ou preencha o nome' });
+    return;
+  }
+
+  // Cria ou vincula a ficha do cliente, marcando a etiqueta DATIVO
+  let clientId: number | null = null;
+  if (client_id) {
+    const [cl] = await db.query('SELECT id FROM clients WHERE id = ?', [client_id]) as any;
+    if (!cl.length) { res.status(400).json({ error: 'Cliente vinculado não encontrado' }); return; }
+    await db.query('UPDATE clients SET is_dative = 1 WHERE id = ?', [client_id]);
+    clientId = Number(client_id);
+  } else {
+    const [newClient] = await db.query(
+      `INSERT INTO clients (name, tipo, cpf_cnpj, phone, email, status, is_dative, created_by, notes)
+       VALUES (?, 'PF', ?, ?, ?, 'ativo', 1, ?, ?)`,
+      [assisted_name.trim(), client_cpf ?? null, client_phone ?? null, client_email ?? null, req.user!.id,
+       `Cliente cadastrado via demanda dativa — ${comarca.trim()}`]
+    ) as any;
+    clientId = newClient.insertId;
+  }
 
   const [result] = await db.query(
-    `INSERT INTO dative_cases (user_id, process_number, comarca, vara, assisted_name, area, nomeacao_date, estimated_value, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.user!.id, process_number ?? null, comarca.trim(), vara ?? null, assisted_name ?? null,
+    `INSERT INTO dative_cases (user_id, client_id, process_number, comarca, vara, assisted_name, area, nomeacao_date, estimated_value, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [req.user!.id, clientId, process_number ?? null, comarca.trim(), vara ?? null, assisted_name ?? null,
      AREAS.includes(area) ? area : 'outro', nomeacao_date || null, Number(estimated_value) || 0, notes ?? null]
   ) as any;
   const [rows] = await db.query('SELECT * FROM dative_cases WHERE id = ?', [result.insertId]) as any;
