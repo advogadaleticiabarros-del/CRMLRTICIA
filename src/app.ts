@@ -15,6 +15,7 @@ import notificationRoutes from './routes/notifications';
 import authRoutes from './routes/auth';
 import clientRoutes from './routes/clients';
 import intakeRoutes from './routes/intakes';
+import leadRoutes from './routes/leads';
 
 export function createApp() {
   const app = express();
@@ -34,6 +35,7 @@ export function createApp() {
   // ── Rotas protegidas (exigem JWT) ─────────────────────────────────────────
   app.use('/api/clients',               authenticate, clientRoutes);
   app.use('/api/intakes',               authenticate, intakeRoutes);
+  app.use('/api/leads',                 authenticate, leadRoutes);
   app.use('/api/dashboards/comercial',  authenticate, comercialDashboard);
   app.use('/api/dashboards/cliente',    authenticate, clienteDashboard);
   app.use('/api/dashboards/processual', authenticate, processualDashboard);
