@@ -28,6 +28,7 @@ Contexto específico de cada projeto vive em `projects/<projeto>/_memory/`.
 |------|--------|
 | 2026-06-11 | v1.0.0 — Squad criada para o ExpxAgents (9 membros, orquestração completa) com identidade role-first: `id` por especialidade como identificador primário, `callsign` humano opcional e configurável |
 | 2026-06-14 | v1.1.0 — Protocolo de diálogo interativo (descoberta → proposta → confirmação → execução → verificação) em `personas/_protocolo-dialogo.md`, com seção "Como conduz a conversa" por persona e pipeline alinhado às 5 fases |
+| 2026-06-18 | Projeto CRM Jurídico — Item 1 (estrutura) entregue: Node+TS+Express+mysql2, env(zod)+pool MySQL, JWT middleware, app/index, migrate runner, railway.json. typecheck+build exit 0. Próximo: item 2 (migration 001 com tabelas base: users, clients, leads, propostas, cases, tasks, deadlines, documents, installments, financial_records, case_movements, legal_pieces) |
 
 ---
 
