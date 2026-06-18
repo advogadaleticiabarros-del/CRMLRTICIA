@@ -334,7 +334,8 @@ const ROUTES = {
 
     page.innerHTML = `
       <div class="page-header"><div><h2>Agenda</h2><p class="sub">Eventos, prazos e tarefas</p></div>
-        <button class="btn-gold" id="new-event">+ Evento / Reunião</button></div>
+        <div style="display:flex;gap:8px;align-items:center"><span id="google-area"></span>
+        <button class="btn-gold" id="new-event">+ Evento / Reunião</button></div></div>
       <div class="cal-header">
         <button class="cal-nav" id="cal-prev">‹</button>
         <h3 id="cal-title"></h3>
@@ -371,11 +372,32 @@ const ROUTES = {
       $('#cal-body').innerHTML = html;
     };
 
+    const renderGoogle = async () => {
+      let st = { connected: false };
+      try { st = await api('/api/calendar/google/status'); } catch {}
+      const area = $('#google-area');
+      if (st.connected) {
+        area.innerHTML = `<small style="color:var(--green)">🟢 ${st.google_email || 'Google conectado'}</small>
+          <button class="btn-sm" id="g-sync">Sincronizar</button>`;
+        $('#g-sync').onclick = async () => {
+          try { const r = await api('/api/calendar/google/sync', { method: 'POST' });
+            toast(`Sincronizado (${r.fromGoogle?.created || 0} novos)`); render(); } catch (e) { toast(e.message, 'error'); }
+        };
+      } else {
+        area.innerHTML = `<button class="btn-sm" id="g-connect">🗓️ Conectar Google Agenda</button>`;
+        $('#g-connect').onclick = async () => {
+          try { const { url } = await api('/api/calendar/google/auth-url'); window.location.href = url; }
+          catch (e) { toast(e.message === 'Integração Google não configurada no servidor' ? 'Google ainda não configurado no servidor' : e.message, 'error'); }
+        };
+      }
+    };
+
     $('#cal-prev').onclick = () => { cursor.setMonth(cursor.getMonth() - 1); render(); };
     $('#cal-next').onclick = () => { cursor.setMonth(cursor.getMonth() + 1); render(); };
     $('#cal-today').onclick = () => { cursor = new Date(); cursor.setDate(1); render(); };
     $('#new-event').onclick = () => eventForm(render);
     await render();
+    await renderGoogle();
   },
 
   async financeiro(page) {
@@ -829,4 +851,15 @@ $('#bell-btn').onclick = openNotifications;
 $('#modal-close').onclick = closeModal;
 $('#modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
 window.addEventListener('hashchange', router);
+
+// Retorno do OAuth Google
+const gParam = new URLSearchParams(location.search).get('google');
+if (gParam) {
+  history.replaceState({}, '', location.pathname);
+  setTimeout(() => {
+    if (gParam === 'connected') { toast('Google Agenda conectado!'); location.hash = '#agenda'; }
+    else toast('Falha ao conectar o Google', 'error');
+  }, 500);
+}
+
 if (TOKEN && USER) showApp(); else { $('#login-view').classList.remove('hidden'); }

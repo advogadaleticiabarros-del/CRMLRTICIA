@@ -23,6 +23,7 @@ import caseRoutes from './routes/cases';
 import deadlineRoutes from './routes/deadlines';
 import taskRoutes from './routes/tasks';
 import financialRoutes from './routes/financial';
+import { googleOAuthCallback } from './routes/google-callback';
 
 export function createApp() {
   const app = express();
@@ -38,6 +39,9 @@ export function createApp() {
 
   // Autenticação (login público; /me, register e password tratam auth internamente)
   app.use('/api/auth', authRoutes);
+
+  // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
+  app.get('/api/calendar/google/callback', googleOAuthCallback);
 
   // ── Rotas protegidas (exigem JWT) ─────────────────────────────────────────
   app.use('/api/clients',               authenticate, clientRoutes);

@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { db } from '../config/database';
+import { env } from '../config/env';
 import { googleCalendarService } from '../services/GoogleCalendarService';
 import { calendarSyncService } from '../services/CalendarSyncService';
 import { notificationService } from '../services/NotificationService';
@@ -9,54 +11,23 @@ const router = Router();
 
 // ── OAuth Google ──────────────────────────────────────────────────────────────
 
-// GET /api/calendar/google/auth-url
-router.get('/google/auth-url', (_req: Request, res: Response) => {
-  const url = googleCalendarService.getAuthUrl();
-  res.json({ url });
-});
-
-// GET /api/calendar/google/callback?code=...
-router.get('/google/callback', async (req: Request, res: Response) => {
-  const { code } = req.query;
-  const userId = (req as any).user?.id;
-  if (!code || !userId) {
-    res.status(400).json({ error: 'Parâmetros inválidos' });
+// GET /api/calendar/google/auth-url — gera URL com state assinado (carrega o user)
+router.get('/google/auth-url', (req: Request, res: Response) => {
+  if (!env.GOOGLE_CLIENT_ID) {
+    res.status(503).json({ error: 'Integração Google não configurada no servidor' });
     return;
   }
+  const state = jwt.sign({ id: (req as any).user.id }, env.JWT_SECRET, { expiresIn: '15m' });
+  res.json({ url: googleCalendarService.getAuthUrl(state) });
+});
 
-  try {
-    const tokens = await googleCalendarService.exchangeCode(String(code));
-
-    // Get Google email
-    const { google } = await import('googleapis');
-    const oauth2 = new google.auth.OAuth2(
-      process.env.GOOGLE_CLIENT_ID,
-      process.env.GOOGLE_CLIENT_SECRET,
-      process.env.GOOGLE_REDIRECT_URI
-    );
-    oauth2.setCredentials({ access_token: tokens.access_token });
-    const userInfo = google.oauth2({ version: 'v2', auth: oauth2 });
-    const { data } = await userInfo.userinfo.get();
-
-    await db.query(
-      `INSERT INTO google_accounts (user_id, google_email, access_token, refresh_token, token_expiry, sync_enabled)
-       VALUES (?, ?, ?, ?, ?, 1)
-       ON DUPLICATE KEY UPDATE
-         google_email = VALUES(google_email),
-         access_token = VALUES(access_token),
-         refresh_token = VALUES(refresh_token),
-         token_expiry = VALUES(token_expiry),
-         sync_enabled = 1`,
-      [userId, data.email, tokens.access_token, tokens.refresh_token, tokens.token_expiry]
-    );
-
-    // Sync immediately after connect
-    await calendarSyncService.syncFromGoogle(userId);
-
-    res.json({ success: true, google_email: data.email });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+// GET /api/calendar/google/status — conta conectada?
+router.get('/google/status', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    'SELECT google_email, sync_enabled FROM google_accounts WHERE user_id = ?',
+    [(req as any).user.id]
+  ) as any;
+  res.json({ connected: rows.length > 0, ...(rows[0] || {}) });
 });
 
 // DELETE /api/calendar/google/disconnect

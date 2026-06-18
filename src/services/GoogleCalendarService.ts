@@ -23,10 +23,11 @@ export class GoogleCalendarService {
     process.env.GOOGLE_REDIRECT_URI
   );
 
-  getAuthUrl(): string {
+  getAuthUrl(state?: string): string {
     return this.oauth2Client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
+      state,
       scope: [
         'https://www.googleapis.com/auth/calendar',
         'https://www.googleapis.com/auth/calendar.events',
