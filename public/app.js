@@ -60,13 +60,13 @@ const NAV_LABELS = {
   dashboard: '📊 Dashboard', clients: '👥 Clientes', leads: '🎯 Leads',
   propostas: '📄 Propostas', cases: '⚖️ Processos', prazos: '📅 Prazos & Tarefas',
   agenda: '🗓️ Agenda', financeiro: '💰 Financeiro', intakes: '📞 Atendimentos',
-  config: '⚙️ Configurações', repasses: '💸 Meus Repasses',
+  config: '⚙️ Configurações', repasses: '💸 Meus Repasses', dativo: '🏛️ Dativo',
   portal: '📁 Meus Processos', portalFinanceiro: '💳 Valores a Pagar',
 };
 const NAV_BY_ROLE = {
-  admin:      ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','intakes','config'],
-  staff:      ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','intakes'],
-  advogado:   ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','intakes'],
+  admin:      ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','dativo','intakes','config'],
+  staff:      ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','dativo','intakes'],
+  advogado:   ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','dativo','intakes'],
   estagiario: ['cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -589,6 +589,26 @@ const ROUTES = {
         : '<div class="empty">Nenhuma parcela registrada</div>'}</div></div>`;
   },
 
+  async dativo(page) {
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Advocacia Dativa</h2><p class="sub">Nomeações do Estado — separado dos honorários</p></div></div>
+      <div class="tabs" id="dat-tabs">
+        <button class="tab active" data-tab="projecao">📈 Projeção</button>
+        <button class="tab" data-tab="demandas">📋 Demandas</button>
+        <button class="tab" data-tab="audiencias">⚖️ Audiências</button>
+        <button class="tab" data-tab="recebimentos">💵 Recebimentos</button>
+      </div>
+      <div id="dat-content"></div>`;
+    const tabs = { projecao: datProjecao, demandas: datDemandas, audiencias: datAudiencias, recebimentos: datRecebimentos };
+    const show = async (name) => {
+      document.querySelectorAll('#dat-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+      const c = $('#dat-content'); c.innerHTML = '<div class="empty">Carregando…</div>';
+      try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
+    };
+    document.querySelectorAll('#dat-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
+    await show('projecao');
+  },
+
   async intakes(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Atendimentos</h2><p class="sub">Primeiro contato e triagem</p></div>
@@ -1073,6 +1093,155 @@ async function portalCaseDetail(id) {
     <div style="max-height:300px;overflow-y:auto">${movs}</div>
   </div>`);
   openModal('Andamento', wrap);
+}
+
+// ── Módulo Dativo ──
+const DATIVE_AREAS = [['criminal','Criminal'],['familia','Família'],['civel','Cível'],['previdenciario','Previdenciário'],['trabalhista','Trabalhista'],['infancia','Infância'],['outro','Outro']].map(([v,t])=>({v,t}));
+
+async function datProjecao(c) {
+  const s = await api('/api/dative/summary');
+  c.innerHTML = `
+    <div class="kpi-grid">
+      ${kpi('Audiências realizadas', s.audiencias_realizadas)}
+      ${kpi('Audiências futuras', s.audiencias_futuras)}
+      ${kpi('Demandas ativas', s.demandas_ativas)}
+      ${kpi('Realizado (a faturar)', money(s.realizado), 'money')}
+      ${kpi('Agendado (futuro)', money(s.agendado), 'money')}
+      ${kpi('Recebido do Estado', money(s.recebido), 'money')}
+      ${kpi('A receber', money(s.a_receber), 'money')}
+      ${kpi('Estimado total', money(s.estimado_total), 'money')}
+    </div>
+    ${miniList('Por comarca', (s.por_comarca || []).map((x) => `<div class="mini-row"><span>${x.comarca} <small>(${x.audiencias} aud.)</small></span><strong>${money(x.valor_realizado)}</strong></div>`))}
+    ${miniList('Por mês (realizado / agendado)', (s.por_mes || []).map((m) => `<div class="mini-row"><span>${m.mes}</span><span style="color:var(--green)">${money(m.realizado)} <small style="color:var(--amber)">+ ${money(m.agendado)}</small></span></div>`))}`;
+}
+
+async function datDemandas(c) {
+  c.innerHTML = `<div class="toolbar"><button class="btn-gold" id="new-dcase">+ Nova demanda</button></div><div class="card"><div id="dcase-table"></div></div>`;
+  const load = async () => {
+    const rows = await api('/api/dative/cases');
+    $('#dcase-table').innerHTML = rows.length ? `
+      <table><thead><tr><th>Comarca</th><th>Assistido</th><th>Área</th><th>Nomeação</th><th>Estimado</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.map((d) => `<tr>
+        <td><strong>${d.comarca}</strong><br><small style="color:var(--text-muted)">${d.process_number || ''}</small></td>
+        <td>${d.assisted_name || '—'}</td><td>${d.area}</td><td>${fmtDate(d.nomeacao_date)}</td>
+        <td>${money(d.estimated_value)}</td><td>${badge(d.status)}</td>
+        <td><button class="btn-sm" data-dcase="${d.id}">Abrir</button></td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhuma demanda dativa</div>';
+    document.querySelectorAll('[data-dcase]').forEach((b) => b.onclick = () => dativeCaseDetail(b.dataset.dcase, load));
+  };
+  $('#new-dcase').onclick = () => dativeCaseForm(load);
+  await load();
+}
+
+async function datAudiencias(c) {
+  c.innerHTML = `<div class="toolbar"><button class="btn-gold" id="new-dhear">+ Nova audiência</button></div><div class="card"><div id="dhear-table"></div></div>`;
+  const load = async () => {
+    const rows = await api('/api/dative/hearings');
+    $('#dhear-table').innerHTML = rows.length ? `
+      <table><thead><tr><th>Data</th><th>Comarca</th><th>Tipo</th><th>Assistido</th><th>Valor ato</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.map((h) => `<tr>
+        <td>${fmtDate(h.hearing_date)}</td><td>${h.comarca || '—'}</td><td>${h.type || '—'}</td>
+        <td>${h.assisted_name || '—'}</td><td>${money(h.act_value)}</td><td>${badge(h.status)}</td>
+        <td>${h.status === 'agendada' ? `<button class="btn-sm" data-realiz="${h.id}">Marcar realizada</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhuma audiência</div>';
+    document.querySelectorAll('[data-realiz]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/dative/hearings/${b.dataset.realiz}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'realizada' }) });
+        toast('Audiência realizada'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  $('#new-dhear').onclick = () => dativeHearingForm(load);
+  await load();
+}
+
+async function datRecebimentos(c) {
+  c.innerHTML = `<div class="toolbar"><button class="btn-gold" id="new-dpay">+ Registrar recebimento</button></div><div class="card"><div id="dpay-table"></div></div>`;
+  const load = async () => {
+    const rows = await api('/api/dative/payments');
+    $('#dpay-table').innerHTML = rows.length ? `
+      <table><thead><tr><th>Referência</th><th>Comarca</th><th>Valor</th><th>Previsto/Recebido</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.map((p) => `<tr>
+        <td>${p.reference || '—'}</td><td>${p.comarca || '—'}</td><td>${money(p.value)}</td>
+        <td>${fmtDate(p.received_date || p.expected_date)}</td><td>${badge(p.status)}</td>
+        <td>${p.status === 'previsto' ? `<button class="btn-sm" data-receive="${p.id}">Dar baixa</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhum recebimento</div>';
+    document.querySelectorAll('[data-receive]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/dative/payments/${b.dataset.receive}/receive`, { method: 'PATCH' }); toast('Recebimento confirmado'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  $('#new-dpay').onclick = () => dativePaymentForm(load);
+  await load();
+}
+
+async function dativeCaseForm(onSave) {
+  const form = el(`<form class="form-grid">
+    ${field('Comarca *', 'comarca')}
+    <div class="form-row">${field('Nº do processo', 'process_number')}${field('Vara', 'vara')}</div>
+    ${field('Assistido', 'assisted_name')}
+    <div class="form-row">${field('Área', 'area', { options: DATIVE_AREAS })}${field('Data da nomeação', 'nomeacao_date', { type: 'date' })}</div>
+    ${field('Valor estimado (R$)', 'estimated_value', { type: 'number' })}
+    <button type="submit" class="btn-primary">Cadastrar demanda</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('/api/dative/cases', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast('Demanda cadastrada'); onSave(); } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Nova demanda dativa', form);
+}
+
+async function dativeCaseDetail(id, onSave) {
+  const d = await api('/api/dative/cases/' + id);
+  const hearings = (d.hearings || []).map((h) => `<div class="mini-row" style="padding:6px 0"><span>${fmtDate(h.hearing_date)} · ${h.type || ''} <small>${h.comarca || ''}</small></span><span>${money(h.act_value)} ${badge(h.status)}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem audiências</small>';
+  const form = el(`<div class="form-grid">
+    <div><strong style="font-size:18px">${d.comarca}</strong><br><small style="color:var(--text-muted)">${d.process_number || ''} · ${d.assisted_name || ''}</small></div>
+    <div>${badge(d.area)} ${badge(d.status)} · estimado ${money(d.estimated_value)}</div>
+    ${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['paga','Paga']].map(([v,t])=>({v,t})) })}
+    <button class="btn-sm" id="upd-status">Atualizar status</button>
+    <hr style="border:none;border-top:1px solid var(--border)">
+    <strong style="font-size:13px">Audiências</strong>
+    <div>${hearings}</div>
+  </div>`);
+  form.querySelector('#upd-status').onclick = async () => {
+    try { await api('/api/dative/cases/' + id, { method: 'PUT', body: JSON.stringify({ status: form.querySelector('[name=status]').value }) });
+      closeModal(); toast('Status atualizado'); onSave(); } catch (e) { toast(e.message, 'error'); }
+  };
+  openModal('Demanda dativa', form);
+}
+
+async function dativeHearingForm(onSave) {
+  const cases = await api('/api/dative/cases');
+  if (!cases.length) { toast('Cadastre uma demanda antes', 'error'); return; }
+  const form = el(`<form class="form-grid">
+    ${field('Demanda *', 'dative_case_id', { options: cases.map((c) => ({ v: c.id, t: `${c.comarca} — ${c.assisted_name || c.process_number || c.id}` })) })}
+    <div class="form-row">${field('Data/hora *', 'hearing_date', { type: 'datetime-local' })}${field('Tipo', 'type')}</div>
+    <div class="form-row">${field('Comarca', 'comarca')}${field('Valor do ato (R$)', 'act_value', { type: 'number' })}</div>
+    <button type="submit" class="btn-primary">Agendar audiência</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('/api/dative/hearings', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast('Audiência registrada'); onSave(); } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Nova audiência', form);
+}
+
+async function dativePaymentForm(onSave) {
+  const cases = await api('/api/dative/cases');
+  const form = el(`<form class="form-grid">
+    ${field('Referência (ex: lote março/2026)', 'reference')}
+    ${field('Demanda (opcional)', 'dative_case_id', { options: [{ v: '', t: '— geral —' }, ...cases.map((c) => ({ v: c.id, t: c.comarca }))] })}
+    <div class="form-row">${field('Valor (R$) *', 'value', { type: 'number' })}${field('Data prevista', 'expected_date', { type: 'date' })}</div>
+    ${field('Data de recebimento (se já recebido)', 'received_date', { type: 'date' })}
+    <button type="submit" class="btn-primary">Registrar</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    if (!body.dative_case_id) delete body.dative_case_id;
+    try { await api('/api/dative/payments', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast('Recebimento registrado'); onSave(); } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Registrar recebimento do Estado', form);
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
