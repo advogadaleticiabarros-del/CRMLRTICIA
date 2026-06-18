@@ -114,7 +114,7 @@ export class GoogleCalendarService {
     const created = response.data;
     const videoLink = created.conferenceData?.entryPoints?.find(
       (ep) => ep.entryPointType === 'video'
-    )?.uri;
+    )?.uri ?? undefined;
 
     return {
       googleEventId: created.id!,

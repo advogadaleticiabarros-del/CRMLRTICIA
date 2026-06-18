@@ -19,7 +19,10 @@ router.get('/google/auth-url', (_req: Request, res: Response) => {
 router.get('/google/callback', async (req: Request, res: Response) => {
   const { code } = req.query;
   const userId = (req as any).user?.id;
-  if (!code || !userId) return res.status(400).json({ error: 'Parâmetros inválidos' });
+  if (!code || !userId) {
+    res.status(400).json({ error: 'Parâmetros inválidos' });
+    return;
+  }
 
   try {
     const tokens = await googleCalendarService.exchangeCode(String(code));
@@ -96,7 +99,8 @@ router.post('/events', async (req: Request, res: Response) => {
           location, client_id, case_id, task_id, deadline_id, generate_meet } = req.body;
 
   if (!title || !start_datetime || !end_datetime) {
-    return res.status(400).json({ error: 'title, start_datetime e end_datetime são obrigatórios' });
+    res.status(400).json({ error: 'title, start_datetime e end_datetime são obrigatórios' });
+    return;
   }
 
   const [result] = await db.query(
