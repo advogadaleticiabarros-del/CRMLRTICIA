@@ -205,6 +205,56 @@ const ROUTES = {
     await load();
   },
 
+  async prazos(page) {
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Prazos & Tarefas</h2><p class="sub">Contagem regressiva e prioridades</p></div>
+        <div style="display:flex;gap:8px"><button class="btn-gold" id="new-deadline">+ Prazo</button>
+        <button class="btn-gold" id="new-task">+ Tarefa</button></div></div>
+      <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">⚖️ Prazos processuais</strong></div><div id="dl-table"></div></div>
+      <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">✓ Tarefas</strong></div><div id="task-table"></div></div>`;
+
+    const countdown = (days, label) => {
+      if (label === 'vencido') return `<span class="badge vencido">vencido</span>`;
+      const txt = days === 0 ? 'hoje' : days === 1 ? '1 dia' : `${days} dias`;
+      return `<span class="badge ${label}">${txt}</span>`;
+    };
+
+    const loadDeadlines = async () => {
+      const r = await api('/api/deadlines?status=pendente');
+      $('#dl-table').innerHTML = r.data.length ? `
+        <table><thead><tr><th>Prazo</th><th>Processo</th><th>Vencimento</th><th>Restam</th><th></th></tr></thead>
+        <tbody>${r.data.map((d) => `<tr>
+          <td><strong>${d.description}</strong></td><td>${d.client_name || d.case_number || '—'}</td>
+          <td>${fmtDate(d.deadline_date)}</td><td>${countdown(d.days_remaining, d.status_label)}</td>
+          <td><button class="btn-sm" data-done-dl="${d.id}">Cumprir</button></td></tr>`).join('')}</tbody></table>`
+        : '<div class="empty">Nenhum prazo pendente</div>';
+      document.querySelectorAll('[data-done-dl]').forEach((b) => b.onclick = async () => {
+        try { await api(`/api/deadlines/${b.dataset.doneDl}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'cumprido' }) });
+          toast('Prazo cumprido'); loadDeadlines(); } catch (e) { toast(e.message, 'error'); }
+      });
+    };
+
+    const loadTasks = async () => {
+      const r = await api('/api/tasks');
+      $('#task-table').innerHTML = r.data.length ? `
+        <table><thead><tr><th>Tarefa</th><th>Prioridade</th><th>Vencimento</th><th>Restam</th><th>Status</th><th></th></tr></thead>
+        <tbody>${r.data.map((t) => `<tr>
+          <td><strong>${t.title}</strong></td><td>${badge(t.priority)}</td>
+          <td>${fmtDate(t.due_date)}</td><td>${t.due_date ? countdown(t.days_remaining, t.status_label) : '—'}</td>
+          <td>${badge(t.status)}</td>
+          <td>${t.status !== 'concluida' ? `<button class="btn-sm" data-done-task="${t.id}">Concluir</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+        : '<div class="empty">Nenhuma tarefa</div>';
+      document.querySelectorAll('[data-done-task]').forEach((b) => b.onclick = async () => {
+        try { await api(`/api/tasks/${b.dataset.doneTask}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'concluida' }) });
+          toast('Tarefa concluída'); loadTasks(); } catch (e) { toast(e.message, 'error'); }
+      });
+    };
+
+    $('#new-deadline').onclick = () => deadlineForm(loadDeadlines);
+    $('#new-task').onclick = () => taskForm(loadTasks);
+    await loadDeadlines(); await loadTasks();
+  },
+
   async intakes(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Atendimentos</h2><p class="sub">Primeiro contato e triagem</p></div>
@@ -437,6 +487,44 @@ async function caseDetail(id, onSave) {
       caseDetail(id, onSave); toast('Movimentação registrada'); } catch (e) { toast(e.message, 'error'); }
   };
   openModal('Processo', form);
+}
+
+const PRIORITIES = [['media','Média'],['alta','Alta'],['critica','Crítica'],['baixa','Baixa']].map(([v,t])=>({v,t}));
+
+async function deadlineForm(onSave) {
+  const cases = await api('/api/cases?limit=100');
+  if (!cases.data.length) { toast('Cadastre um processo antes de criar um prazo', 'error'); return; }
+  const form = el(`<form class="form-grid">
+    ${field('Processo *', 'case_id', { options: cases.data.map((c) => ({ v: c.id, t: c.title })) })}
+    ${field('Descrição do prazo *', 'description')}
+    <div class="form-row">${field('Vencimento *', 'deadline_date', { type: 'datetime-local' })}${field('Prioridade', 'priority', { options: PRIORITIES, value: 'alta' })}</div>
+    <button type="submit" class="btn-primary">Criar prazo</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/deadlines', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast('Prazo criado'); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Novo prazo', form);
+}
+
+async function taskForm(onSave) {
+  const form = el(`<form class="form-grid">
+    ${field('Título *', 'title')}
+    <div class="form-row">${field('Vencimento', 'due_date', { type: 'datetime-local' })}${field('Prioridade', 'priority', { options: PRIORITIES })}</div>
+    ${field('Descrição', 'description', { type: 'textarea' })}
+    <button type="submit" class="btn-primary">Criar tarefa</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/tasks', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast('Tarefa criada'); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Nova tarefa', form);
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }

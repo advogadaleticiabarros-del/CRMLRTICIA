@@ -101,6 +101,9 @@ tbody tr:hover { background: #faf8f4; }
 .badge.inativo, .badge.perdido, .badge.recusada, .badge.vencido, .badge.descartado { background: #fbe6e3; color: var(--red); }
 .badge.novo, .badge.prospecto, .badge.pendente, .badge.rascunho { background: #eef1f6; color: var(--navy); }
 .badge.contatado, .badge.qualificado, .badge.em_negociacao, .badge.em_triagem, .badge.reuniao_marcada, .badge.enviada { background: #fdf2dc; color: var(--amber); }
+.badge.urgente { background: #fbe6e3; color: var(--red); }
+.badge.atencao { background: #fdf2dc; color: var(--amber); }
+.badge.normal { background: #e3f3ea; color: var(--green); }
 .badge.alta, .badge.critica { background: #fbe6e3; color: var(--red); }
 .badge.media { background: #fdf2dc; color: var(--amber); }
 .badge.baixa { background: #eef1f6; color: var(--text-soft); }

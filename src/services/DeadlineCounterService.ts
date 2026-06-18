@@ -33,6 +33,22 @@ export class DeadlineCounterService {
     };
   }
 
+  /** Recalcula e grava o contador de um único prazo ou tarefa. */
+  async upsert(opts: { taskId?: number | null; deadlineId?: number | null; dueDate: Date }): Promise<void> {
+    const { daysRemaining, hoursRemaining, statusLabel } = this.calculate(opts.dueDate);
+    await db.query(
+      `INSERT INTO task_deadline_counters
+         (task_id, deadline_id, days_remaining, hours_remaining, status_label, last_calculated_at)
+       VALUES (?, ?, ?, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE
+         days_remaining = VALUES(days_remaining),
+         hours_remaining = VALUES(hours_remaining),
+         status_label = VALUES(status_label),
+         last_calculated_at = NOW()`,
+      [opts.taskId ?? null, opts.deadlineId ?? null, daysRemaining, hoursRemaining, statusLabel]
+    );
+  }
+
   async updateAllCounters(): Promise<{ updated: number }> {
     // Upsert counters for tasks
     const [tasks] = await db.query(
