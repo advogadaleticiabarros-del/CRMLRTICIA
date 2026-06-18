@@ -1,0 +1,89 @@
+squad:
+  code: gestao-geral-escritorio
+  setor: juridico
+  grupo: escritorio
+  sessao: gestao-geral
+  name: Escritório Jurídico Completo
+  description: Squad completo para gestão de escritório de advocacia generalista — triagem de casos, pesquisa jurídica, elaboração de peças, comunicação com clientes e controle de prazos
+  icon: scales
+  version: "1.0.0"
+
+  company: "_expxagents/_memory/company.md"
+  preferences: "_expxagents/_memory/preferences.md"
+  memory: "_memory/memories.md"
+
+  target_audience: Clientes com casos trabalhistas, gestantes, família, cível, previdenciário e consumidor
+  platform: Documentos jurídicos, comunicação e gestão interna
+  format: legal-document
+
+  schedule:
+    enabled: true
+
+  skills:
+    - web_search
+    - web_fetch
+
+  data: []
+
+  agents:
+    - id: triagem
+      name: "Beatriz Oliveira"
+      icon: clipboard
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Beatriz"
+      prompt: agents/triagem.md
+
+    - id: pesquisador
+      name: "Marcos Ferreira"
+      icon: book-open
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Marcos"
+      prompt: agents/pesquisador.md
+
+    - id: redator-juridico
+      name: "Amanda Costa"
+      icon: pen
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Amanda"
+      prompt: agents/redator-juridico.md
+
+    - id: comunicador
+      name: "Diego Santos"
+      icon: message-circle
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Diego"
+      prompt: agents/comunicador.md
+
+    - id: gestor
+      name: "Carla Mendes"
+      icon: calendar
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Carla"
+      prompt: agents/gestor.md
+
+  pipeline:
+    steps:
+      - id: step-01
+        agent: triagem
+        label: "Triagem e classificação do caso"
+        execution: inline
+
+      - id: step-02
+        agent: pesquisador
+        label: "Pesquisa jurídica — leis, jurisprudência e doutrina"
+        deliverFrom: triagem
+        execution: inline
+
+      - id: step-03
+        agent: redator-juridico
+        label: "Elaboração de minuta ou peça processual"
+        deliverFrom: pesquisador
+        execution: inline
+        produces_format: true
+
+      - id: step-04
+        agent: comunicador
+        label: "Comunicado para o cliente"
+        deliverFrom: redator-juridico
+        execution: inline
+
+      - id: step-05
+        agent: gestor
+        label: "Controle de prazos e próximos passos"
+        deliverFrom: comunicador
+        execution: inline

@@ -1,0 +1,16 @@
+node_modules/
+.env
+.env.local
+.mcp.json
+*.tmp
+*.log
+squads/*/state.json
+squads/*/state.json.tmp
+squads/*/output/
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+dist/
+build/
+.claude/settings.local.json
