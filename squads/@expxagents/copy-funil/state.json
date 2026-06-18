@@ -1,0 +1,77 @@
+{
+  "squad": "copy-funil-pro",
+  "status": "idle",
+  "version": null,
+  "step": { "current": 0, "total": 4, "label": "" },
+  "agents": [
+    {
+      "id": "coordenador",
+      "name": "Mariana Costa",
+      "icon": "clipboard",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 1, "row": 1 },
+      "deliverTo": "analista-estrategico",
+      "message": ""
+    },
+    {
+      "id": "analista-estrategico",
+      "name": "Camila Torres",
+      "icon": "search",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 2, "row": 1 },
+      "deliverTo": "copy-funil-demonstracao",
+      "message": ""
+    },
+    {
+      "id": "copy-funil-demonstracao",
+      "name": "Valentina Cruz",
+      "icon": "monitor-play",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 3, "row": 1 },
+      "deliverTo": "revisor-editorial",
+      "message": ""
+    },
+    {
+      "id": "copy-funil-diagnostico",
+      "name": "Renata Lima",
+      "icon": "clipboard-list",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 1, "row": 2 },
+      "deliverTo": null,
+      "message": ""
+    },
+    {
+      "id": "copy-funil-ebook",
+      "name": "Priscila Santos",
+      "icon": "book-open",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 2, "row": 2 },
+      "deliverTo": null,
+      "message": ""
+    },
+    {
+      "id": "revisor-editorial",
+      "name": "Marcos Vinicius",
+      "icon": "check-circle",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 3, "row": 2 },
+      "deliverTo": null,
+      "message": ""
+    }
+  ],
+  "handoff": null,
+  "startedAt": null,
+  "updatedAt": null
+}

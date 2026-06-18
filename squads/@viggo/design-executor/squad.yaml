@@ -1,0 +1,193 @@
+squad:
+  code: design-executor
+  name: Design Executor
+  description: "Squad de execucao de design multi-stack — pega o pacote entregue pelo frontend-design-squad (DESIGN.md, telas aprovadas, spec de componentes) e aplica num projeto existente preservando 100% da logica de negocio (queries, state, navegacao, integracoes). 11 agentes com personalidade simulam uma sprint real — plan-reader (Lucas), tech-lead (Caio), dependency-researcher (Patricia) que usa Context7 MCP pra descobrir packages premium, qa-engineer (Fernanda) que escreve testes ANTES da implementacao (TDD red phase), 4 specialists de stack (Marina+Isabela pra Flutter, Henrique pra React/Next.js+shadcn, Eduardo pra Delphi VCL/FMX, Matheus pra Go templ+htmx), code-reviewer (Carla) e verification-agent (Gustavo). Recebe handoff automatico do frontend-design-squad via design-handoff.yaml e detecta a stack alvo sozinho. Substitui visual generico por produto com identidade sem quebrar o que ja funciona."
+  icon: rocket
+  version: "2.0.0"
+  category: development
+  tags:
+    - design-implementation
+    - flutter
+    - react
+    - delphi
+    - go
+    - multi-stack
+    - context7
+    - team-simulation
+    - sprint
+
+  memory: "_memory/memories.md"
+
+  target_audience: "Devs de qualquer stack suportada (Flutter/React/Delphi/Go) que querem aplicar design system gerado pelo frontend-design-squad em projetos existentes, com qualidade de equipe senior"
+  platform: "Code"
+  format: "implementation"
+
+  skills:
+    - code_writer
+    - mcp_context7
+    - web_search
+    - web_fetch
+    - shadcn-ui
+    - react-components
+
+  schedule:
+    enabled: false
+
+  data: []
+
+  agents:
+    - id: plan-reader
+      name: "Lucas"
+      icon: file-text
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=LucasDE"
+      prompt: agents/plan-reader.agent.md
+
+    - id: tech-lead
+      name: "Caio Mendes"
+      icon: compass
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=CaioMendes"
+      prompt: agents/tech-lead.agent.md
+
+    - id: dependency-researcher
+      name: "Patricia"
+      icon: search
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=PatriciaDE"
+      prompt: agents/dependency-researcher.agent.md
+
+    - id: qa-engineer
+      name: "Fernanda"
+      icon: check-square
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=FernandaDE"
+      prompt: agents/qa-engineer.agent.md
+
+    - id: frontend-developer
+      name: "Marina"
+      icon: layout
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=MarinaDE"
+      prompt: agents/frontend-developer.agent.md
+
+    - id: flutter-specialist
+      name: "Isabela"
+      icon: smartphone
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=IsabelaDE"
+      prompt: agents/flutter-specialist.agent.md
+
+    - id: react-specialist
+      name: "Henrique Vasconcellos"
+      role: "Especialista React"
+      icon: code
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=HenriqueDE"
+      prompt: agents/react-specialist.agent.md
+
+    - id: delphi-specialist
+      name: "Eduardo Bastos"
+      role: "Especialista Delphi"
+      icon: layers
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=EduardoDE"
+      prompt: agents/delphi-specialist.agent.md
+
+    - id: go-specialist
+      name: "Matheus Okabe"
+      role: "Especialista Go"
+      icon: server
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=MatheusDE"
+      prompt: agents/go-specialist.agent.md
+
+    - id: code-reviewer
+      name: "Carla"
+      icon: shield
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=CarlaDE"
+      prompt: agents/code-reviewer.agent.md
+
+    - id: verification-agent
+      name: "Gustavo"
+      icon: check-circle
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=GustavoDE"
+      prompt: agents/verification-agent.agent.md
+
+  pipeline:
+    steps:
+      - id: step-01
+        agent: plan-reader
+        label: "Le output do design-squad - DESIGN.md telas aprovadas e spec de widgets - e monta checklist de implementacao"
+        execution: inline
+        model_tier: standard
+
+      - id: step-02
+        agent: tech-lead
+        label: "Analisa projeto Flutter existente decide ordem de aplicacao e abordagem - tema primeiro depois componentes depois telas"
+        deliverFrom: plan-reader
+        execution: inline
+        model_tier: powerful
+
+      - id: step-03
+        agent: dependency-researcher
+        label: "Pesquisa packages premium via Context7 - charts animacoes icones premium - compara alternativas"
+        deliverFrom: tech-lead
+        execution: inline
+        model_tier: standard
+
+      - id: step-04
+        agent: qa-engineer
+        label: "Escreve widget tests e integration tests ANTES da implementacao - TDD red phase"
+        deliverFrom: tech-lead
+        execution: inline
+        model_tier: standard
+
+      # Step 05 — Aplicar design system na stack detectada
+      # Flutter mantem 2 etapas (tema+componentes -> telas) pela maturidade
+      - id: step-05
+        agent: frontend-developer
+        label: "[Flutter] Implementa ThemeData novo e componentes compartilhados seguindo DESIGN.md"
+        deliverFrom: dependency-researcher
+        execution: inline
+        model_tier: powerful
+        condition: "stack == flutter"
+
+      - id: step-06
+        agent: flutter-specialist
+        label: "[Flutter] Refatora todas as telas aplicando design system packages premium e micro-interacoes"
+        deliverFrom: frontend-developer
+        execution: inline
+        model_tier: powerful
+        condition: "stack == flutter"
+
+      # Outras stacks — 1 specialist fullstack cada (tema + componentes + aplicar telas no mesmo step)
+      - id: step-05r
+        agent: react-specialist
+        label: "[React] Aplica tokens shadcn, cria componentes tipados e refatora paginas Next.js"
+        deliverFrom: dependency-researcher
+        execution: inline
+        model_tier: powerful
+        condition: "stack == react"
+
+      - id: step-05d
+        agent: delphi-specialist
+        label: "[Delphi] Aplica paleta central, corrige tipografia, atualiza forms VCL/FMX preservando tab order e atalhos"
+        deliverFrom: dependency-researcher
+        execution: inline
+        model_tier: powerful
+        condition: "stack == delphi"
+
+      - id: step-05g
+        agent: go-specialist
+        label: "[Go] Aplica tokens em CSS vars, cria componentes templ e refatora paginas htmx"
+        deliverFrom: dependency-researcher
+        execution: inline
+        model_tier: powerful
+        condition: "stack == go"
+
+      # Recebe do specialist da stack ativa (flutter-specialist | react-specialist | delphi-specialist | go-specialist)
+      - id: step-07
+        agent: code-reviewer
+        label: "Code review rigoroso - fidelidade ao DESIGN.md zero hardcoded colors codigo pt-BR consistencia"
+        deliverFrom: flutter-specialist
+        execution: inline
+        model_tier: powerful
+
+      - id: step-08
+        agent: verification-agent
+        label: "flutter analyze + flutter test + integration tests no macOS + relatorio final com metricas e tokens"
+        deliverFrom: code-reviewer
+        execution: inline
+        model_tier: standard

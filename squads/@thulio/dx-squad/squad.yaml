@@ -1,0 +1,92 @@
+squad:
+  code: dx-squad
+  name: Developer Experience Squad
+  description: Developer experience optimization, documentation, tooling, refactoring strategy, CLI design, and legacy modernization
+  icon: terminal
+  version: "1.0.0"
+  category: development
+  tags:
+    - developer-experience
+    - documentation
+    - tooling
+    - refactoring
+    - cli
+    - modernization
+
+  company: "_expxagents/_memory/company.md"
+  preferences: "_expxagents/_memory/preferences.md"
+  memory: "_memory/memories.md"
+
+  target_audience: "Engineering managers, platform teams, and developer tools teams"
+  platform: "Report"
+  format: "dx-strategy"
+
+  skills:
+    - web_search
+    - web_fetch
+
+  schedule:
+    enabled: true
+
+  data: []
+
+  agents:
+    - id: dx-chief
+      name: DX Chief
+      icon: terminal
+      prompt: agents/dx-chief.agent.md
+    - id: documentation-engineer
+      name: Documentation Engineer
+      icon: book
+      prompt: agents/documentation-engineer.agent.md
+    - id: tooling-architect
+      name: Tooling Architect
+      icon: tool
+      prompt: agents/tooling-architect.agent.md
+    - id: refactoring-strategist
+      name: Refactoring Strategist
+      icon: scissors
+      prompt: agents/refactoring-strategist.agent.md
+    - id: cli-designer
+      name: CLI Designer
+      icon: terminal
+      prompt: agents/cli-designer.agent.md
+    - id: legacy-modernizer
+      name: Legacy Modernizer
+      icon: refresh-cw
+      prompt: agents/legacy-modernizer.agent.md
+    - id: build-engineer
+      name: Build Engineer
+      icon: package
+      prompt: agents/build-engineer.agent.md
+    - id: onboarding-architect
+      name: Onboarding Architect
+      icon: user-plus
+      prompt: agents/onboarding-architect.agent.md
+
+  pipeline:
+    steps:
+      - id: step-01
+        agent: dx-chief
+        label: Diagnose developer experience challenge and identify relevant specialists
+        execution: inline
+      - id: step-02
+        agent: dx-chief
+        label: Route to specialists for domain-specific analysis
+        deliverFrom: dx-chief
+        execution: inline
+      - id: step-03
+        agent: dx-chief
+        label: Synthesize DX strategy and validate improvement priorities
+        deliverFrom: dx-chief
+        execution: inline
+      - id: step-04
+        agent: dx-chief
+        label: Design implementation plan and tooling recommendations
+        deliverFrom: dx-chief
+        execution: inline
+      - id: step-05
+        agent: dx-chief
+        label: Final DX Strategy Report and implementation roadmap
+        deliverFrom: dx-chief
+        execution: inline

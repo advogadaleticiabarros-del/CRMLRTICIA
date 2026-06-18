@@ -1,0 +1,150 @@
+squad:
+  code: lp-integracao
+  setor: trafego-pago
+  grupo: criacao
+  sessao: copy
+  name: LP e Integração — Meta Ads
+  description: Cria landing page HTML completa + integra Pixel, hospedagem (Vercel) e CRM (HubSpot). Copy Andromeda e identidade visual extraídas em paralelo; LP montada via template; Integration Engineer fecha com pixel, domínio e lead conectado.
+  icon: pencil
+  version: "1.4.4"
+  category: marketing
+  tags:
+    - copywriting
+    - trafego-pago
+    - funil
+    - landing-page
+    - meta-ads
+    - google-ads
+
+  company: "_expxagents/_memory/company.md"
+  preferences: "_expxagents/_memory/preferences.md"
+
+  target_audience: Gestores de tráfego pago e agências de marketing digital
+  platform: meta-ads, google-ads, email, whatsapp
+  format: copywriting
+
+  schedule:
+    enabled: false
+
+  skills:
+    - web_search
+    - web_fetch
+
+  data: []
+
+  agents:
+    - id: coordenador
+      name: "Coordenador"
+      icon: clipboard
+      avatar: "https://api.dicebear.com/9.x/shapes/svg?seed=coordenador"
+      prompt: agents/coordenador.md
+
+    - id: analista-estrategico
+      name: "Analista Estratégico"
+      icon: search
+      avatar: "https://api.dicebear.com/9.x/shapes/svg?seed=analista-estrategico"
+      prompt: agents/analista-estrategico.md
+
+    - id: copy-funil-demonstracao
+      name: "Copywriter Demonstração"
+      icon: monitor-play
+      avatar: "https://api.dicebear.com/9.x/shapes/svg?seed=copy-demonstracao"
+      prompt: agents/copy-funil-demonstracao.md
+
+    - id: copy-funil-diagnostico
+      name: "Copywriter Diagnóstico"
+      icon: clipboard-list
+      avatar: "https://api.dicebear.com/9.x/shapes/svg?seed=copy-diagnostico"
+      prompt: agents/copy-funil-diagnostico.md
+
+    - id: copy-funil-ebook
+      name: "Copywriter E-Book"
+      icon: book-open
+      avatar: "https://api.dicebear.com/9.x/shapes/svg?seed=copy-ebook"
+      prompt: agents/copy-funil-ebook.md
+
+    - id: revisor-editorial
+      name: "Revisor Editorial"
+      icon: check-circle
+      avatar: "https://api.dicebear.com/9.x/shapes/svg?seed=revisor-editorial"
+      prompt: agents/revisor-editorial.md
+
+    - id: intelligence-analyst
+      name: "Intelligence Analyst"
+      icon: search
+      avatar: "https://api.dicebear.com/9.x/shapes/svg?seed=intelligence-analyst"
+      prompt: agents/intelligence-analyst.agent.md
+
+    - id: lp-builder
+      name: "LP Builder"
+      icon: code
+      avatar: "https://api.dicebear.com/9.x/shapes/svg?seed=lp-builder"
+      prompt: agents/lp-builder.agent.md
+
+    - id: integration-engineer
+      name: "Integration Engineer"
+      icon: plug
+      avatar: "https://api.dicebear.com/9.x/shapes/svg?seed=integration-engineer"
+      prompt: agents/integration-engineer.agent.md
+
+  pipeline:
+    steps:
+      - id: step-01
+        agent: coordenador
+        label: Conduzir briefing estruturado e identificar tipo de campanha
+        execution: inline
+
+      - id: step-02
+        agent: analista-estrategico
+        label: Pesquisar persona, segmento, linguagem real e contexto competitivo
+        deliverFrom: coordenador
+        execution: inline
+
+      - id: step-02b
+        agent: intelligence-analyst
+        label: "Intelligence Analyst — Extrair identidade visual do site do cliente"
+        deliverFrom: coordenador
+        execution: inline
+
+      - id: step-03a
+        agent: copy-funil-demonstracao
+        label: Criar criativos Andromeda (9 peças) e landing page — Demonstração
+        deliverFrom: analista-estrategico
+        execution: inline
+        condition: tipo_campanha == "demonstracao"
+        format: copywriting
+
+      - id: step-03b
+        agent: copy-funil-diagnostico
+        label: Criar criativos Andromeda (9 peças) e perguntas do diagnóstico — Diagnóstico Gratuito
+        deliverFrom: analista-estrategico
+        execution: inline
+        condition: tipo_campanha == "diagnostico"
+        format: copywriting
+
+      - id: step-03c
+        agent: copy-funil-ebook
+        label: Criar criativos Andromeda (9 peças), landing page e e-book — E-Book
+        deliverFrom: analista-estrategico
+        execution: inline
+        condition: tipo_campanha == "ebook"
+        format: copywriting
+
+      - id: step-04
+        agent: revisor-editorial
+        label: Revisar e aprovar todos os criativos com critérios Andromeda e Manual de Proibições
+        deliverFrom: copy-funil-demonstracao,copy-funil-diagnostico,copy-funil-ebook
+        execution: inline
+        produces_format: true
+
+      - id: step-06
+        agent: lp-builder
+        label: "LP Builder — Montar landing page via template com dados do cliente"
+        deliverFrom: revisor-editorial,step-02b
+        execution: inline
+
+      - id: step-07
+        agent: integration-engineer
+        label: "Integration Engineer — Handshake com o usuário (Pixel, hospedagem Vercel/Netlify/outra, CRM via API/token/campos, página de obrigado) + injetar tracking (UTMs, Pixel), captura de formulário e integração do lead + documentar processo de deploy"
+        deliverFrom: lp-builder,coordenador
+        execution: inline

@@ -1,0 +1,135 @@
+squad:
+  code: copy-funil
+  setor: trafego-pago
+  grupo: criacao
+  sessao: copy
+  name: Copy Funil
+  description: Cria copy estratégico para todo o funil de conversão com criativos calibrados pela Metodologia Andromeda, landing pages, e-books, emails e WhatsApp — aplicando o rigor editorial do Manual de Proibições em cada peça produzida.
+  icon: pencil
+  version: "1.1.0"
+  category: marketing
+  tags:
+    - copywriting
+    - trafego-pago
+    - funil
+    - landing-page
+    - meta-ads
+    - google-ads
+
+  company: "_expxagents/_memory/company.md"
+  preferences: "_expxagents/_memory/preferences.md"
+
+  target_audience: Gestores de tráfego pago e agências de marketing digital
+  platform: meta-ads, google-ads, email, whatsapp
+  format: copywriting
+
+  schedule:
+    enabled: false
+
+  skills:
+    - web_search
+    - web_fetch
+
+  data: []
+
+  agents:
+    - id: coordenador
+      name: "Mariana Costa"
+      icon: clipboard
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Mariana"
+      prompt: agents/coordenador.md
+
+    - id: analista-estrategico
+      name: "Camila Torres"
+      icon: search
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Camila"
+      prompt: agents/analista-estrategico.md
+
+    - id: copy-funil-demonstracao
+      name: "Valentina Cruz"
+      icon: monitor-play
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Valentina"
+      prompt: agents/copy-funil-demonstracao.md
+
+    - id: copy-funil-diagnostico
+      name: "Renata Lima"
+      icon: clipboard-list
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Renata"
+      prompt: agents/copy-funil-diagnostico.md
+
+    - id: copy-funil-ebook
+      name: "Priscila Santos"
+      icon: book-open
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Priscila"
+      prompt: agents/copy-funil-ebook.md
+
+    - id: revisor-editorial
+      name: "Marcos Vinicius"
+      icon: check-circle
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Marcos"
+      prompt: agents/revisor-editorial.md
+
+    - id: intelligence-analyst
+      name: "FBI-Analista"
+      icon: search
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=FBIAnalista"
+      prompt: agents/intelligence-analyst.agent.md
+
+    - id: lp-builder
+      name: "Irmãos a Obra"
+      icon: code
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=IrmaosObra"
+      prompt: agents/lp-builder.agent.md
+
+  pipeline:
+    steps:
+      - id: step-01
+        agent: coordenador
+        label: Conduzir briefing estruturado e identificar tipo de campanha
+        execution: inline
+
+      - id: step-02
+        agent: analista-estrategico
+        label: Pesquisar persona, segmento, linguagem real e contexto competitivo
+        deliverFrom: coordenador
+        execution: inline
+
+      - id: step-03a
+        agent: copy-funil-demonstracao
+        label: Criar criativos Andromeda (9 peças) e landing page — Demonstração
+        deliverFrom: analista-estrategico
+        execution: inline
+        condition: tipo_campanha == "demonstracao"
+
+      - id: step-03b
+        agent: copy-funil-diagnostico
+        label: Criar criativos Andromeda (9 peças) e perguntas do diagnóstico — Diagnóstico Gratuito
+        deliverFrom: analista-estrategico
+        execution: inline
+        condition: tipo_campanha == "diagnostico"
+
+      - id: step-03c
+        agent: copy-funil-ebook
+        label: Criar criativos Andromeda (9 peças), landing page e e-book — E-Book
+        deliverFrom: analista-estrategico
+        execution: inline
+        condition: tipo_campanha == "ebook"
+
+      - id: step-04
+        agent: revisor-editorial
+        label: Revisar e aprovar todos os criativos com critérios Andromeda e Manual de Proibições
+        deliverFrom: copy-funil-demonstracao,copy-funil-diagnostico,copy-funil-ebook
+        execution: inline
+        produces_format: true
+
+      - id: step-05
+        agent: intelligence-analyst
+        label: "FBI-Analista — Extrair identidade visual do site do cliente"
+        deliverFrom: coordenador
+        execution: inline
+
+      - id: step-06
+        agent: lp-builder
+        label: "Irmãos a Obra — Construir landing page HTML/CSS completa"
+        deliverFrom: revisor-editorial,step-05
+        execution: inline

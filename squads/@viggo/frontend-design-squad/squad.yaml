@@ -1,0 +1,281 @@
+squad:
+  code: frontend-design-squad
+  name: Frontend Design Squad
+  description: Squad multi-stack que transforma brief em design de producao e fecha o ciclo disparando o design-executor automaticamente via handoff YAML. Pipeline guiado em 5 fases com checkpoints humanos nas etapas criticas — (1) Orientador diagnostica cenario e stack, (2) UX Architect desenha arquitetura de informacao e fluxos, (3) Design System Engineer cria DESIGN.md com tokens premium usando taste-design (foge do visual generico de IA), (4) Screen Generator gera telas via Stitch da Google validando a tela-hero antes de gerar o resto, (5) Frontend Converter rotea pro specialist da stack alvo — React/Next.js+shadcn/ui, Delphi VCL/FMX, Flutter ou Go templ+htmx. Suporta modo novo projeto E redesign (Code Auditor analisa codigo existente antes). 11 agentes com personalidade — Marina Campos (design chief), Clara Nascimento (orientadora), Camila Fontes (UX), Thiago Vilela (design system), Renata Oliveira (screens), Paulo Henrique (conversor), Bruno Takeda (boilerplate), Rafael Sato (auditor) + 3 specialists de stack. Ideal pra times que querem velocidade sem abrir mao de identidade visual.
+  icon: palette
+  version: "2.1.0"
+  category: development
+  tags:
+    - frontend
+    - design
+    - ui-ux
+    - stitch
+    - react
+    - nextjs
+    - shadcn-ui
+    - design-system
+    - delphi
+    - flutter
+    - go
+    - redesign
+    - multi-stack
+
+  memory: "_memory/memories.md"
+
+  target_audience: "CEOs, Product Managers, designers, desenvolvedores (React, Delphi, Flutter, Go), e pessoas nao-tecnicas que precisam de interfaces profissionais, nao-genericas, prontas para producao"
+  platform: "Design + Code"
+  format: "frontend-design-package"
+
+  # Estratégia de Model Tiers — Quality-First
+  # Prioridade é qualidade do resultado. Economia de tokens apenas onde não precisa de potência.
+  # Sempre usar o modelo mais atual e forte de cada tier disponível no provider do usuário.
+  model_tiers:
+    powerful: "Modelo mais forte disponível — steps criativos e de julgamento crítico (ex: Claude Opus 4.6, OpenAI o3, Gemini 2.5 Pro)"
+    standard: "Modelo padrão do provider — usado quando model_tier não é especificado (ex: Claude Sonnet 4.6, GPT-4o, Gemini 2.5 Flash)"
+    fast: "Modelo leve — apenas para routing e triage sem raciocínio (ex: Claude Haiku 4.5, GPT-4o-mini, Gemini 2.0 Flash)"
+
+  skills:
+    - web_search
+    - web_fetch
+    - code_writer
+    - stitch-design
+    - enhance-prompt
+    - taste-design
+    - design-md
+    - stitch-loop
+    - react-components
+    - shadcn-ui
+    - mcp_context7
+
+  schedule:
+    enabled: false
+
+  data: []
+
+  agents:
+    - id: orientador
+      name: "Clara Nascimento"
+      role: "Orientadora"
+      icon: compass
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Clara"
+      prompt: agents/orientador.agent.md
+
+    - id: code-auditor
+      name: "Rafael Sato"
+      role: "Auditor de Código"
+      icon: search
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Rafael"
+      prompt: agents/code-auditor.agent.md
+
+    - id: delphi-specialist
+      name: "Sergio Almeida"
+      role: "Especialista Delphi"
+      icon: layers
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Sergio"
+      prompt: agents/delphi-specialist.agent.md
+
+    - id: flutter-specialist
+      name: "Bia Menezes"
+      role: "Especialista Flutter"
+      icon: smartphone
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Bia"
+      prompt: agents/flutter-specialist.agent.md
+
+    - id: go-specialist
+      name: "Lucas Prado"
+      role: "Especialista Go"
+      icon: server
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Lucas"
+      prompt: agents/go-specialist.agent.md
+
+    - id: design-chief
+      name: "Marina Campos"
+      role: "Diretora de Design"
+      icon: crown
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Marina"
+      prompt: agents/design-chief.agent.md
+
+    - id: ux-architect
+      name: "Camila Fontes"
+      role: "Arquiteta de UX"
+      icon: layout
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Camila"
+      prompt: agents/ux-architect.agent.md
+
+    - id: design-system-engineer
+      name: "Thiago Vilela"
+      role: "Engenheiro de Design System"
+      icon: paintbrush
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Thiago"
+      prompt: agents/design-system-engineer.agent.md
+
+    - id: boilerplate-extractor
+      name: "Bruno Takeda"
+      role: "Extrator de Boilerplate"
+      icon: file-text
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Bruno"
+      prompt: agents/boilerplate-extractor.agent.md
+
+    - id: screen-generator
+      name: "Renata Oliveira"
+      role: "Geradora de Telas"
+      icon: monitor
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=Renata"
+      prompt: agents/screen-generator.agent.md
+
+    - id: frontend-converter
+      name: "Paulo Henrique"
+      role: "Conversor Frontend"
+      icon: code
+      avatar: "https://api.dicebear.com/9.x/adventurer/svg?seed=PauloH"
+      prompt: agents/frontend-converter.agent.md
+
+  pipeline:
+    steps:
+      # Fase 0: Onboarding e Diagnostico
+      - id: step-00
+        agent: orientador
+        label: Diagnosticar cenario (novo projeto ou redesign), identificar stack e configurar Stitch
+        execution: inline
+        model_tier: fast
+
+      - id: step-00b
+        agent: code-auditor
+        label: Analisar codigo existente e gerar Relatorio de Auditoria Visual (apenas modo redesign)
+        deliverFrom: orientador
+        execution: inline
+        condition: "modo == redesign"
+        model_tier: powerful
+
+      - id: step-00b-checkpoint
+        type: checkpoint
+        label: Aprovar Relatorio de Auditoria Visual (apenas modo redesign)
+        options:
+          - approve
+          - reject
+        on_reject: step-00b
+        condition: "modo == redesign"
+
+      # Fase 1: Estrategia UX
+      - id: step-01
+        agent: design-chief
+        label: Receber brief, diagnosticar projeto e definir escopo de telas
+        execution: inline
+        model_tier: powerful
+
+      - id: step-02
+        agent: ux-architect
+        label: Criar arquitetura de informacao, fluxos de usuario e inventario de telas
+        deliverFrom: design-chief
+        execution: inline
+        model_tier: powerful
+
+      - id: step-03
+        type: checkpoint
+        label: Aprovar arquitetura de informacao e inventario de telas
+        options:
+          - approve
+          - reject
+        on_reject: step-02
+
+      # Fase 2: Design System
+      - id: step-04
+        agent: design-system-engineer
+        label: Criar DESIGN.md com tokens, paleta, tipografia e anti-patterns usando taste-design
+        deliverFrom: ux-architect
+        execution: inline
+        model_tier: powerful
+        produces_format: true
+
+      - id: step-05
+        type: checkpoint
+        label: Aprovar sistema de design (cores, tipografia, componentes)
+        options:
+          - approve
+          - reject
+        on_reject: step-04
+
+      - id: step-05b
+        agent: boilerplate-extractor
+        label: Extrair tokens e anti-patterns do DESIGN.md para stitch-prompt-boilerplate.md
+        deliverFrom: design-system-engineer
+        execution: inline
+        model_tier: fast
+
+      # Fase 3: Geracao de Telas
+      - id: step-06
+        agent: screen-generator
+        label: Gerar tela-hero (tela principal do projeto) via Stitch para validar direcao visual
+        deliverFrom: boilerplate-extractor
+        execution: inline
+        model_tier: powerful
+
+      # Nota: rejeicao aqui volta pro boilerplate-extractor (step-05b),
+      # que re-le o DESIGN.md. Se o usuario indicar na razao da rejeicao
+      # que o problema e o sistema de design, o operador aborta e reinicia
+      # a partir do step-04. Ver docs/proposals/escalable-reject.md.
+      - id: step-07
+        type: checkpoint
+        label: Aprovar direcao visual da tela-hero
+        options:
+          - approve
+          - reject
+        on_reject: step-05b
+
+      - id: step-08
+        agent: screen-generator
+        label: Gerar todas as telas restantes via Stitch mantendo consistencia visual
+        deliverFrom: screen-generator
+        execution: inline
+
+      - id: step-09
+        type: checkpoint
+        label: Aprovar todas as telas geradas
+        options:
+          - approve
+          - reject
+        on_reject: step-05b
+
+      # Fase 4: Conversao para Codigo
+      - id: step-10
+        agent: frontend-converter
+        label: Rotear para o especialista de stack correto e converter telas em componentes de producao
+        deliverFrom: screen-generator
+        execution: inline
+        model_tier: fast
+
+      - id: step-10-delphi
+        agent: delphi-specialist
+        label: Converter design aprovado para componentes Delphi VCL/FMX
+        deliverFrom: frontend-converter
+        execution: inline
+        condition: "stack == delphi"
+
+      - id: step-10-flutter
+        agent: flutter-specialist
+        label: Converter design aprovado para Widgets Flutter/Dart
+        deliverFrom: frontend-converter
+        execution: inline
+        condition: "stack == flutter"
+
+      - id: step-10-go
+        agent: go-specialist
+        label: Converter design aprovado para Go (templ+htmx ou API)
+        deliverFrom: frontend-converter
+        execution: inline
+        condition: "stack == go"
+
+      # Fase 5: Entrega
+      - id: step-11
+        agent: design-chief
+        label: Revisar, sintetizar e entregar pacote final (design + codigo + documentacao)
+        deliverFrom: frontend-converter
+        execution: inline
+
+      # Fase 6: Handoff automatico para o design-executor
+      - id: step-12
+        agent: design-chief
+        label: Gerar design-handoff.yaml e disparar design-executor automaticamente
+        deliverFrom: design-chief
+        execution: inline
+        model_tier: powerful

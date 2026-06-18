@@ -1,0 +1,100 @@
+squad:
+  code: hormozi-squad
+  name: Hormozi Squad
+  description: Alex Hormozi's business scaling frameworks — offers, leads, pricing, closing, content, and scaling
+  icon: rocket
+  version: "1.0.0"
+  category: commercial
+  tags:
+    - hormozi
+    - offers
+    - leads
+    - pricing
+    - scaling
+    - business
+
+  company: "_expxagents/_memory/company.md"
+  preferences: "_expxagents/_memory/preferences.md"
+  memory: "_memory/memories.md"
+
+  target_audience: "Founders, business owners, and growth operators"
+  platform: "Report"
+  format: "business-strategy"
+
+  skills:
+    - web_search
+    - web_fetch
+
+  schedule:
+    enabled: true
+
+  data: []
+
+  agents:
+    - id: hormozi-chief
+      name: Hormozi Chief
+      icon: rocket
+      prompt: agents/hormozi-chief.agent.md
+    - id: offer-architect
+      name: Offer Architect
+      icon: package
+      prompt: agents/offer-architect.agent.md
+    - id: lead-gen-strategist
+      name: Lead Gen Strategist
+      icon: magnet
+      prompt: agents/lead-gen-strategist.agent.md
+    - id: pricing-strategist
+      name: Pricing Strategist
+      icon: tag
+      prompt: agents/pricing-strategist.agent.md
+    - id: closer
+      name: Closer
+      icon: handshake
+      prompt: agents/closer.agent.md
+    - id: content-machine
+      name: Content Machine
+      icon: megaphone
+      prompt: agents/content-machine.agent.md
+    - id: retention-engineer
+      name: Retention Engineer
+      icon: anchor
+      prompt: agents/retention-engineer.agent.md
+    - id: scaling-advisor
+      name: Scaling Advisor
+      icon: trending-up
+      prompt: agents/scaling-advisor.agent.md
+    - id: business-auditor
+      name: Business Auditor
+      icon: clipboard
+      prompt: agents/business-auditor.agent.md
+    - id: launch-strategist
+      name: Launch Strategist
+      icon: zap
+      prompt: agents/launch-strategist.agent.md
+
+  pipeline:
+    steps:
+      - id: step-01
+        agent: hormozi-chief
+        label: Diagnose the business challenge through Hormozi lens
+        execution: inline
+      - id: step-02
+        agent: hormozi-chief
+        label: Audit — route to specialist agents for domain analysis
+        deliverFrom: hormozi-chief
+        execution: inline
+      - id: step-03
+        agent: hormozi-chief
+        label: Strategy — synthesize specialist insights into unified plan
+        deliverFrom: hormozi-chief
+        execution: inline
+      - id: step-04
+        agent: hormozi-chief
+        label: Execution Plan — translate strategy into prioritized actions
+        deliverFrom: hormozi-chief
+        execution: inline
+      - id: step-05
+        agent: hormozi-chief
+        label: Review — final quality check and Business Strategy Report delivery
+        deliverFrom: hormozi-chief
+        execution: inline

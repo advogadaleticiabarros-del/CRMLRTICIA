@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Demo Gratuita — Pragma Sistemas | ERP para Escritórios Contábeis</title>
+<meta name="description" content="Veja ao vivo como escritórios contábeis integram obrigações fiscais, folha e contabilidade em uma única plataforma. Demo gratuita de 30 minutos.">
+
+<!-- META PIXEL — Pragma Sistemas -->
+<script>
+  !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+  n.callMethod.apply(n,arguments):n.queue.push(arguments)};if(!f._fbq)f._fbq=n;
+  n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];t=b.createElement(e);t.async=!0;
+  t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}(window,
+  document,'script','https://connect.facebook.net/en_US/fbevents.js');
+  fbq('init', '987654321098765');
+  fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+  src="https://www.facebook.com/tr?id=987654321098765&ev=PageView&noscript=1"/></noscript>
+
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --p900: #3B0764;
+  --p800: #4C1D95;
+  --p700: #5B21B6;
+  --p600: #7C3AED;
+  --p200: #DDD6FE;
+  --p100: #EDE9FE;
+  --p50:  #F5F3FF;
+  --g900: #111827;
+  --g700: #374151;
+  --g500: #6B7280;
+  --g300: #D1D5DB;
+  --g200: #E5E7EB;
+  --g100: #F9FAFB;
+  --white: #FFFFFF;
+  --green: #10B981;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--g900);
+  line-height: 1.6;
+  background: var(--white);
+}
+
+h1, h2, h3, h4 { line-height: 1.2; font-weight: 700; }
+h1 { font-size: clamp(1.75rem, 4vw, 2.75rem); }
+h2 { font-size: clamp(1.5rem, 3vw, 2.125rem); }
+h3 { font-size: 1.125rem; }
+p { color: var(--g700); }
+
+.container { max-width: 1100px; margin: 0 auto; padding: 0 1.5rem; }
+.section { padding: 5rem 0; }
+.section--gray { background: var(--g100); }
+.section--purple { background: var(--p50); }
+
+/* ── BUTTONS ── */
+.btn {
+  display: inline-block;
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1rem;
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  transition: transform 0.15s, box-shadow 0.15s;
+  line-height: 1;
+  font-family: inherit;
+}
+.btn-primary {
+  background: var(--p700);
+  color: white;
+  width: 100%;
+  text-align: center;
+  padding: 1.125rem 2rem;
+  font-size: 1.0625rem;
+  display: block;
+}
+.btn-primary:hover {
+  background: var(--p800);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(91,33,182,.3);
+}
+
+/* ── HEADER ── */
+.header {
+  position: sticky; top: 0;
+  background: white;
+  border-bottom: 1px solid var(--g200);
+  z-index: 100;
+  padding: .875rem 0;
+}
+.header-inner { display: flex; align-items: center; justify-content: space-between; }
+.logo { display: flex; align-items: center; gap: .5rem; text-decoration: none; }
+.logo-mark {
+  width: 36px; height: 36px;
+  background: var(--p700); border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  color: white; font-weight: 900; font-size: 1.125rem;
+}
+.logo-name { font-weight: 700; font-size: 1.125rem; color: var(--g900); }
+.logo-name span { color: var(--p700); }
+.header-cta {
+  background: var(--p700); color: white;
+  padding: .625rem 1.25rem; border-radius: 6px;
+  font-weight: 700; font-size: .875rem; text-decoration: none;
+  transition: background .15s;
+}
+.header-cta:hover { background: var(--p800); }
+
+/* ── HERO ── */
+.hero {
+  background: linear-gradient(135deg, var(--p900) 0%, var(--p700) 55%, #6D28D9 100%);
+  padding: 4rem 0 5rem;
+}
+.hero-grid {
+  display: grid;
+  grid-template-columns: 1fr 420px;
+  gap: 3.5rem;
+  align-items: center;
+}
+.hero-eyebrow {
+  display: inline-flex; align-items: center; gap: .5rem;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.2);
+  border-radius: 999px;
+  padding: .375rem .875rem;
+  font-size: .8125rem; font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: var(--p200);
+}
+.hero-eyebrow::before { content: "●"; color: #86EFAC; font-size: .5rem; }
+.hero h1 { color: white; margin-bottom: 1.25rem; letter-spacing: -.02em; }
+.hero h1 em { font-style: normal; color: #DDD6FE; }
+.hero-sub { color: #C4B5FD; font-size: 1.125rem; margin-bottom: 2rem; line-height: 1.65; }
+.hero-trust { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+.hero-trust-item { display: flex; align-items: center; gap: .4rem; font-size: .875rem; color: #DDD6FE; }
+.hero-trust-item::before { content: "✓"; color: #86EFAC; font-weight: 900; }
+
+/* FORM CARD */
+.form-card {
+  background: white; border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 24px 64px rgba(0,0,0,.35);
+}
+.form-card-title { font-size: 1.25rem; font-weight: 700; color: var(--g900); margin-bottom: .25rem; }
+.form-card-sub { font-size: .875rem; color: var(--g500); margin-bottom: 1.5rem; }
+.form-group { margin-bottom: 1rem; }
+.form-group label { display: block; font-size: .8125rem; font-weight: 600; color: var(--g700); margin-bottom: .375rem; }
+.form-group input {
+  width: 100%; padding: .75rem 1rem;
+  border: 1.5px solid var(--g200); border-radius: 8px;
+  font-size: .9375rem; color: var(--g900);
+  transition: border-color .15s;
+  font-family: inherit;
+}
+.form-group input:focus { outline: none; border-color: var(--p600); box-shadow: 0 0 0 3px rgba(124,58,237,.1); }
+.form-group input::placeholder { color: var(--g500); }
+.form-privacy { font-size: .75rem; color: var(--g500); text-align: center; margin-top: .875rem; line-height: 1.5; }
+
+/* ── PROOF BAR ── */
+.proof-bar { background: white; border-bottom: 1px solid var(--g200); padding: 1.5rem 0; }
+.proof-grid { display: flex; justify-content: center; align-items: center; gap: 0; flex-wrap: wrap; }
+.proof-item { display: flex; align-items: center; gap: .625rem; padding: .5rem 2rem; }
+.proof-num { font-size: 1.625rem; font-weight: 800; color: var(--p700); line-height: 1; }
+.proof-label { font-size: .8125rem; color: var(--g500); line-height: 1.3; max-width: 130px; }
+.proof-divider { width: 1px; height: 40px; background: var(--g200); }
+
+/* ── PAIN SECTION ── */
+.pain-intro { text-align: center; max-width: 620px; margin: 0 auto 3rem; }
+.pain-intro h2 { margin-bottom: .75rem; }
+.pain-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1.5rem; }
+.pain-card {
+  background: white; border: 1.5px solid var(--g200); border-radius: 12px;
+  padding: 1.75rem; position: relative;
+}
+.pain-tag {
+  position: absolute; top: -.625rem; right: 1rem;
+  background: #FEF9C3; color: #92400E;
+  font-size: .6875rem; font-weight: 700;
+  padding: .25rem .625rem; border-radius: 999px; border: 1px solid #FDE68A;
+}
+.pain-icon {
+  width: 44px; height: 44px; background: #FEF3C7; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.25rem; margin-bottom: 1rem;
+}
+.pain-card h3 { font-size: 1rem; margin-bottom: .5rem; }
+.pain-card p { font-size: .875rem; }
+
+/* ── DEMO SECTION ── */
+.demo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; }
+.demo-label {
+  font-size: .8125rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .08em; color: var(--p700); margin-bottom: .75rem;
+}
+.demo-list { list-style: none; display: flex; flex-direction: column; gap: .875rem; margin-top: 1.25rem; }
+.demo-list li { display: flex; align-items: flex-start; gap: .75rem; font-size: .9375rem; color: var(--g700); }
+.demo-list li::before {
+  content: "✓"; width: 22px; height: 22px; min-width: 22px;
+  background: var(--p700); color: white; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: .6875rem; font-weight: 900; margin-top: .125rem;
+}
+
+/* Screen mockup */
+.screen {
+  background: #0F172A; border-radius: 12px; overflow: hidden;
+  box-shadow: 0 24px 56px rgba(0,0,0,.25);
+}
+.screen-bar {
+  background: #1E293B; padding: .75rem 1rem;
+  display: flex; align-items: center; gap: .5rem;
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.dot-r { background: #EF4444; } .dot-y { background: #F59E0B; } .dot-g { background: #10B981; }
+.screen-url {
+  flex: 1; background: #334155; border-radius: 4px;
+  padding: .25rem .75rem; font-size: .75rem; color: #94A3B8; font-family: monospace;
+}
+.screen-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem; }
+.screen-top { display: flex; justify-content: space-between; align-items: center; }
+.screen-title { color: white; font-size: .875rem; font-weight: 700; }
+.screen-badge {
+  background: var(--green); color: white;
+  font-size: .6875rem; font-weight: 700;
+  padding: .25rem .625rem; border-radius: 999px;
+}
+.stats-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: .75rem; }
+.stat-box { background: #1E293B; border-radius: 8px; padding: .875rem; text-align: center; }
+.stat-num { font-size: 1.375rem; font-weight: 800; color: #A78BFA; line-height: 1; margin-bottom: .25rem; }
+.stat-lbl { font-size: .6875rem; color: #94A3B8; }
+.chart-box { background: #1E293B; border-radius: 8px; padding: 1rem; }
+.chart-title { font-size: .6875rem; color: #94A3B8; margin-bottom: .875rem; }
+.chart-row { display: flex; align-items: center; gap: .5rem; margin-bottom: .5rem; }
+.chart-lbl { font-size: .625rem; color: #94A3B8; width: 50px; text-align: right; flex-shrink: 0; }
+.chart-bg { flex: 1; background: #334155; border-radius: 3px; height: 8px; }
+.chart-fill { height: 100%; border-radius: 3px; background: var(--p600); }
+.chart-val { font-size: .625rem; color: #C4B5FD; width: 32px; }
+
+/* ── HOW IT WORKS ── */
+.steps-title { text-align: center; margin-bottom: .5rem; }
+.steps-sub { text-align: center; color: var(--g500); margin-bottom: 0; }
+.steps-grid {
+  display: grid; grid-template-columns: repeat(3,1fr);
+  gap: 2rem; margin-top: 3rem; position: relative;
+}
+.steps-grid::before {
+  content: ''; position: absolute;
+  top: 2rem; left: calc(16.66% + 2rem); right: calc(16.66% + 2rem);
+  height: 2px; background: var(--g200); z-index: 0;
+}
+.step { text-align: center; position: relative; z-index: 1; }
+.step-num {
+  width: 64px; height: 64px; background: var(--p700); color: white;
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  font-size: 1.5rem; font-weight: 800; margin: 0 auto 1.25rem;
+  box-shadow: 0 8px 24px rgba(91,33,182,.3);
+}
+.step h3 { margin-bottom: .5rem; }
+.step p { font-size: .875rem; }
+
+/* ── RESULTS ── */
+.results-intro { text-align: center; max-width: 600px; margin: 0 auto 3rem; }
+.results-intro h2 { margin-bottom: .75rem; }
+.timeline { display: flex; flex-direction: column; gap: 0; max-width: 680px; margin: 0 auto; }
+.tl-item { display: grid; grid-template-columns: 90px 1fr; gap: 1.5rem; position: relative; }
+.tl-item:not(:last-child) { padding-bottom: 2rem; }
+.tl-line {
+  position: absolute; left: 44px; top: 48px; bottom: 0;
+  width: 2px; background: var(--p100);
+}
+.tl-badge { text-align: center; }
+.tl-circle {
+  width: 48px; height: 48px; background: var(--p700);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  color: white; font-size: 1.125rem; margin: 0 auto .375rem;
+}
+.tl-week { font-size: .75rem; font-weight: 700; color: var(--p700); }
+.tl-content {
+  background: white; border: 1.5px solid var(--g200);
+  border-radius: 12px; padding: 1.25rem 1.5rem;
+}
+.tl-content h3 { font-size: 1rem; margin-bottom: .375rem; }
+.tl-content p { font-size: .875rem; }
+
+/* ── TESTIMONIAL ── */
+.testimonial-section {
+  background: linear-gradient(135deg, var(--p900), var(--p700));
+  padding: 5rem 0;
+}
+.testimonial { max-width: 760px; margin: 0 auto; text-align: center; }
+.quote-mark { font-size: 5rem; color: rgba(255,255,255,.15); line-height: 1; margin-bottom: -1rem; font-family: Georgia,serif; }
+.testimonial-text { font-size: clamp(1.125rem,2.5vw,1.5rem); color: white; line-height: 1.65; font-style: italic; margin-bottom: 2rem; }
+.testimonial-author { display: flex; align-items: center; justify-content: center; gap: 1rem; }
+.author-avatar {
+  width: 52px; height: 52px; background: rgba(255,255,255,.15);
+  border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
+}
+.author-name { color: white; font-weight: 700; font-size: .9375rem; }
+.author-role { color: #C4B5FD; font-size: .8125rem; }
+.stars { color: #FCD34D; font-size: .875rem; margin-bottom: .25rem; }
+
+/* ── FOR WHOM ── */
+.forwhom-intro { text-align: center; max-width: 580px; margin: 0 auto 2.5rem; }
+.forwhom-intro h2 { margin-bottom: .75rem; }
+.forwhom-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.25rem; max-width: 680px; margin: 0 auto; }
+.forwhom-card {
+  display: flex; align-items: flex-start; gap: .875rem;
+  padding: 1.25rem; background: white;
+  border-radius: 10px; border: 1.5px solid var(--g200);
+}
+.fw-icon {
+  width: 40px; height: 40px; background: var(--p100); border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.125rem; flex-shrink: 0;
+}
+.forwhom-card h3 { font-size: .9375rem; margin-bottom: .25rem; }
+.forwhom-card p { font-size: .8125rem; }
+
+/* ── FAQ ── */
+.faq-list { max-width: 720px; margin: 2.5rem auto 0; }
+.faq-item { border-bottom: 1px solid var(--g200); }
+.faq-item:first-child { border-top: 1px solid var(--g200); }
+.faq-summary {
+  padding: 1.25rem 0; font-weight: 600; font-size: .9375rem;
+  color: var(--g900); cursor: pointer;
+  display: flex; justify-content: space-between; align-items: center;
+  list-style: none; user-select: none;
+}
+.faq-summary::-webkit-details-marker { display: none; }
+.faq-summary::after { content: "+"; font-size: 1.25rem; color: var(--p700); flex-shrink: 0; }
+details[open] .faq-summary::after { content: "−"; }
+.faq-body { padding: 0 0 1.25rem; font-size: .9375rem; color: var(--g700); line-height: 1.65; }
+
+/* ── FINAL CTA ── */
+.cta-inner { max-width: 560px; margin: 0 auto; text-align: center; }
+.cta-inner h2 { margin-bottom: .75rem; }
+.cta-inner > p { margin-bottom: 2rem; }
+.cta-card {
+  background: white; border-radius: 16px; padding: 2.5rem;
+  box-shadow: 0 4px 24px rgba(0,0,0,.08); border: 1.5px solid var(--g200);
+  text-align: left;
+}
+
+/* ── FOOTER ── */
+.footer { background: var(--g900); padding: 2rem 0; text-align: center; }
+.footer-logo { margin-bottom: .75rem; display: flex; justify-content: center; }
+.footer .logo-name { color: white; }
+.footer .logo-name span { color: #A78BFA; }
+.footer p { font-size: .8125rem; color: #9CA3AF; }
+.footer a { color: #9CA3AF; text-decoration: none; }
+.footer a:hover { color: white; }
+
+/* ── RESPONSIVE ── */
+@media (max-width: 900px) {
+  .hero-grid { grid-template-columns: 1fr; gap: 2rem; }
+  .demo-grid { grid-template-columns: 1fr; }
+  .pain-grid { grid-template-columns: 1fr; }
+  .forwhom-grid { grid-template-columns: 1fr; }
+  .steps-grid::before { display: none; }
+  .steps-grid { grid-template-columns: 1fr; }
+  .proof-divider { display: none; }
+  .proof-item { padding: .5rem 1rem; }
+}
+@media (max-width: 600px) {
+  .hero { padding: 2.5rem 0 3rem; }
+  .section { padding: 3.5rem 0; }
+  .proof-grid { justify-content: flex-start; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="container">
+    <div class="header-inner">
+      <a href="#" class="logo">
+        <div class="logo-mark">P</div>
+        <span class="logo-name">Pragma <span>Sistemas</span></span>
+      </a>
+      <a href="#form-hero" class="header-cta">Agendar Demo Gratuita</a>
+    </div>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-grid">
+
+      <div>
+        <div class="hero-eyebrow">Demo ao vivo · 30 minutos · Sem compromisso</div>
+        <h1>Seu escritório ainda perde prazo porque os sistemas <em>não se falam?</em></h1>
+        <p class="hero-sub">
+          Em 30 minutos você vê ao vivo como escritórios contábeis como o seu integram obrigações fiscais, folha e contabilidade em uma só plataforma — e quanto retrabalho isso elimina a partir do primeiro mês.
+        </p>
+        <div class="hero-trust">
+          <span class="hero-trust-item">+400 escritórios</span>
+          <span class="hero-trust-item">Demo gratuita</span>
+          <span class="hero-trust-item">Sem compromisso</span>
+        </div>
+      </div>
+
+      <div class="form-card" id="form-hero">
+        <div class="form-card-title">Agende sua demo gratuita</div>
+        <div class="form-card-sub">Vagas limitadas — próximas disponíveis esta semana</div>
+        <form id="lp-form" novalidate>
+          <div class="form-group">
+            <label for="nome">Seu nome</label>
+            <input type="text" id="nome" name="nome" placeholder="Carlos Mendes" required>
+          </div>
+          <div class="form-group">
+            <label for="email">E-mail profissional</label>
+            <input type="email" id="email" name="email" placeholder="carlos@escritorio.com.br" required>
+          </div>
+          <div class="form-group">
+            <label for="telefone">WhatsApp</label>
+            <input type="tel" id="telefone" name="telefone" placeholder="(11) 99999-9999" required>
+          </div>
+          <div class="form-group">
+            <label for="empresa">Nome do escritório</label>
+            <input type="text" id="empresa" name="empresa" placeholder="Mendes Contabilidade" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Quero agendar minha demo gratuita →</button>
+          <p class="form-privacy">🔒 Seus dados estão seguros. Não enviamos spam.</p>
+        </form>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- PROOF BAR -->
+<div class="proof-bar">
+  <div class="container">
+    <div class="proof-grid">
+      <div class="proof-item">
+        <div class="proof-num">+400</div>
+        <div class="proof-label">escritórios usando o Pragma</div>
+      </div>
+      <div class="proof-divider"></div>
+      <div class="proof-item">
+        <div class="proof-num">0</div>
+        <div class="proof-label">cancelamentos nos últimos 12 meses</div>
+      </div>
+      <div class="proof-divider"></div>
+      <div class="proof-item">
+        <div class="proof-num">30 min</div>
+        <div class="proof-label">e você vê tudo funcionando ao vivo</div>
+      </div>
+      <div class="proof-divider"></div>
+      <div class="proof-item">
+        <div class="proof-num">4 anos</div>
+        <div class="proof-label">desenvolvendo para escritórios contábeis</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PAIN -->
+<section class="section section--gray">
+  <div class="container">
+    <div class="pain-intro">
+      <h2>Reconhece algum desses sinais no seu escritório?</h2>
+      <p>Se sim, você está perdendo horas com retrabalho — e pagando por isso com multas e equipe sobrecarregada.</p>
+    </div>
+    <div class="pain-grid">
+      <div class="pain-card">
+        <span class="pain-tag">Sinal 1</span>
+        <div class="pain-icon">📋</div>
+        <h3>Sua equipe digita o mesmo dado em mais de um sistema</h3>
+        <p>Informação do cliente lançada na folha, relançada no fiscal, relançada no contábil. Horas perdidas todo mês — sem gerar valor nenhum.</p>
+      </div>
+      <div class="pain-card">
+        <span class="pain-tag">Sinal 2</span>
+        <div class="pain-icon">⏰</div>
+        <h3>Você descobre o prazo vencido pelo cliente, não pelo sistema</h3>
+        <p>O cliente liga perguntando da obrigação. Nesse momento o prazo já passou — e a multa já foi gerada. Sem alertas automáticos, você vive apagando incêndio.</p>
+      </div>
+      <div class="pain-card">
+        <span class="pain-tag">Sinal 3</span>
+        <div class="pain-icon">📊</div>
+        <h3>Não sabe quanto cada cliente dá de trabalho antes de precificar</h3>
+        <p>Sem visibilidade por cliente você precifica no escuro e descobre o prejuízo só no fechamento do mês. Cresce em volume, mas não em margem.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- DEMO PREVIEW -->
+<section class="section">
+  <div class="container">
+    <div class="demo-grid">
+
+      <div>
+        <div class="demo-label">O que você vai ver na demo</div>
+        <h2>30 minutos que mostram o que seu escritório pode parar de perder</h2>
+        <ul class="demo-list">
+          <li>Obrigações fiscais, folha e contabilidade integradas — sem redigitar nada entre sistemas</li>
+          <li>Alertas automáticos de prazo antes de vencer — zero surpresa fiscal, zero multa por esquecimento</li>
+          <li>Dashboard completo: todos os clientes, prazos e pendências em uma tela só</li>
+          <li>e-Social, SPED e obrigações acessórias configurados para o dia a dia do contador</li>
+          <li>Demonstração com dados reais — não com slides genéricos ou capturas de tela editadas</li>
+        </ul>
+      </div>
+
+      <div class="screen">
+        <div class="screen-bar">
+          <div class="dot dot-r"></div>
+          <div class="dot dot-y"></div>
+          <div class="dot dot-g"></div>
+          <div class="screen-url">app.pragma.com.br/dashboard</div>
+        </div>
+        <div class="screen-body">
+          <div class="screen-top">
+            <div class="screen-title">Dashboard — Junho 2026</div>
+            <div class="screen-badge">● Ao vivo</div>
+          </div>
+          <div class="stats-grid">
+            <div class="stat-box">
+              <div class="stat-num">47</div>
+              <div class="stat-lbl">clientes ativos</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num">3</div>
+              <div class="stat-lbl">prazos hoje</div>
+            </div>
+            <div class="stat-box">
+              <div class="stat-num" style="color:#86EFAC">0h</div>
+              <div class="stat-lbl">retrabalho</div>
+            </div>
+          </div>
+          <div class="chart-box">
+            <div class="chart-title">Obrigações entregues no prazo — últimas 4 semanas</div>
+            <div class="chart-row">
+              <div class="chart-lbl">Sem 1</div>
+              <div class="chart-bg"><div class="chart-fill" style="width:85%"></div></div>
+              <div class="chart-val">85%</div>
+            </div>
+            <div class="chart-row">
+              <div class="chart-lbl">Sem 2</div>
+              <div class="chart-bg"><div class="chart-fill" style="width:91%"></div></div>
+              <div class="chart-val">91%</div>
+            </div>
+            <div class="chart-row">
+              <div class="chart-lbl">Sem 3</div>
+              <div class="chart-bg"><div class="chart-fill" style="width:96%"></div></div>
+              <div class="chart-val">96%</div>
+            </div>
+            <div class="chart-row">
+              <div class="chart-lbl">Sem 4</div>
+              <div class="chart-bg"><div class="chart-fill" style="width:100%"></div></div>
+              <div class="chart-val">100%</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- HOW IT WORKS -->
+<section class="section section--purple">
+  <div class="container">
+    <h2 class="steps-title">Como funciona a demo</h2>
+    <p class="steps-sub">Três passos simples. Sem instalação, sem compromisso.</p>
+    <div class="steps-grid">
+      <div class="step">
+        <div class="step-num">1</div>
+        <h3>Agende no formulário</h3>
+        <p>Escolha um horário disponível nesta semana. Você recebe o link do Google Meet por e-mail em seguida.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">2</div>
+        <h3>Participe ao vivo</h3>
+        <p>30 minutos com um especialista do Pragma. Você vê o sistema funcionando com dados reais de um escritório contábil.</p>
+      </div>
+      <div class="step">
+        <div class="step-num">3</div>
+        <h3>Decida sem pressão</h3>
+        <p>Sem proposta no final da call. Você vê, tira dúvidas e decide se faz sentido para o seu escritório.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS TIMELINE -->
+<section class="section section--gray">
+  <div class="container">
+    <div class="results-intro">
+      <h2>O que acontece com o seu escritório nos 60 dias após o Pragma</h2>
+      <p>Resultados que aparecem desde a primeira semana de uso.</p>
+    </div>
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-line"></div>
+        <div class="tl-badge">
+          <div class="tl-circle">📥</div>
+          <div class="tl-week">Semana 1</div>
+        </div>
+        <div class="tl-content">
+          <h3>Obrigações fiscais integradas — sem digitar duas vezes</h3>
+          <p>Os dados do cliente fluem automaticamente entre os módulos. Sua equipe para de relançar informações e ganha horas por semana.</p>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-line"></div>
+        <div class="tl-badge">
+          <div class="tl-circle">🔔</div>
+          <div class="tl-week">Semana 3</div>
+        </div>
+        <div class="tl-content">
+          <h3>Alertas automáticos de prazo antes de vencer</h3>
+          <p>O sistema avisa antes — não depois. Você para de descobrir atrasos pelo cliente e elimina as multas por esquecimento.</p>
+        </div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-badge">
+          <div class="tl-circle">📈</div>
+          <div class="tl-week">Mês 2</div>
+        </div>
+        <div class="tl-content">
+          <h3>Dashboard completo — escritório, equipe e clientes em tempo real</h3>
+          <p>Você enxerga tudo em um único painel. Gestão sem planilha, sem surpresa no fechamento, sem equipe correndo no final do mês.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- TESTIMONIAL -->
+<section class="testimonial-section">
+  <div class="container">
+    <div class="testimonial">
+      <div class="quote-mark">"</div>
+      <p class="testimonial-text">
+        Antes do Pragma, minha equipe passava quase 2 horas por dia relançando informações entre sistemas. Hoje isso acabou. No segundo mês, fechei 8 clientes novos sem contratar ninguém — porque a equipe finalmente tinha tempo.
+      </p>
+      <div class="testimonial-author">
+        <div class="author-avatar">👤</div>
+        <div>
+          <div class="stars">★★★★★</div>
+          <div class="author-name">Ricardo Almeida</div>
+          <div class="author-role">Sócio — Almeida & Ferreira Contabilidade · São Paulo, SP</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOR WHOM -->
+<section class="section">
+  <div class="container">
+    <div class="forwhom-intro">
+      <h2>Para quem é o Pragma</h2>
+      <p>Desenvolvido especificamente para a rotina do contador — não adaptado de ERP genérico de outro setor.</p>
+    </div>
+    <div class="forwhom-grid">
+      <div class="forwhom-card">
+        <div class="fw-icon">🏢</div>
+        <div>
+          <h3>Escritórios com 2 a 15 colaboradores</h3>
+          <p>Grande o suficiente para ter retrabalho real, pequeno demais para desperdiçar horas com ele todo mês.</p>
+        </div>
+      </div>
+      <div class="forwhom-card">
+        <div class="fw-icon">📈</div>
+        <div>
+          <h3>Donos que querem crescer sem contratar</h3>
+          <p>Mais clientes com a mesma equipe. Isso só é possível quando o retrabalho desaparece do dia a dia.</p>
+        </div>
+      </div>
+      <div class="forwhom-card">
+        <div class="fw-icon">📁</div>
+        <div>
+          <h3>Escritórios com e-Social, SPED e folha</h3>
+          <p>Obrigações acessórias integradas desde o primeiro dia — sem plug-in externo, sem exportação manual.</p>
+        </div>
+      </div>
+      <div class="forwhom-card">
+        <div class="fw-icon">💡</div>
+        <div>
+          <h3>Quem já usou ERP genérico e se frustrou</h3>
+          <p>Software de varejo ou indústria não serve para contador. O Pragma nasceu contábil — cada tela foi desenhada para a sua rotina.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section class="section section--gray">
+  <div class="container">
+    <h2 style="text-align:center; margin-bottom:.5rem;">Perguntas frequentes</h2>
+    <p style="text-align:center; color:var(--g500);">Tire suas dúvidas antes da demo.</p>
+    <div class="faq-list">
+      <details class="faq-item">
+        <summary class="faq-summary">A demo é mesmo gratuita? Tem algum custo escondido?</summary>
+        <div class="faq-body">Completamente gratuita. Nenhum cartão de crédito, nenhum trial que vira cobrança automática, nenhuma proposta no final da call. A demo é uma conversa ao vivo — você vê o sistema funcionando e decide se faz sentido. Só isso.</div>
+      </details>
+      <details class="faq-item">
+        <summary class="faq-summary">Quanto tempo leva para implantar o Pragma no meu escritório?</summary>
+        <div class="faq-body">A implantação padrão é concluída em 48 horas úteis. Você recebe suporte dedicado do nosso time de implantação até sua equipe estar operando com autonomia. Nenhum dado é perdido no processo.</div>
+      </details>
+      <details class="faq-item">
+        <summary class="faq-summary">Minha equipe consegue usar sem treinamento longo?</summary>
+        <div class="faq-body">O Pragma foi desenhado para quem já conhece a rotina contábil. A maioria das equipes opera de forma autônoma dentro de 3 a 5 dias úteis. Treinamento online ao vivo está incluso em todos os planos.</div>
+      </details>
+      <details class="faq-item">
+        <summary class="faq-summary">Funciona integrado com a SEFAZ e os sistemas do governo?</summary>
+        <div class="faq-body">Sim. O Pragma tem integração nativa com e-Social, SPED Contábil, SPED Fiscal, EFD-Reinf, DCTFWeb e as principais obrigações acessórias federais e estaduais. Atualizações de legislação são automáticas — sem custo adicional.</div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="section">
+  <div class="container">
+    <div class="cta-inner">
+      <h2>Pronto para ver ao vivo?</h2>
+      <p>Agende sua demo gratuita em menos de 2 minutos. Vagas disponíveis nesta semana.</p>
+      <div class="cta-card">
+        <form id="lp-form-bottom" novalidate>
+          <div class="form-group">
+            <label for="nome2">Seu nome</label>
+            <input type="text" id="nome2" name="nome" placeholder="Carlos Mendes" required>
+          </div>
+          <div class="form-group">
+            <label for="email2">E-mail profissional</label>
+            <input type="email" id="email2" name="email" placeholder="carlos@escritorio.com.br" required>
+          </div>
+          <div class="form-group">
+            <label for="telefone2">WhatsApp</label>
+            <input type="tel" id="telefone2" name="telefone" placeholder="(11) 99999-9999" required>
+          </div>
+          <div class="form-group">
+            <label for="empresa2">Nome do escritório</label>
+            <input type="text" id="empresa2" name="empresa" placeholder="Mendes Contabilidade" required>
+          </div>
+          <button type="submit" class="btn btn-primary">Quero agendar minha demo gratuita →</button>
+          <p class="form-privacy">🔒 Seus dados estão seguros. Não enviamos spam.</p>
+        </form>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-logo">
+      <a href="#" class="logo">
+        <div class="logo-mark">P</div>
+        <span class="logo-name">Pragma <span>Sistemas</span></span>
+      </a>
+    </div>
+    <p>© 2026 Pragma Sistemas. Todos os direitos reservados.</p>
+    <p style="margin-top:.375rem;"><a href="#">Política de Privacidade</a> · <a href="#">Termos de Uso</a></p>
+  </div>
+</footer>
+
+<script>
+// ─── Captura e persistência de UTMs + fbclid ───
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var keys = ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','fbclid'];
+  var tracking = {};
+  keys.forEach(function (k) {
+    var v = params.get(k);
+    if (v) { tracking[k] = v; sessionStorage.setItem(k, v); }
+    else if (sessionStorage.getItem(k)) { tracking[k] = sessionStorage.getItem(k); }
+  });
+  window.__tracking = tracking;
+})();
+
+// ─── Submit handler ───
+function bindForm(form) {
+  if (!form) return;
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var btn = form.querySelector('[type=submit]');
+    var orig = btn ? btn.textContent : '';
+    if (btn) { btn.textContent = 'Enviando...'; btn.disabled = true; }
+
+    var data = {
+      nome:     (form.querySelector('[name=nome]')     || {}).value || '',
+      email:    (form.querySelector('[name=email]')    || {}).value || '',
+      telefone: (form.querySelector('[name=telefone]') || {}).value || '',
+      empresa:  (form.querySelector('[name=empresa]')  || {}).value || '',
+      origem:   window.location.href
+    };
+    Object.assign(data, window.__tracking || {});
+
+    // Pixel — evento de conversão
+    if (window.fbq) fbq('track', 'Lead');
+
+    // ── TODO: configurar destino do lead ──
+    // var WEBHOOK_URL = ''; // ex: URL do webhook n8n após configurar o squad de integração
+    // fetch(WEBHOOK_URL, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data) });
+    var send = Promise.resolve();
+
+    var THANK_YOU_URL = ''; // TODO: colar URL da página de obrigado após criá-la
+    // ex: 'https://lp-pragma-sistemas.vercel.app/obrigado'
+
+    send.catch(function(){}).finally(function () {
+      if (THANK_YOU_URL && THANK_YOU_URL.indexOf('http') === 0) {
+        var u = new URL(THANK_YOU_URL);
+        Object.keys(window.__tracking || {}).forEach(function (k) { u.searchParams.set(k, window.__tracking[k]); });
+        window.location.href = u.toString();
+      } else {
+        // Fallback WhatsApp — ativo enquanto thank-you page não estiver configurada
+        var msg = encodeURIComponent(
+          'Olá! Quero agendar a demo gratuita do Pragma.\n' +
+          'Nome: ' + data.nome + '\n' +
+          'Escritório: ' + data.empresa + '\n' +
+          'E-mail: ' + data.email
+        );
+        window.open('https://wa.me/5511999999999?text=' + msg, '_blank');
+        if (btn) { btn.textContent = orig; btn.disabled = false; }
+      }
+    });
+  });
+}
+
+bindForm(document.getElementById('lp-form'));
+bindForm(document.getElementById('lp-form-bottom'));
+
+// Scroll suave para o form ao clicar no CTA do header
+var headerCta = document.querySelector('.header-cta');
+if (headerCta) {
+  headerCta.addEventListener('click', function (e) {
+    e.preventDefault();
+    var target = document.getElementById('form-hero');
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
+}
+</script>
+
+</body>
+</html>

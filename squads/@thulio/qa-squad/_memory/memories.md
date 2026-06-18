@@ -1,0 +1,2 @@
+# QA Squad — Memory
+

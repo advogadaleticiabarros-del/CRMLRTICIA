@@ -1,0 +1,96 @@
+squad:
+  code: fullcycle-squad
+  name: "FullCycle Squad"
+  description: "Squad de desenvolvimento ponta a ponta — 9 especialistas do planejamento ao deploy: arquitetura, banco, backend, frontend, mobile, desktop, integrações, QA e cloud. Conduz o usuário por etapas interativas (descobre requisitos, propõe o caminho, confirma antes de executar) seguindo boas práticas de engenharia."
+  icon: layers
+  version: "1.1.0"
+  category: development
+  tags:
+    - development
+    - fullstack
+    - fullcycle
+    - backend
+    - frontend
+    - mobile
+    - desktop
+    - qa
+    - cloud
+
+  memory: "_memory/memories.md"
+
+  agents:
+    - id: techlead
+      name: Tech Lead
+      icon: shield
+      prompt: personas/techlead.md
+
+    - id: dba
+      name: DBA
+      icon: database
+      prompt: personas/dba.md
+
+    - id: backend
+      name: Backend
+      icon: server
+      prompt: personas/backend.md
+
+    - id: frontend
+      name: Frontend
+      icon: monitor
+      prompt: personas/frontend.md
+
+    - id: mobile
+      name: Mobile
+      icon: smartphone
+      prompt: personas/mobile.md
+
+    - id: desktop
+      name: Desktop
+      icon: laptop
+      prompt: personas/desktop.md
+
+    - id: integrations
+      name: Integrations
+      icon: plug
+      prompt: personas/integrations.md
+
+    - id: qa
+      name: QA
+      icon: check-circle
+      prompt: personas/qa.md
+
+    - id: cloud
+      name: Cloud
+      icon: cloud
+      prompt: personas/cloud.md
+
+  pipeline:
+    steps:
+      - id: step-01
+        agent: techlead
+        label: Descobrir requisitos com o usuário (perguntas em blocos), identificar domínios e distribuir responsáveis
+        execution: inline
+
+      - id: step-02
+        agent: techlead
+        label: Propor o caminho técnico (opções, trade-offs, riscos) e confirmar com o usuário antes de executar
+        deliverFrom: techlead
+        execution: inline
+
+      - id: step-03
+        agent: techlead
+        label: Implementar ou coordenar a implementação com os agentes responsáveis seguindo boas práticas
+        deliverFrom: techlead
+        execution: inline
+
+      - id: step-04
+        agent: qa
+        label: Verificar critérios de aceite, edge cases e ausência de regressões, com evidência
+        deliverFrom: techlead
+        execution: inline
+
+      - id: step-05
+        agent: techlead
+        label: Consolidar entrega, registrar decisões na memória e sugerir próximos passos
+        deliverFrom: qa
+        execution: inline

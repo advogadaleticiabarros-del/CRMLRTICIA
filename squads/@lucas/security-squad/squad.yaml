@@ -1,0 +1,118 @@
+squad:
+  code: security-squad
+  name: Security Squad
+  description: Security operations covering vulnerability analysis, secure code review, compliance, threat modeling, secrets, supply chain, API/SSL, and incident response across web, desktop, and mobile environments
+  icon: shield
+  version: "1.0.4"
+  category: Operations
+  tags:
+    - operations
+    - vulnerability-assessment
+    - pentest
+    - compliance
+    - threat-modeling
+    - incident-response
+    - secure-code-review
+    - supply-chain
+    - api-security
+
+  company: "_expxagents/_memory/company.md"
+  preferences: "_expxagents/_memory/preferences.md"
+  memory: "_memory/memories.md"
+
+  target_audience: "Development teams, security engineers, CTOs, and compliance officers"
+  platform: "Report"
+  format: "security-assessment"
+
+  skills:
+    - web_search
+    - web_fetch
+    - cve-lookup
+    - owasp-checker
+    - ssl-analyzer
+    - cvss-scorer
+    - threat-intel
+
+  schedule:
+    enabled: true
+
+  data: []
+
+  agents:
+    - id: security-chief
+      name: "Benjamin Cunha"
+      role: "Security Chief"
+      icon: shield
+      prompt: agents/security-chief.agent.md
+    - id: threat-modeler
+      name: "Ana Beatriz Ferreira"
+      role: "Threat Modeler"
+      icon: target
+      prompt: agents/threat-modeler.agent.md
+    - id: secure-code-reviewer
+      name: "Diego Matsuda"
+      role: "Secure Code Reviewer"
+      icon: code
+      prompt: agents/secure-code-reviewer.agent.md
+    - id: compliance-auditor
+      name: "Fernanda Oliveira"
+      role: "Compliance Auditor"
+      icon: clipboard-check
+      prompt: agents/compliance-auditor.agent.md
+    - id: database-security-analyst
+      name: "Rodrigo Almeida"
+      role: "Database Security Analyst"
+      icon: database
+      prompt: agents/database-security-analyst.agent.md
+    - id: secrets-credentials-analyst
+      name: "Camila Rocha"
+      role: "Secrets & Credentials Analyst"
+      icon: key
+      prompt: agents/secrets-credentials-analyst.agent.md
+    - id: supply-chain-analyst
+      name: "Bruno Takahashi"
+      role: "Supply Chain Analyst"
+      icon: package
+      prompt: agents/supply-chain-analyst.agent.md
+    - id: api-security-analyst
+      name: "Lucas Mendes"
+      role: "API & SSL/TLS Analyst"
+      icon: globe
+      prompt: agents/api-security-analyst.agent.md
+    - id: incident-responder
+      name: "Juliana Costa"
+      role: "Incident Responder"
+      icon: alert-triangle
+      prompt: agents/incident-responder.agent.md
+    - id: pentest-red-team
+      name: "Marcos Vinicius Santos"
+      role: "Pentest / Red Team"
+      icon: crosshair
+      prompt: agents/pentest-red-team.agent.md
+
+  pipeline:
+    steps:
+      - id: step-01
+        agent: security-chief
+        label: Diagnose security challenge and identify relevant specialists
+        execution: inline
+      - id: step-02
+        agent: security-chief
+        label: Consult specialists and gather security intelligence
+        deliverFrom: security-chief
+        execution: inline
+      - id: step-03
+        agent: security-chief
+        label: Synthesize findings and identify risk priorities
+        deliverFrom: security-chief
+        execution: inline
+      - id: step-04
+        agent: security-chief
+        label: Build remediation plan with CVSS scoring
+        deliverFrom: security-chief
+        execution: inline
+      - id: step-05
+        agent: security-chief
+        label: Deliver Security Assessment Report
+        deliverFrom: security-chief
+        execution: inline

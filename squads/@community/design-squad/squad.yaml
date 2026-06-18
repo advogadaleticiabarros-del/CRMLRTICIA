@@ -1,0 +1,87 @@
+squad:
+  code: design-squad
+  name: Design Squad
+  description: Design operations covering design systems, UX, UI, and visual design
+  icon: paintbrush
+  version: "1.0.0"
+  category: development
+  tags:
+    - design-systems
+    - ux
+    - ui
+    - design-ops
+    - atomic-design
+
+  company: "_expxagents/_memory/company.md"
+  preferences: "_expxagents/_memory/preferences.md"
+  memory: "_memory/memories.md"
+
+  target_audience: "Design teams, product managers, and front-end developers"
+  platform: "Report"
+  format: "design-deliverable"
+
+  skills:
+    - web_search
+    - web_fetch
+
+  schedule:
+    enabled: true
+
+  data: []
+
+  agents:
+    - id: design-chief
+      name: Design Chief
+      icon: paintbrush
+      prompt: agents/design-chief.agent.md
+    - id: design-system-architect
+      name: Design System Architect
+      icon: layers
+      prompt: agents/design-system-architect.agent.md
+    - id: design-ops-lead
+      name: DesignOps Lead
+      icon: settings
+      prompt: agents/design-ops-lead.agent.md
+    - id: ux-researcher
+      name: UX Researcher
+      icon: search
+      prompt: agents/ux-researcher.agent.md
+    - id: ui-designer
+      name: UI Designer
+      icon: layout
+      prompt: agents/ui-designer.agent.md
+    - id: design-scaling-advisor
+      name: Design Scaling Advisor
+      icon: trending-up
+      prompt: agents/design-scaling-advisor.agent.md
+    - id: handoff-engineer
+      name: Handoff Engineer
+      icon: git-pull-request
+      prompt: agents/handoff-engineer.agent.md
+
+  pipeline:
+    steps:
+      - id: step-01
+        agent: design-chief
+        label: Diagnose design challenge and identify relevant specialists
+        execution: inline
+      - id: step-02
+        agent: design-chief
+        label: Research and gather context from domain specialists
+        deliverFrom: design-chief
+        execution: inline
+      - id: step-03
+        agent: design-chief
+        label: Design solution and synthesize specialist perspectives
+        deliverFrom: design-chief
+        execution: inline
+      - id: step-04
+        agent: design-chief
+        label: Integrate recommendations into design system context
+        deliverFrom: design-chief
+        execution: inline
+      - id: step-05
+        agent: design-chief
+        label: Handoff review — specs, tokens, and implementation guidance
+        deliverFrom: design-chief
+        execution: inline

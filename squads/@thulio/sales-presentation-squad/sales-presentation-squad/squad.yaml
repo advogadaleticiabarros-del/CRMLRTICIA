@@ -1,0 +1,114 @@
+squad:
+  code: sales-presentation-squad
+  name: Sales Presentation Squad
+  description: "Cinematic sales presentations — from briefing to interactive HTML. Three.js effects, GSAP animations, Gemini-generated images, dynamic module navigation, and dual mode (presenter/self-service) in a single portable file."
+  icon: presentation
+  version: "2.0.0"
+  category: commercial
+  tags:
+    - sales
+    - presentation
+    - pitch-deck
+    - three-js
+    - gsap
+    - interactive
+    - gemini
+    - html-presentation
+
+  company: "_expxagents/_memory/company.md"
+  preferences: "_expxagents/_memory/preferences.md"
+  memory: "_memory/memories.md"
+
+  target_audience: "Sales teams, founders, agencies, account executives, and business development professionals who need impactful product presentations"
+  platform: "Report"
+  format: "sales-presentation"
+
+  skills:
+    - web_search
+    - web_fetch
+    - frontend-design
+    - google-gemini-image
+
+  schedule:
+    enabled: true
+
+  data: []
+
+  agents:
+    - id: presentation-chief
+      name: Presentation Chief
+      icon: crown
+      prompt: agents/presentation-chief.agent.md
+    - id: sales-researcher
+      name: Sales Researcher
+      icon: search
+      prompt: agents/sales-researcher.agent.md
+    - id: narrative-architect
+      name: Narrative Architect
+      icon: book-open
+      prompt: agents/narrative-architect.agent.md
+    - id: visual-identity-designer
+      name: Visual Identity Designer
+      icon: palette
+      prompt: agents/visual-identity-designer.agent.md
+    - id: image-creator
+      name: Image Creator
+      icon: image
+      prompt: agents/image-creator.agent.md
+    - id: slide-engineer
+      name: Slide Engineer
+      icon: code
+      prompt: agents/slide-engineer.agent.md
+
+  pipeline:
+    steps:
+      - id: step-01
+        agent: presentation-chief
+        label: Receive briefing, validate GEMINI_API_KEY, diagnose presentation context
+        execution: inline
+      - id: step-02
+        agent: sales-researcher
+        label: Research company, market, competitors, and fill input gaps
+        deliverFrom: presentation-chief
+        execution: inline
+      - id: step-03
+        agent: presentation-chief
+        label: Synthesize complete brief from user input and research findings
+        deliverFrom: presentation-chief
+        execution: inline
+      - id: step-04
+        agent: narrative-architect
+        label: Structure sales narrative, define dynamic modules, map emotional journey
+        deliverFrom: presentation-chief
+        execution: inline
+      - id: step-05
+        agent: visual-identity-designer
+        label: Define visual system — theme, colors, typography, Three.js treatment
+        deliverFrom: presentation-chief
+        execution: inline
+      - id: step-06
+        agent: image-creator
+        label: Generate images via Gemini for all slides
+        deliverFrom: presentation-chief
+        execution: inline
+        skill: google-gemini-image
+      - id: step-07
+        agent: presentation-chief
+        label: Synthesize Sales Presentation Report from all specialist outputs
+        deliverFrom: presentation-chief
+        execution: inline
+        output: sales-presentation-report.md
+      - id: step-08
+        agent: presentation-chief
+        label: Quality checkpoint — review report completeness before HTML generation
+        deliverFrom: presentation-chief
+        execution: inline
+        checkpoint: true
+        on_reject: step-07
+      - id: step-09
+        agent: slide-engineer
+        label: Generate HTML presentation from the approved Sales Presentation Report
+        deliverFrom: presentation-chief
+        execution: inline
+        skill: frontend-design
+        output: sales-presentation.html

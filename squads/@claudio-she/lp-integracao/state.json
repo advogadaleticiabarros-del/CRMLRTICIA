@@ -1,0 +1,109 @@
+{
+  "squad": "lp-integracao",
+  "status": "idle",
+  "step": { "current": 0, "total": 7, "label": "" },
+  "agents": [
+    {
+      "id": "coordenador",
+      "name": "Coordenador",
+      "icon": "clipboard",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 1, "row": 1 },
+      "deliverTo": "analista-estrategico",
+      "message": ""
+    },
+    {
+      "id": "analista-estrategico",
+      "name": "Analista Estratégico",
+      "icon": "search",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 2, "row": 1 },
+      "deliverTo": "copy-funil-demonstracao",
+      "message": ""
+    },
+    {
+      "id": "copy-funil-demonstracao",
+      "name": "Copywriter Demonstração",
+      "icon": "monitor-play",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 3, "row": 1 },
+      "deliverTo": "revisor-editorial",
+      "message": ""
+    },
+    {
+      "id": "copy-funil-diagnostico",
+      "name": "Copywriter Diagnóstico",
+      "icon": "clipboard-list",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 1, "row": 2 },
+      "deliverTo": null,
+      "message": ""
+    },
+    {
+      "id": "copy-funil-ebook",
+      "name": "Copywriter E-Book",
+      "icon": "book-open",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 2, "row": 2 },
+      "deliverTo": null,
+      "message": ""
+    },
+    {
+      "id": "revisor-editorial",
+      "name": "Revisor Editorial",
+      "icon": "check-circle",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 3, "row": 2 },
+      "deliverTo": null,
+      "message": ""
+    },
+    {
+      "id": "intelligence-analyst",
+      "name": "Intelligence Analyst",
+      "icon": "search",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 1, "row": 3 },
+      "deliverTo": "lp-builder",
+      "message": ""
+    },
+    {
+      "id": "lp-builder",
+      "name": "LP Builder",
+      "icon": "code",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 2, "row": 3 },
+      "deliverTo": "integration-engineer",
+      "message": ""
+    },
+    {
+      "id": "integration-engineer",
+      "name": "Integration Engineer",
+      "icon": "plug",
+      "status": "idle",
+      "stepIndex": 0,
+      "stepLabel": "",
+      "desk": { "col": 3, "row": 3 },
+      "deliverTo": null,
+      "message": ""
+    }
+  ],
+  "handoff": null,
+  "startedAt": null,
+  "updatedAt": null
+}

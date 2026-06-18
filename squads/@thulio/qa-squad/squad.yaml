@@ -1,0 +1,92 @@
+squad:
+  code: qa-squad
+  name: QA Squad
+  description: Quality assurance strategy, test architecture, automation, performance testing, accessibility, and code review practices
+  icon: check-circle
+  version: "1.0.0"
+  category: development
+  tags:
+    - quality-assurance
+    - testing
+    - automation
+    - performance
+    - accessibility
+    - code-review
+
+  company: "_expxagents/_memory/company.md"
+  preferences: "_expxagents/_memory/preferences.md"
+  memory: "_memory/memories.md"
+
+  target_audience: "QA leads, engineering managers, and development teams seeking quality excellence"
+  platform: "Report"
+  format: "qa-strategy"
+
+  skills:
+    - web_search
+    - web_fetch
+
+  schedule:
+    enabled: true
+
+  data: []
+
+  agents:
+    - id: qa-chief
+      name: QA Chief
+      icon: check-circle
+      prompt: agents/qa-chief.agent.md
+    - id: test-architect
+      name: Test Architect
+      icon: layers
+      prompt: agents/test-architect.agent.md
+    - id: automation-engineer
+      name: Automation Engineer
+      icon: settings
+      prompt: agents/automation-engineer.agent.md
+    - id: performance-engineer
+      name: Performance Engineer
+      icon: zap
+      prompt: agents/performance-engineer.agent.md
+    - id: accessibility-tester
+      name: Accessibility Tester
+      icon: eye
+      prompt: agents/accessibility-tester.agent.md
+    - id: security-tester
+      name: Security Tester
+      icon: shield
+      prompt: agents/security-tester.agent.md
+    - id: code-reviewer
+      name: Code Review Specialist
+      icon: git-pull-request
+      prompt: agents/code-reviewer.agent.md
+    - id: chaos-engineer
+      name: Chaos Engineer
+      icon: alert-triangle
+      prompt: agents/chaos-engineer.agent.md
+
+  pipeline:
+    steps:
+      - id: step-01
+        agent: qa-chief
+        label: Diagnose quality challenge and identify relevant specialists
+        execution: inline
+      - id: step-02
+        agent: qa-chief
+        label: Route to specialists for domain-specific analysis
+        deliverFrom: qa-chief
+        execution: inline
+      - id: step-03
+        agent: qa-chief
+        label: Synthesize quality strategy and validate test architecture
+        deliverFrom: qa-chief
+        execution: inline
+      - id: step-04
+        agent: qa-chief
+        label: Design test implementation plan and tooling recommendations
+        deliverFrom: qa-chief
+        execution: inline
+      - id: step-05
+        agent: qa-chief
+        label: Final QA Strategy Report and implementation roadmap
+        deliverFrom: qa-chief
+        execution: inline
