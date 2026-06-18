@@ -115,22 +115,49 @@ async function openNotifications() {
 }
 
 async function notificationSettings() {
-  const s = await api('/api/notifications/settings');
-  const form = el(`<form class="form-grid">
+  const [s, tg] = await Promise.all([api('/api/notifications/settings'), api('/api/notifications/telegram')]);
+  const form = el(`<div class="form-grid">
     <label style="flex-direction:row;align-items:center;gap:8px">
-      <input type="checkbox" name="sound_enabled" ${s?.sound_enabled ? 'checked' : ''} style="width:auto"> Alertas sonoros ativados
+      <input type="checkbox" id="set-sound" ${s?.sound_enabled ? 'checked' : ''} style="width:auto"> Alertas sonoros ativados
     </label>
     ${field('Antecedência do lembrete (minutos)', 'reminder_minutes_before', { type: 'number', value: s?.reminder_minutes_before ?? 15 })}
-    <button type="submit" class="btn-primary">Salvar configurações</button>
-  </form>`);
-  form.onsubmit = async (e) => {
-    e.preventDefault();
+    <button class="btn-primary" id="save-set">Salvar preferências</button>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:6px 0">
+    <strong style="color:var(--navy)">📲 Alertas via Telegram</strong>
+    <small style="color:var(--text-muted)">Receba prazos, reuniões e cobranças no seu Telegram.</small>
+    ${field('Bot Token', 'tg_token', { value: tg?.bot_token || '' })}
+    ${field('Chat ID', 'tg_chat', { value: tg?.chat_id || '' })}
+    <label style="flex-direction:row;align-items:center;gap:8px">
+      <input type="checkbox" id="tg-enabled" ${tg?.enabled ? 'checked' : ''} style="width:auto"> Telegram ativado
+    </label>
+    <div style="display:flex;gap:8px">
+      <button class="btn-primary" id="save-tg" style="flex:1">Salvar Telegram</button>
+      <button class="btn-sm" id="test-tg">Enviar teste</button>
+    </div>
+  </div>`);
+
+  form.querySelector('#save-set').onclick = async () => {
     const body = {
-      sound_enabled: form.querySelector('[name=sound_enabled]').checked,
+      sound_enabled: form.querySelector('#set-sound').checked,
       reminder_minutes_before: Number(form.querySelector('[name=reminder_minutes_before]').value) || 15,
     };
-    try { await api('/api/notifications/settings', { method: 'PUT', body: JSON.stringify(body) });
-      closeModal(); toast('Configurações salvas'); } catch (err) { toast(err.message, 'error'); }
+    try { await api('/api/notifications/settings', { method: 'PUT', body: JSON.stringify(body) }); toast('Preferências salvas'); } catch (e) { toast(e.message, 'error'); }
+  };
+  const saveTg = async () => {
+    const body = {
+      bot_token: form.querySelector('[name=tg_token]').value,
+      chat_id: form.querySelector('[name=tg_chat]').value,
+      enabled: form.querySelector('#tg-enabled').checked,
+    };
+    await api('/api/notifications/telegram', { method: 'PUT', body: JSON.stringify(body) });
+  };
+  form.querySelector('#save-tg').onclick = async () => {
+    try { await saveTg(); toast('Telegram salvo'); } catch (e) { toast(e.message, 'error'); }
+  };
+  form.querySelector('#test-tg').onclick = async () => {
+    try { await saveTg(); await api('/api/notifications/telegram/test', { method: 'POST' }); toast('Mensagem de teste enviada!'); }
+    catch (e) { toast(e.message, 'error'); }
   };
   openModal('Configurações de notificação', form);
 }

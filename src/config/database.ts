@@ -21,6 +21,13 @@ export const db = mysql.createPool({
   dateStrings: false,
 });
 
+// Garante que a sessão MySQL use UTC, alinhando NOW()/CURDATE() com as datas
+// gravadas em UTC (timezone 'Z'). Sem isso, NOW() usa o fuso do servidor e o
+// despacho de notificações (scheduled_at <= NOW()) ficava defasado.
+db.on('connection', (conn) => {
+  conn.query("SET time_zone = '+00:00'");
+});
+
 /** Verifica a conexão na inicialização. Lança erro se o banco estiver inacessível. */
 export async function assertDatabaseConnection(): Promise<void> {
   const conn = await db.getConnection();

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { notificationService } from '../services/NotificationService';
+import { telegramNotificationService } from '../services/TelegramNotificationService';
 import { runNotificationChecks } from '../crons';
 
 const router = Router();
@@ -83,6 +84,21 @@ router.put('/telegram', async (req: Request, res: Response) => {
      ON DUPLICATE KEY UPDATE bot_token = VALUES(bot_token), chat_id = VALUES(chat_id), enabled = VALUES(enabled)`,
     [userId, bot_token, chat_id, enabled ? 1 : 0]
   );
+  res.json({ success: true });
+});
+
+// POST /api/notifications/telegram/test — envia mensagem de teste
+router.post('/telegram/test', async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const ok = await telegramNotificationService.send(userId, {
+    title: 'CRM Jurídico',
+    body: 'Integração com o Telegram funcionando! Você receberá aqui os alertas de prazos, reuniões e cobranças.',
+    urgency: 'normal',
+  });
+  if (!ok) {
+    res.status(400).json({ error: 'Não foi possível enviar. Verifique se o Telegram está ativado, com bot_token e chat_id corretos.' });
+    return;
+  }
   res.json({ success: true });
 });
 
