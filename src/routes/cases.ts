@@ -17,13 +17,19 @@ router.get('/', async (req: Request, res: Response) => {
   const limit    = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
   const offset   = (page - 1) * limit;
 
-  const where: string[] = ['c.user_id = ?'];
-  const params: any[] = [req.user!.id];
+  const where: string[] = [];
+  const params: any[] = [];
+  // Visibilidade por papel: admin/advogado veem todos; estagiário/parceiro só os atribuídos.
+  const role = req.user!.role;
+  if (role === 'estagiario' || role === 'parceiro') {
+    where.push('c.id IN (SELECT case_id FROM case_collaborators WHERE user_id = ?)');
+    params.push(req.user!.id);
+  }
   if (search)   { where.push('(c.title LIKE ? OR c.case_number LIKE ?)'); params.push(`%${search}%`, `%${search}%`); }
   if (status && STATUSES.includes(status)) { where.push('c.status = ?'); params.push(status); }
   if (area && AREAS.includes(area))         { where.push('c.legal_area = ?'); params.push(area); }
   if (clientId) { where.push('c.client_id = ?'); params.push(clientId); }
-  const whereSql = `WHERE ${where.join(' AND ')}`;
+  const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM cases c ${whereSql}`, params) as any;
 
@@ -106,6 +112,44 @@ router.put('/:id', async (req: Request, res: Response) => {
 
   const [rows] = await db.query('SELECT * FROM cases WHERE id = ?', [id]) as any;
   res.json(rows[0]);
+});
+
+// ── GET /api/cases/:id/collaborators — quem trabalha no processo ────────────
+router.get('/:id/collaborators', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT cc.id, cc.user_id, cc.role, cc.commission_percent, u.name, u.role AS user_role
+     FROM case_collaborators cc JOIN users u ON u.id = cc.user_id
+     WHERE cc.case_id = ? ORDER BY cc.role, u.name`,
+    [req.params.id]
+  ) as any;
+  res.json(rows);
+});
+
+// ── POST /api/cases/:id/collaborators — atribuir estagiário/parceiro ────────
+router.post('/:id/collaborators', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { user_id, role, commission_percent } = req.body;
+  if (!user_id) { res.status(400).json({ error: 'user_id é obrigatório' }); return; }
+
+  const [u] = await db.query("SELECT role, commission_percent FROM users WHERE id = ?", [user_id]) as any;
+  if (!u.length) { res.status(404).json({ error: 'Usuário não encontrado' }); return; }
+
+  // repasse: usa o informado, ou o padrão do parceiro
+  const commission = commission_percent ?? (u[0].role === 'parceiro' ? u[0].commission_percent : null);
+
+  await db.query(
+    `INSERT INTO case_collaborators (case_id, user_id, role, commission_percent)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE role = VALUES(role), commission_percent = VALUES(commission_percent)`,
+    [id, user_id, role === 'responsavel' ? 'responsavel' : 'colaborador', commission]
+  );
+  res.status(201).json({ success: true });
+});
+
+// ── DELETE /api/cases/:id/collaborators/:userId ─────────────────────────────
+router.delete('/:id/collaborators/:userId', async (req: Request, res: Response) => {
+  await db.query('DELETE FROM case_collaborators WHERE case_id = ? AND user_id = ?', [req.params.id, req.params.userId]);
+  res.json({ success: true });
 });
 
 // ── POST /api/cases/:id/movements — registrar movimentação ──────────────────

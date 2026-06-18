@@ -3,7 +3,7 @@ import 'express-async-errors'; // captura erros de rotas async e envia ao error 
 import cors from 'cors';
 import path from 'path';
 import { env } from './config/env';
-import { authenticate } from './middleware/auth';
+import { authenticate, requireStaff, requireAdmin } from './middleware/auth';
 
 // Rotas já existentes
 import comercialDashboard from './routes/dashboards/comercial';
@@ -23,6 +23,9 @@ import caseRoutes from './routes/cases';
 import deadlineRoutes from './routes/deadlines';
 import taskRoutes from './routes/tasks';
 import financialRoutes from './routes/financial';
+import userRoutes from './routes/users';
+import portalRoutes from './routes/portal';
+import meRoutes from './routes/me';
 import { googleOAuthCallback } from './routes/google-callback';
 
 export function createApp() {
@@ -43,22 +46,29 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
-  // ── Rotas protegidas (exigem JWT) ─────────────────────────────────────────
-  app.use('/api/clients',               authenticate, clientRoutes);
-  app.use('/api/intakes',               authenticate, intakeRoutes);
-  app.use('/api/leads',                 authenticate, leadRoutes);
-  app.use('/api/propostas',             authenticate, propostaRoutes);
-  app.use('/api/cases',                 authenticate, caseRoutes);
-  app.use('/api/deadlines',             authenticate, deadlineRoutes);
-  app.use('/api/tasks',                 authenticate, taskRoutes);
-  app.use('/api/financial',             authenticate, financialRoutes);
-  app.use('/api/dashboards/comercial',  authenticate, comercialDashboard);
-  app.use('/api/dashboards/cliente',    authenticate, clienteDashboard);
-  app.use('/api/dashboards/processual', authenticate, processualDashboard);
-  app.use('/api/dashboards/agenda',     authenticate, agendaDashboard);
-  app.use('/api/dashboards/financeiro', authenticate, financeiroDashboard);
-  app.use('/api/dashboards/producao',   authenticate, producaoDashboard);
-  app.use('/api/calendar',              authenticate, calendarRoutes);
+  // ── Portal do Cliente (papel 'cliente' — escopo isolado por client_id) ────
+  app.use('/api/portal',                authenticate, portalRoutes);
+
+  // ── Administração de usuários (somente admin) ─────────────────────────────
+  app.use('/api/users',                 authenticate, requireAdmin, userRoutes);
+
+  // ── Rotas de gestão (equipe do escritório — bloqueadas para 'cliente') ────
+  app.use('/api/me',                    authenticate, requireStaff, meRoutes);
+  app.use('/api/clients',               authenticate, requireStaff, clientRoutes);
+  app.use('/api/intakes',               authenticate, requireStaff, intakeRoutes);
+  app.use('/api/leads',                 authenticate, requireStaff, leadRoutes);
+  app.use('/api/propostas',             authenticate, requireStaff, propostaRoutes);
+  app.use('/api/cases',                 authenticate, requireStaff, caseRoutes);
+  app.use('/api/deadlines',             authenticate, requireStaff, deadlineRoutes);
+  app.use('/api/tasks',                 authenticate, requireStaff, taskRoutes);
+  app.use('/api/financial',             authenticate, requireStaff, financialRoutes);
+  app.use('/api/dashboards/comercial',  authenticate, requireStaff, comercialDashboard);
+  app.use('/api/dashboards/cliente',    authenticate, requireStaff, clienteDashboard);
+  app.use('/api/dashboards/processual', authenticate, requireStaff, processualDashboard);
+  app.use('/api/dashboards/agenda',     authenticate, requireStaff, agendaDashboard);
+  app.use('/api/dashboards/financeiro', authenticate, requireStaff, financeiroDashboard);
+  app.use('/api/dashboards/producao',   authenticate, requireStaff, producaoDashboard);
+  app.use('/api/calendar',              authenticate, requireStaff, calendarRoutes);
   app.use('/api/notifications',         authenticate, notificationRoutes);
 
   // ── Frontend (arquivos estáticos) ─────────────────────────────────────────

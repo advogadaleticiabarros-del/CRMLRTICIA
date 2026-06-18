@@ -56,3 +56,17 @@ export function authorize(...roles: string[]) {
     next();
   };
 }
+
+export const STAFF_ROLES = ['admin', 'advogado', 'estagiario', 'parceiro', 'staff'];
+
+/** Bloqueia o papel 'cliente' das rotas de gestão (ele só acessa /api/portal). */
+export function requireStaff(req: Request, res: Response, next: NextFunction): void {
+  if (!req.user || !STAFF_ROLES.includes(req.user.role)) {
+    res.status(403).json({ error: 'Acesso restrito à equipe do escritório' });
+    return;
+  }
+  next();
+}
+
+/** Somente admin. */
+export const requireAdmin = authorize('admin');
