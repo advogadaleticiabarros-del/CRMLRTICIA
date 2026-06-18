@@ -87,6 +87,30 @@ router.put('/telegram', async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
+// GET /api/notifications/whatsapp — config (preparado)
+router.get('/whatsapp', async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const [rows] = await db.query(
+    'SELECT phone_number_id, recipient_phone, enabled FROM whatsapp_settings WHERE user_id = ?',
+    [userId]
+  ) as any;
+  res.json(rows[0] ?? { phone_number_id: null, recipient_phone: null, enabled: false });
+});
+
+// PUT /api/notifications/whatsapp — salva config
+router.put('/whatsapp', async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const { access_token, phone_number_id, recipient_phone, enabled } = req.body;
+  await db.query(
+    `INSERT INTO whatsapp_settings (user_id, access_token, phone_number_id, recipient_phone, enabled)
+     VALUES (?, ?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE access_token = VALUES(access_token), phone_number_id = VALUES(phone_number_id),
+       recipient_phone = VALUES(recipient_phone), enabled = VALUES(enabled)`,
+    [userId, access_token ?? null, phone_number_id ?? null, recipient_phone ?? null, enabled ? 1 : 0]
+  );
+  res.json({ success: true });
+});
+
 // POST /api/notifications/telegram/test — envia mensagem de teste
 router.post('/telegram/test', async (req: Request, res: Response) => {
   const userId = (req as any).user.id;

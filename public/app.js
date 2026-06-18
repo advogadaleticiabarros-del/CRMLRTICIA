@@ -143,7 +143,11 @@ async function openNotifications() {
 }
 
 async function notificationSettings() {
-  const [s, tg] = await Promise.all([api('/api/notifications/settings'), api('/api/notifications/telegram')]);
+  const [s, tg, wa] = await Promise.all([
+    api('/api/notifications/settings'),
+    api('/api/notifications/telegram'),
+    api('/api/notifications/whatsapp'),
+  ]);
   const form = el(`<div class="form-grid">
     <label style="flex-direction:row;align-items:center;gap:8px">
       <input type="checkbox" id="set-sound" ${s?.sound_enabled ? 'checked' : ''} style="width:auto"> Alertas sonoros ativados
@@ -163,6 +167,17 @@ async function notificationSettings() {
       <button class="btn-primary" id="save-tg" style="flex:1">Salvar Telegram</button>
       <button class="btn-sm" id="test-tg">Enviar teste</button>
     </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:6px 0">
+    <strong style="color:var(--navy)">📱 Alertas via WhatsApp <span class="badge novo">preparado</span></strong>
+    <small style="color:var(--text-muted)">Estrutura pronta para a WhatsApp Cloud API (Meta). Preencha quando tiver as credenciais do WhatsApp Business.</small>
+    ${field('Access Token (Meta)', 'wa_token', { value: '' })}
+    ${field('Phone Number ID', 'wa_phone_id', { value: wa?.phone_number_id || '' })}
+    ${field('Telefone destino (com DDI, ex: 5511...)', 'wa_to', { value: wa?.recipient_phone || '' })}
+    <label style="flex-direction:row;align-items:center;gap:8px">
+      <input type="checkbox" id="wa-enabled" ${wa?.enabled ? 'checked' : ''} style="width:auto"> WhatsApp ativado
+    </label>
+    <button class="btn-sm" id="save-wa">Salvar WhatsApp</button>
   </div>`);
 
   form.querySelector('#save-set').onclick = async () => {
@@ -185,6 +200,16 @@ async function notificationSettings() {
   };
   form.querySelector('#test-tg').onclick = async () => {
     try { await saveTg(); await api('/api/notifications/telegram/test', { method: 'POST' }); toast('Mensagem de teste enviada!'); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  form.querySelector('#save-wa').onclick = async () => {
+    const body = {
+      access_token: form.querySelector('[name=wa_token]').value || undefined,
+      phone_number_id: form.querySelector('[name=wa_phone_id]').value,
+      recipient_phone: form.querySelector('[name=wa_to]').value,
+      enabled: form.querySelector('#wa-enabled').checked,
+    };
+    try { await api('/api/notifications/whatsapp', { method: 'PUT', body: JSON.stringify(body) }); toast('WhatsApp salvo'); }
     catch (e) { toast(e.message, 'error'); }
   };
   openModal('Configurações de notificação', form);

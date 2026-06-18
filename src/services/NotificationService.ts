@@ -1,5 +1,6 @@
 import { db } from '../config/database';
 import { telegramNotificationService } from './TelegramNotificationService';
+import { whatsappNotificationService } from './WhatsAppNotificationService';
 
 type NotificationChannel = 'sistema' | 'som' | 'telegram' | 'whatsapp';
 type NotificationStatus = 'pendente' | 'enviada' | 'lida' | 'erro';
@@ -82,6 +83,11 @@ export class NotificationService {
           title: notification.title,
           body: notification.message,
           urgency: this.resolveUrgency(notification.notification_type),
+        });
+      } else if (notification.channel === 'whatsapp') {
+        sent = await whatsappNotificationService.send(notification.user_id, {
+          title: notification.title,
+          body: notification.message,
         });
       } else {
         // 'sistema' and 'som' are handled client-side via polling/WebSocket
