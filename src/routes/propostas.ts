@@ -1,0 +1,177 @@
+import { Router, Request, Response } from 'express';
+import { db } from '../config/database';
+
+const router = Router();
+
+const STATUSES = ['rascunho', 'enviada', 'em_negociacao', 'aceita', 'recusada'];
+
+function addMonths(date: Date, months: number): Date {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d;
+}
+const toDateStr = (d: Date) => d.toISOString().split('T')[0];
+
+// ── GET /api/propostas — lista com filtros e paginação ──────────────────────
+router.get('/', async (req: Request, res: Response) => {
+  const status   = req.query.status as string;
+  const clientId = req.query.client_id as string;
+  const page     = Math.max(1, parseInt(req.query.page as string) || 1);
+  const limit    = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
+  const offset   = (page - 1) * limit;
+
+  const where: string[] = ['p.user_id = ?'];
+  const params: any[] = [req.user!.id];
+  if (status && STATUSES.includes(status)) { where.push('p.status = ?'); params.push(status); }
+  if (clientId) { where.push('p.client_id = ?'); params.push(clientId); }
+  const whereSql = `WHERE ${where.join(' AND ')}`;
+
+  const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM propostas p ${whereSql}`, params) as any;
+
+  const [rows] = await db.query(
+    `SELECT p.id, p.title, p.valor, p.status, p.validade, p.created_at, c.name AS client_name
+     FROM propostas p
+     LEFT JOIN clients c ON c.id = p.client_id
+     ${whereSql}
+     ORDER BY p.created_at DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset]
+  ) as any;
+
+  res.json({ data: rows, total, page, limit, pages: Math.ceil(total / limit) });
+});
+
+// ── GET /api/propostas/:id — detalhe com parcelas ───────────────────────────
+router.get('/:id', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT p.*, c.name AS client_name FROM propostas p
+     LEFT JOIN clients c ON c.id = p.client_id WHERE p.id = ?`,
+    [req.params.id]
+  ) as any;
+  if (!rows.length) {
+    res.status(404).json({ error: 'Proposta não encontrada' });
+    return;
+  }
+
+  const [installments] = await db.query(
+    'SELECT id, numero, valor, due_date, status, paid_at FROM installments WHERE proposta_id = ? ORDER BY numero ASC',
+    [req.params.id]
+  ) as any;
+
+  res.json({ ...rows[0], installments });
+});
+
+// ── POST /api/propostas — criar ─────────────────────────────────────────────
+router.post('/', async (req: Request, res: Response) => {
+  const { client_id, case_id, lead_id, title, valor, validade, description, status } = req.body;
+
+  if (!client_id) { res.status(400).json({ error: 'client_id é obrigatório' }); return; }
+  if (!title || !String(title).trim()) { res.status(400).json({ error: 'O título é obrigatório' }); return; }
+
+  const [result] = await db.query(
+    `INSERT INTO propostas (user_id, client_id, case_id, lead_id, title, valor, status, validade, description)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [
+      req.user!.id, client_id, case_id ?? null, lead_id ?? null,
+      title.trim(), Number(valor) || 0,
+      STATUSES.includes(status) ? status : 'rascunho',
+      validade || null, description ?? null,
+    ]
+  ) as any;
+
+  const [rows] = await db.query('SELECT * FROM propostas WHERE id = ?', [result.insertId]) as any;
+  res.status(201).json(rows[0]);
+});
+
+// ── PUT /api/propostas/:id ──────────────────────────────────────────────────
+router.put('/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const [existing] = await db.query('SELECT id FROM propostas WHERE id = ?', [id]) as any;
+  if (!existing.length) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
+
+  const fields: string[] = [];
+  const params: any[] = [];
+  const setIf = (col: string, val: any, valid = true) => {
+    if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val); }
+  };
+  setIf('title', req.body.title?.trim?.());
+  setIf('valor', req.body.valor !== undefined ? Number(req.body.valor) : undefined);
+  setIf('validade', req.body.validade);
+  setIf('description', req.body.description);
+  setIf('case_id', req.body.case_id);
+  setIf('status', req.body.status, STATUSES.includes(req.body.status));
+
+  if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
+  params.push(id);
+  await db.query(`UPDATE propostas SET ${fields.join(', ')} WHERE id = ?`, params);
+
+  const [rows] = await db.query('SELECT * FROM propostas WHERE id = ?', [id]) as any;
+  res.json(rows[0]);
+});
+
+// ── PATCH /api/propostas/:id/status — enviar, negociar, recusar ─────────────
+router.patch('/:id/status', async (req: Request, res: Response) => {
+  const { status } = req.body;
+  if (!STATUSES.includes(status)) {
+    res.status(400).json({ error: `status deve ser um de: ${STATUSES.join(', ')}` });
+    return;
+  }
+  if (status === 'aceita') {
+    res.status(400).json({ error: 'Para aceitar, use POST /api/propostas/:id/accept (gera as parcelas)' });
+    return;
+  }
+  const [result] = await db.query('UPDATE propostas SET status = ? WHERE id = ?', [status, req.params.id]) as any;
+  if (!result.affectedRows) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
+  res.json({ success: true, id: Number(req.params.id), status });
+});
+
+// ── POST /api/propostas/:id/accept — aceitar e gerar parcelas ───────────────
+router.post('/:id/accept', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const installmentsCount = Math.max(1, Math.min(60, parseInt(req.body.installments_count) || 1));
+  const firstDueDate = req.body.first_due_date ? new Date(req.body.first_due_date) : new Date();
+
+  const [rows] = await db.query('SELECT * FROM propostas WHERE id = ?', [id]) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
+  const proposta = rows[0];
+
+  if (proposta.status === 'aceita') {
+    res.status(409).json({ error: 'Proposta já foi aceita' });
+    return;
+  }
+
+  const total = Number(proposta.valor);
+  const base = Math.floor((total / installmentsCount) * 100) / 100;
+  const last = Math.round((total - base * (installmentsCount - 1)) * 100) / 100;
+
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query("UPDATE propostas SET status = 'aceita' WHERE id = ?", [id]);
+
+    for (let i = 0; i < installmentsCount; i++) {
+      const valor = i === installmentsCount - 1 ? last : base;
+      const dueDate = toDateStr(addMonths(firstDueDate, i));
+      await conn.query(
+        `INSERT INTO installments (client_id, proposta_id, case_id, numero, valor, due_date, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'pendente')`,
+        [proposta.client_id, proposta.id, proposta.case_id, i + 1, valor, dueDate]
+      );
+    }
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+
+  const [installments] = await db.query(
+    'SELECT id, numero, valor, due_date, status FROM installments WHERE proposta_id = ? ORDER BY numero ASC',
+    [id]
+  ) as any;
+
+  res.json({ success: true, status: 'aceita', installments });
+});
+
+export default router;

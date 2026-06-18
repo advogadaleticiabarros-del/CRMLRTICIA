@@ -145,6 +145,36 @@ const ROUTES = {
     await load();
   },
 
+  async propostas(page) {
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Propostas</h2><p class="sub">Honorários e parcelas</p></div>
+        <button class="btn-gold" id="new-prop">+ Nova proposta</button></div>
+      <div class="toolbar">
+        <select id="prop-status"><option value="">Todos status</option>
+          <option value="rascunho">Rascunho</option><option value="enviada">Enviada</option>
+          <option value="em_negociacao">Em negociação</option><option value="aceita">Aceita</option>
+          <option value="recusada">Recusada</option></select>
+      </div>
+      <div class="card"><div id="prop-table"></div></div>`;
+    const load = async () => {
+      const q = new URLSearchParams();
+      if ($('#prop-status').value) q.set('status', $('#prop-status').value);
+      const r = await api('/api/propostas?' + q);
+      $('#prop-table').innerHTML = r.data.length ? `
+        <table><thead><tr><th>Título</th><th>Cliente</th><th>Valor</th><th>Status</th><th>Validade</th><th></th></tr></thead>
+        <tbody>${r.data.map((p) => `<tr>
+          <td><strong>${p.title}</strong></td><td>${p.client_name || '—'}</td>
+          <td>${money(p.valor)}</td><td>${badge(p.status)}</td><td>${fmtDate(p.validade)}</td>
+          <td><button class="btn-sm" data-prop="${p.id}">Abrir</button></td></tr>`).join('')}</tbody></table>
+        <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} proposta(s)</div>`
+        : '<div class="empty">Nenhuma proposta ainda</div>';
+      document.querySelectorAll('[data-prop]').forEach((b) => b.onclick = () => propostaDetail(b.dataset.prop, load));
+    };
+    $('#new-prop').onclick = () => propostaForm(load);
+    $('#prop-status').onchange = load;
+    await load();
+  },
+
   async intakes(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Atendimentos</h2><p class="sub">Primeiro contato e triagem</p></div>
@@ -260,6 +290,68 @@ async function intakeForm(onSave) {
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Novo atendimento', form);
+}
+
+async function propostaForm(onSave) {
+  const clients = await api('/api/clients?limit=100');
+  const opts = clients.data.map((c) => ({ v: c.id, t: c.name }));
+  const form = el(`<form class="form-grid">
+    ${field('Cliente *', 'client_id', { options: opts })}
+    ${field('Título *', 'title')}
+    <div class="form-row">${field('Valor (R$)', 'valor', { type: 'number' })}${field('Validade', 'validade', { type: 'date' })}</div>
+    ${field('Descrição', 'description', { type: 'textarea' })}
+    <button type="submit" class="btn-primary">Criar proposta</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/propostas', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast('Proposta criada'); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Nova proposta', form);
+}
+
+async function propostaDetail(id, onSave) {
+  const p = await api('/api/propostas/' + id);
+  const parcelasHtml = (p.installments || []).length
+    ? `<div style="margin-top:8px"><strong style="font-size:13px">Parcelas</strong>
+       <table style="margin-top:6px"><tbody>${p.installments.map((i) =>
+        `<tr><td>${i.numero}ª</td><td>${money(i.valor)}</td><td>${fmtDate(i.due_date)}</td><td>${badge(i.status)}</td></tr>`).join('')}</tbody></table></div>`
+    : '';
+  const isAceita = p.status === 'aceita';
+  const form = el(`<div class="form-grid">
+    <div><strong style="font-size:18px">${p.title}</strong><br>
+      <small style="color:var(--text-muted)">${p.client_name || ''} · ${money(p.valor)}</small></div>
+    <div>Status atual: ${badge(p.status)}</div>
+    ${parcelasHtml}
+    ${isAceita ? '' : `
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-sm" data-st="enviada">Marcar enviada</button>
+        <button class="btn-sm" data-st="em_negociacao">Em negociação</button>
+        <button class="btn-sm" data-st="recusada">Recusar</button>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--border)">
+      <strong style="font-size:13px">Aceitar e gerar parcelas</strong>
+      <div class="form-row">
+        ${field('Nº de parcelas', 'installments_count', { type: 'number', value: 1 })}
+        ${field('1º vencimento', 'first_due_date', { type: 'date' })}
+      </div>
+      <button class="btn-primary" id="accept">Aceitar proposta</button>`}
+  </div>`);
+
+  form.querySelectorAll('[data-st]').forEach((b) => b.onclick = async () => {
+    try { await api(`/api/propostas/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: b.dataset.st }) });
+      closeModal(); toast('Status atualizado'); onSave(); } catch (e) { toast(e.message, 'error'); }
+  });
+  const acceptBtn = form.querySelector('#accept');
+  if (acceptBtn) acceptBtn.onclick = async () => {
+    const count = form.querySelector('[name=installments_count]').value;
+    const due = form.querySelector('[name=first_due_date]').value;
+    try { await api(`/api/propostas/${id}/accept`, { method: 'POST', body: JSON.stringify({ installments_count: count, first_due_date: due }) });
+      closeModal(); toast('Proposta aceita — parcelas geradas'); onSave(); } catch (e) { toast(e.message, 'error'); }
+  };
+  openModal('Proposta', form);
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
