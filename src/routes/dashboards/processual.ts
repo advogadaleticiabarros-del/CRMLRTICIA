@@ -70,7 +70,7 @@ router.get('/', async (req: Request, res: Response) => {
     `, [userId]) as any;
 
     const [[pecas]] = await db.query(
-      "SELECT COUNT(*) AS pendentes FROM legal_pieces WHERE user_id = ? AND status NOT IN ('protocolada','cancelada')",
+      "SELECT COUNT(*) AS pendentes FROM legal_pieces WHERE user_id = ? AND status NOT IN ('protocolado','cancelado')",
       [userId]
     ) as any;
 

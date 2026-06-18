@@ -33,25 +33,32 @@ async function run() {
     }
 
     const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+
+    // Remove linhas de comentário (-- ...) antes de dividir em statements.
+    // Sem isso, um bloco que começa com comentário descartaria o CREATE TABLE seguinte.
+    const cleaned = sql
+      .split(/\r?\n/)
+      .filter((line) => !line.trim().startsWith('--'))
+      .join('\n');
+
+    // Divide por ';' — seguro aqui pois nenhum statement contém ';' interno.
+    const statements = cleaned
+      .split(';')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+
     const conn = await db.getConnection();
     try {
-      await conn.beginTransaction();
-      // mysql2 com multipleStatements desligado: divide em statements
-      const statements = sql
-        .split(/;\s*[\r\n]/)
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0 && !s.startsWith('--'));
-
+      // DDL no MySQL causa commit implícito; rodamos statement a statement
+      // e registramos a migration só após todos terem sido aplicados.
       for (const stmt of statements) {
         await conn.query(stmt);
       }
 
       await conn.query('INSERT INTO schema_migrations (filename) VALUES (?)', [file]);
-      await conn.commit();
-      console.log(`✅ ${file} aplicada`);
+      console.log(`✅ ${file} aplicada (${statements.length} statements)`);
       count++;
     } catch (err) {
-      await conn.rollback();
       console.error(`❌ Falha em ${file}:`, (err as Error).message);
       throw err;
     } finally {
