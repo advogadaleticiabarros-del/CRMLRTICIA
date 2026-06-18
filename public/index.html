@@ -6,27 +6,36 @@
   <title>CRM Jurídico — Advocacia Letícia Barros</title>
   <link rel="stylesheet" href="/styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 </head>
 <body>
   <!-- LOGIN -->
   <div id="login-view" class="login-view">
-    <div class="login-card">
-      <div class="login-brand">
-        <div class="login-emblem">⚖️</div>
-        <h1>Advocacia Letícia Barros</h1>
-        <p>Sistema de Gestão Jurídica</p>
+    <div class="login-brand-panel">
+      <div class="brand-inner">
+        <div class="login-emblem">LB</div>
+        <h1>Letícia Barros</h1>
+        <p class="brand-sub">Advocacia &amp; Consultoria</p>
+        <div class="brand-divider"></div>
+        <p class="brand-tagline">Gestão jurídica com precisão, organização e cuidado com cada cliente.</p>
       </div>
-      <form id="login-form">
-        <label>E-mail
-          <input type="email" id="login-email" required autocomplete="username" />
-        </label>
-        <label>Senha
-          <input type="password" id="login-password" required autocomplete="current-password" />
-        </label>
-        <button type="submit" class="btn-primary">Entrar</button>
-        <p id="login-error" class="error-msg"></p>
-      </form>
+    </div>
+    <div class="login-form-panel">
+      <div class="login-card">
+        <h2>Acessar o sistema</h2>
+        <p class="login-hint">Entre com suas credenciais para continuar</p>
+        <form id="login-form">
+          <label>E-mail
+            <input type="email" id="login-email" required autocomplete="username" placeholder="seu@email.com" />
+          </label>
+          <label>Senha
+            <input type="password" id="login-password" required autocomplete="current-password" placeholder="••••••••" />
+          </label>
+          <button type="submit" class="btn-primary">Entrar</button>
+          <p id="login-error" class="error-msg"></p>
+        </form>
+      </div>
     </div>
   </div>
 
@@ -34,10 +43,10 @@
   <div id="app-view" class="app-view hidden">
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <span class="emblem">⚖️</span>
+        <span class="emblem">LB</span>
         <div>
           <strong>Letícia Barros</strong>
-          <small>CRM Jurídico</small>
+          <small>Advocacia &amp; Consultoria</small>
         </div>
       </div>
       <nav class="nav" id="nav"></nav>
