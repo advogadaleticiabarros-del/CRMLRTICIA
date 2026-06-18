@@ -12,6 +12,7 @@ import financeiroDashboard from './routes/dashboards/financeiro';
 import producaoDashboard from './routes/dashboards/producao';
 import calendarRoutes from './routes/calendar';
 import notificationRoutes from './routes/notifications';
+import authRoutes from './routes/auth';
 
 export function createApp() {
   const app = express();
@@ -24,6 +25,9 @@ export function createApp() {
   app.get('/health', (_req: Request, res: Response) => {
     res.json({ status: 'ok', service: 'crm-juridico', timestamp: new Date().toISOString() });
   });
+
+  // Autenticação (login público; /me, register e password tratam auth internamente)
+  app.use('/api/auth', authRoutes);
 
   // ── Rotas protegidas (exigem JWT) ─────────────────────────────────────────
   app.use('/api/dashboards/comercial',  authenticate, comercialDashboard);

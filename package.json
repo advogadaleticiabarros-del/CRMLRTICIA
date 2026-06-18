@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "migrate": "node dist/scripts/migrate.js",
-    "migrate:dev": "ts-node src/scripts/migrate.ts"
+    "migrate:dev": "ts-node src/scripts/migrate.ts",
+    "seed:admin": "ts-node src/scripts/seed-admin.ts"
   },
   "engines": {
     "node": ">=20.0.0"
