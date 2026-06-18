@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { notificationService } from '../services/NotificationService';
+import { runNotificationChecks } from '../crons';
 
 const router = Router();
 
@@ -9,6 +10,21 @@ router.get('/', async (req: Request, res: Response) => {
   const userId = (req as any).user.id;
   const items = await notificationService.getUnread(userId);
   res.json(items);
+});
+
+// GET /api/notifications/count — contador de não lidas (para o sino)
+router.get('/count', async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const items = await notificationService.getUnread(userId);
+  res.json({ count: items.length });
+});
+
+// POST /api/notifications/check — roda as checagens de alerta agora
+router.post('/check', async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  await runNotificationChecks();
+  const items = await notificationService.getUnread(userId);
+  res.json({ success: true, unread: items.length });
 });
 
 // PATCH /api/notifications/:id/read
@@ -28,10 +44,14 @@ router.patch('/read-all', async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-// GET /api/notifications/settings
+// GET /api/notifications/settings — cria padrão se não existir
 router.get('/settings', async (req: Request, res: Response) => {
   const userId = (req as any).user.id;
-  const settings = await notificationService.getSettings(userId);
+  let settings = await notificationService.getSettings(userId);
+  if (!settings) {
+    await notificationService.updateSettings(userId, {});
+    settings = await notificationService.getSettings(userId);
+  }
   res.json(settings);
 });
 

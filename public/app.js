@@ -56,11 +56,83 @@ function logout() {
   $('#app-view').classList.add('hidden');
   $('#login-view').classList.remove('hidden');
 }
+let bellTimer = null;
 function showApp() {
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
   $('#user-name').textContent = USER?.name || '';
   router();
+  refreshBell();
+  if (bellTimer) clearInterval(bellTimer);
+  bellTimer = setInterval(refreshBell, 60000); // atualiza o sino a cada 60s
+}
+
+async function refreshBell() {
+  try {
+    const { count } = await api('/api/notifications/count');
+    const badge = $('#bell-count');
+    if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
+    else badge.classList.add('hidden');
+  } catch {}
+}
+
+async function openNotifications() {
+  const wrap = el(`<div>
+    <div style="display:flex;gap:8px;margin-bottom:14px">
+      <button class="btn-sm" id="notif-check">🔄 Verificar agora</button>
+      <button class="btn-sm" id="notif-readall">Marcar todas como lidas</button>
+      <button class="btn-sm" id="notif-settings">⚙️ Configurações</button>
+    </div>
+    <div id="notif-list"><div class="empty">Carregando…</div></div>
+  </div>`);
+  const loadList = async () => {
+    const items = await api('/api/notifications');
+    wrap.querySelector('#notif-list').innerHTML = items.length
+      ? items.map((n) => `<div class="notif-item">
+          <strong>${n.title}</strong>
+          <p>${n.message}</p>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">
+            <small>${n.client_name ? n.client_name + ' · ' : ''}${fmtDate(n.scheduled_at)}</small>
+            <button class="btn-sm" data-read="${n.id}">Marcar lida</button>
+          </div></div>`).join('')
+      : '<div class="empty">Nenhuma notificação</div>';
+    wrap.querySelectorAll('[data-read]').forEach((b) => b.onclick = async () => {
+      await api(`/api/notifications/${b.dataset.read}/read`, { method: 'PATCH' }); loadList(); refreshBell();
+    });
+  };
+  wrap.querySelector('#notif-check').onclick = async () => {
+    wrap.querySelector('#notif-check').textContent = '⏳ Verificando…';
+    try { await api('/api/notifications/check', { method: 'POST' }); toast('Alertas atualizados'); } catch (e) { toast(e.message, 'error'); }
+    wrap.querySelector('#notif-check').textContent = '🔄 Verificar agora';
+    loadList(); refreshBell();
+  };
+  wrap.querySelector('#notif-readall').onclick = async () => {
+    await api('/api/notifications/read-all', { method: 'PATCH' }); loadList(); refreshBell(); toast('Todas marcadas como lidas');
+  };
+  wrap.querySelector('#notif-settings').onclick = () => notificationSettings();
+  openModal('Notificações', wrap);
+  await loadList();
+}
+
+async function notificationSettings() {
+  const s = await api('/api/notifications/settings');
+  const form = el(`<form class="form-grid">
+    <label style="flex-direction:row;align-items:center;gap:8px">
+      <input type="checkbox" name="sound_enabled" ${s?.sound_enabled ? 'checked' : ''} style="width:auto"> Alertas sonoros ativados
+    </label>
+    ${field('Antecedência do lembrete (minutos)', 'reminder_minutes_before', { type: 'number', value: s?.reminder_minutes_before ?? 15 })}
+    <button type="submit" class="btn-primary">Salvar configurações</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = {
+      sound_enabled: form.querySelector('[name=sound_enabled]').checked,
+      reminder_minutes_before: Number(form.querySelector('[name=reminder_minutes_before]').value) || 15,
+    };
+    try { await api('/api/notifications/settings', { method: 'PUT', body: JSON.stringify(body) });
+      closeModal(); toast('Configurações salvas'); } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Configurações de notificação', form);
 }
 
 // ── Router ──
@@ -753,6 +825,7 @@ function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTi
 // ── Init ──
 $('#login-form').onsubmit = login;
 $('#logout-btn').onclick = logout;
+$('#bell-btn').onclick = openNotifications;
 $('#modal-close').onclick = closeModal;
 $('#modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
 window.addEventListener('hashchange', router);

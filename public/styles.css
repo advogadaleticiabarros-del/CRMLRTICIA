@@ -69,6 +69,14 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 .nav-item.active { background: var(--gold); color: #fff; }
 .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
 #user-name { color: #cdd5e3; }
+.bell { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; padding: 9px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.bell:hover { background: rgba(255,255,255,.16); }
+.bell-count { background: var(--red); color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
+.notif-item { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.notif-item:last-child { border-bottom: none; }
+.notif-item strong { font-size: 14px; color: var(--navy); }
+.notif-item p { font-size: 13px; color: var(--text-soft); margin-top: 2px; }
+.notif-item small { color: var(--text-muted); font-size: 12px; }
 .content { margin-left: 248px; flex: 1; padding: 30px 38px; max-width: 1200px; }
 
 /* ── Page ── */

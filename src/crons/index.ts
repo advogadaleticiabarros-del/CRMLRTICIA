@@ -57,6 +57,18 @@ export function startCronJobs() {
   });
 }
 
+/** Roda todas as checagens de notificação imediatamente (usado pelo botão "verificar agora"). */
+export async function runNotificationChecks(): Promise<{ generated: number; dispatched: number }> {
+  await deadlineCounterService.updateAllCounters();
+  await generateDeadlineAlerts();
+  await alertUpcomingEvents();
+  const pending = await notificationService.getPending();
+  for (const n of pending) {
+    await notificationService.dispatch(n);
+  }
+  return { generated: pending.length, dispatched: pending.length };
+}
+
 async function generateDeadlineAlerts() {
   const [deadlines] = await db.query(`
     SELECT d.id, d.description, d.deadline_date, d.user_id,
