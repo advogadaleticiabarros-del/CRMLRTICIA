@@ -56,12 +56,40 @@ function logout() {
   $('#app-view').classList.add('hidden');
   $('#login-view').classList.remove('hidden');
 }
+const NAV_LABELS = {
+  dashboard: '📊 Dashboard', clients: '👥 Clientes', leads: '🎯 Leads',
+  propostas: '📄 Propostas', cases: '⚖️ Processos', prazos: '📅 Prazos & Tarefas',
+  agenda: '🗓️ Agenda', financeiro: '💰 Financeiro', intakes: '📞 Atendimentos',
+  config: '⚙️ Configurações', repasses: '💸 Meus Repasses',
+  portal: '📁 Meus Processos', portalFinanceiro: '💳 Valores a Pagar',
+};
+const NAV_BY_ROLE = {
+  admin:      ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','intakes','config'],
+  staff:      ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','intakes'],
+  advogado:   ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','intakes'],
+  estagiario: ['cases','prazos','agenda'],
+  parceiro:   ['cases','repasses','prazos','agenda'],
+  cliente:    ['portal','portalFinanceiro'],
+};
+function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; }
+
+function buildNav() {
+  const items = navForRole();
+  $('#nav').innerHTML = items.map((r) =>
+    `<a href="#${r}" class="nav-item" data-route="${r}">${NAV_LABELS[r]}</a>`).join('');
+}
+
 let bellTimer = null;
 function showApp() {
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
-  $('#user-name').textContent = USER?.name || '';
-  router();
+  $('#user-name').textContent = `${USER?.name || ''}${USER?.role && USER.role !== 'advogado' ? ' · ' + USER.role : ''}`;
+  buildNav();
+  // rota padrão do papel
+  const allowed = navForRole();
+  const current = location.hash.replace('#', '');
+  if (!allowed.includes(current)) location.hash = '#' + allowed[0];
+  else router();
   refreshBell();
   if (bellTimer) clearInterval(bellTimer);
   bellTimer = setInterval(refreshBell, 60000); // atualiza o sino a cada 60s
@@ -164,12 +192,14 @@ async function notificationSettings() {
 
 // ── Router ──
 function router() {
-  const route = (location.hash.replace('#', '') || 'dashboard');
+  const allowed = navForRole();
+  let route = (location.hash.replace('#', '') || allowed[0]);
+  if (!allowed.includes(route)) route = allowed[0]; // respeita o papel
   document.querySelectorAll('.nav-item').forEach((a) =>
     a.classList.toggle('active', a.dataset.route === route));
   const page = $('#page');
   page.innerHTML = '<div class="empty">Carregando…</div>';
-  const fn = ROUTES[route] || ROUTES.dashboard;
+  const fn = ROUTES[route] || ROUTES[allowed[0]];
   fn(page).catch((err) => page.innerHTML = `<div class="empty">${err.message}</div>`);
 }
 
@@ -478,6 +508,87 @@ const ROUTES = {
     await loadFin(); await loadInst();
   },
 
+  async config(page) {
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Configurações</h2><p class="sub">Usuários e conta</p></div>
+        <button class="btn-gold" id="new-user">+ Novo usuário</button></div>
+      <div class="card" style="margin-bottom:20px"><div id="users-table"></div></div>
+      <div class="card" style="padding:20px">
+        <h3 style="color:var(--navy);margin-bottom:12px">Minha conta</h3>
+        <button class="btn-sm" id="change-pwd">🔒 Trocar minha senha</button>
+      </div>`;
+    const load = async () => {
+      const users = await api('/api/users');
+      $('#users-table').innerHTML = `
+        <table><thead><tr><th>Nome</th><th>E-mail</th><th>Papel</th><th>Detalhe</th><th>Status</th><th></th></tr></thead>
+        <tbody>${users.map((u) => `<tr>
+          <td><strong>${u.name}</strong></td><td>${u.email}</td><td>${badge(u.role)}</td>
+          <td>${u.role === 'parceiro' ? (u.commission_percent || '?') + '% repasse' : u.role === 'cliente' ? (u.client_name || '—') : '—'}</td>
+          <td>${u.active ? '<span class="badge ativo">ativo</span>' : '<span class="badge inativo">inativo</span>'}</td>
+          <td>${u.role !== 'admin' ? `<button class="btn-sm" data-toggle="${u.id}" data-active="${u.active}">${u.active ? 'Desativar' : 'Ativar'}</button>` : ''}</td>
+        </tr>`).join('')}</tbody></table>`;
+      document.querySelectorAll('[data-toggle]').forEach((b) => b.onclick = async () => {
+        await api('/api/users/' + b.dataset.toggle, { method: 'PUT', body: JSON.stringify({ active: b.dataset.active !== '1' }) });
+        toast('Usuário atualizado'); load();
+      });
+    };
+    $('#new-user').onclick = () => userForm(load);
+    $('#change-pwd').onclick = () => changePasswordForm();
+    await load();
+  },
+
+  async repasses(page) {
+    const r = await api('/api/me/repasses');
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Meus Repasses</h2><p class="sub">Repasse por processo</p></div></div>
+      <div class="kpi-grid">
+        ${kpi('Repasse previsto', money(r.total_previsto), 'money')}
+        ${kpi('Repasse realizado', money(r.total_realizado), 'money')}
+      </div>
+      <div class="card"><div>${r.processos.length ? `
+        <table><thead><tr><th>Processo</th><th>Cliente</th><th>%</th><th>Recebido</th><th>Repasse realizado</th><th>Repasse previsto</th></tr></thead>
+        <tbody>${r.processos.map((p) => `<tr>
+          <td><strong>${p.title}</strong></td><td>${p.client_name || '—'}</td><td>${p.commission_percent}%</td>
+          <td>${money(p.recebido_caso)}</td><td>${money(p.repasse_realizado)}</td><td>${money(p.repasse_previsto)}</td></tr>`).join('')}</tbody></table>`
+        : '<div class="empty">Você ainda não tem processos com repasse definido</div>'}</div></div>`;
+  },
+
+  async portal(page) {
+    const me = await api('/api/portal/me');
+    const cases = await api('/api/portal/cases');
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Olá, ${me.name}</h2><p class="sub">Acompanhe seus processos</p></div></div>
+      <div class="kpi-grid">
+        ${kpi('Processos ativos', me.resumo.processos_ativos)}
+        ${kpi('Valores a pagar', money(me.resumo.a_pagar), 'money')}
+        ${kpi('Em atraso', money(me.resumo.vencido), 'money')}
+      </div>
+      <div class="card"><div id="portal-cases"></div></div>`;
+    $('#portal-cases').innerHTML = cases.length ? `
+      <table><thead><tr><th>Processo</th><th>Área</th><th>Fase</th><th>Status</th><th></th></tr></thead>
+      <tbody>${cases.map((c) => `<tr>
+        <td><strong>${c.title}</strong><br><small style="color:var(--text-muted)">${c.case_number || ''}</small></td>
+        <td>${c.legal_area}</td><td>${badge(c.phase)}</td><td>${badge(c.status)}</td>
+        <td><button class="btn-sm" data-pcase="${c.id}">Ver andamento</button></td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhum processo no momento</div>';
+    document.querySelectorAll('[data-pcase]').forEach((b) => b.onclick = () => portalCaseDetail(b.dataset.pcase));
+  },
+
+  async portalFinanceiro(page) {
+    const items = await api('/api/portal/financial');
+    const totalPagar = items.filter((i) => i.status === 'pendente').reduce((s, i) => s + Number(i.valor), 0);
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Valores a Pagar</h2><p class="sub">Suas parcelas</p></div></div>
+      <div class="kpi-grid">${kpi('Total a pagar', money(totalPagar), 'money')}</div>
+      <div class="card"><div>${items.length ? `
+        <table><thead><tr><th>Parcela</th><th>Referência</th><th>Valor</th><th>Vencimento</th><th>Status</th></tr></thead>
+        <tbody>${items.map((i) => `<tr>
+          <td>${i.numero}ª</td><td>${i.proposta || '—'}</td><td>${money(i.valor)}</td>
+          <td>${fmtDate(i.due_date)} ${i.vencida ? '<span class="badge vencido">vencida</span>' : ''}</td>
+          <td>${badge(i.status)}</td></tr>`).join('')}</tbody></table>`
+        : '<div class="empty">Nenhuma parcela registrada</div>'}</div></div>`;
+  },
+
   async intakes(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Atendimentos</h2><p class="sub">Primeiro contato e triagem</p></div>
@@ -763,11 +874,43 @@ async function caseDetail(id, onSave) {
       <button class="btn-sm" id="upd-phase">Atualizar fase</button>
     </div>
     <hr style="border:none;border-top:1px solid var(--border)">
+    <strong style="font-size:13px">Equipe do processo</strong>
+    <div id="collab-area"></div>
+    <hr style="border:none;border-top:1px solid var(--border)">
     <strong style="font-size:13px">Movimentações</strong>
     <div style="max-height:200px;overflow-y:auto">${movs}</div>
     <textarea id="mov-desc" rows="2" placeholder="Nova movimentação processual…"></textarea>
     <button class="btn-primary" id="add-mov">Registrar movimentação</button>
   </div>`);
+
+  // Equipe / colaboradores
+  const loadCollabs = async () => {
+    const collabs = await api(`/api/cases/${id}/collaborators`);
+    const area = form.querySelector('#collab-area');
+    const list = collabs.map((cc) => `<div class="mini-row" style="padding:6px 0">
+      <span>${cc.name} <small>(${cc.user_role}${cc.commission_percent ? ' · ' + cc.commission_percent + '%' : ''})</small></span>
+      ${USER.role === 'admin' ? `<button class="btn-sm" data-rmcol="${cc.user_id}">remover</button>` : ''}</div>`).join('') || '<small style="color:var(--text-muted)">Ninguém atribuído</small>';
+    let assign = '';
+    if (USER.role === 'admin') {
+      const users = await api('/api/users');
+      const assignable = users.filter((u) => ['estagiario','parceiro','advogado'].includes(u.role) && u.active);
+      assign = `<div style="display:flex;gap:6px;margin-top:8px">
+        <select id="collab-user">${assignable.map((u) => `<option value="${u.id}">${u.name} (${u.role})</option>`).join('')}</select>
+        <button class="btn-sm" id="add-collab">Atribuir</button></div>`;
+    }
+    area.innerHTML = list + assign;
+    area.querySelectorAll('[data-rmcol]').forEach((b) => b.onclick = async () => {
+      await api(`/api/cases/${id}/collaborators/${b.dataset.rmcol}`, { method: 'DELETE' }); loadCollabs();
+    });
+    const addBtn = area.querySelector('#add-collab');
+    if (addBtn) addBtn.onclick = async () => {
+      const uid = area.querySelector('#collab-user').value;
+      try { await api(`/api/cases/${id}/collaborators`, { method: 'POST', body: JSON.stringify({ user_id: uid }) });
+        toast('Atribuído'); loadCollabs(); } catch (e) { toast(e.message, 'error'); }
+    };
+  };
+  loadCollabs();
+
   form.querySelector('#upd-phase').onclick = async () => {
     try { await api('/api/cases/' + id, { method: 'PUT', body: JSON.stringify({ phase: form.querySelector('#case-phase').value }) });
       closeModal(); toast('Fase atualizada'); onSave(); } catch (e) { toast(e.message, 'error'); }
@@ -867,6 +1010,69 @@ async function financialForm(onSave) {
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Novo lançamento', form);
+}
+
+async function userForm(onSave) {
+  const clients = await api('/api/clients?limit=100');
+  const form = el(`<form class="form-grid">
+    ${field('Nome *', 'name')}
+    ${field('E-mail *', 'email', { type: 'email' })}
+    ${field('Senha provisória *', 'password', { type: 'password' })}
+    ${field('Papel', 'role', { options: [['advogado','Advogado do escritório'],['estagiario','Estagiário'],['parceiro','Advogado parceiro'],['cliente','Cliente (portal)'],['admin','Administrador']].map(([v,t])=>({v,t})) })}
+    <div id="f-commission" style="display:none">${field('Repasse do parceiro', 'commission_percent', { options: [{v:30,t:'30%'},{v:50,t:'50%'}] })}</div>
+    <div id="f-client" style="display:none">${field('Cliente vinculado', 'client_id', { options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}</div>
+    <button type="submit" class="btn-primary">Cadastrar usuário</button>
+  </form>`);
+  const roleSel = form.querySelector('[name=role]');
+  const sync = () => {
+    form.querySelector('#f-commission').style.display = roleSel.value === 'parceiro' ? 'block' : 'none';
+    form.querySelector('#f-client').style.display = roleSel.value === 'cliente' ? 'block' : 'none';
+  };
+  roleSel.onchange = sync; sync();
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    if (body.role !== 'parceiro') delete body.commission_percent;
+    if (body.role !== 'cliente') delete body.client_id;
+    try {
+      await api('/api/users', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast('Usuário cadastrado'); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Novo usuário', form);
+}
+
+function changePasswordForm() {
+  const form = el(`<form class="form-grid">
+    ${field('Senha atual', 'current_password', { type: 'password' })}
+    ${field('Nova senha (mín. 8)', 'new_password', { type: 'password' })}
+    <button type="submit" class="btn-primary">Trocar senha</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/auth/password', { method: 'PATCH', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast('Senha alterada com sucesso');
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Trocar minha senha', form);
+}
+
+async function portalCaseDetail(id) {
+  const c = await api('/api/portal/cases/' + id);
+  const movs = (c.movements || []).map((m) =>
+    `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <small style="color:var(--text-muted)">${fmtDate(m.movement_date || m.created_at)}</small>
+      <div>${m.description}</div></div>`).join('') || '<p class="empty">Sem movimentações registradas</p>';
+  const wrap = el(`<div class="form-grid">
+    <div><strong style="font-size:18px">${c.title}</strong><br>
+      <small style="color:var(--text-muted)">${c.case_number || ''}</small></div>
+    <div>${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)}</div>
+    <hr style="border:none;border-top:1px solid var(--border)">
+    <strong style="font-size:13px">Andamento do processo</strong>
+    <div style="max-height:300px;overflow-y:auto">${movs}</div>
+  </div>`);
+  openModal('Andamento', wrap);
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
