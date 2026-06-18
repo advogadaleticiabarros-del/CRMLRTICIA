@@ -306,6 +306,57 @@ const ROUTES = {
     await render();
   },
 
+  async financeiro(page) {
+    const s = await api('/api/financial/summary');
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Receitas, despesas e parcelas</p></div>
+        <button class="btn-gold" id="new-fin">+ Lançamento</button></div>
+      <div class="kpi-grid">
+        ${kpi('Receita prevista', money(s.receita_prevista), 'money')}
+        ${kpi('Receita realizada', money(s.receita_realizada), 'money')}
+        ${kpi('Despesa prevista', money(s.despesa_prevista), 'money')}
+        ${kpi('Despesa paga', money(s.despesa_paga), 'money')}
+        ${kpi('Saldo previsto', money(s.saldo_previsto), 'money')}
+        ${kpi('Saldo realizado', money(s.saldo_realizado), 'money')}
+        ${kpi('Inadimplência', money(s.inadimplencia), 'money')}
+      </div>
+      <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">💸 Lançamentos</strong></div><div id="fin-table"></div></div>
+      <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">📄 Parcelas a receber</strong></div><div id="inst-table"></div></div>`;
+
+    const loadFin = async () => {
+      const r = await api('/api/financial');
+      $('#fin-table').innerHTML = r.data.length ? `
+        <table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
+        <tbody>${r.data.map((f) => `<tr>
+          <td><strong>${f.description}</strong>${f.cost_center ? `<br><small style="color:var(--text-muted)">${f.cost_center}</small>` : ''}</td>
+          <td>${f.tipo === 'receita' ? '🟢 Receita' : '🔴 Despesa'}</td>
+          <td>${money(f.valor)}</td><td>${fmtDate(f.due_date)}</td><td>${badge(f.status)}</td>
+          <td>${f.status === 'pendente' ? `<button class="btn-sm" data-pay-fin="${f.id}">Dar baixa</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+        : '<div class="empty">Nenhum lançamento</div>';
+      document.querySelectorAll('[data-pay-fin]').forEach((b) => b.onclick = async () => {
+        try { await api(`/api/financial/${b.dataset.payFin}/pay`, { method: 'PATCH' }); toast('Baixa registrada'); ROUTES.financeiro(page); } catch (e) { toast(e.message, 'error'); }
+      });
+    };
+
+    const loadInst = async () => {
+      const r = await api('/api/financial/installments?status=pendente');
+      $('#inst-table').innerHTML = r.length ? `
+        <table><thead><tr><th>Parcela</th><th>Cliente</th><th>Valor</th><th>Vencimento</th><th></th></tr></thead>
+        <tbody>${r.map((i) => `<tr>
+          <td>${i.numero}ª — <small style="color:var(--text-muted)">${i.proposta_title || ''}</small></td>
+          <td>${i.client_name || '—'}</td><td>${money(i.valor)}</td>
+          <td>${fmtDate(i.due_date)} ${i.vencida ? '<span class="badge vencido">vencida</span>' : ''}</td>
+          <td><button class="btn-sm" data-pay-inst="${i.id}">Receber</button></td></tr>`).join('')}</tbody></table>`
+        : '<div class="empty">Nenhuma parcela pendente</div>';
+      document.querySelectorAll('[data-pay-inst]').forEach((b) => b.onclick = async () => {
+        try { await api(`/api/financial/installments/${b.dataset.payInst}/pay`, { method: 'PATCH' }); toast('Parcela recebida'); ROUTES.financeiro(page); } catch (e) { toast(e.message, 'error'); }
+      });
+    };
+
+    $('#new-fin').onclick = () => financialForm(() => ROUTES.financeiro(page));
+    await loadFin(); await loadInst();
+  },
+
   async intakes(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Atendimentos</h2><p class="sub">Primeiro contato e triagem</p></div>
@@ -600,6 +651,32 @@ async function eventForm(onSave) {
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Novo evento / reunião', form);
+}
+
+async function financialForm(onSave) {
+  const clients = await api('/api/clients?limit=100');
+  const form = el(`<form class="form-grid">
+    ${field('Tipo *', 'tipo', { options: [['receita','Receita'],['despesa','Despesa']].map(([v,t])=>({v,t})) })}
+    ${field('Descrição *', 'description')}
+    <div class="form-row">${field('Valor (R$) *', 'valor', { type: 'number' })}${field('Vencimento', 'due_date', { type: 'date' })}</div>
+    <div class="form-row">
+      ${field('Centro de custo', 'cost_center')}
+      ${field('Recorrência', 'recurrence_type', { options: [['','Nenhuma'],['mensal','Mensal'],['trimestral','Trimestral'],['semestral','Semestral'],['anual','Anual']].map(([v,t])=>({v,t})) })}
+    </div>
+    ${field('Cliente', 'client_id', { options: [{ v: '', t: '— nenhum —' }, ...clients.data.map((c) => ({ v: c.id, t: c.name }))] })}
+    <button type="submit" class="btn-primary">Lançar</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    if (!body.client_id) delete body.client_id;
+    if (!body.recurrence_type) delete body.recurrence_type;
+    try {
+      await api('/api/financial', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast('Lançamento criado'); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Novo lançamento', form);
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }

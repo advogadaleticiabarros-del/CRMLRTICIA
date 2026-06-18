@@ -5,6 +5,14 @@ import { startCronJobs } from './crons';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Defesa em profundidade: nunca derruba o servidor por um erro não tratado de uma rota.
+process.on('unhandledRejection', (reason) => {
+  console.error('unhandledRejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException:', err);
+});
+
 async function bootstrap() {
   // 1. Valida conexão com o banco (com retry — o MySQL pode demorar a ficar pronto no deploy)
   const maxAttempts = 10;

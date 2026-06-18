@@ -1,4 +1,5 @@
 import express, { Request, Response, NextFunction } from 'express';
+import 'express-async-errors'; // captura erros de rotas async e envia ao error handler
 import cors from 'cors';
 import path from 'path';
 import { env } from './config/env';
@@ -21,6 +22,7 @@ import propostaRoutes from './routes/propostas';
 import caseRoutes from './routes/cases';
 import deadlineRoutes from './routes/deadlines';
 import taskRoutes from './routes/tasks';
+import financialRoutes from './routes/financial';
 
 export function createApp() {
   const app = express();
@@ -45,6 +47,7 @@ export function createApp() {
   app.use('/api/cases',                 authenticate, caseRoutes);
   app.use('/api/deadlines',             authenticate, deadlineRoutes);
   app.use('/api/tasks',                 authenticate, taskRoutes);
+  app.use('/api/financial',             authenticate, financialRoutes);
   app.use('/api/dashboards/comercial',  authenticate, comercialDashboard);
   app.use('/api/dashboards/cliente',    authenticate, clienteDashboard);
   app.use('/api/dashboards/processual', authenticate, processualDashboard);
