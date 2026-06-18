@@ -77,24 +77,24 @@ function router() {
 // ── Pages ──
 const ROUTES = {
   async dashboard(page) {
-    const d = await api('/api/dashboards/comercial');
     page.innerHTML = `
-      <div class="page-header"><div><h2>Dashboard Comercial</h2>
-        <p class="sub">Visão geral do funil e propostas</p></div></div>
-      <div class="kpi-grid">
-        ${kpi('Leads hoje', d.leads_hoje)}
-        ${kpi('Total de leads', d.leads_total)}
-        ${kpi('Propostas enviadas', d.propostas_enviadas)}
-        ${kpi('Propostas aceitas', d.propostas_aceitas)}
-        ${kpi('Taxa de conversão', d.taxa_conversao)}
-        ${kpi('Valor em aberto', money(d.valor_potencial_aberto), 'money')}
-        ${kpi('Reuniões marcadas', d.reunioes_marcadas)}
-        ${kpi('Propostas vencendo', d.propostas_vencendo)}
+      <div class="page-header"><div><h2>Dashboards</h2><p class="sub">Visão gerencial do escritório</p></div></div>
+      <div class="tabs" id="dash-tabs">
+        <button class="tab active" data-tab="comercial">📊 Comercial</button>
+        <button class="tab" data-tab="processual">⚖️ Processual</button>
+        <button class="tab" data-tab="agenda">📅 Agenda</button>
+        <button class="tab" data-tab="financeiro">💰 Financeiro</button>
+        <button class="tab" data-tab="producao">📝 Produção</button>
       </div>
-      <div class="card" style="padding:20px">
-        <h3 style="color:var(--navy);margin-bottom:12px">Leads por status</h3>
-        ${(d.leads_por_status || []).map((s) => `<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border)">${badge(s.status)}<strong>${s.total}</strong></div>`).join('') || '<p class="empty">Sem leads ainda</p>'}
-      </div>`;
+      <div id="dash-content"></div>`;
+    const tabs = { comercial: dashComercial, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao };
+    const show = async (name) => {
+      document.querySelectorAll('#dash-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+      const c = $('#dash-content'); c.innerHTML = '<div class="empty">Carregando…</div>';
+      try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
+    };
+    document.querySelectorAll('#dash-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
+    await show('comercial');
   },
 
   async clients(page) {
@@ -379,6 +379,75 @@ const ROUTES = {
 
 function kpi(label, value, cls = '') {
   return `<div class="kpi"><div class="label">${label}</div><div class="value ${cls}">${value ?? 0}</div></div>`;
+}
+
+function miniList(title, rows) {
+  return `<div class="dash-section"><h3>${title}</h3><div class="mini-list">${
+    rows && rows.length ? rows.join('') : '<div class="mini-row"><small>Sem registros</small></div>'
+  }</div></div>`;
+}
+
+async function dashComercial(c) {
+  const d = await api('/api/dashboards/comercial');
+  c.innerHTML = `
+    <div class="kpi-grid">
+      ${kpi('Leads hoje', d.leads_hoje)}${kpi('Total de leads', d.leads_total)}
+      ${kpi('Propostas enviadas', d.propostas_enviadas)}${kpi('Propostas aceitas', d.propostas_aceitas)}
+      ${kpi('Taxa de conversão', d.taxa_conversao)}${kpi('Valor em aberto', money(d.valor_potencial_aberto), 'money')}
+      ${kpi('Reuniões marcadas', d.reunioes_marcadas)}${kpi('Propostas vencendo', d.propostas_vencendo)}
+    </div>
+    ${miniList('Leads por status', (d.leads_por_status || []).map((s) => `<div class="mini-row">${badge(s.status)}<strong>${s.total}</strong></div>`))}`;
+}
+
+async function dashProcessual(c) {
+  const d = await api('/api/dashboards/processual');
+  c.innerHTML = `
+    <div class="kpi-grid">
+      ${kpi('Processos ativos', d.totais?.ativos)}${kpi('Suspensos', d.totais?.suspensos)}
+      ${kpi('Encerrados', d.totais?.encerrados)}${kpi('Peças pendentes', d.pecas_pendentes)}
+    </div>
+    ${miniList('Processos por área', (d.processos_por_area || []).map((a) => `<div class="mini-row">${badge(a.legal_area)}<strong>${a.total}</strong></div>`))}
+    ${miniList('Prazos próximos', (d.prazos_proximos || []).map((p) => `<div class="mini-row"><span>${p.description}<br><small>${p.client_name || ''}</small></span><span>${badge(p.status_label || 'normal')}</span></div>`))}
+    ${miniList('Audiências agendadas', (d.audiencias_agendadas || []).map((a) => `<div class="mini-row"><span>${a.title}<br><small>${a.client_name || ''}</small></span><small>${fmtDate(a.start_datetime)}</small></div>`))}
+    ${miniList('Movimentações recentes', (d.movimentacoes_recentes || []).map((m) => `<div class="mini-row"><span>${m.description}<br><small>${m.case_number || ''}</small></span><small>${fmtDate(m.created_at)}</small></div>`))}`;
+}
+
+async function dashAgenda(c) {
+  const d = await api('/api/dashboards/agenda');
+  const cr = d.contagem_regressiva || {};
+  c.innerHTML = `
+    <div class="kpi-grid">
+      ${kpi('Vencidos', cr.vencidos)}${kpi('Urgentes', cr.urgentes)}
+      ${kpi('Atenção', cr.atencao)}${kpi('Normais', cr.normais)}
+    </div>
+    ${miniList('Prazos de hoje', (d.prazos_hoje || []).map((p) => `<div class="mini-row"><span>${p.description}</span>${badge(p.status_label || 'urgente')}</div>`))}
+    ${miniList('Compromissos do dia', (d.compromissos_dia || []).map((e) => `<div class="mini-row"><span>${e.title}<br><small>${e.client_name || ''}</small></span><small>${fmtDate(e.start_datetime)}</small></div>`))}
+    ${miniList('Tarefas por prioridade', (d.tarefas_por_prioridade || []).slice(0, 8).map((t) => `<div class="mini-row"><span>${t.title}</span>${badge(t.priority)}</div>`))}`;
+}
+
+async function dashFinanceiro(c) {
+  const [s, d] = await Promise.all([api('/api/financial/summary'), api('/api/dashboards/financeiro')]);
+  c.innerHTML = `
+    <div class="kpi-grid">
+      ${kpi('Receita prevista', money(s.receita_prevista), 'money')}${kpi('Receita realizada', money(s.receita_realizada), 'money')}
+      ${kpi('Despesa prevista', money(s.despesa_prevista), 'money')}${kpi('Despesa paga', money(s.despesa_paga), 'money')}
+      ${kpi('Saldo previsto', money(s.saldo_previsto), 'money')}${kpi('Saldo realizado', money(s.saldo_realizado), 'money')}
+      ${kpi('Inadimplência', money(s.inadimplencia), 'money')}
+    </div>
+    ${miniList('Resultado por área jurídica', (d.resultado_por_area || []).map((a) => `<div class="mini-row"><span>${a.legal_area}</span><strong>${money(a.receitas)}</strong></div>`))}
+    ${miniList('Previsão (próximos meses)', (d.previsao_mensal || []).slice(0, 6).map((m) => `<div class="mini-row"><span>${m.mes}</span><span style="color:var(--green)">${money(m.receitas)} <small style="color:var(--red)">- ${money(m.despesas)}</small></span></div>`))}`;
+}
+
+async function dashProducao(c) {
+  const d = await api('/api/dashboards/producao');
+  const p = d.pecas_por_status || {};
+  c.innerHTML = `
+    <div class="kpi-grid">
+      ${kpi('Rascunho', p.rascunho)}${kpi('Em produção', p.producao)}${kpi('Em revisão', p.revisao)}
+      ${kpi('Finalizadas', p.finalizado)}${kpi('Protocoladas', p.protocolado)}
+    </div>
+    ${miniList('Produtividade por responsável', (d.produtividade_por_responsavel || []).map((r) => `<div class="mini-row"><span>${r.responsavel}</span><span><strong>${r.concluidas}</strong> concluídas / ${r.em_andamento} em andamento</span></div>`))}
+    ${miniList('Peças vencendo prazo', (d.pecas_vencendo_prazo || []).map((pc) => `<div class="mini-row"><span>${pc.title}<br><small>${pc.client_name || ''}</small></span>${badge(pc.status_label || 'atencao')}</div>`))}`;
 }
 
 // ── Forms ──
