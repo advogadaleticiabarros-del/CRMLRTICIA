@@ -59,14 +59,15 @@ function logout() {
 const NAV_LABELS = {
   dashboard: '📊 Dashboard', clients: '👥 Clientes', leads: '🎯 Leads',
   propostas: '📄 Propostas', cases: '⚖️ Processos', prazos: '📅 Prazos & Tarefas',
-  agenda: '🗓️ Agenda', financeiro: '💰 Financeiro', intakes: '📞 Atendimentos',
+  agenda: '🗓️ Agenda', financeiro: '💰 Financeiro',
   config: '⚙️ Configurações', repasses: '💸 Meus Repasses', dativo: '🏛️ Dativo',
+  contratos: '📜 Contratos', intakes: '📞 Novo Atendimento',
   portal: '📁 Meus Processos', portalFinanceiro: '💳 Valores a Pagar',
 };
 const NAV_BY_ROLE = {
-  admin:      ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','dativo','intakes','config'],
-  staff:      ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','dativo','intakes'],
-  advogado:   ['dashboard','clients','leads','propostas','cases','prazos','agenda','financeiro','dativo','intakes'],
+  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','prazos','agenda','financeiro','dativo','config'],
+  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','prazos','agenda','financeiro','dativo'],
+  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','cases','prazos','agenda','financeiro','dativo'],
   estagiario: ['cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -76,7 +77,7 @@ function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; 
 function buildNav() {
   const items = navForRole();
   $('#nav').innerHTML = items.map((r) =>
-    `<a href="#${r}" class="nav-item" data-route="${r}">${NAV_LABELS[r]}</a>`).join('');
+    `<a href="#${r}" class="nav-item ${r === 'intakes' ? 'nav-highlight' : ''}" data-route="${r}">${NAV_LABELS[r]}</a>`).join('');
 }
 
 let bellTimer = null;
@@ -286,7 +287,7 @@ const ROUTES = {
       <div class="page-header"><div><h2>Leads</h2><p class="sub">Funil comercial</p></div>
         <button class="btn-gold" id="new-lead">+ Novo lead</button></div>
       <div id="board" class="kanban"></div>`;
-    const cols = { novo: 'Novo', contatado: 'Contatado', qualificado: 'Qualificado', reuniao_marcada: 'Reunião marcada' };
+    const cols = { triagem: 'Triagem', atendimento_inicial: 'Atendimento inicial', reuniao: 'Reunião', proposta: 'Produzir proposta', proposta_em_analise: 'Em análise' };
     const load = async () => {
       const b = await api('/api/leads/board');
       $('#board').innerHTML = Object.entries(cols).map(([k, label]) => `
@@ -614,6 +615,33 @@ const ROUTES = {
         : '<div class="empty">Nenhuma parcela registrada</div>'}</div></div>`;
   },
 
+  async contratos(page) {
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Contratos</h2><p class="sub">Produção por área jurídica</p></div>
+        <button class="btn-gold" id="new-contract">+ Novo contrato</button></div>
+      <div class="toolbar">
+        <select id="ct-status"><option value="">Todos status</option>
+          <option value="rascunho">Rascunho</option><option value="em_producao">Em produção</option>
+          <option value="finalizado">Finalizado</option><option value="assinado">Assinado</option></select>
+      </div>
+      <div class="card"><div id="ct-table"></div></div>`;
+    const load = async () => {
+      const q = $('#ct-status').value ? '?status=' + $('#ct-status').value : '';
+      const rows = await api('/api/contracts' + q);
+      $('#ct-table').innerHTML = rows.length ? `
+        <table><thead><tr><th>Contrato</th><th>Cliente</th><th>Área</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+        <tbody>${rows.map((ct) => `<tr>
+          <td><strong>${ct.title}</strong></td><td>${ct.client_name || '—'}</td><td>${badge(ct.area)}</td>
+          <td>${ct.value ? money(ct.value) : '—'}</td><td>${badge(ct.status)}</td>
+          <td><button class="btn-sm" data-ct="${ct.id}">Abrir / Editar</button></td></tr>`).join('')}</tbody></table>`
+        : '<div class="empty">Nenhum contrato. Feche um lead ou crie um novo.</div>';
+      document.querySelectorAll('[data-ct]').forEach((b) => b.onclick = () => contractEditor(b.dataset.ct, load));
+    };
+    $('#new-contract').onclick = () => contractForm(load);
+    $('#ct-status').onchange = load;
+    await load();
+  },
+
   async dativo(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Advocacia Dativa</h2><p class="sub">Nomeações do Estado — separado dos honorários</p></div></div>
@@ -781,21 +809,33 @@ async function leadForm(onSave) {
 
 async function leadDetail(id, onSave) {
   const l = await api('/api/leads/' + id);
-  const stages = [['novo','Novo'],['contatado','Contatado'],['qualificado','Qualificado'],['reuniao_marcada','Reunião marcada'],['perdido','Perdido']];
+  const stages = [['triagem','Triagem'],['atendimento_inicial','Atendimento inicial'],['reuniao','Reunião'],['proposta','Produzir proposta'],['proposta_em_analise','Proposta em análise'],['perdida','Perdida']];
   const form = el(`<div class="form-grid">
-    <div><strong style="font-size:18px">${l.name}</strong><br><small style="color:var(--text-muted)">${l.legal_area || ''} · ${l.source || ''}</small></div>
+    <div><strong style="font-size:18px">${l.name}</strong><br><small style="color:var(--text-muted)">${l.source || ''}</small></div>
     <div>${l.phone || ''} ${l.email ? '· ' + l.email : ''}</div>
+    ${field('Área jurídica (definir após triagem)', 'legal_area', { value: l.legal_area || 'outro', options: AREAS })}
+    <button class="btn-sm" id="save-area">Salvar área</button>
+    <hr style="border:none;border-top:1px solid var(--border)">
     ${field('Mover no funil', 'status', { value: l.status, options: stages.map(([v,t])=>({v,t})) })}
     <button class="btn-primary" id="move">Atualizar etapa</button>
-    <button class="btn-gold" id="conv">Converter em cliente</button>
+    <hr style="border:none;border-top:1px solid var(--border)">
+    <button class="btn-gold" id="close" style="width:100%">✅ Fechar negócio e gerar contrato</button>
   </div>`);
+  form.querySelector('#save-area').onclick = async () => {
+    try { await api('/api/leads/' + id, { method: 'PUT', body: JSON.stringify({ legal_area: form.querySelector('[name=legal_area]').value }) });
+      toast('Área salva'); } catch (e) { toast(e.message, 'error'); }
+  };
   form.querySelector('#move').onclick = async () => {
     try { await api(`/api/leads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: form.querySelector('[name=status]').value }) });
       closeModal(); toast('Etapa atualizada'); onSave(); } catch (e) { toast(e.message, 'error'); }
   };
-  form.querySelector('#conv').onclick = async () => {
-    try { await api(`/api/leads/${id}/convert-client`, { method: 'POST', body: JSON.stringify({ tipo: 'PF' }) });
-      closeModal(); toast('Lead convertido em cliente'); onSave(); } catch (e) { toast(e.message, 'error'); }
+  form.querySelector('#close').onclick = async () => {
+    try {
+      const ct = await api(`/api/contracts/from-lead/${id}`, { method: 'POST', body: JSON.stringify({}) });
+      closeModal(); toast('Negócio fechado! Contrato gerado.'); onSave();
+      location.hash = '#contratos';
+      setTimeout(() => contractEditor(ct.id), 400);
+    } catch (e) { toast(e.message, 'error'); }
   };
   openModal('Lead', form);
 }
@@ -1285,6 +1325,52 @@ async function dativePaymentForm(onSave) {
       closeModal(); toast('Recebimento registrado'); onSave(); } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Registrar recebimento do Estado', form);
+}
+
+const CONTRACT_STATUS = [['rascunho','Rascunho'],['em_producao','Em produção'],['finalizado','Finalizado'],['assinado','Assinado']].map(([v,t])=>({v,t}));
+
+async function contractForm(onSave) {
+  const clients = await api('/api/clients?limit=100');
+  const form = el(`<form class="form-grid">
+    ${field('Cliente', 'client_id', { options: [{ v: '', t: '— sem cliente —' }, ...clients.data.map((c) => ({ v: c.id, t: c.name }))] })}
+    ${field('Título', 'title')}
+    <div class="form-row">${field('Área', 'area', { options: AREAS })}${field('Valor (R$)', 'value', { type: 'number' })}</div>
+    <small style="color:var(--text-muted)">O texto-base do contrato é gerado automaticamente pela área e fica editável.</small>
+    <button type="submit" class="btn-primary">Criar contrato</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    if (!body.client_id) delete body.client_id;
+    try { const ct = await api('/api/contracts', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); onSave && onSave(); contractEditor(ct.id, onSave); } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Novo contrato', form);
+}
+
+async function contractEditor(id, onSave) {
+  const ct = await api('/api/contracts/' + id);
+  const wrap = el(`<div class="form-grid">
+    ${field('Título', 'title', { value: ct.title })}
+    <div class="form-row">${field('Área', 'area', { value: ct.area, options: AREAS })}${field('Valor (R$)', 'value', { type: 'number', value: ct.value ?? '' })}</div>
+    ${field('Status', 'status', { value: ct.status, options: CONTRACT_STATUS })}
+    <label>Conteúdo do contrato
+      <textarea name="content" rows="16" style="font-family:monospace;font-size:13px">${ct.content || ''}</textarea>
+    </label>
+    <button class="btn-primary" id="save-ct">Salvar contrato</button>
+  </div>`);
+  wrap.querySelector('#save-ct').onclick = async () => {
+    const body = {
+      title: wrap.querySelector('[name=title]').value,
+      area: wrap.querySelector('[name=area]').value,
+      value: wrap.querySelector('[name=value]').value || null,
+      status: wrap.querySelector('[name=status]').value,
+      content: wrap.querySelector('[name=content]').value,
+    };
+    try { await api('/api/contracts/' + id, { method: 'PUT', body: JSON.stringify(body) });
+      closeModal(); toast('Contrato salvo'); onSave && onSave(); } catch (e) { toast(e.message, 'error'); }
+  };
+  openModal('Editar contrato', wrap);
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }

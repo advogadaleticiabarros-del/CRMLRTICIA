@@ -3,7 +3,8 @@ import { db } from '../config/database';
 
 const router = Router();
 
-const STATUSES = ['novo', 'contatado', 'qualificado', 'reuniao_marcada', 'convertido', 'perdido'];
+const STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'proposta', 'proposta_em_analise', 'fechada', 'perdida'];
+const ACTIVE_STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'proposta', 'proposta_em_analise'];
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
 
 // ── GET /api/leads/board — funil agrupado por status (kanban) ───────────────
@@ -11,16 +12,15 @@ router.get('/board', async (req: Request, res: Response) => {
   const userId = req.user!.id;
 
   const [rows] = await db.query(
-    `SELECT id, name, email, phone, source, legal_area, status, created_at
+    `SELECT id, name, email, phone, source, legal_area, status, created_at, analise_since
      FROM leads
-     WHERE user_id = ? AND status NOT IN ('convertido','perdido')
+     WHERE user_id = ? AND status IN ('triagem','atendimento_inicial','reuniao','proposta','proposta_em_analise')
      ORDER BY created_at DESC`,
     [userId]
   ) as any;
 
-  const board: Record<string, any[]> = {
-    novo: [], contatado: [], qualificado: [], reuniao_marcada: [],
-  };
+  const board: Record<string, any[]> = {};
+  for (const s of ACTIVE_STATUSES) board[s] = [];
   for (const lead of rows) {
     (board[lead.status] ??= []).push(lead);
   }
@@ -103,7 +103,7 @@ router.post('/', async (req: Request, res: Response) => {
       phone ?? null,
       source ?? null,
       AREAS.includes(legal_area) ? legal_area : null,
-      STATUSES.includes(status) ? status : 'novo',
+      STATUSES.includes(status) ? status : 'triagem',
       notes ?? null,
     ]
   ) as any;
@@ -159,7 +159,12 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     return;
   }
 
-  const [result] = await db.query('UPDATE leads SET status = ? WHERE id = ?', [status, id]) as any;
+  // Marca o início da análise (regra dos 7 dias). Limpa ao sair da análise.
+  const analiseSql = status === 'proposta_em_analise'
+    ? ', analise_since = NOW()'
+    : ', analise_since = NULL';
+
+  const [result] = await db.query(`UPDATE leads SET status = ?${analiseSql} WHERE id = ?`, [status, id]) as any;
   if (!result.affectedRows) {
     res.status(404).json({ error: 'Lead não encontrado' });
     return;

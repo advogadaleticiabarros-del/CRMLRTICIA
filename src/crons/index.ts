@@ -55,6 +55,19 @@ export function startCronJobs() {
       await alertOverdueItems();
     } catch {}
   });
+
+  // ── a cada hora: proposta em análise há 7+ dias → perdida (inativa) ────────
+  cron.schedule('30 * * * *', async () => {
+    try {
+      await db.query(`
+        UPDATE leads
+        SET status = 'perdida', analise_since = NULL
+        WHERE status = 'proposta_em_analise'
+          AND analise_since IS NOT NULL
+          AND analise_since < (NOW() - INTERVAL 7 DAY)
+      `);
+    } catch {}
+  });
 }
 
 /** Roda todas as checagens de notificação imediatamente (usado pelo botão "verificar agora"). */

@@ -156,7 +156,7 @@ router.post('/:id/convert-lead', async (req: Request, res: Response) => {
 
   const [result] = await db.query(
     `INSERT INTO leads (user_id, client_id, name, email, phone, source, legal_area, status, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'novo', ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'triagem', ?)`,
     [intake.user_id, intake.client_id, intake.contact_name, intake.email, intake.phone,
      intake.source, intake.legal_area, intake.report]
   ) as any;

@@ -67,6 +67,9 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 .nav-item { color: #cdd5e3; text-decoration: none; padding: 11px 14px; border-radius: 8px; font-size: 14px; font-weight: 500; transition: all .15s; }
 .nav-item:hover { background: rgba(255,255,255,.08); color: #fff; }
 .nav-item.active { background: var(--gold); color: #fff; }
+.nav-highlight { background: var(--gold); color: #fff; font-weight: 600; margin-bottom: 8px; box-shadow: 0 2px 8px rgba(184,147,47,.4); }
+.nav-highlight:hover { background: var(--gold-soft); color: #fff; }
+.nav-highlight.active { background: var(--gold-soft); }
 .sidebar-footer { padding: 16px 20px; border-top: 1px solid rgba(255,255,255,.1); display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
 #user-name { color: #cdd5e3; }
 .bell { background: rgba(255,255,255,.08); color: #fff; border: 1px solid rgba(255,255,255,.15); border-radius: 8px; padding: 9px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 6px; }
@@ -119,7 +122,7 @@ tbody tr:hover { background: #faf8f4; }
 .badge.baixa { background: #eef1f6; color: var(--text-soft); }
 
 /* ── Kanban ── */
-.kanban { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.kanban { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
 .kanban-col { background: #efece6; border-radius: 12px; padding: 12px; min-height: 200px; }
 .kanban-col h4 { font-family: 'Inter', sans-serif; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-soft); margin-bottom: 10px; display: flex; justify-content: space-between; }
 .kanban-col h4 .count { background: var(--navy); color: #fff; border-radius: 10px; padding: 1px 8px; font-size: 11px; }
