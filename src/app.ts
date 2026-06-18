@@ -18,6 +18,7 @@ import clientRoutes from './routes/clients';
 import intakeRoutes from './routes/intakes';
 import leadRoutes from './routes/leads';
 import propostaRoutes from './routes/propostas';
+import caseRoutes from './routes/cases';
 
 export function createApp() {
   const app = express();
@@ -39,6 +40,7 @@ export function createApp() {
   app.use('/api/intakes',               authenticate, intakeRoutes);
   app.use('/api/leads',                 authenticate, leadRoutes);
   app.use('/api/propostas',             authenticate, propostaRoutes);
+  app.use('/api/cases',                 authenticate, caseRoutes);
   app.use('/api/dashboards/comercial',  authenticate, comercialDashboard);
   app.use('/api/dashboards/cliente',    authenticate, clienteDashboard);
   app.use('/api/dashboards/processual', authenticate, processualDashboard);

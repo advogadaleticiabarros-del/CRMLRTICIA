@@ -175,6 +175,36 @@ const ROUTES = {
     await load();
   },
 
+  async cases(page) {
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Processos</h2><p class="sub">Casos e movimentações</p></div>
+        <button class="btn-gold" id="new-case">+ Novo processo</button></div>
+      <div class="toolbar">
+        <input id="case-search" placeholder="Buscar por título ou número…" />
+        <select id="case-status"><option value="">Todos status</option><option value="ativo">Ativo</option><option value="suspenso">Suspenso</option><option value="encerrado">Encerrado</option></select>
+      </div>
+      <div class="card"><div id="case-table"></div></div>`;
+    const load = async () => {
+      const q = new URLSearchParams();
+      if ($('#case-search').value) q.set('search', $('#case-search').value);
+      if ($('#case-status').value) q.set('status', $('#case-status').value);
+      const r = await api('/api/cases?' + q);
+      $('#case-table').innerHTML = r.data.length ? `
+        <table><thead><tr><th>Processo</th><th>Cliente</th><th>Área</th><th>Fase</th><th>Status</th><th></th></tr></thead>
+        <tbody>${r.data.map((c) => `<tr>
+          <td><strong>${c.title}</strong><br><small style="color:var(--text-muted)">${c.case_number || 's/ número'}</small></td>
+          <td>${c.client_name || '—'}</td><td>${c.legal_area}</td><td>${badge(c.phase)}</td><td>${badge(c.status)}</td>
+          <td><button class="btn-sm" data-case="${c.id}">Abrir</button></td></tr>`).join('')}</tbody></table>
+        <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} processo(s)</div>`
+        : '<div class="empty">Nenhum processo ainda</div>';
+      document.querySelectorAll('[data-case]').forEach((b) => b.onclick = () => caseDetail(b.dataset.case, load));
+    };
+    $('#new-case').onclick = () => caseForm(load);
+    $('#case-search').oninput = debounce(load, 350);
+    $('#case-status').onchange = load;
+    await load();
+  },
+
   async intakes(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Atendimentos</h2><p class="sub">Primeiro contato e triagem</p></div>
@@ -352,6 +382,61 @@ async function propostaDetail(id, onSave) {
       closeModal(); toast('Proposta aceita — parcelas geradas'); onSave(); } catch (e) { toast(e.message, 'error'); }
   };
   openModal('Proposta', form);
+}
+
+const PHASES = [['inicial','Inicial'],['instrucao','Instrução'],['sentenca','Sentença'],['recurso','Recurso'],['execucao','Execução'],['encerrado','Encerrado']].map(([v,t])=>({v,t}));
+
+async function caseForm(onSave) {
+  const clients = await api('/api/clients?limit=100');
+  const form = el(`<form class="form-grid">
+    ${field('Cliente *', 'client_id', { options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}
+    ${field('Título *', 'title')}
+    ${field('Número do processo', 'case_number')}
+    <div class="form-row">${field('Área', 'legal_area', { options: AREAS })}${field('Fase', 'phase', { options: PHASES })}</div>
+    ${field('Descrição', 'description', { type: 'textarea' })}
+    <button type="submit" class="btn-primary">Criar processo</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await api('/api/cases', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast('Processo criado'); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Novo processo', form);
+}
+
+async function caseDetail(id, onSave) {
+  const c = await api('/api/cases/' + id);
+  const movs = (c.movements || []).map((m) =>
+    `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+      <small style="color:var(--text-muted)">${fmtDate(m.movement_date || m.created_at)}</small>
+      <div>${m.description}</div></div>`).join('') || '<p class="empty">Sem movimentações</p>';
+  const form = el(`<div class="form-grid">
+    <div><strong style="font-size:18px">${c.title}</strong><br>
+      <small style="color:var(--text-muted)">${c.client_name || ''} · ${c.case_number || 's/ número'}</small></div>
+    <div>${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <select id="case-phase">${PHASES.map((p)=>`<option value="${p.v}" ${p.v===c.phase?'selected':''}>${p.t}</option>`).join('')}</select>
+      <button class="btn-sm" id="upd-phase">Atualizar fase</button>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--border)">
+    <strong style="font-size:13px">Movimentações</strong>
+    <div style="max-height:200px;overflow-y:auto">${movs}</div>
+    <textarea id="mov-desc" rows="2" placeholder="Nova movimentação processual…"></textarea>
+    <button class="btn-primary" id="add-mov">Registrar movimentação</button>
+  </div>`);
+  form.querySelector('#upd-phase').onclick = async () => {
+    try { await api('/api/cases/' + id, { method: 'PUT', body: JSON.stringify({ phase: form.querySelector('#case-phase').value }) });
+      closeModal(); toast('Fase atualizada'); onSave(); } catch (e) { toast(e.message, 'error'); }
+  };
+  form.querySelector('#add-mov').onclick = async () => {
+    const desc = form.querySelector('#mov-desc').value;
+    if (!desc.trim()) { toast('Escreva a movimentação', 'error'); return; }
+    try { await api(`/api/cases/${id}/movements`, { method: 'POST', body: JSON.stringify({ description: desc }) });
+      caseDetail(id, onSave); toast('Movimentação registrada'); } catch (e) { toast(e.message, 'error'); }
+  };
+  openModal('Processo', form);
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
