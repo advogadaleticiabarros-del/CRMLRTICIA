@@ -126,7 +126,7 @@ async function openNotifications() {
       <button class="btn-sm" id="notif-readall">Marcar todas como lidas</button>
       <button class="btn-sm" id="notif-settings">⚙️ Configurações</button>
     </div>
-    <div id="notif-list"><div class="empty">Carregando…</div></div>
+    <div id="notif-list"><div class="spinner"></div></div>
   </div>`);
   const loadList = async () => {
     const items = await api('/api/notifications');
@@ -238,7 +238,7 @@ function router() {
   document.querySelectorAll('.nav-item').forEach((a) =>
     a.classList.toggle('active', a.dataset.route === route));
   const page = $('#page');
-  page.innerHTML = '<div class="empty">Carregando…</div>';
+  page.innerHTML = '<div class="spinner"></div>';
   const fn = ROUTES[route] || ROUTES[allowed[0]];
   fn(page).catch((err) => page.innerHTML = `<div class="empty">${err.message}</div>`);
 }
@@ -259,7 +259,7 @@ const ROUTES = {
     const tabs = { comercial: dashComercial, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao };
     const show = async (name) => {
       document.querySelectorAll('#dash-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-      const c = $('#dash-content'); c.innerHTML = '<div class="empty">Carregando…</div>';
+      const c = $('#dash-content'); c.innerHTML = '<div class="spinner"></div>';
       try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
     };
     document.querySelectorAll('#dash-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
@@ -675,7 +675,7 @@ const ROUTES = {
     const tabs = { projecao: datProjecao, demandas: datDemandas, audiencias: datAudiencias, recebimentos: datRecebimentos };
     const show = async (name) => {
       document.querySelectorAll('#dat-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-      const c = $('#dat-content'); c.innerHTML = '<div class="empty">Carregando…</div>';
+      const c = $('#dat-content'); c.innerHTML = '<div class="spinner"></div>';
       try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
     };
     document.querySelectorAll('#dat-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));

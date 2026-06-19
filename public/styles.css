@@ -25,7 +25,7 @@
   --shadow-sm: 0 1px 2px rgba(31, 48, 71, .05);
   --shadow: 0 4px 16px rgba(31, 48, 71, .06);
   --shadow-lg: 0 12px 40px rgba(31, 48, 71, .12);
-  --radius: 12px;
+  --radius: 14px;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
@@ -37,7 +37,10 @@ body {
   font-size: 14px;
 }
 .hidden { display: none !important; }
-h1, h2, h3, h4 { font-family: 'Spectral', Georgia, serif; font-weight: 600; letter-spacing: -.01em; color: var(--navy-deep); }
+/* Títulos da interface: Inter (moderno e clean) */
+h1, h2, h3, h4 { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; letter-spacing: -.022em; color: var(--navy-deep); }
+/* Marca e assinatura: Spectral (elegância) */
+.login-brand-panel h1, .sidebar-brand strong, .login-emblem, .sidebar-brand .emblem, .avatar, .brand-tagline { font-family: 'Spectral', Georgia, serif; }
 
 /* ── Buttons ── */
 .btn-primary {
@@ -147,8 +150,8 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 .kpi::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--gold); opacity: .85; }
 .kpi:hover { box-shadow: var(--shadow); }
 .kpi .label { font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: .6px; font-weight: 600; }
-.kpi .value { font-size: 30px; font-weight: 600; color: var(--navy-deep); margin-top: 6px; font-family: 'Spectral', serif; line-height: 1.1; }
-.kpi .value.money { font-size: 23px; }
+.kpi .value { font-size: 29px; font-weight: 700; color: var(--navy-deep); margin-top: 6px; line-height: 1.1; letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.kpi .value.money { font-size: 22px; }
 
 /* ── Cards / Tabelas ── */
 .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow-sm); border: 1px solid var(--border-soft); overflow: hidden; }
@@ -246,7 +249,74 @@ tbody tr:hover { background: var(--surface-2); }
   .login-view { grid-template-columns: 1fr; }
   .login-brand-panel { display: none; }
   .sidebar { width: 100%; height: auto; position: relative; }
-  .content { margin-left: 0; padding: 22px; }
+  .content { margin-left: 0; }
+  .content > .page { padding: 20px; }
+  .topbar { padding: 0 20px; }
   .kanban { grid-template-columns: 1fr; }
   .app-view { flex-direction: column; }
+  .form-row { grid-template-columns: 1fr; }
 }
+
+/* ════════════════════════════════════════════════════════
+   UX REFINEMENTS — polimento global (paleta preservada)
+   ════════════════════════════════════════════════════════ */
+
+/* Selects com chevron customizado */
+select {
+  appearance: none; -webkit-appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2351607a' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>");
+  background-repeat: no-repeat; background-position: right 13px center; padding-right: 38px; cursor: pointer;
+}
+input[type="checkbox"] { accent-color: var(--gold); width: 17px; height: 17px; cursor: pointer; }
+textarea { resize: vertical; min-height: 70px; line-height: 1.6; }
+label small { font-weight: 400; }
+
+/* Botões — foco acessível + estado ativo */
+.btn-primary:active, .btn-gold:active { transform: translateY(0); }
+.btn-primary:focus-visible, .btn-gold:focus-visible, .btn-sm:focus-visible,
+input:focus-visible, select:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+/* Modal — animação suave + área de ações */
+.modal { animation: fadeIn .16s ease; }
+.modal-card { animation: modalIn .22s cubic-bezier(.16,.8,.3,1); }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes modalIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+.modal-header { position: sticky; top: 0; background: #fff; z-index: 2; }
+#modal-close:hover { color: var(--navy); transform: rotate(90deg); transition: all .2s; }
+
+/* Spinner de carregamento */
+.spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; margin: 40px auto; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Empty state mais elegante */
+.empty { padding: 52px 24px; font-size: 14px; }
+.empty::before { content: '◦'; display: block; font-size: 34px; color: var(--border); margin-bottom: 6px; line-height: 1; }
+
+/* Toast com entrada deslizante */
+.toast { animation: toastIn .26s cubic-bezier(.16,.8,.3,1); display: flex; align-items: center; gap: 8px; }
+@keyframes toastIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+
+/* Scrollbars discretas */
+* { scrollbar-width: thin; scrollbar-color: #cdd5e1 transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: #cdd5e1; border-radius: 6px; border: 2px solid var(--bg); }
+::-webkit-scrollbar-thumb:hover { background: #b4bfd0; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Linhas de tabela com transição e botão de ação revelado no hover */
+tbody tr { transition: background .12s; }
+tbody td .btn-sm { opacity: .85; }
+tbody tr:hover .btn-sm { opacity: 1; }
+
+/* Cabeçalho de seção dentro de cards (padroniza os títulos inline) */
+.card > div:first-child > strong { font-family: 'Inter', sans-serif; font-weight: 700; letter-spacing: -.01em; }
+
+/* KPI — animação de entrada sutil */
+.kpi { animation: rise .3s ease backwards; }
+.kpi:nth-child(2){animation-delay:.03s}.kpi:nth-child(3){animation-delay:.06s}.kpi:nth-child(4){animation-delay:.09s}
+.kpi:nth-child(5){animation-delay:.12s}.kpi:nth-child(6){animation-delay:.15s}.kpi:nth-child(7){animation-delay:.18s}.kpi:nth-child(8){animation-delay:.21s}
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+/* Page header com filete dourado sutil sob o título */
+.page-header h2 { position: relative; padding-bottom: 8px; }
+.page-header h2::after { content: ''; position: absolute; left: 0; bottom: 0; width: 40px; height: 2px; background: var(--gold); border-radius: 2px; }
