@@ -1404,9 +1404,19 @@ async function contractEditor(id, onSave) {
       <button type="button" class="tab" data-doc="declaracao_content">Declaração</button>
     </div>
     ${Object.keys(docs).map((k, i) => `<textarea data-field="${k}" rows="14" style="font-family:monospace;font-size:12.5px;display:${i===0?'block':'none'}">${ct[k] || ''}</textarea>`).join('')}
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn-sm" data-print="content">🖨️ Contrato PDF</button>
+      <button class="btn-sm" data-print="procuracao_content">🖨️ Procuração PDF</button>
+      <button class="btn-sm" data-print="declaracao_content">🖨️ Declaração PDF</button>
+    </div>
     <button class="btn-primary" id="save-ct">Salvar documentos</button>
     ${signAction}
   </div>`);
+
+  wrap.querySelectorAll('[data-print]').forEach((b) => b.onclick = () => {
+    const docTitle = { content: 'Contrato', procuracao_content: 'Procuração', declaracao_content: 'Declaração de Hipossuficiência' }[b.dataset.print];
+    printDoc(docTitle, wrap.querySelector(`[data-field=${b.dataset.print}]`).value);
+  });
 
   wrap.querySelectorAll('#doc-tabs .tab').forEach((t) => t.onclick = () => {
     wrap.querySelectorAll('#doc-tabs .tab').forEach((x) => x.classList.toggle('active', x === t));
@@ -1471,6 +1481,30 @@ function showClientCredentials(cred, processNumber) {
   </div>`);
   wrap.querySelector('#cred-ok').onclick = closeModal;
   openModal('Acesso do cliente gerado', wrap);
+}
+
+function printDoc(title, content) {
+  const safe = (content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const w = window.open('', '_blank');
+  if (!w) { toast('Permita pop-ups para gerar o PDF', 'error'); return; }
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${title}</title>
+    <style>
+      @page { margin: 2.5cm; }
+      body { font-family: 'Times New Roman', Georgia, serif; font-size: 12pt; line-height: 1.7; color: #111; }
+      .doc-header { text-align: center; border-bottom: 2px solid #2a3f5f; padding-bottom: 12px; margin-bottom: 28px; }
+      .doc-header .name { font-size: 16pt; font-weight: bold; color: #2a3f5f; letter-spacing: 1px; }
+      .doc-header .sub { font-size: 10pt; color: #555; letter-spacing: 2px; text-transform: uppercase; }
+      .doc-body { white-space: pre-wrap; text-align: justify; }
+      .doc-footer { margin-top: 30px; font-size: 8pt; color: #999; text-align: center; }
+      @media print { .no-print { display: none; } }
+    </style></head><body>
+    <div class="doc-header"><div class="name">LETÍCIA BARROS</div><div class="sub">Advocacia &amp; Consultoria</div></div>
+    <div class="doc-body">${safe}</div>
+    <div class="doc-footer">Documento gerado pelo CRM — crm.advogadaleticiabarros.com.br</div>
+    <div class="no-print" style="text-align:center;margin-top:30px"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">🖨️ Imprimir / Salvar PDF</button></div>
+    </body></html>`);
+  w.document.close();
+  setTimeout(() => w.focus(), 300);
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
