@@ -62,12 +62,13 @@ const NAV_LABELS = {
   agenda: '🗓️ Agenda', financeiro: '💰 Financeiro',
   config: '⚙️ Configurações', repasses: '💸 Meus Repasses', dativo: '🏛️ Dativo',
   contratos: '📜 Contratos', intakes: '📞 Novo Atendimento',
+  monitor: '🔎 Monitoramento', advogados: '⚖️ Advogados/OAB',
   portal: '📁 Meus Processos', portalFinanceiro: '💳 Valores a Pagar',
 };
 const NAV_BY_ROLE = {
-  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','prazos','agenda','financeiro','dativo','config'],
-  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','prazos','agenda','financeiro','dativo'],
-  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','cases','prazos','agenda','financeiro','dativo'],
+  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','dativo','advogados','config'],
+  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','dativo'],
+  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','dativo'],
   estagiario: ['cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -666,6 +667,52 @@ const ROUTES = {
     };
     document.querySelectorAll('#dat-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
     await show('projecao');
+  },
+
+  async monitor(page) {
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Monitoramento Processual</h2><p class="sub">Acompanhamento via DataJud/CNJ</p></div>
+        <button class="btn-gold" id="new-proc">+ Monitorar processo</button></div>
+      <div class="toolbar">
+        <select id="proc-filter"><option value="">Todos</option><option value="stale">Parados +30 dias</option></select>
+      </div>
+      <div class="card"><div id="proc-table"></div></div>`;
+    const load = async () => {
+      const q = $('#proc-filter').value === 'stale' ? '?stale=30' : '';
+      const rows = await api('/api/processes' + q);
+      $('#proc-table').innerHTML = rows.length ? `
+        <table><thead><tr><th>Processo</th><th>Cliente</th><th>Tribunal</th><th>Última mov.</th><th></th></tr></thead>
+        <tbody>${rows.map((p) => `<tr>
+          <td><strong>${p.process_number}</strong><br><small style="color:var(--text-muted)">${p.judicial_area || ''}</small></td>
+          <td>${p.client_name || '—'}</td><td>${p.court || '—'}</td>
+          <td>${p.last_movement_at ? fmtDate(p.last_movement_at) : '—'}</td>
+          <td><button class="btn-sm" data-proc="${p.id}">Abrir</button></td></tr>`).join('')}</tbody></table>`
+        : '<div class="empty">Nenhum processo monitorado</div>';
+      document.querySelectorAll('[data-proc]').forEach((b) => b.onclick = () => processDetail(b.dataset.proc, load));
+    };
+    $('#new-proc').onclick = () => processForm(load);
+    $('#proc-filter').onchange = load;
+    await load();
+  },
+
+  async advogados(page) {
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Advogados / OAB</h2><p class="sub">Registro e monitoramento por OAB</p></div>
+        <button class="btn-gold" id="new-law">+ Advogado</button></div>
+      <div class="card"><div id="law-table"></div></div>`;
+    const load = async () => {
+      const rows = await api('/api/lawyers');
+      $('#law-table').innerHTML = `
+        <table><thead><tr><th>Nome</th><th>OAB</th><th>Monitoramento</th><th>Última sync</th><th></th></tr></thead>
+        <tbody>${rows.map((l) => `<tr>
+          <td><strong>${l.name}</strong></td><td>${l.oab_number || '—'}/${l.oab_uf || '—'}</td>
+          <td>${l.monitoring_enabled ? '<span class="badge ativo">ativo</span>' : '<span class="badge inativo">inativo</span>'}</td>
+          <td>${l.last_sync_at ? fmtDate(l.last_sync_at) : 'nunca'}</td>
+          <td><button class="btn-sm" data-law="${l.id}">Editar</button></td></tr>`).join('')}</tbody></table>`;
+      document.querySelectorAll('[data-law]').forEach((b) => b.onclick = () => lawyerForm(b.dataset.law, load));
+    };
+    $('#new-law').onclick = () => lawyerForm(null, load);
+    await load();
   },
 
   async intakes(page) {
@@ -1481,6 +1528,80 @@ function showClientCredentials(cred, processNumber) {
   </div>`);
   wrap.querySelector('#cred-ok').onclick = closeModal;
   openModal('Acesso do cliente gerado', wrap);
+}
+
+async function processForm(onSave) {
+  const [clients, lawyers, tri] = await Promise.all([
+    api('/api/clients?limit=100'), api('/api/lawyers'), api('/api/processes/tribunais'),
+  ]);
+  const triOpts = Object.entries(tri.tribunais).map(([k, v]) => ({ v: k, t: `${v.sigla} — ${v.nome}` }));
+  const form = el(`<form class="form-grid">
+    ${field('Número do processo (CNJ) *', 'process_number')}
+    ${field('Cliente', 'client_id', { options: [{ v:'', t:'— nenhum —' }, ...clients.data.map((c) => ({ v: c.id, t: c.name }))] })}
+    ${field('Advogado responsável', 'lawyer_id', { options: lawyers.map((l) => ({ v: l.id, t: `${l.name} (OAB ${l.oab_number||'?'})` })) })}
+    <div class="form-row">${field('Área', 'judicial_area', { options: AREAS })}${field('Tribunal', 'court_alias', { options: [{v:'',t:'— automático pela área —'}, ...triOpts] })}</div>
+    ${field('Fonte', 'source', { options: [['datajud','DataJud (consulta automática)'],['manual','Manual']].map(([v,t])=>({v,t})) })}
+    <button type="submit" class="btn-primary">Cadastrar e monitorar</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    if (!body.client_id) delete body.client_id;
+    if (!body.court_alias) delete body.court_alias;
+    try { await api('/api/processes', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast('Processo cadastrado'); onSave(); } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Monitorar processo', form);
+}
+
+async function processDetail(id, onSave) {
+  const p = await api('/api/processes/' + id);
+  const movs = (p.movements || []).map((m) => `<div style="padding:9px 0;border-bottom:1px solid var(--border-soft)">
+    <small style="color:var(--text-muted)">${fmtDate(m.movement_date)} · ${m.source}</small>
+    <div style="font-size:13px"><strong>${m.title || ''}</strong> ${m.description ? '— ' + m.description : ''}</div></div>`).join('') || '<p class="empty">Sem movimentações ainda</p>';
+  const wrap = el(`<div class="form-grid">
+    <div><strong style="font-size:17px">${p.process_number}</strong><br>
+      <small style="color:var(--text-muted)">${p.court || ''} · ${p.client_name || ''}</small></div>
+    <div>${badge(p.status)} ${p.judicial_area ? badge(p.judicial_area) : ''} · última sync ${p.last_sync_at ? fmtDate(p.last_sync_at) : 'nunca'}</div>
+    <button class="btn-primary" id="sync-now">🔄 Sincronizar agora</button>
+    <hr style="border:none;border-top:1px solid var(--border)">
+    <strong style="font-size:13px">Movimentações (${(p.movements||[]).length})</strong>
+    <div style="max-height:300px;overflow-y:auto">${movs}</div>
+  </div>`);
+  wrap.querySelector('#sync-now').onclick = async () => {
+    wrap.querySelector('#sync-now').textContent = '⏳ Consultando…';
+    try {
+      const r = await api(`/api/processes/${id}/sync`, { method: 'POST' });
+      const msg = r.status === 'nova_movimentacao' ? `${r.newMovements} nova(s) movimentação(ões)!`
+        : r.status === 'sem_novidade' ? 'Sem novidades' : r.status === 'nao_encontrado' ? 'Processo não encontrado na fonte'
+        : (r.message || 'Erro na consulta');
+      toast(msg, r.status === 'erro' ? 'error' : 'success');
+      closeModal(); processDetail(id, onSave);
+    } catch (e) { toast(e.message, 'error'); wrap.querySelector('#sync-now').textContent = '🔄 Sincronizar agora'; }
+  };
+  openModal('Processo monitorado', wrap);
+}
+
+async function lawyerForm(id, onSave) {
+  let l = { name: 'Letícia Elias Barros', oab_number: '', oab_uf: 'ES', email: '', phone: '', monitoring_enabled: 1 };
+  if (id) l = (await api('/api/lawyers')).find((x) => String(x.id) === String(id)) || l;
+  const form = el(`<form class="form-grid">
+    ${field('Nome *', 'name', { value: l.name })}
+    <div class="form-row">${field('Número da OAB', 'oab_number', { value: l.oab_number })}${field('UF', 'oab_uf', { value: l.oab_uf })}</div>
+    <div class="form-row">${field('E-mail', 'email', { value: l.email, type: 'email' })}${field('Telefone', 'phone', { value: l.phone })}</div>
+    <label style="flex-direction:row;align-items:center;gap:8px">
+      <input type="checkbox" id="law-mon" ${l.monitoring_enabled ? 'checked' : ''} style="width:auto"> Monitoramento ativo
+    </label>
+    <button type="submit" class="btn-primary">Salvar</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    body.monitoring_enabled = form.querySelector('#law-mon').checked;
+    try { await api(id ? '/api/lawyers/' + id : '/api/lawyers', { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) });
+      closeModal(); toast('Advogado salvo'); onSave(); } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal(id ? 'Editar advogado / OAB' : 'Novo advogado', form);
 }
 
 function printDoc(title, content) {
