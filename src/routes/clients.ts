@@ -64,6 +64,20 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json({ ...rows[0], resumo });
 });
 
+// ── GET /api/clients/:id/timeline — histórico do cliente (ficha) ────────────
+router.get('/:id/timeline', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT t.event_type, t.description, t.created_at, u.name AS by_name,
+            c.case_number, c.title AS case_title
+     FROM client_timeline t
+     LEFT JOIN users u ON u.id = t.created_by
+     LEFT JOIN cases c ON c.id = t.case_id
+     WHERE t.client_id = ? ORDER BY t.created_at DESC LIMIT 100`,
+    [req.params.id]
+  ) as any;
+  res.json(rows);
+});
+
 // ── POST /api/clients — criar ───────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
   const { name, tipo, cpf_cnpj, email, phone, address, notes, status } = req.body;

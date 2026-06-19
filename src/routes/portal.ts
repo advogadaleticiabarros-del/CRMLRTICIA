@@ -30,11 +30,23 @@ router.get('/me', async (req: Request, res: Response) => {
   res.json({ ...client[0], resumo });
 });
 
-// ── GET /api/portal/cases — meus processos ──────────────────────────────────
+// ── GET /api/portal/cases — meus processos (com estágio de produção) ────────
 router.get('/cases', async (req: Request, res: Response) => {
   const [rows] = await db.query(
-    `SELECT id, case_number, title, legal_area, phase, status, created_at
+    `SELECT id, case_number, title, legal_area, phase, status, production_stage, created_at
      FROM cases WHERE client_id = ? ORDER BY created_at DESC`,
+    [(req as any).clientId]
+  ) as any;
+  res.json(rows);
+});
+
+// ── GET /api/portal/timeline — meu histórico ────────────────────────────────
+router.get('/timeline', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT t.event_type, t.description, t.created_at, c.case_number
+     FROM client_timeline t
+     LEFT JOIN cases c ON c.id = t.case_id
+     WHERE t.client_id = ? ORDER BY t.created_at DESC LIMIT 50`,
     [(req as any).clientId]
   ) as any;
   res.json(rows);

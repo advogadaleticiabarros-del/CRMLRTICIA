@@ -1,10 +1,43 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
+import { logTimeline } from '../services/TimelineService';
 
 const router = Router();
 
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
-const STATUSES = ['rascunho', 'em_producao', 'finalizado', 'assinado', 'cancelado'];
+const STATUSES = ['rascunho', 'em_producao', 'finalizado', 'enviado_assinatura', 'assinado', 'cancelado'];
+
+function buildProcuracao(clientName: string): string {
+  return `PROCURAÇÃO AD JUDICIA ET EXTRA
+
+OUTORGANTE: ${clientName || '[NOME DO CLIENTE]'}, [nacionalidade], [estado civil], [profissão], inscrito(a) no CPF sob nº [CPF], RG nº [RG], residente e domiciliado(a) em [ENDEREÇO].
+
+OUTORGADA: Advocacia Letícia Barros, advogada inscrita na OAB/[UF] sob nº [Nº OAB], com escritório em [ENDEREÇO DO ESCRITÓRIO].
+
+PODERES: Pelo presente instrumento, o(a) OUTORGANTE nomeia e constitui sua bastante procuradora a OUTORGADA, a quem confere os poderes da cláusula "ad judicia et extra", para o foro em geral, em qualquer Juízo, Instância ou Tribunal, podendo propor as ações competentes e defendê-lo(a) nas contrárias, seguindo umas e outras até final decisão, usando os recursos legais e acompanhando-os, conferindo ainda poderes especiais para confessar, desistir, transigir, firmar compromissos ou acordos, receber e dar quitação, agindo em conjunto ou separadamente, podendo ainda substabelecer esta a outrem, com ou sem reserva de iguais poderes.
+
+[CIDADE], [DATA].
+
+
+_______________________________________
+${clientName || '[NOME DO CLIENTE]'}
+OUTORGANTE`;
+}
+
+function buildDeclaracao(clientName: string): string {
+  return `DECLARAÇÃO DE HIPOSSUFICIÊNCIA
+
+Eu, ${clientName || '[NOME DO CLIENTE]'}, [nacionalidade], [estado civil], [profissão], inscrito(a) no CPF sob nº [CPF], RG nº [RG], residente e domiciliado(a) em [ENDEREÇO], DECLARO, sob as penas da lei, para fins de concessão dos benefícios da JUSTIÇA GRATUITA, nos termos do art. 98 e seguintes do Código de Processo Civil e da Lei nº 1.060/50, que não possuo condições de arcar com as custas, despesas processuais e honorários advocatícios sem prejuízo do sustento próprio e de minha família.
+
+Por ser expressão da verdade, firmo a presente declaração.
+
+[CIDADE], [DATA].
+
+
+_______________________________________
+${clientName || '[NOME DO CLIENTE]'}
+DECLARANTE`;
+}
 
 // Objeto do contrato por área jurídica
 const AREA_OBJECT: Record<string, string> = {
@@ -97,13 +130,18 @@ router.post('/from-lead/:leadId', async (req: Request, res: Response) => {
   const content = buildTemplate({ clientName: lead.name, area, value: req.body.value });
 
   const [result] = await db.query(
-    `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, value, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'rascunho')`,
+    `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'rascunho')`,
     [req.user!.id, lead.client_id ?? null, leadId, area,
-     `Contrato — ${lead.name}`, content, req.body.value ?? null]
+     `Contrato — ${lead.name}`, content, buildProcuracao(lead.name), buildDeclaracao(lead.name), req.body.value ?? null]
   ) as any;
 
   await db.query("UPDATE leads SET status = 'fechada', analise_since = NULL WHERE id = ?", [leadId]);
+
+  if (lead.client_id) {
+    await logTimeline({ clientId: lead.client_id, contractId: result.insertId, eventType: 'contrato_gerado',
+      description: 'Contrato, procuração e declaração de hipossuficiência gerados.', userId: req.user!.id });
+  }
 
   const [rows] = await db.query('SELECT * FROM contracts WHERE id = ?', [result.insertId]) as any;
   res.status(201).json(rows[0]);
@@ -122,9 +160,10 @@ router.post('/', async (req: Request, res: Response) => {
   const finalContent = content || buildTemplate({ clientName, area: finalArea, value });
 
   const [result] = await db.query(
-    `INSERT INTO contracts (user_id, client_id, area, title, content, value, status)
-     VALUES (?, ?, ?, ?, ?, ?, 'rascunho')`,
-    [req.user!.id, client_id ?? null, finalArea, title || `Contrato — ${clientName || finalArea}`, finalContent, value ?? null]
+    `INSERT INTO contracts (user_id, client_id, area, title, content, procuracao_content, declaracao_content, value, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'rascunho')`,
+    [req.user!.id, client_id ?? null, finalArea, title || `Contrato — ${clientName || finalArea}`,
+     finalContent, buildProcuracao(clientName), buildDeclaracao(clientName), value ?? null]
   ) as any;
   const [rows] = await db.query('SELECT * FROM contracts WHERE id = ?', [result.insertId]) as any;
   res.status(201).json(rows[0]);
@@ -133,8 +172,9 @@ router.post('/', async (req: Request, res: Response) => {
 // ── PUT /api/contracts/:id — editar conteúdo/status ─────────────────────────
 router.put('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
-  const [existing] = await db.query('SELECT id FROM contracts WHERE id = ? AND user_id = ?', [id, req.user!.id]) as any;
-  if (!existing.length) { res.status(404).json({ error: 'Contrato não encontrado' }); return; }
+  const [existingRows] = await db.query('SELECT * FROM contracts WHERE id = ? AND user_id = ?', [id, req.user!.id]) as any;
+  if (!existingRows.length) { res.status(404).json({ error: 'Contrato não encontrado' }); return; }
+  const before = existingRows[0];
 
   const fields: string[] = [];
   const params: any[] = [];
@@ -143,6 +183,8 @@ router.put('/:id', async (req: Request, res: Response) => {
   };
   setIf('title', req.body.title);
   setIf('content', req.body.content);
+  setIf('procuracao_content', req.body.procuracao_content);
+  setIf('declaracao_content', req.body.declaracao_content);
   setIf('value', req.body.value !== undefined ? Number(req.body.value) : undefined);
   setIf('area', req.body.area, AREAS.includes(req.body.area));
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
@@ -150,8 +192,29 @@ router.put('/:id', async (req: Request, res: Response) => {
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
   params.push(id);
   await db.query(`UPDATE contracts SET ${fields.join(', ')} WHERE id = ?`, params);
+
+  // Ao ASSINAR: cria o caso no módulo de produção (esteira) — uma única vez
+  let createdCaseId: number | null = null;
+  if (req.body.status === 'assinado' && before.status !== 'assinado' && before.client_id) {
+    const [existsCase] = await db.query('SELECT id FROM cases WHERE origin_contract_id = ?', [id]) as any;
+    if (!existsCase.length) {
+      const [caseRes] = await db.query(
+        `INSERT INTO cases (user_id, client_id, title, legal_area, phase, status, production_stage, origin_contract_id, description)
+         VALUES (?, ?, ?, ?, 'inicial', 'ativo', 'separacao_documentos', ?, ?)`,
+        [req.user!.id, before.client_id, before.title.replace('Contrato', 'Processo'),
+         before.area, id, 'Caso criado automaticamente a partir do contrato assinado.']
+      ) as any;
+      createdCaseId = caseRes.insertId;
+      await logTimeline({ clientId: before.client_id, caseId: createdCaseId, contractId: Number(id),
+        eventType: 'contrato_assinado', description: 'Contrato assinado. Caso criado e iniciada a separação de documentos.', userId: req.user!.id });
+    }
+  } else if (req.body.status === 'enviado_assinatura' && before.status !== 'enviado_assinatura' && before.client_id) {
+    await logTimeline({ clientId: before.client_id, contractId: Number(id),
+      eventType: 'contrato_enviado', description: 'Contrato enviado para assinatura.', userId: req.user!.id });
+  }
+
   const [rows] = await db.query('SELECT * FROM contracts WHERE id = ?', [id]) as any;
-  res.json(rows[0]);
+  res.json({ ...rows[0], created_case_id: createdCaseId });
 });
 
 export default router;
