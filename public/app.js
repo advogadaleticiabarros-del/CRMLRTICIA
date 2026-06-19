@@ -271,10 +271,11 @@ const ROUTES = {
         <tbody>${r.data.map((c) => `<tr>
           <td><strong>${c.name}</strong> ${c.is_dative ? '<span class="badge dativo">DATIVO</span>' : ''}<br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
           <td>${c.tipo}</td><td>${c.phone || c.email || '—'}</td><td>${badge(c.status)}</td>
-          <td><button class="btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table>
+          <td style="white-space:nowrap"><button class="btn-sm" data-hist="${c.id}">Histórico</button> <button class="btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table>
         <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} cliente(s)</div>`
         : '<div class="empty">Nenhum cliente encontrado</div>';
       document.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => clientForm(b.dataset.edit, load));
+      document.querySelectorAll('[data-hist]').forEach((b) => b.onclick = () => clientHistory(b.dataset.hist));
     };
     $('#new-client').onclick = () => clientForm(null, load);
     $('#cli-search').oninput = debounce(load, 350);
@@ -589,15 +590,20 @@ const ROUTES = {
         ${kpi('Valores a pagar', money(me.resumo.a_pagar), 'money')}
         ${kpi('Em atraso', money(me.resumo.vencido), 'money')}
       </div>
-      <div class="card"><div id="portal-cases"></div></div>`;
+      <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Meus processos</strong></div><div id="portal-cases"></div></div>
+      <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Histórico / Atualizações</strong></div><div id="portal-tl"></div></div>`;
+    const STAGE_PT = { separacao_documentos:'Separação de documentos', criacao_inicial:'Criação inicial', revisao_inicial:'Revisão inicial', aguardando_protocolo:'Aguardando protocolo', protocolado:'Protocolado', concluido:'Concluído' };
     $('#portal-cases').innerHTML = cases.length ? `
-      <table><thead><tr><th>Processo</th><th>Área</th><th>Fase</th><th>Status</th><th></th></tr></thead>
+      <table><thead><tr><th>Processo</th><th>Área</th><th>Estágio</th><th></th></tr></thead>
       <tbody>${cases.map((c) => `<tr>
-        <td><strong>${c.title}</strong><br><small style="color:var(--text-muted)">${c.case_number || ''}</small></td>
-        <td>${c.legal_area}</td><td>${badge(c.phase)}</td><td>${badge(c.status)}</td>
+        <td><strong>${c.title}</strong><br><small style="color:var(--text-muted)">${c.case_number || 'aguardando protocolo'}</small></td>
+        <td>${c.legal_area}</td>
+        <td>${c.production_stage ? `<span class="badge ${c.production_stage}">${STAGE_PT[c.production_stage] || c.production_stage}</span>` : badge(c.phase)}</td>
         <td><button class="btn-sm" data-pcase="${c.id}">Ver andamento</button></td></tr>`).join('')}</tbody></table>`
       : '<div class="empty">Nenhum processo no momento</div>';
     document.querySelectorAll('[data-pcase]').forEach((b) => b.onclick = () => portalCaseDetail(b.dataset.pcase));
+    const tl = await api('/api/portal/timeline');
+    $('#portal-tl').innerHTML = tl.length ? tl.map((e) => `<div class="notif-item"><strong>${e.description}</strong><div style="margin-top:4px"><small>${e.case_number ? 'Proc. ' + e.case_number + ' · ' : ''}${fmtDate(e.created_at)}</small></div></div>`).join('') : '<div class="empty">Sem atualizações ainda</div>';
   },
 
   async portalFinanceiro(page) {
@@ -950,10 +956,23 @@ async function caseDetail(id, onSave) {
     `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
       <small style="color:var(--text-muted)">${fmtDate(m.movement_date || m.created_at)}</small>
       <div>${m.description}</div></div>`).join('') || '<p class="empty">Sem movimentações</p>';
+  const PROD_STAGES = [['separacao_documentos','Separação de documentos'],['criacao_inicial','Criação inicial'],['revisao_inicial','Revisão inicial'],['aguardando_protocolo','Aguardando protocolo'],['protocolado','Protocolado'],['concluido','Concluído']];
+  let prodHtml = '';
+  if (c.production_stage) {
+    const idx = PROD_STAGES.findIndex(([v]) => v === c.production_stage);
+    const steps = PROD_STAGES.map(([v,t],i) => `<span style="font-size:11px;padding:3px 8px;border-radius:12px;${i<=idx?'background:var(--gold);color:#fff':'background:#eef2f8;color:var(--text-muted)'}">${t}</span>`).join(' ');
+    const next = PROD_STAGES[idx+1];
+    prodHtml = `<hr style="border:none;border-top:1px solid var(--border)">
+      <strong style="font-size:13px">⚙️ Esteira de produção</strong>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;line-height:2">${steps}</div>
+      ${next ? `<button class="btn-gold btn-sm" id="adv-stage" data-next="${next[0]}">Avançar → ${next[1]}</button>` : '<small style="color:var(--green)">Esteira concluída</small>'}`;
+  }
   const form = el(`<div class="form-grid">
     <div><strong style="font-size:18px">${c.title}</strong><br>
       <small style="color:var(--text-muted)">${c.client_name || ''} · ${c.case_number || 's/ número'}</small></div>
-    <div>${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)}</div>
+    <div>${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)} ${c.production_stage ? badge(c.production_stage) : ''}</div>
+    ${prodHtml}
+    <hr style="border:none;border-top:1px solid var(--border)">
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <select id="case-phase">${PHASES.map((p)=>`<option value="${p.v}" ${p.v===c.phase?'selected':''}>${p.t}</option>`).join('')}</select>
       <button class="btn-sm" id="upd-phase">Atualizar fase</button>
@@ -995,6 +1014,22 @@ async function caseDetail(id, onSave) {
     };
   };
   loadCollabs();
+
+  const advBtn = form.querySelector('#adv-stage');
+  if (advBtn) advBtn.onclick = async () => {
+    const next = advBtn.dataset.next;
+    const body = { stage: next };
+    if (next === 'protocolado') {
+      const num = prompt('Número do processo/protocolo (obrigatório para protocolar):');
+      if (!num || !num.trim()) { toast('Número do processo é obrigatório', 'error'); return; }
+      body.case_number = num.trim();
+    }
+    try {
+      const r = await api(`/api/cases/${id}/production-stage`, { method: 'PATCH', body: JSON.stringify(body) });
+      closeModal(); toast('Etapa avançada'); onSave();
+      if (r.credentials) showClientCredentials(r.credentials, r.case_number);
+    } catch (e) { toast(e.message, 'error'); }
+  };
 
   form.querySelector('#upd-phase').onclick = async () => {
     try { await api('/api/cases/' + id, { method: 'PUT', body: JSON.stringify({ phase: form.querySelector('#case-phase').value }) });
@@ -1350,27 +1385,92 @@ async function contractForm(onSave) {
 
 async function contractEditor(id, onSave) {
   const ct = await api('/api/contracts/' + id);
+  const docs = { content: 'Contrato', procuracao_content: 'Procuração', declaracao_content: 'Declaração de Hipossuficiência' };
+  let signAction = '';
+  if (['rascunho','em_producao','finalizado'].includes(ct.status))
+    signAction = `<button class="btn-gold" id="send-sign" style="width:100%">✍️ Enviar para assinatura</button>`;
+  else if (ct.status === 'enviado_assinatura')
+    signAction = `<button class="btn-gold" id="mark-signed" style="width:100%">✅ Marcar como assinado (cria o caso)</button>`;
+  else if (ct.status === 'assinado')
+    signAction = `<div style="text-align:center;color:var(--green);font-weight:600">✅ Contrato assinado · caso em produção</div>`;
+
   const wrap = el(`<div class="form-grid">
     ${field('Título', 'title', { value: ct.title })}
     <div class="form-row">${field('Área', 'area', { value: ct.area, options: AREAS })}${field('Valor (R$)', 'value', { type: 'number', value: ct.value ?? '' })}</div>
-    ${field('Status', 'status', { value: ct.status, options: CONTRACT_STATUS })}
-    <label>Conteúdo do contrato
-      <textarea name="content" rows="16" style="font-family:monospace;font-size:13px">${ct.content || ''}</textarea>
-    </label>
-    <button class="btn-primary" id="save-ct">Salvar contrato</button>
+    <div>Status: ${badge(ct.status)}</div>
+    <div class="tabs" id="doc-tabs">
+      <button type="button" class="tab active" data-doc="content">Contrato</button>
+      <button type="button" class="tab" data-doc="procuracao_content">Procuração</button>
+      <button type="button" class="tab" data-doc="declaracao_content">Declaração</button>
+    </div>
+    ${Object.keys(docs).map((k, i) => `<textarea data-field="${k}" rows="14" style="font-family:monospace;font-size:12.5px;display:${i===0?'block':'none'}">${ct[k] || ''}</textarea>`).join('')}
+    <button class="btn-primary" id="save-ct">Salvar documentos</button>
+    ${signAction}
   </div>`);
-  wrap.querySelector('#save-ct').onclick = async () => {
+
+  wrap.querySelectorAll('#doc-tabs .tab').forEach((t) => t.onclick = () => {
+    wrap.querySelectorAll('#doc-tabs .tab').forEach((x) => x.classList.toggle('active', x === t));
+    wrap.querySelectorAll('[data-field]').forEach((ta) => ta.style.display = ta.dataset.field === t.dataset.doc ? 'block' : 'none');
+  });
+
+  const saveDocs = async (extra = {}) => {
     const body = {
       title: wrap.querySelector('[name=title]').value,
       area: wrap.querySelector('[name=area]').value,
       value: wrap.querySelector('[name=value]').value || null,
-      status: wrap.querySelector('[name=status]').value,
-      content: wrap.querySelector('[name=content]').value,
+      content: wrap.querySelector('[data-field=content]').value,
+      procuracao_content: wrap.querySelector('[data-field=procuracao_content]').value,
+      declaracao_content: wrap.querySelector('[data-field=declaracao_content]').value,
+      ...extra,
     };
-    try { await api('/api/contracts/' + id, { method: 'PUT', body: JSON.stringify(body) });
-      closeModal(); toast('Contrato salvo'); onSave && onSave(); } catch (e) { toast(e.message, 'error'); }
+    return api('/api/contracts/' + id, { method: 'PUT', body: JSON.stringify(body) });
   };
-  openModal('Editar contrato', wrap);
+
+  wrap.querySelector('#save-ct').onclick = async () => {
+    try { await saveDocs(); closeModal(); toast('Documentos salvos'); onSave && onSave(); } catch (e) { toast(e.message, 'error'); }
+  };
+  const sendBtn = wrap.querySelector('#send-sign');
+  if (sendBtn) sendBtn.onclick = async () => {
+    try { await saveDocs({ status: 'enviado_assinatura' }); closeModal(); toast('Contrato enviado para assinatura'); onSave && onSave(); } catch (e) { toast(e.message, 'error'); }
+  };
+  const signBtn = wrap.querySelector('#mark-signed');
+  if (signBtn) signBtn.onclick = async () => {
+    try { const r = await saveDocs({ status: 'assinado' }); closeModal();
+      toast('Contrato assinado! Caso criado na produção.'); onSave && onSave();
+      if (r.created_case_id) { location.hash = '#cases'; }
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  openModal('Produção de documentos', wrap);
+}
+
+async function clientHistory(clientId) {
+  const tl = await api(`/api/clients/${clientId}/timeline`);
+  const items = tl.length ? tl.map((e) => `<div class="notif-item">
+      <strong>${e.description}</strong>
+      <div style="display:flex;justify-content:space-between;margin-top:4px">
+        <small>${e.case_number ? 'Proc. ' + e.case_number + ' · ' : ''}${e.by_name || ''}</small>
+        <small>${fmtDate(e.created_at)}</small>
+      </div></div>`).join('') : '<div class="empty">Sem histórico ainda</div>';
+  const wrap = el(`<div><div class="mini-list">${items}</div></div>`);
+  openModal('Histórico do cliente', wrap);
+}
+
+function showClientCredentials(cred, processNumber) {
+  const wrap = el(`<div class="form-grid">
+    <div style="background:var(--green-bg);border-radius:10px;padding:14px">
+      <strong style="color:var(--green)">✅ Processo protocolado — nº ${processNumber}</strong>
+    </div>
+    <p style="font-size:14px;color:var(--text-soft)">Foi criado o acesso do cliente ao portal. <strong>Repasse estas credenciais ao cliente</strong> (WhatsApp/pessoalmente):</p>
+    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;font-family:monospace">
+      <div>🌐 crm.advogadaleticiabarros.com.br</div>
+      <div>👤 Login: <strong>${cred.login}</strong></div>
+      <div>🔑 Senha: <strong>${cred.password}</strong></div>
+    </div>
+    <small style="color:var(--text-muted)">O cliente verá o andamento do processo e o histórico no portal. Oriente-o a trocar a senha no primeiro acesso.</small>
+    <button class="btn-primary" id="cred-ok">Entendi, copiei</button>
+  </div>`);
+  wrap.querySelector('#cred-ok').onclick = closeModal;
+  openModal('Acesso do cliente gerado', wrap);
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }

@@ -154,6 +154,9 @@ tbody tr:hover { background: var(--surface-2); }
 .badge.normal { background: var(--green-bg); color: var(--green); }
 .badge.admin, .badge.advogado, .badge.parceiro, .badge.estagiario, .badge.cliente, .badge.responsavel, .badge.colaborador, .badge.staff, .badge.concluida { background: #eef2f8; color: var(--navy); }
 .badge.dativo { background: var(--navy); color: #fff; letter-spacing: .6px; }
+.badge.separacao_documentos, .badge.criacao_inicial, .badge.revisao_inicial, .badge.aguardando_protocolo { background: var(--amber-bg); color: var(--amber); }
+.badge.protocolado, .badge.concluido { background: var(--green-bg); color: var(--green); }
+.badge.enviado_assinatura { background: var(--amber-bg); color: var(--amber); }
 .badge.alta, .badge.critica { background: var(--red-bg); color: var(--red); }
 .badge.media { background: var(--amber-bg); color: var(--amber); }
 .badge.baixa { background: #eef2f8; color: var(--text-soft); }
