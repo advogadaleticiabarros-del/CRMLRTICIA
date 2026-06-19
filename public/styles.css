@@ -115,7 +115,26 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 .bell { background: rgba(255,255,255,.06); color: #fff; border: 1px solid rgba(255,255,255,.14); border-radius: 9px; padding: 10px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 7px; transition: all .15s; }
 .bell:hover { background: rgba(255,255,255,.13); }
 .bell-count { background: var(--red); color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
-.content { margin-left: 260px; flex: 1; padding: 34px 42px; max-width: 1180px; }
+.content { margin-left: 260px; flex: 1; padding: 0 0 40px; min-height: 100vh; }
+.content > .page { padding: 28px 42px; max-width: 1200px; }
+
+/* ── Topbar ── */
+.topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 42px; height: 64px; background: rgba(255,255,255,.85); backdrop-filter: saturate(180%) blur(8px);
+  border-bottom: 1px solid var(--border); }
+.topbar-greeting { font-size: 14px; color: var(--text-soft); }
+.topbar-greeting strong { color: var(--navy-deep); }
+.topbar-date { color: var(--text-muted); text-transform: capitalize; }
+.topbar-actions { display: flex; align-items: center; gap: 14px; }
+.bell-icon { position: relative; background: var(--surface-2); border: 1px solid var(--border); width: 40px; height: 40px;
+  border-radius: 50%; cursor: pointer; font-size: 17px; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.bell-icon:hover { border-color: var(--gold); box-shadow: var(--shadow-sm); }
+.bell-icon .bell-count { position: absolute; top: -3px; right: -3px; }
+
+/* ── User chip / avatar ── */
+.user-chip { display: flex; align-items: center; gap: 10px; }
+.avatar { width: 38px; height: 38px; flex-shrink: 0; border-radius: 50%; background: linear-gradient(135deg, var(--gold) 0%, var(--gold-soft) 100%);
+  color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; font-family: 'Spectral', serif; letter-spacing: .5px; }
 
 /* ── Page header ── */
 .page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 26px; gap: 16px; flex-wrap: wrap; }

@@ -81,11 +81,24 @@ function buildNav() {
     `<a href="#${r}" class="nav-item ${r === 'intakes' ? 'nav-highlight' : ''}" data-route="${r}">${NAV_LABELS[r]}</a>`).join('');
 }
 
+function initials(name) {
+  const parts = (name || '').trim().split(/\s+/);
+  return ((parts[0]?.[0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || 'U';
+}
+const ROLE_PT = { admin: 'Administrador', advogado: 'Advogado(a)', estagiario: 'Estagiário(a)', parceiro: 'Parceiro(a)', cliente: 'Cliente', staff: 'Equipe' };
+
 let bellTimer = null;
 function showApp() {
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
-  $('#user-name').textContent = `${USER?.name || ''}${USER?.role && USER.role !== 'advogado' ? ' · ' + USER.role : ''}`;
+  $('#user-name').innerHTML = `${USER?.name || ''}<small style="display:block;color:var(--gold-soft);font-size:11px">${ROLE_PT[USER?.role] || ''}</small>`;
+  const av = $('#user-avatar'); if (av) av.textContent = initials(USER?.name);
+  const greet = $('#topbar-greeting');
+  if (greet) {
+    const h = new Date().getHours();
+    const saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
+    greet.innerHTML = `${saud}, <strong>${(USER?.name || '').split(' ')[0]}</strong> <span class="topbar-date">· ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>`;
+  }
   buildNav();
   // rota padrão do papel
   const allowed = navForRole();
