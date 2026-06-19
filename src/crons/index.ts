@@ -4,6 +4,7 @@ import { deadlineCounterService } from '../services/DeadlineCounterService';
 import { notificationService } from '../services/NotificationService';
 import { calendarSyncService } from '../services/CalendarSyncService';
 import { telegramNotificationService } from '../services/TelegramNotificationService';
+import { runMonitoringJob } from '../services/monitoringService';
 
 export function startCronJobs() {
   // ── a cada 5 min: atualiza contadores de prazos ──────────────────────────
@@ -53,6 +54,13 @@ export function startCronJobs() {
   cron.schedule('0 7 * * *', async () => {
     try {
       await alertOverdueItems();
+    } catch {}
+  });
+
+  // ── monitoramento processual: 08h e 16h (DataJud/provider ativo) ──────────
+  cron.schedule('0 8,16 * * *', async () => {
+    try {
+      await runMonitoringJob();
     } catch {}
   });
 

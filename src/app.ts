@@ -28,6 +28,8 @@ import portalRoutes from './routes/portal';
 import meRoutes from './routes/me';
 import dativeRoutes from './routes/dative';
 import contractRoutes from './routes/contracts';
+import lawyerRoutes from './routes/lawyers';
+import processRoutes from './routes/processes';
 import { googleOAuthCallback } from './routes/google-callback';
 
 export function createApp() {
@@ -66,6 +68,8 @@ export function createApp() {
   app.use('/api/financial',             authenticate, requireStaff, financialRoutes);
   app.use('/api/dative',                authenticate, requireStaff, dativeRoutes);
   app.use('/api/contracts',             authenticate, requireStaff, contractRoutes);
+  app.use('/api/lawyers',               authenticate, requireAdmin, lawyerRoutes);
+  app.use('/api/processes',             authenticate, requireStaff, processRoutes);
   app.use('/api/dashboards/comercial',  authenticate, requireStaff, comercialDashboard);
   app.use('/api/dashboards/cliente',    authenticate, requireStaff, clienteDashboard);
   app.use('/api/dashboards/processual', authenticate, requireStaff, processualDashboard);
