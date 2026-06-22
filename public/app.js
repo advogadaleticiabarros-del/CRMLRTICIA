@@ -524,10 +524,25 @@ const ROUTES = {
       <div class="page-header"><div><h2>Configurações</h2><p class="sub">Usuários e conta</p></div>
         <button class="btn-gold" id="new-user">+ Novo usuário</button></div>
       <div class="card" style="margin-bottom:20px"><div id="users-table"></div></div>
-      <div class="card" style="padding:20px">
+      <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:12px">Minha conta</h3>
         <button class="btn-sm" id="change-pwd">🔒 Trocar minha senha</button>
+      </div>
+      <div class="card" style="padding:20px">
+        <h3 style="color:var(--navy);margin-bottom:6px">💾 Backup do sistema</h3>
+        <p class="sub" style="margin-bottom:12px">Cópia diária do banco enviada ao MEGA automaticamente às 02h.</p>
+        <button class="btn-gold btn-sm" id="run-backup">⬆️ Fazer backup agora</button>
+        <div id="backup-list" style="margin-top:14px"></div>
       </div>`;
+    const loadBackups = async () => {
+      try {
+        const r = await api('/api/backup');
+        $('#backup-list').innerHTML = r.total ? `
+          <table><thead><tr><th>Arquivo</th><th>Tamanho</th></tr></thead>
+          <tbody>${r.backups.map((b) => `<tr><td>${b.name}</td><td>${b.sizeKB} KB</td></tr>`).join('')}</tbody></table>`
+          : '<div class="empty">Nenhum backup ainda. Clique em "Fazer backup agora" ou aguarde as 02h.</div>';
+      } catch (e) { $('#backup-list').innerHTML = `<div class="empty">${e.message}</div>`; }
+    };
     const load = async () => {
       const users = await api('/api/users');
       $('#users-table').innerHTML = `
@@ -545,7 +560,17 @@ const ROUTES = {
     };
     $('#new-user').onclick = () => userForm(load);
     $('#change-pwd').onclick = () => changePasswordForm();
+    $('#run-backup').onclick = async () => {
+      const btn = $('#run-backup'); btn.disabled = true; btn.textContent = 'Fazendo backup…';
+      try {
+        const r = await api('/api/backup/run', { method: 'POST', body: '{}' });
+        if (r.ok) { toast(`Backup enviado: ${r.file} (${r.sizeKB} KB)`); loadBackups(); }
+        else toast(r.message || 'Backup não realizado', 'error');
+      } catch (e) { toast(e.message, 'error'); }
+      finally { btn.disabled = false; btn.textContent = '⬆️ Fazer backup agora'; }
+    };
     await load();
+    await loadBackups();
   },
 
   async repasses(page) {
