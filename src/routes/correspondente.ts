@@ -6,6 +6,30 @@ const router = Router();
 const ROLES = ['advogado', 'preposto'];
 const STATUSES = ['agendada', 'realizada', 'faturada', 'paga', 'cancelada'];
 
+/** Cria/atualiza o evento da agenda da audiência (para sincronizar com o Google). */
+async function syncHearingToCalendar(hearingId: number, userId: number): Promise<void> {
+  const [[h]] = await db.query('SELECT * FROM correspondent_hearings WHERE id = ?', [hearingId]) as any;
+  if (!h) return;
+  const title = `Audiência (correspondente) — ${h.comarca || h.payer_name}`;
+  const desc = `Correspondente como ${h.role}. Pagador: ${h.payer_name} (${h.payer_type}). Processo: ${h.process_number || '—'}. Valor: ${h.value}.`;
+  const [ex] = await db.query('SELECT id FROM calendar_events WHERE correspondent_id = ?', [hearingId]) as any;
+  if (ex.length) {
+    await db.query(
+      `UPDATE calendar_events SET title = ?, description = ?, event_type = 'audiencia',
+         start_datetime = ?, end_datetime = DATE_ADD(?, INTERVAL 1 HOUR), location = ?, sync_status = 'pendente'
+       WHERE correspondent_id = ?`,
+      [title, desc, h.hearing_datetime, h.hearing_datetime, h.location ?? null, hearingId]
+    );
+  } else {
+    await db.query(
+      `INSERT INTO calendar_events
+         (user_id, title, description, event_type, start_datetime, end_datetime, location, source, sync_status, correspondent_id)
+       VALUES (?, ?, ?, 'audiencia', ?, DATE_ADD(?, INTERVAL 1 HOUR), ?, 'crm', 'pendente', ?)`,
+      [userId, title, desc, h.hearing_datetime, h.hearing_datetime, h.location ?? null, hearingId]
+    );
+  }
+}
+
 // ── GET /api/correspondente/summary — KPIs ──────────────────────────────────
 router.get('/summary', async (_req: Request, res: Response) => {
   const [[s]] = await db.query(`
@@ -49,6 +73,14 @@ router.post('/', async (req: Request, res: Response) => {
      payer_name.trim(), payer_type === 'PF' ? 'PF' : 'PJ', payer_document ?? null,
      Number(value) || 0, STATUSES.includes(status) ? status : 'agendada', due_date || null, notes ?? null]
   ) as any;
+  // Agenda: vincula a um evento do Google existente (veio de pendência) ou cria um novo
+  if (req.body?.calendar_event_id) {
+    await db.query("UPDATE calendar_events SET correspondent_id = ?, event_type = 'audiencia' WHERE id = ? AND user_id = ?",
+      [result.insertId, req.body.calendar_event_id, req.user!.id]);
+  } else {
+    await syncHearingToCalendar(result.insertId, req.user!.id);
+  }
+
   const [rows] = await db.query('SELECT * FROM correspondent_hearings WHERE id = ?', [result.insertId]) as any;
   res.status(201).json(rows[0]);
 });
@@ -77,6 +109,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido' }); return; }
   params.push(id);
   await db.query(`UPDATE correspondent_hearings SET ${fields.join(', ')} WHERE id = ?`, params);
+  await syncHearingToCalendar(Number(id), req.user!.id);
   const [rows] = await db.query('SELECT * FROM correspondent_hearings WHERE id = ?', [id]) as any;
   res.json(rows[0]);
 });
@@ -93,9 +126,33 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 
 // ── DELETE /api/correspondente/:id ──────────────────────────────────────────
 router.delete('/:id', async (req: Request, res: Response) => {
+  await db.query('DELETE FROM calendar_events WHERE correspondent_id = ?', [req.params.id]);
   const [r] = await db.query('DELETE FROM correspondent_hearings WHERE id = ?', [req.params.id]) as any;
   if (!r.affectedRows) { res.status(404).json({ error: 'Audiência não encontrada' }); return; }
   res.json({ success: true, id: Number(req.params.id) });
+});
+
+// ── Pendências: audiências vindas do Google ainda não classificadas ─────────
+router.get('/agenda-pendencias', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT id, title, description, start_datetime, location FROM calendar_events
+      WHERE user_id = ? AND source = 'google' AND event_type = 'audiencia'
+        AND correspondent_id IS NULL AND client_id IS NULL
+      ORDER BY start_datetime ASC LIMIT 100`, [req.user!.id]
+  ) as any;
+  res.json(rows);
+});
+
+// Classificar como audiência do cliente → vincula à ficha
+router.post('/agenda-pendencias/:eventId/cliente', async (req: Request, res: Response) => {
+  const { client_id } = req.body;
+  if (!client_id) { res.status(400).json({ error: 'client_id é obrigatório' }); return; }
+  const [r] = await db.query(
+    'UPDATE calendar_events SET client_id = ? WHERE id = ? AND user_id = ?',
+    [client_id, req.params.eventId, req.user!.id]
+  ) as any;
+  if (!r.affectedRows) { res.status(404).json({ error: 'Evento não encontrado' }); return; }
+  res.json({ success: true });
 });
 
 export default router;

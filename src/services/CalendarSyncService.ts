@@ -46,12 +46,14 @@ export class CalendarSyncService {
           );
           result.updated++;
         } else {
+          // Detecta audiência pelo título — vira pendência para classificar (correspondente x cliente)
+          const eventType = /audi[êe]ncia/i.test(ev.summary) ? 'audiencia' : 'compromisso';
           await db.query(
             `INSERT INTO calendar_events
-               (user_id, google_event_id, title, description, start_datetime, end_datetime,
+               (user_id, google_event_id, title, description, event_type, start_datetime, end_datetime,
                 location, video_link, source, sync_status)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'google', 'sincronizado')`,
-            [userId, ev.id, ev.summary, ev.description ?? null,
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'google', 'sincronizado')`,
+            [userId, ev.id, ev.summary, ev.description ?? null, eventType,
              start, end, ev.location ?? null, videoLink]
           );
           result.created++;

@@ -1142,6 +1142,7 @@ async function renderCorrespondente(page) {
     <div class="page-header"><div><h2>Correspondente Jurídico</h2><p class="sub">Audiências para outros escritórios — como advogado ou preposto</p></div>
       <button class="btn-gold" id="new-corr">+ Nova audiência</button></div>
     <div id="corr-kpis" class="kpi-grid"></div>
+    <div id="corr-pend"></div>
     <div class="toolbar">
       <select id="corr-filter"><option value="">Todas</option>
         <option value="agendada">Agendadas</option><option value="realizada">Realizadas</option>
@@ -1181,14 +1182,46 @@ async function renderCorrespondente(page) {
       catch (e) { toast(e.message, 'error'); }
     });
   };
+  const refresh = () => { loadKpis(); load(); loadPend(); };
+  const loadPend = async () => {
+    const pend = await api('/api/correspondente/agenda-pendencias').catch(() => []);
+    $('#corr-pend').innerHTML = pend.length ? `
+      <div class="card" style="margin-bottom:16px;border:1px solid var(--gold)">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--gold)">Audiências vindas do Google a classificar (${pend.length})</strong>
+          <p class="sub" style="margin:2px 0 0">Eventos do Google com "audiência" no título — diga se é correspondente ou do cliente.</p></div>
+        ${pend.map((e) => `<div class="mini-row">
+          <span><strong>${e.title}</strong><br><small style="color:var(--text-muted)">${fmtDateTime(e.start_datetime)} ${e.location ? '· ' + e.location : ''}</small></span>
+          <span style="white-space:nowrap">
+            <button class="btn-sm" data-pend-corr="${e.id}" data-dt="${e.start_datetime}">É correspondente</button>
+            <button class="btn-sm" data-pend-cli="${e.id}">É do cliente</button></span></div>`).join('')}
+      </div>` : '';
+    document.querySelectorAll('[data-pend-corr]').forEach((b) => b.onclick = () => {
+      const dt = new Date(b.dataset.dt); const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      correspondenteForm(refresh, { hearing_datetime: local, calendar_event_id: b.dataset.pendCorr });
+    });
+    document.querySelectorAll('[data-pend-cli]').forEach((b) => b.onclick = () => clientPicker(async (clientId) => {
+      try { await api(`/api/correspondente/agenda-pendencias/${b.dataset.pendCli}/cliente`, { method: 'POST', body: JSON.stringify({ client_id: clientId }) }); toast('Audiência vinculada ao cliente'); loadPend(); }
+      catch (e) { toast(e.message, 'error'); }
+    }));
+  };
   $('#corr-filter').onchange = load;
-  $('#new-corr').onclick = () => correspondenteForm(() => { loadKpis(); load(); });
-  await loadKpis(); await load();
+  $('#new-corr').onclick = () => correspondenteForm(refresh);
+  await loadKpis(); await load(); await loadPend();
 }
 
-async function correspondenteForm(onSave) {
+async function clientPicker(onPick) {
+  const clients = await api('/api/clients?limit=200');
   const form = el(`<form class="form-grid">
-    <div class="form-row">${field('Data e hora *', 'hearing_datetime', { type: 'datetime-local' })}${field('Atuação', 'role', { options: [{ v: 'advogado', t: 'Advogado' }, { v: 'preposto', t: 'Preposto' }] })}</div>
+    ${field('Cliente', 'client_id', { options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}
+    <button type="submit" class="btn-primary">Vincular</button>
+  </form>`);
+  form.onsubmit = (e) => { e.preventDefault(); closeModal(); onPick(form.querySelector('[name=client_id]').value); };
+  openModal('Vincular à ficha do cliente', form);
+}
+
+async function correspondenteForm(onSave, prefill = {}) {
+  const form = el(`<form class="form-grid">
+    <div class="form-row">${field('Data e hora *', 'hearing_datetime', { type: 'datetime-local', value: prefill.hearing_datetime || '' })}${field('Atuação', 'role', { options: [{ v: 'advogado', t: 'Advogado' }, { v: 'preposto', t: 'Preposto' }] })}</div>
     <div class="form-row">${field('Processo', 'process_number')}${field('Comarca', 'comarca')}</div>
     <div class="form-row">${field('Vara', 'vara')}${field('Fórum / link', 'location')}</div>
     ${field('Escritório/advogado contratante', 'requesting_office')}
@@ -1201,8 +1234,10 @@ async function correspondenteForm(onSave) {
   </form>`);
   form.onsubmit = async (e) => {
     e.preventDefault();
-    try { await api('/api/correspondente', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
-      closeModal(); toast('Audiência registrada'); onSave(); }
+    const body = Object.fromEntries(new FormData(form));
+    if (prefill.calendar_event_id) body.calendar_event_id = prefill.calendar_event_id;
+    try { await api('/api/correspondente', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast('Audiência registrada e agendada'); onSave(); }
     catch (err) { toast(err.message, 'error'); }
   };
   openModal('Nova audiência de correspondente', form);
