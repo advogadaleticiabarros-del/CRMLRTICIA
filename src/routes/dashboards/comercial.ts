@@ -25,6 +25,25 @@ router.get('/', async (req: Request, res: Response) => {
       [userId]
     ) as any;
 
+    const [porOrigem] = await db.query(
+      "SELECT COALESCE(NULLIF(source,''),'(sem origem)') AS origem, COUNT(*) AS total FROM leads WHERE user_id = ? GROUP BY origem ORDER BY total DESC",
+      [userId]
+    ) as any;
+
+    const [porArea] = await db.query(
+      "SELECT COALESCE(NULLIF(legal_area,''),'(indefinida)') AS area, COUNT(*) AS total FROM leads WHERE user_id = ? GROUP BY area ORDER BY total DESC",
+      [userId]
+    ) as any;
+
+    const [[fin]] = await db.query(`
+      SELECT
+        (SELECT COALESCE(SUM(valor),0) FROM propostas WHERE user_id = ? AND status = 'enviada')                AS receita_prevista,
+        (SELECT COALESCE(SUM(valor),0) FROM propostas WHERE user_id = ? AND status = 'aceita')                 AS receita_fechada,
+        (SELECT COALESCE(AVG(valor),0) FROM propostas WHERE user_id = ? AND status = 'aceita' AND valor > 0)   AS ticket_medio,
+        (SELECT COALESCE(SUM(estimated_value),0) FROM leads WHERE user_id = ? AND estimated_value IS NOT NULL
+           AND status NOT IN ('fechada','convertido','perdida'))                                               AS pipeline_estimado
+    `, Array(4).fill(userId)) as any;
+
     const taxa_conversao = metrics.total_propostas_analisaveis > 0
       ? ((metrics.propostas_aceitas / metrics.total_propostas_analisaveis) * 100).toFixed(1)
       : '0.0';
@@ -33,10 +52,16 @@ router.get('/', async (req: Request, res: Response) => {
       leads_hoje:          metrics.leads_hoje,
       leads_total:         metrics.leads_total,
       leads_por_status:    leadsPorStatus,
+      por_origem:          porOrigem,
+      por_area:            porArea,
       propostas_enviadas:  metrics.propostas_enviadas,
       propostas_aceitas:   metrics.propostas_aceitas,
       taxa_conversao:      `${taxa_conversao}%`,
       valor_potencial_aberto: metrics.valor_potencial_aberto,
+      receita_prevista:    fin.receita_prevista,
+      receita_fechada:     fin.receita_fechada,
+      ticket_medio:        fin.ticket_medio,
+      pipeline_estimado:   fin.pipeline_estimado,
       reunioes_marcadas:   metrics.reunioes_marcadas,
       propostas_vencendo:  metrics.propostas_vencendo,
     });

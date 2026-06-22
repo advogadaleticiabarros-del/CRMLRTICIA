@@ -302,7 +302,7 @@ const ROUTES = {
       <div class="page-header"><div><h2>Leads</h2><p class="sub">Funil comercial</p></div>
         <button class="btn-gold" id="new-lead">+ Novo lead</button></div>
       <div id="board" class="kanban"></div>`;
-    const cols = { triagem: 'Triagem', atendimento_inicial: 'Atendimento inicial', reuniao: 'Reunião', proposta: 'Produzir proposta', proposta_em_analise: 'Em análise' };
+    const cols = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', contrato_assinado: 'Contrato Assinado' };
     const load = async () => {
       const b = await api('/api/leads/board');
       $('#board').innerHTML = Object.entries(cols).map(([k, label]) => `
@@ -800,16 +800,35 @@ function miniList(title, rows) {
   }</div></div>`;
 }
 
+const LEAD_STATUS_PT = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', contrato_assinado: 'Contrato Assinado', fechada: 'Convertido', convertido: 'Convertido', perdida: 'Perdido' };
+const FUNNEL_ORDER = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado'];
+
 async function dashComercial(c) {
   const d = await api('/api/dashboards/comercial');
+  const byStatus = Object.fromEntries((d.leads_por_status || []).map((s) => [s.status, s.total]));
+  const maxFunnel = Math.max(1, ...FUNNEL_ORDER.map((k) => byStatus[k] || 0));
+  const funnelHTML = FUNNEL_ORDER.map((k) => {
+    const n = byStatus[k] || 0;
+    return `<div class="funnel-row"><span class="funnel-label">${LEAD_STATUS_PT[k]}</span>
+      <div class="funnel-bar"><div class="funnel-fill" style="width:${Math.round((n / maxFunnel) * 100)}%"></div></div>
+      <strong class="funnel-num">${n}</strong></div>`;
+  }).join('');
+  const breakdown = (title, rows, key) => miniList(title, (rows || []).map((r) =>
+    `<div class="mini-row"><span>${r[key]}</span><strong>${r.total}</strong></div>`));
+
   c.innerHTML = `
     <div class="kpi-grid">
       ${kpi('Leads hoje', d.leads_hoje)}${kpi('Total de leads', d.leads_total)}
-      ${kpi('Propostas enviadas', d.propostas_enviadas)}${kpi('Propostas aceitas', d.propostas_aceitas)}
-      ${kpi('Taxa de conversão', d.taxa_conversao)}${kpi('Valor em aberto', money(d.valor_potencial_aberto), 'money')}
-      ${kpi('Reuniões marcadas', d.reunioes_marcadas)}${kpi('Propostas vencendo', d.propostas_vencendo)}
+      ${kpi('Taxa de conversão', d.taxa_conversao)}${kpi('Ticket médio', money(d.ticket_medio), 'money')}
+      ${kpi('Receita prevista', money(d.receita_prevista), 'money')}${kpi('Receita fechada', money(d.receita_fechada), 'money')}
+      ${kpi('Pipeline estimado', money(d.pipeline_estimado), 'money')}${kpi('Reuniões marcadas', d.reunioes_marcadas)}
     </div>
-    ${miniList('Leads por status', (d.leads_por_status || []).map((s) => `<div class="mini-row">${badge(s.status)}<strong>${s.total}</strong></div>`))}`;
+    <div class="card" style="margin-bottom:20px;padding:18px"><strong style="color:var(--navy)">Funil comercial</strong>
+      <div class="funnel" style="margin-top:12px">${funnelHTML}</div></div>
+    <div class="dash-2col">
+      ${breakdown('Conversão por origem', d.por_origem, 'origem')}
+      ${breakdown('Leads por área jurídica', d.por_area, 'area')}
+    </div>`;
 }
 
 async function dashProcessual(c) {
@@ -1249,11 +1268,27 @@ async function clientForm(id, onSave) {
   openModal(id ? 'Editar cliente' : 'Novo cliente', form);
 }
 
+const ORIGENS = [['', '—'], ['google', 'Google'], ['instagram', 'Instagram'], ['facebook', 'Facebook'], ['indicacao', 'Indicação'], ['site', 'Site'], ['whatsapp', 'WhatsApp'], ['parceiro', 'Parceiro']];
+const ESTADO_CIVIL = [['', '—'], ['solteiro', 'Solteiro(a)'], ['casado', 'Casado(a)'], ['divorciado', 'Divorciado(a)'], ['viuvo', 'Viúvo(a)'], ['uniao_estavel', 'União estável']];
+
 async function leadForm(onSave) {
   const form = el(`<form class="form-grid">
+    <div><strong style="color:var(--navy)">Dados básicos</strong></div>
     ${field('Nome *', 'name')}
-    <div class="form-row">${field('E-mail', 'email', { type: 'email' })}${field('Telefone', 'phone')}</div>
-    <div class="form-row">${field('Área', 'legal_area', { options: AREAS })}${field('Origem', 'source')}</div>
+    <div class="form-row">${field('CPF/CNPJ', 'cpf_cnpj')}${field('RG', 'rg')}</div>
+    <div class="form-row">${field('Nascimento', 'birth_date', { type: 'date' })}${field('Estado civil', 'marital_status', { options: ESTADO_CIVIL.map(([v, t]) => ({ v, t })) })}</div>
+    ${field('Profissão', 'profession')}
+    <div><strong style="color:var(--navy)">Contato</strong></div>
+    <div class="form-row">${field('Telefone/WhatsApp', 'phone')}${field('E-mail', 'email', { type: 'email' })}</div>
+    <div><strong style="color:var(--navy)">Endereço</strong></div>
+    <div class="form-row">${field('CEP', 'cep')}${field('Cidade', 'city')}</div>
+    <div class="form-row">${field('Rua', 'street')}${field('Nº', 'number')}</div>
+    <div class="form-row">${field('Bairro', 'neighborhood')}${field('UF', 'state')}</div>
+    <div><strong style="color:var(--navy)">Caso & Comercial</strong></div>
+    <div class="form-row">${field('Área', 'legal_area', { options: AREAS })}${field('Origem', 'source', { options: ORIGENS.map(([v, t]) => ({ v, t })) })}</div>
+    ${field('Resumo do caso / dor principal', 'case_summary', { type: 'textarea' })}
+    <div class="form-row">${field('Valor estimado da causa', 'estimated_value', { type: 'number' })}${field('Prob. fechamento (%)', 'close_probability', { type: 'number' })}</div>
+    ${field('Próximo follow-up', 'next_followup', { type: 'date' })}
     <button type="submit" class="btn-primary">Cadastrar lead</button>
   </form>`);
   form.onsubmit = async (e) => {
@@ -1268,14 +1303,23 @@ async function leadForm(onSave) {
 
 async function leadDetail(id, onSave) {
   const l = await api('/api/leads/' + id);
-  const stages = [['triagem','Triagem'],['atendimento_inicial','Atendimento inicial'],['reuniao','Reunião'],['proposta','Produzir proposta'],['proposta_em_analise','Proposta em análise'],['perdida','Perdida']];
+  const stages = [['triagem','Novo Lead'],['atendimento_inicial','Primeiro Contato'],['reuniao','Atendimento Realizado'],['documentacao_pendente','Documentação Pendente'],['proposta','Proposta Enviada'],['proposta_em_analise','Negociação'],['contrato_assinado','Contrato Assinado'],['perdida','Perdido']];
+  const info = [
+    l.cpf_cnpj ? 'CPF/CNPJ: ' + l.cpf_cnpj : '',
+    l.city ? l.city + (l.state ? '/' + l.state : '') : '',
+    l.estimated_value ? 'Causa: ' + money(l.estimated_value) : '',
+    (l.close_probability !== null && l.close_probability !== undefined && l.close_probability !== '') ? 'Prob.: ' + l.close_probability + '%' : '',
+    l.next_followup ? 'Follow-up: ' + fmtDate(l.next_followup) : '',
+  ].filter(Boolean).join(' · ');
   const form = el(`<div class="form-grid">
-    <div><strong style="font-size:18px">${l.name}</strong><br><small style="color:var(--text-muted)">${l.source || ''}</small></div>
+    <div><strong style="font-size:18px">${l.name}</strong><br><small style="color:var(--text-muted)">${l.source || ''}${l.legal_area ? ' · ' + l.legal_area : ''}</small></div>
     <div>${l.phone || ''} ${l.email ? '· ' + l.email : ''}</div>
-    ${field('Área jurídica (definir após triagem)', 'legal_area', { value: l.legal_area || 'outro', options: AREAS })}
-    <button class="btn-sm" id="save-area">Salvar área</button>
+    ${info ? `<div style="font-size:13px;color:var(--text-soft)">${info}</div>` : ''}
+    ${l.case_summary ? `<div style="font-size:13px;color:var(--text-soft)"><strong>Caso:</strong> ${l.case_summary}</div>` : ''}
+    <div class="form-row">${field('Área', 'legal_area', { value: l.legal_area || 'outro', options: AREAS })}<button class="btn-sm" id="save-area" style="align-self:end">Salvar área</button></div>
     <hr style="border:none;border-top:1px solid var(--border)">
     ${field('Mover no funil', 'status', { value: l.status, options: stages.map(([v,t])=>({v,t})) })}
+    <div id="loss-wrap" style="display:none">${field('Motivo da perda', 'loss_reason', { value: l.loss_reason || '', type: 'textarea' })}</div>
     <button class="btn-primary" id="move">Atualizar etapa</button>
     <hr style="border:none;border-top:1px solid var(--border)">
     <button class="btn-gold" id="close" style="width:100%">Fechar negócio e gerar contrato</button>
@@ -1288,9 +1332,18 @@ async function leadDetail(id, onSave) {
     try { await api('/api/leads/' + id, { method: 'PUT', body: JSON.stringify({ legal_area: form.querySelector('[name=legal_area]').value }) });
       toast('Área salva'); } catch (e) { toast(e.message, 'error'); }
   };
+  const statusSel = form.querySelector('[name=status]');
+  const syncLoss = () => { form.querySelector('#loss-wrap').style.display = statusSel.value === 'perdida' ? 'block' : 'none'; };
+  statusSel.onchange = syncLoss; syncLoss();
   form.querySelector('#move').onclick = async () => {
-    try { await api(`/api/leads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: form.querySelector('[name=status]').value }) });
-      closeModal(); toast('Etapa atualizada'); onSave(); } catch (e) { toast(e.message, 'error'); }
+    try {
+      const status = statusSel.value;
+      if (status === 'perdida') {
+        await api('/api/leads/' + id, { method: 'PUT', body: JSON.stringify({ loss_reason: form.querySelector('[name=loss_reason]').value }) });
+      }
+      await api(`/api/leads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      closeModal(); toast('Etapa atualizada'); onSave();
+    } catch (e) { toast(e.message, 'error'); }
   };
   form.querySelector('#close').onclick = async () => {
     try {

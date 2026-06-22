@@ -370,6 +370,16 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
 .avatar { transition: transform .25s ease; }
 .user-chip:hover .avatar { transform: scale(1.06) rotate(-3deg); }
 
+/* ── Funil comercial ── */
+.funnel { display: flex; flex-direction: column; gap: 8px; }
+.funnel-row { display: grid; grid-template-columns: 170px 1fr 44px; align-items: center; gap: 12px; animation: rise .3s ease backwards; }
+.funnel-label { font-size: 13px; color: var(--text-soft); }
+.funnel-bar { background: var(--surface-2); border-radius: 8px; height: 26px; overflow: hidden; border: 1px solid var(--border-soft); }
+.funnel-fill { height: 100%; background: linear-gradient(90deg, var(--gold), var(--gold-soft)); border-radius: 8px; transition: width .5s cubic-bezier(.16,.8,.3,1); }
+.funnel-num { text-align: right; color: var(--navy); font-variant-numeric: tabular-nums; }
+.dash-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 880px) { .dash-2col { grid-template-columns: 1fr; } .funnel-row { grid-template-columns: 120px 1fr 36px; } }
+
 /* ── Linha do tempo da jornada ── */
 .timeline { list-style: none; position: relative; margin: 4px 0 0; padding-left: 22px; }
 .timeline::before { content: ''; position: absolute; left: 7px; top: 4px; bottom: 8px; width: 2px; background: var(--border); }

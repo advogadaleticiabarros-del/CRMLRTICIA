@@ -5,24 +5,32 @@ import { logActivity } from '../services/JourneyService';
 const router = Router();
 
 const STATUS_PT: Record<string, string> = {
-  triagem: 'Triagem', atendimento_inicial: 'Atendimento inicial', reuniao: 'Consulta/Reunião',
-  proposta: 'Proposta', proposta_em_analise: 'Proposta em análise', fechada: 'Fechada', perdida: 'Perdida',
+  triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado',
+  documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação',
+  contrato_assinado: 'Contrato Assinado', fechada: 'Convertido', convertido: 'Convertido', perdida: 'Perdido',
 };
 
-const STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'proposta', 'proposta_em_analise', 'fechada', 'perdida'];
-const ACTIVE_STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'proposta', 'proposta_em_analise'];
+// Campos de cadastro completo do lead (além de name/email/phone/source/legal_area/status/notes)
+const EXTRA_COLS = ['cpf_cnpj', 'rg', 'birth_date', 'marital_status', 'profession', 'cep', 'street',
+  'number', 'neighborhood', 'city', 'state', 'case_summary', 'estimated_value', 'close_probability',
+  'next_followup', 'loss_reason'];
+
+const STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado', 'fechada', 'convertido', 'perdida'];
+const ACTIVE_STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado'];
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
 
 // ── GET /api/leads/board — funil agrupado por status (kanban) ───────────────
 router.get('/board', async (req: Request, res: Response) => {
   const userId = req.user!.id;
 
+  const placeholders = ACTIVE_STATUSES.map(() => '?').join(',');
   const [rows] = await db.query(
-    `SELECT id, name, email, phone, source, legal_area, status, created_at, analise_since
+    `SELECT id, name, email, phone, source, legal_area, status, created_at, analise_since,
+            estimated_value, close_probability, next_followup
      FROM leads
-     WHERE user_id = ? AND status IN ('triagem','atendimento_inicial','reuniao','proposta','proposta_em_analise')
+     WHERE user_id = ? AND status IN (${placeholders})
      ORDER BY created_at DESC`,
-    [userId]
+    [userId, ...ACTIVE_STATUSES]
   ) as any;
 
   const board: Record<string, any[]> = {};
@@ -98,19 +106,20 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
+  const extraVals = EXTRA_COLS.map((col) => {
+    const v = req.body[col];
+    if (v === undefined || v === '') return null;
+    if (col === 'estimated_value') return Number(v) || null;
+    if (col === 'close_probability') return parseInt(v) || null;
+    return v;
+  });
   const [result] = await db.query(
-    `INSERT INTO leads (user_id, client_id, name, email, phone, source, legal_area, status, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO leads (user_id, client_id, name, email, phone, source, legal_area, status, notes, ${EXTRA_COLS.join(', ')})
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ${EXTRA_COLS.map(() => '?').join(', ')})`,
     [
-      req.user!.id,
-      client_id ?? null,
-      name.trim(),
-      email ?? null,
-      phone ?? null,
-      source ?? null,
-      AREAS.includes(legal_area) ? legal_area : null,
-      STATUSES.includes(status) ? status : 'triagem',
-      notes ?? null,
+      req.user!.id, client_id ?? null, name.trim(), email ?? null, phone ?? null, source ?? null,
+      AREAS.includes(legal_area) ? legal_area : null, STATUSES.includes(status) ? status : 'triagem', notes ?? null,
+      ...extraVals,
     ]
   ) as any;
 
@@ -150,6 +159,14 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('legal_area', body.legal_area, AREAS.includes(body.legal_area));
   setIf('status', body.status, STATUSES.includes(body.status));
   setIf('notes', body.notes);
+  for (const col of EXTRA_COLS) {
+    if (body[col] === undefined) continue;
+    const v = body[col] === '' ? null
+      : col === 'estimated_value' ? (Number(body[col]) || null)
+      : col === 'close_probability' ? (parseInt(body[col]) || null)
+      : body[col];
+    fields.push(`${col} = ?`); params.push(v);
+  }
 
   if (!fields.length) {
     res.status(400).json({ error: 'Nenhum campo válido para atualizar' });
