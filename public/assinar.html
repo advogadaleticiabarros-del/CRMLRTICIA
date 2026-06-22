@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Assinatura Eletrônica — Letícia Barros</title>
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #231E1A; color: #FAF6F0; line-height: 1.6; padding: 20px; }
+    .wrap { max-width: 620px; margin: 0 auto; }
+    .brand { text-align: center; padding: 18px 0 10px; }
+    .brand img { width: 64px; height: 64px; }
+    .brand h1 { font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 28px; color: #C9A962; margin-top: 6px; letter-spacing: .5px; }
+    .brand small { color: #B8943F; letter-spacing: 3px; text-transform: uppercase; font-size: 11px; }
+    .card { background: #2E2720; border: 1px solid #3A3228; border-radius: 16px; padding: 22px; margin-top: 16px; }
+    .doc { background: #FAF6F0; color: #231E1A; border-radius: 10px; padding: 22px; max-height: 320px; overflow-y: auto; white-space: pre-wrap; font-family: Georgia, serif; line-height: 1.7; font-size: 14px; }
+    label { display: block; font-size: 13px; color: #D8CEB8; margin: 14px 0 6px; font-weight: 500; }
+    input { width: 100%; padding: 13px 15px; border: 1px solid #4a4034; border-radius: 11px; background: #1f1b17; color: #FAF6F0; font-size: 16px; font-family: inherit; }
+    input:focus { outline: none; border-color: #C9A962; }
+    .padwrap { background: #FAF6F0; border-radius: 11px; margin-top: 6px; position: relative; }
+    canvas { width: 100%; height: 180px; display: block; touch-action: none; border-radius: 11px; }
+    .padhint { position: absolute; top: 50%; left: 0; right: 0; text-align: center; color: #c2b9a8; transform: translateY(-50%); pointer-events: none; font-style: italic; }
+    .row { display: flex; gap: 10px; align-items: center; margin-top: 10px; }
+    .check { display: flex; align-items: flex-start; gap: 10px; margin-top: 16px; font-size: 13px; color: #D8CEB8; }
+    .check input { width: 20px; height: 20px; flex-shrink: 0; accent-color: #C9A962; }
+    button { font-family: inherit; cursor: pointer; border: none; border-radius: 11px; font-weight: 600; }
+    .btn-gold { background: linear-gradient(135deg, #C9A962, #B8943F); color: #231E1A; padding: 15px; font-size: 16px; width: 100%; margin-top: 18px; }
+    .btn-gold:disabled { opacity: .5; }
+    .btn-clear { background: transparent; color: #9a8f7d; border: 1px solid #4a4034; padding: 8px 14px; font-size: 12px; }
+    .ok { text-align: center; padding: 30px 16px; }
+    .ok .code { font-size: 26px; font-weight: 700; color: #C9A962; letter-spacing: 2px; margin: 10px 0; font-family: monospace; }
+    .msg { color: #DC6478; font-size: 13px; text-align: center; margin-top: 10px; min-height: 18px; }
+    .legal { color: #8a8270; font-size: 11.5px; margin-top: 16px; text-align: center; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img src="/logo.png" alt="" />
+      <h1>Letícia Barros</h1>
+      <small>Advocacia &amp; Consultoria</small>
+    </div>
+    <div id="root" class="card"><p style="text-align:center;color:#9a8f7d">Carregando…</p></div>
+  </div>
+
+  <script>
+    const token = new URLSearchParams(location.search).get('token');
+    const root = document.getElementById('root');
+
+    async function load() {
+      if (!token) { root.innerHTML = '<p class="msg">Link inválido.</p>'; return; }
+      try {
+        const r = await fetch('/api/public/sign/' + token).then((x) => x.json());
+        if (r.error) { root.innerHTML = `<p class="msg">${r.error}</p>`; return; }
+        if (r.status === 'assinado') { showDone(r.verification_code); return; }
+        render(r);
+      } catch (e) { root.innerHTML = '<p class="msg">Falha ao carregar.</p>'; }
+    }
+
+    function render(r) {
+      root.innerHTML = `
+        <h2 style="font-family:'Cormorant Garamond',serif;font-size:24px;color:#C9A962;margin-bottom:4px">${r.document_name}</h2>
+        <p style="color:#9a8f7d;font-size:13px;margin-bottom:14px">Leia o documento e assine no campo abaixo.</p>
+        <div class="doc">${(r.content || '').replace(/</g, '&lt;')}</div>
+        <label>Nome completo</label>
+        <input id="nome" value="${r.signer_name || ''}" placeholder="Seu nome completo" />
+        <label>CPF</label>
+        <input id="cpf" inputmode="numeric" placeholder="000.000.000-00" />
+        <label>Sua assinatura (assine com o dedo ou o mouse)</label>
+        <div class="padwrap"><canvas id="pad"></canvas><div class="padhint" id="hint">assine aqui</div></div>
+        <div class="row"><button class="btn-clear" id="clear">Limpar assinatura</button></div>
+        <label class="check"><input type="checkbox" id="agree" /><span>Declaro que li o documento, que as informações são minhas e verdadeiras, e manifesto minha vontade de assiná-lo eletronicamente.</span></label>
+        <button class="btn-gold" id="sign" disabled>Assinar documento</button>
+        <p class="msg" id="msg"></p>
+        <p class="legal">Assinatura eletrônica nos termos da Lei 14.063/2020 e da MP 2.200-2/2001. Serão registrados data, hora, IP e o resumo (hash) do documento para garantir a integridade.</p>`;
+      setupPad();
+      const agree = document.getElementById('agree');
+      const btn = document.getElementById('sign');
+      const sync = () => { btn.disabled = !(agree.checked && hasDrawn); };
+      agree.onchange = sync;
+      window._sync = sync;
+      document.getElementById('cpf').oninput = maskCpf;
+      btn.onclick = submit;
+      document.getElementById('clear').onclick = clearPad;
+    }
+
+    let ctx, hasDrawn = false, drawing = false;
+    function setupPad() {
+      const c = document.getElementById('pad');
+      const ratio = window.devicePixelRatio || 1;
+      const rect = c.getBoundingClientRect();
+      c.width = rect.width * ratio; c.height = 180 * ratio;
+      ctx = c.getContext('2d'); ctx.scale(ratio, ratio); ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.strokeStyle = '#231E1A';
+      const pos = (e) => { const r = c.getBoundingClientRect(); const t = e.touches ? e.touches[0] : e; return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+      const start = (e) => { e.preventDefault(); drawing = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); };
+      const move = (e) => { if (!drawing) return; e.preventDefault(); const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); if (!hasDrawn) { hasDrawn = true; document.getElementById('hint').style.display = 'none'; window._sync && window._sync(); } };
+      const end = () => { drawing = false; };
+      c.addEventListener('mousedown', start); c.addEventListener('mousemove', move); window.addEventListener('mouseup', end);
+      c.addEventListener('touchstart', start, { passive: false }); c.addEventListener('touchmove', move, { passive: false }); c.addEventListener('touchend', end);
+      window._pad = c;
+    }
+    function clearPad() { const c = window._pad; ctx.clearRect(0, 0, c.width, c.height); hasDrawn = false; document.getElementById('hint').style.display = ''; window._sync && window._sync(); }
+    function maskCpf(e) { let v = e.target.value.replace(/\D/g, '').slice(0, 11); v = v.replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d)/, '$1.$2').replace(/(\d{3})(\d{1,2})$/, '$1-$2'); e.target.value = v; }
+
+    async function submit() {
+      const msg = document.getElementById('msg'); msg.textContent = '';
+      const nome = document.getElementById('nome').value.trim();
+      const cpf = document.getElementById('cpf').value.replace(/\D/g, '');
+      if (!nome) { msg.textContent = 'Informe seu nome.'; return; }
+      if (cpf.length !== 11) { msg.textContent = 'Informe um CPF válido.'; return; }
+      const img = window._pad.toDataURL('image/png');
+      const btn = document.getElementById('sign'); btn.disabled = true; btn.textContent = 'Assinando…';
+      try {
+        const r = await fetch('/api/public/sign/' + token, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ signer_name: nome, signer_cpf: cpf, signature_image: img }),
+        }).then((x) => x.json());
+        if (r.error) { msg.textContent = r.error; btn.disabled = false; btn.textContent = 'Assinar documento'; return; }
+        showDone(r.verification_code);
+      } catch (e) { msg.textContent = 'Falha ao assinar. Tente novamente.'; btn.disabled = false; btn.textContent = 'Assinar documento'; }
+    }
+
+    function showDone(code) {
+      root.innerHTML = `<div class="ok">
+        <div style="font-size:46px">✓</div>
+        <h2 style="font-family:'Cormorant Garamond',serif;color:#C9A962;font-size:26px">Documento assinado!</h2>
+        <p style="color:#D8CEB8;margin-top:8px">Sua assinatura foi registrada com sucesso.</p>
+        <p style="color:#9a8f7d;font-size:13px;margin-top:14px">Código de verificação</p>
+        <div class="code">${code}</div>
+        <p style="color:#9a8f7d;font-size:12px">Guarde este código. A validade pode ser conferida em<br><b>/verificar.html?codigo=${code}</b></p>
+      </div>`;
+    }
+
+    load();
+  </script>
+</body>
+</html>

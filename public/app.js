@@ -883,15 +883,36 @@ async function docViewer(id, onSave) {
   const doc = await api('/api/documents/' + id);
   const wrap = el(`<div>
     <textarea id="doc-content" style="width:100%;min-height:340px;font-family:Georgia,serif;line-height:1.6;white-space:pre-wrap">${doc.content || ''}</textarea>
-    <div style="display:flex;gap:8px;margin-top:12px">
+    <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
       <button class="btn-primary" id="doc-save" style="width:auto">Salvar</button>
       <button class="btn-gold" id="doc-print">Imprimir / PDF</button>
+      <button class="btn-sm" id="doc-sign">Enviar para assinatura</button>
     </div>
+    <div id="doc-sig" style="margin-top:14px"></div>
   </div>`);
   wrap.querySelector('#doc-save').onclick = async () => {
     try { await api('/api/documents/' + id, { method: 'PUT', body: JSON.stringify({ content: wrap.querySelector('#doc-content').value }) }); toast('Salvo'); if (onSave) onSave(); }
     catch (e) { toast(e.message, 'error'); }
   };
+  const loadSigs = async () => {
+    const sigs = await api(`/api/documents/${id}/signatures`).catch(() => []);
+    wrap.querySelector('#doc-sig').innerHTML = sigs.length ? `
+      <strong style="color:var(--navy);font-size:13px">Assinaturas</strong>
+      ${sigs.map((s) => {
+        const url = location.origin + '/assinar.html?token=' + s.token;
+        return `<div class="mini-row">
+          <span>${s.signer_name || 'Aguardando'} ${s.status === 'assinado' ? `<br><small style="color:var(--green)">Assinado · cód. ${s.verification_code}</small>` : '<br><small style="color:var(--text-muted)">pendente</small>'}</span>
+          <span>${s.status === 'assinado'
+            ? `<a class="btn-sm" href="/verificar.html?codigo=${s.verification_code}" target="_blank">Termo</a>`
+            : `<button class="btn-sm" data-copy="${url}">Copiar link</button> <a class="btn-sm" href="https://wa.me/?text=${encodeURIComponent('Assine seu documento: ' + url)}" target="_blank">WhatsApp</a>`}</span></div>`;
+      }).join('')}` : '';
+    wrap.querySelectorAll('[data-copy]').forEach((b) => b.onclick = () => { navigator.clipboard.writeText(b.dataset.copy); toast('Link copiado'); });
+  };
+  wrap.querySelector('#doc-sign').onclick = async () => {
+    try { await api(`/api/documents/${id}/sign-request`, { method: 'POST', body: '{}' }); toast('Link de assinatura criado'); loadSigs(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  loadSigs();
   wrap.querySelector('#doc-print').onclick = () => {
     const txt = wrap.querySelector('#doc-content').value;
     const w = window.open('', '_blank');

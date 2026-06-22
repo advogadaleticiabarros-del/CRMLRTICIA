@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verificar Assinatura — Letícia Barros</title>
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:wght@500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f4f1ea; color: #231E1A; padding: 24px; line-height: 1.6; }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    .brand { text-align: center; margin-bottom: 18px; }
+    .brand img { width: 56px; }
+    .brand h1 { font-family: 'Cormorant Garamond', serif; color: #B8943F; font-size: 24px; }
+    .card { background: #fff; border: 1px solid #e8ded1; border-radius: 14px; padding: 24px; box-shadow: 0 6px 24px rgba(120,90,30,.08); }
+    .valid { background: #e7f4ec; color: #2f8f63; border-radius: 10px; padding: 12px 16px; font-weight: 600; text-align: center; margin-bottom: 18px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; font-size: 14px; margin-bottom: 16px; }
+    .grid b { display: block; color: #9a8f7d; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; }
+    .hash { word-break: break-all; font-family: monospace; font-size: 12px; color: #5a5346; }
+    .sig { border: 1px solid #e8ded1; border-radius: 10px; padding: 10px; text-align: center; margin: 8px 0; }
+    .sig img { max-width: 260px; }
+    .doc { background: #faf8f3; border-radius: 10px; padding: 20px; white-space: pre-wrap; font-family: Georgia, serif; font-size: 13px; margin-top: 12px; }
+    .search { display: flex; gap: 8px; margin-bottom: 16px; }
+    .search input { flex: 1; padding: 12px; border: 1px solid #e8ded1; border-radius: 10px; font-size: 15px; }
+    .search button { padding: 12px 18px; background: #C9A962; color: #231E1A; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
+    .msg { color: #c4453b; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand"><img src="/logo.png" alt="" /><h1>Verificação de Assinatura</h1></div>
+    <div class="card">
+      <div class="search">
+        <input id="code" placeholder="Código de verificação" />
+        <button onclick="check()">Verificar</button>
+      </div>
+      <div id="result"></div>
+    </div>
+  </div>
+  <script>
+    const res = document.getElementById('result');
+    async function check() {
+      const code = document.getElementById('code').value.trim().toUpperCase();
+      if (!code) return;
+      res.innerHTML = '<p style="text-align:center;color:#9a8f7d">Verificando…</p>';
+      try {
+        const r = await fetch('/api/public/verify/' + encodeURIComponent(code)).then((x) => x.json());
+        if (r.error) { res.innerHTML = `<p class="msg">${r.error}</p>`; return; }
+        const dt = new Date(r.signed_at).toLocaleString('pt-BR');
+        res.innerHTML = `
+          <div class="valid">✓ Assinatura válida e íntegra</div>
+          <div class="grid">
+            <div><b>Documento</b>${r.document_name}</div>
+            <div><b>Signatário</b>${r.signer_name}</div>
+            <div><b>CPF</b>${r.signer_cpf}</div>
+            <div><b>Data/hora</b>${dt}</div>
+            <div><b>IP</b>${r.signer_ip || '—'}</div>
+            <div><b>Código</b>${r.verification_code}</div>
+          </div>
+          <div><b style="color:#9a8f7d;font-size:11px;text-transform:uppercase">Assinatura</b>
+            <div class="sig"><img src="${r.signature_image}" alt="assinatura" /></div></div>
+          <div><b style="color:#9a8f7d;font-size:11px;text-transform:uppercase">Hash SHA-256 do documento</b>
+            <div class="hash">${r.doc_hash}</div></div>
+          <div class="doc">${(r.content || '').replace(/</g, '&lt;')}</div>`;
+      } catch (e) { res.innerHTML = '<p class="msg">Falha ao verificar.</p>'; }
+    }
+    const pre = new URLSearchParams(location.search).get('codigo');
+    if (pre) { document.getElementById('code').value = pre; check(); }
+  </script>
+</body>
+</html>

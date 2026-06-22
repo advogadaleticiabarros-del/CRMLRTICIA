@@ -79,15 +79,21 @@ h1, h2, h3, h4 { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; 
   content: ''; position: absolute; inset: 0;
   background: radial-gradient(circle at 16% 90%, rgba(201,169,98,.08), transparent 42%); pointer-events: none;
 }
-.brand-inner { position: relative; max-width: 410px; animation: fadeUp .8s ease backwards; }
+.brand-inner { position: relative; max-width: 440px; text-align: center; animation: fadeUp .8s ease backwards; }
 .login-emblem {
-  width: 122px; height: 122px; object-fit: contain; display: block; margin-bottom: 26px;
-  filter: drop-shadow(0 16px 36px rgba(0,0,0,.55)); animation: floatY 5.5s ease-in-out infinite;
+  width: 128px; height: 128px; object-fit: contain; display: block; margin: 0 auto 22px;
+  filter: drop-shadow(0 16px 38px rgba(0,0,0,.55)); animation: floatY 5.5s ease-in-out infinite;
 }
-.login-wordmark { width: 300px; max-width: 86%; display: block; margin-bottom: 4px; animation: fadeUp .8s ease .1s backwards; }
-.brand-sub { color: #C9A962; font-size: 13px; letter-spacing: 4px; text-transform: uppercase; margin-top: 6px; font-weight: 600; animation: fadeUp .8s ease .2s backwards; }
-.brand-divider { width: 64px; height: 2px; background: linear-gradient(90deg, #C9A962, transparent); margin: 26px 0; animation: growLine 1.1s cubic-bezier(.16,.8,.3,1) .4s backwards; }
-.brand-tagline { color: #D8CEB8; font-size: 19px; line-height: 1.65; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; animation: fadeUp .8s ease .3s backwards; }
+.login-name {
+  font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 500; font-size: 56px; line-height: 1.04;
+  letter-spacing: 1.5px; margin-bottom: 4px;
+  background: linear-gradient(118deg, #E6CE92 0%, #C9A962 45%, #B8943F 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  animation: fadeUp .8s ease .1s backwards;
+}
+.brand-sub { color: #C9A962; font-size: 12.5px; letter-spacing: 5px; text-transform: uppercase; margin-top: 8px; font-weight: 600; animation: fadeUp .8s ease .2s backwards; }
+.brand-divider { width: 70px; height: 1px; background: linear-gradient(90deg, transparent, #C9A962, transparent); margin: 26px auto; animation: growLine 1.1s cubic-bezier(.16,.8,.3,1) .4s backwards; }
+.brand-tagline { color: #D8CEB8; font-size: 20px; line-height: 1.7; font-family: 'Cormorant Garamond', Georgia, serif; font-style: italic; animation: fadeUp .8s ease .3s backwards; }
 
 .login-form-panel { display: flex; align-items: center; justify-content: center; padding: 48px; background: #FAF6F0; }
 .login-card { width: 100%; max-width: 380px; animation: fadeUp .7s ease .15s backwards; }
@@ -105,7 +111,7 @@ h1, h2, h3, h4 { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; 
 @keyframes floatY { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-11px); } }
 @keyframes glowPulse { 0%, 100% { opacity: .45; transform: scale(1); } 50% { opacity: 1; transform: scale(1.12); } }
 @keyframes fadeUp { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-@keyframes growLine { from { width: 0; } to { width: 64px; } }
+@keyframes growLine { from { width: 0; opacity: 0; } to { width: 70px; opacity: 1; } }
 #login-form { display: flex; flex-direction: column; gap: 18px; }
 #login-form label, .form-grid label { display: flex; flex-direction: column; gap: 7px; font-size: 13px; font-weight: 500; color: var(--text-soft); }
 input, select, textarea {

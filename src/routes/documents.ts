@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 
@@ -146,6 +147,30 @@ router.delete('/:id', async (req: Request, res: Response) => {
   const [r] = await db.query('DELETE FROM documents WHERE id = ?', [req.params.id]) as any;
   if (!r.affectedRows) { res.status(404).json({ error: 'Documento não encontrado' }); return; }
   res.json({ success: true });
+});
+
+// ── Assinatura: cria solicitação (link público) ─────────────────────────────
+router.post('/:id/sign-request', async (req: Request, res: Response) => {
+  const [[doc]] = await db.query('SELECT id, content FROM documents WHERE id = ?', [req.params.id]) as any;
+  if (!doc) { res.status(404).json({ error: 'Documento não encontrado' }); return; }
+  if (!doc.content) { res.status(400).json({ error: 'Só é possível assinar documentos com conteúdo (gerados/editados)' }); return; }
+
+  const token = crypto.randomUUID();
+  const code = crypto.randomBytes(5).toString('hex').toUpperCase(); // 10 chars
+  await db.query(
+    `INSERT INTO signature_requests (document_id, token, verification_code, signer_name, signer_cpf, created_by)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [req.params.id, token, code, req.body?.signer_name ?? null, req.body?.signer_cpf ?? null, req.user!.id]
+  );
+  res.status(201).json({ token, verification_code: code, path: `/assinar.html?token=${token}` });
+});
+
+router.get('/:id/signatures', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT id, token, verification_code, signer_name, signer_cpf, status, signed_at, signer_ip
+       FROM signature_requests WHERE document_id = ? ORDER BY created_at DESC`, [req.params.id]
+  ) as any;
+  res.json(rows);
 });
 
 export default router;

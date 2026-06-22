@@ -41,11 +41,13 @@ import journeyRoutes from './routes/journey';
 import controladoriaRoutes from './routes/controladoria';
 import correspondenteRoutes from './routes/correspondente';
 import documentRoutes from './routes/documents';
+import signPublicRoutes from './routes/sign-public';
 import backupRoutes from './routes/backup';
 import { googleOAuthCallback } from './routes/google-callback';
 
 export function createApp() {
   const app = express();
+  app.set('trust proxy', true); // Railway atrás de proxy — captura IP real do signatário
 
   app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
   app.use(express.json({ limit: '5mb' }));
@@ -61,6 +63,9 @@ export function createApp() {
 
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
+
+  // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
+  app.use('/api/public', signPublicRoutes);
 
   // ── Portal do Cliente (papel 'cliente' — escopo isolado por client_id) ────
   app.use('/api/portal',                authenticate, portalRoutes);
