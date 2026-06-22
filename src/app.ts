@@ -29,6 +29,7 @@ import acordoRoutes from './routes/acordos';
 import repasseRoutes from './routes/repasses';
 import inadimplenciaRoutes from './routes/inadimplencias';
 import auditoriaFinanceiraRoutes from './routes/auditoria-financeira';
+import cashflowRoutes from './routes/cashflow';
 import userRoutes from './routes/users';
 import portalRoutes from './routes/portal';
 import meRoutes from './routes/me';
@@ -79,6 +80,7 @@ export function createApp() {
   app.use('/api/acordos',               authenticate, requireStaff, acordoRoutes);
   app.use('/api/repasses',              authenticate, requireStaff, repasseRoutes);
   app.use('/api/inadimplencias',        authenticate, requireStaff, inadimplenciaRoutes);
+  app.use('/api/cashflow',              authenticate, requireStaff, cashflowRoutes);
   app.use('/api/auditoria-financeira',  authenticate, requireStaff, auditoriaFinanceiraRoutes);
   app.use('/api/dative',                authenticate, requireStaff, dativeRoutes);
   app.use('/api/contracts',             authenticate, requireStaff, contractRoutes);

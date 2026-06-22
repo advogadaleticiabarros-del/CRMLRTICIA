@@ -507,9 +507,10 @@ const ROUTES = {
         <button class="tab" data-tab="receitas">Receitas & Parcelas</button>
         <button class="tab" data-tab="repasses">Repasses</button>
         <button class="tab" data-tab="inadimplencia">Inadimplência</button>
+        <button class="tab" data-tab="fluxo">Fluxo de Caixa</button>
       </div>
       <div id="fin-content"></div>`;
-    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, repasses: finRepasses, inadimplencia: finInadimplencia };
+    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa };
     const show = async (name) => {
       document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#fin-content'); c.innerHTML = '<div class="spinner"></div>';
@@ -1018,6 +1019,88 @@ async function finInadimplencia(c) {
     finally { btn.disabled = false; btn.textContent = 'Recalcular agora'; }
   };
   await load();
+}
+
+async function finFluxoCaixa(c) {
+  const mesLabel = (ym) => { const [y, m] = ym.split('-'); return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][Number(m) - 1] + '/' + y.slice(2); };
+  const now = new Date();
+  const fromDefault = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  c.innerHTML = `
+    <div class="toolbar">
+      <select id="cf-months"><option value="12">12 meses</option><option value="24" selected>24 meses</option><option value="6">6 meses</option><option value="36">36 meses</option></select>
+      <span class="spacer"></span>
+      <button class="btn-gold" id="cf-new">+ Lançamento no fluxo</button>
+    </div>
+    <div id="cf-kpis" class="kpi-grid"></div>
+    <div class="card" style="margin-bottom:20px;overflow-x:auto"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Projeção mensal (previsto / realizado)</strong></div><div id="cf-table"></div></div>
+    <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Por categoria</strong></div><div id="cf-cats"></div></div>`;
+
+  const load = async () => {
+    const months = $('#cf-months').value;
+    const d = await api(`/api/cashflow/monthly?from=${fromDefault}&months=${months}`);
+    const t = d.totais;
+    $('#cf-kpis').innerHTML =
+      kpi('Entradas previstas', money(t.entrada_previsto), 'money') +
+      kpi('Entradas realizadas', money(t.entrada_realizado), 'money') +
+      kpi('Saídas previstas', money(t.saida_previsto), 'money') +
+      kpi('Saídas realizadas', money(t.saida_realizado), 'money') +
+      kpi('Saldo previsto', money(t.saldo_previsto), 'money') +
+      kpi('Saldo realizado', money(t.saldo_realizado), 'money');
+
+    $('#cf-table').innerHTML = `
+      <table><thead><tr>
+        <th>Mês</th><th>Entradas (prev)</th><th>Saídas (prev)</th><th>Saldo mês (prev)</th>
+        <th>Realizado</th><th>Acumulado (prev)</th></tr></thead>
+      <tbody>${d.meses.map((m) => `<tr>
+        <td><strong>${mesLabel(m.mes)}</strong></td>
+        <td style="color:var(--green)">${money(m.entrada_previsto)}</td>
+        <td style="color:var(--red)">${money(m.saida_previsto)}</td>
+        <td><strong style="color:${m.saldo_previsto >= 0 ? 'var(--green)' : 'var(--red)'}">${money(m.saldo_previsto)}</strong></td>
+        <td>${money(m.saldo_realizado)}</td>
+        <td style="color:${m.acumulado_previsto >= 0 ? 'var(--navy)' : 'var(--red)'}">${money(m.acumulado_previsto)}</td></tr>`).join('')}</tbody></table>`;
+
+    $('#cf-cats').innerHTML = d.categorias.length ? `
+      <table><thead><tr><th>Categoria</th><th>Tipo</th><th>Previsto</th><th>Realizado</th></tr></thead>
+      <tbody>${d.categorias.map((cat) => `<tr>
+        <td><strong>${cat.label}</strong></td>
+        <td>${cat.type === 'entrada' ? '<span class="badge ativo">entrada</span>' : '<span class="badge vencido">saída</span>'}</td>
+        <td>${money(cat.previsto)}</td><td>${money(cat.realizado)}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Sem dados no período</div>';
+  };
+  $('#cf-months').onchange = load;
+  $('#cf-new').onclick = () => cashflowForm(load);
+  await load();
+}
+
+async function cashflowForm(onSave) {
+  const CATS = {
+    entrada: [['honorario_inicial','Honorários iniciais'],['honorario_total','Honorários (totais)'],['exito','Êxito / decisão'],['acordo','Acordos'],['dativo','Dativo (Estado)'],['correspondente','Correspondente jurídico'],['outro_entrada','Outras entradas']],
+    saida: [['despesa_fixa','Despesas fixas'],['despesa_variavel','Despesas variáveis'],['repasse','Repasses'],['imposto','Impostos'],['salario','Salários'],['outro_saida','Outras saídas']],
+  };
+  const catOptions = (type) => CATS[type].map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
+  const form = el(`<form class="form-grid">
+    ${field('Tipo', 'type', { options: [{ v: 'entrada', t: 'Entrada (receita)' }, { v: 'saida', t: 'Saída (despesa)' }] })}
+    <label>Categoria<select name="category">${catOptions('entrada')}</select></label>
+    ${field('Descrição *', 'description')}
+    ${field('Valor *', 'amount', { type: 'number' })}
+    ${field('Vencimento *', 'due_date', { type: 'date' })}
+    ${field('Recorrência', 'recurrence', { options: [{ v: 'unica', t: 'Única (1x)' }, { v: 'mensal', t: 'Mensal (repetir)' }] })}
+    <div id="cf-occ" style="display:none">${field('Quantos meses', 'occurrences', { type: 'number', value: 12 })}</div>
+    <button type="submit" class="btn-primary">Lançar</button>
+  </form>`);
+  const typeSel = form.querySelector('[name=type]');
+  const catSel = form.querySelector('[name=category]');
+  typeSel.onchange = () => { catSel.innerHTML = catOptions(typeSel.value); };
+  form.querySelector('[name=recurrence]').onchange = (e) => { form.querySelector('#cf-occ').style.display = e.target.value === 'mensal' ? 'block' : 'none'; };
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    try {
+      const r = await api('/api/cashflow', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast(`Lançado (${r.created}x)`); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Novo lançamento no fluxo', form);
 }
 
 // ── Formulários financeiros ──
