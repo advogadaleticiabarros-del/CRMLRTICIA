@@ -60,15 +60,15 @@ const NAV_LABELS = {
   dashboard: 'Dashboard', clients: 'Clientes', leads: 'Leads',
   propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos & Tarefas',
   agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Controladoria', correspondente: 'Correspondente',
-  config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
+  documentos: 'Documentos', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
   contratos: 'Contratos', intakes: 'Novo Atendimento',
   monitor: 'Monitoramento', advogados: 'Advogados/OAB',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
 };
 const NAV_BY_ROLE = {
-  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
-  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
-  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
   estagiario: ['cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -781,7 +781,146 @@ const ROUTES = {
   },
 
   async correspondente(page) { await renderCorrespondente(page); },
+  async documentos(page) { await renderDocumentos(page); },
 };
+
+const FOLDER_PT = { contratos: 'Contratos', procuracoes: 'Procurações', documentos_pessoais: 'Documentos pessoais', processos: 'Processos', financeiro: 'Financeiro', audiencias: 'Audiências', outros: 'Outros' };
+
+async function renderDocumentos(page) {
+  page.innerHTML = `
+    <div class="page-header"><div><h2>Documentos</h2><p class="sub">GED por cliente, modelos e geração automática</p></div></div>
+    <div class="tabs" id="ged-tabs">
+      <button class="tab active" data-tab="docs">Documentos</button>
+      <button class="tab" data-tab="modelos">Modelos</button>
+    </div>
+    <div id="ged-content"></div>`;
+  const tabs = { docs: gedDocumentos, modelos: gedModelos };
+  const show = async (name) => {
+    document.querySelectorAll('#ged-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+    const c = $('#ged-content'); c.innerHTML = '<div class="spinner"></div>';
+    try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
+  };
+  document.querySelectorAll('#ged-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
+  await show('docs');
+}
+
+async function gedDocumentos(c) {
+  const clients = await api('/api/clients?limit=200');
+  c.innerHTML = `
+    <div class="toolbar">
+      <select id="ged-client"><option value="">Selecione um cliente…</option>${clients.data.map((cl) => `<option value="${cl.id}">${cl.name}</option>`).join('')}</select>
+      <span class="spacer"></span>
+      <button class="btn-gold" id="ged-generate" disabled>Gerar documento</button>
+    </div>
+    <div id="ged-folders"></div>`;
+  const sel = $('#ged-client');
+  const load = async () => {
+    const cid = sel.value;
+    $('#ged-generate').disabled = !cid;
+    if (!cid) { $('#ged-folders').innerHTML = '<div class="empty">Selecione um cliente para ver as pastas</div>'; return; }
+    const docs = await api('/api/documents?client_id=' + cid);
+    const byFolder = {};
+    for (const f of Object.keys(FOLDER_PT)) byFolder[f] = [];
+    for (const d of docs) (byFolder[d.folder || 'outros'] ??= []).push(d);
+    $('#ged-folders').innerHTML = Object.keys(FOLDER_PT).map((f) => `
+      <div class="card" style="margin-bottom:14px">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">${FOLDER_PT[f]}</strong> <small style="color:var(--text-muted)">(${byFolder[f].length})</small></div>
+        <div>${byFolder[f].length ? byFolder[f].map((d) => `<div class="mini-row">
+          <span>${d.name} ${d.has_content ? '' : (d.file_url ? '🔗' : '')}<br><small style="color:var(--text-muted)">${fmtDate(d.created_at)}</small></span>
+          <span>${badge(d.status)} ${d.has_content == 1 ? `<button class="btn-sm" data-doc="${d.id}">Abrir</button>` : ''} <button class="btn-sm" data-del-doc="${d.id}">×</button></span></div>`).join('') : '<div class="mini-row"><small>Vazia</small></div>'}</div>
+      </div>`).join('');
+    document.querySelectorAll('[data-doc]').forEach((b) => b.onclick = () => docViewer(b.dataset.doc, load));
+    document.querySelectorAll('[data-del-doc]').forEach((b) => b.onclick = async () => {
+      try { await api('/api/documents/' + b.dataset.delDoc, { method: 'DELETE' }); toast('Documento removido'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  sel.onchange = load;
+  $('#ged-generate').onclick = () => gerarDocForm(sel.value, load);
+  await load();
+}
+
+async function gedModelos(c) {
+  c.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-tpl">+ Novo modelo</button></div>
+    <div class="card"><div id="tpl-list"></div></div>`;
+  const load = async () => {
+    const rows = await api('/api/documents/templates');
+    $('#tpl-list').innerHTML = rows.length ? `
+      <table><thead><tr><th>Modelo</th><th>Categoria</th><th></th></tr></thead>
+      <tbody>${rows.map((t) => `<tr><td><strong>${t.name}</strong></td><td>${FOLDER_PT[t.category] || t.category}</td>
+        <td><button class="btn-sm" data-tpl="${t.id}">Editar</button> <button class="btn-sm" data-del-tpl="${t.id}">×</button></td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhum modelo</div>';
+    document.querySelectorAll('[data-tpl]').forEach((b) => b.onclick = async () => {
+      const t = (await api('/api/documents/templates')).find((x) => x.id == b.dataset.tpl); templateForm(t, load);
+    });
+    document.querySelectorAll('[data-del-tpl]').forEach((b) => b.onclick = async () => {
+      try { await api('/api/documents/templates/' + b.dataset.delTpl, { method: 'DELETE' }); toast('Modelo removido'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  $('#new-tpl').onclick = () => templateForm(null, load);
+  await load();
+}
+
+async function gerarDocForm(clientId, onSave) {
+  const [templates, cs] = await Promise.all([api('/api/documents/templates'), api('/api/cases?limit=200&client_id=' + clientId).catch(() => ({ data: [] }))]);
+  const caseList = cs.data || cs || [];
+  const form = el(`<form class="form-grid">
+    ${field('Modelo', 'template_id', { options: templates.map((t) => ({ v: t.id, t: t.name })) })}
+    ${field('Processo (opcional)', 'case_id', { options: [{ v: '', t: '—' }].concat(caseList.map((c) => ({ v: c.id, t: c.title || c.case_number }))) })}
+    <button type="submit" class="btn-primary">Gerar documento</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form)); body.client_id = clientId;
+    if (!body.case_id) delete body.case_id;
+    try { const doc = await api('/api/documents/generate', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Documento gerado'); onSave(); docViewer(doc.id, onSave); }
+    catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Gerar documento', form);
+}
+
+async function docViewer(id, onSave) {
+  const doc = await api('/api/documents/' + id);
+  const wrap = el(`<div>
+    <textarea id="doc-content" style="width:100%;min-height:340px;font-family:Georgia,serif;line-height:1.6;white-space:pre-wrap">${doc.content || ''}</textarea>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn-primary" id="doc-save" style="width:auto">Salvar</button>
+      <button class="btn-gold" id="doc-print">Imprimir / PDF</button>
+    </div>
+  </div>`);
+  wrap.querySelector('#doc-save').onclick = async () => {
+    try { await api('/api/documents/' + id, { method: 'PUT', body: JSON.stringify({ content: wrap.querySelector('#doc-content').value }) }); toast('Salvo'); if (onSave) onSave(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  wrap.querySelector('#doc-print').onclick = () => {
+    const txt = wrap.querySelector('#doc-content').value;
+    const w = window.open('', '_blank');
+    w.document.write(`<html><head><title>${doc.name}</title><style>body{font-family:Georgia,serif;line-height:1.7;max-width:720px;margin:48px auto;padding:0 24px;white-space:pre-wrap;color:#231E1A}</style></head><body>${txt.replace(/</g, '&lt;')}</body></html>`);
+    w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
+  };
+  openModal(doc.name, wrap);
+}
+
+async function templateForm(tpl, onSave) {
+  const cats = Object.entries(FOLDER_PT).map(([v, t]) => ({ v, t }));
+  const form = el(`<form class="form-grid">
+    ${field('Nome do modelo *', 'name', { value: tpl?.name || '' })}
+    ${field('Categoria (pasta)', 'category', { value: tpl?.category || 'outros', options: cats })}
+    <label>Conteúdo (use {{cliente_nome}}, {{cliente_cpf}}, {{cliente_endereco}}, {{processo_numero}}, {{advogada_nome}}, {{advogada_oab}}, {{data_extenso}})
+      <textarea name="content" rows="12" style="font-family:Georgia,serif">${tpl?.content || ''}</textarea></label>
+    <button type="submit" class="btn-primary">${tpl ? 'Salvar modelo' : 'Criar modelo'}</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    try {
+      if (tpl) await api('/api/documents/templates/' + tpl.id, { method: 'PUT', body: JSON.stringify(body) });
+      else await api('/api/documents/templates', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast('Modelo salvo'); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal(tpl ? 'Editar modelo' : 'Novo modelo', form);
+}
 
 const margemBadge = (m) => `<span class="badge ${m >= 0 ? 'ativo' : 'vencido'}">${m}%</span>`;
 
