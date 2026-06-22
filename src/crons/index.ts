@@ -5,6 +5,7 @@ import { notificationService } from '../services/NotificationService';
 import { calendarSyncService } from '../services/CalendarSyncService';
 import { telegramNotificationService } from '../services/TelegramNotificationService';
 import { runMonitoringJob, runDiscoveryJob } from '../services/monitoringService';
+import { runBackup } from '../services/backupService';
 
 export function startCronJobs() {
   // ── a cada 5 min: atualiza contadores de prazos ──────────────────────────
@@ -55,6 +56,17 @@ export function startCronJobs() {
     try {
       await alertOverdueItems();
     } catch {}
+  });
+
+  // ── backup diário do banco: 02h (dump comprimido → MEGA) ──────────────────
+  cron.schedule('0 2 * * *', async () => {
+    try {
+      const r = await runBackup();
+      if (r.ok) console.log(`✅ Backup enviado ao MEGA: ${r.file} (${r.sizeKB} KB)`);
+      else console.warn(`⚠️ Backup não realizado: ${r.message}`);
+    } catch (e: any) {
+      console.error('❌ Falha no backup diário:', e.message);
+    }
   });
 
   // ── descoberta por OAB: diário 06h (varre tribunais e cadastra novos) ─────

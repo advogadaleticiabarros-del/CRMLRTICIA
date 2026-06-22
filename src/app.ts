@@ -36,6 +36,7 @@ import dativeRoutes from './routes/dative';
 import contractRoutes from './routes/contracts';
 import lawyerRoutes from './routes/lawyers';
 import processRoutes from './routes/processes';
+import backupRoutes from './routes/backup';
 import { googleOAuthCallback } from './routes/google-callback';
 
 export function createApp() {
@@ -81,6 +82,7 @@ export function createApp() {
   app.use('/api/dative',                authenticate, requireStaff, dativeRoutes);
   app.use('/api/contracts',             authenticate, requireStaff, contractRoutes);
   app.use('/api/lawyers',               authenticate, requireAdmin, lawyerRoutes);
+  app.use('/api/backup',                authenticate, requireAdmin, backupRoutes);
   app.use('/api/processes',             authenticate, requireStaff, processRoutes);
   app.use('/api/dashboards/comercial',  authenticate, requireStaff, comercialDashboard);
   app.use('/api/dashboards/cliente',    authenticate, requireStaff, clienteDashboard);
