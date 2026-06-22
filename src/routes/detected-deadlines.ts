@@ -1,0 +1,75 @@
+import { Router, Request, Response } from 'express';
+import { db } from '../config/database';
+
+const router = Router();
+
+/** Soma N dias ÚTEIS a uma data (pula sábado/domingo). */
+function addBusinessDays(startStr: string, n: number): string {
+  const d = new Date(startStr + 'T00:00:00');
+  let added = 0;
+  while (added < n) {
+    d.setDate(d.getDate() + 1);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6) added++;
+  }
+  return d.toISOString().split('T')[0];
+}
+
+// ── GET /api/prazos-detectados ──────────────────────────────────────────────
+router.get('/', async (req: Request, res: Response) => {
+  const status = (req.query.status as string) || 'a_confirmar';
+  const [rows] = await db.query(
+    `SELECT d.*, lp.process_number, c.name AS client_name
+       FROM detected_deadlines d
+       LEFT JOIN legal_processes lp ON lp.id = d.process_id
+       LEFT JOIN clients c ON c.id = d.client_id
+      WHERE d.status = ? ORDER BY d.created_at DESC LIMIT 200`, [status]
+  ) as any;
+  res.json(rows);
+});
+
+router.get('/count', async (_req: Request, res: Response) => {
+  const [[{ total }]] = await db.query("SELECT COUNT(*) total FROM detected_deadlines WHERE status = 'a_confirmar'") as any;
+  res.json({ count: Number(total) });
+});
+
+// ── POST /api/prazos-detectados/:id/confirmar ───────────────────────────────
+router.post('/:id/confirmar', async (req: Request, res: Response) => {
+  const { deadline_type, days, start_date } = req.body;
+  const [[dd]] = await db.query('SELECT * FROM detected_deadlines WHERE id = ?', [req.params.id]) as any;
+  if (!dd) { res.status(404).json({ error: 'Prazo não encontrado' }); return; }
+
+  const start = start_date || (dd.start_date ? new Date(dd.start_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+  const n = parseInt(days) || dd.suggested_days || 15;
+  const due = addBusinessDays(start, n);
+  const type = deadline_type || dd.suggested_type || 'Prazo';
+
+  await db.query(
+    "UPDATE detected_deadlines SET status = 'confirmado', due_date = ?, deadline_type = ?, confirmed_by = ? WHERE id = ?",
+    [due, type, req.user!.id, req.params.id]
+  );
+
+  // Se o processo está vinculado a um caso, cria o prazo no módulo de Prazos (entra nos alertas 30/15/7/3/1)
+  let deadlineId: number | null = null;
+  if (dd.process_id) {
+    const [[lp]] = await db.query('SELECT case_id, client_id FROM legal_processes WHERE id = ?', [dd.process_id]) as any;
+    if (lp?.case_id) {
+      const [r] = await db.query(
+        `INSERT INTO deadlines (user_id, client_id, case_id, description, deadline_date, priority, status)
+         VALUES (?, ?, ?, ?, ?, 'alta', 'pendente')`,
+        [req.user!.id, lp.client_id ?? dd.client_id ?? null, lp.case_id, `${type} (auto do monitoramento)`, due]
+      ) as any;
+      deadlineId = r.insertId;
+    }
+  }
+  res.json({ success: true, due_date: due, deadline_id: deadlineId, linked_to_case: !!deadlineId });
+});
+
+// ── POST /api/prazos-detectados/:id/descartar ───────────────────────────────
+router.post('/:id/descartar', async (req: Request, res: Response) => {
+  const [r] = await db.query("UPDATE detected_deadlines SET status = 'descartado' WHERE id = ?", [req.params.id]) as any;
+  if (!r.affectedRows) { res.status(404).json({ error: 'Prazo não encontrado' }); return; }
+  res.json({ success: true });
+});
+
+export default router;

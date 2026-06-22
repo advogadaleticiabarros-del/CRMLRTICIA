@@ -380,6 +380,7 @@ const ROUTES = {
       <div class="page-header"><div><h2>Prazos & Tarefas</h2><p class="sub">Contagem regressiva e prioridades</p></div>
         <div style="display:flex;gap:8px"><button class="btn-gold" id="new-deadline">+ Prazo</button>
         <button class="btn-gold" id="new-task">+ Tarefa</button></div></div>
+      <div id="dd-card"></div>
       <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Prazos processuais</strong></div><div id="dl-table"></div></div>
       <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">✓ Tarefas</strong></div><div id="task-table"></div></div>`;
 
@@ -420,9 +421,30 @@ const ROUTES = {
       });
     };
 
+    const loadDetected = async () => {
+      const rows = await api('/api/prazos-detectados').catch(() => []);
+      $('#dd-card').innerHTML = rows.length ? `
+        <div class="card" style="margin-bottom:20px;border:1px solid var(--gold)">
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--gold)">⚠ Prazos detectados no monitoramento (${rows.length})</strong>
+            <p class="sub" style="margin:2px 0 0">Movimentações que podem iniciar prazo — confirme a data (o sistema não chuta).</p></div>
+          <table><thead><tr><th>Movimentação</th><th>Processo</th><th>Sugestão</th><th></th></tr></thead>
+          <tbody>${rows.map((d) => `<tr>
+            <td>${(d.movement_text || '').slice(0, 80)}<br><small style="color:var(--text-muted)">início ${fmtDate(d.start_date)}</small></td>
+            <td>${d.process_number || '—'}${d.client_name ? '<br><small>' + d.client_name + '</small>' : ''}</td>
+            <td>${d.suggested_type || '—'} · ${d.suggested_days || '?'} dias</td>
+            <td style="white-space:nowrap"><button class="btn-gold btn-sm" data-conf-dd="${d.id}">Confirmar</button> <button class="btn-sm" data-disc-dd="${d.id}">Descartar</button></td></tr>`).join('')}</tbody></table>
+        </div>` : '';
+      document.querySelectorAll('[data-conf-dd]').forEach((b) => b.onclick = () => {
+        const d = rows.find((x) => x.id == b.dataset.confDd);
+        confirmDeadlineForm(d, () => { loadDetected(); loadDeadlines(); });
+      });
+      document.querySelectorAll('[data-disc-dd]').forEach((b) => b.onclick = async () => {
+        try { await api(`/api/prazos-detectados/${b.dataset.discDd}/descartar`, { method: 'POST', body: '{}' }); toast('Descartado'); loadDetected(); } catch (e) { toast(e.message, 'error'); }
+      });
+    };
     $('#new-deadline').onclick = () => deadlineForm(loadDeadlines);
     $('#new-task').onclick = () => taskForm(loadTasks);
-    await loadDeadlines(); await loadTasks();
+    await loadDeadlines(); await loadTasks(); await loadDetected();
   },
 
   async agenda(page) {
@@ -1217,6 +1239,25 @@ async function clientPicker(onPick) {
   </form>`);
   form.onsubmit = (e) => { e.preventDefault(); closeModal(); onPick(form.querySelector('[name=client_id]').value); };
   openModal('Vincular à ficha do cliente', form);
+}
+
+async function confirmDeadlineForm(d, onSave) {
+  const start = d.start_date ? new Date(d.start_date).toISOString().slice(0, 10) : '';
+  const form = el(`<form class="form-grid">
+    <div style="font-size:13px;color:var(--text-soft)">${(d.movement_text || '').slice(0, 200)}</div>
+    ${field('Tipo de prazo', 'deadline_type', { value: d.suggested_type || '' })}
+    <div class="form-row">${field('Dias (úteis)', 'days', { type: 'number', value: d.suggested_days || 15 })}${field('Início', 'start_date', { type: 'date', value: start })}</div>
+    <p class="sub">A data-limite é calculada em dias úteis. Se o processo tiver caso vinculado, entra automaticamente nos alertas (30/15/7/3/1 dia).</p>
+    <button type="submit" class="btn-primary">Confirmar prazo</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await api(`/api/prazos-detectados/${d.id}/confirmar`, { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast(`Prazo confirmado: ${fmtDate(r.due_date)}${r.linked_to_case ? ' (alertas ativos)' : ''}`); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Confirmar prazo', form);
 }
 
 async function correspondenteForm(onSave, prefill = {}) {

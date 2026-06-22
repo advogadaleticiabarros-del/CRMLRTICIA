@@ -17,6 +17,41 @@ function toDate(val: string | null): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
+// Palavras-gatilho que normalmente iniciam um prazo (sugestão; o advogado confirma).
+const DEADLINE_TRIGGERS: { re: RegExp; type: string; days: number }[] = [
+  { re: /senten[çc]a/i,         type: 'Recurso (apelação)', days: 15 },
+  { re: /ac[óo]rd[ãa]o/i,       type: 'Recurso',            days: 15 },
+  { re: /cita[çc][ãa]o/i,       type: 'Contestação',        days: 15 },
+  { re: /embargos/i,            type: 'Embargos',           days: 5 },
+  { re: /intima[çc][ãa]o/i,     type: 'Manifestação',       days: 15 },
+  { re: /decis[ãa]o|despacho/i, type: 'Manifestação',       days: 5 },
+  { re: /publica[çc][ãa]o/i,    type: 'Manifestação',       days: 15 },
+];
+
+/** Cria um "prazo a confirmar" quando a movimentação contém palavra-gatilho. Nunca derruba o sync. */
+async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string }): Promise<void> {
+  try {
+    const text = `${m.title || ''} ${m.description || ''}`;
+    const trig = DEADLINE_TRIGGERS.find((t) => t.re.test(text));
+    if (!trig) return;
+    const start = toDate(m.movement_date) || new Date();
+    const startStr = start.toISOString().split('T')[0];
+    await db.query(
+      `INSERT INTO detected_deadlines (process_id, client_id, movement_text, detected_keyword, suggested_type, suggested_days, start_date, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'a_confirmar')`,
+      [processId, clientId, (m.description || m.title || '').slice(0, 500), trig.type, trig.type, trig.days, startStr]
+    );
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+    for (const a of admins) {
+      await notificationService.create({
+        userId: a.id, clientId: clientId ?? undefined, title: 'Possível prazo detectado',
+        message: `Movimentação pode iniciar prazo (${trig.type}). Abra Prazos → confirmar a data.`,
+        notificationType: 'prazo_detectado', channel: 'sistema', scheduledAt: new Date(),
+      });
+    }
+  } catch { /* detecção é best-effort */ }
+}
+
 interface SyncResult {
   processId: number;
   status: 'sem_novidade' | 'nova_movimentacao' | 'nao_encontrado' | 'erro';
@@ -62,6 +97,7 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
       if (ins.affectedRows) {
         novas++;
         if (m.movement_date && (!latest || m.movement_date > latest)) latest = m.movement_date;
+        await detectDeadline(processId, proc.client_id, m);
       }
     } catch (e: any) {
       // duplicada (unique_hash) — ignora
@@ -112,7 +148,7 @@ async function logMonitor(processId: number, lawyerId: number | null, status: st
 }
 
 /** Insere movimentações novas (dedupe por hash) de um processo já cadastrado. Retorna quantas entraram. */
-async function saveMovements(processId: number, processNumber: string, movements: { movement_date: string | null; title: string; description: string }[], source: string): Promise<number> {
+async function saveMovements(processId: number, processNumber: string, movements: { movement_date: string | null; title: string; description: string }[], source: string, clientId: number | null = null): Promise<number> {
   let novas = 0;
   for (const m of movements) {
     const hash = hashMovement(processNumber, m.movement_date, m.description);
@@ -122,7 +158,7 @@ async function saveMovements(processId: number, processNumber: string, movements
          VALUES (?, ?, ?, ?, ?, ?)`,
         [processId, toDate(m.movement_date), m.title?.slice(0, 500), m.description, source, hash]
       ) as any;
-      if (ins.affectedRows) novas++;
+      if (ins.affectedRows) { novas++; await detectDeadline(processId, clientId, m); }
     } catch (e: any) {
       if (e.code !== 'ER_DUP_ENTRY') throw e;
     }

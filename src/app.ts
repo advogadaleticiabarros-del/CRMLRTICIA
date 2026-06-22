@@ -37,6 +37,7 @@ import dativeRoutes from './routes/dative';
 import contractRoutes from './routes/contracts';
 import lawyerRoutes from './routes/lawyers';
 import processRoutes from './routes/processes';
+import detectedDeadlineRoutes from './routes/detected-deadlines';
 import journeyRoutes from './routes/journey';
 import controladoriaRoutes from './routes/controladoria';
 import correspondenteRoutes from './routes/correspondente';
@@ -96,6 +97,7 @@ export function createApp() {
   app.use('/api/lawyers',               authenticate, requireAdmin, lawyerRoutes);
   app.use('/api/backup',                authenticate, requireAdmin, backupRoutes);
   app.use('/api/processes',             authenticate, requireStaff, processRoutes);
+  app.use('/api/prazos-detectados',     authenticate, requireStaff, detectedDeadlineRoutes);
   app.use('/api/journey',               authenticate, requireStaff, journeyRoutes);
   app.use('/api/controladoria',         authenticate, requireStaff, controladoriaRoutes);
   app.use('/api/correspondente',        authenticate, requireStaff, correspondenteRoutes);
