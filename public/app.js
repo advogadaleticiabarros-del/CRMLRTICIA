@@ -57,13 +57,13 @@ function logout() {
   $('#login-view').classList.remove('hidden');
 }
 const NAV_LABELS = {
-  dashboard: '📊 Dashboard', clients: '👥 Clientes', leads: '🎯 Leads',
-  propostas: '📄 Propostas', cases: '⚖️ Processos', prazos: '📅 Prazos & Tarefas',
-  agenda: '🗓️ Agenda', financeiro: '💰 Financeiro',
-  config: '⚙️ Configurações', repasses: '💸 Meus Repasses', dativo: '🏛️ Dativo',
-  contratos: '📜 Contratos', intakes: '📞 Novo Atendimento',
-  monitor: '🔎 Monitoramento', advogados: '⚖️ Advogados/OAB',
-  portal: '📁 Meus Processos', portalFinanceiro: '💳 Valores a Pagar',
+  dashboard: 'Dashboard', clients: 'Clientes', leads: 'Leads',
+  propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos & Tarefas',
+  agenda: 'Agenda', financeiro: 'Financeiro',
+  config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
+  contratos: 'Contratos', intakes: 'Novo Atendimento',
+  monitor: 'Monitoramento', advogados: 'Advogados/OAB',
+  portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
 };
 const NAV_BY_ROLE = {
   admin:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','dativo','advogados','config'],
@@ -122,9 +122,9 @@ async function refreshBell() {
 async function openNotifications() {
   const wrap = el(`<div>
     <div style="display:flex;gap:8px;margin-bottom:14px">
-      <button class="btn-sm" id="notif-check">🔄 Verificar agora</button>
+      <button class="btn-sm" id="notif-check">Verificar agora</button>
       <button class="btn-sm" id="notif-readall">Marcar todas como lidas</button>
-      <button class="btn-sm" id="notif-settings">⚙️ Configurações</button>
+      <button class="btn-sm" id="notif-settings">Configurações</button>
     </div>
     <div id="notif-list"><div class="spinner"></div></div>
   </div>`);
@@ -144,9 +144,9 @@ async function openNotifications() {
     });
   };
   wrap.querySelector('#notif-check').onclick = async () => {
-    wrap.querySelector('#notif-check').textContent = '⏳ Verificando…';
+    wrap.querySelector('#notif-check').textContent = 'Verificando…';
     try { await api('/api/notifications/check', { method: 'POST' }); toast('Alertas atualizados'); } catch (e) { toast(e.message, 'error'); }
-    wrap.querySelector('#notif-check').textContent = '🔄 Verificar agora';
+    wrap.querySelector('#notif-check').textContent = 'Verificar agora';
     loadList(); refreshBell();
   };
   wrap.querySelector('#notif-readall').onclick = async () => {
@@ -171,7 +171,7 @@ async function notificationSettings() {
     <button class="btn-primary" id="save-set">Salvar preferências</button>
 
     <hr style="border:none;border-top:1px solid var(--border);margin:6px 0">
-    <strong style="color:var(--navy)">📲 Alertas via Telegram</strong>
+    <strong style="color:var(--navy)">Alertas via Telegram</strong>
     <small style="color:var(--text-muted)">Receba prazos, reuniões e cobranças no seu Telegram.</small>
     ${field('Bot Token', 'tg_token', { value: tg?.bot_token || '' })}
     ${field('Chat ID', 'tg_chat', { value: tg?.chat_id || '' })}
@@ -184,7 +184,7 @@ async function notificationSettings() {
     </div>
 
     <hr style="border:none;border-top:1px solid var(--border);margin:6px 0">
-    <strong style="color:var(--navy)">📱 Alertas via WhatsApp <span class="badge novo">preparado</span></strong>
+    <strong style="color:var(--navy)">Alertas via WhatsApp <span class="badge novo">preparado</span></strong>
     <small style="color:var(--text-muted)">Estrutura pronta para a WhatsApp Cloud API (Meta). Preencha quando tiver as credenciais do WhatsApp Business.</small>
     ${field('Access Token (Meta)', 'wa_token', { value: '' })}
     ${field('Phone Number ID', 'wa_phone_id', { value: wa?.phone_number_id || '' })}
@@ -249,11 +249,11 @@ const ROUTES = {
     page.innerHTML = `
       <div class="page-header"><div><h2>Dashboards</h2><p class="sub">Visão gerencial do escritório</p></div></div>
       <div class="tabs" id="dash-tabs">
-        <button class="tab active" data-tab="comercial">📊 Comercial</button>
-        <button class="tab" data-tab="processual">⚖️ Processual</button>
-        <button class="tab" data-tab="agenda">📅 Agenda</button>
-        <button class="tab" data-tab="financeiro">💰 Financeiro</button>
-        <button class="tab" data-tab="producao">📝 Produção</button>
+        <button class="tab active" data-tab="comercial">Comercial</button>
+        <button class="tab" data-tab="processual">Processual</button>
+        <button class="tab" data-tab="agenda">Agenda</button>
+        <button class="tab" data-tab="financeiro">Financeiro</button>
+        <button class="tab" data-tab="producao">Produção</button>
       </div>
       <div id="dash-content"></div>`;
     const tabs = { comercial: dashComercial, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao };
@@ -380,7 +380,7 @@ const ROUTES = {
       <div class="page-header"><div><h2>Prazos & Tarefas</h2><p class="sub">Contagem regressiva e prioridades</p></div>
         <div style="display:flex;gap:8px"><button class="btn-gold" id="new-deadline">+ Prazo</button>
         <button class="btn-gold" id="new-task">+ Tarefa</button></div></div>
-      <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">⚖️ Prazos processuais</strong></div><div id="dl-table"></div></div>
+      <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Prazos processuais</strong></div><div id="dl-table"></div></div>
       <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">✓ Tarefas</strong></div><div id="task-table"></div></div>`;
 
     const countdown = (days, label) => {
@@ -475,14 +475,14 @@ const ROUTES = {
       try { st = await api('/api/calendar/google/status'); } catch {}
       const area = $('#google-area');
       if (st.connected) {
-        area.innerHTML = `<small style="color:var(--green)">🟢 ${st.google_email || 'Google conectado'}</small>
+        area.innerHTML = `<small style="color:var(--green)">${st.google_email || 'Google conectado'}</small>
           <button class="btn-sm" id="g-sync">Sincronizar</button>`;
         $('#g-sync').onclick = async () => {
           try { const r = await api('/api/calendar/google/sync', { method: 'POST' });
             toast(`Sincronizado (${r.fromGoogle?.created || 0} novos)`); render(); } catch (e) { toast(e.message, 'error'); }
         };
       } else {
-        area.innerHTML = `<button class="btn-sm" id="g-connect">🗓️ Conectar Google Agenda</button>`;
+        area.innerHTML = `<button class="btn-sm" id="g-connect">Conectar Google Agenda</button>`;
         $('#g-connect').onclick = async () => {
           try { const { url } = await api('/api/calendar/google/auth-url'); window.location.href = url; }
           catch (e) { toast(e.message === 'Integração Google não configurada no servidor' ? 'Google ainda não configurado no servidor' : e.message, 'error'); }
@@ -502,11 +502,11 @@ const ROUTES = {
     page.innerHTML = `
       <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Visão geral, acordos, receitas, repasses e inadimplência</p></div></div>
       <div class="tabs" id="fin-tabs">
-        <button class="tab active" data-tab="geral">📊 Visão geral</button>
-        <button class="tab" data-tab="acordos">🤝 Acordos</button>
-        <button class="tab" data-tab="receitas">🧾 Receitas & Parcelas</button>
-        <button class="tab" data-tab="repasses">💸 Repasses</button>
-        <button class="tab" data-tab="inadimplencia">⚠️ Inadimplência</button>
+        <button class="tab active" data-tab="geral">Visão geral</button>
+        <button class="tab" data-tab="acordos">Acordos</button>
+        <button class="tab" data-tab="receitas">Receitas & Parcelas</button>
+        <button class="tab" data-tab="repasses">Repasses</button>
+        <button class="tab" data-tab="inadimplencia">Inadimplência</button>
       </div>
       <div id="fin-content"></div>`;
     const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, repasses: finRepasses, inadimplencia: finInadimplencia };
@@ -526,12 +526,12 @@ const ROUTES = {
       <div class="card" style="margin-bottom:20px"><div id="users-table"></div></div>
       <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:12px">Minha conta</h3>
-        <button class="btn-sm" id="change-pwd">🔒 Trocar minha senha</button>
+        <button class="btn-sm" id="change-pwd">Trocar minha senha</button>
       </div>
       <div class="card" style="padding:20px">
-        <h3 style="color:var(--navy);margin-bottom:6px">💾 Backup do sistema</h3>
+        <h3 style="color:var(--navy);margin-bottom:6px">Backup do sistema</h3>
         <p class="sub" style="margin-bottom:12px">Cópia diária do banco enviada ao MEGA automaticamente às 02h.</p>
-        <button class="btn-gold btn-sm" id="run-backup">⬆️ Fazer backup agora</button>
+        <button class="btn-gold btn-sm" id="run-backup">Fazer backup agora</button>
         <div id="backup-list" style="margin-top:14px"></div>
       </div>`;
     const loadBackups = async () => {
@@ -567,7 +567,7 @@ const ROUTES = {
         if (r.ok) { toast(`Backup enviado: ${r.file} (${r.sizeKB} KB)`); loadBackups(); }
         else toast(r.message || 'Backup não realizado', 'error');
       } catch (e) { toast(e.message, 'error'); }
-      finally { btn.disabled = false; btn.textContent = '⬆️ Fazer backup agora'; }
+      finally { btn.disabled = false; btn.textContent = 'Fazer backup agora'; }
     };
     await load();
     await loadBackups();
@@ -661,10 +661,10 @@ const ROUTES = {
     page.innerHTML = `
       <div class="page-header"><div><h2>Advocacia Dativa</h2><p class="sub">Nomeações do Estado — separado dos honorários</p></div></div>
       <div class="tabs" id="dat-tabs">
-        <button class="tab active" data-tab="projecao">📈 Projeção</button>
-        <button class="tab" data-tab="demandas">📋 Demandas</button>
-        <button class="tab" data-tab="audiencias">⚖️ Audiências</button>
-        <button class="tab" data-tab="recebimentos">💵 Recebimentos</button>
+        <button class="tab active" data-tab="projecao">Projeção</button>
+        <button class="tab" data-tab="demandas">Demandas</button>
+        <button class="tab" data-tab="audiencias">Audiências</button>
+        <button class="tab" data-tab="recebimentos">Recebimentos</button>
       </div>
       <div id="dat-content"></div>`;
     const tabs = { projecao: datProjecao, demandas: datDemandas, audiencias: datAudiencias, recebimentos: datRecebimentos };
@@ -708,7 +708,7 @@ const ROUTES = {
       <div class="page-header"><div><h2>Advogados / OAB</h2><p class="sub">Registro e descoberta automática de processos por OAB</p></div>
         <button class="btn-gold" id="new-law">+ Advogado</button></div>
       <div class="card"><div id="law-table"></div></div>
-      <p class="sub" style="margin-top:10px">💡 A descoberta varre os tribunais nacionais (DataJud/CNJ) e cadastra automaticamente os processos vinculados à OAB. Também roda sozinha todo dia às 06h.</p>`;
+      <p class="sub" style="margin-top:10px">A descoberta varre os tribunais nacionais (DataJud/CNJ) e cadastra automaticamente os processos vinculados à OAB. Também roda sozinha todo dia às 06h.</p>`;
 
     const discover = async (lawyerId, btn) => {
       const original = btn.textContent;
@@ -731,7 +731,7 @@ const ROUTES = {
           <td>${l.monitoring_enabled ? '<span class="badge ativo">ativo</span>' : '<span class="badge inativo">inativo</span>'}</td>
           <td>${l.last_sync_at ? fmtDate(l.last_sync_at) : 'nunca'}</td>
           <td style="white-space:nowrap">
-            ${l.oab_number ? `<button class="btn-gold btn-sm" data-discover="${l.id}">🔎 Descobrir processos</button> ` : ''}
+            ${l.oab_number ? `<button class="btn-gold btn-sm" data-discover="${l.id}">Descobrir processos</button> ` : ''}
             <button class="btn-sm" data-law="${l.id}">Editar</button></td></tr>`).join('')}</tbody></table>`;
       document.querySelectorAll('[data-law]').forEach((b) => b.onclick = () => lawyerForm(b.dataset.law, load));
       document.querySelectorAll('[data-discover]').forEach((b) => b.onclick = () => discover(b.dataset.discover, b));
@@ -848,15 +848,15 @@ async function finVisaoGeral(c) {
       ${kpi('Saldo realizado', money(s.saldo_realizado), 'money')}
       ${kpi('Inadimplência', money(s.inadimplencia), 'money')}
     </div>
-    <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">💸 Lançamentos</strong></div><div id="fin-table"></div></div>
-    <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">📄 Parcelas a receber</strong></div><div id="inst-table"></div></div>`;
+    <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Lançamentos</strong></div><div id="fin-table"></div></div>
+    <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Parcelas a receber</strong></div><div id="inst-table"></div></div>`;
   const loadFin = async () => {
     const r = await api('/api/financial');
     $('#fin-table').innerHTML = r.data.length ? `
       <table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
       <tbody>${r.data.map((f) => `<tr>
         <td><strong>${f.description}</strong>${f.cost_center ? `<br><small style="color:var(--text-muted)">${f.cost_center}</small>` : ''}</td>
-        <td>${f.tipo === 'receita' ? '🟢 Receita' : '🔴 Despesa'}</td>
+        <td>${f.tipo === 'receita' ? 'Receita' : 'Despesa'}</td>
         <td>${money(f.valor)}</td><td>${fmtDate(f.due_date)}</td><td>${badge(f.status)}</td>
         <td>${f.status === 'pendente' ? `<button class="btn-sm" data-pay-fin="${f.id}">Dar baixa</button>` : ''}</td></tr>`).join('')}</tbody></table>`
       : '<div class="empty">Nenhum lançamento</div>';
@@ -965,7 +965,7 @@ async function finRepasses(c) {
 
 async function finInadimplencia(c) {
   c.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="recalc-inad">🔄 Recalcular agora</button></div>
+    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="recalc-inad">Recalcular agora</button></div>
     <div class="card"><div id="inad-table"></div></div>`;
   const load = async () => {
     const r = await api('/api/inadimplencias');
@@ -986,7 +986,7 @@ async function finInadimplencia(c) {
     const btn = $('#recalc-inad'); btn.disabled = true; btn.textContent = 'Recalculando…';
     try { const r = await api('/api/inadimplencias/recalcular', { method: 'POST', body: '{}' }); toast(`${r.criadas} nova(s), ${r.atualizadas} atualizada(s).`); load(); }
     catch (e) { toast(e.message, 'error'); }
-    finally { btn.disabled = false; btn.textContent = '🔄 Recalcular agora'; }
+    finally { btn.disabled = false; btn.textContent = 'Recalcular agora'; }
   };
   await load();
 }
@@ -1166,7 +1166,7 @@ async function leadDetail(id, onSave) {
     ${field('Mover no funil', 'status', { value: l.status, options: stages.map(([v,t])=>({v,t})) })}
     <button class="btn-primary" id="move">Atualizar etapa</button>
     <hr style="border:none;border-top:1px solid var(--border)">
-    <button class="btn-gold" id="close" style="width:100%">✅ Fechar negócio e gerar contrato</button>
+    <button class="btn-gold" id="close" style="width:100%">Fechar negócio e gerar contrato</button>
   </div>`);
   form.querySelector('#save-area').onclick = async () => {
     try { await api('/api/leads/' + id, { method: 'PUT', body: JSON.stringify({ legal_area: form.querySelector('[name=legal_area]').value }) });
@@ -1304,7 +1304,7 @@ async function caseDetail(id, onSave) {
     const steps = PROD_STAGES.map(([v,t],i) => `<span style="font-size:11px;padding:3px 8px;border-radius:12px;${i<=idx?'background:var(--gold);color:#fff':'background:#eef2f8;color:var(--text-muted)'}">${t}</span>`).join(' ');
     const next = PROD_STAGES[idx+1];
     prodHtml = `<hr style="border:none;border-top:1px solid var(--border)">
-      <strong style="font-size:13px">⚙️ Esteira de produção</strong>
+      <strong style="font-size:13px">Esteira de produção</strong>
       <div style="display:flex;gap:5px;flex-wrap:wrap;line-height:2">${steps}</div>
       ${next ? `<button class="btn-gold btn-sm" id="adv-stage" data-next="${next[0]}">Avançar → ${next[1]}</button>` : '<small style="color:var(--green)">Esteira concluída</small>'}`;
   }
@@ -1616,7 +1616,7 @@ async function datRecebimentos(c) {
 async function dativeCaseForm(onSave) {
   const clients = await api('/api/clients?limit=100');
   const form = el(`<form class="form-grid">
-    <strong style="color:var(--navy);font-size:13px">👤 Cliente (assistido)</strong>
+    <strong style="color:var(--navy);font-size:13px">Cliente (assistido)</strong>
     <small style="color:var(--text-muted)">Será criada uma ficha na aba Clientes com a etiqueta DATIVO.</small>
     ${field('Cliente já cadastrado', 'client_id', { options: [{ v: '', t: '— criar nova ficha —' }, ...clients.data.map((c) => ({ v: c.id, t: c.name }))] })}
     <div id="new-client-fields">
@@ -1625,7 +1625,7 @@ async function dativeCaseForm(onSave) {
       ${field('E-mail', 'client_email', { type: 'email' })}
     </div>
     <hr style="border:none;border-top:1px solid var(--border)">
-    <strong style="color:var(--navy);font-size:13px">🏛️ Dados da nomeação</strong>
+    <strong style="color:var(--navy);font-size:13px">Dados da nomeação</strong>
     ${field('Comarca *', 'comarca')}
     <div class="form-row">${field('Nº do processo', 'process_number')}${field('Vara', 'vara')}</div>
     <div class="form-row">${field('Área', 'area', { options: DATIVE_AREAS })}${field('Data da nomeação', 'nomeacao_date', { type: 'date' })}</div>
@@ -1729,11 +1729,11 @@ async function contractEditor(id, onSave) {
   const docs = { content: 'Contrato', procuracao_content: 'Procuração', declaracao_content: 'Declaração de Hipossuficiência' };
   let signAction = '';
   if (['rascunho','em_producao','finalizado'].includes(ct.status))
-    signAction = `<button class="btn-gold" id="send-sign" style="width:100%">✍️ Enviar para assinatura</button>`;
+    signAction = `<button class="btn-gold" id="send-sign" style="width:100%">Enviar para assinatura</button>`;
   else if (ct.status === 'enviado_assinatura')
-    signAction = `<button class="btn-gold" id="mark-signed" style="width:100%">✅ Marcar como assinado (cria o caso)</button>`;
+    signAction = `<button class="btn-gold" id="mark-signed" style="width:100%">Marcar como assinado (cria o caso)</button>`;
   else if (ct.status === 'assinado')
-    signAction = `<div style="text-align:center;color:var(--green);font-weight:600">✅ Contrato assinado · caso em produção</div>`;
+    signAction = `<div style="text-align:center;color:var(--green);font-weight:600">Contrato assinado · caso em produção</div>`;
 
   const wrap = el(`<div class="form-grid">
     ${field('Título', 'title', { value: ct.title })}
@@ -1746,9 +1746,9 @@ async function contractEditor(id, onSave) {
     </div>
     ${Object.keys(docs).map((k, i) => `<textarea data-field="${k}" rows="14" style="font-family:monospace;font-size:12.5px;display:${i===0?'block':'none'}">${ct[k] || ''}</textarea>`).join('')}
     <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn-sm" data-print="content">🖨️ Contrato PDF</button>
-      <button class="btn-sm" data-print="procuracao_content">🖨️ Procuração PDF</button>
-      <button class="btn-sm" data-print="declaracao_content">🖨️ Declaração PDF</button>
+      <button class="btn-sm" data-print="content">Contrato PDF</button>
+      <button class="btn-sm" data-print="procuracao_content">Procuração PDF</button>
+      <button class="btn-sm" data-print="declaracao_content">Declaração PDF</button>
     </div>
     <button class="btn-primary" id="save-ct">Salvar documentos</button>
     ${signAction}
@@ -1809,13 +1809,13 @@ async function clientHistory(clientId) {
 function showClientCredentials(cred, processNumber) {
   const wrap = el(`<div class="form-grid">
     <div style="background:var(--green-bg);border-radius:10px;padding:14px">
-      <strong style="color:var(--green)">✅ Processo protocolado — nº ${processNumber}</strong>
+      <strong style="color:var(--green)">Processo protocolado — nº ${processNumber}</strong>
     </div>
     <p style="font-size:14px;color:var(--text-soft)">Foi criado o acesso do cliente ao portal. <strong>Repasse estas credenciais ao cliente</strong> (WhatsApp/pessoalmente):</p>
     <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;font-family:monospace">
-      <div>🌐 crm.advogadaleticiabarros.com.br</div>
-      <div>👤 Login: <strong>${cred.login}</strong></div>
-      <div>🔑 Senha: <strong>${cred.password}</strong></div>
+      <div>crm.advogadaleticiabarros.com.br</div>
+      <div>Login: <strong>${cred.login}</strong></div>
+      <div>Senha: <strong>${cred.password}</strong></div>
     </div>
     <small style="color:var(--text-muted)">O cliente verá o andamento do processo e o histórico no portal. Oriente-o a trocar a senha no primeiro acesso.</small>
     <button class="btn-primary" id="cred-ok">Entendi, copiei</button>
@@ -1857,13 +1857,13 @@ async function processDetail(id, onSave) {
     <div><strong style="font-size:17px">${p.process_number}</strong><br>
       <small style="color:var(--text-muted)">${p.court || ''} · ${p.client_name || ''}</small></div>
     <div>${badge(p.status)} ${p.judicial_area ? badge(p.judicial_area) : ''} · última sync ${p.last_sync_at ? fmtDate(p.last_sync_at) : 'nunca'}</div>
-    <button class="btn-primary" id="sync-now">🔄 Sincronizar agora</button>
+    <button class="btn-primary" id="sync-now">Sincronizar agora</button>
     <hr style="border:none;border-top:1px solid var(--border)">
     <strong style="font-size:13px">Movimentações (${(p.movements||[]).length})</strong>
     <div style="max-height:300px;overflow-y:auto">${movs}</div>
   </div>`);
   wrap.querySelector('#sync-now').onclick = async () => {
-    wrap.querySelector('#sync-now').textContent = '⏳ Consultando…';
+    wrap.querySelector('#sync-now').textContent = 'Consultando…';
     try {
       const r = await api(`/api/processes/${id}/sync`, { method: 'POST' });
       const msg = r.status === 'nova_movimentacao' ? `${r.newMovements} nova(s) movimentação(ões)!`
@@ -1871,7 +1871,7 @@ async function processDetail(id, onSave) {
         : (r.message || 'Erro na consulta');
       toast(msg, r.status === 'erro' ? 'error' : 'success');
       closeModal(); processDetail(id, onSave);
-    } catch (e) { toast(e.message, 'error'); wrap.querySelector('#sync-now').textContent = '🔄 Sincronizar agora'; }
+    } catch (e) { toast(e.message, 'error'); wrap.querySelector('#sync-now').textContent = 'Sincronizar agora'; }
   };
   openModal('Processo monitorado', wrap);
 }
@@ -1916,7 +1916,7 @@ function printDoc(title, content) {
     <div class="doc-header"><div class="name">LETÍCIA BARROS</div><div class="sub">Advocacia &amp; Consultoria</div></div>
     <div class="doc-body">${safe}</div>
     <div class="doc-footer">Documento gerado pelo CRM — crm.advogadaleticiabarros.com.br</div>
-    <div class="no-print" style="text-align:center;margin-top:30px"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">🖨️ Imprimir / Salvar PDF</button></div>
+    <div class="no-print" style="text-align:center;margin-top:30px"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
     </body></html>`);
   w.document.close();
   setTimeout(() => w.focus(), 300);

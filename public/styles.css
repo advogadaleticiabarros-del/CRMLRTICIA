@@ -3,19 +3,23 @@
    Paleta clara e profissional · Spectral (títulos) + Inter (UI)
    ============================================================ */
 :root {
-  --navy: #2a3f5f;          /* navy refinado, mais claro */
+  --navy: #2a3f5f;          /* navy refinado (mantido p/ textos/títulos) */
   --navy-deep: #1f3047;
   --navy-light: #3a517a;
-  --gold: #b8924c;          /* champagne/ouro suave */
-  --gold-soft: #ceae72;
-  --bg: #f4f6fa;            /* fundo claro e arejado */
+  --gold: #c19a4e;          /* ouro do emblema */
+  --gold-soft: #e0c074;
+  --gold-bright: #ecc869;   /* brilho dourado p/ acentos no escuro */
+  --ink: #1b1610;           /* espresso/ônix — fundo escuro (combina c/ o logo) */
+  --ink-2: #2a2017;
+  --ink-line: rgba(224,192,116,.13);
+  --bg: #f6f4ef;            /* off-white quente */
   --surface: #ffffff;
-  --surface-2: #fbfcfe;
-  --text: #1f2a3a;
-  --text-soft: #51607a;
-  --text-muted: #93a0b5;
-  --border: #e7ecf3;
-  --border-soft: #eff2f7;
+  --surface-2: #faf8f3;
+  --text: #221d16;
+  --text-soft: #5a5346;
+  --text-muted: #9a9281;
+  --border: #ece7dc;
+  --border-soft: #f3efe6;
   --green: #2f8f63;
   --green-bg: #e7f4ec;
   --red: #c4453b;
@@ -51,8 +55,8 @@ h1, h2, h3, h4 { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; 
 .btn-primary:hover { background: var(--navy-light); transform: translateY(-1px); box-shadow: var(--shadow); }
 .btn-gold { background: var(--gold); color: #fff; border: none; padding: 10px 18px; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 13px; transition: all .18s; font-family: inherit; }
 .btn-gold:hover { background: var(--gold-soft); transform: translateY(-1px); box-shadow: var(--shadow); }
-.btn-ghost { background: transparent; color: #c7d0df; border: 1px solid rgba(255,255,255,.22); padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-family: inherit; }
-.btn-ghost:hover { background: rgba(255,255,255,.12); color: #fff; }
+.btn-ghost { background: transparent; color: var(--text-soft); border: 1px solid var(--border); padding: 7px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; font-family: inherit; transition: all .15s; }
+.btn-ghost:hover { background: var(--surface-2); color: var(--text); border-color: var(--gold); }
 .btn-icon { background: none; border: none; font-size: 18px; cursor: pointer; color: var(--text-muted); }
 .btn-icon:hover { color: var(--navy); }
 .btn-sm { padding: 6px 13px; font-size: 12px; border-radius: 8px; border: 1px solid var(--border); background: #fff; cursor: pointer; color: var(--text-soft); font-weight: 500; font-family: inherit; transition: all .15s; }
@@ -61,25 +65,23 @@ h1, h2, h3, h4 { font-family: 'Inter', system-ui, sans-serif; font-weight: 700; 
 /* ── Login (painel dividido) ── */
 .login-view { min-height: 100vh; display: grid; grid-template-columns: 1.1fr 1fr; }
 .login-brand-panel {
-  background: linear-gradient(150deg, var(--navy) 0%, var(--navy-deep) 100%);
-  color: #fff; display: flex; align-items: center; justify-content: center; padding: 40px;
-  position: relative; overflow: hidden;
+  background: linear-gradient(155deg, #fffdf9 0%, #f3eee3 100%);
+  color: var(--text); display: flex; align-items: center; justify-content: center; padding: 40px;
+  position: relative; overflow: hidden; border-right: 1px solid var(--border);
 }
 .login-brand-panel::after {
   content: ''; position: absolute; inset: 0;
-  background: radial-gradient(circle at 80% 20%, rgba(184,146,76,.18), transparent 45%);
+  background: radial-gradient(circle at 82% 14%, rgba(193,154,78,.12), transparent 44%);
 }
-.brand-inner { position: relative; max-width: 380px; }
+.brand-inner { position: relative; max-width: 400px; animation: rise .6s ease backwards; }
 .login-emblem {
-  width: 76px; height: 76px; border: 2px solid var(--gold-soft); border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Spectral', serif; font-size: 30px; font-weight: 700; color: var(--gold-soft);
-  letter-spacing: 1px; margin-bottom: 28px;
+  width: 104px; height: 104px; object-fit: contain; display: block;
+  margin-bottom: 20px; filter: drop-shadow(0 12px 26px rgba(120,90,30,.18));
 }
-.login-brand-panel h1 { color: #fff; font-size: 40px; line-height: 1.1; }
-.brand-sub { color: var(--gold-soft); font-size: 15px; letter-spacing: 2px; text-transform: uppercase; margin-top: 6px; }
-.brand-divider { width: 54px; height: 2px; background: var(--gold); margin: 26px 0; }
-.brand-tagline { color: #c4cedd; font-size: 16px; line-height: 1.6; font-family: 'Spectral', serif; font-style: italic; }
+.login-wordmark { width: 270px; max-width: 80%; display: block; margin-bottom: 2px; }
+.brand-sub { color: var(--gold); font-size: 13px; letter-spacing: 3px; text-transform: uppercase; margin-top: 4px; font-weight: 600; }
+.brand-divider { width: 54px; height: 2px; background: linear-gradient(90deg, var(--gold), transparent); margin: 24px 0; }
+.brand-tagline { color: var(--text-soft); font-size: 16px; line-height: 1.6; font-family: 'Spectral', serif; font-style: italic; }
 
 .login-form-panel { display: flex; align-items: center; justify-content: center; padding: 40px; background: var(--surface); }
 .login-card { width: 100%; max-width: 380px; }
@@ -97,24 +99,23 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 
 /* ── App layout ── */
 .app-view { display: flex; min-height: 100vh; }
-.sidebar { width: 260px; background: var(--navy-deep); color: #fff; display: flex; flex-direction: column; position: fixed; height: 100vh; }
-.sidebar-brand { display: flex; align-items: center; gap: 13px; padding: 24px 22px; border-bottom: 1px solid rgba(255,255,255,.08); }
+.sidebar { width: 264px; background: var(--surface); color: var(--text); display: flex; flex-direction: column; position: fixed; height: 100vh; border-right: 1px solid var(--border); }
+.sidebar-brand { display: flex; align-items: center; gap: 13px; padding: 20px 20px; border-bottom: 1px solid var(--border-soft); }
 .sidebar-brand .emblem {
-  width: 42px; height: 42px; flex-shrink: 0; border: 1.5px solid var(--gold-soft); border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'Spectral', serif; font-weight: 700; font-size: 16px; color: var(--gold-soft); letter-spacing: .5px;
+  width: 44px; height: 44px; flex-shrink: 0; object-fit: contain;
+  filter: drop-shadow(0 3px 8px rgba(120,90,30,.18));
 }
-.sidebar-brand strong { display: block; font-size: 15px; font-family: 'Spectral', serif; }
-.sidebar-brand small { color: var(--gold-soft); font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase; }
-.nav { flex: 1; padding: 16px 12px; display: flex; flex-direction: column; gap: 3px; overflow-y: auto; }
-.nav-item { color: #b6c1d4; text-decoration: none; padding: 10px 14px; border-radius: 9px; font-size: 13.5px; font-weight: 500; transition: all .15s; display: flex; align-items: center; }
-.nav-item:hover { background: rgba(255,255,255,.07); color: #fff; }
-.nav-item.active { background: rgba(184,146,76,.16); color: #fff; box-shadow: inset 3px 0 0 var(--gold); }
-.nav-highlight { background: var(--gold); color: #fff; font-weight: 600; margin-bottom: 8px; box-shadow: 0 4px 14px rgba(184,146,76,.35); }
-.nav-highlight:hover { background: var(--gold-soft); color: #fff; }
-.nav-highlight.active { background: var(--gold-soft); box-shadow: 0 4px 14px rgba(184,146,76,.45); }
-.sidebar-footer { padding: 16px 18px; border-top: 1px solid rgba(255,255,255,.08); display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
-#user-name { color: #c7d0df; font-size: 12.5px; }
+.sidebar-brand strong { display: block; font-size: 15px; font-family: 'Spectral', serif; color: var(--text); }
+.sidebar-brand small { color: var(--gold); font-size: 10.5px; letter-spacing: .8px; text-transform: uppercase; font-weight: 600; }
+.nav { flex: 1; padding: 14px 12px; display: flex; flex-direction: column; gap: 2px; overflow-y: auto; }
+.nav-item { color: var(--text-soft); text-decoration: none; padding: 10px 14px; border-radius: 10px; font-size: 13.5px; font-weight: 500; transition: background .15s, color .15s, transform .12s; display: flex; align-items: center; }
+.nav-item:hover { background: var(--surface-2); color: var(--text); transform: translateX(2px); }
+.nav-item.active { background: rgba(193,154,78,.12); color: var(--gold); font-weight: 600; box-shadow: inset 3px 0 0 var(--gold); }
+.nav-highlight { background: var(--gold); color: #fff; font-weight: 600; margin-bottom: 8px; box-shadow: 0 6px 16px rgba(193,154,78,.32); }
+.nav-highlight:hover { background: #b08c44; color: #fff; transform: translateX(0) translateY(-1px); }
+.nav-highlight.active { background: var(--gold); color: #fff; box-shadow: 0 6px 16px rgba(193,154,78,.4); }
+.sidebar-footer { padding: 14px 16px; border-top: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 10px; font-size: 13px; }
+#user-name { color: var(--text); font-size: 12.5px; font-weight: 600; }
 .bell { background: rgba(255,255,255,.06); color: #fff; border: 1px solid rgba(255,255,255,.14); border-radius: 9px; padding: 10px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; gap: 7px; transition: all .15s; }
 .bell:hover { background: rgba(255,255,255,.13); }
 .bell-count { background: var(--red); color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
@@ -320,3 +321,56 @@ tbody tr:hover .btn-sm { opacity: 1; }
 /* Page header com filete dourado sutil sob o título */
 .page-header h2 { position: relative; padding-bottom: 8px; }
 .page-header h2::after { content: ''; position: absolute; left: 0; bottom: 0; width: 40px; height: 2px; background: var(--gold); border-radius: 2px; }
+
+/* ════════════════════════════════════════════════════════
+   MOVIMENTO & MODERNIDADE — entradas suaves + micro-interações
+   ════════════════════════════════════════════════════════ */
+
+/* Conteúdo da página entra com fade suave a cada navegação */
+.page-header { animation: rise .34s ease backwards; }
+.card { animation: rise .36s ease backwards; }
+.tabs { animation: rise .3s ease backwards; }
+.kanban { animation: rise .4s ease backwards; }
+
+/* KPIs — elevação no hover + barra dourada que cresce */
+.kpi { transition: transform .2s cubic-bezier(.16,.8,.3,1), box-shadow .2s; cursor: default; }
+.kpi:hover { transform: translateY(-3px); box-shadow: var(--shadow); }
+.kpi::before { transition: width .2s ease, opacity .2s; }
+.kpi:hover::before { width: 5px; opacity: 1; }
+
+/* Cards — leve elevação ao passar o mouse */
+.card { transition: box-shadow .2s ease, transform .2s ease; }
+.card:hover { box-shadow: var(--shadow); }
+
+/* Linhas de tabela — destaque dourado sutil à esquerda no hover */
+tbody tr { position: relative; }
+tbody tr:hover td:first-child { box-shadow: inset 3px 0 0 var(--gold); }
+
+/* Botões — transição mais fluida e brilho no hover dourado */
+.btn-gold { box-shadow: 0 2px 8px rgba(193,154,78,.25); }
+.btn-gold:hover { box-shadow: 0 6px 18px rgba(193,154,78,.35); }
+.btn-primary { box-shadow: 0 2px 8px rgba(31,29,22,.12); }
+
+/* Tabs — sublinhado dourado deslizante */
+.tab { position: relative; transition: color .18s; }
+.tab::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: -1px; height: 2px; background: var(--gold); border-radius: 2px; transform: scaleX(0); transition: transform .22s cubic-bezier(.16,.8,.3,1); }
+.tab.active::after { transform: scaleX(1); }
+.tab.active { border-bottom-color: transparent; }
+
+/* Nav — pequeno deslize já aplicado; realça o item ativo com transição suave */
+.nav-item { will-change: transform; }
+
+/* Badges — leve animação de surgimento */
+.badge { transition: transform .15s; }
+
+/* Inputs — foco com leve crescimento do anel dourado (já há box-shadow) */
+input, select, textarea { transition: border-color .16s, box-shadow .16s; }
+
+/* Avatar do topo gira de leve no hover (toque moderno e discreto) */
+.avatar { transition: transform .25s ease; }
+.user-chip:hover .avatar { transform: scale(1.06) rotate(-3deg); }
+
+/* Respeita usuários que preferem menos movimento */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+}
