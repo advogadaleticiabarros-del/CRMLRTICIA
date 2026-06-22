@@ -41,6 +41,7 @@ import journeyRoutes from './routes/journey';
 import controladoriaRoutes from './routes/controladoria';
 import correspondenteRoutes from './routes/correspondente';
 import documentRoutes from './routes/documents';
+import aiRoutes from './routes/ai';
 import signPublicRoutes from './routes/sign-public';
 import backupRoutes from './routes/backup';
 import { googleOAuthCallback } from './routes/google-callback';
@@ -99,6 +100,7 @@ export function createApp() {
   app.use('/api/controladoria',         authenticate, requireStaff, controladoriaRoutes);
   app.use('/api/correspondente',        authenticate, requireStaff, correspondenteRoutes);
   app.use('/api/documents',             authenticate, requireStaff, documentRoutes);
+  app.use('/api/ai',                    authenticate, requireStaff, aiRoutes);
   app.use('/api/dashboards/comercial',  authenticate, requireStaff, comercialDashboard);
   app.use('/api/dashboards/cliente',    authenticate, requireStaff, clienteDashboard);
   app.use('/api/dashboards/processual', authenticate, requireStaff, processualDashboard);

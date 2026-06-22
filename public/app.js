@@ -60,15 +60,15 @@ const NAV_LABELS = {
   dashboard: 'Dashboard', clients: 'Clientes', leads: 'Leads',
   propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos & Tarefas',
   agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Controladoria', correspondente: 'Correspondente',
-  documentos: 'Documentos', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
+  documentos: 'Documentos', ia: 'IA Jurídica', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
   contratos: 'Contratos', intakes: 'Novo Atendimento',
   monitor: 'Monitoramento', advogados: 'Advogados/OAB',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
 };
 const NAV_BY_ROLE = {
-  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
-  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
-  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
   estagiario: ['cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -782,7 +782,110 @@ const ROUTES = {
 
   async correspondente(page) { await renderCorrespondente(page); },
   async documentos(page) { await renderDocumentos(page); },
+  async ia(page) { await renderIA(page); },
 };
+
+const IA_TYPE_PT = { peticao_inicial: 'Petição Inicial', contestacao: 'Contestação', resumo_intimacao: 'Resumo de intimação', parecer: 'Parecer', email_cobranca: 'Cobrança' };
+
+async function renderIA(page) {
+  const cfg = await api('/api/ai/config').catch(() => ({ auto: false }));
+  page.innerHTML = `
+    <div class="page-header"><div><h2>IA Jurídica</h2><p class="sub">${cfg.auto ? 'Geração automática ativa' : 'Assistente — gera o prompt pronto para colar no ChatGPT/Claude'}</p></div>
+      <button class="btn-gold" id="new-ia">+ Nova geração</button></div>
+    ${cfg.auto ? '' : '<p class="sub" style="margin-bottom:14px">💡 Sem custo de API: o sistema monta o texto pronto, você cola na IA que já assina (ChatGPT/Claude) e traz a resposta de volta. Para gerar automático, adicione uma chave grátis (Gemini/Groq) nas variáveis.</p>'}
+    <div class="card"><div id="ia-table"></div></div>`;
+  const load = async () => {
+    const rows = await api('/api/ai');
+    $('#ia-table').innerHTML = rows.length ? `
+      <table><thead><tr><th>Documento</th><th>Tipo</th><th>Cliente</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.map((g) => `<tr>
+        <td><strong>${g.title || '—'}</strong><br><small style="color:var(--text-muted)">${fmtDate(g.created_at)}</small></td>
+        <td>${IA_TYPE_PT[g.type] || g.type}</td><td>${g.client_name || '—'}</td>
+        <td>${g.status === 'completed' ? '<span class="badge ativo">pronto</span>' : '<span class="badge pendente">aguardando</span>'}</td>
+        <td><button class="btn-sm" data-ia="${g.id}">Abrir</button> <button class="btn-sm" data-del-ia="${g.id}">×</button></td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhuma geração ainda</div>';
+    document.querySelectorAll('[data-ia]').forEach((b) => b.onclick = () => iaViewer(b.dataset.ia, load));
+    document.querySelectorAll('[data-del-ia]').forEach((b) => b.onclick = async () => {
+      try { await api('/api/ai/' + b.dataset.delIa, { method: 'DELETE' }); toast('Removido'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  $('#new-ia').onclick = () => iaForm(load);
+  await load();
+}
+
+async function iaForm(onSave) {
+  const [templates, clients] = await Promise.all([api('/api/ai/templates'), api('/api/clients?limit=200')]);
+  const typeOpts = templates.map((t) => ({ v: t.type, t: t.label }));
+  const form = el(`<form class="form-grid">
+    ${field('Tipo de documento', 'type', { options: typeOpts })}
+    ${field('Cliente (opcional)', 'client_id', { options: [{ v: '', t: '—' }].concat(clients.data.map((c) => ({ v: c.id, t: c.name }))) })}
+    <div id="ia-fields"></div>
+    <button type="submit" class="btn-primary">Gerar</button>
+  </form>`);
+  const typeSel = form.querySelector('[name=type]');
+  const renderFields = () => {
+    const tpl = templates.find((t) => t.type === typeSel.value);
+    form.querySelector('#ia-fields').innerHTML = tpl.fields.map((f) =>
+      field(f.label, 'f_' + f.name, f.type === 'textarea' ? { type: 'textarea' } : {})).join('');
+  };
+  typeSel.onchange = renderFields; renderFields();
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = Object.fromEntries(new FormData(form));
+    const inputs = {};
+    for (const k in fd) if (k.startsWith('f_')) inputs[k.slice(2)] = fd[k];
+    const body = { type: fd.type, inputs };
+    if (fd.client_id) body.client_id = fd.client_id;
+    try {
+      const r = await api('/api/ai/generate', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); if (onSave) onSave(); iaViewer(r.id, onSave);
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Nova geração de IA', form);
+}
+
+async function iaViewer(id, onSave) {
+  const g = await api('/api/ai/' + id);
+  const done = g.status === 'completed' && g.result;
+  const wrap = el(`<div>
+    ${!done ? `
+      <div><strong style="color:var(--navy)">1. Copie este prompt e cole no ChatGPT ou Claude</strong></div>
+      <textarea id="ia-prompt" readonly style="width:100%;min-height:160px;margin-top:6px;font-size:13px">${g.prompt}</textarea>
+      <div style="display:flex;gap:8px;margin:8px 0">
+        <button class="btn-gold" id="ia-copy">Copiar prompt</button>
+        <a class="btn-sm" href="https://chat.openai.com" target="_blank">Abrir ChatGPT</a>
+        <a class="btn-sm" href="https://claude.ai" target="_blank">Abrir Claude</a>
+      </div>
+      <div style="margin-top:10px"><strong style="color:var(--navy)">2. Cole aqui a resposta da IA</strong></div>
+      <textarea id="ia-result" style="width:100%;min-height:200px;margin-top:6px" placeholder="Cole aqui o texto que a IA gerou…"></textarea>
+      <button class="btn-primary" id="ia-save" style="width:auto;margin-top:8px">Salvar resposta</button>
+    ` : `
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <strong style="color:var(--navy)">Resultado</strong>
+        <span>${g.client_id ? '<button class="btn-sm" id="ia-doc">Salvar no GED</button> ' : ''}<button class="btn-sm" id="ia-copyr">Copiar</button></span>
+      </div>
+      <textarea id="ia-result" style="width:100%;min-height:320px;margin-top:8px;font-family:Georgia,serif;line-height:1.6">${g.result}</textarea>
+      <button class="btn-sm" id="ia-update" style="margin-top:8px">Salvar alterações</button>
+    `}
+  </div>`);
+  if (!done) {
+    wrap.querySelector('#ia-copy').onclick = () => { navigator.clipboard.writeText(g.prompt); toast('Prompt copiado'); };
+    wrap.querySelector('#ia-save').onclick = async () => {
+      try { await api(`/api/ai/${id}/result`, { method: 'POST', body: JSON.stringify({ result: wrap.querySelector('#ia-result').value }) });
+        closeModal(); toast('Salvo'); if (onSave) onSave(); } catch (e) { toast(e.message, 'error'); }
+    };
+  } else {
+    wrap.querySelector('#ia-copyr').onclick = () => { navigator.clipboard.writeText(wrap.querySelector('#ia-result').value); toast('Copiado'); };
+    wrap.querySelector('#ia-update').onclick = async () => {
+      try { await api(`/api/ai/${id}/result`, { method: 'POST', body: JSON.stringify({ result: wrap.querySelector('#ia-result').value }) }); toast('Atualizado'); } catch (e) { toast(e.message, 'error'); }
+    };
+    const docBtn = wrap.querySelector('#ia-doc');
+    if (docBtn) docBtn.onclick = async () => {
+      try { await api(`/api/ai/${id}/save-document`, { method: 'POST', body: '{}' }); toast('Salvo no GED (Documentos)'); } catch (e) { toast(e.message, 'error'); }
+    };
+  }
+  openModal(g.title || 'Geração de IA', wrap);
+}
 
 const FOLDER_PT = { contratos: 'Contratos', procuracoes: 'Procurações', documentos_pessoais: 'Documentos pessoais', processos: 'Processos', financeiro: 'Financeiro', audiencias: 'Audiências', outros: 'Outros' };
 
