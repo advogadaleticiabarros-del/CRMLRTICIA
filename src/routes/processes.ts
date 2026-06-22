@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { TRIBUNAIS, suggestCourtAlias } from '../services/datajud';
-import { syncProcess } from '../services/monitoringService';
+import { syncProcess, discoverProcessesByOAB, runDiscoveryJob } from '../services/monitoringService';
 
 const router = Router();
 
@@ -100,6 +100,20 @@ router.put('/:id', async (req: Request, res: Response) => {
 // ── POST /api/processes/:id/sync — sincronizar agora (consulta o provider) ──
 router.post('/:id/sync', async (req: Request, res: Response) => {
   const result = await syncProcess(Number(req.params.id));
+  res.json(result);
+});
+
+// ── POST /api/processes/descobrir-oab — descoberta automática por OAB ────────
+// body: { lawyer_id?: number, scope?: 'national' | 'state' }
+// Sem lawyer_id → roda para todos os advogados ativos.
+router.post('/descobrir-oab', async (req: Request, res: Response) => {
+  const scope = req.body?.scope === 'state' ? 'state' : 'national';
+  if (req.body?.lawyer_id) {
+    const result = await discoverProcessesByOAB(Number(req.body.lawyer_id), scope);
+    res.json(result);
+    return;
+  }
+  const result = await runDiscoveryJob();
   res.json(result);
 });
 

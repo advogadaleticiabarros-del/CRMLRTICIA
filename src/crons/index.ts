@@ -4,7 +4,7 @@ import { deadlineCounterService } from '../services/DeadlineCounterService';
 import { notificationService } from '../services/NotificationService';
 import { calendarSyncService } from '../services/CalendarSyncService';
 import { telegramNotificationService } from '../services/TelegramNotificationService';
-import { runMonitoringJob } from '../services/monitoringService';
+import { runMonitoringJob, runDiscoveryJob } from '../services/monitoringService';
 
 export function startCronJobs() {
   // ── a cada 5 min: atualiza contadores de prazos ──────────────────────────
@@ -54,6 +54,13 @@ export function startCronJobs() {
   cron.schedule('0 7 * * *', async () => {
     try {
       await alertOverdueItems();
+    } catch {}
+  });
+
+  // ── descoberta por OAB: diário 06h (varre tribunais e cadastra novos) ─────
+  cron.schedule('0 6 * * *', async () => {
+    try {
+      await runDiscoveryJob();
     } catch {}
   });
 

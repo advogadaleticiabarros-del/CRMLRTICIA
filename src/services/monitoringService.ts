@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import { db } from '../config/database';
 import { getActiveProvider, getProvider } from './processProviders';
+import { searchByOAB, DiscoveredProcess } from './datajud';
 import { notificationService } from './NotificationService';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
@@ -108,6 +109,101 @@ async function logMonitor(processId: number, lawyerId: number | null, status: st
     'INSERT INTO monitoring_logs (process_id, lawyer_id, status, source, message) VALUES (?, ?, ?, ?, ?)',
     [processId, lawyerId ?? null, status, source, message?.slice(0, 500) ?? null]
   );
+}
+
+/** Insere movimentações novas (dedupe por hash) de um processo já cadastrado. Retorna quantas entraram. */
+async function saveMovements(processId: number, processNumber: string, movements: { movement_date: string | null; title: string; description: string }[], source: string): Promise<number> {
+  let novas = 0;
+  for (const m of movements) {
+    const hash = hashMovement(processNumber, m.movement_date, m.description);
+    try {
+      const [ins] = await db.query(
+        `INSERT INTO process_movements (process_id, movement_date, title, description, source, unique_hash)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [processId, toDate(m.movement_date), m.title?.slice(0, 500), m.description, source, hash]
+      ) as any;
+      if (ins.affectedRows) novas++;
+    } catch (e: any) {
+      if (e.code !== 'ER_DUP_ENTRY') throw e;
+    }
+  }
+  return novas;
+}
+
+const dateOnly = (val: string | null): string | null => {
+  const d = toDate(val);
+  return d ? d.toISOString().split('T')[0] : null;
+};
+
+interface DiscoveryResult { lawyerId: number; oab: string; found: number; novos: number; tribunais: number; }
+
+/** Descobre por OAB todos os processos de UM advogado e cadastra os novos (source = datajud_oab). */
+export async function discoverProcessesByOAB(lawyerId: number, scope: 'national' | 'state' = 'national'): Promise<DiscoveryResult> {
+  const [rows] = await db.query('SELECT * FROM lawyers WHERE id = ?', [lawyerId]) as any;
+  if (!rows.length) return { lawyerId, oab: '', found: 0, novos: 0, tribunais: 0 };
+  const lawyer = rows[0];
+  if (!lawyer.oab_number) {
+    await logMonitor(null as any, lawyerId, 'erro', 'datajud_oab', 'Advogado sem número de OAB');
+    return { lawyerId, oab: '', found: 0, novos: 0, tribunais: 0 };
+  }
+
+  const { total, processes, tribunaisConsultados } = await searchByOAB(lawyer.oab_number, lawyer.oab_uf || 'ES', scope);
+
+  let novos = 0;
+  for (const p of processes as DiscoveredProcess[]) {
+    // Já existe esse número? (independente de quem cadastrou)
+    const [exists] = await db.query('SELECT id FROM legal_processes WHERE process_number = ? LIMIT 1', [p.process_number]) as any;
+    if (exists.length) {
+      // Mantém atualizado mesmo se já existir: grava movimentações novas
+      await saveMovements(exists[0].id, p.process_number, p.movements, 'datajud_oab');
+      continue;
+    }
+    const [ins] = await db.query(
+      `INSERT INTO legal_processes
+         (lawyer_id, process_number, court, court_alias, status, source, confidential, distribution_date, last_sync_at)
+       VALUES (?, ?, ?, ?, 'ativo', 'datajud_oab', ?, ?, NOW())`,
+      [lawyerId, p.process_number, p.court_name, p.court_alias, p.sigilo > 0 ? 1 : 0, dateOnly(p.distribution_date)]
+    ) as any;
+    const novasMovs = await saveMovements(ins.insertId, p.process_number, p.movements, 'datajud_oab');
+    await db.query('UPDATE legal_processes SET last_movement_at = (SELECT MAX(movement_date) FROM process_movements WHERE process_id = ?) WHERE id = ?', [ins.insertId, ins.insertId]);
+    novos++;
+    await logMonitor(ins.insertId, lawyerId, 'nova_movimentacao', 'datajud_oab', `Processo descoberto (${novasMovs} mov.)`);
+  }
+
+  await db.query('UPDATE lawyers SET last_sync_at = NOW() WHERE id = ?', [lawyerId]);
+  await logMonitor(null as any, lawyerId, novos > 0 ? 'nova_movimentacao' : 'sem_novidade', 'datajud_oab',
+    `OAB ${lawyer.oab_number}/${lawyer.oab_uf}: ${total} encontrados, ${novos} novos`);
+
+  // Notifica admins quando há processos novos
+  if (novos > 0) {
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+    for (const a of admins) {
+      await notificationService.create({
+        userId: a.id, title: 'Novos processos encontrados (OAB)',
+        message: `${novos} novo(s) processo(s) vinculado(s) à OAB ${lawyer.oab_number}/${lawyer.oab_uf}.`,
+        notificationType: 'descoberta_oab', channel: 'sistema', scheduledAt: new Date(),
+      });
+    }
+  }
+
+  return { lawyerId, oab: `${lawyer.oab_number}/${lawyer.oab_uf}`, found: total, novos, tribunais: tribunaisConsultados };
+}
+
+/** Roda a descoberta por OAB para todos os advogados ativos com monitoramento ligado. */
+export async function runDiscoveryJob(): Promise<{ lawyers: number; totalNovos: number }> {
+  const [lawyers] = await db.query(
+    "SELECT id FROM lawyers WHERE active = 1 AND monitoring_enabled = 1 AND oab_number IS NOT NULL AND oab_number <> ''"
+  ) as any;
+  let totalNovos = 0;
+  for (const l of lawyers) {
+    try {
+      const r = await discoverProcessesByOAB(l.id, 'national');
+      totalNovos += r.novos;
+    } catch (e: any) {
+      await logMonitor(null as any, l.id, 'erro', 'datajud_oab', e.message);
+    }
+  }
+  return { lawyers: lawyers.length, totalNovos };
 }
 
 /** Roda o monitoramento de todos os processos ativos com monitoring_enabled. */
