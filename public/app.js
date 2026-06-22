@@ -764,6 +764,35 @@ function kpi(label, value, cls = '') {
   return `<div class="kpi"><div class="label">${label}</div><div class="value ${cls}">${value ?? 0}</div></div>`;
 }
 
+const fmtDateTime = (d) => d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+
+/** Renderiza a linha do tempo unificada da jornada (lead → cliente → processo). */
+function journeyHTML(events) {
+  if (!events || !events.length) return '<div class="empty">Sem registros ainda</div>';
+  return `<ol class="timeline">${events.map((e) => {
+    const change = (e.old_value && e.new_value)
+      ? `<small class="tl-change">${e.old_value} → ${e.new_value}</small>`
+      : (e.new_value ? `<small class="tl-change">${e.new_value}</small>` : '');
+    return `<li class="tl-item tl-${e.source || 'funil'}">
+      <span class="tl-dot"></span>
+      <div class="tl-body">
+        <div class="tl-title">${e.title} ${change}</div>
+        ${e.description ? `<div class="tl-desc">${e.description}</div>` : ''}
+        <div class="tl-meta">${fmtDateTime(e.created_at)}${e.actor_name ? ' · ' + e.actor_name : ''}</div>
+      </div></li>`;
+  }).join('')}</ol>`;
+}
+
+/** Carrega a jornada num container, por lead ou cliente. */
+async function loadJourney(container, params) {
+  container.innerHTML = '<div class="spinner"></div>';
+  try {
+    const q = new URLSearchParams(params).toString();
+    const r = await api('/api/journey?' + q);
+    container.innerHTML = journeyHTML(r.events);
+  } catch (e) { container.innerHTML = `<div class="empty">${e.message}</div>`; }
+}
+
 function miniList(title, rows) {
   return `<div class="dash-section"><h3>${title}</h3><div class="mini-list">${
     rows && rows.length ? rows.join('') : '<div class="mini-row"><small>Sem registros</small></div>'
@@ -1167,7 +1196,11 @@ async function leadDetail(id, onSave) {
     <button class="btn-primary" id="move">Atualizar etapa</button>
     <hr style="border:none;border-top:1px solid var(--border)">
     <button class="btn-gold" id="close" style="width:100%">Fechar negócio e gerar contrato</button>
+    <hr style="border:none;border-top:1px solid var(--border)">
+    <div><strong style="color:var(--navy)">Histórico da jornada</strong><p class="sub" style="margin:2px 0 8px">Tudo registrado — do primeiro contato ao fim do processo</p></div>
+    <div id="lead-journey"><div class="spinner"></div></div>
   </div>`);
+  loadJourney(form.querySelector('#lead-journey'), { lead_id: id });
   form.querySelector('#save-area').onclick = async () => {
     try { await api('/api/leads/' + id, { method: 'PUT', body: JSON.stringify({ legal_area: form.querySelector('[name=legal_area]').value }) });
       toast('Área salva'); } catch (e) { toast(e.message, 'error'); }

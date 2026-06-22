@@ -370,6 +370,17 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
 .avatar { transition: transform .25s ease; }
 .user-chip:hover .avatar { transform: scale(1.06) rotate(-3deg); }
 
+/* ── Linha do tempo da jornada ── */
+.timeline { list-style: none; position: relative; margin: 4px 0 0; padding-left: 22px; }
+.timeline::before { content: ''; position: absolute; left: 7px; top: 4px; bottom: 8px; width: 2px; background: var(--border); }
+.tl-item { position: relative; padding: 0 0 16px; animation: rise .3s ease backwards; }
+.tl-dot { position: absolute; left: -19px; top: 3px; width: 12px; height: 12px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 3px var(--surface); }
+.tl-item.tl-cliente .tl-dot { background: var(--navy); }
+.tl-title { font-size: 13.5px; font-weight: 600; color: var(--text); }
+.tl-change { font-weight: 500; color: var(--gold); background: rgba(193,154,78,.12); padding: 1px 8px; border-radius: 10px; font-size: 11.5px; white-space: nowrap; }
+.tl-desc { font-size: 13px; color: var(--text-soft); margin-top: 2px; }
+.tl-meta { font-size: 11.5px; color: var(--text-muted); margin-top: 3px; }
+
 /* Respeita usuários que preferem menos movimento */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }

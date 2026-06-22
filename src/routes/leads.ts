@@ -1,7 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
+import { logActivity } from '../services/JourneyService';
 
 const router = Router();
+
+const STATUS_PT: Record<string, string> = {
+  triagem: 'Triagem', atendimento_inicial: 'Atendimento inicial', reuniao: 'Consulta/Reunião',
+  proposta: 'Proposta', proposta_em_analise: 'Proposta em análise', fechada: 'Fechada', perdida: 'Perdida',
+};
 
 const STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'proposta', 'proposta_em_analise', 'fechada', 'perdida'];
 const ACTIVE_STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'proposta', 'proposta_em_analise'];
@@ -109,6 +115,14 @@ router.post('/', async (req: Request, res: Response) => {
   ) as any;
 
   const [rows] = await db.query('SELECT * FROM leads WHERE id = ?', [result.insertId]) as any;
+
+  await logActivity({
+    leadId: result.insertId, clientId: client_id ?? null, actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'lead_created', title: 'Lead entrou no funil',
+    description: `Origem: ${source || '—'} · Área: ${rows[0].legal_area || '—'}`,
+    newValue: STATUS_PT[rows[0].status] || rows[0].status,
+  });
+
   res.status(201).json(rows[0]);
 });
 
@@ -146,6 +160,15 @@ router.put('/:id', async (req: Request, res: Response) => {
   await db.query(`UPDATE leads SET ${fields.join(', ')} WHERE id = ?`, params);
 
   const [rows] = await db.query('SELECT * FROM leads WHERE id = ?', [id]) as any;
+
+  const COL_PT: Record<string, string> = { name: 'nome', email: 'e-mail', phone: 'telefone', source: 'origem', legal_area: 'área', status: 'status', notes: 'observações' };
+  const changed = fields.map((f) => COL_PT[f.split(' ')[0]] || f.split(' ')[0]);
+  await logActivity({
+    leadId: Number(id), clientId: rows[0].client_id, actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'lead_updated', title: 'Dados do lead atualizados',
+    description: `Campos alterados: ${changed.join(', ')}`,
+  });
+
   res.json(rows[0]);
 });
 
@@ -159,16 +182,22 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     return;
   }
 
+  const [prevRows] = await db.query('SELECT status, client_id FROM leads WHERE id = ?', [id]) as any;
+  if (!prevRows.length) { res.status(404).json({ error: 'Lead não encontrado' }); return; }
+  const prev = prevRows[0];
+
   // Marca o início da análise (regra dos 7 dias). Limpa ao sair da análise.
   const analiseSql = status === 'proposta_em_analise'
     ? ', analise_since = NOW()'
     : ', analise_since = NULL';
 
-  const [result] = await db.query(`UPDATE leads SET status = ?${analiseSql} WHERE id = ?`, [status, id]) as any;
-  if (!result.affectedRows) {
-    res.status(404).json({ error: 'Lead não encontrado' });
-    return;
-  }
+  await db.query(`UPDATE leads SET status = ?${analiseSql} WHERE id = ?`, [status, id]);
+
+  await logActivity({
+    leadId: Number(id), clientId: prev.client_id, actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'lead_stage_changed', title: 'Etapa do funil alterada',
+    oldValue: STATUS_PT[prev.status] || prev.status, newValue: STATUS_PT[status] || status,
+  });
 
   res.json({ success: true, id: Number(id), status });
 });
@@ -200,6 +229,12 @@ router.post('/:id/convert-client', async (req: Request, res: Response) => {
     "UPDATE leads SET client_id = ?, status = 'convertido' WHERE id = ?",
     [result.insertId, id]
   );
+
+  await logActivity({
+    leadId: Number(id), clientId: result.insertId, actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'lead_converted_client', title: 'Lead convertido em cliente',
+    description: `${lead.name} agora é cliente (${tipo === 'PJ' ? 'PJ' : 'PF'})`,
+  });
 
   res.status(201).json({ success: true, client_id: result.insertId });
 });

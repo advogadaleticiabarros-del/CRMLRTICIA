@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
+import { logActivity } from '../services/JourneyService';
 
 const router = Router();
 
@@ -163,6 +164,13 @@ router.post('/:id/convert-lead', async (req: Request, res: Response) => {
 
   await db.query("UPDATE intakes SET lead_id = ?, status = 'convertido' WHERE id = ?", [result.insertId, id]);
 
+  await logActivity({
+    leadId: result.insertId, clientId: intake.client_id, actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'lead_created', title: 'Lead entrou no funil',
+    description: `Originado do atendimento de ${intake.contact_name} · Origem: ${intake.source} · Área: ${intake.legal_area}`,
+    newValue: 'Triagem',
+  });
+
   res.status(201).json({ success: true, lead_id: result.insertId });
 });
 
@@ -190,6 +198,12 @@ router.post('/:id/convert-client', async (req: Request, res: Response) => {
   ) as any;
 
   await db.query("UPDATE intakes SET client_id = ?, status = 'convertido' WHERE id = ?", [result.insertId, id]);
+
+  await logActivity({
+    clientId: result.insertId, actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'client_created', title: 'Cliente cadastrado',
+    description: `${intake.contact_name} cadastrado(a) diretamente do atendimento (${tipo === 'PJ' ? 'PJ' : 'PF'})`,
+  });
 
   res.status(201).json({ success: true, client_id: result.insertId });
 });

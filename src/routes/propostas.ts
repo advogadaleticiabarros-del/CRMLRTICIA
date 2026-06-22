@@ -1,9 +1,13 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
+import { logActivity } from '../services/JourneyService';
 
 const router = Router();
 
 const STATUSES = ['rascunho', 'enviada', 'em_negociacao', 'aceita', 'recusada'];
+const PROP_STATUS_PT: Record<string, string> = {
+  rascunho: 'Rascunho', enviada: 'Enviada', em_negociacao: 'Em negociação', aceita: 'Aceita', recusada: 'Recusada',
+};
 
 function addMonths(date: Date, months: number): Date {
   const d = new Date(date);
@@ -80,6 +84,14 @@ router.post('/', async (req: Request, res: Response) => {
   ) as any;
 
   const [rows] = await db.query('SELECT * FROM propostas WHERE id = ?', [result.insertId]) as any;
+
+  await logActivity({
+    leadId: lead_id ?? null, clientId: client_id, caseId: case_id ?? null,
+    actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'proposal_created', title: 'Proposta gerada',
+    description: `${title.trim()} — valor ${Number(valor) || 0}`,
+  });
+
   res.status(201).json(rows[0]);
 });
 
@@ -120,8 +132,18 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     res.status(400).json({ error: 'Para aceitar, use POST /api/propostas/:id/accept (gera as parcelas)' });
     return;
   }
-  const [result] = await db.query('UPDATE propostas SET status = ? WHERE id = ?', [status, req.params.id]) as any;
-  if (!result.affectedRows) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
+  const [pRows] = await db.query('SELECT lead_id, client_id, case_id, status FROM propostas WHERE id = ?', [req.params.id]) as any;
+  if (!pRows.length) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
+  const p = pRows[0];
+  await db.query('UPDATE propostas SET status = ? WHERE id = ?', [status, req.params.id]);
+
+  await logActivity({
+    leadId: p.lead_id, clientId: p.client_id, caseId: p.case_id,
+    actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'proposal_status', title: 'Status da proposta atualizado',
+    oldValue: PROP_STATUS_PT[p.status] || p.status, newValue: PROP_STATUS_PT[status] || status,
+  });
+
   res.json({ success: true, id: Number(req.params.id), status });
 });
 
@@ -165,6 +187,14 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
   } finally {
     conn.release();
   }
+
+  await logActivity({
+    leadId: proposta.lead_id, clientId: proposta.client_id, caseId: proposta.case_id,
+    actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'proposal_accepted', title: 'Proposta ACEITA',
+    description: `${proposta.title} — ${installmentsCount}x · gerou as parcelas`,
+    oldValue: PROP_STATUS_PT[proposta.status] || proposta.status, newValue: 'Aceita',
+  });
 
   const [installments] = await db.query(
     'SELECT id, numero, valor, due_date, status FROM installments WHERE proposta_id = ? ORDER BY numero ASC',
