@@ -39,6 +39,7 @@ const SOURCES: SourceCfg[] = [
   { cat: 'honorario_inicial', type: 'entrada', table: 'installments',      amount: 'valor',       dueCol: 'due_date',        paidCol: 'paid_at',       realizedCond: "status='pago'" },
   { cat: 'honorario_parcela', type: 'entrada', table: 'parcelas',          amount: 'valor_final', dueCol: 'data_vencimento', paidCol: 'data_pagamento', realizedCond: "status='pago'" },
   { cat: 'dativo',            type: 'entrada', table: 'dative_payments',   amount: 'value',       dueCol: 'expected_date',   paidCol: 'received_date', realizedCond: "status='recebido'" },
+  { cat: 'correspondente',    type: 'entrada', table: 'correspondent_hearings', amount: 'value',  dueCol: 'due_date',        paidCol: 'paid_at',       realizedCond: "status='paga'" },
   { cat: 'lanc_despesa',      type: 'saida',   table: 'financial_records', amount: 'valor',       dueCol: 'due_date',        paidCol: 'paid_at',       realizedCond: "status='pago'",       extraWhere: "tipo='despesa'" },
   { cat: 'repasse',           type: 'saida',   table: 'repasses',          amount: 'valor',       dueCol: 'data_vencimento', paidCol: 'data_repasse',  realizedCond: "status='repassado'" },
 ];

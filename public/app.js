@@ -59,16 +59,16 @@ function logout() {
 const NAV_LABELS = {
   dashboard: 'Dashboard', clients: 'Clientes', leads: 'Leads',
   propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos & Tarefas',
-  agenda: 'Agenda', financeiro: 'Financeiro',
+  agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Controladoria', correspondente: 'Correspondente',
   config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
   contratos: 'Contratos', intakes: 'Novo Atendimento',
   monitor: 'Monitoramento', advogados: 'Advogados/OAB',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
 };
 const NAV_BY_ROLE = {
-  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','dativo','advogados','config'],
-  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','dativo'],
-  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','dativo'],
+  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
   estagiario: ['cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -759,7 +759,191 @@ const ROUTES = {
     $('#new-intake').onclick = () => intakeForm(load);
     await load();
   },
+
+  async controladoria(page) {
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Controladoria</h2><p class="sub">Rentabilidade, centro de custo e provisionamento</p></div></div>
+      <div class="tabs" id="ctrl-tabs">
+        <button class="tab active" data-tab="clientes">Rentabilidade · Clientes</button>
+        <button class="tab" data-tab="processos">Rentabilidade · Processos</button>
+        <button class="tab" data-tab="centro">Centro de Custo</button>
+        <button class="tab" data-tab="provisao">Provisionamento</button>
+      </div>
+      <div id="ctrl-content"></div>`;
+    const tabs = { clientes: ctrlClientes, processos: ctrlProcessos, centro: ctrlCentroCusto, provisao: ctrlProvisao };
+    const show = async (name) => {
+      document.querySelectorAll('#ctrl-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+      const c = $('#ctrl-content'); c.innerHTML = '<div class="spinner"></div>';
+      try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
+    };
+    document.querySelectorAll('#ctrl-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
+    await show('clientes');
+  },
+
+  async correspondente(page) { await renderCorrespondente(page); },
 };
+
+const margemBadge = (m) => `<span class="badge ${m >= 0 ? 'ativo' : 'vencido'}">${m}%</span>`;
+
+async function ctrlClientes(c) {
+  const rows = await api('/api/controladoria/rentabilidade/clientes');
+  c.innerHTML = rows.length ? `
+    <div class="card"><table><thead><tr><th>Cliente</th><th>Receita</th><th>Custo</th><th>Lucro</th><th>Margem</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr>
+      <td><strong>${r.client_name}</strong></td><td style="color:var(--green)">${money(r.receita)}</td>
+      <td style="color:var(--red)">${money(r.custo)}</td>
+      <td><strong style="color:${r.lucro >= 0 ? 'var(--green)' : 'var(--red)'}">${money(r.lucro)}</strong></td>
+      <td>${margemBadge(r.margem)}</td></tr>`).join('')}</tbody></table></div>`
+    : '<div class="empty">Sem dados de rentabilidade ainda</div>';
+}
+
+async function ctrlProcessos(c) {
+  const rows = await api('/api/controladoria/rentabilidade/processos');
+  c.innerHTML = rows.length ? `
+    <div class="card"><table><thead><tr><th>Processo</th><th>Receita</th><th>Custo</th><th>Lucro</th><th>Margem</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr>
+      <td><strong>${r.case_title}</strong></td><td style="color:var(--green)">${money(r.receita)}</td>
+      <td style="color:var(--red)">${money(r.custo)}</td>
+      <td><strong style="color:${r.lucro >= 0 ? 'var(--green)' : 'var(--red)'}">${money(r.lucro)}</strong></td>
+      <td>${margemBadge(r.margem)}</td></tr>`).join('')}</tbody></table></div>`
+    : '<div class="empty">Sem dados de rentabilidade por processo ainda</div>';
+}
+
+async function ctrlCentroCusto(c) {
+  const rows = await api('/api/controladoria/centro-custo');
+  c.innerHTML = rows.length ? `
+    <div class="card"><table><thead><tr><th>Centro de custo</th><th>Receita</th><th>Despesa</th><th>Saldo</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr>
+      <td><strong>${r.centro}</strong></td><td style="color:var(--green)">${money(r.receita)}</td>
+      <td style="color:var(--red)">${money(r.despesa)}</td>
+      <td><strong style="color:${r.saldo >= 0 ? 'var(--green)' : 'var(--red)'}">${money(r.saldo)}</strong></td></tr>`).join('')}</tbody></table></div>`
+    : '<div class="empty">Defina um "centro de custo" nos lançamentos para ver aqui</div>';
+}
+
+async function ctrlProvisao(c) {
+  const [resumo, lista] = await Promise.all([
+    api('/api/controladoria/provisoes/resumo'),
+    api('/api/controladoria/provisoes'),
+  ]);
+  const cell = (t, l) => `${resumo.matriz[t][l].qtd} · ${money(resumo.matriz[t][l].total)}`;
+  c.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-prov">+ Nova provisão</button></div>
+    <div class="kpi-grid">
+      ${kpi('Ganho provisionado', money(resumo.ganho_total), 'money')}
+      ${kpi('Perda provisionada', money(resumo.perda_total), 'money')}
+    </div>
+    <div class="card" style="margin-bottom:20px"><table><thead><tr><th>Cenário</th><th>Provável</th><th>Possível</th><th>Remoto</th></tr></thead>
+      <tbody>
+        <tr><td><strong style="color:var(--green)">Ganho</strong></td><td>${cell('ganho','provavel')}</td><td>${cell('ganho','possivel')}</td><td>${cell('ganho','remoto')}</td></tr>
+        <tr><td><strong style="color:var(--red)">Perda</strong></td><td>${cell('perda','provavel')}</td><td>${cell('perda','possivel')}</td><td>${cell('perda','remoto')}</td></tr>
+      </tbody></table></div>
+    <div class="card"><div id="prov-list"></div></div>`;
+  $('#prov-list').innerHTML = lista.length ? `
+    <table><thead><tr><th>Processo</th><th>Cliente</th><th>Cenário</th><th>Probabilidade</th><th>Valor</th><th></th></tr></thead>
+    <tbody>${lista.map((p) => `<tr>
+      <td>${p.case_title || '—'}</td><td>${p.client_name || '—'}</td>
+      <td>${p.type === 'ganho' ? '<span class="badge ativo">ganho</span>' : '<span class="badge vencido">perda</span>'}</td>
+      <td>${badge(p.likelihood)}</td><td>${money(p.value)}</td>
+      <td><button class="btn-sm" data-del-prov="${p.id}">Excluir</button></td></tr>`).join('')}</tbody></table>`
+    : '<div class="empty">Nenhuma provisão registrada</div>';
+  document.querySelectorAll('[data-del-prov]').forEach((b) => b.onclick = async () => {
+    try { await api('/api/controladoria/provisoes/' + b.dataset.delProv, { method: 'DELETE' }); toast('Provisão removida'); ctrlProvisao(c); } catch (e) { toast(e.message, 'error'); }
+  });
+  $('#new-prov').onclick = () => provisaoForm(() => ctrlProvisao(c));
+}
+
+async function provisaoForm(onSave) {
+  const cs = await api('/api/cases?limit=200');
+  const caseList = cs.data || cs;
+  const form = el(`<form class="form-grid">
+    ${field('Processo', 'case_id', { options: [{ v: '', t: '— (geral)' }].concat(caseList.map((c) => ({ v: c.id, t: c.title }))) })}
+    ${field('Cenário', 'type', { options: [{ v: 'ganho', t: 'Ganho' }, { v: 'perda', t: 'Perda' }] })}
+    ${field('Probabilidade', 'likelihood', { options: [{ v: 'provavel', t: 'Provável' }, { v: 'possivel', t: 'Possível' }, { v: 'remoto', t: 'Remoto' }] })}
+    ${field('Valor *', 'value', { type: 'number' })}
+    ${field('Descrição', 'description', { type: 'textarea' })}
+    <button type="submit" class="btn-primary">Registrar provisão</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    if (!body.case_id) delete body.case_id;
+    try { await api('/api/controladoria/provisoes', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Provisão registrada'); onSave(); }
+    catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Nova provisão', form);
+}
+
+// ── Correspondente Jurídico (audiências para terceiros) ──────────────────────
+async function renderCorrespondente(page) {
+  page.innerHTML = `
+    <div class="page-header"><div><h2>Correspondente Jurídico</h2><p class="sub">Audiências para outros escritórios — como advogado ou preposto</p></div>
+      <button class="btn-gold" id="new-corr">+ Nova audiência</button></div>
+    <div id="corr-kpis" class="kpi-grid"></div>
+    <div class="toolbar">
+      <select id="corr-filter"><option value="">Todas</option>
+        <option value="agendada">Agendadas</option><option value="realizada">Realizadas</option>
+        <option value="faturada">Faturadas</option><option value="paga">Pagas</option><option value="cancelada">Canceladas</option></select>
+    </div>
+    <div class="card"><div id="corr-table"></div></div>`;
+
+  const loadKpis = async () => {
+    const s = await api('/api/correspondente/summary');
+    $('#corr-kpis').innerHTML =
+      kpi('Agendadas', s.agendadas) + kpi('Realizadas', s.realizadas) +
+      kpi('A receber', money(s.a_receber), 'money') + kpi('Recebido', money(s.recebido), 'money') +
+      kpi('Previsto total', money(s.previsto), 'money');
+  };
+  const load = async () => {
+    const q = $('#corr-filter').value ? '?status=' + $('#corr-filter').value : '';
+    const rows = await api('/api/correspondente' + q);
+    $('#corr-table').innerHTML = rows.length ? `
+      <table><thead><tr><th>Data/hora</th><th>Atuação</th><th>Processo</th><th>Pagador</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows.map((h) => {
+        const acoes = [];
+        if (h.status === 'agendada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="realizada">Realizada</button>`);
+        if (h.status === 'realizada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="faturada">Faturar</button>`);
+        if (h.status === 'faturada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="paga">Receber</button>`);
+        if (!['paga','cancelada'].includes(h.status)) acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="cancelada">Cancelar</button>`);
+        return `<tr>
+          <td>${fmtDateTime(h.hearing_datetime)}<br><small style="color:var(--text-muted)">${h.comarca || ''}</small></td>
+          <td>${h.role === 'preposto' ? 'Preposto' : 'Advogado'}</td>
+          <td>${h.process_number || '—'}<br><small style="color:var(--text-muted)">${h.requesting_office || ''}</small></td>
+          <td>${h.payer_name}<br><small style="color:var(--text-muted)">${h.payer_type}${h.payer_document ? ' · ' + h.payer_document : ''}</small></td>
+          <td>${money(h.value)}</td><td>${badge(h.status)}</td>
+          <td style="white-space:nowrap">${acoes.join(' ')}</td></tr>`;
+      }).join('')}</tbody></table>`
+      : '<div class="empty">Nenhuma audiência registrada</div>';
+    document.querySelectorAll('[data-st]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/correspondente/${b.dataset.st}/status`, { method: 'PATCH', body: JSON.stringify({ status: b.dataset.to }) }); toast('Status atualizado'); loadKpis(); load(); }
+      catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  $('#corr-filter').onchange = load;
+  $('#new-corr').onclick = () => correspondenteForm(() => { loadKpis(); load(); });
+  await loadKpis(); await load();
+}
+
+async function correspondenteForm(onSave) {
+  const form = el(`<form class="form-grid">
+    <div class="form-row">${field('Data e hora *', 'hearing_datetime', { type: 'datetime-local' })}${field('Atuação', 'role', { options: [{ v: 'advogado', t: 'Advogado' }, { v: 'preposto', t: 'Preposto' }] })}</div>
+    <div class="form-row">${field('Processo', 'process_number')}${field('Comarca', 'comarca')}</div>
+    <div class="form-row">${field('Vara', 'vara')}${field('Fórum / link', 'location')}</div>
+    ${field('Escritório/advogado contratante', 'requesting_office')}
+    <div><strong style="color:var(--navy)">Pagamento</strong></div>
+    ${field('Pagador (empresa ou pessoa) *', 'payer_name')}
+    <div class="form-row">${field('Tipo', 'payer_type', { options: [{ v: 'PJ', t: 'Empresa (PJ)' }, { v: 'PF', t: 'Pessoa (PF)' }] })}${field('CNPJ/CPF', 'payer_document')}</div>
+    <div class="form-row">${field('Valor da audiência *', 'value', { type: 'number' })}${field('Vencimento', 'due_date', { type: 'date' })}</div>
+    ${field('Observações', 'notes', { type: 'textarea' })}
+    <button type="submit" class="btn-primary">Registrar audiência</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('/api/correspondente', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast('Audiência registrada'); onSave(); }
+    catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Nova audiência de correspondente', form);
+}
 
 function kpi(label, value, cls = '') {
   return `<div class="kpi"><div class="label">${label}</div><div class="value ${cls}">${value ?? 0}</div></div>`;
