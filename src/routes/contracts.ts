@@ -1,6 +1,8 @@
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
+import { onContractSigned } from '../services/contractFlow';
 
 const router = Router();
 
@@ -193,21 +195,11 @@ router.put('/:id', async (req: Request, res: Response) => {
   params.push(id);
   await db.query(`UPDATE contracts SET ${fields.join(', ')} WHERE id = ?`, params);
 
-  // Ao ASSINAR: cria o caso no módulo de produção (esteira) — uma única vez
+  // Ao ASSINAR: cria o processo na esteira + gera honorários no financeiro (sem retrabalho)
   let createdCaseId: number | null = null;
   if (req.body.status === 'assinado' && before.status !== 'assinado' && before.client_id) {
-    const [existsCase] = await db.query('SELECT id FROM cases WHERE origin_contract_id = ?', [id]) as any;
-    if (!existsCase.length) {
-      const [caseRes] = await db.query(
-        `INSERT INTO cases (user_id, client_id, title, legal_area, phase, status, production_stage, origin_contract_id, description)
-         VALUES (?, ?, ?, ?, 'inicial', 'ativo', 'separacao_documentos', ?, ?)`,
-        [req.user!.id, before.client_id, before.title.replace('Contrato', 'Processo'),
-         before.area, id, 'Caso criado automaticamente a partir do contrato assinado.']
-      ) as any;
-      createdCaseId = caseRes.insertId;
-      await logTimeline({ clientId: before.client_id, caseId: createdCaseId, contractId: Number(id),
-        eventType: 'contrato_assinado', description: 'Contrato assinado. Caso criado e iniciada a separação de documentos.', userId: req.user!.id });
-    }
+    const r = await onContractSigned(Number(id), req.user!.id, req.user!.name);
+    createdCaseId = r.caseId;
   } else if (req.body.status === 'enviado_assinatura' && before.status !== 'enviado_assinatura' && before.client_id) {
     await logTimeline({ clientId: before.client_id, contractId: Number(id),
       eventType: 'contrato_enviado', description: 'Contrato enviado para assinatura.', userId: req.user!.id });
@@ -215,6 +207,30 @@ router.put('/:id', async (req: Request, res: Response) => {
 
   const [rows] = await db.query('SELECT * FROM contracts WHERE id = ?', [id]) as any;
   res.json({ ...rows[0], created_case_id: createdCaseId });
+});
+
+// ── Assinatura eletrônica do contrato (link público) ────────────────────────
+router.post('/:id/sign-request', async (req: Request, res: Response) => {
+  const [[ct]] = await db.query('SELECT id, content FROM contracts WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!ct) { res.status(404).json({ error: 'Contrato não encontrado' }); return; }
+  const token = crypto.randomUUID();
+  const code = crypto.randomBytes(5).toString('hex').toUpperCase();
+  await db.query(
+    `INSERT INTO signature_requests (contract_id, token, verification_code, signer_name, signer_cpf, created_by)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [req.params.id, token, code, req.body?.signer_name ?? null, req.body?.signer_cpf ?? null, req.user!.id]
+  );
+  // marca o contrato como enviado para assinatura
+  await db.query("UPDATE contracts SET status = 'enviado_assinatura' WHERE id = ? AND status <> 'assinado'", [req.params.id]);
+  res.status(201).json({ token, verification_code: code, path: `/assinar.html?token=${token}` });
+});
+
+router.get('/:id/signatures', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT id, token, verification_code, signer_name, status, signed_at FROM signature_requests
+      WHERE contract_id = ? ORDER BY created_at DESC`, [req.params.id]
+  ) as any;
+  res.json(rows);
 });
 
 export default router;

@@ -2420,12 +2420,15 @@ async function contractEditor(id, onSave) {
   const ct = await api('/api/contracts/' + id);
   const docs = { content: 'Contrato', procuracao_content: 'Procuração', declaracao_content: 'Declaração de Hipossuficiência' };
   let signAction = '';
-  if (['rascunho','em_producao','finalizado'].includes(ct.status))
-    signAction = `<button class="btn-gold" id="send-sign" style="width:100%">Enviar para assinatura</button>`;
-  else if (ct.status === 'enviado_assinatura')
-    signAction = `<button class="btn-gold" id="mark-signed" style="width:100%">Marcar como assinado (cria o caso)</button>`;
-  else if (ct.status === 'assinado')
-    signAction = `<div style="text-align:center;color:var(--green);font-weight:600">Contrato assinado · caso em produção</div>`;
+  if (ct.status === 'assinado')
+    signAction = `<div style="text-align:center;color:var(--green);font-weight:600">Contrato assinado · processo na esteira + honorários gerados</div>`;
+  else
+    signAction = `
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn-gold" id="send-sign" style="flex:1;min-width:200px">Gerar link de assinatura (cliente assina na tela)</button>
+        <button class="btn-sm" id="mark-signed">Marcar assinado manual</button>
+      </div>
+      <div id="ct-sign-status"></div>`;
 
   const wrap = el(`<div class="form-grid">
     ${field('Título', 'title', { value: ct.title })}
@@ -2472,17 +2475,30 @@ async function contractEditor(id, onSave) {
   wrap.querySelector('#save-ct').onclick = async () => {
     try { await saveDocs(); closeModal(); toast('Documentos salvos'); onSave && onSave(); } catch (e) { toast(e.message, 'error'); }
   };
+  const loadCtSigs = async () => {
+    const box = wrap.querySelector('#ct-sign-status'); if (!box) return;
+    const sigs = await api(`/api/contracts/${id}/signatures`).catch(() => []);
+    box.innerHTML = sigs.length ? `<div style="margin-top:8px"><strong style="font-size:12px;color:var(--navy)">Assinaturas</strong>${sigs.map((s) => {
+      const url = location.origin + '/assinar.html?token=' + s.token;
+      return `<div class="mini-row"><span>${s.signer_name || 'Aguardando assinatura'} ${s.status === 'assinado' ? `<small style="color:var(--green)">· assinado (cód. ${s.verification_code})</small>` : ''}</span>
+        <span>${s.status === 'assinado' ? `<a class="btn-sm" href="/verificar.html?codigo=${s.verification_code}" target="_blank">Termo</a>`
+          : `<button class="btn-sm" data-copy="${url}">Copiar link</button> <a class="btn-sm" href="https://wa.me/?text=${encodeURIComponent('Assine seu contrato: ' + url)}" target="_blank">WhatsApp</a>`}</span></div>`;
+    }).join('')}</div>` : '';
+    box.querySelectorAll('[data-copy]').forEach((b) => b.onclick = () => { navigator.clipboard.writeText(b.dataset.copy); toast('Link copiado'); });
+  };
   const sendBtn = wrap.querySelector('#send-sign');
   if (sendBtn) sendBtn.onclick = async () => {
-    try { await saveDocs({ status: 'enviado_assinatura' }); closeModal(); toast('Contrato enviado para assinatura'); onSave && onSave(); } catch (e) { toast(e.message, 'error'); }
+    try { await saveDocs(); await api(`/api/contracts/${id}/sign-request`, { method: 'POST', body: '{}' });
+      toast('Link de assinatura criado — envie ao cliente'); loadCtSigs(); } catch (e) { toast(e.message, 'error'); }
   };
   const signBtn = wrap.querySelector('#mark-signed');
   if (signBtn) signBtn.onclick = async () => {
     try { const r = await saveDocs({ status: 'assinado' }); closeModal();
-      toast('Contrato assinado! Caso criado na produção.'); onSave && onSave();
+      toast('Contrato assinado! Processo criado + honorários gerados.'); onSave && onSave();
       if (r.created_case_id) { location.hash = '#cases'; }
     } catch (e) { toast(e.message, 'error'); }
   };
+  loadCtSigs();
   openModal('Produção de documentos', wrap);
 }
 

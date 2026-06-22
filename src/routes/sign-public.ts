@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
+import { onContractSigned } from '../services/contractFlow';
 
 // Roteador PÚBLICO (sem autenticação) — o signatário acessa por link/código.
 const router = Router();
@@ -17,8 +18,10 @@ function maskCpf(cpf: string | null): string {
 router.get('/sign/:token', async (req: Request, res: Response) => {
   const [rows] = await db.query(
     `SELECT s.id, s.status, s.signer_name, s.verification_code, s.signed_at,
-            d.name AS document_name, d.content
-       FROM signature_requests s JOIN documents d ON d.id = s.document_id
+            COALESCE(d.name, ct.title) AS document_name, COALESCE(d.content, ct.content) AS content
+       FROM signature_requests s
+       LEFT JOIN documents d ON d.id = s.document_id
+       LEFT JOIN contracts ct ON ct.id = s.contract_id
       WHERE s.token = ?`, [req.params.token]
   ) as any;
   if (!rows.length) { res.status(404).json({ error: 'Solicitação de assinatura não encontrada' }); return; }
@@ -42,8 +45,11 @@ router.post('/sign/:token', async (req: Request, res: Response) => {
   if (!signature_image || !String(signature_image).startsWith('data:image')) { res.status(400).json({ error: 'Faça sua assinatura na tela' }); return; }
 
   const [rows] = await db.query(
-    `SELECT s.*, d.content FROM signature_requests s JOIN documents d ON d.id = s.document_id WHERE s.token = ?`,
-    [req.params.token]
+    `SELECT s.*, COALESCE(d.content, ct.content) AS content
+       FROM signature_requests s
+       LEFT JOIN documents d ON d.id = s.document_id
+       LEFT JOIN contracts ct ON ct.id = s.contract_id
+      WHERE s.token = ?`, [req.params.token]
   ) as any;
   if (!rows.length) { res.status(404).json({ error: 'Solicitação não encontrada' }); return; }
   const reqRow = rows[0];
@@ -61,13 +67,19 @@ router.post('/sign/:token', async (req: Request, res: Response) => {
      WHERE id = ?`,
     [signer_name.trim(), cpfDigits, signature_image, docHash, ip, ua, reqRow.id]
   );
-  await db.query("UPDATE documents SET status = 'assinado' WHERE id = ?", [reqRow.document_id]);
 
-  // Registra na linha do tempo do cliente
-  const [[doc]] = await db.query('SELECT client_id, case_id, name FROM documents WHERE id = ?', [reqRow.document_id]) as any;
-  if (doc?.client_id) {
-    await logTimeline({ clientId: doc.client_id, caseId: doc.case_id ?? null, eventType: 'documento_assinado',
-      description: `Documento assinado eletronicamente: ${doc.name} (cód. ${reqRow.verification_code})`, userId: null });
+  if (reqRow.document_id) {
+    await db.query("UPDATE documents SET status = 'assinado' WHERE id = ?", [reqRow.document_id]);
+    const [[doc]] = await db.query('SELECT client_id, case_id, name FROM documents WHERE id = ?', [reqRow.document_id]) as any;
+    if (doc?.client_id) {
+      await logTimeline({ clientId: doc.client_id, caseId: doc.case_id ?? null, eventType: 'documento_assinado',
+        description: `Documento assinado eletronicamente: ${doc.name} (cód. ${reqRow.verification_code})`, userId: null });
+    }
+  }
+
+  // Contrato assinado → dispara o fluxo (cria processo na esteira + honorários no financeiro)
+  if (reqRow.contract_id) {
+    await onContractSigned(reqRow.contract_id, reqRow.created_by || 0, null);
   }
 
   res.json({ success: true, verification_code: reqRow.verification_code });
