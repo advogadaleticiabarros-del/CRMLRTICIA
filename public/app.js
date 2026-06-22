@@ -499,54 +499,24 @@ const ROUTES = {
   },
 
   async financeiro(page) {
-    const s = await api('/api/financial/summary');
     page.innerHTML = `
-      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Receitas, despesas e parcelas</p></div>
-        <button class="btn-gold" id="new-fin">+ Lançamento</button></div>
-      <div class="kpi-grid">
-        ${kpi('Receita prevista', money(s.receita_prevista), 'money')}
-        ${kpi('Receita realizada', money(s.receita_realizada), 'money')}
-        ${kpi('Despesa prevista', money(s.despesa_prevista), 'money')}
-        ${kpi('Despesa paga', money(s.despesa_paga), 'money')}
-        ${kpi('Saldo previsto', money(s.saldo_previsto), 'money')}
-        ${kpi('Saldo realizado', money(s.saldo_realizado), 'money')}
-        ${kpi('Inadimplência', money(s.inadimplencia), 'money')}
+      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Visão geral, acordos, receitas, repasses e inadimplência</p></div></div>
+      <div class="tabs" id="fin-tabs">
+        <button class="tab active" data-tab="geral">📊 Visão geral</button>
+        <button class="tab" data-tab="acordos">🤝 Acordos</button>
+        <button class="tab" data-tab="receitas">🧾 Receitas & Parcelas</button>
+        <button class="tab" data-tab="repasses">💸 Repasses</button>
+        <button class="tab" data-tab="inadimplencia">⚠️ Inadimplência</button>
       </div>
-      <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">💸 Lançamentos</strong></div><div id="fin-table"></div></div>
-      <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">📄 Parcelas a receber</strong></div><div id="inst-table"></div></div>`;
-
-    const loadFin = async () => {
-      const r = await api('/api/financial');
-      $('#fin-table').innerHTML = r.data.length ? `
-        <table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
-        <tbody>${r.data.map((f) => `<tr>
-          <td><strong>${f.description}</strong>${f.cost_center ? `<br><small style="color:var(--text-muted)">${f.cost_center}</small>` : ''}</td>
-          <td>${f.tipo === 'receita' ? '🟢 Receita' : '🔴 Despesa'}</td>
-          <td>${money(f.valor)}</td><td>${fmtDate(f.due_date)}</td><td>${badge(f.status)}</td>
-          <td>${f.status === 'pendente' ? `<button class="btn-sm" data-pay-fin="${f.id}">Dar baixa</button>` : ''}</td></tr>`).join('')}</tbody></table>`
-        : '<div class="empty">Nenhum lançamento</div>';
-      document.querySelectorAll('[data-pay-fin]').forEach((b) => b.onclick = async () => {
-        try { await api(`/api/financial/${b.dataset.payFin}/pay`, { method: 'PATCH' }); toast('Baixa registrada'); ROUTES.financeiro(page); } catch (e) { toast(e.message, 'error'); }
-      });
+      <div id="fin-content"></div>`;
+    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, repasses: finRepasses, inadimplencia: finInadimplencia };
+    const show = async (name) => {
+      document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+      const c = $('#fin-content'); c.innerHTML = '<div class="spinner"></div>';
+      try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
     };
-
-    const loadInst = async () => {
-      const r = await api('/api/financial/installments?status=pendente');
-      $('#inst-table').innerHTML = r.length ? `
-        <table><thead><tr><th>Parcela</th><th>Cliente</th><th>Valor</th><th>Vencimento</th><th></th></tr></thead>
-        <tbody>${r.map((i) => `<tr>
-          <td>${i.numero}ª — <small style="color:var(--text-muted)">${i.proposta_title || ''}</small></td>
-          <td>${i.client_name || '—'}</td><td>${money(i.valor)}</td>
-          <td>${fmtDate(i.due_date)} ${i.vencida ? '<span class="badge vencido">vencida</span>' : ''}</td>
-          <td><button class="btn-sm" data-pay-inst="${i.id}">Receber</button></td></tr>`).join('')}</tbody></table>`
-        : '<div class="empty">Nenhuma parcela pendente</div>';
-      document.querySelectorAll('[data-pay-inst]').forEach((b) => b.onclick = async () => {
-        try { await api(`/api/financial/installments/${b.dataset.payInst}/pay`, { method: 'PATCH' }); toast('Parcela recebida'); ROUTES.financeiro(page); } catch (e) { toast(e.message, 'error'); }
-      });
-    };
-
-    $('#new-fin').onclick = () => financialForm(() => ROUTES.financeiro(page));
-    await loadFin(); await loadInst();
+    document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
+    await show('geral');
   },
 
   async config(page) {
@@ -710,9 +680,23 @@ const ROUTES = {
 
   async advogados(page) {
     page.innerHTML = `
-      <div class="page-header"><div><h2>Advogados / OAB</h2><p class="sub">Registro e monitoramento por OAB</p></div>
+      <div class="page-header"><div><h2>Advogados / OAB</h2><p class="sub">Registro e descoberta automática de processos por OAB</p></div>
         <button class="btn-gold" id="new-law">+ Advogado</button></div>
-      <div class="card"><div id="law-table"></div></div>`;
+      <div class="card"><div id="law-table"></div></div>
+      <p class="sub" style="margin-top:10px">💡 A descoberta varre os tribunais nacionais (DataJud/CNJ) e cadastra automaticamente os processos vinculados à OAB. Também roda sozinha todo dia às 06h.</p>`;
+
+    const discover = async (lawyerId, btn) => {
+      const original = btn.textContent;
+      btn.disabled = true; btn.textContent = 'Buscando…';
+      toast('Buscando processos nos tribunais… isso pode levar até 1 min.');
+      try {
+        const r = await api('/api/processes/descobrir-oab', { method: 'POST', body: JSON.stringify({ lawyer_id: Number(lawyerId) }) });
+        toast(`OAB ${r.oab}: ${r.found} encontrado(s), ${r.novos} novo(s) cadastrado(s).`);
+        if (r.novos > 0) setTimeout(() => { location.hash = '#monitor'; }, 1200);
+      } catch (e) { toast(e.message, 'error'); }
+      finally { btn.disabled = false; btn.textContent = original; }
+    };
+
     const load = async () => {
       const rows = await api('/api/lawyers');
       $('#law-table').innerHTML = `
@@ -721,8 +705,11 @@ const ROUTES = {
           <td><strong>${l.name}</strong></td><td>${l.oab_number || '—'}/${l.oab_uf || '—'}</td>
           <td>${l.monitoring_enabled ? '<span class="badge ativo">ativo</span>' : '<span class="badge inativo">inativo</span>'}</td>
           <td>${l.last_sync_at ? fmtDate(l.last_sync_at) : 'nunca'}</td>
-          <td><button class="btn-sm" data-law="${l.id}">Editar</button></td></tr>`).join('')}</tbody></table>`;
+          <td style="white-space:nowrap">
+            ${l.oab_number ? `<button class="btn-gold btn-sm" data-discover="${l.id}">🔎 Descobrir processos</button> ` : ''}
+            <button class="btn-sm" data-law="${l.id}">Editar</button></td></tr>`).join('')}</tbody></table>`;
       document.querySelectorAll('[data-law]').forEach((b) => b.onclick = () => lawyerForm(b.dataset.law, load));
+      document.querySelectorAll('[data-discover]').forEach((b) => b.onclick = () => discover(b.dataset.discover, b));
     };
     $('#new-law').onclick = () => lawyerForm(null, load);
     await load();
@@ -822,6 +809,275 @@ async function dashProducao(c) {
 }
 
 // ── Forms ──
+// ── Financeiro avançado (abas) ───────────────────────────────────────────────
+async function finVisaoGeral(c) {
+  const s = await api('/api/financial/summary');
+  c.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-fin">+ Lançamento</button></div>
+    <div class="kpi-grid">
+      ${kpi('Receita prevista', money(s.receita_prevista), 'money')}
+      ${kpi('Receita realizada', money(s.receita_realizada), 'money')}
+      ${kpi('Despesa prevista', money(s.despesa_prevista), 'money')}
+      ${kpi('Despesa paga', money(s.despesa_paga), 'money')}
+      ${kpi('Saldo previsto', money(s.saldo_previsto), 'money')}
+      ${kpi('Saldo realizado', money(s.saldo_realizado), 'money')}
+      ${kpi('Inadimplência', money(s.inadimplencia), 'money')}
+    </div>
+    <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">💸 Lançamentos</strong></div><div id="fin-table"></div></div>
+    <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">📄 Parcelas a receber</strong></div><div id="inst-table"></div></div>`;
+  const loadFin = async () => {
+    const r = await api('/api/financial');
+    $('#fin-table').innerHTML = r.data.length ? `
+      <table><thead><tr><th>Descrição</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
+      <tbody>${r.data.map((f) => `<tr>
+        <td><strong>${f.description}</strong>${f.cost_center ? `<br><small style="color:var(--text-muted)">${f.cost_center}</small>` : ''}</td>
+        <td>${f.tipo === 'receita' ? '🟢 Receita' : '🔴 Despesa'}</td>
+        <td>${money(f.valor)}</td><td>${fmtDate(f.due_date)}</td><td>${badge(f.status)}</td>
+        <td>${f.status === 'pendente' ? `<button class="btn-sm" data-pay-fin="${f.id}">Dar baixa</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhum lançamento</div>';
+    document.querySelectorAll('[data-pay-fin]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/financial/${b.dataset.payFin}/pay`, { method: 'PATCH' }); toast('Baixa registrada'); finVisaoGeral(c); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  const loadInst = async () => {
+    const r = await api('/api/financial/installments?status=pendente');
+    $('#inst-table').innerHTML = r.length ? `
+      <table><thead><tr><th>Parcela</th><th>Cliente</th><th>Valor</th><th>Vencimento</th><th></th></tr></thead>
+      <tbody>${r.map((i) => `<tr>
+        <td>${i.numero}ª — <small style="color:var(--text-muted)">${i.proposta_title || ''}</small></td>
+        <td>${i.client_name || '—'}</td><td>${money(i.valor)}</td>
+        <td>${fmtDate(i.due_date)} ${i.vencida ? '<span class="badge vencido">vencida</span>' : ''}</td>
+        <td><button class="btn-sm" data-pay-inst="${i.id}">Receber</button></td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhuma parcela pendente</div>';
+    document.querySelectorAll('[data-pay-inst]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/financial/installments/${b.dataset.payInst}/pay`, { method: 'PATCH' }); toast('Parcela recebida'); finVisaoGeral(c); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  $('#new-fin').onclick = () => financialForm(() => finVisaoGeral(c));
+  await loadFin(); await loadInst();
+}
+
+async function finAcordos(c) {
+  c.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-acordo">+ Novo acordo</button></div>
+    <div class="card"><div id="acordo-table"></div></div>`;
+  const load = async () => {
+    const r = await api('/api/acordos');
+    $('#acordo-table').innerHTML = r.data.length ? `
+      <table><thead><tr><th>Parte contrária</th><th>Cliente</th><th>Valor</th><th>Honorário</th><th>Status</th><th></th></tr></thead>
+      <tbody>${r.data.map((a) => {
+        const acoes = [];
+        if (a.status === 'Proposto') acoes.push(`<button class="btn-sm" data-acd-sign="${a.id}">Assinar</button>`);
+        if (['Aceito','Homologado','Em pagamento'].includes(a.status)) acoes.push(`<button class="btn-sm" data-acd-close="${a.id}">Encerrar</button>`);
+        if (!['Quitado','Descumprido'].includes(a.status)) acoes.push(`<button class="btn-sm" data-acd-cancel="${a.id}">Cancelar</button>`);
+        return `<tr>
+          <td><strong>${a.opposing_party}</strong>${a.process_number ? `<br><small style="color:var(--text-muted)">${a.process_number}</small>` : ''}</td>
+          <td>${a.client_name || '—'}</td><td>${money(a.total_agreement_value)}</td>
+          <td>${money(a.honorarium_value)} <small>(${a.honorarium_percentage}%)</small></td>
+          <td>${badge(a.status)}</td><td style="white-space:nowrap">${acoes.join(' ')}</td></tr>`;
+      }).join('')}</tbody></table>`
+      : '<div class="empty">Nenhum acordo cadastrado</div>';
+    const act = (sel, path, msg) => document.querySelectorAll(sel).forEach((b) => b.onclick = async () => {
+      const id = b.dataset.acdSign || b.dataset.acdClose || b.dataset.acdCancel;
+      try { await api(`/api/acordos/${id}/${path}`, { method: 'POST', body: '{}' }); toast(msg); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+    act('[data-acd-sign]', 'assinar', 'Acordo assinado');
+    act('[data-acd-close]', 'encerrar', 'Acordo encerrado');
+    act('[data-acd-cancel]', 'cancelar', 'Acordo cancelado');
+  };
+  $('#new-acordo').onclick = () => acordoForm(load);
+  await load();
+}
+
+async function finReceitas(c) {
+  c.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-receita">+ Nova receita</button></div>
+    <div class="card"><div id="receita-table"></div></div>`;
+  const load = async () => {
+    const r = await api('/api/receitas');
+    $('#receita-table').innerHTML = r.data.length ? `
+      <table><thead><tr><th>Descrição</th><th>Cliente</th><th>Valor</th><th>Recebido</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
+      <tbody>${r.data.map((rc) => `<tr>
+        <td><strong>${rc.descricao}</strong><br><small style="color:var(--text-muted)">${rc.tipo}</small></td>
+        <td>${rc.client_name || '—'}</td><td>${money(rc.valor)}</td><td>${money(rc.total_recebido)}</td>
+        <td>${fmtDate(rc.data_vencimento)}</td><td>${badge(rc.status)}</td>
+        <td><button class="btn-sm" data-rec="${rc.id}">Parcelas</button></td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhuma receita cadastrada</div>';
+    document.querySelectorAll('[data-rec]').forEach((b) => b.onclick = () => receitaDetail(b.dataset.rec, load));
+  };
+  $('#new-receita').onclick = () => receitaForm(load);
+  await load();
+}
+
+async function finRepasses(c) {
+  c.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-repasse">+ Novo repasse</button></div>
+    <div class="card"><div id="repasse-table"></div></div>`;
+  const load = async () => {
+    const r = await api('/api/repasses');
+    $('#repasse-table').innerHTML = r.data.length ? `
+      <table><thead><tr><th>Parceiro</th><th>Processo</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
+      <tbody>${r.data.map((rp) => {
+        const acoes = [];
+        if (rp.status === 'pendente' || rp.status === 'processando') acoes.push(`<button class="btn-sm" data-rep-pay="${rp.id}">Repassar</button>`);
+        if (rp.status !== 'repassado' && rp.status !== 'cancelado') acoes.push(`<button class="btn-sm" data-rep-cancel="${rp.id}">Cancelar</button>`);
+        return `<tr>
+          <td><strong>${rp.parceiro}</strong></td><td>${rp.case_title || '—'}</td><td>${rp.tipo}</td>
+          <td>${money(rp.valor)}</td><td>${fmtDate(rp.data_vencimento)}</td><td>${badge(rp.status)}</td>
+          <td style="white-space:nowrap">${acoes.join(' ')}</td></tr>`;
+      }).join('')}</tbody></table>`
+      : '<div class="empty">Nenhum repasse cadastrado</div>';
+    document.querySelectorAll('[data-rep-pay]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/repasses/${b.dataset.repPay}/repassar`, { method: 'POST', body: '{}' }); toast('Repasse efetuado'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+    document.querySelectorAll('[data-rep-cancel]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/repasses/${b.dataset.repCancel}/cancelar`, { method: 'POST', body: '{}' }); toast('Repasse cancelado'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  $('#new-repasse').onclick = () => repasseForm(load);
+  await load();
+}
+
+async function finInadimplencia(c) {
+  c.innerHTML = `
+    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="recalc-inad">🔄 Recalcular agora</button></div>
+    <div class="card"><div id="inad-table"></div></div>`;
+  const load = async () => {
+    const r = await api('/api/inadimplencias');
+    $('#inad-table').innerHTML = r.data.length ? `
+      <table><thead><tr><th>Cliente</th><th>Parcela</th><th>Dias atraso</th><th>Valor</th><th>Status</th><th>Cobranças</th><th></th></tr></thead>
+      <tbody>${r.data.map((i) => `<tr>
+        <td><strong>${i.client_name || '—'}</strong></td>
+        <td>${i.parcela_numero ? i.parcela_numero + 'ª' : '—'} <small style="color:var(--text-muted)">${i.receita_descricao || ''}</small></td>
+        <td>${i.dias_atraso}</td><td>${money(i.valor)}</td><td>${badge(i.status)}</td>
+        <td>${i.tentativas_cobranca}</td>
+        <td>${i.status !== 'resolvido' ? `<button class="btn-sm" data-inad="${i.id}">Resolver</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhuma inadimplência registrada</div>';
+    document.querySelectorAll('[data-inad]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/inadimplencias/${b.dataset.inad}/resolver`, { method: 'POST', body: '{}' }); toast('Inadimplência resolvida'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  $('#recalc-inad').onclick = async () => {
+    const btn = $('#recalc-inad'); btn.disabled = true; btn.textContent = 'Recalculando…';
+    try { const r = await api('/api/inadimplencias/recalcular', { method: 'POST', body: '{}' }); toast(`${r.criadas} nova(s), ${r.atualizadas} atualizada(s).`); load(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { btn.disabled = false; btn.textContent = '🔄 Recalcular agora'; }
+  };
+  await load();
+}
+
+// ── Formulários financeiros ──
+async function acordoForm(onSave) {
+  const clients = await api('/api/clients?limit=100');
+  const form = el(`<form class="form-grid">
+    ${field('Cliente *', 'client_id', { options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}
+    ${field('Parte contrária *', 'opposing_party')}
+    ${field('Nº do processo', 'process_number')}
+    ${field('Valor do acordo *', 'total_agreement_value', { type: 'number' })}
+    ${field('Nº de parcelas', 'installments_count', { type: 'number', value: 1 })}
+    ${field('1º vencimento *', 'first_due_date', { type: 'date' })}
+    ${field('Honorário (%)', 'honorarium_percentage', { type: 'number', value: 30 })}
+    ${field('Observações', 'notes', { type: 'textarea' })}
+    <button type="submit" class="btn-primary">Criar acordo</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    try { await api('/api/acordos', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Acordo criado'); onSave(); }
+    catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Novo acordo', form);
+}
+
+async function receitaForm(onSave) {
+  const clients = await api('/api/clients?limit=100');
+  const form = el(`<form class="form-grid">
+    ${field('Cliente *', 'client_id', { options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}
+    ${field('Descrição *', 'descricao')}
+    ${field('Tipo', 'tipo', { options: [{v:'servico',t:'Serviço'},{v:'honorario',t:'Honorário'},{v:'reembolso',t:'Reembolso'}] })}
+    ${field('Valor *', 'valor', { type: 'number' })}
+    ${field('Vencimento *', 'data_vencimento', { type: 'date' })}
+    <button type="submit" class="btn-primary">Criar receita</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    try { await api('/api/receitas', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Receita criada'); onSave(); }
+    catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Nova receita', form);
+}
+
+async function repasseForm(onSave) {
+  const cs = await api('/api/cases?limit=100');
+  const caseList = cs.data || cs;
+  const form = el(`<form class="form-grid">
+    ${field('Processo *', 'case_id', { options: caseList.map((c) => ({ v: c.id, t: c.title })) })}
+    ${field('Parceiro *', 'parceiro')}
+    ${field('Tipo', 'tipo', { options: [{v:'indicacao',t:'Indicação'},{v:'audiencia',t:'Audiência'},{v:'correspondente',t:'Correspondente'},{v:'diligencia',t:'Diligência'}] })}
+    ${field('Valor *', 'valor', { type: 'number' })}
+    ${field('Percentual (%)', 'percentual', { type: 'number' })}
+    ${field('Descrição *', 'descricao')}
+    ${field('Vencimento *', 'data_vencimento', { type: 'date' })}
+    <button type="submit" class="btn-primary">Criar repasse</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    if (!body.percentual) delete body.percentual;
+    try { await api('/api/repasses', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Repasse criado'); onSave(); }
+    catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Novo repasse', form);
+}
+
+async function receitaDetail(id, onSave) {
+  const r = await api('/api/receitas/' + id);
+  const wrap = el(`<div>
+    <div class="kpi-grid" style="margin-bottom:14px">
+      ${kpi('Valor', money(r.valor), 'money')}
+      ${kpi('Recebido', money(r.total_recebido), 'money')}
+      ${kpi('Status', (r.status || '').replace(/_/g,' '))}
+    </div>
+    <div id="parc-list"></div>
+    <div class="card" style="margin-top:14px;padding:14px">
+      <strong style="color:var(--navy)">Gerar parcelas automaticamente</strong>
+      <form id="gen-form" class="form-grid" style="margin-top:10px">
+        ${field('Nº de parcelas *', 'total_parcelas', { type: 'number', value: 1 })}
+        ${field('Início *', 'data_inicio', { type: 'date' })}
+        ${field('Intervalo (dias)', 'dias_intervalo', { type: 'number', value: 30 })}
+        <button type="submit" class="btn-primary">Gerar</button>
+      </form>
+    </div>
+  </div>`);
+  const renderParcelas = (parcelas) => {
+    wrap.querySelector('#parc-list').innerHTML = parcelas && parcelas.length ? `
+      <table><thead><tr><th>Nº</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
+      <tbody>${parcelas.map((p) => `<tr>
+        <td>${p.numero}/${p.total_parcelas}</td><td>${money(p.valor_final)}</td>
+        <td>${fmtDate(p.data_vencimento)}</td><td>${badge(p.status)}</td>
+        <td>${p.status !== 'pago' ? `<button class="btn-sm" data-pay-parc="${p.id}">Receber</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Sem parcelas. Gere abaixo.</div>';
+    wrap.querySelectorAll('[data-pay-parc]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/parcelas/${b.dataset.payParc}/pagar`, { method: 'POST', body: '{}' }); toast('Parcela recebida'); reload(); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  const reload = async () => {
+    const fresh = await api('/api/receitas/' + id);
+    renderParcelas(fresh.parcelas);
+    if (onSave) onSave();
+  };
+  renderParcelas(r.parcelas);
+  wrap.querySelector('#gen-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(e.target));
+    body.receita_id = id;
+    try { await api('/api/parcelas/gerar', { method: 'POST', body: JSON.stringify(body) }); toast('Parcelas geradas'); reload(); }
+    catch (err) { toast(err.message, 'error'); }
+  };
+  openModal(`Receita — ${r.descricao}`, wrap);
+}
+
 function field(label, name, opts = {}) {
   const { type = 'text', value = '', options } = opts;
   if (options) return `<label>${label}<select name="${name}">${options.map((o) =>
