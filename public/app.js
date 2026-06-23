@@ -2845,6 +2845,19 @@ async function contractEditor(id, onSave) {
       <button class="btn-sm" data-print="procuracao_content">Procuração PDF</button>
       <button class="btn-sm" data-print="declaracao_content">Declaração PDF</button>
     </div>
+    <button type="button" class="btn-gold btn-sm" id="toggle-complete" style="align-self:flex-start">Completar informações faltantes</button>
+    <div id="complete-panel" class="complete-panel" style="display:none">
+      <strong class="cp-grp">Dados da parte (cliente)</strong>
+      <div class="form-row">${field('Nacionalidade', 'c_nac', { value: 'brasileiro(a)' })}${field('Estado civil', 'c_ec')}</div>
+      <div class="form-row">${field('Profissão', 'c_prof')}${field('RG', 'c_rg')}</div>
+      <div class="form-row">${field('CPF', 'c_cpf')}${field('Endereço completo', 'c_end')}</div>
+      <strong class="cp-grp">Escritório e processo</strong>
+      <div class="form-row">${field('Nº da OAB', 'o_oab')}${field('UF da OAB', 'o_uf', { value: 'ES' })}</div>
+      ${field('Endereço do escritório', 'o_end')}
+      <div class="form-row">${field('Cidade', 'o_cidade')}${field('Comarca', 'o_comarca')}</div>
+      <div class="form-row">${field('Data', 'o_data')}${field('Forma de pagamento / parcelas', 'o_forma')}</div>
+      <button type="button" class="btn-primary" id="apply-complete">Aplicar aos documentos</button>
+    </div>
     <button class="btn-primary" id="save-ct">Salvar documentos</button>
     ${signAction}
   </div>`);
@@ -2870,6 +2883,42 @@ async function contractEditor(id, onSave) {
       ...extra,
     };
     return api('/api/contracts/' + id, { method: 'PUT', body: JSON.stringify(body) });
+  };
+
+  // Completar informações faltantes (substitui os placeholders nos 3 documentos)
+  wrap.querySelector('#toggle-complete').onclick = () => {
+    const pnl = wrap.querySelector('#complete-panel');
+    pnl.style.display = pnl.style.display === 'none' ? 'block' : 'none';
+  };
+  try {
+    const saved = JSON.parse(localStorage.getItem('escritorioInfo') || '{}');
+    ['o_oab', 'o_uf', 'o_end', 'o_cidade', 'o_comarca', 'o_forma'].forEach((n) => {
+      const inp = wrap.querySelector(`[name=${n}]`); if (inp && saved[n]) inp.value = saved[n];
+    });
+  } catch {}
+  const dataEl = wrap.querySelector('[name=o_data]');
+  if (dataEl && !dataEl.value) dataEl.value = new Date().toLocaleDateString('pt-BR');
+
+  wrap.querySelector('#apply-complete').onclick = () => {
+    const map = {
+      '[nacionalidade]': 'c_nac', '[estado civil]': 'c_ec', '[profissão]': 'c_prof', '[CPF]': 'c_cpf', '[RG]': 'c_rg',
+      '[ENDEREÇO DO ESCRITÓRIO]': 'o_end', '[ENDEREÇO]': 'c_end', '[Nº OAB]': 'o_oab', '[UF]': 'o_uf',
+      '[CIDADE]': 'o_cidade', '[COMARCA]': 'o_comarca', '[DATA]': 'o_data', '[FORMA DE PAGAMENTO / PARCELAS]': 'o_forma',
+    };
+    let count = 0;
+    wrap.querySelectorAll('[data-field]').forEach((ta) => {
+      let txt = ta.value;
+      for (const [ph, fn] of Object.entries(map)) {
+        const v = (wrap.querySelector(`[name=${fn}]`)?.value || '').trim();
+        if (v && txt.includes(ph)) { txt = txt.split(ph).join(v); count++; }
+      }
+      ta.value = txt;
+    });
+    const office = {};
+    ['o_oab', 'o_uf', 'o_end', 'o_cidade', 'o_comarca', 'o_forma'].forEach((n) => { office[n] = wrap.querySelector(`[name=${n}]`)?.value || ''; });
+    try { localStorage.setItem('escritorioInfo', JSON.stringify(office)); } catch {}
+    wrap.querySelector('#complete-panel').style.display = 'none';
+    toast(count ? 'Informações aplicadas. Revise e clique em Salvar documentos.' : 'Preencha os campos para substituir.');
   };
 
   wrap.querySelector('#save-ct').onclick = async () => {

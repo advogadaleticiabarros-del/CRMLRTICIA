@@ -459,6 +459,8 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
 .parc-line.total strong { color: var(--gold); font-size: 15px; }
 .prop-share { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
 .prop-share input { background: #fff; }
+.complete-panel { background: var(--surface-2); border: 1px solid var(--gold); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 10px; animation: rise .25s ease; }
+.complete-panel .cp-grp { font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--gold); margin-top: 4px; }
 .hon-val input { width: 100%; }
 .dep-row input { padding: 9px 12px; }
 .prop-form textarea[name="description"] { min-height: 80px; }
