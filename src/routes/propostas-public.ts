@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
-import { buildTemplate, buildProcuracao, buildDeclaracao } from '../services/contractTemplates';
+import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, PartyData } from '../services/contractTemplates';
 
 const router = Router();
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
@@ -34,15 +34,39 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
   const p = rows[0];
   if (p.aceito_em) { res.json({ success: true, already: true }); return; }
 
+  // Dados completos já cadastrados no lead (nome, CPF, RG, estado civil, profissão, endereço)
+  let lead: any = null;
+  if (p.lead_id) {
+    const [lr] = await db.query(
+      `SELECT name, cpf_cnpj, rg, marital_status, profession, cep, street, number, neighborhood, city, state, phone, email
+         FROM leads WHERE id = ?`, [p.lead_id]
+    ) as any;
+    lead = lr[0] || null;
+  }
+  const nome = p.contact_name || lead?.name || '';
+  const cpf = p.cpf || lead?.cpf_cnpj || null;
+  const phone = p.phone || lead?.phone || null;
+  const email = p.email || lead?.email || null;
+  const endereco = montarEndereco(lead || {});
+  const party: PartyData = {
+    name: nome, cpf, rg: lead?.rg, estadoCivil: lead?.marital_status, profissao: lead?.profession, endereco,
+  };
+
   // 1) Garante o cliente (parte representada) — sem duplicar (dedup por nome)
   let clientId: number | null = p.client_id ?? null;
-  if (!clientId && p.contact_name) {
-    const [found] = await db.query('SELECT id FROM clients WHERE LOWER(name) = LOWER(?) LIMIT 1', [p.contact_name]) as any;
-    if (found.length) clientId = found[0].id;
-    else {
+  if (!clientId && nome) {
+    const [found] = await db.query('SELECT id FROM clients WHERE LOWER(name) = LOWER(?) LIMIT 1', [nome]) as any;
+    if (found.length) {
+      clientId = found[0].id;
+      // completa dados que estiverem vazios
+      await db.query(
+        `UPDATE clients SET cpf_cnpj = COALESCE(cpf_cnpj, ?), phone = COALESCE(phone, ?), email = COALESCE(email, ?), address = COALESCE(address, ?) WHERE id = ?`,
+        [cpf, phone, email, endereco, clientId]
+      );
+    } else {
       const [ins] = await db.query(
-        "INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, status, notes, created_by) VALUES (?, 'PF', ?, ?, ?, 'ativo', 'Cliente da proposta aceita.', ?)",
-        [p.contact_name, p.cpf || null, p.email || null, p.phone || null, p.user_id]
+        "INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, address, status, notes, created_by) VALUES (?, 'PF', ?, ?, ?, ?, 'ativo', 'Cliente da proposta aceita.', ?)",
+        [nome, cpf, email, phone, endereco, p.user_id]
       ) as any;
       clientId = ins.insertId;
     }
@@ -54,17 +78,17 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
   let contractId: number | null = null;
   const [existing] = await db.query(
     'SELECT id FROM contracts WHERE (lead_id <=> ? OR client_id <=> ?) AND title LIKE ? LIMIT 1',
-    [p.lead_id ?? null, clientId, `Contrato — ${p.contact_name || ''}%`]
+    [p.lead_id ?? null, clientId, `Contrato — ${nome || ''}%`]
   ) as any;
   if (existing.length) {
     contractId = existing[0].id;
   } else {
-    const content = buildTemplate({ clientName: p.contact_name || '', area, value: Number(p.valor) || undefined });
+    const content = buildTemplate({ party, area, value: Number(p.valor) || undefined });
     const [c] = await db.query(
       `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'em_producao')`,
-      [p.user_id, clientId, p.lead_id ?? null, area, `Contrato — ${p.contact_name || 'cliente'}`,
-       content, buildProcuracao(p.contact_name || ''), buildDeclaracao(p.contact_name || ''), Number(p.valor) || null]
+      [p.user_id, clientId, p.lead_id ?? null, area, `Contrato — ${nome || 'cliente'}`,
+       content, buildProcuracao(party), buildDeclaracao(party), Number(p.valor) || null]
     ) as any;
     contractId = c.insertId;
   }

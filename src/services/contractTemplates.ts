@@ -2,12 +2,51 @@
  * Minutas dos documentos gerados na esteira de contrato:
  * contrato de prestação de serviços, procuração e declaração de hipossuficiência.
  * Reusado pela rota de contratos e pelo aceite público da proposta.
+ * Preenche os dados já conhecidos (nome, CPF, RG, estado civil, profissão, endereço);
+ * deixa [placeholder] só para o que realmente faltar.
  */
 
-export function buildProcuracao(clientName: string): string {
+export interface PartyData {
+  name?: string | null;
+  nacionalidade?: string | null;
+  estadoCivil?: string | null;
+  profissao?: string | null;
+  cpf?: string | null;
+  rg?: string | null;
+  endereco?: string | null;
+}
+
+/** Monta a string de endereço a partir dos campos do lead/cliente. */
+export function montarEndereco(src: {
+  street?: string | null; number?: string | null; neighborhood?: string | null;
+  city?: string | null; state?: string | null; cep?: string | null; address?: string | null;
+}): string | null {
+  if (src.address && src.address.trim()) return src.address.trim();
+  const ruaNum = [src.street, src.number].filter(Boolean).join(', ');
+  const cidadeUf = [src.city, src.state].filter(Boolean).join('/');
+  const partes = [ruaNum, src.neighborhood, cidadeUf].filter((s) => s && String(s).trim());
+  let out = partes.join(', ');
+  if (src.cep && String(src.cep).trim()) out += `${out ? ' - ' : ''}CEP ${src.cep}`;
+  return out || null;
+}
+
+function f(p: PartyData) {
+  return {
+    nome: p.name || '[NOME DO CLIENTE]',
+    nac: p.nacionalidade || 'brasileiro(a)',
+    ec: p.estadoCivil || '[estado civil]',
+    prof: p.profissao || '[profissão]',
+    cpf: p.cpf || '[CPF]',
+    rg: p.rg || '[RG]',
+    end: p.endereco || '[ENDEREÇO]',
+  };
+}
+
+export function buildProcuracao(party: PartyData | string): string {
+  const p = typeof party === 'string' ? f({ name: party }) : f(party);
   return `PROCURAÇÃO AD JUDICIA ET EXTRA
 
-OUTORGANTE: ${clientName || '[NOME DO CLIENTE]'}, [nacionalidade], [estado civil], [profissão], inscrito(a) no CPF sob nº [CPF], RG nº [RG], residente e domiciliado(a) em [ENDEREÇO].
+OUTORGANTE: ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, RG nº ${p.rg}, residente e domiciliado(a) em ${p.end}.
 
 OUTORGADA: Advocacia Letícia Barros, advogada inscrita na OAB/[UF] sob nº [Nº OAB], com escritório em [ENDEREÇO DO ESCRITÓRIO].
 
@@ -17,14 +56,15 @@ PODERES: Pelo presente instrumento, o(a) OUTORGANTE nomeia e constitui sua basta
 
 
 _______________________________________
-${clientName || '[NOME DO CLIENTE]'}
+${p.nome}
 OUTORGANTE`;
 }
 
-export function buildDeclaracao(clientName: string): string {
+export function buildDeclaracao(party: PartyData | string): string {
+  const p = typeof party === 'string' ? f({ name: party }) : f(party);
   return `DECLARAÇÃO DE HIPOSSUFICIÊNCIA
 
-Eu, ${clientName || '[NOME DO CLIENTE]'}, [nacionalidade], [estado civil], [profissão], inscrito(a) no CPF sob nº [CPF], RG nº [RG], residente e domiciliado(a) em [ENDEREÇO], DECLARO, sob as penas da lei, para fins de concessão dos benefícios da JUSTIÇA GRATUITA, nos termos do art. 98 e seguintes do Código de Processo Civil e da Lei nº 1.060/50, que não possuo condições de arcar com as custas, despesas processuais e honorários advocatícios sem prejuízo do sustento próprio e de minha família.
+Eu, ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, RG nº ${p.rg}, residente e domiciliado(a) em ${p.end}, DECLARO, sob as penas da lei, para fins de concessão dos benefícios da JUSTIÇA GRATUITA, nos termos do art. 98 e seguintes do Código de Processo Civil e da Lei nº 1.060/50, que não possuo condições de arcar com as custas, despesas processuais e honorários advocatícios sem prejuízo do sustento próprio e de minha família.
 
 Por ser expressão da verdade, firmo a presente declaração.
 
@@ -32,7 +72,7 @@ Por ser expressão da verdade, firmo a presente declaração.
 
 
 _______________________________________
-${clientName || '[NOME DO CLIENTE]'}
+${p.nome}
 DECLARANTE`;
 }
 
@@ -46,12 +86,13 @@ const AREA_OBJECT: Record<string, string> = {
   outro: 'a prestação de serviços advocatícios conforme objeto a ser detalhado entre as partes.',
 };
 
-export function buildTemplate(opts: { clientName: string; area: string; value?: number }): string {
+export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number }): string {
+  const p = f(opts.party || { name: opts.clientName });
   const obj = AREA_OBJECT[opts.area] ?? AREA_OBJECT.outro;
   const valorStr = opts.value ? `R$ ${Number(opts.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '[VALOR DOS HONORÁRIOS]';
   return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS
 
-CONTRATANTE: ${opts.clientName || '[NOME DO CLIENTE]'}, [nacionalidade], [estado civil], [profissão], inscrito(a) no CPF sob nº [CPF], residente e domiciliado(a) em [ENDEREÇO].
+CONTRATANTE: ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, residente e domiciliado(a) em ${p.end}.
 
 CONTRATADA: Advocacia Letícia Barros, inscrita na OAB/[UF] sob nº [Nº OAB], com escritório em [ENDEREÇO DO ESCRITÓRIO].
 
