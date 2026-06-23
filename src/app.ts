@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import 'express-async-errors'; // captura erros de rotas async e envia ao error handler
 import cors from 'cors';
+import compression from 'compression';
 import path from 'path';
 import { env } from './config/env';
 import { authenticate, requireStaff, requireAdmin } from './middleware/auth';
@@ -51,6 +52,7 @@ export function createApp() {
   const app = express();
   app.set('trust proxy', true); // Railway atrás de proxy — captura IP real do signatário
 
+  app.use(compression()); // gzip nas respostas (HTML/JS/CSS/JSON) — reduz transferência
   app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
   app.use(express.json({ limit: '5mb' }));
   app.use(express.urlencoded({ extended: true }));
@@ -114,7 +116,9 @@ export function createApp() {
 
   // ── Frontend (arquivos estáticos) ─────────────────────────────────────────
   const publicDir = path.join(__dirname, '..', 'public');
-  app.use(express.static(publicDir));
+  // Assets com revalidação (ETag): o browser reusa app.js/styles.css se não mudaram (304),
+  // evitando rebaixar ~175KB a cada carregamento.
+  app.use(express.static(publicDir, { etag: true, lastModified: true, maxAge: '5m' }));
 
   // 404 apenas para rotas /api desconhecidas
   app.use('/api', (_req: Request, res: Response) => {
