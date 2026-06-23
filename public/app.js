@@ -484,7 +484,8 @@ const ROUTES = {
         const chips = items.slice(0, 4).map((it) => {
           const cls = (it.status_label === 'vencido' || it.status_label === 'urgente') ? it.status_label : it.type;
           const hora = ['reuniao','audiencia','compromisso'].includes(it.type) ? new Date(it.datetime).toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}) + ' ' : '';
-          return `<div class="cal-chip ${cls}" title="${it.title}">${hora}${it.title}</div>`;
+          const safe = (it.title || '').replace(/"/g, '&quot;');
+          return `<div class="cal-chip ${cls}" data-id="${it.id}" data-type="${it.type}" title="${safe}">${hora}${it.title}</div>`;
         }).join('');
         const more = items.length > 4 ? `<div class="cal-chip" style="color:var(--text-muted)">+${items.length - 4}</div>` : '';
         const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -493,7 +494,13 @@ const ROUTES = {
       $('#cal-body').innerHTML = html;
       $('#cal-body').querySelectorAll('.cal-day').forEach((cell) => {
         cell.onclick = (ev) => {
-          if (ev.target.closest('.cal-chip')) return; // clicou num evento, não cria novo
+          const chip = ev.target.closest('.cal-chip');
+          if (chip && chip.dataset.id) {
+            const it = feed.find((x) => String(x.id) === chip.dataset.id && x.type === chip.dataset.type);
+            if (it) eventDetail(it, render);
+            return;
+          }
+          if (chip) return; // chip "+N" (mais), ignora
           eventForm(render, cell.dataset.date);
         };
       });
@@ -2242,6 +2249,36 @@ async function taskForm(onSave) {
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Nova tarefa', form);
+}
+
+async function eventDetail(item, onSave) {
+  const isEvent = ['reuniao', 'audiencia', 'compromisso'].includes(item.type);
+  const labels = { reuniao: 'Reunião', audiencia: 'Audiência', compromisso: 'Compromisso', prazo: 'Prazo', tarefa: 'Tarefa' };
+  let full = item;
+  if (isEvent) { try { full = await api(`/api/calendar/events/${item.id}`); } catch {} }
+  const ini = new Date(full.start_datetime || item.datetime);
+  const fim = full.end_datetime ? new Date(full.end_datetime) : null;
+  const hh = (d) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const line = (lbl, val) => val ? `<div class="evt-line"><span>${lbl}</span><strong>${val}</strong></div>` : '';
+
+  const body = el(`<div class="evt-detail">
+    <div class="evt-type ${item.type}">${labels[item.type] || item.type}</div>
+    <h3 class="evt-title">${full.title || item.title}</h3>
+    ${line('Data', ini.toLocaleDateString('pt-BR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }))}
+    ${line('Horário', hh(ini) + (fim ? ` – ${hh(fim)}` : ''))}
+    ${line('Cliente', full.client_name || item.client_name)}
+    ${line('Local', full.location)}
+    ${full.description ? `<div class="evt-desc">${full.description}</div>` : ''}
+    ${full.video_link ? `<a class="btn-gold" href="${full.video_link}" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px">Entrar na reunião</a>` : ''}
+    ${isEvent ? `<div class="evt-actions"><button class="btn-sm" id="evt-del">Excluir evento</button></div>` : '<p class="sub" style="margin-top:12px">Gerencie prazos e tarefas na tela Prazos &amp; Tarefas.</p>'}
+  </div>`);
+
+  if (isEvent) body.querySelector('#evt-del').onclick = async () => {
+    if (!confirm('Excluir este evento? Ele também sai do Google Agenda.')) return;
+    try { await api(`/api/calendar/events/${item.id}`, { method: 'DELETE' }); closeModal(); toast('Evento excluído'); onSave && onSave(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  openModal('Detalhes', body);
 }
 
 async function eventForm(onSave, prefillDate) {

@@ -148,19 +148,39 @@ export class GoogleCalendarService {
 
     // Janela: do primeiro dia do mês anterior (ex.: 01/05/2026) até 24 meses à frente.
     const now = new Date();
-    const timeMin = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const timeMax = new Date(now.getFullYear(), now.getMonth() + 24, 1);
+    const timeMin = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
+    const timeMax = new Date(now.getFullYear(), now.getMonth() + 24, 1).toISOString();
 
-    const response = await calendar.events.list({
-      calendarId: 'primary',
-      timeMin: timeMin.toISOString(),
-      timeMax: timeMax.toISOString(),
-      maxResults,
-      singleEvents: true,
-      orderBy: 'startTime',
-    });
+    // Varre TODOS os calendários do usuário (não só o primary), pulando feriados
+    // e aniversários de contatos. Assim nenhum compromisso fica de fora.
+    let calendars: calendar_v3.Schema$CalendarListEntry[] = [];
+    try {
+      const cl = await calendar.calendarList.list({ maxResults: 250, showHidden: false });
+      calendars = (cl.data.items ?? []).filter((c) => {
+        const id = c.id ?? '';
+        return !id.includes('#holiday@') && !id.includes('#contacts@');
+      });
+    } catch {
+      calendars = [{ id: 'primary' }];
+    }
+    if (!calendars.length) calendars = [{ id: 'primary' }];
 
-    return response.data.items ?? [];
+    const all: calendar_v3.Schema$Event[] = [];
+    for (const cal of calendars) {
+      try {
+        const response = await calendar.events.list({
+          calendarId: cal.id!,
+          timeMin, timeMax, maxResults,
+          singleEvents: true,
+          orderBy: 'startTime',
+        });
+        for (const ev of response.data.items ?? []) {
+          (ev as any)._calendarName = cal.summary ?? null;
+          all.push(ev);
+        }
+      } catch { /* calendário sem acesso de leitura: ignora */ }
+    }
+    return all;
   }
 }
 

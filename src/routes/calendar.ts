@@ -181,6 +181,34 @@ router.get('/feed', async (req: Request, res: Response) => {
   res.json(all);
 });
 
+// ── GET /api/calendar/events/:id — detalhe de um evento ───────────────────────
+router.get('/events/:id', async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const [rows] = await db.query(
+    `SELECT ce.*, cl.name AS client_name FROM calendar_events ce
+     LEFT JOIN clients cl ON cl.id = ce.client_id
+     WHERE ce.id = ? AND ce.user_id = ?`,
+    [req.params.id, userId]
+  ) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Evento não encontrado' }); return; }
+  res.json(rows[0]);
+});
+
+// ── DELETE /api/calendar/events/:id — exclui (também no Google) ────────────────
+router.delete('/events/:id', async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const [rows] = await db.query(
+    'SELECT google_event_id FROM calendar_events WHERE id = ? AND user_id = ?',
+    [req.params.id, userId]
+  ) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Evento não encontrado' }); return; }
+  if (rows[0].google_event_id) {
+    try { await googleCalendarService.deleteEvent(userId, rows[0].google_event_id); } catch { /* já removido no Google */ }
+  }
+  await db.query('DELETE FROM calendar_events WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+  res.json({ success: true });
+});
+
 // ── Sync manual ───────────────────────────────────────────────────────────────
 router.post('/google/sync', async (req: Request, res: Response) => {
   const userId = (req as any).user.id;

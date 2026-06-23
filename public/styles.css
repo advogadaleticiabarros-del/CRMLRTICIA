@@ -272,6 +272,21 @@ tbody tr:hover { background: var(--surface-2); }
 .cal-chip.compromisso { background: #eaf3ec; color: #2f6b43; border-left-color: #46996a; }
 .cal-chip.prazo, .cal-chip.tarefa { background: var(--amber-bg); color: var(--amber); border-left-color: var(--amber); }
 .cal-chip.vencido, .cal-chip.urgente { background: var(--red-bg); color: var(--red); border-left-color: var(--red); }
+/* Detalhe do evento */
+.evt-detail { display: flex; flex-direction: column; }
+.evt-type { align-self: flex-start; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .5px; padding: 3px 10px; border-radius: 20px; margin-bottom: 10px; }
+.evt-type.reuniao { background: #e7eefb; color: #2b4d8f; }
+.evt-type.audiencia { background: #f1e6f7; color: #6b3690; }
+.evt-type.compromisso { background: #eaf3ec; color: #2f6b43; }
+.evt-type.prazo, .evt-type.tarefa { background: var(--amber-bg); color: var(--amber); }
+.evt-title { font-size: 18px; line-height: 1.35; margin-bottom: 14px; color: var(--text); }
+.evt-line { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border-soft); font-size: 13.5px; }
+.evt-line span { color: var(--text-muted); min-width: 70px; }
+.evt-line strong { color: var(--text); font-weight: 600; text-transform: capitalize; }
+.evt-desc { margin-top: 12px; padding: 11px 13px; background: var(--surface-2); border-radius: 8px; font-size: 13px; line-height: 1.6; white-space: pre-wrap; }
+.evt-actions { margin-top: 16px; display: flex; gap: 8px; }
+.evt-actions #evt-del { color: var(--red); border-color: var(--red-bg); }
+.evt-actions #evt-del:hover { background: var(--red-bg); }
 
 /* ── Notificações ── */
 .notif-item { padding: 13px 16px; border-bottom: 1px solid var(--border-soft); }
