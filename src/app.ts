@@ -54,7 +54,7 @@ export function createApp() {
 
   app.use(compression()); // gzip nas respostas (HTML/JS/CSS/JSON) — reduz transferência
   app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
-  app.use(express.json({ limit: '5mb' }));
+  app.use(express.json({ limit: '20mb' })); // ingestão DJEN pode trazer muitas publicações
   app.use(express.urlencoded({ extended: true }));
 
   // Health check (público)
@@ -67,45 +67,6 @@ export function createApp() {
 
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
-
-  // TEMPORÁRIO — sonda crua do DJEN a partir do servidor (remover depois)
-  app.get('/api/_djen-probe', async (_req, res) => {
-    const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao?pagina=1&itensPorPagina=2&numeroOab=39948&ufOab=ES';
-    const info: any = { fetchType: typeof (globalThis as any).fetch, nodeVersion: process.version };
-    try {
-      const { DJEN_HEADERS } = await import('./services/djen');
-      const t0 = Date.now();
-      const r = await fetch(url, { headers: DJEN_HEADERS });
-      info.status = r.status;
-      info.ms = Date.now() - t0;
-      const txt = await r.text();
-      info.bodyLen = txt.length;
-      try { const j = JSON.parse(txt); info.count = j.count; info.items = (j.items || []).length; info.firstProc = j.items?.[0]?.numero_processo; }
-      catch { info.bodyHead = txt.slice(0, 300); }
-    } catch (e: any) {
-      info.error = `${e.name}: ${e.message}`;
-      info.cause = e.cause ? String(e.cause) : undefined;
-    }
-    res.json(info);
-  });
-
-  // TEMPORÁRIO — diagnóstico/descoberta por OAB via DJEN (remover depois)
-  app.get('/api/_discover-now', async (_req, res) => {
-    try {
-      const { db } = await import('./config/database');
-      const { discoverProcessesByOAB } = await import('./services/monitoringService');
-      const [lawyers] = await db.query('SELECT id, name, oab_number, oab_uf, monitoring_enabled, active FROM lawyers') as any;
-      const out: any[] = [];
-      for (const l of lawyers) {
-        if (!l.oab_number) { out.push({ id: l.id, name: l.name, erro: 'sem OAB cadastrada' }); continue; }
-        const r = await discoverProcessesByOAB(l.id, 'national');
-        out.push({ id: l.id, name: l.name, oab: r.oab, processos: r.found, novos: r.novos, tribunais: r.tribunais });
-      }
-      res.json({ advogados: lawyers.length, resultados: out });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
 
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);

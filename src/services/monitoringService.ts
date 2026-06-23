@@ -2,7 +2,7 @@ import crypto from 'crypto';
 import { db } from '../config/database';
 import { getActiveProvider, getProvider } from './processProviders';
 import { aliasFromProcessNumber } from './datajud';
-import { fetchDjenByOAB, groupPublicationsByProcess } from './djen';
+import { fetchDjenByOAB, groupPublicationsByProcess, DjenPublication } from './djen';
 import { notificationService } from './NotificationService';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
@@ -189,6 +189,22 @@ export async function discoverProcessesByOAB(lawyerId: number, _scope: 'national
   }
 
   const pubs = await fetchDjenByOAB(lawyer.oab_number, lawyer.oab_uf || 'ES', { maxPages: 15 });
+  return ingestDjenForLawyer(lawyerId, pubs, lawyer);
+}
+
+/**
+ * Grava no banco as publicações DJEN de um advogado (descobre processos novos,
+ * adiciona movimentações e dispara o detector de prazos). Reusada tanto pela
+ * descoberta server-side quanto pela ingestão vinda do navegador (que contorna
+ * o bloqueio de IP do CloudFront).
+ */
+export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublication[], lawyerRow?: any): Promise<DiscoveryResult> {
+  let lawyer = lawyerRow;
+  if (!lawyer) {
+    const [rows] = await db.query('SELECT * FROM lawyers WHERE id = ?', [lawyerId]) as any;
+    if (!rows.length) return { lawyerId, oab: '', found: 0, novos: 0, tribunais: 0 };
+    lawyer = rows[0];
+  }
   const processes = groupPublicationsByProcess(pubs);
   const tribunais = new Set<string>();
 
@@ -218,7 +234,6 @@ export async function discoverProcessesByOAB(lawyerId: number, _scope: 'national
   await logMonitor(null as any, lawyerId, novos > 0 ? 'nova_movimentacao' : 'sem_novidade', 'djen_oab',
     `OAB ${lawyer.oab_number}/${lawyer.oab_uf}: ${processes.length} processos, ${pubs.length} publicações, ${novos} novos`);
 
-  // Notifica admins quando há processos novos
   if (novos > 0) {
     const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
     for (const a of admins) {

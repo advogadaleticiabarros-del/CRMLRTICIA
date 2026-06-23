@@ -753,16 +753,37 @@ const ROUTES = {
       <div class="page-header"><div><h2>Advogados / OAB</h2><p class="sub">Registro e descoberta automática de processos por OAB</p></div>
         <button class="btn-gold" id="new-law">+ Advogado</button></div>
       <div class="card"><div id="law-table"></div></div>
-      <p class="sub" style="margin-top:10px">A descoberta varre os tribunais nacionais (DataJud/CNJ) e cadastra automaticamente os processos vinculados à OAB. Também roda sozinha todo dia às 06h.</p>`;
+      <p class="sub" style="margin-top:10px">A descoberta busca as publicações da OAB no DJEN/CNJ (Diário de Justiça Eletrônico Nacional), cadastra os processos automaticamente e detecta possíveis prazos a partir das intimações.</p>`;
 
-    const discover = async (lawyerId, btn) => {
+    // A busca roda no NAVEGADOR (IP brasileiro) porque o DJEN bloqueia o IP do
+    // servidor; depois envia as publicações ao CRM para gravar.
+    const discover = async (lawyerId, oabNum, oabUf, btn) => {
       const original = btn.textContent;
       btn.disabled = true; btn.textContent = 'Buscando…';
-      toast('Buscando processos nos tribunais… isso pode levar até 1 min.');
+      toast('Buscando publicações da OAB no DJEN/CNJ…');
       try {
-        const r = await api('/api/processes/descobrir-oab', { method: 'POST', body: JSON.stringify({ lawyer_id: Number(lawyerId) }) });
-        toast(`OAB ${r.oab}: ${r.found} encontrado(s), ${r.novos} novo(s) cadastrado(s).`);
-        if (r.novos > 0) setTimeout(() => { location.hash = '#monitor'; }, 1200);
+        const itens = 100, maxPages = 20;
+        let pubs = [];
+        for (let p = 1; p <= maxPages; p++) {
+          btn.textContent = `Buscando… (pág. ${p})`;
+          const url = `https://comunicaapi.pje.jus.br/api/v1/comunicacao?pagina=${p}&itensPorPagina=${itens}&numeroOab=${encodeURIComponent(oabNum)}&ufOab=${encodeURIComponent(oabUf || 'ES')}`;
+          let data;
+          try { const r = await fetch(url, { headers: { Accept: 'application/json' } }); if (!r.ok) break; data = await r.json(); }
+          catch { break; }
+          const items = (data.items || []).map((it) => ({
+            id: it.id, numero_processo: it.numero_processo, numeroprocessocommascara: it.numeroprocessocommascara,
+            siglaTribunal: it.siglaTribunal, nomeOrgao: it.nomeOrgao, nomeClasse: it.nomeClasse,
+            data_disponibilizacao: it.data_disponibilizacao, tipoComunicacao: it.tipoComunicacao,
+            texto: (it.texto || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1200), link: it.link,
+          }));
+          pubs = pubs.concat(items);
+          if (items.length < itens) break;
+        }
+        if (!pubs.length) { toast('Nenhuma publicação encontrada para esta OAB no DJEN.', 'error'); return; }
+        btn.textContent = 'Salvando…';
+        const r = await api('/api/processes/ingest-djen', { method: 'POST', body: JSON.stringify({ lawyer_id: Number(lawyerId), publications: pubs }) });
+        toast(`OAB ${r.oab}: ${r.found} processo(s) (${r.publicacoes} publicações), ${r.novos} novo(s) cadastrado(s).`);
+        if (r.novos > 0) setTimeout(() => { location.hash = '#monitor'; }, 1500);
       } catch (e) { toast(e.message, 'error'); }
       finally { btn.disabled = false; btn.textContent = original; }
     };
@@ -776,10 +797,10 @@ const ROUTES = {
           <td>${l.monitoring_enabled ? '<span class="badge ativo">ativo</span>' : '<span class="badge inativo">inativo</span>'}</td>
           <td>${l.last_sync_at ? fmtDate(l.last_sync_at) : 'nunca'}</td>
           <td style="white-space:nowrap">
-            ${l.oab_number ? `<button class="btn-gold btn-sm" data-discover="${l.id}">Descobrir processos</button> ` : ''}
+            ${l.oab_number ? `<button class="btn-gold btn-sm" data-discover="${l.id}" data-oab="${l.oab_number}" data-uf="${l.oab_uf || 'ES'}">Descobrir processos</button> ` : ''}
             <button class="btn-sm" data-law="${l.id}">Editar</button></td></tr>`).join('')}</tbody></table>`;
       document.querySelectorAll('[data-law]').forEach((b) => b.onclick = () => lawyerForm(b.dataset.law, load));
-      document.querySelectorAll('[data-discover]').forEach((b) => b.onclick = () => discover(b.dataset.discover, b));
+      document.querySelectorAll('[data-discover]').forEach((b) => b.onclick = () => discover(b.dataset.discover, b.dataset.oab, b.dataset.uf, b));
     };
     $('#new-law').onclick = () => lawyerForm(null, load);
     await load();

@@ -1,7 +1,8 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { TRIBUNAIS, suggestCourtAlias } from '../services/datajud';
-import { syncProcess, discoverProcessesByOAB, runDiscoveryJob } from '../services/monitoringService';
+import { syncProcess, discoverProcessesByOAB, runDiscoveryJob, ingestDjenForLawyer } from '../services/monitoringService';
+import { normalizeDjenItems } from '../services/djen';
 
 const router = Router();
 
@@ -115,6 +116,18 @@ router.post('/descobrir-oab', async (req: Request, res: Response) => {
   }
   const result = await runDiscoveryJob();
   res.json(result);
+});
+
+// ── POST /api/processes/ingest-djen — ingere publicações DJEN buscadas no navegador ─
+// O DJEN bloqueia o IP do servidor (CloudFront 403); o navegador da advogada (IP BR)
+// faz a busca e envia aqui. body: { lawyer_id, publications: [...] }
+router.post('/ingest-djen', async (req: Request, res: Response) => {
+  const lawyerId = Number(req.body?.lawyer_id);
+  if (!lawyerId) { res.status(400).json({ error: 'lawyer_id é obrigatório' }); return; }
+  const items = Array.isArray(req.body?.publications) ? req.body.publications : [];
+  const pubs = normalizeDjenItems(items);
+  const result = await ingestDjenForLawyer(lawyerId, pubs);
+  res.json({ ...result, publicacoes: pubs.length });
 });
 
 // ── POST /api/processes/:id/movements — movimentação manual ─────────────────

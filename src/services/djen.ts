@@ -72,24 +72,30 @@ export async function fetchDjenByOAB(
 
     const items: any[] = Array.isArray(data?.items) ? data.items : [];
     if (!items.length) break;
-
-    for (const it of items) {
-      const pn = onlyDigits(it.numero_processo);
-      if (!pn) continue;
-      out.push({
-        id: Number(it.id) || 0,
-        process_number: pn,
-        process_masked: it.numeroprocessocommascara || it.numero_processo || pn,
-        court: it.siglaTribunal || '',
-        orgao: it.nomeOrgao || null,
-        classe: it.nomeClasse || null,
-        date: it.data_disponibilizacao || null,
-        type: it.tipoComunicacao || null,
-        texto: it.texto || '',
-        link: it.link || null,
-      });
-    }
+    out.push(...normalizeDjenItems(items));
     if (items.length < itens) break; // última página
+  }
+  return out;
+}
+
+/** Converte itens crus da API DJEN (ou versão enxuta vinda do navegador) em publicações. */
+export function normalizeDjenItems(items: any[]): DjenPublication[] {
+  const out: DjenPublication[] = [];
+  for (const it of items || []) {
+    const pn = onlyDigits(it.numero_processo);
+    if (!pn) continue;
+    out.push({
+      id: Number(it.id) || 0,
+      process_number: pn,
+      process_masked: it.numeroprocessocommascara || it.numero_processo || pn,
+      court: it.siglaTribunal || '',
+      orgao: it.nomeOrgao || null,
+      classe: it.nomeClasse || null,
+      date: it.data_disponibilizacao || null,
+      type: it.tipoComunicacao || null,
+      texto: it.texto || '',
+      link: it.link || null,
+    });
   }
   return out;
 }
