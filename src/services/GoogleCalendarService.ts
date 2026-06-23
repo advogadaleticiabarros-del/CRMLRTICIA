@@ -142,13 +142,18 @@ export class GoogleCalendarService {
     await calendar.events.delete({ calendarId: 'primary', eventId: googleEventId });
   }
 
-  async listUpcomingEvents(userId: number, maxResults = 50): Promise<calendar_v3.Schema$Event[]> {
+  async listUpcomingEvents(userId: number, maxResults = 250): Promise<calendar_v3.Schema$Event[]> {
     const auth = await this.getClientForUser(userId);
     const calendar = google.calendar({ version: 'v3', auth });
 
+    // Janela útil: alguns meses atrás (compromissos já lançados) até ~18 meses à frente.
+    const timeMin = new Date(); timeMin.setMonth(timeMin.getMonth() - 6);
+    const timeMax = new Date(); timeMax.setMonth(timeMax.getMonth() + 18);
+
     const response = await calendar.events.list({
       calendarId: 'primary',
-      timeMin: new Date().toISOString(),
+      timeMin: timeMin.toISOString(),
+      timeMax: timeMax.toISOString(),
       maxResults,
       singleEvents: true,
       orderBy: 'startTime',
