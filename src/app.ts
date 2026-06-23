@@ -73,8 +73,9 @@ export function createApp() {
     const url = 'https://comunicaapi.pje.jus.br/api/v1/comunicacao?pagina=1&itensPorPagina=2&numeroOab=39948&ufOab=ES';
     const info: any = { fetchType: typeof (globalThis as any).fetch, nodeVersion: process.version };
     try {
+      const { DJEN_HEADERS } = await import('./services/djen');
       const t0 = Date.now();
-      const r = await fetch(url, { headers: { Accept: 'application/json' } });
+      const r = await fetch(url, { headers: DJEN_HEADERS });
       info.status = r.status;
       info.ms = Date.now() - t0;
       const txt = await r.text();
