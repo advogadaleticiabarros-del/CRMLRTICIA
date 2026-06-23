@@ -253,7 +253,7 @@ tbody tr:hover { background: var(--surface-2); }
 .cal-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; }
 #cal-body { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow-sm); }
 .cal-dow { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; color: var(--text-muted); padding: 6px 10px; font-weight: 600; }
-.cal-day { min-width: 0; background: var(--surface); min-height: 116px; padding: 6px 6px 8px; border-right: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 3px; transition: background .15s; }
+.cal-day { min-width: 0; background: var(--surface); min-height: 116px; padding: 6px 6px 8px; border-right: 1px solid var(--border-soft); border-bottom: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 3px; transition: background .15s; cursor: pointer; }
 .cal-day:nth-child(7n) { border-right: none; }
 .cal-day:hover { background: #fbfaf7; }
 .cal-day.other { background: #fafbfc; }

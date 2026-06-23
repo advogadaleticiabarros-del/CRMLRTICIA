@@ -487,9 +487,16 @@ const ROUTES = {
           return `<div class="cal-chip ${cls}" title="${it.title}">${hora}${it.title}</div>`;
         }).join('');
         const more = items.length > 4 ? `<div class="cal-chip" style="color:var(--text-muted)">+${items.length - 4}</div>` : '';
-        html += `<div class="cal-day ${other} ${isToday}"><span class="num">${d.getDate()}</span>${chips}${more}</div>`;
+        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        html += `<div class="cal-day ${other} ${isToday}" data-date="${ds}" title="Clique para lançar um compromisso"><span class="num">${d.getDate()}</span>${chips}${more}</div>`;
       }
       $('#cal-body').innerHTML = html;
+      $('#cal-body').querySelectorAll('.cal-day').forEach((cell) => {
+        cell.onclick = (ev) => {
+          if (ev.target.closest('.cal-chip')) return; // clicou num evento, não cria novo
+          eventForm(render, cell.dataset.date);
+        };
+      });
     };
 
     const renderGoogle = async () => {
@@ -2237,13 +2244,15 @@ async function taskForm(onSave) {
   openModal('Nova tarefa', form);
 }
 
-async function eventForm(onSave) {
+async function eventForm(onSave, prefillDate) {
   const clients = await api('/api/clients?limit=100');
+  const startVal = prefillDate ? `${prefillDate}T09:00` : '';
+  const endVal   = prefillDate ? `${prefillDate}T10:00` : '';
   const form = el(`<form class="form-grid">
     ${field('Título *', 'title')}
     ${field('Tipo', 'event_type', { options: [['compromisso','Compromisso'],['reuniao','Reunião'],['audiencia','Audiência']].map(([v,t])=>({v,t})) })}
     ${field('Cliente', 'client_id', { options: [{ v: '', t: '— nenhum —' }, ...clients.data.map((c) => ({ v: c.id, t: c.name }))] })}
-    <div class="form-row">${field('Início *', 'start_datetime', { type: 'datetime-local' })}${field('Fim', 'end_datetime', { type: 'datetime-local' })}</div>
+    <div class="form-row">${field('Início *', 'start_datetime', { type: 'datetime-local', value: startVal })}${field('Fim', 'end_datetime', { type: 'datetime-local', value: endVal })}</div>
     ${field('Local', 'location')}
     ${field('Descrição', 'description', { type: 'textarea' })}
     <button type="submit" class="btn-primary">Criar evento</button>
