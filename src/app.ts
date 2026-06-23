@@ -68,6 +68,24 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
+  // TEMPORÁRIO — diagnóstico/descoberta por OAB via DJEN (remover depois)
+  app.get('/api/_discover-now', async (_req, res) => {
+    try {
+      const { db } = await import('./config/database');
+      const { discoverProcessesByOAB } = await import('./services/monitoringService');
+      const [lawyers] = await db.query('SELECT id, name, oab_number, oab_uf, monitoring_enabled, active FROM lawyers') as any;
+      const out: any[] = [];
+      for (const l of lawyers) {
+        if (!l.oab_number) { out.push({ id: l.id, name: l.name, erro: 'sem OAB cadastrada' }); continue; }
+        const r = await discoverProcessesByOAB(l.id, 'national');
+        out.push({ id: l.id, name: l.name, oab: r.oab, processos: r.found, novos: r.novos, tribunais: r.tribunais });
+      }
+      res.json({ advogados: lawyers.length, resultados: out });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
 
