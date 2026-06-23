@@ -146,9 +146,10 @@ export class GoogleCalendarService {
     const auth = await this.getClientForUser(userId);
     const calendar = google.calendar({ version: 'v3', auth });
 
-    // Janela útil: alguns meses atrás (compromissos já lançados) até ~18 meses à frente.
-    const timeMin = new Date(); timeMin.setMonth(timeMin.getMonth() - 6);
-    const timeMax = new Date(); timeMax.setMonth(timeMax.getMonth() + 18);
+    // Janela: do primeiro dia do mês anterior (ex.: 01/05/2026) até 24 meses à frente.
+    const now = new Date();
+    const timeMin = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const timeMax = new Date(now.getFullYear(), now.getMonth() + 24, 1);
 
     const response = await calendar.events.list({
       calendarId: 'primary',
