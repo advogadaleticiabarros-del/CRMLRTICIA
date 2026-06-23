@@ -66,38 +66,6 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
-  // Gatilho TEMPORÁRIO de sincronização (mesma rotina do cron) — remover depois
-  app.get('/api/_google-sync-now', async (_req, res) => {
-    try {
-      const { db } = await import('./config/database');
-      const { calendarSyncService } = await import('./services/CalendarSyncService');
-      const [accounts] = await db.query(
-        'SELECT DISTINCT user_id FROM google_accounts WHERE sync_enabled = 1'
-      ) as any;
-      const out: any[] = [];
-      for (const a of accounts) {
-        const r = await calendarSyncService.fullSync(a.user_id);
-        out.push({ user_id: a.user_id, ...r });
-      }
-      res.json({ ok: true, contas: accounts.length, resultados: out });
-    } catch (e: any) {
-      res.status(500).json({ ok: false, error: e.message });
-    }
-  });
-
-  // Diagnóstico PÚBLICO do redirect_uri (não expõe segredos) — para depurar mismatch
-  app.get('/api/_google-debug', (_req, res) => {
-    const expected = 'https://crm.advogadaleticiabarros.com.br/api/calendar/google/callback';
-    const sent = process.env.GOOGLE_REDIRECT_URI || null;
-    res.json({
-      redirect_uri_enviado: sent,
-      redirect_uri_esperado: expected,
-      bate: sent === expected,
-      client_id_definido: !!process.env.GOOGLE_CLIENT_ID,
-      client_secret_definido: !!process.env.GOOGLE_CLIENT_SECRET,
-    });
-  });
-
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
 
