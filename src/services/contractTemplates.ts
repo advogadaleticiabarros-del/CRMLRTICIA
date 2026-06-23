@@ -6,6 +6,16 @@
  * deixa [placeholder] só para o que realmente faltar.
  */
 
+// Dados oficiais da CONTRATADA / OUTORGADA (escritório)
+export const ADVOGADA = {
+  nome: 'LETÍCIA ELIAS BARROS',
+  oab: 'OAB/ES sob o nº 39.948',
+  endereco: 'London Office Tower, R. José Alexandre Buaiz, nº 160, Sala 115, Enseada do Suá, Vitória/ES, CEP 29.050-545',
+  email: 'advogadaleticia.barros@gmail.com / contato@advogadaleticiabarros.com',
+};
+const CONTRATADA_BLOCO = `${ADVOGADA.nome}, advogada inscrita na ${ADVOGADA.oab}, com escritório profissional localizado na ${ADVOGADA.endereco}, e-mail: ${ADVOGADA.email}`;
+const OUTORGADA_BLOCO = `${ADVOGADA.nome}, advogada inscrita na ${ADVOGADA.oab}, com escritório profissional localizado na ${ADVOGADA.endereco}`;
+
 export interface PartyData {
   name?: string | null;
   nacionalidade?: string | null;
@@ -48,7 +58,7 @@ export function buildProcuracao(party: PartyData | string): string {
 
 OUTORGANTE: ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, RG nº ${p.rg}, residente e domiciliado(a) em ${p.end}.
 
-OUTORGADA: Advocacia Letícia Barros, advogada inscrita na OAB/[UF] sob nº [Nº OAB], com escritório em [ENDEREÇO DO ESCRITÓRIO].
+OUTORGADA: ${OUTORGADA_BLOCO}.
 
 PODERES: Pelo presente instrumento, o(a) OUTORGANTE nomeia e constitui sua bastante procuradora a OUTORGADA, a quem confere os poderes da cláusula "ad judicia et extra", para o foro em geral, em qualquer Juízo, Instância ou Tribunal, podendo propor as ações competentes e defendê-lo(a) nas contrárias, seguindo umas e outras até final decisão, usando os recursos legais e acompanhando-os, conferindo ainda poderes especiais para confessar, desistir, transigir, firmar compromissos ou acordos, receber e dar quitação, agindo em conjunto ou separadamente, podendo ainda substabelecer esta a outrem, com ou sem reserva de iguais poderes.
 
@@ -94,7 +104,7 @@ export function buildTemplate(opts: { clientName?: string; party?: PartyData; ar
 
 CONTRATANTE: ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, residente e domiciliado(a) em ${p.end}.
 
-CONTRATADA: Advocacia Letícia Barros, inscrita na OAB/[UF] sob nº [Nº OAB], com escritório em [ENDEREÇO DO ESCRITÓRIO].
+CONTRATADA: ${CONTRATADA_BLOCO}.
 
 CLÁUSULA 1ª — DO OBJETO
 O presente contrato tem por objeto ${obj}

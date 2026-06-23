@@ -2851,10 +2851,8 @@ async function contractEditor(id, onSave) {
       <div class="form-row">${field('Nacionalidade', 'c_nac', { value: 'brasileiro(a)' })}${field('Estado civil', 'c_ec')}</div>
       <div class="form-row">${field('Profissão', 'c_prof')}${field('RG', 'c_rg')}</div>
       <div class="form-row">${field('CPF', 'c_cpf')}${field('Endereço completo', 'c_end')}</div>
-      <strong class="cp-grp">Escritório e processo</strong>
-      <div class="form-row">${field('Nº da OAB', 'o_oab')}${field('UF da OAB', 'o_uf', { value: 'ES' })}</div>
-      ${field('Endereço do escritório', 'o_end')}
-      <div class="form-row">${field('Cidade', 'o_cidade')}${field('Comarca', 'o_comarca')}</div>
+      <strong class="cp-grp">Local, data e pagamento</strong>
+      <div class="form-row">${field('Cidade (assinatura)', 'o_cidade', { value: 'Vitória/ES' })}${field('Comarca', 'o_comarca')}</div>
       <div class="form-row">${field('Data', 'o_data')}${field('Forma de pagamento / parcelas', 'o_forma')}</div>
       <button type="button" class="btn-primary" id="apply-complete">Aplicar aos documentos</button>
     </div>
@@ -2892,7 +2890,7 @@ async function contractEditor(id, onSave) {
   };
   try {
     const saved = JSON.parse(localStorage.getItem('escritorioInfo') || '{}');
-    ['o_oab', 'o_uf', 'o_end', 'o_cidade', 'o_comarca', 'o_forma'].forEach((n) => {
+    ['o_cidade', 'o_comarca', 'o_forma'].forEach((n) => {
       const inp = wrap.querySelector(`[name=${n}]`); if (inp && saved[n]) inp.value = saved[n];
     });
   } catch {}
@@ -2902,8 +2900,7 @@ async function contractEditor(id, onSave) {
   wrap.querySelector('#apply-complete').onclick = () => {
     const map = {
       '[nacionalidade]': 'c_nac', '[estado civil]': 'c_ec', '[profissão]': 'c_prof', '[CPF]': 'c_cpf', '[RG]': 'c_rg',
-      '[ENDEREÇO DO ESCRITÓRIO]': 'o_end', '[ENDEREÇO]': 'c_end', '[Nº OAB]': 'o_oab', '[UF]': 'o_uf',
-      '[CIDADE]': 'o_cidade', '[COMARCA]': 'o_comarca', '[DATA]': 'o_data', '[FORMA DE PAGAMENTO / PARCELAS]': 'o_forma',
+      '[ENDEREÇO]': 'c_end', '[CIDADE]': 'o_cidade', '[COMARCA]': 'o_comarca', '[DATA]': 'o_data', '[FORMA DE PAGAMENTO / PARCELAS]': 'o_forma',
     };
     let count = 0;
     wrap.querySelectorAll('[data-field]').forEach((ta) => {
@@ -2915,7 +2912,7 @@ async function contractEditor(id, onSave) {
       ta.value = txt;
     });
     const office = {};
-    ['o_oab', 'o_uf', 'o_end', 'o_cidade', 'o_comarca', 'o_forma'].forEach((n) => { office[n] = wrap.querySelector(`[name=${n}]`)?.value || ''; });
+    ['o_cidade', 'o_comarca', 'o_forma'].forEach((n) => { office[n] = wrap.querySelector(`[name=${n}]`)?.value || ''; });
     try { localStorage.setItem('escritorioInfo', JSON.stringify(office)); } catch {}
     wrap.querySelector('#complete-panel').style.display = 'none';
     toast(count ? 'Informações aplicadas. Revise e clique em Salvar documentos.' : 'Preencha os campos para substituir.');
