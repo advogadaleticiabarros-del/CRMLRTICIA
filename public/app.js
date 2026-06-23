@@ -431,10 +431,11 @@ const ROUTES = {
         <div class="card" style="margin-bottom:20px;border:1px solid var(--gold)">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--gold)">⚠ Prazos detectados no monitoramento (${rows.length})</strong>
             <p class="sub" style="margin:2px 0 0">Movimentações que podem iniciar prazo — confirme a data (o sistema não chuta).</p></div>
-          <table><thead><tr><th>Movimentação</th><th>Processo</th><th>Sugestão</th><th></th></tr></thead>
+          <table><thead><tr><th>Cliente / Parte</th><th>Movimentação</th><th>Processo</th><th>Sugestão</th><th></th></tr></thead>
           <tbody>${rows.map((d) => `<tr>
+            <td><strong>${d.client_name || '<span style=\"color:var(--text-muted)\">a vincular</span>'}</strong></td>
             <td>${(d.movement_text || '').slice(0, 80)}<br><small style="color:var(--text-muted)">início ${fmtDate(d.start_date)}</small></td>
-            <td>${d.process_number || '—'}${d.client_name ? '<br><small>' + d.client_name + '</small>' : ''}</td>
+            <td>${d.process_number || '—'}</td>
             <td>${d.suggested_type || '—'} · ${d.suggested_days || '?'} dias</td>
             <td style="white-space:nowrap"><button class="btn-gold btn-sm" data-conf-dd="${d.id}">Confirmar</button> <button class="btn-sm" data-disc-dd="${d.id}">Descartar</button></td></tr>`).join('')}</tbody></table>
         </div>` : '';

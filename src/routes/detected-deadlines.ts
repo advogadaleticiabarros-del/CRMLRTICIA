@@ -19,11 +19,13 @@ function addBusinessDays(startStr: string, n: number): string {
 router.get('/', async (req: Request, res: Response) => {
   const status = (req.query.status as string) || 'a_confirmar';
   const [rows] = await db.query(
-    `SELECT d.*, lp.process_number, c.name AS client_name
+    `SELECT d.*, lp.process_number,
+            COALESCE(c.name, cp.name) AS client_name
        FROM detected_deadlines d
        LEFT JOIN legal_processes lp ON lp.id = d.process_id
-       LEFT JOIN clients c ON c.id = d.client_id
-      WHERE d.status = ? ORDER BY d.created_at DESC LIMIT 200`, [status]
+       LEFT JOIN clients c  ON c.id  = d.client_id
+       LEFT JOIN clients cp ON cp.id = lp.client_id
+      WHERE d.status = ? ORDER BY d.start_date DESC, d.created_at DESC LIMIT 200`, [status]
   ) as any;
   res.json(rows);
 });
