@@ -66,6 +66,24 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
+  // DIAGNÓSTICO TEMPORÁRIO — inspeciona calendar_events gravados (remover depois)
+  app.get('/api/_cal-debug', async (_req, res) => {
+    try {
+      const { db } = await import('./config/database');
+      const [[tot]] = await db.query('SELECT COUNT(*) AS total FROM calendar_events') as any;
+      const [byUser] = await db.query(
+        'SELECT user_id, event_type, source, COUNT(*) AS n, MIN(start_datetime) AS min_dt, MAX(start_datetime) AS max_dt FROM calendar_events GROUP BY user_id, event_type, source'
+      ) as any;
+      const [sample] = await db.query(
+        'SELECT id, user_id, title, event_type, source, start_datetime, end_datetime FROM calendar_events ORDER BY start_datetime DESC LIMIT 8'
+      ) as any;
+      const [ga] = await db.query('SELECT user_id, google_email, sync_enabled FROM google_accounts') as any;
+      res.json({ total: tot.total, byUser, sample, google_accounts: ga });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
 
