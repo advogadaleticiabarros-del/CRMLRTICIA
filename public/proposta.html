@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Proposta de Honorários — Letícia Barros</title>
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Inter', system-ui, sans-serif; background: #231E1A; color: #FAF6F0; line-height: 1.6; padding: 20px; }
+    .wrap { max-width: 640px; margin: 0 auto; }
+    .brand { text-align: center; padding: 18px 0 6px; }
+    .brand img { width: 60px; height: 60px; }
+    .brand h1 { font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 30px; color: #C9A962; margin-top: 6px; letter-spacing: .5px; }
+    .brand small { color: #B8943F; letter-spacing: 3px; text-transform: uppercase; font-size: 11px; }
+    .card { background: #2E2720; border: 1px solid #3A3228; border-radius: 16px; padding: 22px; margin-top: 16px; }
+    .card h2 { font-family: 'Cormorant Garamond', serif; font-size: 21px; color: #C9A962; margin-bottom: 14px; font-weight: 600; }
+    .ttl { font-family: 'Cormorant Garamond', serif; font-size: 24px; color: #FAF6F0; text-align: center; margin-top: 6px; }
+    .line { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #3A3228; font-size: 14px; }
+    .line:last-child { border-bottom: none; }
+    .line span { color: #B0A48E; }
+    .line strong { color: #FAF6F0; text-align: right; }
+    .desc { background: #1f1b17; border-radius: 10px; padding: 14px 16px; font-size: 14px; color: #E8E0D2; white-space: pre-wrap; }
+    .parc { background: #1f1b17; border-radius: 12px; padding: 6px 16px; }
+    .parc .line.total strong { color: #C9A962; font-size: 19px; }
+    .parc .line.total span { color: #D8CEB8; font-weight: 600; }
+    .clauses { background: #FAF6F0; color: #2E2720; border-radius: 10px; padding: 18px; max-height: 260px; overflow-y: auto; white-space: pre-wrap; font-family: Georgia, serif; font-size: 13px; line-height: 1.7; }
+    button { font-family: inherit; cursor: pointer; border: none; border-radius: 12px; font-weight: 600; }
+    .btn-gold { background: linear-gradient(135deg, #C9A962, #B8943F); color: #231E1A; padding: 16px; font-size: 16px; width: 100%; margin-top: 18px; }
+    .btn-gold:disabled { opacity: .5; }
+    .accepted { text-align: center; padding: 16px; color: #8FB98A; font-weight: 600; margin-top: 16px; background: #1f2a1c; border-radius: 12px; }
+    .legal { color: #8a8270; font-size: 11.5px; margin-top: 18px; text-align: center; line-height: 1.5; }
+    .loading, .err { text-align: center; padding: 40px 16px; color: #B0A48E; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="brand">
+      <img src="/logo.png" alt="" onerror="this.style.display='none'" />
+      <h1>Letícia Barros</h1>
+      <small>Advocacia &amp; Consultoria</small>
+    </div>
+    <div id="content"><div class="loading">Carregando proposta…</div></div>
+    <p class="legal">Documento gerado eletronicamente. Em caso de dúvidas, fale com o escritório.</p>
+  </div>
+
+  <script>
+    const token = new URLSearchParams(location.search).get('t');
+    const money = (v) => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const fmtDate = (s) => { if (!s) return '—'; const d = new Date(String(s).slice(0,10) + 'T00:00:00'); return isNaN(d) ? '—' : d.toLocaleDateString('pt-BR'); };
+    const AREA_PT = { trabalhista:'Trabalhista', gestante:'Gestante/Maternidade', familia:'Família', civel:'Cível', previdenciario:'Previdenciário', consumidor:'Consumidor', outro:'Outro' };
+    const esc = (s) => String(s || '').replace(/[&<>]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+
+    function parcelHtml(h) {
+      const pc = h && h.parcelamento;
+      if (!pc || !pc.total) return '';
+      const qtd = Number(pc.parcelas) || 1;
+      const ult = (qtd > 1 && pc.ultima_parcela && pc.ultima_parcela !== pc.valor_parcela) ? ` (última de ${money(pc.ultima_parcela)})` : '';
+      return `
+        <div class="card"><h2>Honorários</h2>
+          <div class="parc">
+            ${pc.entrada ? `<div class="line"><span>Entrada${pc.entrada_data ? ' · ' + fmtDate(pc.entrada_data) : ''}</span><strong>${money(pc.entrada)}</strong></div>` : ''}
+            <div class="line"><span>Parcelas</span><strong>${qtd}× de ${money(pc.valor_parcela)}${ult}</strong></div>
+            ${pc.primeiro_vencimento ? `<div class="line"><span>1º vencimento</span><strong>${fmtDate(pc.primeiro_vencimento)} (mensais)</strong></div>` : ''}
+            <div class="line total"><span>Total</span><strong>${money(pc.total)}</strong></div>
+          </div>
+        </div>`;
+    }
+
+    async function load() {
+      if (!token) { document.getElementById('content').innerHTML = '<div class="err">Link inválido.</div>'; return; }
+      let p;
+      try {
+        const r = await fetch('/api/public/proposta/' + encodeURIComponent(token));
+        if (!r.ok) throw new Error();
+        p = await r.json();
+      } catch { document.getElementById('content').innerHTML = '<div class="err">Proposta não encontrada ou link expirado.</div>'; return; }
+
+      const h = p.honorarios || {};
+      const aceito = !!p.aceito_em;
+      document.getElementById('content').innerHTML = `
+        <p class="ttl">Proposta de Honorários</p>
+        <div class="card">
+          <div class="line"><span>Cliente</span><strong>${esc(p.contact_name)}</strong></div>
+          <div class="line"><span>Área</span><strong>${esc(AREA_PT[p.legal_area] || p.legal_area || '—')}</strong></div>
+          <div class="line"><span>Tipo de causa</span><strong>${esc(p.tipo_causa || '—')}</strong></div>
+        </div>
+        ${p.description ? `<div class="card"><h2>O caso</h2><div class="desc">${esc(p.description)}</div></div>` : ''}
+        ${parcelHtml(h) || `<div class="card"><h2>Honorários</h2><div class="parc"><div class="line total"><span>Total</span><strong>${money(p.valor)}</strong></div></div></div>`}
+        ${p.observacoes ? `<div class="card"><h2>Condições e cláusulas</h2><div class="clauses">${esc(p.observacoes)}</div></div>` : ''}
+        ${p.validade ? `<p class="legal">Validade desta proposta: ${fmtDate(p.validade)}</p>` : ''}
+        <div id="accept-area"></div>`;
+
+      const area = document.getElementById('accept-area');
+      if (aceito) {
+        area.innerHTML = `<div class="accepted">✓ Proposta aceita. Obrigado! O escritório dará sequência ao contrato.</div>`;
+      } else {
+        area.innerHTML = `<button class="btn-gold" id="accept">Aceitar proposta</button>`;
+        document.getElementById('accept').onclick = async () => {
+          const b = document.getElementById('accept'); b.disabled = true; b.textContent = 'Registrando…';
+          try {
+            const r = await fetch('/api/public/proposta/' + encodeURIComponent(token) + '/aceitar', { method: 'POST' });
+            if (!r.ok) throw new Error();
+            area.innerHTML = `<div class="accepted">✓ Proposta aceita. Obrigado! O escritório dará sequência ao contrato.</div>`;
+          } catch { b.disabled = false; b.textContent = 'Aceitar proposta'; alert('Não foi possível registrar agora. Tente novamente.'); }
+        };
+      }
+    }
+    load();
+  </script>
+</body>
+</html>

@@ -457,6 +457,8 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
 .parc-line strong { color: var(--text); }
 .parc-line.total { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; }
 .parc-line.total strong { color: var(--gold); font-size: 15px; }
+.prop-share { background: var(--surface-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+.prop-share input { background: #fff; }
 .hon-val input { width: 100%; }
 .dep-row input { padding: 9px 12px; }
 .prop-form textarea[name="description"] { min-height: 80px; }

@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
 
@@ -74,17 +75,19 @@ router.post('/', async (req: Request, res: Response) => {
   if (!client_id && !lead_id) { res.status(400).json({ error: 'Informe o cliente ou o lead' }); return; }
   const finalTitle = (title && String(title).trim()) || `Proposta — ${contact_name || tipo_causa || 'cliente'}`;
 
+  const publicToken = crypto.randomUUID();
   const [result] = await db.query(
     `INSERT INTO propostas
        (user_id, client_id, case_id, lead_id, title, valor, status, validade, description,
-        legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes, public_token)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       req.user!.id, client_id ?? null, case_id ?? null, lead_id ?? null,
       finalTitle, Number(valor) || 0, STATUSES.includes(status) ? status : 'rascunho',
       validade || null, description ?? null,
       legal_area ?? null, tipo_causa ?? null, contact_name ?? null, cpf ?? null, phone ?? null, email ?? null,
       dependentes ? JSON.stringify(dependentes) : null, honorarios ? JSON.stringify(honorarios) : null, observacoes ?? null,
+      publicToken,
     ]
   ) as any;
 
@@ -216,6 +219,18 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
   ) as any;
 
   res.json({ success: true, status: 'aceita', installments });
+});
+
+// ── POST /api/propostas/:id/share — garante o token público e devolve o link ─
+router.post('/:id/share', async (req: Request, res: Response) => {
+  const [rows] = await db.query('SELECT public_token FROM propostas WHERE id = ?', [req.params.id]) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
+  let token = rows[0].public_token;
+  if (!token) {
+    token = crypto.randomUUID();
+    await db.query('UPDATE propostas SET public_token = ? WHERE id = ?', [token, req.params.id]);
+  }
+  res.json({ token });
 });
 
 export default router;

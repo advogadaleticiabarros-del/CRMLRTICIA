@@ -45,6 +45,7 @@ import correspondenteRoutes from './routes/correspondente';
 import documentRoutes from './routes/documents';
 import aiRoutes from './routes/ai';
 import signPublicRoutes from './routes/sign-public';
+import propostaPublicRoutes from './routes/propostas-public';
 import backupRoutes from './routes/backup';
 import { googleOAuthCallback } from './routes/google-callback';
 
@@ -70,6 +71,7 @@ export function createApp() {
 
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
+  app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
 
   // ── Portal do Cliente (papel 'cliente' — escopo isolado por client_id) ────
   app.use('/api/portal',                authenticate, portalRoutes);

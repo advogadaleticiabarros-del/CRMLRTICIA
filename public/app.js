@@ -2270,7 +2270,15 @@ async function propostaDetail(id, onSave) {
   const form = el(`<div class="form-grid">
     <div><strong style="font-size:18px">${p.title}</strong><br>
       <small style="color:var(--text-muted)">${p.client_name || ''} · ${money(p.valor)}</small></div>
-    <div>Status atual: ${badge(p.status)}</div>
+    <div>Status atual: ${badge(p.status)}${p.aceito_em ? ' · <span class="badge ativo">aceita pelo cliente</span>' : ''}</div>
+    <div class="prop-share">
+      <strong style="font-size:13px">Link para enviar ao cliente</strong>
+      <div class="form-row" style="margin-top:6px">
+        <input id="prop-link" readonly value="" style="flex:1;font-size:12px">
+        <button class="btn-sm" id="prop-copy" type="button">Copiar</button>
+        <button class="btn-gold btn-sm" id="prop-wpp" type="button">WhatsApp</button>
+      </div>
+    </div>
     ${parcelasHtml}
     ${isAceita ? '' : `
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -2286,6 +2294,26 @@ async function propostaDetail(id, onSave) {
       </div>
       <button class="btn-primary" id="accept">Aceitar proposta</button>`}
   </div>`);
+
+  // Link público para o cliente
+  (async () => {
+    try {
+      const { token } = await api(`/api/propostas/${id}/share`, { method: 'POST', body: '{}' });
+      const link = `${location.origin}/proposta.html?t=${token}`;
+      const input = form.querySelector('#prop-link');
+      input.value = link;
+      form.querySelector('#prop-copy').onclick = async () => {
+        try { await navigator.clipboard.writeText(link); toast('Link copiado'); }
+        catch { input.select(); document.execCommand('copy'); toast('Link copiado'); }
+      };
+      form.querySelector('#prop-wpp').onclick = () => {
+        const msg = `Olá${p.contact_name ? ', ' + p.contact_name.split(' ')[0] : ''}! Segue a sua proposta de honorários: ${link}`;
+        const phone = (p.phone || '').replace(/\D/g, '');
+        const wa = phone ? `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
+        window.open(wa, '_blank');
+      };
+    } catch { const inp = form.querySelector('#prop-link'); if (inp) inp.value = 'erro ao gerar link'; }
+  })();
 
   form.querySelectorAll('[data-st]').forEach((b) => b.onclick = async () => {
     try { await api(`/api/propostas/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: b.dataset.st }) });
