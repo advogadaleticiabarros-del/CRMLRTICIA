@@ -126,7 +126,7 @@ router.post('/ingest-djen', async (req: Request, res: Response) => {
   if (!lawyerId) { res.status(400).json({ error: 'lawyer_id é obrigatório' }); return; }
   const items = Array.isArray(req.body?.publications) ? req.body.publications : [];
   const pubs = normalizeDjenItems(items);
-  const result = await ingestDjenForLawyer(lawyerId, pubs);
+  const result = await ingestDjenForLawyer(lawyerId, pubs, undefined, (req as any).user?.id ?? null);
   res.json({ ...result, publicacoes: pubs.length });
 });
 

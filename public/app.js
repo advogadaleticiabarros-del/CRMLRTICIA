@@ -775,6 +775,8 @@ const ROUTES = {
             siglaTribunal: it.siglaTribunal, nomeOrgao: it.nomeOrgao, nomeClasse: it.nomeClasse,
             data_disponibilizacao: it.data_disponibilizacao, tipoComunicacao: it.tipoComunicacao,
             texto: (it.texto || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1200), link: it.link,
+            parties: (it.destinatarios || []).map((d) => ({ nome: d.nome, polo: d.polo })),
+            adv_count: (it.destinatarioadvogados || []).length,
           }));
           pubs = pubs.concat(items);
           if (items.length < itens) break;
@@ -782,8 +784,8 @@ const ROUTES = {
         if (!pubs.length) { toast('Nenhuma publicação encontrada para esta OAB no DJEN.', 'error'); return; }
         btn.textContent = 'Salvando…';
         const r = await api('/api/processes/ingest-djen', { method: 'POST', body: JSON.stringify({ lawyer_id: Number(lawyerId), publications: pubs }) });
-        toast(`OAB ${r.oab}: ${r.found} processo(s) (${r.publicacoes} publicações), ${r.novos} novo(s) cadastrado(s).`);
-        if (r.novos > 0) setTimeout(() => { location.hash = '#monitor'; }, 1500);
+        toast(`OAB ${r.oab}: ${r.found} processo(s), ${r.novos} novo(s); ${r.clientesNovos || 0} cliente(s) cadastrado(s).`);
+        if ((r.novos > 0) || (r.clientesNovos > 0)) setTimeout(() => { location.hash = '#monitor'; }, 1800);
       } catch (e) { toast(e.message, 'error'); }
       finally { btn.disabled = false; btn.textContent = original; }
     };

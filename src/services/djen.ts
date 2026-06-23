@@ -19,6 +19,8 @@ export const DJEN_HEADERS: Record<string, string> = {
 
 const onlyDigits = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
 
+export interface DjenParty { nome: string; polo: string }
+
 export interface DjenPublication {
   id: number;
   process_number: string;   // só dígitos
@@ -30,6 +32,8 @@ export interface DjenPublication {
   type: string | null;      // tipoComunicacao (Intimação, Citação…)
   texto: string;            // teor da publicação
   link: string | null;
+  parties: DjenParty[];     // destinatarios (partes representadas)
+  adv_count: number;        // nº de advogados destinatários (1 = advogada é a única)
 }
 
 /**
@@ -84,6 +88,10 @@ export function normalizeDjenItems(items: any[]): DjenPublication[] {
   for (const it of items || []) {
     const pn = onlyDigits(it.numero_processo);
     if (!pn) continue;
+    const parties: DjenParty[] = Array.isArray(it.parties)
+      ? it.parties.map((d: any) => ({ nome: d.nome || '', polo: d.polo || '' }))
+      : (it.destinatarios || []).map((d: any) => ({ nome: d.nome || '', polo: d.polo || '' }));
+    const advCount = typeof it.adv_count === 'number' ? it.adv_count : (it.destinatarioadvogados || []).length;
     out.push({
       id: Number(it.id) || 0,
       process_number: pn,
@@ -95,9 +103,16 @@ export function normalizeDjenItems(items: any[]): DjenPublication[] {
       type: it.tipoComunicacao || null,
       texto: it.texto || '',
       link: it.link || null,
+      parties: parties.filter((p) => p.nome),
+      adv_count: advCount,
     });
   }
   return out;
+}
+
+/** Heurística: nome de pessoa jurídica? (para definir tipo PF/PJ do cliente). */
+export function isCompanyName(name: string): boolean {
+  return /\b(LTDA|S\.?A\.?|EIRELI|EPP|MEI|ME|SOCIEDADE|ASSOCIA|COOPERATIVA|INSTITUTO|FUNDA[CÇ][AÃ]O|BANCO|SEGUR|COM[EÉ]RCIO|COMERCIO|IND[UÚ]STRIA|INDUSTRIA|SERVI[CÇ]OS|TECNOLOGIA|TELECOM|ENERGIA|CONSTRU|TRANSPORTE|EMPREEND|PARTICIPA[CÇ])/i.test(name || '');
 }
 
 export interface DjenProcess {
@@ -107,16 +122,26 @@ export interface DjenProcess {
   orgao: string | null;
   classe: string | null;
   last_date: string | null;
+  client_name: string | null;     // parte que a advogada representa (ou null se ambíguo)
+  client_type: 'PF' | 'PJ';
   movements: { movement_date: string | null; title: string; description: string }[];
 }
 
-/** Agrupa as publicações por processo, virando movimentações (1 por intimação). */
+/**
+ * Agrupa as publicações por processo (1 movimentação por publicação) e resolve o
+ * cliente: quando a advogada é a única destinatária da intimação (adv_count<=1), a
+ * parte é seguramente cliente dela. Em casos ambíguos, deixa null → cadastro manual.
+ */
 export function groupPublicationsByProcess(pubs: DjenPublication[]): DjenProcess[] {
-  const byProc: Record<string, DjenProcess> = {};
+  type Acc = DjenProcess & { _sole: Map<string, string>; _all: Map<string, string> };
+  const byProc: Record<string, Acc> = {};
+
   for (const p of pubs) {
     const proc = (byProc[p.process_number] ??= {
       process_number: p.process_number, process_masked: p.process_masked,
-      court: p.court, orgao: p.orgao, classe: p.classe, last_date: null, movements: [],
+      court: p.court, orgao: p.orgao, classe: p.classe, last_date: null,
+      client_name: null, client_type: 'PF', movements: [],
+      _sole: new Map(), _all: new Map(),
     });
     proc.movements.push({
       movement_date: p.date,
@@ -124,6 +149,21 @@ export function groupPublicationsByProcess(pubs: DjenPublication[]): DjenProcess
       description: (p.texto || '').replace(/\s+/g, ' ').trim().slice(0, 1200),
     });
     if (p.date && (!proc.last_date || p.date > proc.last_date)) proc.last_date = p.date;
+    for (const pt of p.parties || []) {
+      const nm = (pt.nome || '').trim();
+      if (!nm) continue;
+      const key = nm.toUpperCase().replace(/\s+/g, ' ');
+      proc._all.set(key, nm);
+      if ((p.adv_count || 0) <= 1) proc._sole.set(key, nm);
+    }
   }
-  return Object.values(byProc);
+
+  return Object.values(byProc).map((proc) => {
+    let name: string | null = null;
+    if (proc._sole.size >= 1) name = [...proc._sole.values()][0];        // advogada única → cliente certo
+    else if (proc._all.size === 1) name = [...proc._all.values()][0];    // só uma parte no processo
+    // múltiplas partes e nunca foi a única advogada → ambíguo: deixa para cadastro manual
+    const { _sole, _all, ...clean } = proc;
+    return { ...clean, client_name: name, client_type: name && isCompanyName(name) ? 'PJ' : 'PF' };
+  });
 }

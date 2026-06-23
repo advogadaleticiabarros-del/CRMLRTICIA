@@ -172,7 +172,7 @@ const dateOnly = (val: string | null): string | null => {
   return d ? d.toISOString().split('T')[0] : null;
 };
 
-interface DiscoveryResult { lawyerId: number; oab: string; found: number; novos: number; tribunais: number; }
+interface DiscoveryResult { lawyerId: number; oab: string; found: number; novos: number; tribunais: number; clientesNovos?: number; clientesVinculados?: number; }
 
 /**
  * Descobre por OAB todos os processos de UM advogado e cadastra os novos (source = djen_oab).
@@ -198,7 +198,7 @@ export async function discoverProcessesByOAB(lawyerId: number, _scope: 'national
  * descoberta server-side quanto pela ingestão vinda do navegador (que contorna
  * o bloqueio de IP do CloudFront).
  */
-export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublication[], lawyerRow?: any): Promise<DiscoveryResult> {
+export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublication[], lawyerRow?: any, createdBy: number | null = null): Promise<DiscoveryResult> {
   let lawyer = lawyerRow;
   if (!lawyer) {
     const [rows] = await db.query('SELECT * FROM lawyers WHERE id = ?', [lawyerId]) as any;
@@ -208,26 +208,58 @@ export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublicatio
   const processes = groupPublicationsByProcess(pubs);
   const tribunais = new Set<string>();
 
+  // Cria o cliente (parte representada) sem duplicar, e devolve o id. Dedup por nome.
+  let clientesNovos = 0;
+  const ensureClient = async (name: string, tipo: 'PF' | 'PJ'): Promise<number | null> => {
+    const nm = (name || '').trim();
+    if (!nm) return null;
+    const [found] = await db.query('SELECT id FROM clients WHERE LOWER(name) = LOWER(?) LIMIT 1', [nm]) as any;
+    if (found.length) return found[0].id;
+    const [ins] = await db.query(
+      "INSERT INTO clients (name, tipo, status, notes, created_by) VALUES (?, ?, 'ativo', 'Cadastrado automaticamente a partir do DJEN/OAB.', ?)",
+      [nm, tipo, createdBy]
+    ) as any;
+    clientesNovos++;
+    return ins.insertId;
+  };
+
   let novos = 0;
+  let vinculados = 0;
   for (const p of processes) {
     if (p.court) tribunais.add(p.court);
     const alias = aliasFromProcessNumber(p.process_number);
+    let processId: number;
+    let clientId: number | null;
+
     const [exists] = await db.query('SELECT id, client_id FROM legal_processes WHERE process_number = ? LIMIT 1', [p.process_number]) as any;
     if (exists.length) {
-      await saveMovements(exists[0].id, p.process_number, p.movements, 'djen_oab', exists[0].client_id ?? null);
-      await db.query('UPDATE legal_processes SET last_movement_at = (SELECT MAX(movement_date) FROM process_movements WHERE process_id = ?) WHERE id = ?', [exists[0].id, exists[0].id]);
-      continue;
+      processId = exists[0].id;
+      clientId = exists[0].client_id ?? null;
+      await saveMovements(processId, p.process_number, p.movements, 'djen_oab', clientId);
+      await db.query('UPDATE legal_processes SET last_movement_at = (SELECT MAX(movement_date) FROM process_movements WHERE process_id = ?) WHERE id = ?', [processId, processId]);
+    } else {
+      const [ins] = await db.query(
+        `INSERT INTO legal_processes
+           (lawyer_id, process_number, court, court_alias, status, source, confidential, distribution_date, last_sync_at)
+         VALUES (?, ?, ?, ?, 'ativo', 'djen_oab', 0, ?, NOW())`,
+        [lawyerId, p.process_number, p.court || null, alias, dateOnly(p.last_date)]
+      ) as any;
+      processId = ins.insertId;
+      clientId = null;
+      const novasMovs = await saveMovements(processId, p.process_number, p.movements, 'djen_oab', null);
+      await db.query('UPDATE legal_processes SET last_movement_at = (SELECT MAX(movement_date) FROM process_movements WHERE process_id = ?) WHERE id = ?', [processId, processId]);
+      novos++;
+      await logMonitor(processId, lawyerId, 'nova_movimentacao', 'djen_oab', `Processo descoberto via DJEN (${novasMovs} publicação/ões)`);
     }
-    const [ins] = await db.query(
-      `INSERT INTO legal_processes
-         (lawyer_id, process_number, court, court_alias, status, source, confidential, distribution_date, last_sync_at)
-       VALUES (?, ?, ?, ?, 'ativo', 'djen_oab', 0, ?, NOW())`,
-      [lawyerId, p.process_number, p.court || null, alias, dateOnly(p.last_date)]
-    ) as any;
-    const novasMovs = await saveMovements(ins.insertId, p.process_number, p.movements, 'djen_oab', null);
-    await db.query('UPDATE legal_processes SET last_movement_at = (SELECT MAX(movement_date) FROM process_movements WHERE process_id = ?) WHERE id = ?', [ins.insertId, ins.insertId]);
-    novos++;
-    await logMonitor(ins.insertId, lawyerId, 'nova_movimentacao', 'djen_oab', `Processo descoberto via DJEN (${novasMovs} publicação/ões)`);
+
+    // Vincula o cliente (parte representada) se o processo ainda não tiver um
+    if (!clientId && p.client_name) {
+      const cid = await ensureClient(p.client_name, p.client_type);
+      if (cid) {
+        await db.query('UPDATE legal_processes SET client_id = ? WHERE id = ? AND client_id IS NULL', [cid, processId]);
+        vinculados++;
+      }
+    }
   }
 
   await db.query('UPDATE lawyers SET last_sync_at = NOW() WHERE id = ?', [lawyerId]);
@@ -245,7 +277,7 @@ export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublicatio
     }
   }
 
-  return { lawyerId, oab: `${lawyer.oab_number}/${lawyer.oab_uf}`, found: processes.length, novos, tribunais: tribunais.size };
+  return { lawyerId, oab: `${lawyer.oab_number}/${lawyer.oab_uf}`, found: processes.length, novos, tribunais: tribunais.size, clientesNovos, clientesVinculados: vinculados };
 }
 
 /** Roda a descoberta por OAB para todos os advogados ativos com monitoramento ligado. */
