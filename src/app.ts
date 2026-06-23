@@ -68,6 +68,20 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
+  // TEMPORÁRIO — limpa prazos detectados resolvidos (anteriores a 01/06/2026)
+  app.get('/api/_clean-deadlines', async (_req, res) => {
+    try {
+      const { db } = await import('./config/database');
+      const before = '2026-06-01';
+      const [[ant]] = await db.query('SELECT COUNT(*) total FROM detected_deadlines WHERE start_date IS NOT NULL AND start_date < ?', [before]) as any;
+      const [r] = await db.query('DELETE FROM detected_deadlines WHERE start_date IS NOT NULL AND start_date < ?', [before]) as any;
+      const [[rest]] = await db.query("SELECT COUNT(*) total FROM detected_deadlines WHERE status='a_confirmar'") as any;
+      res.json({ before, removidos: r.affectedRows, eram: ant.total, restantes_a_confirmar: rest.total });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
 

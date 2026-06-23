@@ -36,6 +36,9 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     const trig = DEADLINE_TRIGGERS.find((t) => t.re.test(text));
     if (!trig) return;
     const start = toDate(m.movement_date) || new Date();
+    // Publicação antiga (provavelmente já respondida/resolvida): não cria prazo.
+    const DETECT_MAX_AGE_DAYS = 45;
+    if ((Date.now() - start.getTime()) / 86_400_000 > DETECT_MAX_AGE_DAYS) return;
     const startStr = start.toISOString().split('T')[0];
     await db.query(
       `INSERT INTO detected_deadlines (process_id, client_id, movement_text, detected_keyword, suggested_type, suggested_days, start_date, status)

@@ -65,6 +65,17 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
   res.json({ success: true, due_date: due, deadline_id: deadlineId, linked_to_case: !!deadlineId });
 });
 
+// ── DELETE /api/prazos-detectados/antigos?before=YYYY-MM-DD ─────────────────
+// Remove prazos detectados que iniciaram antes da data (já respondidos/resolvidos).
+router.delete('/antigos', async (req: Request, res: Response) => {
+  const before = (req.query.before as string) || '';
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(before)) { res.status(400).json({ error: 'Informe before=YYYY-MM-DD' }); return; }
+  const [r] = await db.query(
+    'DELETE FROM detected_deadlines WHERE start_date IS NOT NULL AND start_date < ?', [before]
+  ) as any;
+  res.json({ success: true, before, removidos: r.affectedRows });
+});
+
 // ── POST /api/prazos-detectados/:id/descartar ───────────────────────────────
 router.post('/:id/descartar', async (req: Request, res: Response) => {
   const [r] = await db.query("UPDATE detected_deadlines SET status = 'descartado' WHERE id = ?", [req.params.id]) as any;
