@@ -231,16 +231,20 @@ async function notificationSettings() {
 }
 
 // ── Router ──
+let routeToken = 0;
 function router() {
+  const token = ++routeToken;
   const allowed = navForRole();
   let route = (location.hash.replace('#', '') || allowed[0]);
   if (!allowed.includes(route)) route = allowed[0]; // respeita o papel
   document.querySelectorAll('.nav-item').forEach((a) =>
     a.classList.toggle('active', a.dataset.route === route));
   const page = $('#page');
+  if (!page) return;
   page.innerHTML = '<div class="spinner"></div>';
   const fn = ROUTES[route] || ROUTES[allowed[0]];
-  fn(page).catch((err) => page.innerHTML = `<div class="empty">${err.message}</div>`);
+  // Só escreve o erro se ainda estivermos na mesma rota (evita atropelar a tela nova)
+  fn(page).catch((err) => { if (token === routeToken) page.innerHTML = `<div class="empty">${err.message}</div>`; });
 }
 
 // ── Pages ──
@@ -491,8 +495,10 @@ const ROUTES = {
         const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         html += `<div class="cal-day ${other} ${isToday}" data-date="${ds}" title="Clique para lançar um compromisso"><span class="num">${d.getDate()}</span>${chips}${more}</div>`;
       }
-      $('#cal-body').innerHTML = html;
-      $('#cal-body').querySelectorAll('.cal-day').forEach((cell) => {
+      const calBody = $('#cal-body');
+      if (!calBody) return; // trocou de tela durante o carregamento do feed
+      calBody.innerHTML = html;
+      calBody.querySelectorAll('.cal-day').forEach((cell) => {
         cell.onclick = (ev) => {
           const chip = ev.target.closest('.cal-chip');
           if (chip && chip.dataset.id) {
@@ -510,6 +516,7 @@ const ROUTES = {
       let st = { connected: false };
       try { st = await api('/api/calendar/google/status'); } catch {}
       const area = $('#google-area');
+      if (!area) return; // trocou de tela durante o carregamento
       if (st.connected) {
         area.innerHTML = `<small style="color:var(--green)">${st.google_email || 'Google conectado'}</small>
           <button class="btn-sm" id="g-sync">Sincronizar</button>`;
