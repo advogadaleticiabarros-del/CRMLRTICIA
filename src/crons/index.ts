@@ -39,8 +39,8 @@ export function startCronJobs() {
     } catch {}
   });
 
-  // ── a cada 30 min: sincroniza Google Calendar ─────────────────────────────
-  cron.schedule('*/30 * * * *', async () => {
+  // ── a cada 10 min: sincroniza Google Calendar ─────────────────────────────
+  cron.schedule('*/10 * * * *', async () => {
     try {
       const [users] = await db.query(
         'SELECT DISTINCT user_id FROM google_accounts WHERE sync_enabled = 1'
