@@ -2,8 +2,10 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
+import { buildTemplate, buildProcuracao, buildDeclaracao } from '../services/contractTemplates';
 
 const router = Router();
+const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
 
 // ── GET /api/public/proposta/:token — proposta para o cliente (sem login) ────
 router.get('/proposta/:token', async (req: Request, res: Response) => {
@@ -19,33 +21,74 @@ router.get('/proposta/:token', async (req: Request, res: Response) => {
   res.json(rows[0]);
 });
 
-// ── POST /api/public/proposta/:token/aceitar — cliente aceita (registra) ─────
+// ── POST /api/public/proposta/:token/aceitar — cliente aceita ────────────────
+// Registra o aceite e dispara a ESTEIRA DE PRODUÇÃO DE CONTRATO: gera o contrato
+// de prestação de serviços, a procuração e a declaração de hipossuficiência.
 router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
   const [rows] = await db.query(
-    'SELECT id, user_id, lead_id, client_id, contact_name, title, aceito_em FROM propostas WHERE public_token = ?',
+    `SELECT id, user_id, lead_id, client_id, contact_name, cpf, phone, email, legal_area, valor, title, aceito_em
+       FROM propostas WHERE public_token = ?`,
     [req.params.token]
   ) as any;
   if (!rows.length) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
   const p = rows[0];
+  if (p.aceito_em) { res.json({ success: true, already: true }); return; }
 
-  if (!p.aceito_em) {
-    await db.query("UPDATE propostas SET aceito_em = NOW(), status = 'em_negociacao' WHERE id = ?", [p.id]);
-    await logActivity({
-      leadId: p.lead_id ?? null, clientId: p.client_id ?? null,
-      actorId: p.user_id, actorName: p.contact_name || 'Cliente',
-      eventType: 'proposal_status', title: 'Proposta ACEITA pelo cliente',
-      description: `${p.title} — aceite registrado pelo link público.`,
-    });
-    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
-    for (const a of admins) {
-      await notificationService.create({
-        userId: a.id, title: 'Proposta aceita pelo cliente',
-        message: `${p.contact_name || 'O cliente'} aceitou a proposta "${p.title}". Confirme para gerar o contrato.`,
-        notificationType: 'proposta_aceita', channel: 'sistema', scheduledAt: new Date(),
-      });
+  // 1) Garante o cliente (parte representada) — sem duplicar (dedup por nome)
+  let clientId: number | null = p.client_id ?? null;
+  if (!clientId && p.contact_name) {
+    const [found] = await db.query('SELECT id FROM clients WHERE LOWER(name) = LOWER(?) LIMIT 1', [p.contact_name]) as any;
+    if (found.length) clientId = found[0].id;
+    else {
+      const [ins] = await db.query(
+        "INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, status, notes, created_by) VALUES (?, 'PF', ?, ?, ?, 'ativo', 'Cliente da proposta aceita.', ?)",
+        [p.contact_name, p.cpf || null, p.email || null, p.phone || null, p.user_id]
+      ) as any;
+      clientId = ins.insertId;
     }
+    await db.query('UPDATE propostas SET client_id = ? WHERE id = ?', [clientId, p.id]);
   }
-  res.json({ success: true });
+
+  // 2) Esteira de produção: contrato + procuração + declaração (sem duplicar)
+  const area = AREAS.includes(p.legal_area) ? p.legal_area : 'outro';
+  let contractId: number | null = null;
+  const [existing] = await db.query(
+    'SELECT id FROM contracts WHERE (lead_id <=> ? OR client_id <=> ?) AND title LIKE ? LIMIT 1',
+    [p.lead_id ?? null, clientId, `Contrato — ${p.contact_name || ''}%`]
+  ) as any;
+  if (existing.length) {
+    contractId = existing[0].id;
+  } else {
+    const content = buildTemplate({ clientName: p.contact_name || '', area, value: Number(p.valor) || undefined });
+    const [c] = await db.query(
+      `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'em_producao')`,
+      [p.user_id, clientId, p.lead_id ?? null, area, `Contrato — ${p.contact_name || 'cliente'}`,
+       content, buildProcuracao(p.contact_name || ''), buildDeclaracao(p.contact_name || ''), Number(p.valor) || null]
+    ) as any;
+    contractId = c.insertId;
+  }
+
+  // 3) Marca aceite, move o lead e registra
+  await db.query("UPDATE propostas SET aceito_em = NOW(), status = 'aceita' WHERE id = ?", [p.id]);
+  if (p.lead_id) await db.query("UPDATE leads SET status = 'fechada', analise_since = NULL WHERE id = ?", [p.lead_id]);
+
+  await logActivity({
+    leadId: p.lead_id ?? null, clientId,
+    actorId: p.user_id, actorName: p.contact_name || 'Cliente',
+    eventType: 'proposal_status', title: 'Proposta ACEITA pelo cliente',
+    description: `${p.title} — aceite pelo link. Contrato, procuração e declaração de hipossuficiência gerados (esteira de produção).`,
+  });
+  const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+  for (const a of admins) {
+    await notificationService.create({
+      userId: a.id, clientId: clientId ?? undefined, title: 'Proposta aceita — contrato em produção',
+      message: `${p.contact_name || 'O cliente'} aceitou a proposta. Contrato, procuração e declaração gerados para revisão e assinatura.`,
+      notificationType: 'proposta_aceita', channel: 'sistema', scheduledAt: new Date(),
+    });
+  }
+
+  res.json({ success: true, contract_id: contractId });
 });
 
 export default router;

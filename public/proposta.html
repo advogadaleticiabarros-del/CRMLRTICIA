@@ -8,42 +8,110 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet" />
   <style>
+    :root {
+      --espresso: #211C18; --panel: #2C2520; --panel-2: #1d1814; --line: #3c3329;
+      --gold: #C9A962; --gold-2: #B8943F; --gold-soft: #D4BC7D;
+      --cream: #FAF6F0; --muted: #B0A48E; --muted-2: #8a8070;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', system-ui, sans-serif; background: #231E1A; color: #FAF6F0; line-height: 1.6; padding: 20px; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: 'Inter', system-ui, sans-serif; color: var(--cream); line-height: 1.6; padding: 22px 18px 48px;
+      background:
+        radial-gradient(1100px 520px at 50% -8%, rgba(201,169,98,.16), transparent 60%),
+        radial-gradient(800px 600px at 100% 100%, rgba(184,148,63,.08), transparent 55%),
+        var(--espresso);
+      min-height: 100vh;
+    }
     .wrap { max-width: 640px; margin: 0 auto; }
-    .brand { text-align: center; padding: 18px 0 6px; }
-    .brand img { width: 60px; height: 60px; }
-    .brand h1 { font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 30px; color: #C9A962; margin-top: 6px; letter-spacing: .5px; }
-    .brand small { color: #B8943F; letter-spacing: 3px; text-transform: uppercase; font-size: 11px; }
-    .card { background: #2E2720; border: 1px solid #3A3228; border-radius: 16px; padding: 22px; margin-top: 16px; }
-    .card h2 { font-family: 'Cormorant Garamond', serif; font-size: 21px; color: #C9A962; margin-bottom: 14px; font-weight: 600; }
-    .ttl { font-family: 'Cormorant Garamond', serif; font-size: 24px; color: #FAF6F0; text-align: center; margin-top: 6px; }
-    .line { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid #3A3228; font-size: 14px; }
+
+    /* Entradas animadas (stagger) */
+    @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+    @keyframes glow { 0%,100% { box-shadow: 0 0 0 1px rgba(201,169,98,.18), 0 18px 40px -24px rgba(0,0,0,.7); } 50% { box-shadow: 0 0 0 1px rgba(201,169,98,.35), 0 18px 44px -22px rgba(0,0,0,.7); } }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    @keyframes pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
+    .anim { opacity: 0; animation: rise .7s cubic-bezier(.16,.8,.3,1) forwards; }
+
+    .brand { text-align: center; padding: 12px 0 4px; }
+    .brand img { width: 58px; height: 58px; filter: drop-shadow(0 4px 12px rgba(0,0,0,.5)); }
+    .brand h1 { font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 32px; color: var(--gold); margin-top: 8px; letter-spacing: .5px; }
+    .brand small { color: var(--gold-2); letter-spacing: 4px; text-transform: uppercase; font-size: 10.5px; }
+    .divider { width: 54px; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); margin: 14px auto 4px; }
+    .ttl { font-family: 'Cormorant Garamond', serif; font-size: 27px; font-weight: 600; color: var(--cream); text-align: center; letter-spacing: .3px; }
+    .ttl-sub { text-align: center; color: var(--muted); font-size: 13px; margin-top: 2px; margin-bottom: 4px; }
+
+    .card {
+      background: linear-gradient(180deg, var(--panel), #271f1a);
+      border: 1px solid var(--line); border-radius: 18px; padding: 22px 22px;
+      margin-top: 16px; box-shadow: 0 18px 40px -28px rgba(0,0,0,.8);
+    }
+    .card h2 {
+      font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--gold); margin-bottom: 14px; font-weight: 600;
+      letter-spacing: .3px; position: relative; padding-bottom: 9px;
+    }
+    .card h2::after { content: ''; position: absolute; left: 0; bottom: 0; width: 34px; height: 2px; background: var(--gold); border-radius: 2px; }
+
+    .line { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(60,51,41,.7); font-size: 14px; }
     .line:last-child { border-bottom: none; }
-    .line span { color: #B0A48E; }
-    .line strong { color: #FAF6F0; text-align: right; }
-    .desc { background: #1f1b17; border-radius: 10px; padding: 14px 16px; font-size: 14px; color: #E8E0D2; white-space: pre-wrap; }
-    .parc { background: #1f1b17; border-radius: 12px; padding: 6px 16px; }
-    .parc .line.total strong { color: #C9A962; font-size: 19px; }
-    .parc .line.total span { color: #D8CEB8; font-weight: 600; }
-    .clauses { background: #FAF6F0; color: #2E2720; border-radius: 10px; padding: 18px; max-height: 260px; overflow-y: auto; white-space: pre-wrap; font-family: Georgia, serif; font-size: 13px; line-height: 1.7; }
-    button { font-family: inherit; cursor: pointer; border: none; border-radius: 12px; font-weight: 600; }
-    .btn-gold { background: linear-gradient(135deg, #C9A962, #B8943F); color: #231E1A; padding: 16px; font-size: 16px; width: 100%; margin-top: 18px; }
-    .btn-gold:disabled { opacity: .5; }
-    .accepted { text-align: center; padding: 16px; color: #8FB98A; font-weight: 600; margin-top: 16px; background: #1f2a1c; border-radius: 12px; }
-    .legal { color: #8a8270; font-size: 11.5px; margin-top: 18px; text-align: center; line-height: 1.5; }
-    .loading, .err { text-align: center; padding: 40px 16px; color: #B0A48E; }
+    .line span { color: var(--muted); }
+    .line strong { color: var(--cream); text-align: right; font-weight: 600; }
+
+    .hon { background: var(--panel-2); border-radius: 14px; padding: 4px 16px; border: 1px solid rgba(201,169,98,.14); }
+    .hon .line.total { border-top: 1px solid rgba(201,169,98,.25); margin-top: 4px; padding-top: 12px; }
+    .hon .line.total span { color: var(--gold-soft); font-weight: 600; font-size: 15px; }
+    .hon .line.total strong {
+      color: transparent; font-size: 22px; font-family: 'Cormorant Garamond', serif; font-weight: 700;
+      background: linear-gradient(90deg, var(--gold-2), var(--gold-soft), var(--gold-2)); background-size: 200% auto;
+      -webkit-background-clip: text; background-clip: text; animation: shimmer 5s linear infinite;
+    }
+
+    .desc { font-size: 14.5px; color: #E8E0D2; white-space: pre-wrap; line-height: 1.75; }
+    .clauses {
+      background: var(--cream); color: #2b241d; border-radius: 12px; padding: 18px 18px; max-height: 260px; overflow-y: auto;
+      white-space: pre-wrap; font-family: Georgia, 'Times New Roman', serif; font-size: 13px; line-height: 1.75;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+    }
+    .clauses::-webkit-scrollbar { width: 8px; } .clauses::-webkit-scrollbar-thumb { background: #cdbfa6; border-radius: 8px; }
+
+    .agree { display: flex; align-items: flex-start; gap: 12px; margin-top: 16px; cursor: pointer; font-size: 14px; color: var(--cream);
+      padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; transition: border-color .25s, background .25s; }
+    .agree:hover { border-color: rgba(201,169,98,.5); }
+    .agree.on { border-color: var(--gold); background: rgba(201,169,98,.08); }
+    .agree input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--gold); margin-top: 1px; cursor: pointer; }
+
+    button { font-family: inherit; cursor: pointer; border: none; border-radius: 14px; font-weight: 600; }
+    .btn-accept {
+      width: 100%; margin-top: 18px; padding: 17px; font-size: 16px; letter-spacing: .3px; color: #231E1A;
+      background: linear-gradient(135deg, var(--gold-soft), var(--gold-2)); position: relative; overflow: hidden;
+      box-shadow: 0 14px 30px -14px rgba(201,169,98,.6); transition: transform .2s, box-shadow .2s, opacity .2s;
+    }
+    .btn-accept:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 20px 38px -14px rgba(201,169,98,.7); }
+    .btn-accept:active:not(:disabled) { transform: translateY(0); }
+    .btn-accept:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(.3); }
+
+    .accepted { text-align: center; padding: 26px 18px; margin-top: 18px; border-radius: 16px;
+      background: linear-gradient(180deg, rgba(143,185,138,.14), rgba(143,185,138,.05)); border: 1px solid rgba(143,185,138,.4); }
+    .accepted .ck { width: 56px; height: 56px; border-radius: 50%; background: #8FB98A; color: #1d2a1b; display: flex; align-items: center;
+      justify-content: center; font-size: 30px; margin: 0 auto 12px; animation: pop .5s cubic-bezier(.2,1.2,.3,1) both; }
+    .accepted strong { color: #c7e0c2; font-size: 17px; }
+    .accepted p { color: var(--muted); font-size: 13.5px; margin-top: 6px; }
+
+    .legal { color: var(--muted-2); font-size: 11.5px; margin-top: 22px; text-align: center; line-height: 1.6; }
+    .state { text-align: center; padding: 60px 16px; color: var(--muted); }
+    .spin { width: 34px; height: 34px; border: 3px solid rgba(201,169,98,.25); border-top-color: var(--gold); border-radius: 50%; margin: 0 auto 14px; animation: spin 1s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <div class="brand">
+    <div class="brand anim">
       <img src="/logo.png" alt="" onerror="this.style.display='none'" />
       <h1>Letícia Barros</h1>
       <small>Advocacia &amp; Consultoria</small>
+      <div class="divider"></div>
     </div>
-    <div id="content"><div class="loading">Carregando proposta…</div></div>
-    <p class="legal">Documento gerado eletronicamente. Em caso de dúvidas, fale com o escritório.</p>
+    <div id="content"><div class="state"><div class="spin"></div>Carregando sua proposta…</div></div>
+    <p class="legal">Documento gerado eletronicamente · Advocacia Letícia Barros<br>Em caso de dúvidas, fale com o escritório.</p>
   </div>
 
   <script>
@@ -53,60 +121,99 @@
     const AREA_PT = { trabalhista:'Trabalhista', gestante:'Gestante/Maternidade', familia:'Família', civel:'Cível', previdenciario:'Previdenciário', consumidor:'Consumidor', outro:'Outro' };
     const esc = (s) => String(s || '').replace(/[&<>]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
 
-    function parcelHtml(h) {
+    function honHtml(h, valorFallback) {
       const pc = h && h.parcelamento;
-      if (!pc || !pc.total) return '';
+      if (!pc || !pc.total) return `<div class="hon"><div class="line total"><span>Honorário total</span><strong>${money(valorFallback)}</strong></div></div>`;
       const qtd = Number(pc.parcelas) || 1;
       const ult = (qtd > 1 && pc.ultima_parcela && pc.ultima_parcela !== pc.valor_parcela) ? ` (última de ${money(pc.ultima_parcela)})` : '';
-      return `
-        <div class="card"><h2>Honorários</h2>
-          <div class="parc">
-            ${pc.entrada ? `<div class="line"><span>Entrada${pc.entrada_data ? ' · ' + fmtDate(pc.entrada_data) : ''}</span><strong>${money(pc.entrada)}</strong></div>` : ''}
-            <div class="line"><span>Parcelas</span><strong>${qtd}× de ${money(pc.valor_parcela)}${ult}</strong></div>
-            ${pc.primeiro_vencimento ? `<div class="line"><span>1º vencimento</span><strong>${fmtDate(pc.primeiro_vencimento)} (mensais)</strong></div>` : ''}
-            <div class="line total"><span>Total</span><strong>${money(pc.total)}</strong></div>
-          </div>
-        </div>`;
+      return `<div class="hon">
+        ${pc.entrada ? `<div class="line"><span>Entrada${pc.entrada_data ? ' · ' + fmtDate(pc.entrada_data) : ''}</span><strong>${money(pc.entrada)}</strong></div>` : ''}
+        <div class="line"><span>Parcelas</span><strong>${qtd}× de ${money(pc.valor_parcela)}${ult}</strong></div>
+        ${pc.primeiro_vencimento ? `<div class="line"><span>1º vencimento</span><strong>${fmtDate(pc.primeiro_vencimento)} · mensais</strong></div>` : ''}
+        <div class="line total"><span>Honorário total</span><strong>${money(pc.total)}</strong></div>
+      </div>`;
     }
 
     async function load() {
-      if (!token) { document.getElementById('content').innerHTML = '<div class="err">Link inválido.</div>'; return; }
+      const root = document.getElementById('content');
+      if (!token) { root.innerHTML = '<div class="state">Link inválido.</div>'; return; }
       let p;
-      try {
-        const r = await fetch('/api/public/proposta/' + encodeURIComponent(token));
-        if (!r.ok) throw new Error();
-        p = await r.json();
-      } catch { document.getElementById('content').innerHTML = '<div class="err">Proposta não encontrada ou link expirado.</div>'; return; }
+      try { const r = await fetch('/api/public/proposta/' + encodeURIComponent(token)); if (!r.ok) throw 0; p = await r.json(); }
+      catch { root.innerHTML = '<div class="state">Proposta não encontrada ou link expirado.</div>'; return; }
 
       const h = p.honorarios || {};
       const aceito = !!p.aceito_em;
-      document.getElementById('content').innerHTML = `
-        <p class="ttl">Proposta de Honorários</p>
-        <div class="card">
-          <div class="line"><span>Cliente</span><strong>${esc(p.contact_name)}</strong></div>
+      let d = 0; const delay = () => `style="animation-delay:${(d++ * .12).toFixed(2)}s"`;
+
+      root.innerHTML = `
+        <p class="ttl anim" ${delay()}>Proposta de Honorários</p>
+        <p class="ttl-sub anim" ${delay()}>Preparada com cuidado para o seu caso</p>
+
+        <div class="card anim" ${delay()}>
+          <h2>Cliente</h2>
+          <div class="line"><span>Nome</span><strong>${esc(p.contact_name)}</strong></div>
           <div class="line"><span>Área</span><strong>${esc(AREA_PT[p.legal_area] || p.legal_area || '—')}</strong></div>
           <div class="line"><span>Tipo de causa</span><strong>${esc(p.tipo_causa || '—')}</strong></div>
         </div>
-        ${p.description ? `<div class="card"><h2>O caso</h2><div class="desc">${esc(p.description)}</div></div>` : ''}
-        ${parcelHtml(h) || `<div class="card"><h2>Honorários</h2><div class="parc"><div class="line total"><span>Total</span><strong>${money(p.valor)}</strong></div></div></div>`}
-        ${p.observacoes ? `<div class="card"><h2>Condições e cláusulas</h2><div class="clauses">${esc(p.observacoes)}</div></div>` : ''}
+
+        <div class="card anim" ${delay()}>
+          <h2>Honorários</h2>
+          ${honHtml(h, p.valor)}
+        </div>
+
+        ${p.observacoes ? `
+        <div class="card anim" ${delay()}>
+          <h2>Condições e cláusulas</h2>
+          <div class="clauses">${esc(p.observacoes)}</div>
+          <label class="agree" id="agree-box">
+            <input type="checkbox" id="agree" ${aceito ? 'checked disabled' : ''}>
+            <span>Li e concordo com as condições e cláusulas acima.</span>
+          </label>
+        </div>` : ''}
+
+        ${p.description ? `
+        <div class="card anim" ${delay()}>
+          <h2>Resumo do caso</h2>
+          <div class="desc">${esc(p.description)}</div>
+        </div>` : ''}
+
         ${p.validade ? `<p class="legal">Validade desta proposta: ${fmtDate(p.validade)}</p>` : ''}
-        <div id="accept-area"></div>`;
+        <div class="anim" ${delay()} id="accept-area"></div>`;
 
       const area = document.getElementById('accept-area');
-      if (aceito) {
-        area.innerHTML = `<div class="accepted">✓ Proposta aceita. Obrigado! O escritório dará sequência ao contrato.</div>`;
-      } else {
-        area.innerHTML = `<button class="btn-gold" id="accept">Aceitar proposta</button>`;
-        document.getElementById('accept').onclick = async () => {
-          const b = document.getElementById('accept'); b.disabled = true; b.textContent = 'Registrando…';
-          try {
-            const r = await fetch('/api/public/proposta/' + encodeURIComponent(token) + '/aceitar', { method: 'POST' });
-            if (!r.ok) throw new Error();
-            area.innerHTML = `<div class="accepted">✓ Proposta aceita. Obrigado! O escritório dará sequência ao contrato.</div>`;
-          } catch { b.disabled = false; b.textContent = 'Aceitar proposta'; alert('Não foi possível registrar agora. Tente novamente.'); }
-        };
-      }
+      const hasClauses = !!p.observacoes;
+      const agree = document.getElementById('agree');
+      const agreeBox = document.getElementById('agree-box');
+
+      const showAccepted = () => { area.innerHTML = `
+        <div class="accepted">
+          <div class="ck">✓</div>
+          <strong>Proposta aceita. Muito obrigada!</strong>
+          <p>Seu contrato de prestação de serviços, a procuração e a declaração de hipossuficiência já estão sendo preparados. O escritório entrará em contato para a assinatura.</p>
+        </div>`; };
+
+      if (aceito) { showAccepted(); return; }
+
+      area.innerHTML = `<button class="btn-accept" id="accept" disabled>Aceitar proposta</button>`;
+      const btn = document.getElementById('accept');
+      const refresh = () => {
+        const ok = !hasClauses || (agree && agree.checked);
+        btn.disabled = !ok;
+        if (agreeBox) agreeBox.classList.toggle('on', !!(agree && agree.checked));
+      };
+      if (agree) agree.onchange = refresh;
+      refresh();
+
+      btn.onclick = async () => {
+        if (btn.disabled) return;
+        btn.disabled = true; btn.textContent = 'Registrando seu aceite…';
+        try {
+          const r = await fetch('/api/public/proposta/' + encodeURIComponent(token) + '/aceitar', { method: 'POST' });
+          if (!r.ok) throw 0;
+          showAccepted();
+          area.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch { btn.disabled = false; btn.textContent = 'Aceitar proposta'; alert('Não foi possível registrar agora. Tente novamente.'); }
+      };
     }
     load();
   </script>
