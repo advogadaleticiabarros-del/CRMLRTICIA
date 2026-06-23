@@ -1845,6 +1845,7 @@ async function leadDetail(id, onSave) {
     <div id="loss-wrap" style="display:none">${field('Motivo da perda', 'loss_reason', { value: l.loss_reason || '', type: 'textarea' })}</div>
     <button class="btn-primary" id="move">Atualizar etapa</button>
     <hr style="border:none;border-top:1px solid var(--border)">
+    <button class="btn-gold" id="gen-prop" style="width:100%">Gerar proposta</button>
     <button class="btn-gold" id="close" style="width:100%">Fechar negócio e gerar contrato</button>
     <hr style="border:none;border-top:1px solid var(--border)">
     <div><strong style="color:var(--navy)">Histórico da jornada</strong><p class="sub" style="margin:2px 0 8px">Tudo registrado — do primeiro contato ao fim do processo</p></div>
@@ -1868,6 +1869,7 @@ async function leadDetail(id, onSave) {
       closeModal(); toast('Etapa atualizada'); onSave();
     } catch (e) { toast(e.message, 'error'); }
   };
+  form.querySelector('#gen-prop').onclick = () => { closeModal(); propostaForm(onSave, l); };
   form.querySelector('#close').onclick = async () => {
     try {
       const ct = await api(`/api/contracts/from-lead/${id}`, { method: 'POST', body: JSON.stringify({}) });
@@ -1899,24 +1901,144 @@ async function intakeForm(onSave) {
   openModal('Novo atendimento', form);
 }
 
-async function propostaForm(onSave) {
-  const clients = await api('/api/clients?limit=100');
-  const opts = clients.data.map((c) => ({ v: c.id, t: c.name }));
-  const form = el(`<form class="form-grid">
-    ${field('Cliente *', 'client_id', { options: opts })}
-    ${field('Título *', 'title')}
-    <div class="form-row">${field('Valor (R$)', 'valor', { type: 'number' })}${field('Validade', 'validade', { type: 'date' })}</div>
-    ${field('Descrição', 'description', { type: 'textarea' })}
+const TIPOS_CAUSA = [
+  'Reclamação trabalhista','Verbas rescisórias','Horas extras','Adicional de insalubridade','Reconhecimento de vínculo','Acidente de trabalho','Assédio moral','Reversão de justa causa','Estabilidade gestante',
+  'Aposentadoria por idade','Aposentadoria por tempo de contribuição','Aposentadoria por invalidez','Auxílio-doença','BPC/LOAS - Idoso','BPC/LOAS - Deficiente','Pensão por morte','Salário-maternidade','Revisão de benefício',
+  'Divórcio consensual','Divórcio litigioso','Guarda de filhos','Pensão alimentícia','Investigação de paternidade','Inventário','Partilha de bens','Regulamentação de visitas','Reconhecimento de união estável',
+  'Cobrança','Indenização por danos morais','Indenização por danos materiais','Despejo','Usucapião','Revisão contratual','Responsabilidade civil',
+  'Cobrança indevida','Negativação indevida','Vício do produto','Vício do serviço','Cancelamento de contrato','Superendividamento',
+];
+
+const OBSERVACOES_PROPOSTA = `OBSERVAÇÕES E CONDIÇÕES (Estatuto da Advocacia — Lei 8.906/94 — e Código de Ética e Disciplina da OAB)
+
+1. HONORÁRIOS: Os honorários ajustados remuneram exclusivamente a atuação descrita nesta proposta, não abrangendo recursos, incidentes ou demandas autônomas, que serão objeto de novo ajuste.
+
+2. DESPESAS E CUSTAS: Custas judiciais, taxas, emolumentos, honorários periciais e demais despesas processuais correm por conta exclusiva do(a) CONTRATANTE, não estando incluídas nos honorários.
+
+3. DESLOCAMENTO E DILIGÊNCIAS: Diligências e deslocamentos para fora da comarca/sede do escritório serão cobrados à parte, conforme tabela vigente.
+
+4. COMPROMISSOS: O não comparecimento do(a) CONTRATANTE a audiências, perícias ou reuniões previamente agendadas, sem aviso prévio e sem justificativa por motivo de saúde devidamente comprovado, será considerado falta grave, podendo ensejar a rescisão do contrato.
+
+5. ATRASO NO PAGAMENTO: O atraso no pagamento de qualquer parcela sujeitará o(a) CONTRATANTE a juros de mora de 1% (um por cento) ao mês e multa de 2% (dois por cento) sobre o valor em atraso.
+
+6. SUSPENSÃO POR INADIMPLÊNCIA: A falta de pagamento por 2 (dois) meses consecutivos autoriza a suspensão imediata dos serviços advocatícios, sem prejuízo da cobrança dos valores devidos e da eventual rescisão contratual.
+
+7. RESCISÃO: A rescisão observará o Estatuto da Advocacia e o Código de Ética da OAB, sendo devidos os honorários proporcionais aos serviços já prestados.
+
+8. HONORÁRIOS SUCUMBENCIAIS: Os honorários de sucumbência, quando houver, pertencem exclusivamente ao(à) advogado(a) (art. 23 da Lei 8.906/94).`;
+
+const HON_MODS = [
+  { k: 'entrada', label: 'Entrada (R$)', kind: 'money' },
+  { k: 'fixo', label: 'Honorário fixo (R$)', kind: 'money', extra: 'parcelas', extraLabel: 'parcelas' },
+  { k: 'exito', label: 'Êxito (% sobre o proveito)', kind: 'pct' },
+  { k: 'sucumbencia', label: 'Sucumbência (pertence ao advogado)', kind: 'flag' },
+  { k: 'ad_exitum', label: 'Ad exitum / quota litis (% — só em caso de êxito)', kind: 'pct' },
+  { k: 'consulta', label: 'Consulta (R$)', kind: 'money' },
+  { k: 'mensal', label: 'Mensal / advocacia de partido (R$)', kind: 'money' },
+  { k: 'diligencia', label: 'Diligência / atos isolados (R$)', kind: 'money', extra: 'diligencia_desc', extraLabel: 'descrição' },
+  { k: 'arbitrado', label: 'Arbitrado judicialmente', kind: 'flag' },
+];
+const HON_PRESETS = [
+  ['Fixo + Êxito', ['fixo', 'exito']],
+  ['Fixo + Sucumbência', ['fixo', 'sucumbencia']],
+  ['Fixo + Êxito + Sucumbência', ['fixo', 'exito', 'sucumbencia']],
+  ['Só Êxito', ['ad_exitum']],
+  ['Mensal + Extraordinários', ['mensal']],
+  ['Consulta + Causa', ['consulta', 'fixo']],
+];
+
+async function propostaForm(onSave, lead = null) {
+  const clients = await api('/api/clients?limit=200');
+  const sec = (t) => `<div class="prop-sec">${t}</div>`;
+  const honRows = HON_MODS.map((m) => `
+    <label class="hon-mod"><input type="checkbox" data-hon="${m.k}"> <span>${m.label}</span></label>
+    <div class="hon-val" data-hon-val="${m.k}">
+      ${m.kind !== 'flag' ? `<input type="number" step="0.01" data-hon-input="${m.k}" placeholder="${m.kind === 'pct' ? '%' : 'R$ 0,00'}">` : '<small style="color:var(--text-muted)">previsto no contrato</small>'}
+      ${m.extra ? `<input type="text" data-hon-extra="${m.extra}" placeholder="${m.extraLabel}">` : ''}
+    </div>`).join('');
+
+  const form = el(`<form class="form-grid prop-form">
+    ${sec('Cliente / Contato')}
+    ${field('Nome completo *', 'contact_name', { value: lead?.name || '' })}
+    <div class="form-row">${field('CPF', 'cpf', { value: lead?.cpf_cnpj || '' })}${field('Telefone / WhatsApp', 'phone', { value: lead?.phone || '' })}</div>
+    ${field('E-mail', 'email', { type: 'email', value: lead?.email || '' })}
+    ${field('Vincular a cliente existente (opcional)', 'client_id', { options: [{ v: '', t: '—' }].concat(clients.data.map((c) => ({ v: c.id, t: c.name }))) })}
+
+    ${sec('Causa')}
+    <div class="form-row">${field('Área de atuação', 'legal_area', { value: lead?.legal_area || 'outro', options: AREAS })}
+      <label>Tipo de causa<input name="tipo_causa" list="tipos-causa-dl" placeholder="Comece a digitar…" autocomplete="off"><datalist id="tipos-causa-dl">${TIPOS_CAUSA.map((t) => `<option value="${t}">`).join('')}</datalist></label></div>
+    ${field('Breve descrição do caso', 'description', { type: 'textarea', value: lead?.case_summary || '' })}
+
+    ${sec('Dependentes')}
+    <p class="sub" style="margin-top:-6px">Informe os dependentes (importante em BPC/LOAS e Família — guarda/pensão).</p>
+    <div id="dep-list"></div>
+    <button type="button" class="btn-sm" id="add-dep" style="align-self:flex-start">+ Dependente</button>
+
+    ${sec('Honorários (modalidades e combinações)')}
+    <div class="hon-presets">${HON_PRESETS.map((p, i) => `<button type="button" class="btn-sm" data-preset="${i}">${p[0]}</button>`).join('')}</div>
+    <div class="hon-grid">${honRows}</div>
+
+    ${sec('Validade & Observações')}
+    ${field('Validade da proposta', 'validade', { type: 'date' })}
+    ${field('Observações e cláusulas (OAB)', 'observacoes', { type: 'textarea', value: OBSERVACOES_PROPOSTA })}
+
     <button type="submit" class="btn-primary">Criar proposta</button>
   </form>`);
+
+  // Dependentes (repeater)
+  const depList = form.querySelector('#dep-list');
+  const addDep = (nome = '', cpf = '') => {
+    const row = el(`<div class="dep-row" style="display:flex;gap:8px;margin-bottom:6px">
+      <input placeholder="Nome completo" value="${nome}" data-dep-nome style="flex:2">
+      <input placeholder="CPF" value="${cpf}" data-dep-cpf style="flex:1">
+      <button type="button" class="btn-sm" data-dep-x>×</button></div>`);
+    row.querySelector('[data-dep-x]').onclick = () => row.remove();
+    depList.appendChild(row);
+  };
+  form.querySelector('#add-dep').onclick = () => addDep();
+
+  // Honorários reveal + presets
+  const syncHon = () => form.querySelectorAll('[data-hon]').forEach((cb) => {
+    form.querySelector(`[data-hon-val="${cb.dataset.hon}"]`).classList.toggle('on', cb.checked);
+  });
+  form.querySelectorAll('[data-hon]').forEach((cb) => cb.onchange = syncHon);
+  form.querySelectorAll('[data-preset]').forEach((b) => b.onclick = () => {
+    const keys = HON_PRESETS[b.dataset.preset][1];
+    form.querySelectorAll('[data-hon]').forEach((cb) => { cb.checked = keys.includes(cb.dataset.hon); });
+    syncHon();
+  });
+  syncHon();
+
   form.onsubmit = async (e) => {
     e.preventDefault();
-    try {
-      await api('/api/propostas', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
-      closeModal(); toast('Proposta criada'); onSave();
-    } catch (err) { toast(err.message, 'error'); }
+    const fd = Object.fromEntries(new FormData(form));
+    const dependentes = [...depList.querySelectorAll('.dep-row')].map((r) => ({
+      nome: r.querySelector('[data-dep-nome]').value.trim(), cpf: r.querySelector('[data-dep-cpf]').value.trim(),
+    })).filter((d) => d.nome);
+    const honorarios = { modalidades: [], values: {} };
+    HON_MODS.forEach((m) => {
+      const cb = form.querySelector(`[data-hon="${m.k}"]`);
+      if (cb.checked) {
+        honorarios.modalidades.push(m.k);
+        const inp = form.querySelector(`[data-hon-input="${m.k}"]`);
+        if (inp) honorarios.values[m.k] = inp.value;
+        if (m.extra) honorarios.values[m.extra] = form.querySelector(`[data-hon-extra="${m.extra}"]`).value;
+      }
+    });
+    const valor = (Number(honorarios.values.entrada) || 0) + (Number(honorarios.values.fixo) || 0);
+    const body = {
+      contact_name: fd.contact_name, cpf: fd.cpf, phone: fd.phone, email: fd.email,
+      client_id: fd.client_id || undefined, lead_id: lead?.id,
+      legal_area: fd.legal_area, tipo_causa: fd.tipo_causa, description: fd.description,
+      validade: fd.validade || undefined, observacoes: fd.observacoes,
+      dependentes, honorarios, valor,
+      title: `Proposta — ${fd.contact_name || fd.tipo_causa || 'cliente'}`,
+    };
+    if (!body.client_id) delete body.client_id;
+    try { await api('/api/propostas', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Proposta criada'); onSave && onSave(); }
+    catch (err) { toast(err.message, 'error'); }
   };
-  openModal('Nova proposta', form);
+  openModal('Produção da Proposta', form);
 }
 
 async function propostaDetail(id, onSave) {

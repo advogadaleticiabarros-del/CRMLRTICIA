@@ -405,6 +405,31 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
 .dash-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 880px) { .dash-2col { grid-template-columns: 1fr; } .funnel-row { grid-template-columns: 120px 1fr 36px; } }
 
+/* ── Produção da Proposta ── */
+.prop-form { gap: 13px; }
+.prop-sec {
+  font-family: 'Cormorant Garamond', Georgia, serif; font-size: 19px; font-weight: 600; color: var(--gold);
+  letter-spacing: .3px; margin: 12px 0 2px; padding-bottom: 6px; border-bottom: 1px solid var(--border);
+  position: relative; animation: rise .3s ease backwards;
+}
+.prop-sec::before { content: ''; position: absolute; left: 0; bottom: -1px; width: 34px; height: 2px; background: var(--gold); }
+.prop-form input[list] { width: 100%; }
+.hon-presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.hon-presets .btn-sm { background: var(--surface-2); }
+.hon-presets .btn-sm:hover { border-color: var(--gold); color: var(--gold); }
+.hon-grid { display: flex; flex-direction: column; gap: 2px; }
+.hon-mod { display: flex; align-items: center; gap: 9px; font-size: 13.5px; color: var(--text); padding: 7px 0; cursor: pointer; font-weight: 500; }
+.hon-mod input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--gold); }
+.hon-val {
+  max-height: 0; opacity: 0; overflow: hidden; padding-left: 27px;
+  display: flex; gap: 8px; transition: max-height .28s cubic-bezier(.16,.8,.3,1), opacity .2s, margin .2s;
+}
+.hon-val.on { max-height: 60px; opacity: 1; margin-bottom: 8px; }
+.hon-val input { width: 100%; }
+.dep-row input { padding: 9px 12px; }
+.prop-form textarea[name="description"] { min-height: 80px; }
+.prop-form textarea[name="observacoes"] { min-height: 230px; font-size: 12px; line-height: 1.55; }
+
 /* ── Linha do tempo da jornada ── */
 .timeline { list-style: none; position: relative; margin: 4px 0 0; padding-left: 22px; }
 .timeline::before { content: ''; position: absolute; left: 7px; top: 4px; bottom: 8px; width: 2px; background: var(--border); }

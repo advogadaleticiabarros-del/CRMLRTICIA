@@ -33,7 +33,8 @@ router.get('/', async (req: Request, res: Response) => {
   const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM propostas p ${whereSql}`, params) as any;
 
   const [rows] = await db.query(
-    `SELECT p.id, p.title, p.valor, p.status, p.validade, p.created_at, c.name AS client_name
+    `SELECT p.id, p.title, p.valor, p.status, p.validade, p.created_at, p.tipo_causa,
+            COALESCE(c.name, p.contact_name) AS client_name
      FROM propostas p
      LEFT JOIN clients c ON c.id = p.client_id
      ${whereSql}
@@ -67,19 +68,23 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 // ── POST /api/propostas — criar ─────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
-  const { client_id, case_id, lead_id, title, valor, validade, description, status } = req.body;
+  const { client_id, case_id, lead_id, title, valor, validade, description, status,
+          legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes } = req.body;
 
-  if (!client_id) { res.status(400).json({ error: 'client_id é obrigatório' }); return; }
-  if (!title || !String(title).trim()) { res.status(400).json({ error: 'O título é obrigatório' }); return; }
+  if (!client_id && !lead_id) { res.status(400).json({ error: 'Informe o cliente ou o lead' }); return; }
+  const finalTitle = (title && String(title).trim()) || `Proposta — ${contact_name || tipo_causa || 'cliente'}`;
 
   const [result] = await db.query(
-    `INSERT INTO propostas (user_id, client_id, case_id, lead_id, title, valor, status, validade, description)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO propostas
+       (user_id, client_id, case_id, lead_id, title, valor, status, validade, description,
+        legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      req.user!.id, client_id, case_id ?? null, lead_id ?? null,
-      title.trim(), Number(valor) || 0,
-      STATUSES.includes(status) ? status : 'rascunho',
+      req.user!.id, client_id ?? null, case_id ?? null, lead_id ?? null,
+      finalTitle, Number(valor) || 0, STATUSES.includes(status) ? status : 'rascunho',
       validade || null, description ?? null,
+      legal_area ?? null, tipo_causa ?? null, contact_name ?? null, cpf ?? null, phone ?? null, email ?? null,
+      dependentes ? JSON.stringify(dependentes) : null, honorarios ? JSON.stringify(honorarios) : null, observacoes ?? null,
     ]
   ) as any;
 
@@ -112,6 +117,15 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('description', req.body.description);
   setIf('case_id', req.body.case_id);
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
+  setIf('legal_area', req.body.legal_area);
+  setIf('tipo_causa', req.body.tipo_causa);
+  setIf('contact_name', req.body.contact_name);
+  setIf('cpf', req.body.cpf);
+  setIf('phone', req.body.phone);
+  setIf('email', req.body.email);
+  setIf('observacoes', req.body.observacoes);
+  if (req.body.dependentes !== undefined) { fields.push('dependentes = ?'); params.push(req.body.dependentes ? JSON.stringify(req.body.dependentes) : null); }
+  if (req.body.honorarios !== undefined) { fields.push('honorarios = ?'); params.push(req.body.honorarios ? JSON.stringify(req.body.honorarios) : null); }
 
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
   params.push(id);
