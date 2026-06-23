@@ -66,6 +66,19 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
+  // Diagnóstico PÚBLICO do redirect_uri (não expõe segredos) — para depurar mismatch
+  app.get('/api/_google-debug', (_req, res) => {
+    const expected = 'https://crm.advogadaleticiabarros.com.br/api/calendar/google/callback';
+    const sent = process.env.GOOGLE_REDIRECT_URI || null;
+    res.json({
+      redirect_uri_enviado: sent,
+      redirect_uri_esperado: expected,
+      bate: sent === expected,
+      client_id_definido: !!process.env.GOOGLE_CLIENT_ID,
+      client_secret_definido: !!process.env.GOOGLE_CLIENT_SECRET,
+    });
+  });
+
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
 
