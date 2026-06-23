@@ -450,6 +450,13 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
   display: flex; gap: 8px; transition: max-height .28s cubic-bezier(.16,.8,.3,1), opacity .2s, margin .2s;
 }
 .hon-val.on { max-height: 60px; opacity: 1; margin-bottom: 8px; }
+.parc-preview { background: var(--surface-2); border: 1px solid var(--border); border-radius: 9px; padding: 10px 14px; margin-top: 2px; }
+.parc-preview:empty { display: none; }
+.parc-line { display: flex; justify-content: space-between; padding: 5px 0; font-size: 13px; color: var(--text-soft); }
+.parc-line span { color: var(--text-muted); }
+.parc-line strong { color: var(--text); }
+.parc-line.total { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 8px; }
+.parc-line.total strong { color: var(--gold); font-size: 15px; }
 .hon-val input { width: 100%; }
 .dep-row input { padding: 9px 12px; }
 .prop-form textarea[name="description"] { min-height: 80px; }

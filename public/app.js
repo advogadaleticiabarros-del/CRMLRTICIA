@@ -2144,7 +2144,13 @@ async function propostaForm(onSave, lead = null) {
     <div id="dep-list"></div>
     <button type="button" class="btn-sm" id="add-dep" style="align-self:flex-start">+ Dependente</button>
 
-    ${sec('Honorários (modalidades e combinações)')}
+    ${sec('Honorário total e parcelamento')}
+    ${field('Honorário total (R$) *', 'valor_total', { type: 'number' })}
+    <div class="form-row">${field('Entrada (R$)', 'entrada_valor', { type: 'number' })}${field('Data da entrada', 'entrada_data', { type: 'date' })}</div>
+    <div class="form-row">${field('Qtd. de parcelas (restante)', 'parcelas_qtd', { type: 'number', value: 1 })}${field('1º vencimento das parcelas', 'parcelas_primeiro_venc', { type: 'date' })}</div>
+    <div id="parc-preview" class="parc-preview"></div>
+
+    ${sec('Outras modalidades (opcional)')}
     <div class="hon-presets">${HON_PRESETS.map((p, i) => `<button type="button" class="btn-sm" data-preset="${i}">${p[0]}</button>`).join('')}</div>
     <div class="hon-grid">${honRows}</div>
 
@@ -2166,6 +2172,42 @@ async function propostaForm(onSave, lead = null) {
     depList.appendChild(row);
   };
   form.querySelector('#add-dep').onclick = () => addDep();
+
+  // Parcelamento — cálculo e prévia ao vivo
+  const calcParcelas = () => {
+    const total = Number(form.querySelector('[name=valor_total]').value) || 0;
+    const entrada = Number(form.querySelector('[name=entrada_valor]').value) || 0;
+    const qtd = Math.max(1, parseInt(form.querySelector('[name=parcelas_qtd]').value) || 1);
+    const venc = form.querySelector('[name=parcelas_primeiro_venc]').value;
+    const restante = Math.max(0, total - entrada);
+    const base = Math.floor((restante / qtd) * 100) / 100;
+    const ultima = Math.round((restante - base * (qtd - 1)) * 100) / 100;
+    const valorParcela = base;
+    let datas = '';
+    if (venc) {
+      const d0 = new Date(venc + 'T00:00:00');
+      const fmt = (dt) => dt.toLocaleDateString('pt-BR');
+      const last = new Date(d0); last.setMonth(last.getMonth() + (qtd - 1));
+      datas = qtd === 1 ? `vencimento em ${fmt(d0)}` : `1º em ${fmt(d0)} · último em ${fmt(last)} (mensais)`;
+    }
+    return { total, entrada, qtd, venc, restante, base, ultima, valorParcela, datas };
+  };
+  const renderPreview = () => {
+    const p = calcParcelas();
+    const box = form.querySelector('#parc-preview');
+    if (!p.total) { box.innerHTML = ''; return; }
+    const linhaUlt = p.qtd > 1 && p.ultima !== p.base ? ` (última de ${money(p.ultima)})` : '';
+    box.innerHTML = `
+      <div class="parc-line"><span>Entrada</span><strong>${money(p.entrada)}</strong></div>
+      <div class="parc-line"><span>Restante a parcelar</span><strong>${money(p.restante)}</strong></div>
+      <div class="parc-line"><span>Parcelas</span><strong>${p.qtd}× de ${money(p.base)}${linhaUlt}</strong></div>
+      ${p.datas ? `<div class="parc-line"><span>Vencimentos</span><strong>${p.datas}</strong></div>` : ''}
+      <div class="parc-line total"><span>Total</span><strong>${money(p.total)}</strong></div>`;
+  };
+  ['valor_total', 'entrada_valor', 'parcelas_qtd', 'parcelas_primeiro_venc'].forEach((n) => {
+    const inp = form.querySelector(`[name=${n}]`); if (inp) inp.oninput = renderPreview;
+  });
+  renderPreview();
 
   // Honorários reveal + presets
   const syncHon = () => form.querySelectorAll('[data-hon]').forEach((cb) => {
@@ -2195,7 +2237,13 @@ async function propostaForm(onSave, lead = null) {
         if (m.extra) honorarios.values[m.extra] = form.querySelector(`[data-hon-extra="${m.extra}"]`).value;
       }
     });
-    const valor = (Number(honorarios.values.entrada) || 0) + (Number(honorarios.values.fixo) || 0);
+    const pc = calcParcelas();
+    honorarios.parcelamento = {
+      total: pc.total, entrada: pc.entrada, entrada_data: fd.entrada_data || null,
+      parcelas: pc.qtd, primeiro_vencimento: pc.venc || null,
+      valor_parcela: pc.base, ultima_parcela: pc.ultima,
+    };
+    const valor = pc.total || ((Number(honorarios.values.entrada) || 0) + (Number(honorarios.values.fixo) || 0));
     const body = {
       contact_name: fd.contact_name, cpf: fd.cpf, phone: fd.phone, email: fd.email,
       client_id: fd.client_id || undefined, lead_id: lead?.id,
