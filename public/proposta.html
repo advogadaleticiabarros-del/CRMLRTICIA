@@ -23,7 +23,7 @@
         var(--espresso);
       min-height: 100vh;
     }
-    .wrap { max-width: 640px; margin: 0 auto; }
+    .wrap { max-width: 720px; margin: 0 auto; }
 
     /* Entradas animadas (stagger) */
     @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
@@ -66,12 +66,19 @@
     }
 
     .desc { font-size: 14.5px; color: #E8E0D2; white-space: pre-wrap; line-height: 1.75; }
-    .clauses {
-      background: var(--cream); color: #2b241d; border-radius: 12px; padding: 18px 18px; max-height: 260px; overflow-y: auto;
-      white-space: pre-wrap; font-family: Georgia, 'Times New Roman', serif; font-size: 13px; line-height: 1.75;
-      box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
-    }
-    .clauses::-webkit-scrollbar { width: 8px; } .clauses::-webkit-scrollbar-thumb { background: #cdbfa6; border-radius: 8px; }
+
+    /* Cláusulas — seção ampla, sem rolagem, bem disposta */
+    .card.clauses-card { padding: 26px 24px; }
+    .clauses-intro { color: var(--muted); font-size: 12.5px; letter-spacing: .2px; margin-bottom: 16px; line-height: 1.6; }
+    .clauses-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
+    .clause { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; background: var(--panel-2);
+      border: 1px solid rgba(201,169,98,.12); border-radius: 12px; transition: border-color .25s, transform .25s; }
+    .clause:hover { border-color: rgba(201,169,98,.4); transform: translateY(-1px); }
+    .cnum { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--gold-soft), var(--gold-2));
+      color: #231E1A; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
+    .clause .ctxt { font-size: 12.5px; line-height: 1.6; color: #E2D9C9; }
+    .clause .ctxt strong { display: block; color: var(--gold-soft); font-size: 12px; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; }
+    @media (max-width: 560px) { .clauses-grid { grid-template-columns: 1fr; } }
 
     .agree { display: flex; align-items: flex-start; gap: 12px; margin-top: 16px; cursor: pointer; font-size: 14px; color: var(--cream);
       padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; transition: border-color .25s, background .25s; }
@@ -121,6 +128,24 @@
     const AREA_PT = { trabalhista:'Trabalhista', gestante:'Gestante/Maternidade', familia:'Família', civel:'Cível', previdenciario:'Previdenciário', consumidor:'Consumidor', outro:'Outro' };
     const esc = (s) => String(s || '').replace(/[&<>]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
 
+    // Formata as observações/cláusulas: intro + itens numerados em grid (sem rolagem)
+    function clausesHtml(text) {
+      const blocks = String(text || '').split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
+      let intro = '';
+      const items = [];
+      for (const b of blocks) {
+        const m = b.match(/^(\d+)\.\s*([\s\S]*)$/);
+        if (m) {
+          const rest = m[2];
+          const ci = rest.indexOf(':');
+          const title = ci > 0 && ci < 60 ? rest.slice(0, ci) : '';
+          const body = ci > 0 && ci < 60 ? rest.slice(ci + 1).trim() : rest;
+          items.push(`<div class="clause"><span class="cnum">${m[1]}</span><div class="ctxt">${title ? `<strong>${esc(title)}</strong>` : ''}${esc(body)}</div></div>`);
+        } else { intro += (intro ? ' ' : '') + b; }
+      }
+      return `${intro ? `<p class="clauses-intro">${esc(intro)}</p>` : ''}<div class="clauses-grid">${items.join('')}</div>`;
+    }
+
     function honHtml(h, valorFallback) {
       const pc = h && h.parcelamento;
       if (!pc || !pc.total) return `<div class="hon"><div class="line total"><span>Honorário total</span><strong>${money(valorFallback)}</strong></div></div>`;
@@ -162,9 +187,9 @@
         </div>
 
         ${p.observacoes ? `
-        <div class="card anim" ${delay()}>
+        <div class="card clauses-card anim" ${delay()}>
           <h2>Condições e cláusulas</h2>
-          <div class="clauses">${esc(p.observacoes)}</div>
+          ${clausesHtml(p.observacoes)}
           <label class="agree" id="agree-box">
             <input type="checkbox" id="agree" ${aceito ? 'checked disabled' : ''}>
             <span>Li e concordo com as condições e cláusulas acima.</span>
