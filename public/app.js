@@ -548,12 +548,13 @@ const ROUTES = {
         <button class="tab active" data-tab="geral">Visão geral</button>
         <button class="tab" data-tab="acordos">Acordos</button>
         <button class="tab" data-tab="receitas">Receitas & Parcelas</button>
+        <button class="tab" data-tab="pagar">Contas a Pagar</button>
         <button class="tab" data-tab="repasses">Repasses</button>
         <button class="tab" data-tab="inadimplencia">Inadimplência</button>
         <button class="tab" data-tab="fluxo">Fluxo de Caixa</button>
       </div>
       <div id="fin-content"></div>`;
-    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa };
+    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, pagar: finContasPagar, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa };
     const show = async (name) => {
       document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#fin-content'); c.innerHTML = '<div class="spinner"></div>';
@@ -1584,6 +1585,130 @@ async function finInadimplencia(c) {
   await load();
 }
 
+const GRUPOS_DESPESA = [
+  ['empresa', 'Empresa / Escritório'],
+  ['pessoal', 'Pessoal'],
+  ['cartao', 'Cartão de crédito'],
+  ['moradia', 'Moradia'],
+  ['impostos', 'Impostos & Tributos'],
+  ['salarios', 'Salários & Folha'],
+  ['fornecedores', 'Fornecedores'],
+  ['software', 'Software & Assinaturas'],
+  ['marketing', 'Marketing'],
+  ['transporte', 'Transporte & Deslocamento'],
+  ['extraordinaria', 'Despesas extraordinárias'],
+  ['outro_saida', 'Outras saídas'],
+];
+const GRUPO_PT = Object.fromEntries(GRUPOS_DESPESA);
+
+async function finContasPagar(c) {
+  const now = new Date();
+  const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const todayStr = new Date().toISOString().split('T')[0];
+  c.innerHTML = `
+    <div class="toolbar">
+      <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-soft)">Mês
+        <input type="month" id="cp-month" value="${curYM}"></label>
+      <span class="spacer"></span>
+      <button class="btn-gold" id="cp-new">+ Conta a pagar</button>
+    </div>
+    <div id="cp-kpis" class="kpi-grid"></div>
+    <div id="cp-groups"></div>`;
+
+  const load = async () => {
+    const ym = $('#cp-month').value || curYM;
+    const [y, m] = ym.split('-').map(Number);
+    const from = `${ym}-01`;
+    const to = `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
+    const rows = await api(`/api/cashflow?type=saida&from=${from}&to=${to}`);
+
+    let total = 0, pago = 0, aberto = 0, vencido = 0;
+    rows.forEach((r) => {
+      const v = Number(r.amount) || 0; total += v;
+      const due = (r.due_date || '').split('T')[0];
+      if (r.status === 'realizado') pago += v;
+      else { aberto += v; if (due && due < todayStr) vencido += v; }
+    });
+    $('#cp-kpis').innerHTML =
+      kpi('Total do mês', money(total), 'money') +
+      kpi('Pago', money(pago), 'money') +
+      kpi('Em aberto', money(aberto), 'money') +
+      kpi('Vencido', money(vencido), 'money');
+
+    const groups = {};
+    rows.forEach((r) => { (groups[r.category] ??= []).push(r); });
+    const order = GRUPOS_DESPESA.map(([k]) => k);
+    const keys = Object.keys(groups).sort((a, b) => (order.indexOf(a) + 99) % 100 - (order.indexOf(b) + 99) % 100);
+
+    $('#cp-groups').innerHTML = rows.length ? keys.map((k) => {
+      const items = groups[k].sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''));
+      const sub = items.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+      return `<div class="card" style="margin-bottom:16px">
+        <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <strong style="color:var(--navy)">${GRUPO_PT[k] || k}</strong><strong>${money(sub)}</strong></div>
+        <table><thead><tr><th>Descrição</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+        <tbody>${items.map((r) => {
+          const due = (r.due_date || '').split('T')[0];
+          const isVenc = r.status !== 'realizado' && due && due < todayStr;
+          const st = r.status === 'realizado' ? '<span class="badge ativo">pago</span>'
+            : isVenc ? '<span class="badge vencido">vencido</span>' : '<span class="badge">em aberto</span>';
+          const rec = r.installment_total > 1 ? ` <small style="color:var(--text-muted)">(${r.installment_no}/${r.installment_total})</small>` : '';
+          return `<tr>
+            <td>${r.description}${rec}</td>
+            <td>${due ? fmtDate(due) : '—'}</td>
+            <td>${money(r.amount)}</td>
+            <td>${st}</td>
+            <td style="white-space:nowrap;text-align:right">
+              ${r.status !== 'realizado' ? `<button class="btn-sm" data-pay="${r.id}">Pagar</button>` : ''}
+              <button class="btn-sm" data-del="${r.id}" data-grp="${r.recurrence_group || ''}" data-tot="${r.installment_total || 1}">Excluir</button>
+            </td></tr>`;
+        }).join('')}</tbody></table></div>`;
+    }).join('') : '<div class="empty">Nenhuma conta a pagar neste mês. Clique em "+ Conta a pagar".</div>';
+
+    $('#cp-groups').querySelectorAll('[data-pay]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/cashflow/${b.dataset.pay}/pay`, { method: 'PATCH', body: '{}' }); toast('Marcado como pago'); load(); }
+      catch (e) { toast(e.message, 'error'); }
+    });
+    $('#cp-groups').querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => {
+      const tot = Number(b.dataset.tot) || 1; const grp = b.dataset.grp;
+      let url, msg;
+      if (tot > 1 && grp && confirm(`Conta recorrente (${tot}x). OK = excluir a série inteira; Cancelar = excluir só esta parcela.`)) {
+        url = `/api/cashflow/group/${grp}`; msg = 'Série excluída';
+      } else {
+        if (!confirm('Excluir esta conta?')) return;
+        url = `/api/cashflow/${b.dataset.del}`; msg = 'Conta excluída';
+      }
+      try { await api(url, { method: 'DELETE' }); toast(msg); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  $('#cp-month').onchange = load;
+  $('#cp-new').onclick = () => contaPagarForm(load, $('#cp-month').value);
+  await load();
+}
+
+async function contaPagarForm(onSave, ym) {
+  const now = new Date();
+  const base = ym || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const form = el(`<form class="form-grid">
+    <label>Grupo de despesa<select name="category">${GRUPOS_DESPESA.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></label>
+    ${field('Descrição *', 'description')}
+    <div class="form-row">${field('Valor (R$) *', 'amount', { type: 'number' })}${field('Vencimento *', 'due_date', { type: 'date', value: `${base}-10` })}</div>
+    ${field('Recorrência', 'recurrence', { options: [{ v: 'unica', t: 'Única (1x)' }, { v: 'mensal', t: 'Mensal (repetir)' }] })}
+    <div id="cp-occ" style="display:none">${field('Quantos meses', 'occurrences', { type: 'number', value: 12 })}</div>
+    ${field('Observações', 'notes', { type: 'textarea' })}
+    <button type="submit" class="btn-primary">Lançar conta</button>
+  </form>`);
+  form.querySelector('[name=recurrence]').onchange = (e) => { form.querySelector('#cp-occ').style.display = e.target.value === 'mensal' ? 'block' : 'none'; };
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    body.type = 'saida';
+    try { const r = await api('/api/cashflow', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast(`Conta lançada (${r.created}x)`); onSave(); }
+    catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Nova conta a pagar', form);
+}
+
 async function finFluxoCaixa(c) {
   const mesLabel = (ym) => { const [y, m] = ym.split('-'); return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][Number(m) - 1] + '/' + y.slice(2); };
   const now = new Date();
@@ -1638,7 +1763,7 @@ async function finFluxoCaixa(c) {
 async function cashflowForm(onSave) {
   const CATS = {
     entrada: [['honorario_inicial','Honorários iniciais'],['honorario_total','Honorários (totais)'],['exito','Êxito / decisão'],['acordo','Acordos'],['dativo','Dativo (Estado)'],['correspondente','Correspondente jurídico'],['outro_entrada','Outras entradas']],
-    saida: [['despesa_fixa','Despesas fixas'],['despesa_variavel','Despesas variáveis'],['repasse','Repasses'],['imposto','Impostos'],['salario','Salários'],['outro_saida','Outras saídas']],
+    saida: GRUPOS_DESPESA,
   };
   const catOptions = (type) => CATS[type].map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
   const form = el(`<form class="form-grid">

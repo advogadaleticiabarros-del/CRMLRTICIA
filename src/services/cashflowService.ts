@@ -14,6 +14,11 @@ export const CATEGORY_PT: Record<string, string> = {
   outro_entrada: 'Outras entradas', lanc_receita: 'Lançamentos (receita)',
   despesa_fixa: 'Despesas fixas', despesa_variavel: 'Despesas variáveis', repasse: 'Repasses',
   imposto: 'Impostos', salario: 'Salários', outro_saida: 'Outras saídas', lanc_despesa: 'Lançamentos (despesa)',
+  // Grupos de despesa (contas a pagar)
+  empresa: 'Empresa / Escritório', pessoal: 'Pessoal', cartao: 'Cartão de crédito', moradia: 'Moradia',
+  impostos: 'Impostos & Tributos', salarios: 'Salários & Folha', fornecedores: 'Fornecedores',
+  software: 'Software & Assinaturas', marketing: 'Marketing', transporte: 'Transporte & Deslocamento',
+  extraordinaria: 'Despesas extraordinárias',
 };
 
 interface MonthBucket {
