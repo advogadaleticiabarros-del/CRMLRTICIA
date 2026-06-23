@@ -66,25 +66,6 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
-  // TEMPORÁRIO — limpa eventos do Google e re-sincroniza todos os calendários
-  app.get('/api/_google-resync', async (_req, res) => {
-    try {
-      const { db } = await import('./config/database');
-      const { calendarSyncService } = await import('./services/CalendarSyncService');
-      await db.query("DELETE FROM calendar_events WHERE source = 'google'");
-      const [accounts] = await db.query('SELECT DISTINCT user_id FROM google_accounts WHERE sync_enabled = 1') as any;
-      const out: any[] = [];
-      for (const a of accounts) out.push({ user_id: a.user_id, ...(await calendarSyncService.fullSync(a.user_id)) });
-      const [[tot]] = await db.query("SELECT COUNT(*) AS total FROM calendar_events WHERE source='google'") as any;
-      const [amanha] = await db.query(
-        "SELECT title, start_datetime FROM calendar_events WHERE source='google' AND DATE(start_datetime) = DATE(NOW() + INTERVAL 1 DAY) ORDER BY start_datetime"
-      ) as any;
-      res.json({ resultados: out, total_google: tot.total, eventos_amanha: amanha });
-    } catch (e: any) {
-      res.status(500).json({ error: e.message });
-    }
-  });
-
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
 
