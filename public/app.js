@@ -3074,33 +3074,40 @@ function printDoc(title, content) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
     <style>
-      @page { margin: 3cm 2.2cm 2.7cm 2.2cm; }
+      @page { margin: 1.5cm 1.8cm; }
       * { box-sizing: border-box; }
       body { font-family: 'Times New Roman', Georgia, serif; font-size: 12pt; line-height: 1.7; color: #1a1a1a; margin: 0; }
-      @media screen { body { padding: 3cm 2.2cm 2.7cm; max-width: 21cm; margin: 0 auto; } }
-      .lh-header { position: fixed; top: 0.75cm; left: 2.2cm; right: 2.2cm; background: #fff; z-index: 5; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #B8943F; padding-bottom: 5px; }
+      @media screen { body { background: #f5f5f5; } .page { background: #fff; max-width: 21cm; margin: 16px auto; padding: 1.5cm 1.8cm; box-shadow: 0 2px 14px rgba(0,0,0,.15); } }
+      table.page { width: 100%; border-collapse: collapse; }
+      thead td, tfoot td, tbody td { padding: 0; border: 0; }
+      .lh-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #B8943F; padding-bottom: 6px; margin-bottom: 18px; }
       .lh-header .brand { display: flex; align-items: center; gap: 11px; }
-      .lh-header img { height: 1.5cm; width: auto; }
+      .lh-header img { height: 1.4cm; width: auto; }
       .lh-header .name { font-family: 'Cormorant Garamond', serif; font-size: 22pt; font-weight: 700; color: #2b2b2b; letter-spacing: 1.5px; line-height: 1; }
       .lh-header .sub { font-size: 7.5pt; color: #B8943F; letter-spacing: 3px; text-transform: uppercase; margin-top: 3px; }
       .lh-header .oab { font-size: 9.5pt; color: #555; white-space: nowrap; letter-spacing: .5px; }
-      .lh-footer { position: fixed; bottom: 0.7cm; left: 2.2cm; right: 2.2cm; background: #fff; z-index: 5; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
+      .lh-spacer-top { height: 0.5cm; }
+      .lh-footer { border-top: 1px solid #B8943F; padding-top: 6px; margin-top: 16px; text-align: center; font-size: 8.5pt; color: #555; }
       .lh-footer .sep { color: #B8943F; margin: 0 6px; }
       .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 11cm; height: auto; opacity: 0.06; z-index: -1; }
       .content { white-space: pre-wrap; text-align: justify; }
       @media print { .no-print { display: none; } }
     </style></head><body>
-    <div class="lh-header">
-      <div class="brand"><img src="${logo}" onerror="this.style.display='none'">
-        <div><div class="name">LETÍCIA BARROS</div><div class="sub">Advocacia &amp; Consultoria</div></div></div>
-      <div class="oab">OAB Nº 39.948 - ES</div>
-    </div>
     <img class="watermark" src="${logo}" onerror="this.style.display='none'">
-    <div class="lh-footer">
-      (27) 99515-1402 | (44) 99101-1402<span class="sep">·</span>advogadaleticia.barros@gmail.com<span class="sep">·</span>@adv.leticiabarros2
-    </div>
-    <div class="content">${safe}</div>
-    <div class="no-print" style="text-align:center;margin-top:24px"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
+    <table class="page">
+      <thead><tr><td>
+        <div class="lh-header">
+          <div class="brand"><img src="${logo}" onerror="this.style.display='none'">
+            <div><div class="name">LETÍCIA BARROS</div><div class="sub">Advocacia &amp; Consultoria</div></div></div>
+          <div class="oab">OAB Nº 39.948 - ES</div>
+        </div>
+      </td></tr></thead>
+      <tfoot><tr><td>
+        <div class="lh-footer">(27) 99515-1402 | (44) 99101-1402<span class="sep">·</span>advogadaleticia.barros@gmail.com<span class="sep">·</span>@adv.leticiabarros2</div>
+      </td></tr></tfoot>
+      <tbody><tr><td><div class="content">${safe}</div></td></tr></tbody>
+    </table>
+    <div class="no-print" style="text-align:center;margin:20px 0"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
     </body></html>`);
   w.document.close();
   setTimeout(() => w.focus(), 400);
