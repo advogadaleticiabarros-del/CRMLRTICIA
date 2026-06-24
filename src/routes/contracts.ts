@@ -82,6 +82,52 @@ router.get('/:id/party', async (req: Request, res: Response) => {
   });
 });
 
+// ── POST /api/contracts/:id/reprocessar — regenera os 3 documentos com o modelo atual ─
+router.post('/:id/reprocessar', async (req: Request, res: Response) => {
+  const [cts] = await db.query('SELECT * FROM contracts WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!cts.length) { res.status(404).json({ error: 'Contrato não encontrado' }); return; }
+  const ct = cts[0];
+
+  let lead: any = null, client: any = null, prop: any = null;
+  if (ct.lead_id) {
+    const [lr] = await db.query('SELECT name, cpf_cnpj, rg, marital_status, profession, cep, street, number, neighborhood, city, state, phone, email, legal_area, case_summary FROM leads WHERE id = ?', [ct.lead_id]) as any;
+    lead = lr[0] || null;
+  }
+  if (ct.client_id) {
+    const [cr] = await db.query('SELECT name, cpf_cnpj, address, phone, email FROM clients WHERE id = ?', [ct.client_id]) as any;
+    client = cr[0] || null;
+  }
+  const [pr] = await db.query(
+    'SELECT tipo_causa, description, legal_area, valor, honorarios FROM propostas WHERE (lead_id <=> ? OR client_id <=> ?) ORDER BY created_at DESC LIMIT 1',
+    [ct.lead_id ?? null, ct.client_id ?? null]
+  ) as any;
+  prop = pr[0] || null;
+
+  const nome = client?.name || lead?.name || '';
+  const cpf = client?.cpf_cnpj || lead?.cpf_cnpj || null;
+  const endereco = (client?.address && client.address.trim()) ? client.address : (montarEndereco(lead || {}) || null);
+  const party: PartyData = {
+    name: nome, cpf, estadoCivil: lead?.marital_status, profissao: lead?.profession, endereco,
+    email: client?.email || lead?.email, phone: client?.phone || lead?.phone,
+  };
+  const area = AREAS.includes(ct.area) ? ct.area : (AREAS.includes(prop?.legal_area) ? prop.legal_area : (AREAS.includes(lead?.legal_area) ? lead.legal_area : 'outro'));
+
+  let parcelamento: any = null, exitoPct: number | undefined, valor = Number(ct.value) || Number(prop?.valor) || undefined;
+  try {
+    const h = typeof prop?.honorarios === 'string' ? JSON.parse(prop.honorarios) : prop?.honorarios;
+    if (h?.parcelamento && Number(h.parcelamento.total) > 0) { parcelamento = h.parcelamento; valor = Number(h.parcelamento.total); }
+    const ex = Number(h?.values?.exito) || Number(h?.values?.ad_exitum); if (ex) exitoPct = ex;
+  } catch {}
+
+  const adv = await getEscritorio();
+  const content = buildTemplate({ party, area, value: valor, formaPagamento: formaPagamentoTexto(parcelamento), exitoPct, tipoCausa: prop?.tipo_causa, descricao: prop?.description || lead?.case_summary, contratada: adv });
+  await db.query(
+    'UPDATE contracts SET content = ?, procuracao_content = ?, declaracao_content = ?, value = COALESCE(?, value) WHERE id = ?',
+    [content, buildProcuracao(party, adv), buildDeclaracao(party), valor ?? null, req.params.id]
+  );
+  res.json({ success: true });
+});
+
 // ── POST /api/contracts/from-lead/:leadId — fecha o lead e gera o contrato ──
 router.post('/from-lead/:leadId', async (req: Request, res: Response) => {
   const { leadId } = req.params;
@@ -103,7 +149,8 @@ router.post('/from-lead/:leadId', async (req: Request, res: Response) => {
     estadoCivil: lead.marital_status, profissao: lead.profession, endereco: montarEndereco(lead),
   };
   const adv = await getEscritorio();
-  const content = buildTemplate({ party, area, value: req.body.value, contratada: adv });
+  party.email = lead.email; party.phone = lead.phone;
+  const content = buildTemplate({ party, area, value: req.body.value, descricao: lead.case_summary, contratada: adv });
 
   const [result] = await db.query(
     `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)

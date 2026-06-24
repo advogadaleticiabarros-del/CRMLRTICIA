@@ -2844,14 +2844,15 @@ async function contractEditor(id, onSave) {
       <button class="btn-sm" data-print="procuracao_content">Procuração PDF</button>
       <button class="btn-sm" data-print="declaracao_content">Declaração PDF</button>
     </div>
-    <button type="button" class="btn-gold btn-sm" id="toggle-complete" style="align-self:flex-start">Completar informações faltantes</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button type="button" class="btn-gold btn-sm" id="toggle-complete">Completar informações faltantes</button>
+      <button type="button" class="btn-sm" id="reprocess-ct">Regenerar com modelo atual</button>
+    </div>
     <div id="complete-panel" class="complete-panel" style="display:none">
       <strong class="cp-grp">Dados da parte (cliente)</strong>
-      <div class="form-row">${field('Nacionalidade', 'c_nac', { value: 'brasileiro(a)' })}${field('Estado civil', 'c_ec')}</div>
-      <div class="form-row">${field('Profissão', 'c_prof')}${field('CPF', 'c_cpf')}</div>
-      ${field('Endereço completo', 'c_end')}
-      <strong class="cp-grp">Local, data e pagamento</strong>
-      <div class="form-row">${field('Cidade (assinatura)', 'o_cidade', { value: 'Vitória/ES' })}${field('Comarca', 'o_comarca')}</div>
+      <div class="form-row">${field('Nacionalidade', 'c_nac', { value: 'brasileiro(a)' })}${field('Profissão', 'c_prof')}</div>
+      <div class="form-row">${field('CPF', 'c_cpf')}${field('Endereço completo', 'c_end')}</div>
+      <strong class="cp-grp">Data e pagamento</strong>
       <div class="form-row">${field('Data', 'o_data')}${field('Forma de pagamento / parcelas', 'o_forma')}</div>
       <button type="button" class="btn-primary" id="apply-complete">Aplicar aos documentos</button>
     </div>
@@ -2889,14 +2890,14 @@ async function contractEditor(id, onSave) {
   };
   try {
     const saved = JSON.parse(localStorage.getItem('escritorioInfo') || '{}');
-    ['o_cidade', 'o_comarca', 'o_forma'].forEach((n) => {
+    ['o_forma'].forEach((n) => {
       const inp = wrap.querySelector(`[name=${n}]`); if (inp && saved[n]) inp.value = saved[n];
     });
   } catch {}
   // Pré-preenche os dados da PARTE já cadastrados (lead + cliente) — sem retrabalho
   api(`/api/contracts/${id}/party`).then((pt) => {
     const set = (n, v) => { const inp = wrap.querySelector(`[name=${n}]`); if (inp && !inp.value && v) inp.value = v; };
-    set('c_cpf', pt.cpf); set('c_ec', pt.estado_civil); set('c_prof', pt.profissao); set('c_end', pt.endereco);
+    set('c_cpf', pt.cpf); set('c_prof', pt.profissao); set('c_end', pt.endereco);
     set('o_forma', pt.forma_pagamento);
   }).catch(() => {});
   const dataEl = wrap.querySelector('[name=o_data]');
@@ -2904,8 +2905,8 @@ async function contractEditor(id, onSave) {
 
   wrap.querySelector('#apply-complete').onclick = () => {
     const map = {
-      '[nacionalidade]': 'c_nac', '[estado civil]': 'c_ec', '[profissão]': 'c_prof', '[CPF]': 'c_cpf',
-      '[ENDEREÇO]': 'c_end', '[CIDADE]': 'o_cidade', '[COMARCA]': 'o_comarca', '[DATA]': 'o_data', '[FORMA DE PAGAMENTO / PARCELAS]': 'o_forma',
+      '[nacionalidade]': 'c_nac', '[profissão]': 'c_prof', '[CPF]': 'c_cpf',
+      '[ENDEREÇO]': 'c_end', '[DATA]': 'o_data', '[FORMA DE PAGAMENTO / PARCELAS]': 'o_forma',
     };
     let count = 0;
     wrap.querySelectorAll('[data-field]').forEach((ta) => {
@@ -2917,10 +2918,16 @@ async function contractEditor(id, onSave) {
       ta.value = txt;
     });
     const office = {};
-    ['o_cidade', 'o_comarca', 'o_forma'].forEach((n) => { office[n] = wrap.querySelector(`[name=${n}]`)?.value || ''; });
+    ['o_forma'].forEach((n) => { office[n] = wrap.querySelector(`[name=${n}]`)?.value || ''; });
     try { localStorage.setItem('escritorioInfo', JSON.stringify(office)); } catch {}
     wrap.querySelector('#complete-panel').style.display = 'none';
     toast(count ? 'Informações aplicadas. Revise e clique em Salvar documentos.' : 'Preencha os campos para substituir.');
+  };
+
+  wrap.querySelector('#reprocess-ct').onclick = async () => {
+    if (!confirm('Regenerar os 3 documentos com o modelo atual e os dados do cadastro? O texto atual será substituído.')) return;
+    try { await api(`/api/contracts/${id}/reprocessar`, { method: 'POST', body: '{}' }); closeModal(); toast('Documentos regenerados'); onSave && onSave(); contractEditor(id, onSave); }
+    catch (e) { toast(e.message, 'error'); }
   };
 
   wrap.querySelector('#save-ct').onclick = async () => {
@@ -3070,13 +3077,14 @@ function printDoc(title, content) {
       @page { margin: 3cm 2.2cm 2.7cm 2.2cm; }
       * { box-sizing: border-box; }
       body { font-family: 'Times New Roman', Georgia, serif; font-size: 12pt; line-height: 1.7; color: #1a1a1a; margin: 0; }
-      .lh-header { position: fixed; top: 0.75cm; left: 2.2cm; right: 2.2cm; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #B8943F; padding-bottom: 5px; }
+      @media screen { body { padding: 3cm 2.2cm 2.7cm; max-width: 21cm; margin: 0 auto; } }
+      .lh-header { position: fixed; top: 0.75cm; left: 2.2cm; right: 2.2cm; background: #fff; z-index: 5; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #B8943F; padding-bottom: 5px; }
       .lh-header .brand { display: flex; align-items: center; gap: 11px; }
       .lh-header img { height: 1.5cm; width: auto; }
       .lh-header .name { font-family: 'Cormorant Garamond', serif; font-size: 22pt; font-weight: 700; color: #2b2b2b; letter-spacing: 1.5px; line-height: 1; }
       .lh-header .sub { font-size: 7.5pt; color: #B8943F; letter-spacing: 3px; text-transform: uppercase; margin-top: 3px; }
       .lh-header .oab { font-size: 9.5pt; color: #555; white-space: nowrap; letter-spacing: .5px; }
-      .lh-footer { position: fixed; bottom: 0.7cm; left: 2.2cm; right: 2.2cm; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
+      .lh-footer { position: fixed; bottom: 0.7cm; left: 2.2cm; right: 2.2cm; background: #fff; z-index: 5; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
       .lh-footer .sep { color: #B8943F; margin: 0 6px; }
       .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 11cm; height: auto; opacity: 0.06; z-index: -1; }
       .content { white-space: pre-wrap; text-align: justify; }

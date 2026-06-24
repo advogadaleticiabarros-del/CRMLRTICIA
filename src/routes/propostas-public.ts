@@ -27,7 +27,7 @@ router.get('/proposta/:token', async (req: Request, res: Response) => {
 // de prestação de serviços, a procuração e a declaração de hipossuficiência.
 router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
   const [rows] = await db.query(
-    `SELECT id, user_id, lead_id, client_id, contact_name, cpf, phone, email, legal_area, valor, honorarios, title, aceito_em
+    `SELECT id, user_id, lead_id, client_id, contact_name, cpf, phone, email, legal_area, tipo_causa, description, valor, honorarios, title, aceito_em
        FROM propostas WHERE public_token = ?`,
     [req.params.token]
   ) as any;
@@ -35,11 +35,14 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
   const p = rows[0];
   if (p.aceito_em) { res.json({ success: true, already: true }); return; }
 
-  // Parcelamento → forma de pagamento da Cláusula 3ª + valor total
+  // Parcelamento → forma de pagamento da Cláusula 2ª + valor total + % de êxito
   let parcelamento: any = null;
+  let exitoPct: number | undefined;
   try {
     const h = typeof p.honorarios === 'string' ? JSON.parse(p.honorarios) : p.honorarios;
     if (h?.parcelamento && Number(h.parcelamento.total) > 0) parcelamento = h.parcelamento;
+    const ex = Number(h?.values?.exito) || Number(h?.values?.ad_exitum);
+    if (ex) exitoPct = ex;
   } catch {}
   const formaPagamento = formaPagamentoTexto(parcelamento);
   const valorContrato = parcelamento ? Number(parcelamento.total) : (Number(p.valor) || undefined);
@@ -59,7 +62,7 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
   const email = p.email || lead?.email || null;
   const endereco = montarEndereco(lead || {});
   const party: PartyData = {
-    name: nome, cpf, rg: lead?.rg, estadoCivil: lead?.marital_status, profissao: lead?.profession, endereco,
+    name: nome, cpf, rg: lead?.rg, estadoCivil: lead?.marital_status, profissao: lead?.profession, endereco, email, phone,
   };
 
   // 1) Garante o cliente (parte representada) — sem duplicar (dedup por nome)
@@ -94,7 +97,7 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
     contractId = existing[0].id;
   } else {
     const adv = await getEscritorio();
-    const content = buildTemplate({ party, area, value: valorContrato, formaPagamento, contratada: adv });
+    const content = buildTemplate({ party, area, value: valorContrato, formaPagamento, exitoPct, tipoCausa: p.tipo_causa, descricao: p.description, contratada: adv });
     const [c] = await db.query(
       `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'em_producao')`,
