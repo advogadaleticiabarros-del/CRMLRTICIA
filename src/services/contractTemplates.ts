@@ -138,6 +138,95 @@ const DADOS_PAGAMENTO = {
 const EXTENSO_PCT: Record<number, string> = { 5: 'cinco', 10: 'dez', 15: 'quinze', 20: 'vinte', 25: 'vinte e cinco', 30: 'trinta', 40: 'quarenta', 50: 'cinquenta' };
 const extensoPct = (n: number) => `${EXTENSO_PCT[n] ? EXTENSO_PCT[n] + ' por cento' : n + ' por cento'}`;
 
+export interface MenorData { nome?: string | null; nascimento?: string | null; cpf?: string | null }
+
+/** Contrato de honorários — REPRESENTAÇÃO DE MENOR (representante legal + menor representado). */
+export function buildTemplateMenor(opts: {
+  party?: PartyData; menor?: MenorData; tipoAcao?: string; parteContraria?: string;
+  exitoPct?: number; honorarios?: any; foroCidade?: string; contratada?: ContratadaInfo;
+}): string {
+  const adv = opts.contratada || ADVOGADA;
+  const dt = (s?: string | null) => (s ? new Date(String(s).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR') : '[DATA DE NASCIMENTO]');
+  const r = opts.party || {};
+  const rNome = r.name || '[NOME DO RESPONSÁVEL]';
+  const rNac = r.nacionalidade || 'brasileiro(a)';
+  const rProf = r.profissao || '[profissão]';
+  const rEc = r.estadoCivil || '[estado civil]';
+  const rRg = r.rg || '[RG]';
+  const rCpf = r.cpf || '[CPF]';
+  const rEnd = r.endereco || '[ENDEREÇO]';
+  const m = opts.menor || {};
+  const mNome = m.nome || '[NOME DO MENOR]';
+  const mCpf = m.cpf || '[CPF DO MENOR]';
+  const acao = (opts.tipoAcao && opts.tipoAcao.trim()) ? opts.tipoAcao.trim() : '[TIPO DE AÇÃO]';
+  const reu = (opts.parteContraria && opts.parteContraria.trim()) ? opts.parteContraria.trim() : '[PARTE CONTRÁRIA]';
+  const foro = (opts.foroCidade && opts.foroCidade.trim()) ? opts.foroCidade.trim() : FORO;
+  let pct = opts.exitoPct || 0;
+  try { const h = opts.honorarios || {}; const ex = Number(h?.values?.exito) || Number(h?.values?.ad_exitum); if (!pct && ex) pct = ex; } catch {}
+  if (!pct) pct = 30;
+
+  return `CONTRATO DE HONORÁRIOS ADVOCATÍCIOS - REPRESENTAÇÃO DE MENOR
+
+CONTRATANTE (REPRESENTANTE LEGAL): ${rNome}, ${rNac}, ${rProf}, ${rEc}, portador(a) do RG nº ${rRg} e inscrito(a) no CPF nº ${rCpf}, residente e domiciliado(a) na ${rEnd}, neste ato representando seu(sua) filho(a) menor, adiante qualificado(a).
+
+REPRESENTADO(A) (AUTOR(A) MENOR): ${mNome}, menor, nascido(a) em ${dt(m.nascimento)}, inscrito(a) no CPF nº ${mCpf}, neste ato representado(a) por seu(sua) genitor(a), a CONTRATANTE acima qualificada.
+
+CONTRATADA: ${contratadaBloco(adv)}.
+
+As partes acima qualificadas firmam o presente Contrato de Prestação de Serviços Advocatícios, que se regerá pelas seguintes cláusulas:
+
+CLÁUSULA PRIMEIRA - DO OBJETO DO CONTRATO
+O presente contrato tem por objeto a prestação de serviços advocatícios pela CONTRATADA para o ajuizamento e acompanhamento, em todas as instâncias, de ${acao} em favor do(a) menor REPRESENTADO(A), em face de ${reu}.
+
+CLÁUSULA SEGUNDA - DOS HONORÁRIOS ADVOCATÍCIOS
+A título de honorários de êxito, a CONTRATANTE pagará à CONTRATADA o percentual de ${pct}% (${extensoPct(pct)}) sobre o proveito econômico total obtido em favor do(a) REPRESENTADO(A).
+
+PARÁGRAFO PRIMEIRO - Os honorários serão devidos e destacados no momento da liberação dos valores por meio de alvará judicial, autorizando a CONTRATADA, desde já, a requerer ao juízo que o pagamento de seus honorários seja feito por dedução da quantia a ser recebida pelo(a) REPRESENTADO(A), nos termos do art. 22, § 4º, da Lei nº 8.906/94.
+
+CLÁUSULA TERCEIRA - DAS DESPESAS
+As despesas processuais (custas, taxas, perícias, etc.) não estão incluídas nos honorários e, caso não seja concedido o benefício da justiça gratuita, deverão ser custeadas pela CONTRATANTE.
+
+CLÁUSULA QUARTA - DAS OBRIGAÇÕES DA CONTRATANTE (REPRESENTANTE LEGAL)
+Compete à CONTRATANTE fornecer à CONTRATADA todos os documentos e informações necessários à defesa dos interesses do(a) REPRESENTADO(A), bem como comparecer aos atos processuais sempre que sua presença for solicitada.
+
+CLÁUSULA QUINTA - DO TÍTULO EXECUTIVO
+O presente contrato constitui título executivo extrajudicial, nos termos do artigo 24 da Lei nº 8.906/94 (Estatuto da Advocacia e da OAB) e do art. 784 do Código de Processo Civil.
+
+CLÁUSULA SEXTA - DA NÃO RESPONSABILIZAÇÃO E DOS CANAIS OFICIAIS
+A CONTRATADA não se responsabiliza por prejuízos decorrentes de golpes praticados por terceiros. A CONTRATANTE declara estar ciente de que todas as comunicações e solicitações financeiras ocorrerão exclusivamente pelos seguintes canais: E-mails: ${DADOS_PAGAMENTO.emails}. Telefones/WhatsApp: ${DADOS_PAGAMENTO.telefones}. Pagamentos de honorários ou despesas serão devidos exclusivamente na conta de titularidade da CONTRATADA, cujos dados são: Beneficiário: ${DADOS_PAGAMENTO.beneficiario}; Instituição: ${DADOS_PAGAMENTO.instituicao}; Agência: ${DADOS_PAGAMENTO.agencia}; Conta Corrente: ${DADOS_PAGAMENTO.conta}; Chaves PIX: ${DADOS_PAGAMENTO.pix}.
+
+CLÁUSULA SÉTIMA - DA VEDAÇÃO A ACORDOS DESASSISTIDOS
+Fica expressamente vedado à CONTRATANTE (representante legal) negociar ou firmar qualquer tipo de acordo em nome do(a) REPRESENTADO(A) sem a anuência prévia e por escrito da CONTRATADA. A violação desta cláusula implicará o vencimento antecipado da integralidade dos honorários de êxito estipulados na Cláusula Segunda, que serão calculados sobre o valor atualizado da causa ou sobre o valor do acordo, o que for maior, e cobrados imediatamente via execução deste contrato.
+
+CLÁUSULA OITAVA - DO COMPARECIMENTO A ATOS PROCESSUAIS
+O não comparecimento injustificado da CONTRATANTE a uma audiência ou ato para o qual seja indispensável, sem notificação prévia de 48 (quarenta e oito) horas, resultará na aplicação cumulativa de multa de 20% (vinte por cento) sobre o valor atualizado da causa e no pagamento imediato de R$ 100,00 (cem reais) para ressarcimento de despesas de deslocamento.
+
+CLÁUSULA NONA - DA NATUREZA DA OBRIGAÇÃO
+O presente contrato configura obrigação de meio, não garantindo resultado específico, inexistindo responsabilidade da CONTRATADA por decisões judiciais desfavoráveis.
+
+CLÁUSULA DÉCIMA - DA VIGÊNCIA E RESCISÃO
+O contrato vige da assinatura até o final da demanda. A rescisão imotivada por parte da CONTRATANTE a obrigará ao pagamento de honorários proporcionais ao trabalho realizado, além de multa contratual.
+
+CLÁUSULA DÉCIMA PRIMEIRA - DO FORO
+Fica eleito o foro da Comarca de ${foro} para dirimir quaisquer litígios oriundos deste contrato.
+
+E, por estarem assim justas e contratadas, assinam o presente instrumento.
+
+${foro}, [DATA].
+
+
+_______________________________________
+${rNome}
+CONTRATANTE
+(Representante Legal de ${mNome})
+
+
+_______________________________________
+${adv.nome}
+CONTRATADA
+${adv.oab.replace(' sob o nº ', ' ')}`;
+}
+
 const AREA_OBJECT: Record<string, string> = {
   trabalhista: 'o ajuizamento, acompanhamento e patrocínio de Ação Trabalhista, perante a Vara do Trabalho competente, até a prolação da sentença, visando ao reconhecimento dos direitos e à cobrança das verbas trabalhistas devidas ao(à) CONTRATANTE.',
   gestante: 'a defesa dos direitos da gestante, incluindo estabilidade gravídica, licença-maternidade e reversão de demissão irregular, em favor do(a) CONTRATANTE.',

@@ -2855,6 +2855,19 @@ async function contractEditor(id, onSave) {
       <strong class="cp-grp">Data e pagamento</strong>
       <div class="form-row">${field('Data', 'o_data')}${field('Forma de pagamento / parcelas', 'o_forma')}</div>
       <button type="button" class="btn-primary" id="apply-complete">Aplicar aos documentos</button>
+
+      <label class="agree" id="menor-toggle" style="margin-top:6px">
+        <input type="checkbox" id="menor-chk"> <span>Contrato de representação de <strong>MENOR</strong> (dependente)</span>
+      </label>
+      <div id="menor-fields" style="display:none;flex-direction:column;gap:10px">
+        <strong class="cp-grp">Dados do menor representado</strong>
+        ${field('Nome completo do menor', 'menor_nome')}
+        <div class="form-row">${field('Data de nascimento', 'menor_nascimento', { type: 'date' })}${field('CPF do menor', 'menor_cpf')}</div>
+        ${field('RG do responsável', 'responsavel_rg')}
+        <div class="form-row">${field('Tipo de ação', 'tipo_acao')}${field('Parte contrária', 'parte_contraria')}</div>
+        ${field('Foro (Comarca)', 'foro_cidade', { value: 'Vitória/ES' })}
+        <button type="button" class="btn-gold" id="gerar-menor">Gerar contrato de representação de menor</button>
+      </div>
     </div>
     <button class="btn-primary" id="save-ct">Salvar documentos</button>
     ${signAction}
@@ -2888,6 +2901,21 @@ async function contractEditor(id, onSave) {
     const pnl = wrap.querySelector('#complete-panel');
     pnl.style.display = pnl.style.display === 'none' ? 'block' : 'none';
   };
+  // Representação de menor: checkbox revela os campos do menor
+  const menorChk = wrap.querySelector('#menor-chk');
+  menorChk.onchange = () => { wrap.querySelector('#menor-fields').style.display = menorChk.checked ? 'flex' : 'none'; };
+  wrap.querySelector('#gerar-menor').onclick = async () => {
+    const g = (n) => wrap.querySelector(`[name=${n}]`)?.value || '';
+    if (!g('menor_nome')) { toast('Informe o nome do menor', 'error'); return; }
+    if (!confirm('Gerar o CONTRATO no modelo de representação de menor? O texto do contrato será substituído.')) return;
+    try {
+      await api(`/api/contracts/${id}/gerar-menor`, { method: 'POST', body: JSON.stringify({
+        menor_nome: g('menor_nome'), menor_nascimento: g('menor_nascimento'), menor_cpf: g('menor_cpf'),
+        responsavel_rg: g('responsavel_rg'), tipo_acao: g('tipo_acao'), parte_contraria: g('parte_contraria'), foro_cidade: g('foro_cidade'),
+      }) });
+      closeModal(); toast('Contrato de menor gerado'); onSave && onSave(); contractEditor(id, onSave);
+    } catch (e) { toast(e.message, 'error'); }
+  };
   try {
     const saved = JSON.parse(localStorage.getItem('escritorioInfo') || '{}');
     ['o_forma'].forEach((n) => {
@@ -2899,6 +2927,11 @@ async function contractEditor(id, onSave) {
     const set = (n, v) => { const inp = wrap.querySelector(`[name=${n}]`); if (inp && !inp.value && v) inp.value = v; };
     set('c_cpf', pt.cpf); set('c_prof', pt.profissao); set('c_end', pt.endereco);
     set('o_forma', pt.forma_pagamento);
+    set('responsavel_rg', pt.rg); set('tipo_acao', pt.tipo_causa);
+    if (pt.dependentes && pt.dependentes.length) {
+      set('menor_nome', pt.dependentes[0].nome); set('menor_cpf', pt.dependentes[0].cpf);
+      menorChk.checked = true; wrap.querySelector('#menor-fields').style.display = 'flex';
+    }
   }).catch(() => {});
   const dataEl = wrap.querySelector('[name=o_data]');
   if (dataEl && !dataEl.value) dataEl.value = new Date().toLocaleDateString('pt-BR');

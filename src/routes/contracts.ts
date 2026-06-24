@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 import { onContractSigned } from '../services/contractFlow';
-import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
+import { buildTemplate, buildTemplateMenor, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
 import { getEscritorio } from '../services/escritorio';
 import { reprocessContract } from '../services/contractReprocess';
 
@@ -58,10 +58,12 @@ router.get('/:id/party', async (req: Request, res: Response) => {
     client = cr[0] || null;
   }
 
-  // Forma de pagamento a partir da proposta vinculada (mesmo lead/cliente)
+  // Proposta vinculada (forma de pagamento, dependentes e tipo de causa)
   let formaPagamento = '';
+  let dependentes: any[] = [];
+  let tipoCausa = '';
   const [props] = await db.query(
-    `SELECT honorarios FROM propostas WHERE (lead_id <=> ? OR client_id <=> ?) AND honorarios IS NOT NULL
+    `SELECT honorarios, dependentes, tipo_causa FROM propostas WHERE (lead_id <=> ? OR client_id <=> ?)
       ORDER BY created_at DESC LIMIT 1`,
     [ct.lead_id ?? null, ct.client_id ?? null]
   ) as any;
@@ -70,6 +72,8 @@ router.get('/:id/party', async (req: Request, res: Response) => {
       const h = typeof props[0].honorarios === 'string' ? JSON.parse(props[0].honorarios) : props[0].honorarios;
       if (h?.parcelamento) formaPagamento = formaPagamentoTexto(h.parcelamento);
     } catch {}
+    try { dependentes = typeof props[0].dependentes === 'string' ? JSON.parse(props[0].dependentes) : (props[0].dependentes || []); } catch {}
+    tipoCausa = props[0].tipo_causa || '';
   }
 
   res.json({
@@ -79,8 +83,52 @@ router.get('/:id/party', async (req: Request, res: Response) => {
     estado_civil: lead?.marital_status || '',
     profissao: lead?.profession || '',
     endereco: (client?.address && client.address.trim()) ? client.address : (montarEndereco(lead || {}) || ''),
+    dependentes: Array.isArray(dependentes) ? dependentes : [],
+    tipo_causa: tipoCausa,
     forma_pagamento: formaPagamento,
   });
+});
+
+// ── POST /api/contracts/:id/gerar-menor — gera o contrato de representação de menor ─
+router.post('/:id/gerar-menor', async (req: Request, res: Response) => {
+  const [cts] = await db.query('SELECT * FROM contracts WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!cts.length) { res.status(404).json({ error: 'Contrato não encontrado' }); return; }
+  const ct = cts[0];
+
+  let lead: any = null, client: any = null, prop: any = null;
+  if (ct.lead_id) {
+    const [lr] = await db.query('SELECT name, cpf_cnpj, rg, marital_status, profession, cep, street, number, neighborhood, city, state, phone, email FROM leads WHERE id = ?', [ct.lead_id]) as any;
+    lead = lr[0] || null;
+  }
+  if (ct.client_id) {
+    const [cr] = await db.query('SELECT name, cpf_cnpj, address, phone, email FROM clients WHERE id = ?', [ct.client_id]) as any;
+    client = cr[0] || null;
+  }
+  const [pr] = await db.query('SELECT tipo_causa, honorarios FROM propostas WHERE (lead_id <=> ? OR client_id <=> ?) ORDER BY created_at DESC LIMIT 1', [ct.lead_id ?? null, ct.client_id ?? null]) as any;
+  prop = pr[0] || null;
+
+  const b = req.body || {};
+  const party: PartyData = {
+    name: client?.name || lead?.name || '',
+    cpf: client?.cpf_cnpj || lead?.cpf_cnpj || null,
+    rg: b.responsavel_rg || lead?.rg || null,
+    estadoCivil: lead?.marital_status, profissao: lead?.profession,
+    endereco: (client?.address && client.address.trim()) ? client.address : (montarEndereco(lead || {}) || null),
+  };
+  let honorarios: any = null;
+  try { honorarios = typeof prop?.honorarios === 'string' ? JSON.parse(prop.honorarios) : prop?.honorarios; } catch {}
+
+  const adv = await getEscritorio();
+  const content = buildTemplateMenor({
+    party,
+    menor: { nome: b.menor_nome, nascimento: b.menor_nascimento, cpf: b.menor_cpf },
+    tipoAcao: b.tipo_acao || prop?.tipo_causa,
+    parteContraria: b.parte_contraria,
+    foroCidade: b.foro_cidade,
+    honorarios, contratada: adv,
+  });
+  await db.query('UPDATE contracts SET content = ? WHERE id = ?', [content, req.params.id]);
+  res.json({ success: true });
 });
 
 // ── POST /api/contracts/:id/reprocessar — regenera os 3 documentos com o modelo atual ─
