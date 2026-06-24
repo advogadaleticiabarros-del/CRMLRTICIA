@@ -69,18 +69,6 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
-  // TEMPORÁRIO — reverte OAB para dígitos (DJEN) e regenera contratos (remover depois)
-  app.get('/api/_fix-oab', async (_req, res) => {
-    try {
-      const { db } = await import('./config/database');
-      const { reprocessAllContracts } = await import('./services/contractReprocess');
-      await db.query("UPDATE lawyers SET oab_number = '39948' WHERE oab_number = '39.948'");
-      const n = await reprocessAllContracts();
-      const [[l]] = await db.query("SELECT oab_number FROM lawyers WHERE id = 1") as any;
-      res.json({ ok: true, oab_number: l?.oab_number, contratos_regenerados: n });
-    } catch (e: any) { res.status(500).json({ error: e.message }); }
-  });
-
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
