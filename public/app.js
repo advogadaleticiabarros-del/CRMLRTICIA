@@ -1968,9 +1968,8 @@ async function leadForm(onSave) {
   const form = el(`<form class="form-grid">
     <div><strong style="color:var(--navy)">Dados básicos</strong></div>
     ${field('Nome *', 'name')}
-    <div class="form-row">${field('CPF/CNPJ', 'cpf_cnpj')}${field('RG', 'rg')}</div>
-    <div class="form-row">${field('Nascimento', 'birth_date', { type: 'date' })}${field('Estado civil', 'marital_status', { options: ESTADO_CIVIL.map(([v, t]) => ({ v, t })) })}</div>
-    ${field('Profissão', 'profession')}
+    <div class="form-row">${field('CPF/CNPJ', 'cpf_cnpj')}${field('Nascimento', 'birth_date', { type: 'date' })}</div>
+    <div class="form-row">${field('Estado civil', 'marital_status', { options: ESTADO_CIVIL.map(([v, t]) => ({ v, t })) })}${field('Profissão', 'profession')}</div>
     <div><strong style="color:var(--navy)">Contato</strong></div>
     <div class="form-row">${field('Telefone/WhatsApp', 'phone')}${field('E-mail', 'email', { type: 'email' })}</div>
     <div><strong style="color:var(--navy)">Endereço</strong></div>
@@ -2849,8 +2848,8 @@ async function contractEditor(id, onSave) {
     <div id="complete-panel" class="complete-panel" style="display:none">
       <strong class="cp-grp">Dados da parte (cliente)</strong>
       <div class="form-row">${field('Nacionalidade', 'c_nac', { value: 'brasileiro(a)' })}${field('Estado civil', 'c_ec')}</div>
-      <div class="form-row">${field('Profissão', 'c_prof')}${field('RG', 'c_rg')}</div>
-      <div class="form-row">${field('CPF', 'c_cpf')}${field('Endereço completo', 'c_end')}</div>
+      <div class="form-row">${field('Profissão', 'c_prof')}${field('CPF', 'c_cpf')}</div>
+      ${field('Endereço completo', 'c_end')}
       <strong class="cp-grp">Local, data e pagamento</strong>
       <div class="form-row">${field('Cidade (assinatura)', 'o_cidade', { value: 'Vitória/ES' })}${field('Comarca', 'o_comarca')}</div>
       <div class="form-row">${field('Data', 'o_data')}${field('Forma de pagamento / parcelas', 'o_forma')}</div>
@@ -2897,7 +2896,7 @@ async function contractEditor(id, onSave) {
   // Pré-preenche os dados da PARTE já cadastrados (lead + cliente) — sem retrabalho
   api(`/api/contracts/${id}/party`).then((pt) => {
     const set = (n, v) => { const inp = wrap.querySelector(`[name=${n}]`); if (inp && !inp.value && v) inp.value = v; };
-    set('c_cpf', pt.cpf); set('c_rg', pt.rg); set('c_ec', pt.estado_civil); set('c_prof', pt.profissao); set('c_end', pt.endereco);
+    set('c_cpf', pt.cpf); set('c_ec', pt.estado_civil); set('c_prof', pt.profissao); set('c_end', pt.endereco);
     set('o_forma', pt.forma_pagamento);
   }).catch(() => {});
   const dataEl = wrap.querySelector('[name=o_data]');
@@ -2905,7 +2904,7 @@ async function contractEditor(id, onSave) {
 
   wrap.querySelector('#apply-complete').onclick = () => {
     const map = {
-      '[nacionalidade]': 'c_nac', '[estado civil]': 'c_ec', '[profissão]': 'c_prof', '[CPF]': 'c_cpf', '[RG]': 'c_rg',
+      '[nacionalidade]': 'c_nac', '[estado civil]': 'c_ec', '[profissão]': 'c_prof', '[CPF]': 'c_cpf',
       '[ENDEREÇO]': 'c_end', '[CIDADE]': 'o_cidade', '[COMARCA]': 'o_comarca', '[DATA]': 'o_data', '[FORMA DE PAGAMENTO / PARCELAS]': 'o_forma',
     };
     let count = 0;

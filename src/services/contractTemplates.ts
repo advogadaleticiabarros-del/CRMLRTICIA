@@ -67,7 +67,6 @@ function f(p: PartyData) {
     ec: p.estadoCivil || '[estado civil]',
     prof: p.profissao || '[profissão]',
     cpf: p.cpf || '[CPF]',
-    rg: p.rg || '[RG]',
     end: p.endereco || '[ENDEREÇO]',
   };
 }
@@ -76,7 +75,7 @@ export function buildProcuracao(party: PartyData | string): string {
   const p = typeof party === 'string' ? f({ name: party }) : f(party);
   return `PROCURAÇÃO AD JUDICIA ET EXTRA
 
-OUTORGANTE: ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, RG nº ${p.rg}, residente e domiciliado(a) em ${p.end}.
+OUTORGANTE: ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, residente e domiciliado(a) em ${p.end}.
 
 OUTORGADA: ${OUTORGADA_BLOCO}.
 
@@ -94,7 +93,7 @@ export function buildDeclaracao(party: PartyData | string): string {
   const p = typeof party === 'string' ? f({ name: party }) : f(party);
   return `DECLARAÇÃO DE HIPOSSUFICIÊNCIA
 
-Eu, ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, RG nº ${p.rg}, residente e domiciliado(a) em ${p.end}, DECLARO, sob as penas da lei, para fins de concessão dos benefícios da JUSTIÇA GRATUITA, nos termos do art. 98 e seguintes do Código de Processo Civil e da Lei nº 1.060/50, que não possuo condições de arcar com as custas, despesas processuais e honorários advocatícios sem prejuízo do sustento próprio e de minha família.
+Eu, ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, residente e domiciliado(a) em ${p.end}, DECLARO, sob as penas da lei, para fins de concessão dos benefícios da JUSTIÇA GRATUITA, nos termos do art. 98 e seguintes do Código de Processo Civil e da Lei nº 1.060/50, que não possuo condições de arcar com as custas, despesas processuais e honorários advocatícios sem prejuízo do sustento próprio e de minha família.
 
 Por ser expressão da verdade, firmo a presente declaração.
 
