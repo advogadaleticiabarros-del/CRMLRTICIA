@@ -3106,8 +3106,9 @@ function printDoc(title, content) {
       .lh-header .sub { font-size: 7.5pt; color: #B8943F; letter-spacing: 3px; text-transform: uppercase; margin-top: 3px; }
       .lh-header .oab { font-size: 9.5pt; color: #555; white-space: nowrap; letter-spacing: .5px; }
       .lh-spacer-top { height: 0.5cm; }
-      .lh-footer { border-top: 1px solid #B8943F; padding-top: 6px; margin-top: 16px; text-align: center; font-size: 8.5pt; color: #555; }
-      .lh-footer .sep { color: #B8943F; margin: 0 6px; }
+      .lh-foot-spacer { height: 1.15cm; }
+      .lh-footer-fixed { position: fixed; bottom: 0.7cm; left: 1.8cm; right: 1.8cm; background: #fff; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
+      .lh-footer-fixed .sep { color: #B8943F; margin: 0 6px; }
       .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 12cm; height: auto; opacity: 0.035; z-index: -1; }
       .content { font-size: 12pt; line-height: 1.6; }
       .content .doc-title { text-align: center; font-size: 13.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; margin: 0 0 20px; }
@@ -3121,6 +3122,7 @@ function printDoc(title, content) {
       @media print { .no-print { display: none; } .content .clause, .content .sig-line { page-break-inside: avoid; } }
     </style></head><body>
     <img class="watermark" src="${location.origin}/logo-sem-fundo.png" onerror="this.onerror=null;this.src='${logo}'">
+    <div class="lh-footer-fixed">(27) 99515-1402 | (44) 99101-1402<span class="sep">·</span>advogadaleticia.barros@gmail.com<span class="sep">·</span>@adv.leticiabarros2</div>
     <table class="page">
       <thead><tr><td>
         <div class="lh-header">
@@ -3129,9 +3131,7 @@ function printDoc(title, content) {
           <div class="oab">OAB Nº 39.948 - ES</div>
         </div>
       </td></tr></thead>
-      <tfoot><tr><td>
-        <div class="lh-footer">(27) 99515-1402 | (44) 99101-1402<span class="sep">·</span>advogadaleticia.barros@gmail.com<span class="sep">·</span>@adv.leticiabarros2</div>
-      </td></tr></tfoot>
+      <tfoot><tr><td><div class="lh-foot-spacer"></div></td></tr></tfoot>
       <tbody><tr><td><div class="content">${formatDocHtml(content)}</div></td></tr></tbody>
     </table>
     <div class="no-print" style="text-align:center;margin:20px 0"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
