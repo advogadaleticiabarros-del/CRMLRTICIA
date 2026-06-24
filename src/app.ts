@@ -69,6 +69,37 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
+  // TEMPORÁRIO — semeia os modelos padrão em Documentos e modelos (remover depois)
+  app.get('/api/_seed-templates', async (_req, res) => {
+    try {
+      const { db } = await import('./config/database');
+      const t = await import('./services/contractTemplates');
+      const { getEscritorio } = await import('./services/escritorio');
+      const adv = await getEscritorio();
+      const partyTok: any = {
+        name: '{{cliente_nome}}', nacionalidade: 'brasileiro(a)', profissao: '{{cliente_profissao}}',
+        estadoCivil: '{{cliente_estado_civil}}', cpf: '{{cliente_cpf}}', rg: '{{cliente_rg}}', endereco: '{{cliente_endereco}}',
+      };
+      const menorTok: any = { nome: '[NOME DO MENOR]', nascimento: null, cpf: '[CPF DO MENOR]' };
+      const dataVar = (s: string) => s.split('[DATA]').join('{{data_extenso}}');
+      const modelos = [
+        ['Contrato de Prestação de Serviços Advocatícios', 'contratos', dataVar(t.buildTemplate({ party: partyTok, area: 'outro', contratada: adv }))],
+        ['Contrato de Honorários — Representação de Menor', 'contratos', dataVar(t.buildTemplateMenor({ party: partyTok, menor: menorTok, contratada: adv }))],
+        ['Procuração Ad Judicia et Extra', 'procuracoes', dataVar(t.buildProcuracao(partyTok, adv))],
+        ['Procuração — Representação de Menor', 'procuracoes', dataVar(t.buildProcuracaoMenor(partyTok, menorTok, adv))],
+        ['Declaração de Hipossuficiência', 'declaracoes', dataVar(t.buildDeclaracao(partyTok))],
+        ['Declaração de Hipossuficiência — Menor', 'declaracoes', dataVar(t.buildDeclaracaoMenor(partyTok, menorTok))],
+      ];
+      let criados = 0;
+      for (const [name, cat, content] of modelos) {
+        const [ex] = await db.query('SELECT id FROM document_templates WHERE name = ? LIMIT 1', [name]) as any;
+        if (ex.length) { await db.query('UPDATE document_templates SET content = ?, category = ? WHERE id = ?', [content, cat, ex[0].id]); }
+        else { await db.query('INSERT INTO document_templates (name, category, content) VALUES (?, ?, ?)', [name, cat, content]); criados++; }
+      }
+      res.json({ ok: true, modelos: modelos.length, novos: criados });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
