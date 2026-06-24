@@ -69,20 +69,6 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
-  // TEMPORÁRIO — regenera contratos e mostra a Cláusula 2ª do Vinícius (remover depois)
-  app.get('/api/_check-valores', async (_req, res) => {
-    try {
-      const { db } = await import('./config/database');
-      const { reprocessAllContracts } = await import('./services/contractReprocess');
-      const { montarClausulaValores } = await import('./services/contractTemplates');
-      const n = await reprocessAllContracts();
-      const [props] = await db.query("SELECT honorarios FROM propostas WHERE contact_name LIKE '%inicius%' ORDER BY created_at DESC LIMIT 1") as any;
-      const h = props[0]?.honorarios ? (typeof props[0].honorarios === 'string' ? JSON.parse(props[0].honorarios) : props[0].honorarios) : null;
-      const clausula = montarClausulaValores({ honorarios: h });
-      res.json({ contratos_regenerados: n, honorarios: h, clausula_segunda: clausula.texto });
-    } catch (e: any) { res.status(500).json({ error: e.message }); }
-  });
-
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
