@@ -37,6 +37,34 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json(rows[0]);
 });
 
+// ── GET /api/contracts/:id/party — dados já cadastrados da parte (lead + cliente) ─
+router.get('/:id/party', async (req: Request, res: Response) => {
+  const [cts] = await db.query('SELECT client_id, lead_id FROM contracts WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!cts.length) { res.status(404).json({ error: 'Contrato não encontrado' }); return; }
+  const ct = cts[0];
+
+  let lead: any = null, client: any = null;
+  if (ct.lead_id) {
+    const [lr] = await db.query(
+      'SELECT name, cpf_cnpj, rg, marital_status, profession, cep, street, number, neighborhood, city, state, phone, email FROM leads WHERE id = ?',
+      [ct.lead_id]
+    ) as any;
+    lead = lr[0] || null;
+  }
+  if (ct.client_id) {
+    const [cr] = await db.query('SELECT name, cpf_cnpj, address, phone, email FROM clients WHERE id = ?', [ct.client_id]) as any;
+    client = cr[0] || null;
+  }
+  res.json({
+    name: client?.name || lead?.name || '',
+    cpf: client?.cpf_cnpj || lead?.cpf_cnpj || '',
+    rg: lead?.rg || '',
+    estado_civil: lead?.marital_status || '',
+    profissao: lead?.profession || '',
+    endereco: (client?.address && client.address.trim()) ? client.address : (montarEndereco(lead || {}) || ''),
+  });
+});
+
 // ── POST /api/contracts/from-lead/:leadId — fecha o lead e gera o contrato ──
 router.post('/from-lead/:leadId', async (req: Request, res: Response) => {
   const { leadId } = req.params;

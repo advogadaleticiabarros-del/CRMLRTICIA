@@ -2894,6 +2894,11 @@ async function contractEditor(id, onSave) {
       const inp = wrap.querySelector(`[name=${n}]`); if (inp && saved[n]) inp.value = saved[n];
     });
   } catch {}
+  // Pré-preenche os dados da PARTE já cadastrados (lead + cliente) — sem retrabalho
+  api(`/api/contracts/${id}/party`).then((pt) => {
+    const set = (n, v) => { const inp = wrap.querySelector(`[name=${n}]`); if (inp && !inp.value && v) inp.value = v; };
+    set('c_cpf', pt.cpf); set('c_rg', pt.rg); set('c_ec', pt.estado_civil); set('c_prof', pt.profissao); set('c_end', pt.endereco);
+  }).catch(() => {});
   const dataEl = wrap.querySelector('[name=o_data]');
   if (dataEl && !dataEl.value) dataEl.value = new Date().toLocaleDateString('pt-BR');
 
