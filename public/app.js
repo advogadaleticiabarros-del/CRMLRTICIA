@@ -2871,6 +2871,16 @@ async function contractEditor(id, onSave) {
       </div>
     </div>
     <button class="btn-primary" id="save-ct">Salvar documentos</button>
+    <hr style="border:none;border-top:1px solid var(--border)">
+    <strong style="font-size:13px;color:var(--navy)">Assinatura via ZapSign</strong>
+    <p class="sub" style="margin:2px 0 6px">Gere o link no ZapSign e cole abaixo — o sistema monta a mensagem para o cliente e marca o contrato como enviado para assinatura.</p>
+    <label>Link do ZapSign<input id="zap-link" value="${ct.zapsign_link || ''}" placeholder="https://app.zapsign.com.br/..."></label>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn-gold btn-sm" id="zap-msg" type="button">Gerar mensagem ao cliente</button>
+      <button class="btn-sm" id="zap-copy" type="button">Copiar</button>
+      <button class="btn-sm" id="zap-wpp" type="button">WhatsApp</button>
+    </div>
+    <textarea id="zap-text" rows="8" placeholder="A mensagem orientando o cliente aparecerá aqui."></textarea>
     ${signAction}
   </div>`);
 
@@ -2971,6 +2981,33 @@ async function contractEditor(id, onSave) {
 
   wrap.querySelector('#save-ct').onclick = async () => {
     try { await saveDocs(); closeModal(); toast('Documentos salvos'); onSave && onSave(); } catch (e) { toast(e.message, 'error'); }
+  };
+
+  // Assinatura via ZapSign — cola o link e gera a orientação ao cliente
+  const zapMsg = (link) => {
+    const nome = (ct.client_name || '').split(' ')[0];
+    return `Olá${nome ? ', ' + nome : ''}!\n\n`
+      + `Segue o link para assinatura do seu *Contrato de Prestação de Serviços Advocatícios* (conforme a proposta aceita), da *Procuração* e da *Declaração de Hipossuficiência*:\n\n`
+      + `${link}\n\n`
+      + `Ao abrir o link, você verá uma prévia de todos esses documentos. Leia com atenção, vá até a última página e clique em *Continuar*. A partir daí, você poderá assinar na própria tela do celular.\n\n`
+      + `Em caso de dúvidas, nosso escritório fica à sua disposição.\n— Advocacia Letícia Barros`;
+  };
+  wrap.querySelector('#zap-msg').onclick = async () => {
+    const link = wrap.querySelector('#zap-link').value.trim();
+    if (!/^https?:\/\//i.test(link)) { toast('Cole um link válido do ZapSign', 'error'); return; }
+    wrap.querySelector('#zap-text').value = zapMsg(link);
+    try { await saveDocs({ zapsign_link: link }); toast('Link salvo — contrato marcado como enviado para assinatura'); onSave && onSave(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  wrap.querySelector('#zap-copy').onclick = async () => {
+    const t = wrap.querySelector('#zap-text').value || zapMsg(wrap.querySelector('#zap-link').value.trim());
+    try { await navigator.clipboard.writeText(t); toast('Mensagem copiada'); }
+    catch { const ta = wrap.querySelector('#zap-text'); ta.select(); document.execCommand('copy'); toast('Mensagem copiada'); }
+  };
+  wrap.querySelector('#zap-wpp').onclick = () => {
+    const link = wrap.querySelector('#zap-link').value.trim();
+    if (!/^https?:\/\//i.test(link)) { toast('Cole um link válido do ZapSign', 'error'); return; }
+    window.open('https://wa.me/?text=' + encodeURIComponent(zapMsg(link)), '_blank');
   };
   const loadCtSigs = async () => {
     const box = wrap.querySelector('#ct-sign-status'); if (!box) return;

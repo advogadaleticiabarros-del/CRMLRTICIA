@@ -227,6 +227,13 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('value', req.body.value !== undefined ? Number(req.body.value) : undefined);
   setIf('area', req.body.area, AREAS.includes(req.body.area));
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
+  setIf('zapsign_link', req.body.zapsign_link);
+
+  // Colar o link de assinatura (ZapSign) move o contrato para "enviado para assinatura"
+  const zlink = req.body.zapsign_link && String(req.body.zapsign_link).trim();
+  if (zlink && !STATUSES.includes(req.body.status) && before.status !== 'assinado') {
+    fields.push('status = ?'); params.push('enviado_assinatura');
+  }
 
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
   params.push(id);
@@ -237,9 +244,9 @@ router.put('/:id', async (req: Request, res: Response) => {
   if (req.body.status === 'assinado' && before.status !== 'assinado' && before.client_id) {
     const r = await onContractSigned(Number(id), req.user!.id, req.user!.name);
     createdCaseId = r.caseId;
-  } else if (req.body.status === 'enviado_assinatura' && before.status !== 'enviado_assinatura' && before.client_id) {
+  } else if ((req.body.status === 'enviado_assinatura' || zlink) && before.status !== 'enviado_assinatura' && before.status !== 'assinado' && before.client_id) {
     await logTimeline({ clientId: before.client_id, contractId: Number(id),
-      eventType: 'contrato_enviado', description: 'Contrato enviado para assinatura.', userId: req.user!.id });
+      eventType: 'contrato_enviado', description: `Contrato enviado para assinatura${zlink ? ' (link ZapSign)' : ''}.`, userId: req.user!.id });
   }
 
   const [rows] = await db.query('SELECT * FROM contracts WHERE id = ?', [id]) as any;
