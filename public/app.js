@@ -3065,8 +3065,27 @@ async function lawyerForm(id, onSave) {
   openModal(id ? 'Editar advogado / OAB' : 'Novo advogado', form);
 }
 
+function formatDocHtml(text) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const lines = String(text || '').split('\n');
+  let html = ''; let inSig = false; let titleDone = false;
+  for (const raw of lines) {
+    const t = raw.trim();
+    if (!t) { html += '<div class="sp"></div>'; continue; }
+    if (/^_{5,}$/.test(t)) { inSig = true; html += '<div class="sig-line"></div>'; continue; }
+    if (inSig) { html += `<p class="sig-name">${esc(t)}</p>`; continue; }
+    if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
+    if (/^CL[ÁA]USULA\b/i.test(t)) { html += `<p class="clause">${esc(t)}</p>`; continue; }
+    const mp = t.match(/^(PAR[ÁA]GRAFO[^-]*-)\s*([\s\S]*)$/i);
+    if (mp) { html += `<p class="para"><strong>${esc(mp[1])}</strong> ${esc(mp[2])}</p>`; continue; }
+    const ml = t.match(/^(CONTRATANTE|CONTRATADA|OUTORGANTE|OUTORGADO\(A\)|OUTORGADA|DECLARANTE):([\s\S]*)$/i);
+    if (ml) { html += `<p class="party"><strong>${esc(ml[1])}:</strong>${esc(ml[2])}</p>`; continue; }
+    html += `<p class="body">${esc(t)}</p>`;
+  }
+  return html;
+}
+
 function printDoc(title, content) {
-  const safe = (content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const w = window.open('', '_blank');
   if (!w) { toast('Permita pop-ups para gerar o PDF', 'error'); return; }
   const logo = location.origin + '/logo.png';
@@ -3090,8 +3109,16 @@ function printDoc(title, content) {
       .lh-footer { border-top: 1px solid #B8943F; padding-top: 6px; margin-top: 16px; text-align: center; font-size: 8.5pt; color: #555; }
       .lh-footer .sep { color: #B8943F; margin: 0 6px; }
       .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 12cm; height: auto; opacity: 0.035; z-index: -1; }
-      .content { white-space: pre-wrap; text-align: justify; }
-      @media print { .no-print { display: none; } }
+      .content { font-size: 12pt; line-height: 1.6; }
+      .content .doc-title { text-align: center; font-size: 13.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; margin: 0 0 20px; }
+      .content .clause { font-weight: bold; margin: 16px 0 5px; }
+      .content .para { margin: 8px 0; text-align: justify; }
+      .content .party { margin: 6px 0; text-align: justify; }
+      .content .body { margin: 9px 0; text-align: justify; }
+      .content .sp { height: 5px; }
+      .content .sig-line { width: 62%; margin: 32px auto 4px; border-bottom: 1px solid #333; }
+      .content .sig-name { text-align: center; margin: 0; line-height: 1.45; }
+      @media print { .no-print { display: none; } .content .clause, .content .sig-line { page-break-inside: avoid; } }
     </style></head><body>
     <img class="watermark" src="${location.origin}/logo-sem-fundo.png" onerror="this.onerror=null;this.src='${logo}'">
     <table class="page">
@@ -3105,7 +3132,7 @@ function printDoc(title, content) {
       <tfoot><tr><td>
         <div class="lh-footer">(27) 99515-1402 | (44) 99101-1402<span class="sep">·</span>advogadaleticia.barros@gmail.com<span class="sep">·</span>@adv.leticiabarros2</div>
       </td></tr></tfoot>
-      <tbody><tr><td><div class="content">${safe}</div></td></tr></tbody>
+      <tbody><tr><td><div class="content">${formatDocHtml(content)}</div></td></tr></tbody>
     </table>
     <div class="no-print" style="text-align:center;margin:20px 0"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
     </body></html>`);
