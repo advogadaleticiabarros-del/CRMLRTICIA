@@ -3138,6 +3138,12 @@ function docTableHtml(content, logo) {
     </table>`;
 }
 
+function dataExtensoHoje() {
+  const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+  const d = new Date();
+  return `${d.getDate()} de ${meses[d.getMonth()]} de ${d.getFullYear()}`;
+}
+
 function printDoc(title, content) { printDocs([{ title, content }]); }
 
 function printDocs(docs) {
@@ -3145,7 +3151,11 @@ function printDocs(docs) {
   if (!w) { toast('Permita pop-ups para gerar o PDF', 'error'); return; }
   const logo = location.origin + '/logo.png';
   const titulo = docs.length > 1 ? 'Documentos' : (docs[0] && docs[0].title) || 'Documento';
-  const blocks = docs.map((d, i) => `<div class="docwrap"${i > 0 ? ' style="page-break-before:always"' : ''}>${docTableHtml(d.content, logo)}</div>`).join('');
+  const hoje = dataExtensoHoje(); // data da impressão/download
+  const blocks = docs.map((d, i) => {
+    const c = String(d.content || '').split('[DATA]').join(hoje).split('{{data_extenso}}').join(hoje);
+    return `<div class="docwrap"${i > 0 ? ' style="page-break-before:always"' : ''}>${docTableHtml(c, logo)}</div>`;
+  }).join('');
   w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${titulo}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
