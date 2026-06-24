@@ -2881,6 +2881,7 @@ async function contractEditor(id, onSave) {
       <button class="btn-sm" id="zap-wpp" type="button">WhatsApp</button>
     </div>
     <textarea id="zap-text" rows="8" placeholder="A mensagem orientando o cliente aparecerá aqui."></textarea>
+    ${ct.status === 'assinado' ? '' : '<button class="btn-primary" id="zap-signed" type="button" style="background:var(--green)">✓ Marcar como assinado (ZapSign)</button>'}
     ${signAction}
   </div>`);
 
@@ -3008,6 +3009,16 @@ async function contractEditor(id, onSave) {
     const link = wrap.querySelector('#zap-link').value.trim();
     if (!/^https?:\/\//i.test(link)) { toast('Cole um link válido do ZapSign', 'error'); return; }
     window.open('https://wa.me/?text=' + encodeURIComponent(zapMsg(link)), '_blank');
+  };
+  const zapSigned = wrap.querySelector('#zap-signed');
+  if (zapSigned) zapSigned.onclick = async () => {
+    if (!confirm('Confirmar que o cliente já assinou no ZapSign? Isso cria o processo na esteira e gera os honorários no financeiro.')) return;
+    try {
+      const link = wrap.querySelector('#zap-link').value.trim();
+      const r = await saveDocs({ status: 'assinado', zapsign_link: link || undefined });
+      closeModal(); toast('Contrato assinado! Processo criado + honorários gerados.'); onSave && onSave();
+      if (r.created_case_id) { location.hash = '#cases'; }
+    } catch (e) { toast(e.message, 'error'); }
   };
   const loadCtSigs = async () => {
     const box = wrap.querySelector('#ct-sign-status'); if (!box) return;
