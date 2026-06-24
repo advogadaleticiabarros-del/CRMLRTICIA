@@ -56,6 +56,7 @@
         const r = await fetch('/api/public/sign/' + token).then((x) => x.json());
         if (r.error) { root.innerHTML = `<p class="msg">${r.error}</p>`; return; }
         if (r.status === 'assinado') { showDone(r.verification_code); return; }
+        window._openedAt = new Date().toISOString();
         render(r);
       } catch (e) { root.innerHTML = '<p class="msg">Falha ao carregar.</p>'; }
     }
@@ -69,22 +70,49 @@
         <input id="nome" value="${r.signer_name || ''}" placeholder="Seu nome completo" />
         <label>CPF</label>
         <input id="cpf" inputmode="numeric" placeholder="000.000.000-00" />
+        <div class="row" style="gap:10px">
+          <div style="flex:1"><label>E-mail</label><input id="email" type="email" placeholder="seu@email.com" /></div>
+          <div style="flex:1"><label>Telefone / WhatsApp</label><input id="phone" inputmode="numeric" placeholder="(00) 00000-0000" /></div>
+        </div>
         <label>Sua assinatura (assine com o dedo ou o mouse)</label>
         <div class="padwrap"><canvas id="pad"></canvas><div class="padhint" id="hint">assine aqui</div></div>
         <div class="row"><button class="btn-clear" id="clear">Limpar assinatura</button></div>
+        <label style="margin-top:14px">Selfie segurando o documento (opcional — reforça a validade)</label>
+        <input id="selfie" type="file" accept="image/*" capture="user" style="color:#D8CEB8;font-size:13px" />
+        <div id="selfie-prev"></div>
         <label class="check"><input type="checkbox" id="agree" /><span>Declaro que li o documento, que as informações são minhas e verdadeiras, e manifesto minha vontade de assiná-lo eletronicamente.</span></label>
+        <label class="check"><input type="checkbox" id="lgpd" /><span>Autorizo o registro e o tratamento dos meus dados e das evidências desta assinatura (data/hora, IP, geolocalização e dispositivo), nos termos da LGPD.</span></label>
         <button class="btn-gold" id="sign" disabled>Assinar documento</button>
         <p class="msg" id="msg"></p>
-        <p class="legal">Assinatura eletrônica nos termos da Lei 14.063/2020 e da MP 2.200-2/2001. Serão registrados data, hora, IP e o resumo (hash) do documento para garantir a integridade.</p>`;
+        <p class="legal" id="geo-status" style="margin-top:6px">Obtendo localização (com seu consentimento)…</p>
+        <p class="legal">Assinatura eletrônica avançada nos termos da Lei 14.063/2020 e da MP 2.200-2/2001. Serão registrados nome, CPF, e-mail, telefone, data/hora (UTC), IP, dispositivo, geolocalização, o hash SHA-256 do documento e o histórico de eventos para garantir autenticidade e integridade.</p>`;
       setupPad();
       const agree = document.getElementById('agree');
+      const lgpd = document.getElementById('lgpd');
       const btn = document.getElementById('sign');
-      const sync = () => { btn.disabled = !(agree.checked && hasDrawn); };
-      agree.onchange = sync;
+      const sync = () => { btn.disabled = !(agree.checked && lgpd.checked && hasDrawn); };
+      agree.onchange = sync; lgpd.onchange = sync;
       window._sync = sync;
       document.getElementById('cpf').oninput = maskCpf;
       btn.onclick = submit;
       document.getElementById('clear').onclick = clearPad;
+      document.getElementById('selfie').onchange = (e) => {
+        const file = e.target.files && e.target.files[0]; if (!file) return;
+        const fr = new FileReader();
+        fr.onload = () => { window._selfie = fr.result; document.getElementById('selfie-prev').innerHTML = `<img src="${fr.result}" style="max-width:120px;border-radius:10px;margin-top:8px">`; };
+        fr.readAsDataURL(file);
+      };
+      requestGeo();
+    }
+
+    function requestGeo() {
+      const st = document.getElementById('geo-status');
+      if (!navigator.geolocation) { if (st) st.textContent = 'Geolocalização não disponível neste dispositivo.'; return; }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => { window._geo = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy: pos.coords.accuracy }; if (st) st.textContent = `Localização registrada (±${Math.round(pos.coords.accuracy)}m).`; },
+        () => { if (st) st.textContent = 'Localização não autorizada (a assinatura continua válida).'; },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
     }
 
     let ctx, hasDrawn = false, drawing = false;
@@ -109,14 +137,20 @@
       const msg = document.getElementById('msg'); msg.textContent = '';
       const nome = document.getElementById('nome').value.trim();
       const cpf = document.getElementById('cpf').value.replace(/\D/g, '');
+      const email = document.getElementById('email').value.trim();
+      const phone = document.getElementById('phone').value.replace(/\D/g, '');
+      const lgpd = document.getElementById('lgpd').checked;
       if (!nome) { msg.textContent = 'Informe seu nome.'; return; }
       if (cpf.length !== 11) { msg.textContent = 'Informe um CPF válido.'; return; }
+      if (!lgpd) { msg.textContent = 'É necessário autorizar o registro dos dados (LGPD).'; return; }
       const img = window._pad.toDataURL('image/png');
       const btn = document.getElementById('sign'); btn.disabled = true; btn.textContent = 'Assinando…';
       try {
         const r = await fetch('/api/public/sign/' + token, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ signer_name: nome, signer_cpf: cpf, signature_image: img }),
+          body: JSON.stringify({ signer_name: nome, signer_cpf: cpf, signer_email: email, signer_phone: phone,
+            signature_image: img, selfie_image: window._selfie || null, consent_lgpd: true,
+            geo: window._geo || null, opened_at: window._openedAt }),
         }).then((x) => x.json());
         if (r.error) { msg.textContent = r.error; btn.disabled = false; btn.textContent = 'Assinar documento'; return; }
         showDone(r.verification_code);

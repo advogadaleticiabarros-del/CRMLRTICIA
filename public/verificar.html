@@ -25,6 +25,7 @@
     .search input { flex: 1; padding: 12px; border: 1px solid #e8ded1; border-radius: 10px; font-size: 15px; }
     .search button { padding: 12px 18px; background: #C9A962; color: #231E1A; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
     .msg { color: #c4453b; text-align: center; }
+    @media print { body { background: #fff; padding: 0; } .card { box-shadow: none; border: none; } .search, .no-print { display: none; } }
   </style>
 </head>
 <body>
@@ -47,22 +48,42 @@
       try {
         const r = await fetch('/api/public/verify/' + encodeURIComponent(code)).then((x) => x.json());
         if (r.error) { res.innerHTML = `<p class="msg">${r.error}</p>`; return; }
-        const dt = new Date(r.signed_at).toLocaleString('pt-BR');
+        const esc = (s) => String(s == null ? '' : s).replace(/</g, '&lt;');
+        const dt = r.signed_at ? new Date(r.signed_at).toLocaleString('pt-BR') : '—';
+        const dtUtc = r.signed_at ? new Date(r.signed_at).toISOString() : '—';
+        const geo = r.geo ? `${r.geo.lat}, ${r.geo.lng} (±${r.geo.accuracy ?? '?'}m)` : 'não autorizada';
+        const geoLink = r.geo ? ` · <a href="https://www.google.com/maps?q=${r.geo.lat},${r.geo.lng}" target="_blank">ver no mapa</a>` : '';
+        const eventos = (r.eventos || []).map((e) => `<tr><td style="padding:4px 8px;border-bottom:1px solid #eee">${esc(e.evento)}</td><td style="padding:4px 8px;border-bottom:1px solid #eee;white-space:nowrap;color:#5a5346">${esc(e.data_utc)}</td></tr>`).join('');
         res.innerHTML = `
-          <div class="valid">✓ Assinatura válida e íntegra</div>
+          <div class="valid">✓ Assinatura eletrônica válida e íntegra</div>
+          <h2 style="font-family:'Cormorant Garamond',serif;color:#B8943F;font-size:20px;margin-bottom:10px">Relatório de Auditoria da Assinatura</h2>
           <div class="grid">
-            <div><b>Documento</b>${r.document_name}</div>
-            <div><b>Signatário</b>${r.signer_name}</div>
-            <div><b>CPF</b>${r.signer_cpf}</div>
-            <div><b>Data/hora</b>${dt}</div>
-            <div><b>IP</b>${r.signer_ip || '—'}</div>
-            <div><b>Código</b>${r.verification_code}</div>
+            <div><b>Documento</b>${esc(r.document_name)}</div>
+            <div><b>Código de verificação</b>${esc(r.verification_code)}</div>
+            <div><b>Signatário</b>${esc(r.signer_name)}</div>
+            <div><b>CPF</b>${esc(r.signer_cpf)}</div>
+            <div><b>E-mail</b>${esc(r.signer_email) || '—'}</div>
+            <div><b>Telefone</b>${esc(r.signer_phone) || '—'}</div>
+            <div><b>Data/hora (local)</b>${dt}</div>
+            <div><b>Data/hora (UTC)</b>${dtUtc}</div>
+            <div><b>IP de origem</b>${esc(r.signer_ip) || '—'}</div>
+            <div><b>Geolocalização</b>${geo}${geoLink}</div>
+            <div><b>Consentimento LGPD</b>${r.consent_lgpd ? 'Sim' : 'Não'}</div>
+            <div><b>Dispositivo / navegador</b><span style="font-size:11px">${esc(r.signer_ua) || '—'}</span></div>
           </div>
-          <div><b style="color:#9a8f7d;font-size:11px;text-transform:uppercase">Assinatura</b>
-            <div class="sig"><img src="${r.signature_image}" alt="assinatura" /></div></div>
-          <div><b style="color:#9a8f7d;font-size:11px;text-transform:uppercase">Hash SHA-256 do documento</b>
-            <div class="hash">${r.doc_hash}</div></div>
-          <div class="doc">${(r.content || '').replace(/</g, '&lt;')}</div>`;
+          <div style="display:flex;gap:14px;flex-wrap:wrap">
+            <div style="flex:1;min-width:200px"><b style="color:#9a8f7d;font-size:11px;text-transform:uppercase">Assinatura manuscrita</b>
+              <div class="sig"><img src="${r.signature_image}" alt="assinatura" /></div></div>
+            ${r.selfie_image ? `<div style="flex:1;min-width:160px"><b style="color:#9a8f7d;font-size:11px;text-transform:uppercase">Selfie do signatário</b><div class="sig"><img src="${r.selfie_image}" style="max-width:160px" alt="selfie" /></div></div>` : ''}
+          </div>
+          <div style="margin-top:10px"><b style="color:#9a8f7d;font-size:11px;text-transform:uppercase">Hash SHA-256 do documento (integridade)</b>
+            <div class="hash">${esc(r.doc_hash)}</div></div>
+          ${eventos ? `<div style="margin-top:12px"><b style="color:#9a8f7d;font-size:11px;text-transform:uppercase">Histórico de eventos</b>
+            <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:4px"><tbody>${eventos}</tbody></table></div>` : ''}
+          <div style="text-align:center;margin:16px 0"><button class="no-print" onclick="window.print()" style="padding:10px 22px;background:#C9A962;border:none;border-radius:10px;font-weight:600;cursor:pointer">Imprimir / Salvar relatório (PDF)</button></div>
+          <b style="color:#9a8f7d;font-size:11px;text-transform:uppercase">Documento assinado</b>
+          <div class="doc">${esc(r.content)}</div>
+          <p style="font-size:11px;color:#9a8f7d;margin-top:14px">Assinatura eletrônica avançada nos termos da Lei nº 14.063/2020 e da MP 2.200-2/2001. A integridade é comprovada pelo hash SHA-256; qualquer alteração no documento invalida a correspondência.</p>`;
       } catch (e) { res.innerHTML = '<p class="msg">Falha ao verificar.</p>'; }
     }
     const pre = new URLSearchParams(location.search).get('codigo');
