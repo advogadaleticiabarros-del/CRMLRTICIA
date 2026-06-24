@@ -3062,24 +3062,40 @@ function printDoc(title, content) {
   const safe = (content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const w = window.open('', '_blank');
   if (!w) { toast('Permita pop-ups para gerar o PDF', 'error'); return; }
+  const logo = location.origin + '/logo.png';
   w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${title}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
     <style>
-      @page { margin: 2.5cm; }
-      body { font-family: 'Times New Roman', Georgia, serif; font-size: 12pt; line-height: 1.7; color: #111; }
-      .doc-header { text-align: center; border-bottom: 2px solid #2a3f5f; padding-bottom: 12px; margin-bottom: 28px; }
-      .doc-header .name { font-size: 16pt; font-weight: bold; color: #2a3f5f; letter-spacing: 1px; }
-      .doc-header .sub { font-size: 10pt; color: #555; letter-spacing: 2px; text-transform: uppercase; }
-      .doc-body { white-space: pre-wrap; text-align: justify; }
-      .doc-footer { margin-top: 30px; font-size: 8pt; color: #999; text-align: center; }
+      @page { margin: 3cm 2.2cm 2.7cm 2.2cm; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Times New Roman', Georgia, serif; font-size: 12pt; line-height: 1.7; color: #1a1a1a; margin: 0; }
+      .lh-header { position: fixed; top: 0.75cm; left: 2.2cm; right: 2.2cm; display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #B8943F; padding-bottom: 5px; }
+      .lh-header .brand { display: flex; align-items: center; gap: 11px; }
+      .lh-header img { height: 1.5cm; width: auto; }
+      .lh-header .name { font-family: 'Cormorant Garamond', serif; font-size: 22pt; font-weight: 700; color: #2b2b2b; letter-spacing: 1.5px; line-height: 1; }
+      .lh-header .sub { font-size: 7.5pt; color: #B8943F; letter-spacing: 3px; text-transform: uppercase; margin-top: 3px; }
+      .lh-header .oab { font-size: 9.5pt; color: #555; white-space: nowrap; letter-spacing: .5px; }
+      .lh-footer { position: fixed; bottom: 0.7cm; left: 2.2cm; right: 2.2cm; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
+      .lh-footer .sep { color: #B8943F; margin: 0 6px; }
+      .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 11cm; height: auto; opacity: 0.06; z-index: -1; }
+      .content { white-space: pre-wrap; text-align: justify; }
       @media print { .no-print { display: none; } }
     </style></head><body>
-    <div class="doc-header"><div class="name">LETÍCIA BARROS</div><div class="sub">Advocacia &amp; Consultoria</div></div>
-    <div class="doc-body">${safe}</div>
-    <div class="doc-footer">Documento gerado pelo CRM — crm.advogadaleticiabarros.com.br</div>
-    <div class="no-print" style="text-align:center;margin-top:30px"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
+    <div class="lh-header">
+      <div class="brand"><img src="${logo}" onerror="this.style.display='none'">
+        <div><div class="name">LETÍCIA BARROS</div><div class="sub">Advocacia &amp; Consultoria</div></div></div>
+      <div class="oab">OAB Nº 39.948 - ES</div>
+    </div>
+    <img class="watermark" src="${logo}" onerror="this.style.display='none'">
+    <div class="lh-footer">
+      (27) 99515-1402 | (44) 99101-1402<span class="sep">·</span>advogadaleticia.barros@gmail.com<span class="sep">·</span>@adv.leticiabarros2
+    </div>
+    <div class="content">${safe}</div>
+    <div class="no-print" style="text-align:center;margin-top:24px"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
     </body></html>`);
   w.document.close();
-  setTimeout(() => w.focus(), 300);
+  setTimeout(() => w.focus(), 400);
 }
 
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
