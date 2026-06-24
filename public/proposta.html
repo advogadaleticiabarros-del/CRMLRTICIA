@@ -32,24 +32,34 @@
     @keyframes pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
     .anim { opacity: 0; animation: rise .7s cubic-bezier(.16,.8,.3,1) forwards; }
 
-    .brand { text-align: center; padding: 12px 0 4px; }
-    .brand img { width: 58px; height: 58px; filter: drop-shadow(0 4px 12px rgba(0,0,0,.5)); }
-    .brand h1 { font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 32px; color: var(--gold); margin-top: 8px; letter-spacing: .5px; }
+    .brand { text-align: center; padding: 14px 0 4px; }
+    .seal-ring { width: 78px; height: 78px; border-radius: 50%; margin: 0 auto;
+      display: flex; align-items: center; justify-content: center;
+      border: 1px solid rgba(201,169,98,.5); box-shadow: 0 0 0 6px rgba(201,169,98,.05), inset 0 0 0 1px rgba(201,169,98,.18); }
+    .brand img { width: 52px; height: 52px; filter: drop-shadow(0 4px 12px rgba(0,0,0,.5)); }
+    .brand h1 { font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 33px; color: var(--gold); margin-top: 12px; letter-spacing: .5px; }
     .brand small { color: var(--gold-2); letter-spacing: 4px; text-transform: uppercase; font-size: 10.5px; }
     .divider { width: 54px; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); margin: 14px auto 4px; }
-    .ttl { font-family: 'Cormorant Garamond', serif; font-size: 27px; font-weight: 600; color: var(--cream); text-align: center; letter-spacing: .3px; }
-    .ttl-sub { text-align: center; color: var(--muted); font-size: 13px; margin-top: 2px; margin-bottom: 4px; }
+    .ttl { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 600; color: var(--cream); text-align: center; letter-spacing: .3px; }
+    .ttl em { font-style: italic; color: var(--gold-soft); }
+    .ttl-sub { text-align: center; color: var(--muted); font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; margin-top: 6px; margin-bottom: 4px; }
 
     .card {
       background: linear-gradient(180deg, var(--panel), #271f1a);
-      border: 1px solid var(--line); border-radius: 18px; padding: 22px 22px;
+      border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px;
       margin-top: 16px; box-shadow: 0 18px 40px -28px rgba(0,0,0,.8);
     }
-    .card h2 {
-      font-family: 'Cormorant Garamond', serif; font-size: 20px; color: var(--gold); margin-bottom: 14px; font-weight: 600;
-      letter-spacing: .3px; position: relative; padding-bottom: 9px;
-    }
-    .card h2::after { content: ''; position: absolute; left: 0; bottom: 0; width: 34px; height: 2px; background: var(--gold); border-radius: 2px; }
+    /* Cabeçalho de seção com algarismo romano (vernáculo dos contratos) */
+    .sec-head { display: flex; align-items: baseline; gap: 13px; margin-bottom: 16px; padding-bottom: 11px; border-bottom: 1px solid rgba(201,169,98,.14); }
+    .sec-head .rn { font-family: 'Cormorant Garamond', serif; font-size: 26px; line-height: 1; color: var(--gold-2); font-weight: 600; min-width: 24px; text-align: center; }
+    .eyebrow { display: block; font-size: 9.5px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold-2); margin-bottom: 3px; }
+    .card h2 { font-family: 'Cormorant Garamond', serif; font-size: 21px; color: var(--gold); font-weight: 600; letter-spacing: .3px; line-height: 1.05; }
+
+    /* Lacre — assinatura visual antes do aceite */
+    .seal { display: flex; align-items: center; gap: 14px; margin: 26px 4px 4px; color: var(--gold-2); }
+    .seal .ln { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(201,169,98,.5)); }
+    .seal .ln.r { background: linear-gradient(90deg, rgba(201,169,98,.5), transparent); }
+    .seal .mk { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold-2); }
 
     .line { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(60,51,41,.7); font-size: 14px; }
     .line:last-child { border-bottom: none; }
@@ -112,7 +122,7 @@
 <body>
   <div class="wrap">
     <div class="brand anim">
-      <img src="/logo.png" alt="" onerror="this.style.display='none'" />
+      <div class="seal-ring"><img src="/logo.png" alt="" onerror="this.parentElement.style.display='none'" /></div>
       <h1>Letícia Barros</h1>
       <small>Advocacia &amp; Consultoria</small>
       <div class="divider"></div>
@@ -169,26 +179,28 @@
       const h = p.honorarios || {};
       const aceito = !!p.aceito_em;
       let d = 0; const delay = () => `style="animation-delay:${(d++ * .12).toFixed(2)}s"`;
+      const R = ['I', 'II', 'III', 'IV', 'V']; let s = 0;
+      const head = (eyebrow, titulo) => `<div class="sec-head"><span class="rn">${R[s++]}</span><div><span class="eyebrow">${eyebrow}</span><h2>${titulo}</h2></div></div>`;
 
       root.innerHTML = `
-        <p class="ttl anim" ${delay()}>Proposta de Honorários</p>
+        <p class="ttl anim" ${delay()}>Proposta de <em>Honorários</em></p>
         <p class="ttl-sub anim" ${delay()}>Preparada com cuidado para o seu caso</p>
 
         <div class="card anim" ${delay()}>
-          <h2>Cliente</h2>
+          ${head('A parte', 'Cliente')}
           <div class="line"><span>Nome</span><strong>${esc(p.contact_name)}</strong></div>
           <div class="line"><span>Área</span><strong>${esc(AREA_PT[p.legal_area] || p.legal_area || '—')}</strong></div>
           <div class="line"><span>Tipo de causa</span><strong>${esc(p.tipo_causa || '—')}</strong></div>
         </div>
 
         <div class="card anim" ${delay()}>
-          <h2>Honorários</h2>
+          ${head('Valores e pagamento', 'Honorários')}
           ${honHtml(h, p.valor)}
         </div>
 
         ${p.observacoes ? `
         <div class="card clauses-card anim" ${delay()}>
-          <h2>Condições e cláusulas</h2>
+          ${head('Termos do acordo', 'Condições e cláusulas')}
           ${clausesHtml(p.observacoes)}
           <label class="agree" id="agree-box">
             <input type="checkbox" id="agree" ${aceito ? 'checked disabled' : ''}>
@@ -198,11 +210,12 @@
 
         ${p.description ? `
         <div class="card anim" ${delay()}>
-          <h2>Resumo do caso</h2>
+          ${head('O caso', 'Resumo')}
           <div class="desc">${esc(p.description)}</div>
         </div>` : ''}
 
         ${p.validade ? `<p class="legal">Validade desta proposta: ${fmtDate(p.validade)}</p>` : ''}
+        <div class="seal anim" ${delay()}><span class="ln"></span><span class="mk">Aceite</span><span class="ln r"></span></div>
         <div class="anim" ${delay()} id="accept-area"></div>`;
 
       const area = document.getElementById('accept-area');
