@@ -3252,6 +3252,16 @@ function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTi
 $('#login-form').onsubmit = login;
 $('#logout-btn').onclick = logout;
 $('#bell-btn').onclick = openNotifications;
+const fsBtn = $('#fullscreen-btn');
+if (fsBtn) {
+  const fsSync = () => { const on = !!document.fullscreenElement; fsBtn.textContent = on ? '🗗' : '⛶'; fsBtn.title = on ? 'Sair da tela cheia' : 'Tela cheia'; };
+  fsBtn.onclick = () => {
+    if (document.fullscreenElement) { document.exitFullscreen && document.exitFullscreen(); }
+    else { const el = document.documentElement; (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el); }
+  };
+  document.addEventListener('fullscreenchange', fsSync);
+  document.addEventListener('keydown', (e) => { if (e.key === 'F11') { e.preventDefault(); fsBtn.click(); } });
+}
 $('#modal-close').onclick = closeModal;
 $('#modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
 window.addEventListener('hashchange', router);
