@@ -3042,6 +3042,7 @@ async function lawyerForm(id, onSave) {
     ${field('Nome *', 'name', { value: l.name })}
     <div class="form-row">${field('Número da OAB', 'oab_number', { value: l.oab_number })}${field('UF', 'oab_uf', { value: l.oab_uf })}</div>
     <div class="form-row">${field('E-mail', 'email', { value: l.email, type: 'email' })}${field('Telefone', 'phone', { value: l.phone })}</div>
+    ${field('Endereço do escritório (usado nos contratos)', 'address', { value: l.address || '' })}
     <label style="flex-direction:row;align-items:center;gap:8px">
       <input type="checkbox" id="law-mon" ${l.monitoring_enabled ? 'checked' : ''} style="width:auto"> Monitoramento ativo
     </label>

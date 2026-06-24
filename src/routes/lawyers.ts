@@ -6,7 +6,7 @@ const router = Router();
 // ── GET /api/lawyers ────────────────────────────────────────────────────────
 router.get('/', async (_req: Request, res: Response) => {
   const [rows] = await db.query(
-    `SELECT id, name, oab_number, oab_uf, email, phone, practice_areas,
+    `SELECT id, name, oab_number, oab_uf, email, phone, address, practice_areas,
             monitoring_enabled, active, last_sync_at
      FROM lawyers ORDER BY name`
   ) as any;
@@ -15,13 +15,13 @@ router.get('/', async (_req: Request, res: Response) => {
 
 // ── POST /api/lawyers ───────────────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
-  const { name, oab_number, oab_uf, email, phone, practice_areas } = req.body;
+  const { name, oab_number, oab_uf, email, phone, address, practice_areas } = req.body;
   if (!name || !String(name).trim()) { res.status(400).json({ error: 'O nome é obrigatório' }); return; }
 
   const [result] = await db.query(
-    `INSERT INTO lawyers (name, oab_number, oab_uf, email, phone, practice_areas)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [name.trim(), oab_number ?? null, (oab_uf || '').toUpperCase() || null, email ?? null, phone ?? null,
+    `INSERT INTO lawyers (name, oab_number, oab_uf, email, phone, address, practice_areas)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [name.trim(), oab_number ?? null, (oab_uf || '').toUpperCase() || null, email ?? null, phone ?? null, address ?? null,
      practice_areas ? JSON.stringify(practice_areas) : null]
   ) as any;
   const [rows] = await db.query('SELECT * FROM lawyers WHERE id = ?', [result.insertId]) as any;
@@ -44,6 +44,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('oab_uf', req.body.oab_uf ? String(req.body.oab_uf).toUpperCase() : undefined);
   setIf('email', req.body.email);
   setIf('phone', req.body.phone);
+  setIf('address', req.body.address);
   setIf('telegram_chat_id', req.body.telegram_chat_id);
   if (req.body.practice_areas !== undefined) { fields.push('practice_areas = ?'); params.push(JSON.stringify(req.body.practice_areas)); }
   if (req.body.monitoring_enabled !== undefined) { fields.push('monitoring_enabled = ?'); params.push(req.body.monitoring_enabled ? 1 : 0); }

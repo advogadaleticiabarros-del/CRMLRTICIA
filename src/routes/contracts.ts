@@ -4,6 +4,7 @@ import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 import { onContractSigned } from '../services/contractFlow';
 import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
+import { getEscritorio } from '../services/escritorio';
 
 const router = Router();
 
@@ -101,13 +102,14 @@ router.post('/from-lead/:leadId', async (req: Request, res: Response) => {
     name: lead.name, cpf: lead.cpf_cnpj, rg: lead.rg,
     estadoCivil: lead.marital_status, profissao: lead.profession, endereco: montarEndereco(lead),
   };
-  const content = buildTemplate({ party, area, value: req.body.value });
+  const adv = await getEscritorio();
+  const content = buildTemplate({ party, area, value: req.body.value, contratada: adv });
 
   const [result] = await db.query(
     `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'rascunho')`,
     [req.user!.id, lead.client_id ?? null, leadId, area,
-     `Contrato — ${lead.name}`, content, buildProcuracao(party), buildDeclaracao(party), req.body.value ?? null]
+     `Contrato — ${lead.name}`, content, buildProcuracao(party, adv), buildDeclaracao(party), req.body.value ?? null]
   ) as any;
 
   await db.query("UPDATE leads SET status = 'fechada', analise_since = NULL WHERE id = ?", [leadId]);
@@ -133,13 +135,14 @@ router.post('/', async (req: Request, res: Response) => {
     clientName = c[0]?.name ?? '';
     party = { name: clientName, cpf: c[0]?.cpf_cnpj, endereco: montarEndereco(c[0] || {}) };
   }
-  const finalContent = content || buildTemplate({ party, area: finalArea, value });
+  const adv = await getEscritorio();
+  const finalContent = content || buildTemplate({ party, area: finalArea, value, contratada: adv });
 
   const [result] = await db.query(
     `INSERT INTO contracts (user_id, client_id, area, title, content, procuracao_content, declaracao_content, value, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'rascunho')`,
     [req.user!.id, client_id ?? null, finalArea, title || `Contrato — ${clientName || finalArea}`,
-     finalContent, buildProcuracao(party), buildDeclaracao(party), value ?? null]
+     finalContent, buildProcuracao(party, adv), buildDeclaracao(party), value ?? null]
   ) as any;
   const [rows] = await db.query('SELECT * FROM contracts WHERE id = ?', [result.insertId]) as any;
   res.status(201).json(rows[0]);

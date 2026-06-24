@@ -6,15 +6,20 @@
  * deixa [placeholder] só para o que realmente faltar.
  */
 
-// Dados oficiais da CONTRATADA / OUTORGADA (escritório)
-export const ADVOGADA = {
+// Dados da CONTRATADA / OUTORGADA (advogada). Default fixo usado como fallback;
+// o valor real vem do cadastro do advogado (services/escritorio.ts).
+export interface ContratadaInfo { nome: string; oab: string; endereco: string; email?: string }
+
+export const ADVOGADA: ContratadaInfo = {
   nome: 'LETÍCIA ELIAS BARROS',
   oab: 'OAB/ES sob o nº 39.948',
   endereco: 'London Office Tower, R. José Alexandre Buaiz, nº 160, Sala 115, Enseada do Suá, Vitória/ES, CEP 29.050-545',
   email: 'advogadaleticia.barros@gmail.com / contato@advogadaleticiabarros.com',
 };
-const CONTRATADA_BLOCO = `${ADVOGADA.nome}, advogada inscrita na ${ADVOGADA.oab}, com escritório profissional localizado na ${ADVOGADA.endereco}, e-mail: ${ADVOGADA.email}`;
-const OUTORGADA_BLOCO = `${ADVOGADA.nome}, advogada inscrita na ${ADVOGADA.oab}, com escritório profissional localizado na ${ADVOGADA.endereco}`;
+const contratadaBloco = (c: ContratadaInfo) =>
+  `${c.nome}, advogada inscrita na ${c.oab}, com escritório profissional localizado na ${c.endereco}${c.email ? `, e-mail: ${c.email}` : ''}`;
+const outorgadaBloco = (c: ContratadaInfo) =>
+  `${c.nome}, advogada inscrita na ${c.oab}, com escritório profissional localizado na ${c.endereco}`;
 
 export interface PartyData {
   name?: string | null;
@@ -71,13 +76,13 @@ function f(p: PartyData) {
   };
 }
 
-export function buildProcuracao(party: PartyData | string): string {
+export function buildProcuracao(party: PartyData | string, contratada: ContratadaInfo = ADVOGADA): string {
   const p = typeof party === 'string' ? f({ name: party }) : f(party);
   return `PROCURAÇÃO AD JUDICIA ET EXTRA
 
 OUTORGANTE: ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, residente e domiciliado(a) em ${p.end}.
 
-OUTORGADA: ${OUTORGADA_BLOCO}.
+OUTORGADA: ${outorgadaBloco(contratada)}.
 
 PODERES: Pelo presente instrumento, o(a) OUTORGANTE nomeia e constitui sua bastante procuradora a OUTORGADA, a quem confere os poderes da cláusula "ad judicia et extra", para o foro em geral, em qualquer Juízo, Instância ou Tribunal, podendo propor as ações competentes e defendê-lo(a) nas contrárias, seguindo umas e outras até final decisão, usando os recursos legais e acompanhando-os, conferindo ainda poderes especiais para confessar, desistir, transigir, firmar compromissos ou acordos, receber e dar quitação, agindo em conjunto ou separadamente, podendo ainda substabelecer esta a outrem, com ou sem reserva de iguais poderes.
 
@@ -115,8 +120,9 @@ const AREA_OBJECT: Record<string, string> = {
   outro: 'a prestação de serviços advocatícios conforme objeto a ser detalhado entre as partes.',
 };
 
-export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number; formaPagamento?: string }): string {
+export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number; formaPagamento?: string; contratada?: ContratadaInfo }): string {
   const p = f(opts.party || { name: opts.clientName });
+  const adv = opts.contratada || ADVOGADA;
   const obj = AREA_OBJECT[opts.area] ?? AREA_OBJECT.outro;
   const valorStr = opts.value ? `R$ ${Number(opts.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '[VALOR DOS HONORÁRIOS]';
   const forma = opts.formaPagamento && opts.formaPagamento.trim() ? opts.formaPagamento.trim() : '[FORMA DE PAGAMENTO / PARCELAS]';
@@ -124,7 +130,7 @@ export function buildTemplate(opts: { clientName?: string; party?: PartyData; ar
 
 CONTRATANTE: ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, residente e domiciliado(a) em ${p.end}.
 
-CONTRATADA: ${CONTRATADA_BLOCO}.
+CONTRATADA: ${contratadaBloco(adv)}.
 
 CLÁUSULA 1ª — DO OBJETO
 O presente contrato tem por objeto ${obj}

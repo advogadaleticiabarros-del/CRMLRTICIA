@@ -3,6 +3,7 @@ import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
 import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
+import { getEscritorio } from '../services/escritorio';
 
 const router = Router();
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
@@ -92,12 +93,13 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
   if (existing.length) {
     contractId = existing[0].id;
   } else {
-    const content = buildTemplate({ party, area, value: valorContrato, formaPagamento });
+    const adv = await getEscritorio();
+    const content = buildTemplate({ party, area, value: valorContrato, formaPagamento, contratada: adv });
     const [c] = await db.query(
       `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'em_producao')`,
       [p.user_id, clientId, p.lead_id ?? null, area, `Contrato — ${nome || 'cliente'}`,
-       content, buildProcuracao(party), buildDeclaracao(party), valorContrato || null]
+       content, buildProcuracao(party, adv), buildDeclaracao(party), valorContrato || null]
     ) as any;
     contractId = c.insertId;
   }
