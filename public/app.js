@@ -3093,7 +3093,7 @@ function printDoc(title, content) {
       .content { white-space: pre-wrap; text-align: justify; }
       @media print { .no-print { display: none; } }
     </style></head><body>
-    <img class="watermark" src="${location.origin}/logo-watermark.png" onerror="this.onerror=null;this.src='${logo}'">
+    <img class="watermark" src="${location.origin}/logo-sem-fundo.png" onerror="this.onerror=null;this.src='${logo}'">
     <table class="page">
       <thead><tr><td>
         <div class="lh-header">
