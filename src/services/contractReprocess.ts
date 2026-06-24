@@ -37,15 +37,14 @@ export async function reprocessContract(contractId: number, userId?: number): Pr
   };
   const area = AREAS.includes(ct.area) ? ct.area : (AREAS.includes(prop?.legal_area) ? prop.legal_area : (AREAS.includes(lead?.legal_area) ? lead.legal_area : 'outro'));
 
-  let parcelamento: any = null, exitoPct: number | undefined, valor = Number(ct.value) || Number(prop?.valor) || undefined;
+  let honorarios: any = null, parcelamento: any = null, valor = Number(ct.value) || Number(prop?.valor) || undefined;
   try {
-    const h = typeof prop?.honorarios === 'string' ? JSON.parse(prop.honorarios) : prop?.honorarios;
-    if (h?.parcelamento && Number(h.parcelamento.total) > 0) { parcelamento = h.parcelamento; valor = Number(h.parcelamento.total); }
-    const ex = Number(h?.values?.exito) || Number(h?.values?.ad_exitum); if (ex) exitoPct = ex;
+    honorarios = typeof prop?.honorarios === 'string' ? JSON.parse(prop.honorarios) : prop?.honorarios;
+    if (honorarios?.parcelamento && Number(honorarios.parcelamento.total) > 0) { parcelamento = honorarios.parcelamento; valor = Number(honorarios.parcelamento.total); }
   } catch {}
 
   const adv = await getEscritorio();
-  const content = buildTemplate({ party, area, value: valor, formaPagamento: formaPagamentoTexto(parcelamento), exitoPct, tipoCausa: prop?.tipo_causa, descricao: prop?.description || lead?.case_summary, contratada: adv });
+  const content = buildTemplate({ party, area, value: valor, formaPagamento: formaPagamentoTexto(parcelamento), honorarios, tipoCausa: prop?.tipo_causa, descricao: prop?.description || lead?.case_summary, contratada: adv });
   await db.query(
     'UPDATE contracts SET content = ?, procuracao_content = ?, declaracao_content = ?, value = COALESCE(?, value) WHERE id = ?',
     [content, buildProcuracao(party, adv), buildDeclaracao(party), valor ?? null, contractId]

@@ -148,7 +148,51 @@ const AREA_OBJECT: Record<string, string> = {
   outro: 'a prestação de serviços advocatícios conforme objeto a ser detalhado entre as partes.',
 };
 
-export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number; formaPagamento?: string; exitoPct?: number; tipoCausa?: string; descricao?: string; contratada?: ContratadaInfo }): string {
+/**
+ * Cláusula Segunda (preço/forma de pagamento) montada a partir do que foi aceito
+ * na proposta: honorários contratuais (entrada/fixo/parcelas), êxito %, ad exitum,
+ * consulta, mensal, diligência, sucumbência, arbitrados. É a REGRA do contrato.
+ */
+export function montarClausulaValores(opts: { honorarios?: any; value?: number; formaPagamento?: string; exitoPct?: number }): { texto: string; exitoUsado: number } {
+  const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const h = opts.honorarios || {};
+  const m: string[] = Array.isArray(h.modalidades) ? h.modalidades : [];
+  const v = h.values || {};
+  const parc = h.parcelamento;
+  const segs: string[] = [];
+  let exitoUsado = 0;
+
+  // 1) Honorários contratuais (entrada/fixo/parcelamento)
+  if (parc && Number(parc.total) > 0) {
+    const fp = formaPagamentoTexto(parc);
+    segs.push(`o valor de ${money(parc.total)}, a título de honorários contratuais${fp ? `, ${fp}` : ''}`);
+  } else if (opts.value && Number(opts.value) > 0) {
+    const fp = opts.formaPagamento && opts.formaPagamento.trim() ? `, ${opts.formaPagamento.trim()}` : '';
+    segs.push(`o valor de ${money(opts.value)}, a título de honorários contratuais${fp}`);
+  } else if (Number(v.fixo) || Number(v.entrada)) {
+    segs.push(`o valor de ${money((Number(v.entrada) || 0) + (Number(v.fixo) || 0))}, a título de honorários contratuais`);
+  }
+
+  // 2) Êxito
+  const exPct = (m.includes('exito') && Number(v.exito)) ? Number(v.exito) : (opts.exitoPct || 0);
+  if (exPct) { exitoUsado = exPct; segs.push(`honorários de êxito no percentual de ${exPct}% (${extensoPct(exPct)}) sobre o proveito econômico total obtido pela CONTRATANTE, seja por meio de acordo, sentença ou qualquer forma de recebimento decorrente da ação`); }
+  // 3) Ad exitum / quota litis
+  if (m.includes('ad_exitum') && Number(v.ad_exitum)) { if (!exitoUsado) exitoUsado = Number(v.ad_exitum); segs.push(`honorários no percentual de ${v.ad_exitum}% (${extensoPct(Number(v.ad_exitum))}) sobre o proveito econômico, na modalidade ad exitum (quota litis)`); }
+  // 4) Consulta / 5) Mensal / 6) Diligência
+  if (m.includes('consulta') && Number(v.consulta)) segs.push(`o valor de ${money(v.consulta)} a título de honorários de consulta`);
+  if (m.includes('mensal') && Number(v.mensal)) segs.push(`o valor mensal de ${money(v.mensal)}, a título de advocacia de partido`);
+  if (m.includes('diligencia') && Number(v.diligencia)) segs.push(`o valor de ${money(v.diligencia)} por diligência ou ato isolado${v.diligencia_desc ? ` (${v.diligencia_desc})` : ''}`);
+
+  // Fallback: nada definido → êxito padrão do escritório (30%)
+  if (!segs.length) { exitoUsado = 30; segs.push(`honorários de êxito no percentual de 30% (trinta por cento) sobre o proveito econômico total obtido pela CONTRATANTE, seja por meio de acordo, sentença ou qualquer forma de recebimento decorrente da ação`); }
+
+  let texto = `Pelos serviços advocatícios descritos na Cláusula Primeira, a CONTRATANTE pagará à CONTRATADA ${segs.join(', e ainda ')}.`;
+  if (m.includes('sucumbencia')) texto += ` Os honorários de sucumbência, quando houver, pertencem exclusivamente à CONTRATADA, nos termos do art. 23 da Lei nº 8.906/94.`;
+  if (m.includes('arbitrado')) texto += ` Os honorários poderão, ainda, ser arbitrados judicialmente.`;
+  return { texto, exitoUsado: exitoUsado || 30 };
+}
+
+export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number; formaPagamento?: string; exitoPct?: number; honorarios?: any; tipoCausa?: string; descricao?: string; contratada?: ContratadaInfo }): string {
   const p = f(opts.party || { name: opts.clientName });
   const adv = opts.contratada || ADVOGADA;
   const obj = AREA_OBJECT[opts.area] ?? AREA_OBJECT.outro;
@@ -156,16 +200,8 @@ export function buildTemplate(opts: { clientName?: string; party?: PartyData; ar
     ? ` Especificamente, ${opts.tipoCausa.trim()}${opts.descricao && opts.descricao.trim() ? `: ${opts.descricao.trim()}` : ''}.`
     : '';
 
-  // Cláusula 2ª: honorários contratuais (se houver valor) + honorários de êxito
-  const hasValue = !!opts.value;
-  const valorStr = `R$ ${Number(opts.value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
-  const forma = opts.formaPagamento && opts.formaPagamento.trim() ? `, ${opts.formaPagamento.trim()}` : '';
-  const pct = opts.exitoPct != null ? opts.exitoPct : 30;
-  const showExito = opts.exitoPct != null || !hasValue;
-  const segs: string[] = [];
-  if (hasValue) segs.push(`o valor de ${valorStr}, a título de honorários contratuais${forma}`);
-  if (showExito) segs.push(`honorários de êxito no percentual de ${pct}% (${extensoPct(pct)}) sobre o proveito econômico total obtido pela CONTRATANTE, seja por meio de acordo, sentença ou qualquer forma de recebimento decorrente da ação`);
-  const clausulaSegunda = `Pelos serviços advocatícios descritos na Cláusula Primeira, a CONTRATANTE pagará à CONTRATADA ${segs.join(', e ainda ')}.`;
+  // Cláusula 2ª adaptada ao que foi aceito na proposta
+  const { texto: clausulaSegunda, exitoUsado: pct } = montarClausulaValores(opts);
 
   return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS
 

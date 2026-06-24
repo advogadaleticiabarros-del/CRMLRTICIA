@@ -35,14 +35,12 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
   const p = rows[0];
   if (p.aceito_em) { res.json({ success: true, already: true }); return; }
 
-  // Parcelamento → forma de pagamento da Cláusula 2ª + valor total + % de êxito
+  // Honorários aceitos na proposta → Cláusula 2ª adaptada + valor do contrato
+  let honorarios: any = null;
   let parcelamento: any = null;
-  let exitoPct: number | undefined;
   try {
-    const h = typeof p.honorarios === 'string' ? JSON.parse(p.honorarios) : p.honorarios;
-    if (h?.parcelamento && Number(h.parcelamento.total) > 0) parcelamento = h.parcelamento;
-    const ex = Number(h?.values?.exito) || Number(h?.values?.ad_exitum);
-    if (ex) exitoPct = ex;
+    honorarios = typeof p.honorarios === 'string' ? JSON.parse(p.honorarios) : p.honorarios;
+    if (honorarios?.parcelamento && Number(honorarios.parcelamento.total) > 0) parcelamento = honorarios.parcelamento;
   } catch {}
   const formaPagamento = formaPagamentoTexto(parcelamento);
   const valorContrato = parcelamento ? Number(parcelamento.total) : (Number(p.valor) || undefined);
@@ -97,7 +95,7 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
     contractId = existing[0].id;
   } else {
     const adv = await getEscritorio();
-    const content = buildTemplate({ party, area, value: valorContrato, formaPagamento, exitoPct, tipoCausa: p.tipo_causa, descricao: p.description, contratada: adv });
+    const content = buildTemplate({ party, area, value: valorContrato, formaPagamento, honorarios, tipoCausa: p.tipo_causa, descricao: p.description, contratada: adv });
     const [c] = await db.query(
       `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'em_producao')`,
