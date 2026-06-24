@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 import { onContractSigned } from '../services/contractFlow';
-import { buildTemplate, buildTemplateMenor, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
+import { buildTemplate, buildTemplateMenor, buildProcuracao, buildProcuracaoMenor, buildDeclaracao, buildDeclaracaoMenor, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
 import { getEscritorio } from '../services/escritorio';
 import { reprocessContract } from '../services/contractReprocess';
 
@@ -119,15 +119,18 @@ router.post('/:id/gerar-menor', async (req: Request, res: Response) => {
   try { honorarios = typeof prop?.honorarios === 'string' ? JSON.parse(prop.honorarios) : prop?.honorarios; } catch {}
 
   const adv = await getEscritorio();
+  const menor = { nome: b.menor_nome, nascimento: b.menor_nascimento, cpf: b.menor_cpf };
   const content = buildTemplateMenor({
-    party,
-    menor: { nome: b.menor_nome, nascimento: b.menor_nascimento, cpf: b.menor_cpf },
+    party, menor,
     tipoAcao: b.tipo_acao || prop?.tipo_causa,
     parteContraria: b.parte_contraria,
     foroCidade: b.foro_cidade,
     honorarios, contratada: adv,
   });
-  await db.query('UPDATE contracts SET content = ? WHERE id = ?', [content, req.params.id]);
+  await db.query(
+    'UPDATE contracts SET content = ?, procuracao_content = ?, declaracao_content = ? WHERE id = ?',
+    [content, buildProcuracaoMenor(party, menor, adv), buildDeclaracaoMenor(party, menor), req.params.id]
+  );
   res.json({ success: true });
 });
 

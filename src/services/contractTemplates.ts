@@ -227,6 +227,54 @@ CONTRATADA
 ${adv.oab.replace(' sob o nº ', ' ')}`;
 }
 
+function dtNasc(s?: string | null): string {
+  return s ? new Date(String(s).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR') : '[DATA DE NASCIMENTO]';
+}
+function qualResponsavel(r: PartyData): string {
+  return `${r.name || '[NOME DO RESPONSÁVEL]'}, ${r.nacionalidade || 'brasileiro(a)'}, ${r.profissao || '[profissão]'}, ${r.estadoCivil || '[estado civil]'}, portador(a) do RG nº ${r.rg || '[RG]'} e inscrito(a) no CPF nº ${r.cpf || '[CPF]'}, residente e domiciliado(a) na ${r.endereco || '[ENDEREÇO]'}`;
+}
+function qualMenor(m: MenorData): string {
+  return `${m.nome || '[NOME DO MENOR]'}, menor, nascido(a) em ${dtNasc(m.nascimento)}, inscrito(a) no CPF nº ${m.cpf || '[CPF DO MENOR]'}`;
+}
+
+/** Procuração outorgada pelo representante legal em nome do menor. */
+export function buildProcuracaoMenor(party: PartyData, menor: MenorData, contratada: ContratadaInfo = ADVOGADA): string {
+  const mNome = menor.nome || '[NOME DO MENOR]';
+  return `PROCURAÇÃO AD JUDICIA ET EXTRA
+
+OUTORGANTE: ${qualMenor(menor)}, neste ato representado(a) por seu(sua) representante legal, ${qualResponsavel(party)}.
+
+OUTORGADO(A): ${outorgadaBloco(contratada)}.
+
+PODERES: Pelo presente instrumento, o(a) OUTORGANTE, devidamente representado(a), confere ao(à) OUTORGADO(A) os poderes da cláusula ad judicia et extra para o foro em geral, a fim de representá-lo(a) em qualquer Juízo, Instância, Tribunal ou repartição pública e privada. Ficam abrangidos os poderes especiais para receber citação, confessar, transigir, desistir, renunciar ao direito, receber e dar quitação, firmar compromissos e assinar declaração de hipossuficiência, nos termos do art. 105 do Código de Processo Civil.
+
+VALIDADE: O presente mandato é outorgado por prazo indeterminado, mantendo sua validade até o cumprimento integral de seu objeto ou a sua expressa revogação.
+
+${FORO}, [DATA].
+
+
+_______________________________________
+${party.name || '[NOME DO RESPONSÁVEL]'}
+Representante legal de ${mNome}`;
+}
+
+/** Declaração de hipossuficiência firmada pelo representante legal em nome do menor. */
+export function buildDeclaracaoMenor(party: PartyData, menor: MenorData): string {
+  const mNome = menor.nome || '[NOME DO MENOR]';
+  return `DECLARAÇÃO DE HIPOSSUFICIÊNCIA
+
+Eu, ${qualResponsavel(party)}, na qualidade de representante legal do(a) menor ${qualMenor(menor)}, DECLARO para os devidos fins, sob as penas da lei, que o(a) representado(a) não possui condições financeiras de arcar com as custas, despesas processuais e honorários advocatícios sem prejuízo do próprio sustento e de sua família.
+
+A presente declaração é feita nos termos do art. 98 e seguintes do Código de Processo Civil, bem como do art. 790, §§ 3º e 4º, da Consolidação das Leis do Trabalho (CLT), quando aplicável.
+
+${FORO}, [DATA].
+
+
+_______________________________________
+${party.name || '[NOME DO RESPONSÁVEL]'}
+Representante legal de ${mNome}`;
+}
+
 const AREA_OBJECT: Record<string, string> = {
   trabalhista: 'o ajuizamento, acompanhamento e patrocínio de Ação Trabalhista, perante a Vara do Trabalho competente, até a prolação da sentença, visando ao reconhecimento dos direitos e à cobrança das verbas trabalhistas devidas ao(à) CONTRATANTE.',
   gestante: 'a defesa dos direitos da gestante, incluindo estabilidade gravídica, licença-maternidade e reversão de demissão irregular, em favor do(a) CONTRATANTE.',
