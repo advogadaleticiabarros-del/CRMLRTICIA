@@ -15,7 +15,9 @@ export async function getEscritorio(): Promise<ContratadaInfo> {
     ) as any;
     const l = rows[0];
     if (l && l.address && String(l.address).trim()) {
-      const oab = l.oab_number ? `OAB/${l.oab_uf || 'ES'} sob o nº ${l.oab_number}` : ADVOGADA.oab;
+      // Formata o número da OAB só para exibição (39948 → 39.948); o banco mantém os dígitos (DJEN).
+      const oabNum = /^\d+$/.test(String(l.oab_number)) ? Number(l.oab_number).toLocaleString('pt-BR') : l.oab_number;
+      const oab = l.oab_number ? `OAB/${l.oab_uf || 'ES'} sob o nº ${oabNum}` : ADVOGADA.oab;
       return {
         nome: String(l.name || ADVOGADA.nome).toUpperCase(),
         oab,
