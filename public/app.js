@@ -3089,11 +3089,11 @@ function printDoc(title, content) {
       .lh-spacer-top { height: 0.5cm; }
       .lh-footer { border-top: 1px solid #B8943F; padding-top: 6px; margin-top: 16px; text-align: center; font-size: 8.5pt; color: #555; }
       .lh-footer .sep { color: #B8943F; margin: 0 6px; }
-      .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 11cm; height: auto; opacity: 0.06; z-index: -1; }
+      .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 12cm; height: auto; opacity: 0.035; z-index: -1; }
       .content { white-space: pre-wrap; text-align: justify; }
       @media print { .no-print { display: none; } }
     </style></head><body>
-    <img class="watermark" src="${logo}" onerror="this.style.display='none'">
+    <img class="watermark" src="${location.origin}/logo-watermark.png" onerror="this.onerror=null;this.src='${logo}'">
     <table class="page">
       <thead><tr><td>
         <div class="lh-header">
