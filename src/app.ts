@@ -69,6 +69,19 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
+  // TEMPORÁRIO — diagnóstico de dados de uma parte por nome (remover depois)
+  app.get('/api/_party-debug', async (req, res) => {
+    try {
+      const { db } = await import('./config/database');
+      const q = `%${(req.query.nome as string) || 'vinicius'}%`;
+      const [leads] = await db.query('SELECT id, name, cpf_cnpj, rg, marital_status, profession, street, number, neighborhood, city, state, cep FROM leads WHERE name LIKE ?', [q]) as any;
+      const [clients] = await db.query('SELECT id, name, cpf_cnpj, address, phone, email FROM clients WHERE name LIKE ?', [q]) as any;
+      const [contracts] = await db.query('SELECT id, title, lead_id, client_id, status FROM contracts WHERE title LIKE ?', [q]) as any;
+      const [propostas] = await db.query('SELECT id, contact_name, lead_id, client_id, cpf, status FROM propostas WHERE contact_name LIKE ?', [q]) as any;
+      res.json({ leads, clients, contracts, propostas });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
