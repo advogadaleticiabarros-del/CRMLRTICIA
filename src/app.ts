@@ -69,16 +69,6 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
-  // TEMPORÁRIO — define o e-mail da advogada no cadastro (remover depois)
-  app.get('/api/_set-lawyer-email', async (_req, res) => {
-    try {
-      const { db } = await import('./config/database');
-      const [r] = await db.query("UPDATE lawyers SET email = 'advogadaleticia.barros@gmail.com' WHERE oab_number = '39948'") as any;
-      const [rows] = await db.query("SELECT id, name, oab_number, oab_uf, email, address FROM lawyers WHERE oab_number = '39948'") as any;
-      res.json({ atualizados: r.affectedRows, lawyer: rows[0] });
-    } catch (e: any) { res.status(500).json({ error: e.message }); }
-  });
-
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
