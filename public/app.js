@@ -2840,6 +2840,7 @@ async function contractEditor(id, onSave) {
     </div>
     ${Object.keys(docs).map((k, i) => `<textarea data-field="${k}" rows="14" style="font-family:monospace;font-size:12.5px;display:${i===0?'block':'none'}">${ct[k] || ''}</textarea>`).join('')}
     <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn-gold btn-sm" id="print-all">Baixar tudo (Contrato + Procuração + Declaração)</button>
       <button class="btn-sm" data-print="content">Contrato PDF</button>
       <button class="btn-sm" data-print="procuracao_content">Procuração PDF</button>
       <button class="btn-sm" data-print="declaracao_content">Declaração PDF</button>
@@ -2877,6 +2878,11 @@ async function contractEditor(id, onSave) {
     const docTitle = { content: 'Contrato', procuracao_content: 'Procuração', declaracao_content: 'Declaração de Hipossuficiência' }[b.dataset.print];
     printDoc(docTitle, wrap.querySelector(`[data-field=${b.dataset.print}]`).value);
   });
+  wrap.querySelector('#print-all').onclick = () => printDocs([
+    { title: 'Contrato', content: wrap.querySelector('[data-field=content]').value },
+    { title: 'Procuração', content: wrap.querySelector('[data-field=procuracao_content]').value },
+    { title: 'Declaração de Hipossuficiência', content: wrap.querySelector('[data-field=declaracao_content]').value },
+  ]);
 
   wrap.querySelectorAll('#doc-tabs .tab').forEach((t) => t.onclick = () => {
     wrap.querySelectorAll('#doc-tabs .tab').forEach((x) => x.classList.toggle('active', x === t));
@@ -3118,11 +3124,29 @@ function formatDocHtml(text) {
   return html;
 }
 
-function printDoc(title, content) {
+function docTableHtml(content, logo) {
+  return `<table class="page">
+      <thead><tr><td>
+        <div class="lh-header">
+          <div class="brand"><img src="${logo}" onerror="this.style.display='none'">
+            <div><div class="name">LETÍCIA BARROS</div><div class="sub">Advocacia &amp; Consultoria</div></div></div>
+          <div class="oab">OAB Nº 39.948 - ES</div>
+        </div>
+      </td></tr></thead>
+      <tfoot><tr><td><div class="lh-foot-spacer"></div></td></tr></tfoot>
+      <tbody><tr><td><div class="content">${formatDocHtml(content)}</div></td></tr></tbody>
+    </table>`;
+}
+
+function printDoc(title, content) { printDocs([{ title, content }]); }
+
+function printDocs(docs) {
   const w = window.open('', '_blank');
   if (!w) { toast('Permita pop-ups para gerar o PDF', 'error'); return; }
   const logo = location.origin + '/logo.png';
-  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${title}</title>
+  const titulo = docs.length > 1 ? 'Documentos' : (docs[0] && docs[0].title) || 'Documento';
+  const blocks = docs.map((d, i) => `<div class="docwrap"${i > 0 ? ' style="page-break-before:always"' : ''}>${docTableHtml(d.content, logo)}</div>`).join('');
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${titulo}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
     <style>
@@ -3152,21 +3176,12 @@ function printDoc(title, content) {
       .content .sp { height: 5px; }
       .content .sig-line { width: 62%; margin: 32px auto 4px; border-bottom: 1px solid #333; }
       .content .sig-name { text-align: center; margin: 0; line-height: 1.45; }
+      .docwrap + .docwrap { page-break-before: always; }
       @media print { .no-print { display: none; } .content .clause, .content .sig-line { page-break-inside: avoid; } }
     </style></head><body>
     <img class="watermark" src="${location.origin}/logo-sem-fundo.png" onerror="this.onerror=null;this.src='${logo}'">
     <div class="lh-footer-fixed">(27) 99515-1402 | (44) 99101-1402<span class="sep">·</span>advogadaleticia.barros@gmail.com<span class="sep">·</span>@adv.leticiabarros2</div>
-    <table class="page">
-      <thead><tr><td>
-        <div class="lh-header">
-          <div class="brand"><img src="${logo}" onerror="this.style.display='none'">
-            <div><div class="name">LETÍCIA BARROS</div><div class="sub">Advocacia &amp; Consultoria</div></div></div>
-          <div class="oab">OAB Nº 39.948 - ES</div>
-        </div>
-      </td></tr></thead>
-      <tfoot><tr><td><div class="lh-foot-spacer"></div></td></tr></tfoot>
-      <tbody><tr><td><div class="content">${formatDocHtml(content)}</div></td></tr></tbody>
-    </table>
+    ${blocks}
     <div class="no-print" style="text-align:center;margin:20px 0"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
     </body></html>`);
   w.document.close();
