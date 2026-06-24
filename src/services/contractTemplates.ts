@@ -40,6 +40,26 @@ export function montarEndereco(src: {
   return out || null;
 }
 
+/** Texto da forma de pagamento a partir do parcelamento da proposta (entrada + parcelas). */
+export function formaPagamentoTexto(parc: any): string {
+  if (!parc || !Number(parc.total)) return '';
+  const money = (v: number) => `R$ ${(Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const dt = (s: string) => (s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '');
+  const entrada = Number(parc.entrada) || 0;
+  const n = parseInt(parc.parcelas) || 0;
+  const vParc = Number(parc.valor_parcela) || 0;
+  const ult = Number(parc.ultima_parcela) || vParc;
+  const partes: string[] = [];
+  if (entrada > 0) partes.push(`entrada de ${money(entrada)}${parc.entrada_data ? ` em ${dt(parc.entrada_data)}` : ''}`);
+  if (n > 0) {
+    let p = `${n} parcela(s) mensal(is) de ${money(vParc)}`;
+    if (ult && ult !== vParc) p += ` (última de ${money(ult)})`;
+    if (parc.primeiro_vencimento) p += `, com primeiro vencimento em ${dt(parc.primeiro_vencimento)}`;
+    partes.push(p);
+  }
+  return partes.join(', e ');
+}
+
 function f(p: PartyData) {
   return {
     nome: p.name || '[NOME DO CLIENTE]',
@@ -96,10 +116,11 @@ const AREA_OBJECT: Record<string, string> = {
   outro: 'a prestação de serviços advocatícios conforme objeto a ser detalhado entre as partes.',
 };
 
-export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number }): string {
+export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number; formaPagamento?: string }): string {
   const p = f(opts.party || { name: opts.clientName });
   const obj = AREA_OBJECT[opts.area] ?? AREA_OBJECT.outro;
   const valorStr = opts.value ? `R$ ${Number(opts.value).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : '[VALOR DOS HONORÁRIOS]';
+  const forma = opts.formaPagamento && opts.formaPagamento.trim() ? opts.formaPagamento.trim() : '[FORMA DE PAGAMENTO / PARCELAS]';
   return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS
 
 CONTRATANTE: ${p.nome}, ${p.nac}, ${p.ec}, ${p.prof}, inscrito(a) no CPF sob nº ${p.cpf}, residente e domiciliado(a) em ${p.end}.
@@ -113,7 +134,7 @@ CLÁUSULA 2ª — DAS OBRIGAÇÕES DA CONTRATADA
 A CONTRATADA obriga-se a empregar todo o zelo e diligência no patrocínio da causa, mantendo o CONTRATANTE informado sobre o andamento.
 
 CLÁUSULA 3ª — DOS HONORÁRIOS
-Pelos serviços, o CONTRATANTE pagará à CONTRATADA o valor de ${valorStr}, na forma e condições ajustadas: [FORMA DE PAGAMENTO / PARCELAS].
+Pelos serviços, o CONTRATANTE pagará à CONTRATADA o valor de ${valorStr}, na forma e condições ajustadas: ${forma}.
 Os honorários de sucumbência, quando houver, pertencem à CONTRATADA.
 
 CLÁUSULA 4ª — DA VIGÊNCIA E RESCISÃO

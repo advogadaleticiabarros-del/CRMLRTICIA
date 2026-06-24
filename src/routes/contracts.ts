@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 import { onContractSigned } from '../services/contractFlow';
-import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, PartyData } from '../services/contractTemplates';
+import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
 
 const router = Router();
 
@@ -55,6 +55,21 @@ router.get('/:id/party', async (req: Request, res: Response) => {
     const [cr] = await db.query('SELECT name, cpf_cnpj, address, phone, email FROM clients WHERE id = ?', [ct.client_id]) as any;
     client = cr[0] || null;
   }
+
+  // Forma de pagamento a partir da proposta vinculada (mesmo lead/cliente)
+  let formaPagamento = '';
+  const [props] = await db.query(
+    `SELECT honorarios FROM propostas WHERE (lead_id <=> ? OR client_id <=> ?) AND honorarios IS NOT NULL
+      ORDER BY created_at DESC LIMIT 1`,
+    [ct.lead_id ?? null, ct.client_id ?? null]
+  ) as any;
+  if (props.length) {
+    try {
+      const h = typeof props[0].honorarios === 'string' ? JSON.parse(props[0].honorarios) : props[0].honorarios;
+      if (h?.parcelamento) formaPagamento = formaPagamentoTexto(h.parcelamento);
+    } catch {}
+  }
+
   res.json({
     name: client?.name || lead?.name || '',
     cpf: client?.cpf_cnpj || lead?.cpf_cnpj || '',
@@ -62,6 +77,7 @@ router.get('/:id/party', async (req: Request, res: Response) => {
     estado_civil: lead?.marital_status || '',
     profissao: lead?.profession || '',
     endereco: (client?.address && client.address.trim()) ? client.address : (montarEndereco(lead || {}) || ''),
+    forma_pagamento: formaPagamento,
   });
 });
 

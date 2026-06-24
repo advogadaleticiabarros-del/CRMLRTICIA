@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
-import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, PartyData } from '../services/contractTemplates';
+import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
 
 const router = Router();
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
@@ -26,13 +26,22 @@ router.get('/proposta/:token', async (req: Request, res: Response) => {
 // de prestação de serviços, a procuração e a declaração de hipossuficiência.
 router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
   const [rows] = await db.query(
-    `SELECT id, user_id, lead_id, client_id, contact_name, cpf, phone, email, legal_area, valor, title, aceito_em
+    `SELECT id, user_id, lead_id, client_id, contact_name, cpf, phone, email, legal_area, valor, honorarios, title, aceito_em
        FROM propostas WHERE public_token = ?`,
     [req.params.token]
   ) as any;
   if (!rows.length) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
   const p = rows[0];
   if (p.aceito_em) { res.json({ success: true, already: true }); return; }
+
+  // Parcelamento → forma de pagamento da Cláusula 3ª + valor total
+  let parcelamento: any = null;
+  try {
+    const h = typeof p.honorarios === 'string' ? JSON.parse(p.honorarios) : p.honorarios;
+    if (h?.parcelamento && Number(h.parcelamento.total) > 0) parcelamento = h.parcelamento;
+  } catch {}
+  const formaPagamento = formaPagamentoTexto(parcelamento);
+  const valorContrato = parcelamento ? Number(parcelamento.total) : (Number(p.valor) || undefined);
 
   // Dados completos já cadastrados no lead (nome, CPF, RG, estado civil, profissão, endereço)
   let lead: any = null;
@@ -83,12 +92,12 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
   if (existing.length) {
     contractId = existing[0].id;
   } else {
-    const content = buildTemplate({ party, area, value: Number(p.valor) || undefined });
+    const content = buildTemplate({ party, area, value: valorContrato, formaPagamento });
     const [c] = await db.query(
       `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'em_producao')`,
       [p.user_id, clientId, p.lead_id ?? null, area, `Contrato — ${nome || 'cliente'}`,
-       content, buildProcuracao(party), buildDeclaracao(party), Number(p.valor) || null]
+       content, buildProcuracao(party), buildDeclaracao(party), valorContrato || null]
     ) as any;
     contractId = c.insertId;
   }
