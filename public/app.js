@@ -2276,6 +2276,7 @@ async function propostaDetail(id, onSave) {
         <input id="prop-link" readonly value="" style="flex:1;font-size:12px">
         <button class="btn-sm" id="prop-copy" type="button">Copiar</button>
         <button class="btn-gold btn-sm" id="prop-wpp" type="button">WhatsApp</button>
+        <button class="btn-sm" id="prop-pdf" type="button">Baixar PDF</button>
       </div>
     </div>
     ${parcelasHtml}
@@ -2311,6 +2312,7 @@ async function propostaDetail(id, onSave) {
         const wa = phone ? `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`;
         window.open(wa, '_blank');
       };
+      form.querySelector('#prop-pdf').onclick = () => window.open(link + '&pdf=1', '_blank');
     } catch { const inp = form.querySelector('#prop-link'); if (inp) inp.value = 'erro ao gerar link'; }
   })();
 
