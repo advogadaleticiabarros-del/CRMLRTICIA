@@ -255,13 +255,14 @@ const ROUTES = {
       <div class="page-header"><div><h2>Dashboards</h2><p class="sub">Visão gerencial do escritório</p></div></div>
       <div class="tabs" id="dash-tabs">
         <button class="tab active" data-tab="comercial">Comercial</button>
+        <button class="tab" data-tab="monitoramento">Processos</button>
         <button class="tab" data-tab="processual">Processual</button>
         <button class="tab" data-tab="agenda">Agenda</button>
         <button class="tab" data-tab="financeiro">Financeiro</button>
         <button class="tab" data-tab="producao">Produção</button>
       </div>
       <div id="dash-content"></div>`;
-    const tabs = { comercial: dashComercial, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao };
+    const tabs = { comercial: dashComercial, monitoramento: dashMonitoramento, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao };
     const show = async (name) => {
       document.querySelectorAll('#dash-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#dash-content'); c.innerHTML = '<div class="spinner"></div>';
@@ -1399,6 +1400,35 @@ async function dashComercial(c) {
       ${breakdown('Conversão por origem', d.por_origem, 'origem')}
       ${breakdown('Leads por área jurídica', d.por_area, 'area')}
     </div>`;
+}
+
+async function dashMonitoramento(c) {
+  const d = await api('/api/dashboards/monitoramento');
+  const k = d.kpi || {};
+  const meses = d.movimentacoes_por_mes || [];
+  const maxM = Math.max(1, ...meses.map((m) => Number(m.total)));
+  const mesLabel = (ym) => { const [y, m] = ym.split('-'); return ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'][Number(m) - 1] + '/' + y.slice(2); };
+  const chart = meses.length ? `<div class="card" style="padding:14px 18px;margin-bottom:16px">
+      <strong style="color:var(--navy)">Movimentações por mês</strong>
+      <div style="display:flex;align-items:flex-end;gap:10px;height:120px;margin-top:14px">${meses.map((m) => `
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;justify-content:flex-end;height:100%">
+          <strong style="font-size:12px">${m.total}</strong>
+          <div title="${m.total}" style="width:100%;max-width:46px;height:${Math.max(4, Math.round((m.total / maxM) * 86))}px;background:linear-gradient(180deg,var(--gold),#B8943F);border-radius:6px 6px 0 0"></div>
+          <small style="color:var(--text-muted)">${mesLabel(m.mes)}</small>
+        </div>`).join('')}</div></div>` : '';
+  c.innerHTML = `
+    <div class="kpi-grid">
+      ${kpi('Processos monitorados', k.total)}${kpi('Com movimentação (30d)', k.com_mov_30d)}
+      ${kpi('Movimentações', k.movimentacoes)}${kpi('Tribunais', k.tribunais)}
+      ${kpi('Clientes vinculados', k.clientes)}${kpi('Prazos a confirmar', k.prazos_pendentes)}
+    </div>
+    ${chart}
+    <div class="dash-2col">
+      ${miniList('Tipos de caso', (d.por_tipo || []).map((t) => `<div class="mini-row"><span>${t.tipo}</span><strong>${t.total}</strong></div>`))}
+      ${miniList('Processos por tribunal', (d.por_tribunal || []).map((t) => `<div class="mini-row"><span>${t.court}</span><strong>${t.total}</strong></div>`))}
+    </div>
+    ${miniList('Movimentações recentes', (d.recentes || []).map((m) => `<div class="mini-row"><span>${(m.title || '').slice(0, 64)}<br><small>${m.client_name || m.process_number || ''}${m.court ? ' · ' + m.court : ''}</small></span><small>${fmtDate(m.movement_date)}</small></div>`))}
+    ${miniList('Processos com atualização recente', (d.top_processos || []).map((p) => `<div class="mini-row"><span>${p.process_number}<br><small>${p.client_name || '—'} · ${p.movs} mov.</small></span><small>${p.last_movement_at ? fmtDate(p.last_movement_at) : '—'}</small></div>`))}`;
 }
 
 async function dashProcessual(c) {

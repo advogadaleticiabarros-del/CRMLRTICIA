@@ -10,6 +10,7 @@ import { authenticate, requireStaff, requireAdmin } from './middleware/auth';
 import comercialDashboard from './routes/dashboards/comercial';
 import clienteDashboard from './routes/dashboards/cliente';
 import processualDashboard from './routes/dashboards/processual';
+import monitoramentoDashboard from './routes/dashboards/monitoramento';
 import agendaDashboard from './routes/dashboards/agenda';
 import financeiroDashboard from './routes/dashboards/financeiro';
 import producaoDashboard from './routes/dashboards/producao';
@@ -110,6 +111,7 @@ export function createApp() {
   app.use('/api/dashboards/comercial',  authenticate, requireStaff, comercialDashboard);
   app.use('/api/dashboards/cliente',    authenticate, requireStaff, clienteDashboard);
   app.use('/api/dashboards/processual', authenticate, requireStaff, processualDashboard);
+  app.use('/api/dashboards/monitoramento', authenticate, requireStaff, monitoramentoDashboard);
   app.use('/api/dashboards/agenda',     authenticate, requireStaff, agendaDashboard);
   app.use('/api/dashboards/financeiro', authenticate, requireStaff, financeiroDashboard);
   app.use('/api/dashboards/producao',   authenticate, requireStaff, producaoDashboard);
