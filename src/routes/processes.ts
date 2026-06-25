@@ -27,7 +27,7 @@ router.get('/', async (req: Request, res: Response) => {
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const [rows] = await db.query(
-    `SELECT lp.id, lp.process_number, lp.court, lp.court_alias, lp.judicial_area, lp.status, lp.phase,
+    `SELECT lp.id, lp.process_number, lp.court, lp.court_alias, lp.judicial_area, lp.status, lp.phase, lp.suggested_phase,
             lp.last_movement_at, lp.last_sync_at, lp.monitoring_enabled, lp.source,
             c.name AS client_name, l.name AS lawyer_name,
             (SELECT pm.title FROM process_movements pm WHERE pm.process_id = lp.id ORDER BY pm.movement_date DESC, pm.id DESC LIMIT 1) AS last_movement_title,

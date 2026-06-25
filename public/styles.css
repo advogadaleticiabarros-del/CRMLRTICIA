@@ -307,6 +307,10 @@ tbody tr:hover { background: var(--surface-2); }
 .kf-card strong { font-size: 12.5px; color: var(--text); }
 .kf-card small { font-size: 11px; color: var(--text-soft); }
 .kf-move { margin-top: 7px; font-size: 11px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-soft); }
+.kf-sug { margin-top: 6px; font-size: 10.5px; color: var(--gold-2, #B8943F); background: rgba(201,169,98,.1); border: 1px solid rgba(201,169,98,.3); border-radius: 7px; padding: 5px 7px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.kf-sug strong { color: var(--gold-2, #B8943F); }
+.kf-apply { margin-left: auto; font-size: 10.5px; padding: 3px 8px; border: none; border-radius: 6px; background: var(--gold); color: #fff; font-weight: 600; cursor: pointer; }
+.kf-apply:hover { background: #b08c44; }
 .kf-empty { color: var(--text-muted); font-size: 12px; text-align: center; padding: 12px; }
 
 /* Hambúrguer e overlay da gaveta (só aparecem no mobile) */

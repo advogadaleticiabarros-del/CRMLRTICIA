@@ -7,6 +7,32 @@ import { notificationService } from './NotificationService';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
 
+// ── Sugestão de fase processual a partir do texto das movimentações ──────────
+const PHASE_RANK: Record<string, number> = { inicial: 1, instrucao: 2, sentenca: 3, recurso: 4, execucao: 5, encerrado: 6 };
+function phaseFromText(text: string): string | null {
+  const t = (text || '').toLowerCase();
+  if (/tr[âa]nsito em julgado|arquivad|baixa definitiva/.test(t)) return 'encerrado';
+  if (/execu[çc][ãa]o|cumprimento de senten|penhora|alvar[áa]|bacenjud|sisbajud|bloqueio de valores|le[ií]l[ãa]o/.test(t)) return 'execucao';
+  if (/ac[óo]rd[ãa]o|apela[çc][ãa]o|\brecurso\b|embargos de declara|agravo|recurso ordin[áa]rio|recurso de revista/.test(t)) return 'recurso';
+  if (/senten[çc]a/.test(t)) return 'sentenca';
+  if (/audi[êe]ncia|instru[çc][ãa]o|contesta[çc][ãa]o|r[ée]plica|per[íi]cia|saneador|sanea/.test(t)) return 'instrucao';
+  if (/cita[çc][ãa]o|distribu|autua|recebida a inicial|peti[çc][ãa]o inicial|ajuiza/.test(t)) return 'inicial';
+  return null;
+}
+
+/** Recalcula a fase SUGERIDA do processo (maior estágio detectado nas movimentações). */
+export async function recomputeSuggestedPhase(processId: number): Promise<void> {
+  try {
+    const [movs] = await db.query('SELECT title, description FROM process_movements WHERE process_id = ?', [processId]) as any;
+    let best: string | null = null; let bestRank = 0;
+    for (const m of movs) {
+      const ph = phaseFromText(`${m.title || ''} ${m.description || ''}`);
+      if (ph && PHASE_RANK[ph] > bestRank) { best = ph; bestRank = PHASE_RANK[ph]; }
+    }
+    if (best) await db.query('UPDATE legal_processes SET suggested_phase = ? WHERE id = ?', [best, processId]);
+  } catch { /* best-effort */ }
+}
+
 function hashMovement(processNumber: string, date: string | null, description: string): string {
   return crypto.createHash('sha256').update(`${processNumber}|${date || ''}|${description}`).digest('hex');
 }
@@ -121,6 +147,7 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
     'UPDATE legal_processes SET last_sync_at = NOW(), last_movement_at = ? WHERE id = ?',
     [toDate(latest), processId]
   );
+  if (novas > 0) await recomputeSuggestedPhase(processId);
 
   if (novas > 0) {
     await logMonitor(processId, proc.lawyer_id, 'nova_movimentacao', provider.name, `${novas} nova(s)`);
@@ -262,6 +289,7 @@ export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublicatio
       clientId = exists[0].client_id ?? null;
       await saveMovements(processId, p.process_number, p.movements, 'djen_oab', clientId);
       await db.query('UPDATE legal_processes SET last_movement_at = (SELECT MAX(movement_date) FROM process_movements WHERE process_id = ?) WHERE id = ?', [processId, processId]);
+      await recomputeSuggestedPhase(processId);
     } else {
       const [ins] = await db.query(
         `INSERT INTO legal_processes
@@ -273,6 +301,7 @@ export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublicatio
       clientId = null;
       const novasMovs = await saveMovements(processId, p.process_number, p.movements, 'djen_oab', null);
       await db.query('UPDATE legal_processes SET last_movement_at = (SELECT MAX(movement_date) FROM process_movements WHERE process_id = ?) WHERE id = ?', [processId, processId]);
+      await recomputeSuggestedPhase(processId);
       novos++;
       await logMonitor(processId, lawyerId, 'nova_movimentacao', 'djen_oab', `Processo descoberto via DJEN (${novasMovs} publicação/ões)`);
     }

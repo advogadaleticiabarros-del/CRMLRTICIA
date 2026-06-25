@@ -70,6 +70,18 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
+  // TEMPORÁRIO — calcula a fase sugerida dos processos já existentes (remover depois)
+  app.get('/api/_backfill-phase', async (_req, res) => {
+    try {
+      const { db } = await import('./config/database');
+      const { recomputeSuggestedPhase } = await import('./services/monitoringService');
+      const [rows] = await db.query('SELECT id FROM legal_processes') as any;
+      for (const r of rows) await recomputeSuggestedPhase(r.id);
+      const [[c]] = await db.query('SELECT COUNT(*) AS total FROM legal_processes WHERE suggested_phase IS NOT NULL') as any;
+      res.json({ ok: true, processos: rows.length, com_sugestao: c.total });
+    } catch (e: any) { res.status(500).json({ error: e.message }); }
+  });
+
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)

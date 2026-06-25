@@ -770,8 +770,10 @@ const ROUTES = {
 
   async fases(page) {
     const PH = [['inicial', 'Inicial'], ['instrucao', 'Instrução'], ['sentenca', 'Sentença'], ['recurso', 'Recurso'], ['execucao', 'Execução'], ['encerrado', 'Encerrado']];
+    const PHLABEL = Object.fromEntries(PH);
     page.innerHTML = `
-      <div class="page-header"><div><h2>Fases dos processos</h2><p class="sub">Quadro por fase processual dos processos monitorados</p></div></div>
+      <div class="page-header"><div><h2>Fases dos processos</h2><p class="sub">Quadro por fase processual · a IA sugere a fase pelas movimentações</p></div>
+        <button class="btn-gold btn-sm" id="apply-all-sug" style="display:none"></button></div>
       <div id="fases-kpis" class="kpi-grid"></div>
       <div id="fases-board" class="kanban-fases"></div>`;
     const load = async () => {
@@ -792,15 +794,33 @@ const ROUTES = {
               <strong>${r.process_number}</strong>
               <small>${esc2(r.client_name) || '— sem cliente'} · ${r.court || ''}</small>
               <small style="color:var(--text-muted)">últ. mov.: ${r.last_movement_at ? fmtDate(r.last_movement_at) : '—'}</small>
+              ${(r.suggested_phase && r.suggested_phase !== r.phase) ? `<div class="kf-sug">Sugestão: <strong>${PHLABEL[r.suggested_phase]}</strong><button class="kf-apply" data-id="${r.id}" data-phase="${r.suggested_phase}">Aplicar ✓</button></div>` : ''}
               <select class="kf-move" data-id="${r.id}">${PH.map(([pk, pl]) => `<option value="${pk}" ${pk === r.phase ? 'selected' : ''}>${pl}</option>`).join('')}</select>
             </div>`).join('') || '<div class="kf-empty">—</div>'}</div>
         </div>`).join('');
-      $('#fases-board').querySelectorAll('.kf-move').forEach((sel) => sel.onclick = (e) => e.stopPropagation());
+      $('#fases-board').querySelectorAll('.kf-move, .kf-apply').forEach((el2) => el2.onclick = (e) => e.stopPropagation());
       $('#fases-board').querySelectorAll('.kf-move').forEach((sel) => sel.onchange = async () => {
         try { await api(`/api/processes/${sel.dataset.id}/phase`, { method: 'PATCH', body: JSON.stringify({ phase: sel.value }) }); toast('Fase atualizada'); load(); }
         catch (e) { toast(e.message, 'error'); }
       });
-      $('#fases-board').querySelectorAll('.kf-card').forEach((card) => card.onclick = (e) => { if (e.target.closest('.kf-move')) return; processDetail(card.dataset.proc, load); });
+      $('#fases-board').querySelectorAll('.kf-apply').forEach((b) => b.onclick = async (e) => {
+        e.stopPropagation();
+        try { await api(`/api/processes/${b.dataset.id}/phase`, { method: 'PATCH', body: JSON.stringify({ phase: b.dataset.phase }) }); toast('Fase aplicada'); load(); }
+        catch (err) { toast(err.message, 'error'); }
+      });
+      $('#fases-board').querySelectorAll('.kf-card').forEach((card) => card.onclick = (e) => { if (e.target.closest('.kf-move') || e.target.closest('.kf-apply')) return; processDetail(card.dataset.proc, load); });
+      // Aplicar todas as sugestões
+      const sugeridos = rows.filter((r) => r.suggested_phase && r.suggested_phase !== r.phase);
+      const allBtn = $('#apply-all-sug');
+      if (sugeridos.length) {
+        allBtn.style.display = ''; allBtn.textContent = `Aplicar ${sugeridos.length} sugestão(ões)`;
+        allBtn.onclick = async () => {
+          if (!confirm(`Aplicar a fase sugerida em ${sugeridos.length} processo(s)?`)) return;
+          allBtn.disabled = true; allBtn.textContent = 'Aplicando…';
+          for (const r of sugeridos) { try { await api(`/api/processes/${r.id}/phase`, { method: 'PATCH', body: JSON.stringify({ phase: r.suggested_phase }) }); } catch {} }
+          toast('Sugestões aplicadas'); allBtn.disabled = false; load();
+        };
+      } else { allBtn.style.display = 'none'; }
     };
     await load();
   },
