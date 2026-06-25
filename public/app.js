@@ -3103,20 +3103,59 @@ async function processForm(onSave) {
   openModal('Monitorar processo', form);
 }
 
+async function movDetail(m, procId, onSave) {
+  const full = `${m.title ? m.title + '\n\n' : ''}${m.description || ''}`.trim();
+  const wrap = el(`<div class="form-grid">
+    <button class="btn-sm" id="mov-back" style="align-self:flex-start">‹ Voltar ao processo</button>
+    <small style="color:var(--text-muted)">${fmtDate(m.movement_date)} · ${m.source || ''}</small>
+    <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:14px;white-space:pre-wrap;font-size:13.5px;line-height:1.65;max-height:52vh;overflow:auto">${(full || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn-sm" id="mov-copy">Copiar movimentação</button>
+      <button class="btn-gold btn-sm" id="mov-resumo">Resumo para o cliente</button>
+    </div>
+    <div id="mov-resumo-box"></div>
+  </div>`);
+  wrap.querySelector('#mov-back').onclick = () => { closeModal(); processDetail(procId, onSave); };
+  wrap.querySelector('#mov-copy').onclick = async () => { try { await navigator.clipboard.writeText(full); } catch {} toast('Movimentação copiada'); };
+  wrap.querySelector('#mov-resumo').onclick = async () => {
+    const box = wrap.querySelector('#mov-resumo-box');
+    box.innerHTML = '<div class="spinner"></div>';
+    try {
+      const r = await api('/api/ai/generate', { method: 'POST', body: JSON.stringify({ type: 'resumo_cliente', inputs: { movimentacao: m.description || m.title || '' } }) });
+      if (r.auto && r.result) {
+        box.innerHTML = `<strong style="font-size:13px;color:var(--navy)">Resumo para o cliente (sem juridiquês)</strong>
+          <textarea id="mr-text" rows="5" style="margin-top:6px">${r.result}</textarea>
+          <div style="display:flex;gap:6px;margin-top:6px"><button class="btn-sm" id="mr-copy">Copiar</button><button class="btn-gold btn-sm" id="mr-wpp">WhatsApp</button></div>`;
+        wrap.querySelector('#mr-copy').onclick = async () => { try { await navigator.clipboard.writeText(wrap.querySelector('#mr-text').value); } catch {} toast('Resumo copiado'); };
+        wrap.querySelector('#mr-wpp').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent(wrap.querySelector('#mr-text').value), '_blank');
+      } else {
+        box.innerHTML = `<p class="sub">IA automática não configurada. Copie o texto abaixo e cole no ChatGPT/Claude para gerar o resumo:</p>
+          <textarea id="mr-prompt" rows="6" style="margin-top:6px">${(r.prompt || '').replace(/</g, '&lt;')}</textarea>
+          <button class="btn-sm" id="mr-pcopy" style="margin-top:6px">Copiar prompt</button>`;
+        wrap.querySelector('#mr-pcopy').onclick = async () => { try { await navigator.clipboard.writeText(wrap.querySelector('#mr-prompt').value); } catch {} toast('Prompt copiado'); };
+      }
+    } catch (e) { box.innerHTML = `<p class="sub" style="color:var(--red)">${e.message}</p>`; }
+  };
+  openModal('Movimentação', wrap);
+}
+
 async function processDetail(id, onSave) {
   const p = await api('/api/processes/' + id);
-  const movs = (p.movements || []).map((m) => `<div style="padding:9px 0;border-bottom:1px solid var(--border-soft)">
+  const clamp = (s) => { s = (s || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); return s.length > 150 ? s.slice(0, 150) + '…' : s; };
+  const movs = (p.movements || []).map((m, i) => `<div class="mov-row" data-mi="${i}" style="padding:10px 8px;border-bottom:1px solid var(--border-soft);cursor:pointer;border-radius:8px">
     <small style="color:var(--text-muted)">${fmtDate(m.movement_date)} · ${m.source}</small>
-    <div style="font-size:13px"><strong>${m.title || ''}</strong> ${m.description ? '— ' + m.description : ''}</div></div>`).join('') || '<p class="empty">Sem movimentações ainda</p>';
+    <div style="font-size:13px"><strong>${(m.title || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</strong> ${m.description ? '— ' + clamp(m.description) : ''}</div>
+    <small style="color:var(--gold)">abrir na íntegra ›</small></div>`).join('') || '<p class="empty">Sem movimentações ainda</p>';
   const wrap = el(`<div class="form-grid">
     <div><strong style="font-size:17px">${p.process_number}</strong><br>
       <small style="color:var(--text-muted)">${p.court || ''} · ${p.client_name || ''}</small></div>
     <div>${badge(p.status)} ${p.judicial_area ? badge(p.judicial_area) : ''} · última sync ${p.last_sync_at ? fmtDate(p.last_sync_at) : 'nunca'}</div>
     <button class="btn-primary" id="sync-now">Sincronizar agora</button>
     <hr style="border:none;border-top:1px solid var(--border)">
-    <strong style="font-size:13px">Movimentações (${(p.movements||[]).length})</strong>
-    <div style="max-height:300px;overflow-y:auto">${movs}</div>
+    <strong style="font-size:13px">Movimentações (${(p.movements||[]).length}) — clique para ver na íntegra</strong>
+    <div style="max-height:340px;overflow-y:auto">${movs}</div>
   </div>`);
+  wrap.querySelectorAll('.mov-row').forEach((row) => row.onclick = () => { const m = p.movements[Number(row.dataset.mi)]; closeModal(); movDetail(m, id, onSave); });
   wrap.querySelector('#sync-now').onclick = async () => {
     wrap.querySelector('#sync-now').textContent = 'Consultando…';
     try {

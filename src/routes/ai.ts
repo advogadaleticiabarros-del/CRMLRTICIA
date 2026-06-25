@@ -99,6 +99,14 @@ Escritório: ${advogada(lawyer)}
 
 Tom respeitoso. Forneça uma versão curta (WhatsApp) e uma versão formal (e-mail).`,
   },
+  {
+    type: 'resumo_cliente', label: 'Resumo da movimentação para o cliente',
+    fields: [{ name: 'movimentacao', label: 'Movimentação', type: 'textarea' }],
+    build: ({ inputs }) => `Você é assistente de uma advogada. Explique a movimentação processual abaixo para o CLIENTE em linguagem simples e acolhedora, SEM termos jurídicos (sem "juridiquês"), em no máximo 3 frases curtas. Diga, de forma clara, o que aconteceu e — se houver — o que o cliente precisa fazer ou apenas aguardar. Não invente informações que não estejam no texto. Não inclua saudação nem assinatura.
+
+MOVIMENTAÇÃO:
+${inputs.movimentacao || '—'}`,
+  },
 ];
 
 const findTpl = (t: string) => TEMPLATES.find((x) => x.type === t);
