@@ -27,7 +27,7 @@ router.get('/', async (req: Request, res: Response) => {
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const [rows] = await db.query(
-    `SELECT lp.id, lp.process_number, lp.court, lp.court_alias, lp.judicial_area, lp.status,
+    `SELECT lp.id, lp.process_number, lp.court, lp.court_alias, lp.judicial_area, lp.status, lp.phase,
             lp.last_movement_at, lp.last_sync_at, lp.monitoring_enabled, lp.source,
             c.name AS client_name, l.name AS lawyer_name,
             (SELECT pm.title FROM process_movements pm WHERE pm.process_id = lp.id ORDER BY pm.movement_date DESC, pm.id DESC LIMIT 1) AS last_movement_title,
@@ -118,6 +118,16 @@ router.post('/descobrir-oab', async (req: Request, res: Response) => {
   }
   const result = await runDiscoveryJob();
   res.json(result);
+});
+
+// ── PATCH /api/processes/:id/phase — muda a fase processual ──────────────────
+router.patch('/:id/phase', async (req: Request, res: Response) => {
+  const PHASES = ['inicial', 'instrucao', 'sentenca', 'recurso', 'execucao', 'encerrado'];
+  const { phase } = req.body;
+  if (!PHASES.includes(phase)) { res.status(400).json({ error: 'Fase inválida' }); return; }
+  const [r] = await db.query('UPDATE legal_processes SET phase = ? WHERE id = ?', [phase, req.params.id]) as any;
+  if (!r.affectedRows) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+  res.json({ success: true, id: Number(req.params.id), phase });
 });
 
 // ── POST /api/processes/importar-esteira — traz processos monitorados (com cliente) para a esteira ─

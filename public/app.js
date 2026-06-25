@@ -62,13 +62,13 @@ const NAV_LABELS = {
   agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Controladoria', correspondente: 'Correspondente',
   documentos: 'Documentos', ia: 'IA Jurídica', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
   contratos: 'Contratos', intakes: 'Novo Atendimento',
-  monitor: 'Monitoramento', advogados: 'Advogados/OAB',
+  monitor: 'Monitoramento', fases: 'Fases (Kanban)', advogados: 'Advogados/OAB',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
 };
 const NAV_BY_ROLE = {
-  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
-  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
-  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
   estagiario: ['cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -766,6 +766,43 @@ const ROUTES = {
     };
     document.querySelectorAll('#dat-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
     await show('projecao');
+  },
+
+  async fases(page) {
+    const PH = [['inicial', 'Inicial'], ['instrucao', 'Instrução'], ['sentenca', 'Sentença'], ['recurso', 'Recurso'], ['execucao', 'Execução'], ['encerrado', 'Encerrado']];
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Fases dos processos</h2><p class="sub">Quadro por fase processual dos processos monitorados</p></div></div>
+      <div id="fases-kpis" class="kpi-grid"></div>
+      <div id="fases-board" class="kanban-fases"></div>`;
+    const load = async () => {
+      const rows = await api('/api/processes');
+      const total = rows.length;
+      const ativos = rows.filter((r) => r.status === 'ativo').length;
+      const comMov = rows.filter((r) => r.last_movement_at && (Date.now() - new Date(r.last_movement_at).getTime()) / 86400000 <= 30).length;
+      const encerrados = rows.filter((r) => r.phase === 'encerrado').length;
+      $('#fases-kpis').innerHTML = kpi('Processos', total) + kpi('Ativos', ativos) + kpi('Com mov. (30d)', comMov) + kpi('Encerrados', encerrados);
+      const by = {}; PH.forEach(([k]) => by[k] = []);
+      rows.forEach((r) => { (by[r.phase] ? by[r.phase] : by.inicial).push(r); });
+      const esc2 = (s) => String(s || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+      $('#fases-board').innerHTML = PH.map(([k, label]) => `
+        <div class="kf-col">
+          <div class="kf-head">${label} <span class="kf-count">${by[k].length}</span></div>
+          <div class="kf-cards">${by[k].map((r) => `
+            <div class="kf-card" data-proc="${r.id}">
+              <strong>${r.process_number}</strong>
+              <small>${esc2(r.client_name) || '— sem cliente'} · ${r.court || ''}</small>
+              <small style="color:var(--text-muted)">últ. mov.: ${r.last_movement_at ? fmtDate(r.last_movement_at) : '—'}</small>
+              <select class="kf-move" data-id="${r.id}">${PH.map(([pk, pl]) => `<option value="${pk}" ${pk === r.phase ? 'selected' : ''}>${pl}</option>`).join('')}</select>
+            </div>`).join('') || '<div class="kf-empty">—</div>'}</div>
+        </div>`).join('');
+      $('#fases-board').querySelectorAll('.kf-move').forEach((sel) => sel.onclick = (e) => e.stopPropagation());
+      $('#fases-board').querySelectorAll('.kf-move').forEach((sel) => sel.onchange = async () => {
+        try { await api(`/api/processes/${sel.dataset.id}/phase`, { method: 'PATCH', body: JSON.stringify({ phase: sel.value }) }); toast('Fase atualizada'); load(); }
+        catch (e) { toast(e.message, 'error'); }
+      });
+      $('#fases-board').querySelectorAll('.kf-card').forEach((card) => card.onclick = (e) => { if (e.target.closest('.kf-move')) return; processDetail(card.dataset.proc, load); });
+    };
+    await load();
   },
 
   async monitor(page) {

@@ -296,6 +296,19 @@ tbody tr:hover { background: var(--surface-2); }
 .notif-item small { color: var(--text-muted); font-size: 12px; }
 
 /* ── Responsivo ── */
+/* ── Kanban de fases processuais ── */
+.kanban-fases { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 10px; -webkit-overflow-scrolling: touch; }
+.kf-col { min-width: 230px; flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; }
+.kf-head { font-weight: 600; color: var(--navy); display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; font-size: 13px; }
+.kf-count { background: var(--gold); color: #fff; border-radius: 11px; padding: 1px 9px; font-size: 11px; font-weight: 700; }
+.kf-cards { display: flex; flex-direction: column; gap: 8px; max-height: 62vh; overflow-y: auto; }
+.kf-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; transition: box-shadow .15s, transform .12s; }
+.kf-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); border-color: var(--gold); }
+.kf-card strong { font-size: 12.5px; color: var(--text); }
+.kf-card small { font-size: 11px; color: var(--text-soft); }
+.kf-move { margin-top: 7px; font-size: 11px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-soft); }
+.kf-empty { color: var(--text-muted); font-size: 12px; text-align: center; padding: 12px; }
+
 /* Hambúrguer e overlay da gaveta (só aparecem no mobile) */
 .nav-toggle { display: none; background: none; border: none; font-size: 22px; color: var(--text-soft); cursor: pointer; padding: 4px 8px; margin-right: 4px; line-height: 1; }
 .nav-overlay { display: none; }
