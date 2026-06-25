@@ -771,7 +771,10 @@ const ROUTES = {
   async monitor(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Monitoramento Processual</h2><p class="sub">Acompanhamento via DataJud/CNJ</p></div>
-        <button class="btn-gold" id="new-proc">+ Monitorar processo</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" id="to-esteira">Trazer p/ a esteira</button>
+          <button class="btn-gold" id="new-proc">+ Monitorar processo</button>
+        </div></div>
       <div class="toolbar">
         <select id="proc-filter"><option value="">Todos</option><option value="stale">Parados +30 dias</option></select>
       </div>
@@ -791,6 +794,16 @@ const ROUTES = {
       document.querySelectorAll('[data-proc]').forEach((b) => b.onclick = () => processDetail(b.dataset.proc, load));
     };
     $('#new-proc').onclick = () => processForm(load);
+    $('#to-esteira').onclick = async () => {
+      if (!confirm('Trazer para a esteira (Processos) os processos monitorados que já têm cliente vinculado? Cria um caso em andamento para cada um, sem duplicar.')) return;
+      const btn = $('#to-esteira'); btn.disabled = true; btn.textContent = 'Trazendo…';
+      try {
+        const r = await api('/api/processes/importar-esteira', { method: 'POST', body: '{}' });
+        toast(`${r.criados} processo(s) adicionado(s) à esteira.${r.sem_cliente ? ` ${r.sem_cliente} sem cliente ficaram de fora.` : ''}`);
+        if (r.criados > 0) setTimeout(() => { location.hash = '#cases'; }, 1500);
+      } catch (e) { toast(e.message, 'error'); }
+      finally { btn.disabled = false; btn.textContent = 'Trazer p/ a esteira'; }
+    };
     $('#proc-filter').onchange = load;
     await load();
   },

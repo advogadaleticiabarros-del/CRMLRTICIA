@@ -120,6 +120,38 @@ router.post('/descobrir-oab', async (req: Request, res: Response) => {
   res.json(result);
 });
 
+// ── POST /api/processes/importar-esteira — traz processos monitorados (com cliente) para a esteira ─
+router.post('/importar-esteira', async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
+  const areaFromCourt = (court: string) => {
+    const c = (court || '').toUpperCase();
+    if (c.startsWith('TRT') || c.startsWith('TST')) return 'trabalhista';
+    if (c.startsWith('TRF')) return 'previdenciario';
+    return 'outro';
+  };
+  const [procs] = await db.query(
+    `SELECT lp.id, lp.process_number, lp.court, lp.client_id, lp.judicial_area
+       FROM legal_processes lp
+      WHERE lp.client_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM cases c WHERE c.origin_process_id = lp.id
+                          OR (c.case_number = lp.process_number AND c.client_id = lp.client_id))`
+  ) as any;
+  let criados = 0;
+  for (const p of procs) {
+    const area = AREAS.includes(p.judicial_area) ? p.judicial_area : areaFromCourt(p.court);
+    await db.query(
+      `INSERT INTO cases (user_id, client_id, case_number, title, legal_area, phase, status, origin_process_id)
+       VALUES (?, ?, ?, ?, ?, 'instrucao', 'ativo', ?)`,
+      [userId, p.client_id, p.process_number, `Processo ${p.process_number}`, area, p.id]
+    );
+    criados++;
+  }
+  // processos monitorados sem cliente (não dá para virar caso ainda)
+  const [[semCliente]] = await db.query('SELECT COUNT(*) AS total FROM legal_processes WHERE client_id IS NULL') as any;
+  res.json({ success: true, criados, sem_cliente: semCliente.total });
+});
+
 // ── POST /api/processes/ingest-djen — ingere publicações DJEN buscadas no navegador ─
 // O DJEN bloqueia o IP do servidor (CloudFront 403); o navegador da advogada (IP BR)
 // faz a busca e envia aqui. body: { lawyer_id, publications: [...] }
