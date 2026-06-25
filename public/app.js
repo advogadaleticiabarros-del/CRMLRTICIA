@@ -108,6 +108,7 @@ function showApp() {
   refreshBell();
   if (bellTimer) clearInterval(bellTimer);
   bellTimer = setInterval(refreshBell, 60000); // atualiza o sino a cada 60s
+  setTimeout(autoDiscoverDaily, 3500); // busca diária de processos/prazos (1x/dia, em 2º plano)
 }
 
 async function refreshBell() {
@@ -116,6 +117,48 @@ async function refreshBell() {
     const badge = $('#bell-count');
     if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
     else badge.classList.add('hidden');
+  } catch {}
+}
+
+// Descoberta por OAB (DJEN) no navegador (IP BR) — reusada pelo botão e pela auto-busca diária.
+async function oabDiscover(lawyerId, oabNum, oabUf, onPage) {
+  const itens = 100, maxPages = 20;
+  let pubs = [];
+  for (let p = 1; p <= maxPages; p++) {
+    if (onPage) onPage(p);
+    const url = `https://comunicaapi.pje.jus.br/api/v1/comunicacao?pagina=${p}&itensPorPagina=${itens}&numeroOab=${encodeURIComponent(oabNum)}&ufOab=${encodeURIComponent(oabUf || 'ES')}`;
+    let data;
+    try { const r = await fetch(url, { headers: { Accept: 'application/json' } }); if (!r.ok) break; data = await r.json(); }
+    catch { break; }
+    const items = (data.items || []).map((it) => ({
+      id: it.id, numero_processo: it.numero_processo, numeroprocessocommascara: it.numeroprocessocommascara,
+      siglaTribunal: it.siglaTribunal, nomeOrgao: it.nomeOrgao, nomeClasse: it.nomeClasse,
+      data_disponibilizacao: it.data_disponibilizacao, tipoComunicacao: it.tipoComunicacao,
+      texto: (it.texto || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20000), link: it.link,
+      parties: (it.destinatarios || []).map((d) => ({ nome: d.nome, polo: d.polo })),
+      adv_count: (it.destinatarioadvogados || []).length,
+    }));
+    pubs = pubs.concat(items);
+    if (items.length < itens) break;
+  }
+  if (!pubs.length) return { found: 0, novos: 0, clientesNovos: 0, publicacoes: 0, oab: `${oabNum}/${oabUf}`, vazio: true };
+  return api('/api/processes/ingest-djen', { method: 'POST', body: JSON.stringify({ lawyer_id: Number(lawyerId), publications: pubs }) });
+}
+
+// Auto-busca diária (1x/dia, em segundo plano): atualiza processos, movimentações e prazos.
+async function autoDiscoverDaily() {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('autoDiscover') === today) return;
+    if (!['admin', 'advogado', 'staff'].includes(USER?.role)) return;
+    const lawyers = await api('/api/lawyers').catch(() => []);
+    let novos = 0, clientes = 0;
+    for (const l of lawyers) {
+      if (!l.oab_number || !l.monitoring_enabled) continue;
+      try { const r = await oabDiscover(l.id, l.oab_number, l.oab_uf); novos += (r.novos || 0); clientes += (r.clientesNovos || 0); } catch {}
+    }
+    localStorage.setItem('autoDiscover', today);
+    if (novos > 0 || clientes > 0) { toast(`Atualização diária: ${novos} processo(s) novo(s) e ${clientes} cliente(s). Confira Prazos e Monitoramento.`); refreshBell(); }
   } catch {}
 }
 
@@ -737,12 +780,13 @@ const ROUTES = {
       const q = $('#proc-filter').value === 'stale' ? '?stale=30' : '';
       const rows = await api('/api/processes' + q);
       $('#proc-table').innerHTML = rows.length ? `
-        <table><thead><tr><th>Processo</th><th>Cliente</th><th>Tribunal</th><th>Última mov.</th><th></th></tr></thead>
-        <tbody>${rows.map((p) => `<tr>
+        <table><thead><tr><th>Processo</th><th>Cliente</th><th>Tribunal</th><th>Última movimentação</th><th>Data</th><th></th></tr></thead>
+        <tbody>${rows.map((p) => { const mv = (p.last_movement_text || p.last_movement_title || '').replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch])); return `<tr>
           <td><strong>${p.process_number}</strong><br><small style="color:var(--text-muted)">${p.judicial_area || ''}</small></td>
           <td>${p.client_name || '—'}</td><td>${p.court || '—'}</td>
-          <td>${p.last_movement_at ? fmtDate(p.last_movement_at) : '—'}</td>
-          <td><button class="btn-sm" data-proc="${p.id}">Abrir</button></td></tr>`).join('')}</tbody></table>`
+          <td style="max-width:340px"><span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${mv}">${mv || '—'}</span></td>
+          <td style="white-space:nowrap">${p.last_movement_at ? fmtDate(p.last_movement_at) : '—'}</td>
+          <td><button class="btn-sm" data-proc="${p.id}">Abrir</button></td></tr>`; }).join('')}</tbody></table>`
         : '<div class="empty">Nenhum processo monitorado</div>';
       document.querySelectorAll('[data-proc]').forEach((b) => b.onclick = () => processDetail(b.dataset.proc, load));
     };
@@ -765,28 +809,8 @@ const ROUTES = {
       btn.disabled = true; btn.textContent = 'Buscando…';
       toast('Buscando publicações da OAB no DJEN/CNJ…');
       try {
-        const itens = 100, maxPages = 20;
-        let pubs = [];
-        for (let p = 1; p <= maxPages; p++) {
-          btn.textContent = `Buscando… (pág. ${p})`;
-          const url = `https://comunicaapi.pje.jus.br/api/v1/comunicacao?pagina=${p}&itensPorPagina=${itens}&numeroOab=${encodeURIComponent(oabNum)}&ufOab=${encodeURIComponent(oabUf || 'ES')}`;
-          let data;
-          try { const r = await fetch(url, { headers: { Accept: 'application/json' } }); if (!r.ok) break; data = await r.json(); }
-          catch { break; }
-          const items = (data.items || []).map((it) => ({
-            id: it.id, numero_processo: it.numero_processo, numeroprocessocommascara: it.numeroprocessocommascara,
-            siglaTribunal: it.siglaTribunal, nomeOrgao: it.nomeOrgao, nomeClasse: it.nomeClasse,
-            data_disponibilizacao: it.data_disponibilizacao, tipoComunicacao: it.tipoComunicacao,
-            texto: (it.texto || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20000), link: it.link,
-            parties: (it.destinatarios || []).map((d) => ({ nome: d.nome, polo: d.polo })),
-            adv_count: (it.destinatarioadvogados || []).length,
-          }));
-          pubs = pubs.concat(items);
-          if (items.length < itens) break;
-        }
-        if (!pubs.length) { toast('Nenhuma publicação encontrada para esta OAB no DJEN.', 'error'); return; }
-        btn.textContent = 'Salvando…';
-        const r = await api('/api/processes/ingest-djen', { method: 'POST', body: JSON.stringify({ lawyer_id: Number(lawyerId), publications: pubs }) });
+        const r = await oabDiscover(lawyerId, oabNum, oabUf, (p) => { btn.textContent = `Buscando… (pág. ${p})`; });
+        if (r.vazio) { toast('Nenhuma publicação encontrada para esta OAB no DJEN.', 'error'); return; }
         toast(`OAB ${r.oab}: ${r.found} processo(s), ${r.novos} novo(s); ${r.clientesNovos || 0} cliente(s) cadastrado(s).`);
         if ((r.novos > 0) || (r.clientesNovos > 0)) setTimeout(() => { location.hash = '#monitor'; }, 1800);
       } catch (e) { toast(e.message, 'error'); }
