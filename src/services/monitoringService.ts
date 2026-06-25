@@ -30,7 +30,7 @@ const DEADLINE_TRIGGERS: { re: RegExp; type: string; days: number }[] = [
 ];
 
 /** Cria um "prazo a confirmar" quando a movimentação contém palavra-gatilho. Nunca derruba o sync. */
-async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string }): Promise<void> {
+async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string }, processNumber?: string): Promise<void> {
   try {
     const text = `${m.title || ''} ${m.description || ''}`;
     const trig = DEADLINE_TRIGGERS.find((t) => t.re.test(text));
@@ -46,6 +46,14 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
       [processId, clientId, (m.description || m.title || '').slice(0, 500), trig.type, trig.type, trig.days, startStr]
     );
     const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+    // Tarefa automática na lista de afazeres: "Analisar [tipo] — proc. XXXX"
+    if (admins.length) {
+      await db.query(
+        `INSERT INTO tasks (user_id, client_id, title, description, due_date, priority, status)
+         VALUES (?, ?, ?, ?, NOW(), 'alta', 'pendente')`,
+        [admins[0].id, clientId, `Analisar ${trig.type}${processNumber ? ' — proc. ' + processNumber : ''}`, (m.description || m.title || '').slice(0, 1000)]
+      );
+    }
     for (const a of admins) {
       await notificationService.create({
         userId: a.id, clientId: clientId ?? undefined, title: 'Possível prazo detectado',
@@ -101,7 +109,7 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
       if (ins.affectedRows) {
         novas++;
         if (m.movement_date && (!latest || m.movement_date > latest)) latest = m.movement_date;
-        await detectDeadline(processId, proc.client_id, m);
+        await detectDeadline(processId, proc.client_id, m, proc.process_number);
       }
     } catch (e: any) {
       // duplicada (unique_hash) — ignora
@@ -176,7 +184,7 @@ async function saveMovements(processId: number, processNumber: string, movements
          VALUES (?, ?, ?, ?, ?, ?)`,
         [processId, toDate(m.movement_date), m.title?.slice(0, 500), desc, source, hash]
       ) as any;
-      if (ins.affectedRows) { novas++; await detectDeadline(processId, clientId, m); }
+      if (ins.affectedRows) { novas++; await detectDeadline(processId, clientId, m, processNumber); }
     } catch (e: any) {
       if (e.code !== 'ER_DUP_ENTRY') throw e;
     }
