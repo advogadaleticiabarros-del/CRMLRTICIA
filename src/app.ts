@@ -69,6 +69,11 @@ export function createApp() {
   // Callback OAuth do Google — PÚBLICO (Google redireciona sem JWT; usa state)
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
+  // TEMPORÁRIO — confirma se a IA (Groq/Gemini) está configurada no servidor
+  app.get('/api/_ai-debug', (_req, res) => {
+    res.json({ groq: !!process.env.GROQ_API_KEY, gemini: !!process.env.GEMINI_API_KEY, model: process.env.GROQ_MODEL || 'llama-3.3-70b-versatile' });
+  });
+
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
