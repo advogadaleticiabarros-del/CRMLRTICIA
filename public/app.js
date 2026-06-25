@@ -775,7 +775,7 @@ const ROUTES = {
             id: it.id, numero_processo: it.numero_processo, numeroprocessocommascara: it.numeroprocessocommascara,
             siglaTribunal: it.siglaTribunal, nomeOrgao: it.nomeOrgao, nomeClasse: it.nomeClasse,
             data_disponibilizacao: it.data_disponibilizacao, tipoComunicacao: it.tipoComunicacao,
-            texto: (it.texto || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1200), link: it.link,
+            texto: (it.texto || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 20000), link: it.link,
             parties: (it.destinatarios || []).map((d) => ({ nome: d.nome, polo: d.polo })),
             adv_count: (it.destinatarioadvogados || []).length,
           }));

@@ -155,12 +155,26 @@ async function logMonitor(processId: number, lawyerId: number | null, status: st
 async function saveMovements(processId: number, processNumber: string, movements: { movement_date: string | null; title: string; description: string }[], source: string, clientId: number | null = null): Promise<number> {
   let novas = 0;
   for (const m of movements) {
-    const hash = hashMovement(processNumber, m.movement_date, m.description);
+    const desc = m.description || '';
+    // A mesma movimentação (mesmo processo+data+início do texto) já existe?
+    // Se sim e a nova versão for maior (íntegra), ATUALIZA — sem duplicar.
+    const prefix = desc.slice(0, 180);
+    const [exist] = await db.query(
+      'SELECT id, CHAR_LENGTH(description) AS len FROM process_movements WHERE process_id = ? AND movement_date <=> ? AND LEFT(description, 180) = ? LIMIT 1',
+      [processId, toDate(m.movement_date), prefix]
+    ) as any;
+    if (exist.length) {
+      if (desc.length > (exist[0].len || 0)) {
+        await db.query('UPDATE process_movements SET description = ? WHERE id = ?', [desc, exist[0].id]);
+      }
+      continue;
+    }
+    const hash = hashMovement(processNumber, m.movement_date, desc);
     try {
       const [ins] = await db.query(
         `INSERT INTO process_movements (process_id, movement_date, title, description, source, unique_hash)
          VALUES (?, ?, ?, ?, ?, ?)`,
-        [processId, toDate(m.movement_date), m.title?.slice(0, 500), m.description, source, hash]
+        [processId, toDate(m.movement_date), m.title?.slice(0, 500), desc, source, hash]
       ) as any;
       if (ins.affectedRows) { novas++; await detectDeadline(processId, clientId, m); }
     } catch (e: any) {

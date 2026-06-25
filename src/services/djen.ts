@@ -146,7 +146,7 @@ export function groupPublicationsByProcess(pubs: DjenPublication[]): DjenProcess
     proc.movements.push({
       movement_date: p.date,
       title: `${p.type || 'Publicação'}${p.classe ? ` — ${p.classe}` : ''}`,
-      description: (p.texto || '').replace(/\s+/g, ' ').trim().slice(0, 1200),
+      description: (p.texto || '').replace(/\s+/g, ' ').trim().slice(0, 20000),
     });
     if (p.date && (!proc.last_date || p.date > proc.last_date)) proc.last_date = p.date;
     for (const pt of p.parties || []) {
