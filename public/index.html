@@ -2,10 +2,16 @@
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>CRM Jurídico — Advocacia Letícia Barros</title>
   <link rel="icon" type="image/png" href="/logo.png" />
   <link rel="apple-touch-icon" href="/logo.png" />
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#231E1A" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CRM Letícia" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -43,6 +49,7 @@
 
   <!-- APP -->
   <div id="app-view" class="app-view hidden">
+    <div id="nav-overlay" class="nav-overlay"></div>
     <aside class="sidebar">
       <div class="sidebar-brand">
         <img class="emblem" src="/logo.png" alt="Letícia Barros" />
@@ -63,6 +70,7 @@
 
     <main class="content">
       <header class="topbar">
+        <button id="nav-toggle" class="nav-toggle" title="Menu" aria-label="Menu">☰</button>
         <div class="topbar-greeting" id="topbar-greeting"></div>
         <div class="topbar-actions">
           <button id="fullscreen-btn" class="bell-icon" title="Tela cheia">⛶</button>

@@ -234,6 +234,7 @@ async function notificationSettings() {
 let routeToken = 0;
 function router() {
   const token = ++routeToken;
+  document.body.classList.remove('nav-open'); // fecha a gaveta ao navegar (mobile)
   const allowed = navForRole();
   let route = (location.hash.replace('#', '') || allowed[0]);
   if (!allowed.includes(route)) route = allowed[0]; // respeita o papel
@@ -3293,6 +3294,10 @@ function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTi
 $('#login-form').onsubmit = login;
 $('#logout-btn').onclick = logout;
 $('#bell-btn').onclick = openNotifications;
+const navToggle = $('#nav-toggle');
+if (navToggle) navToggle.onclick = () => document.body.classList.toggle('nav-open');
+const navOverlay = $('#nav-overlay');
+if (navOverlay) navOverlay.onclick = () => document.body.classList.remove('nav-open');
 const fsBtn = $('#fullscreen-btn');
 if (fsBtn) {
   const fsSync = () => { const on = !!document.fullscreenElement; fsBtn.textContent = on ? '🗗' : '⛶'; fsBtn.title = on ? 'Sair da tela cheia' : 'Tela cheia'; };

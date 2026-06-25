@@ -1,0 +1,15 @@
+{
+  "name": "CRM Advocacia Letícia Barros",
+  "short_name": "CRM Letícia",
+  "description": "Gestão jurídica — leads, clientes, processos, prazos, agenda e financeiro.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#231E1A",
+  "theme_color": "#231E1A",
+  "icons": [
+    { "src": "/logo.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/logo.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
