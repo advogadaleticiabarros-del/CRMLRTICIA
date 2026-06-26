@@ -444,14 +444,19 @@ const ROUTES = {
       const r = await api('/api/deadlines?status=pendente');
       $('#dl-table').innerHTML = r.data.length ? `
         <table><thead><tr><th>Prazo</th><th>Processo</th><th>Vencimento</th><th>Restam</th><th></th></tr></thead>
-        <tbody>${r.data.map((d) => `<tr>
-          <td><strong>${d.description}</strong></td><td>${d.client_name || d.case_number || '—'}</td>
+        <tbody>${r.data.map((d) => { const mv = d.movement_text || ''; return `<tr>
+          <td><strong>${d.description}</strong>${mv ? `<br><small style="color:var(--text-muted);font-size:0.85em">${esc(mv.slice(0, 90))}${mv.length > 90 ? '…' : ''}</small>` : ''}</td>
+          <td>${d.client_name || d.case_number || '—'}</td>
           <td>${fmtDate(d.deadline_date)}</td><td>${countdown(d.days_remaining, d.status_label)}</td>
-          <td><button class="btn-sm" data-done-dl="${d.id}">Cumprir</button></td></tr>`).join('')}</tbody></table>`
+          <td nowrap>${mv ? `<button class="btn-sm" data-full-dl="${d.id}">Íntegra</button> ` : ''}<button class="btn-sm" data-done-dl="${d.id}">Cumprir</button></td></tr>`; }).join('')}</tbody></table>`
         : '<div class="empty">Nenhum prazo pendente</div>';
       document.querySelectorAll('[data-done-dl]').forEach((b) => b.onclick = async () => {
         try { await api(`/api/deadlines/${b.dataset.doneDl}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'cumprido' }) });
           toast('Prazo cumprido'); loadDeadlines(); } catch (e) { toast(e.message, 'error'); }
+      });
+      document.querySelectorAll('[data-full-dl]').forEach((b) => b.onclick = () => {
+        const d = r.data.find((x) => x.id == b.dataset.fullDl);
+        if (d) showMovementFull({ movement_full: d.movement_text, process_number: d.case_number });
       });
     };
 

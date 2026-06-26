@@ -61,10 +61,16 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
   if (dd.process_id) {
     const [[lp]] = await db.query('SELECT case_id, client_id FROM legal_processes WHERE id = ?', [dd.process_id]) as any;
     if (lp?.case_id) {
+      // Busca o texto completo da intimação/origem
+      const [[mov]] = dd.movement_id
+        ? await db.query('SELECT description, id FROM process_movements WHERE id = ?', [dd.movement_id]) as any
+        : [null];
+      const movementText = mov?.description || dd.movement_text || null;
+      const movementId = mov?.id || dd.movement_id || null;
       const [r] = await db.query(
-        `INSERT INTO deadlines (user_id, client_id, case_id, description, deadline_date, priority, status)
-         VALUES (?, ?, ?, ?, ?, 'alta', 'pendente')`,
-        [req.user!.id, lp.client_id ?? dd.client_id ?? null, lp.case_id, `${type} (auto do monitoramento)`, due]
+        `INSERT INTO deadlines (user_id, client_id, case_id, description, movement_text, movement_id, deadline_date, priority, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'alta', 'pendente')`,
+        [req.user!.id, lp.client_id ?? dd.client_id ?? null, lp.case_id, `${type} (auto do monitoramento)`, movementText, movementId, due]
       ) as any;
       deadlineId = r.insertId;
     }

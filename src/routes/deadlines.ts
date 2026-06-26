@@ -36,6 +36,7 @@ router.get('/', async (req: Request, res: Response) => {
   const [rows] = await db.query(
     `SELECT d.id, d.description, d.deadline_date, d.priority, d.status, d.case_id,
             c.case_number, cl.name AS client_name,
+            d.movement_text,
             TIMESTAMPDIFF(DAY, NOW(), d.deadline_date) AS days_remaining,
             ${STATUS_LABEL_SQL} AS status_label
      FROM deadlines d
