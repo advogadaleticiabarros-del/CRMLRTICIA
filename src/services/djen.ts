@@ -19,6 +19,21 @@ export const DJEN_HEADERS: Record<string, string> = {
 
 const onlyDigits = (s: string | null | undefined) => (s || '').replace(/\D/g, '');
 
+const HTML_ENTITIES: Record<string, string> = {
+  'amp':'&', 'lt':'<', 'gt':'>', 'quot':'"','#39':"'",
+  'aacute':'á','eacute':'é','iacute':'í','oacute':'ó','uacute':'ú',
+  'agrave':'à','egrave':'è','igrave':'ì','ograve':'ò','ugrave':'ù',
+  'acirc':'â','ecirc':'ê','icirc':'î','ocirc':'ô','ucirc':'û',
+  'atilde':'ã','otilde':'õ','ntilde':'ñ','ccedil':'ç',
+  'Aacute':'Á','Eacute':'É','Iacute':'Í','Oacute':'Ó','Uacute':'Ú',
+  'Agrave':'À','Egrave':'È','Igrave':'Ì','Ograve':'Ò','Ugrave':'Ù',
+  'Acirc':'Â','Ecirc':'Ê','Icirc':'Î','Ocirc':'Ô','Ucirc':'Û',
+  'Atilde':'Ã','Otilde':'Õ','Ntilde':'Ñ','Ccedil':'Ç',
+};
+function decodeHtmlEntities(text: string): string {
+  return (text || '').replace(/&(#?\w+);/g, (_, code: string) => HTML_ENTITIES[code] || `&${code};`);
+}
+
 export interface DjenParty { nome: string; polo: string }
 
 export interface DjenPublication {
@@ -100,8 +115,8 @@ export function normalizeDjenItems(items: any[]): DjenPublication[] {
       orgao: it.nomeOrgao || null,
       classe: it.nomeClasse || null,
       date: it.data_disponibilizacao || null,
-      type: it.tipoComunicacao || null,
-      texto: it.texto || '',
+      type: decodeHtmlEntities(it.tipoComunicacao || ''),
+      texto: decodeHtmlEntities(it.texto || ''),
       link: it.link || null,
       parties: parties.filter((p) => p.nome),
       adv_count: advCount,
