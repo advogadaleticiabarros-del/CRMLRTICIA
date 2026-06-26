@@ -84,16 +84,16 @@ export class CalendarSyncService {
           await googleCalendarService.updateEvent(userId, event.google_event_id, {
             title: event.title,
             description: event.description,
-            startDatetime: new Date(event.start_datetime),
-            endDatetime: new Date(event.end_datetime),
+            startDatetime: event.start_datetime,
+            endDatetime: event.end_datetime,
           });
           result.updated++;
         } else {
           const { googleEventId, videoLink } = await googleCalendarService.createEvent(userId, {
             title: event.title,
             description: event.description,
-            startDatetime: new Date(event.start_datetime),
-            endDatetime: new Date(event.end_datetime),
+            startDatetime: event.start_datetime,
+            endDatetime: event.end_datetime,
             location: event.location,
             generateMeet: event.event_type === 'reuniao',
           });

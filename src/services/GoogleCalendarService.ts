@@ -10,10 +10,40 @@ interface GoogleTokens {
 interface CalendarEventPayload {
   title: string;
   description?: string;
-  startDatetime: Date;
-  endDatetime: Date;
+  /** Hora de parede do compromisso (string do datetime-local ou DATETIME do banco). */
+  startDatetime: string | Date;
+  endDatetime: string | Date;
   location?: string;
   generateMeet?: boolean;
+}
+
+/** Fuso de referência do escritório. Pode ser sobrescrito por env. */
+export const CRM_TIMEZONE = process.env.CRM_TIMEZONE || 'America/Sao_Paulo';
+
+/**
+ * Converte a hora de parede do CRM para o formato que o Google Calendar espera:
+ * uma data-hora "ingênua" `YYYY-MM-DDTHH:mm:ss` (SEM `Z`/offset) que será
+ * interpretada no `timeZone` enviado junto (CRM_TIMEZONE).
+ *
+ * Não usar `Date.toISOString()` aqui: ele anexa `Z` (UTC) e o Google passa a
+ * ignorar o `timeZone`, deslocando o horário (bug do fuso).
+ *
+ * - String (ex.: do datetime-local `2026-06-26T14:00`): pega a parte de
+ *   data/hora literal, ignorando qualquer `Z`/offset.
+ * - Date (vindo do MySQL, lido como UTC pois o pool usa `timezone: 'Z'`):
+ *   recupera os componentes via getters UTC, devolvendo a parede original.
+ */
+export function toNaiveLocalDateTime(value: string | Date): string {
+  if (typeof value === 'string') {
+    const m = value.trim().match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})(?::(\d{2}))?/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:${m[6] ?? '00'}`;
+    value = new Date(value); // fallback para formatos não previstos
+  }
+  const p = (n: number) => String(n).padStart(2, '0');
+  return (
+    `${value.getUTCFullYear()}-${p(value.getUTCMonth() + 1)}-${p(value.getUTCDate())}` +
+    `T${p(value.getUTCHours())}:${p(value.getUTCMinutes())}:${p(value.getUTCSeconds())}`
+  );
 }
 
 export class GoogleCalendarService {
@@ -87,8 +117,8 @@ export class GoogleCalendarService {
       summary: payload.title,
       description: payload.description,
       location: payload.location,
-      start: { dateTime: payload.startDatetime.toISOString(), timeZone: 'America/Sao_Paulo' },
-      end:   { dateTime: payload.endDatetime.toISOString(),   timeZone: 'America/Sao_Paulo' },
+      start: { dateTime: toNaiveLocalDateTime(payload.startDatetime), timeZone: CRM_TIMEZONE },
+      end:   { dateTime: toNaiveLocalDateTime(payload.endDatetime),   timeZone: CRM_TIMEZONE },
       reminders: {
         useDefault: false,
         overrides: [
@@ -130,8 +160,8 @@ export class GoogleCalendarService {
     const patch: calendar_v3.Schema$Event = {};
     if (payload.title) patch.summary = payload.title;
     if (payload.description !== undefined) patch.description = payload.description;
-    if (payload.startDatetime) patch.start = { dateTime: payload.startDatetime.toISOString(), timeZone: 'America/Sao_Paulo' };
-    if (payload.endDatetime)   patch.end   = { dateTime: payload.endDatetime.toISOString(),   timeZone: 'America/Sao_Paulo' };
+    if (payload.startDatetime) patch.start = { dateTime: toNaiveLocalDateTime(payload.startDatetime), timeZone: CRM_TIMEZONE };
+    if (payload.endDatetime)   patch.end   = { dateTime: toNaiveLocalDateTime(payload.endDatetime),   timeZone: CRM_TIMEZONE };
 
     await calendar.events.patch({ calendarId: 'primary', eventId: googleEventId, requestBody: patch });
   }

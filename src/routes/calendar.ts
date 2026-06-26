@@ -91,8 +91,8 @@ router.post('/events', async (req: Request, res: Response) => {
   if (ga.length) {
     try {
       const { googleEventId, videoLink } = await googleCalendarService.createEvent(userId, {
-        title, description, startDatetime: new Date(start_datetime),
-        endDatetime: new Date(end_datetime), location, generateMeet: generate_meet,
+        title, description, startDatetime: start_datetime,
+        endDatetime: end_datetime, location, generateMeet: generate_meet,
       });
       await db.query(
         "UPDATE calendar_events SET google_event_id = ?, video_link = ?, sync_status = 'sincronizado' WHERE id = ?",
