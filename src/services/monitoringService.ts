@@ -56,7 +56,7 @@ const DEADLINE_TRIGGERS: { re: RegExp; type: string; days: number }[] = [
 ];
 
 /** Cria um "prazo a confirmar" quando a movimentação contém palavra-gatilho. Nunca derruba o sync. */
-async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string }, processNumber?: string): Promise<void> {
+async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string }, processNumber?: string, movementId: number | null = null): Promise<void> {
   try {
     const text = `${m.title || ''} ${m.description || ''}`;
     const trig = DEADLINE_TRIGGERS.find((t) => t.re.test(text));
@@ -66,10 +66,12 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     const DETECT_MAX_AGE_DAYS = 45;
     if ((Date.now() - start.getTime()) / 86_400_000 > DETECT_MAX_AGE_DAYS) return;
     const startStr = start.toISOString().split('T')[0];
+    // movement_text agora é TEXT: guardamos o texto completo (íntegra) e também
+    // o movement_id para puxar a versão canônica de process_movements.
     await db.query(
-      `INSERT INTO detected_deadlines (process_id, client_id, movement_text, detected_keyword, suggested_type, suggested_days, start_date, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'a_confirmar')`,
-      [processId, clientId, (m.description || m.title || '').slice(0, 500), trig.type, trig.type, trig.days, startStr]
+      `INSERT INTO detected_deadlines (process_id, movement_id, client_id, movement_text, detected_keyword, suggested_type, suggested_days, start_date, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'a_confirmar')`,
+      [processId, movementId, clientId, (m.description || m.title || ''), trig.type, trig.type, trig.days, startStr]
     );
     const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
     // Tarefa automática na lista de afazeres: "Analisar [tipo] — proc. XXXX"
@@ -135,7 +137,7 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
       if (ins.affectedRows) {
         novas++;
         if (m.movement_date && (!latest || m.movement_date > latest)) latest = m.movement_date;
-        await detectDeadline(processId, proc.client_id, m, proc.process_number);
+        await detectDeadline(processId, proc.client_id, m, proc.process_number, ins.insertId);
       }
     } catch (e: any) {
       // duplicada (unique_hash) — ignora
@@ -211,7 +213,7 @@ async function saveMovements(processId: number, processNumber: string, movements
          VALUES (?, ?, ?, ?, ?, ?)`,
         [processId, toDate(m.movement_date), m.title?.slice(0, 500), desc, source, hash]
       ) as any;
-      if (ins.affectedRows) { novas++; await detectDeadline(processId, clientId, m, processNumber); }
+      if (ins.affectedRows) { novas++; await detectDeadline(processId, clientId, m, processNumber, ins.insertId); }
     } catch (e: any) {
       if (e.code !== 'ER_DUP_ENTRY') throw e;
     }

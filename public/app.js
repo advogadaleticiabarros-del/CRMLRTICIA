@@ -19,6 +19,7 @@ async function api(path, opts = {}) {
 // ── Utils ──
 const $ = (sel) => document.querySelector(sel);
 const el = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 const badge = (txt) => `<span class="badge ${txt}">${(txt || '').replace(/_/g, ' ')}</span>`;
@@ -477,12 +478,14 @@ const ROUTES = {
           <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--gold)">⚠ Prazos detectados no monitoramento (${rows.length})</strong>
             <p class="sub" style="margin:2px 0 0">Movimentações que podem iniciar prazo — confirme a data (o sistema não chuta).</p></div>
           <table><thead><tr><th>Cliente / Parte</th><th>Movimentação</th><th>Processo</th><th>Sugestão</th><th></th></tr></thead>
-          <tbody>${rows.map((d) => `<tr>
+          <tbody>${rows.map((d) => { const full = d.movement_full || d.movement_text || ''; return `<tr>
             <td><strong>${d.client_name || '<span style=\"color:var(--text-muted)\">a vincular</span>'}</strong></td>
-            <td>${(d.movement_text || '').slice(0, 80)}<br><small style="color:var(--text-muted)">início ${fmtDate(d.start_date)}</small></td>
+            <td>${esc(full.slice(0, 110))}${full.length > 110 ? '…' : ''}
+                <br><small style="color:var(--text-muted)">início ${fmtDate(d.start_date)}</small>
+                ${full.length > 110 ? `<br><button class="btn-sm" data-full-dd="${d.id}" style="margin-top:6px">📄 Ver na íntegra</button>` : ''}</td>
             <td>${d.process_number || '—'}</td>
             <td>${d.suggested_type || '—'} · ${d.suggested_days || '?'} dias</td>
-            <td style="white-space:nowrap"><button class="btn-gold btn-sm" data-conf-dd="${d.id}">Confirmar</button> <button class="btn-sm" data-disc-dd="${d.id}">Descartar</button></td></tr>`).join('')}</tbody></table>
+            <td style="white-space:nowrap"><button class="btn-gold btn-sm" data-conf-dd="${d.id}">Confirmar</button> <button class="btn-sm" data-disc-dd="${d.id}">Descartar</button></td></tr>`; }).join('')}</tbody></table>
         </div>` : '';
       document.querySelectorAll('[data-conf-dd]').forEach((b) => b.onclick = () => {
         const d = rows.find((x) => x.id == b.dataset.confDd);
@@ -490,6 +493,9 @@ const ROUTES = {
       });
       document.querySelectorAll('[data-disc-dd]').forEach((b) => b.onclick = async () => {
         try { await api(`/api/prazos-detectados/${b.dataset.discDd}/descartar`, { method: 'POST', body: '{}' }); toast('Descartado'); loadDetected(); } catch (e) { toast(e.message, 'error'); }
+      });
+      document.querySelectorAll('[data-full-dd]').forEach((b) => b.onclick = () => {
+        showMovementFull(rows.find((x) => x.id == b.dataset.fullDd));
       });
     };
     $('#new-deadline').onclick = () => deadlineForm(loadDeadlines);
@@ -1383,10 +1389,29 @@ async function clientPicker(onPick) {
   openModal('Vincular à ficha do cliente', form);
 }
 
+// Bloco com a movimentação/intimação na ÍNTEGRA (rolável, sem corte).
+function movementFullBlock(d) {
+  const full = d.movement_full || d.movement_text || '(sem texto)';
+  const meta = [
+    d.process_number ? `Processo ${esc(d.process_number)}` : '',
+    d.movement_date ? `· ${fmtDate(d.movement_date)}` : '',
+    d.movement_source ? `· ${esc(d.movement_source)}` : '',
+  ].filter(Boolean).join(' ');
+  return `
+    ${meta ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${meta}</div>` : ''}
+    <div style="font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:12px;background:var(--surface)">${esc(full)}</div>`;
+}
+
+// Modal somente-leitura: ver a movimentação completa sem entrar no fluxo de confirmar.
+function showMovementFull(d) {
+  if (!d) return;
+  openModal('Movimentação na íntegra', el(`<div>${movementFullBlock(d)}</div>`));
+}
+
 async function confirmDeadlineForm(d, onSave) {
   const start = d.start_date ? new Date(d.start_date).toISOString().slice(0, 10) : '';
   const form = el(`<form class="form-grid">
-    <div style="font-size:13px;color:var(--text-soft)">${(d.movement_text || '').slice(0, 200)}</div>
+    ${movementFullBlock(d)}
     ${field('Tipo de prazo', 'deadline_type', { value: d.suggested_type || '' })}
     <div class="form-row">${field('Dias (úteis)', 'days', { type: 'number', value: d.suggested_days || 15 })}${field('Início', 'start_date', { type: 'date', value: start })}</div>
     <p class="sub">A data-limite é calculada em dias úteis. Se o processo tiver caso vinculado, entra automaticamente nos alertas (30/15/7/3/1 dia).</p>

@@ -20,11 +20,16 @@ router.get('/', async (req: Request, res: Response) => {
   const status = (req.query.status as string) || 'a_confirmar';
   const [rows] = await db.query(
     `SELECT d.*, lp.process_number,
-            COALESCE(c.name, cp.name) AS client_name
+            COALESCE(c.name, cp.name) AS client_name,
+            COALESCE(pm.description, d.movement_text) AS movement_full,
+            pm.title AS movement_title,
+            pm.movement_date AS movement_date,
+            pm.source AS movement_source
        FROM detected_deadlines d
        LEFT JOIN legal_processes lp ON lp.id = d.process_id
        LEFT JOIN clients c  ON c.id  = d.client_id
        LEFT JOIN clients cp ON cp.id = lp.client_id
+       LEFT JOIN process_movements pm ON pm.id = d.movement_id
       WHERE d.status = ? ORDER BY d.start_date DESC, d.created_at DESC LIMIT 200`, [status]
   ) as any;
   res.json(rows);
