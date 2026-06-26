@@ -115,6 +115,16 @@ export function isCompanyName(name: string): boolean {
   return /\b(LTDA|S\.?A\.?|EIRELI|EPP|MEI|ME|SOCIEDADE|ASSOCIA|COOPERATIVA|INSTITUTO|FUNDA[CÇ][AÃ]O|BANCO|SEGUR|COM[EÉ]RCIO|COMERCIO|IND[UÚ]STRIA|INDUSTRIA|SERVI[CÇ]OS|TECNOLOGIA|TELECOM|ENERGIA|CONSTRU|TRANSPORTE|EMPREEND|PARTICIPA[CÇ])/i.test(name || '');
 }
 
+export interface DjenMovement {
+  movement_date: string | null;
+  title: string;
+  description: string;
+  movement_type: 'intimacao' | 'publicacao';
+  djen_id: number | null;
+  is_deadline_trigger: boolean;
+  metadata: Record<string, any> | null;
+}
+
 export interface DjenProcess {
   process_number: string;
   process_masked: string;
@@ -124,7 +134,7 @@ export interface DjenProcess {
   last_date: string | null;
   client_name: string | null;     // parte que a advogada representa (ou null se ambíguo)
   client_type: 'PF' | 'PJ';
-  movements: { movement_date: string | null; title: string; description: string }[];
+  movements: DjenMovement[];
 }
 
 /**
@@ -143,10 +153,16 @@ export function groupPublicationsByProcess(pubs: DjenPublication[]): DjenProcess
       client_name: null, client_type: 'PF', movements: [],
       _sole: new Map(), _all: new Map(),
     });
+    const pubType = (p.type || 'Publicação').toLowerCase();
+    const isIntimacao = /intima[çc][ãa]o/i.test(pubType);
     proc.movements.push({
       movement_date: p.date,
       title: `${p.type || 'Publicação'}${p.classe ? ` — ${p.classe}` : ''}`,
       description: (p.texto || '').replace(/\s+/g, ' ').trim().slice(0, 20000),
+      movement_type: isIntimacao ? 'intimacao' : 'publicacao',
+      djen_id: p.id || null,
+      is_deadline_trigger: isIntimacao,
+      metadata: { tipoComunicacao: p.type, link: p.link, orgao: p.orgao, classe: p.classe },
     });
     if (p.date && (!proc.last_date || p.date > proc.last_date)) proc.last_date = p.date;
     for (const pt of p.parties || []) {

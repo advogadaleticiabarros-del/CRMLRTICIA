@@ -37,6 +37,46 @@ function hashMovement(processNumber: string, date: string | null, description: s
   return crypto.createHash('sha256').update(`${processNumber}|${date || ''}|${description}`).digest('hex');
 }
 
+function isDatajudSource(source: string): boolean {
+  return ['datajud', 'api_publica_tjes', 'api_publica_trt17', 'api_publica_trf2', 'api_publica_tjpr', 'api_publica_trt9', 'api_publica_trf4', 'api_publica_stj', 'api_publica_tst'].includes(source) || source.startsWith('api_publica_');
+}
+
+/** Cria alerta de movimentação sem intimação (salvaguarda DataJud). */
+async function createMovementAlert(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string }, keyword: string): Promise<void> {
+  try {
+    await db.query(
+      `INSERT INTO movement_alerts (process_id, movement_date, title, description, alert_type, detected_keyword, status)
+       VALUES (?, ?, ?, ?, 'movimento_sem_intimacao', ?, 'aberto')`,
+      [processId, toDate(m.movement_date), m.title?.slice(0, 500), (m.description || '').slice(0, 2000), keyword]
+    );
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+    for (const a of admins) {
+      await db.query(
+        `INSERT INTO notifications (user_id, client_id, title, message, notification_type, channel, scheduled_at, status)
+         VALUES (?, ?, ?, ?, 'alerta_movimentacao', 'sistema', NOW(), 'pendente')`,
+        [a.id, clientId, 'Movimentação sem intimação — verificar', `Movimento "${keyword}" detectado no DataJud sem intimação DJEN correspondente.`]
+      );
+    }
+  } catch { /* best-effort */ }
+}
+
+/** Resolve alertas abertos quando a intimação DJEN correspondente chega. */
+async function resolveMatchingAlerts(processId: number, movementDate: Date | null, description: string): Promise<void> {
+  if (!description) return;
+  const prefix = description.slice(0, 180);
+  try {
+    await db.query(
+      `UPDATE movement_alerts
+          SET status = 'resolvido', resolution = 'Intimação DJEN recebida', resolved_at = NOW()
+        WHERE process_id = ?
+          AND status = 'aberto'
+          AND (movement_date <=> ? OR movement_date IS NULL)
+          AND LEFT(?, 180) = LEFT(description, 180)`,
+      [processId, movementDate, prefix]
+    );
+  } catch { /* best-effort */ }
+}
+
 /** Converte data (ISO/string) para Date aceito pelo MySQL, ou null. */
 function toDate(val: string | null): Date | null {
   if (!val) return null;
@@ -55,26 +95,30 @@ const DEADLINE_TRIGGERS: { re: RegExp; type: string; days: number }[] = [
   { re: /publica[çc][ãa]o/i,    type: 'Manifestação',       days: 15 },
 ];
 
-/** Cria um "prazo a confirmar" quando a movimentação contém palavra-gatilho. Nunca derruba o sync. */
-async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string }, processNumber?: string, movementId: number | null = null): Promise<void> {
+/** Cria "prazo a confirmar" (DJEN) ou alerta (DataJud) quando a movimentação contém palavra-gatilho. Nunca derruba o sync. */
+async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string }, processNumber?: string, movementId: number | null = null, source?: string): Promise<void> {
   try {
     const text = `${m.title || ''} ${m.description || ''}`;
     const trig = DEADLINE_TRIGGERS.find((t) => t.re.test(text));
     if (!trig) return;
     const start = toDate(m.movement_date) || new Date();
-    // Publicação antiga (provavelmente já respondida/resolvida): não cria prazo.
     const DETECT_MAX_AGE_DAYS = 45;
     if ((Date.now() - start.getTime()) / 86_400_000 > DETECT_MAX_AGE_DAYS) return;
+
+    // DataJud: cria ALERTA em vez de falso prazo
+    if (!source || isDatajudSource(source)) {
+      await createMovementAlert(processId, clientId, m, trig.type);
+      return;
+    }
+
+    // DJEN (source = djen_oab): cria prazo a confirmar
     const startStr = start.toISOString().split('T')[0];
-    // movement_text agora é TEXT: guardamos o texto completo (íntegra) e também
-    // o movement_id para puxar a versão canônica de process_movements.
     await db.query(
       `INSERT INTO detected_deadlines (process_id, movement_id, client_id, movement_text, detected_keyword, suggested_type, suggested_days, start_date, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'a_confirmar')`,
       [processId, movementId, clientId, (m.description || m.title || ''), trig.type, trig.type, trig.days, startStr]
     );
     const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
-    // Tarefa automática na lista de afazeres: "Analisar [tipo] — proc. XXXX"
     if (admins.length) {
       await db.query(
         `INSERT INTO tasks (user_id, client_id, title, description, due_date, priority, status)
@@ -85,7 +129,7 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     for (const a of admins) {
       await notificationService.create({
         userId: a.id, clientId: clientId ?? undefined, title: 'Possível prazo detectado',
-        message: `Movimentação pode iniciar prazo (${trig.type}). Abra Prazos → confirmar a data.`,
+        message: `Intimação pode iniciar prazo (${trig.type}). Abra Prazos → confirmar a data.`,
         notificationType: 'prazo_detectado', channel: 'sistema', scheduledAt: new Date(),
       });
     }
@@ -130,14 +174,14 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
     const hash = hashMovement(proc.process_number, m.movement_date, m.description);
     try {
       const [ins] = await db.query(
-        `INSERT INTO process_movements (process_id, movement_date, title, description, source, unique_hash)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO process_movements (process_id, movement_date, title, description, source, movement_type, unique_hash)
+         VALUES (?, ?, ?, ?, ?, 'movimento', ?)`,
         [processId, toDate(m.movement_date), m.title?.slice(0, 500), m.description, provider.name, hash]
       ) as any;
       if (ins.affectedRows) {
         novas++;
         if (m.movement_date && (!latest || m.movement_date > latest)) latest = m.movement_date;
-        await detectDeadline(processId, proc.client_id, m, proc.process_number, ins.insertId);
+        await detectDeadline(processId, proc.client_id, m, proc.process_number, ins.insertId, provider.name);
       }
     } catch (e: any) {
       // duplicada (unique_hash) — ignora
@@ -189,12 +233,13 @@ async function logMonitor(processId: number, lawyerId: number | null, status: st
 }
 
 /** Insere movimentações novas (dedupe por hash) de um processo já cadastrado. Retorna quantas entraram. */
-async function saveMovements(processId: number, processNumber: string, movements: { movement_date: string | null; title: string; description: string }[], source: string, clientId: number | null = null): Promise<number> {
+async function saveMovements(processId: number, processNumber: string, movements: ({
+  movement_date: string | null; title: string; description: string;
+  movement_type?: string; djen_id?: number | null; is_deadline_trigger?: boolean; metadata?: Record<string, any> | null;
+})[], source: string, clientId: number | null = null): Promise<number> {
   let novas = 0;
   for (const m of movements) {
     const desc = m.description || '';
-    // A mesma movimentação (mesmo processo+data+início do texto) já existe?
-    // Se sim e a nova versão for maior (íntegra), ATUALIZA — sem duplicar.
     const prefix = desc.slice(0, 180);
     const [exist] = await db.query(
       'SELECT id, CHAR_LENGTH(description) AS len FROM process_movements WHERE process_id = ? AND movement_date <=> ? AND LEFT(description, 180) = ? LIMIT 1',
@@ -206,14 +251,24 @@ async function saveMovements(processId: number, processNumber: string, movements
       }
       continue;
     }
+    const movementType = m.movement_type || 'publicacao';
+    const isTrigger = m.is_deadline_trigger ? 1 : 0;
+    const metadata = m.metadata ? JSON.stringify(m.metadata) : null;
     const hash = hashMovement(processNumber, m.movement_date, desc);
     try {
       const [ins] = await db.query(
-        `INSERT INTO process_movements (process_id, movement_date, title, description, source, unique_hash)
-         VALUES (?, ?, ?, ?, ?, ?)`,
-        [processId, toDate(m.movement_date), m.title?.slice(0, 500), desc, source, hash]
+        `INSERT INTO process_movements
+           (process_id, movement_date, title, description, source, movement_type, djen_id, is_deadline_trigger, movement_metadata, unique_hash)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [processId, toDate(m.movement_date), m.title?.slice(0, 500), desc, source, movementType, m.djen_id ?? null, isTrigger, metadata, hash]
       ) as any;
-      if (ins.affectedRows) { novas++; await detectDeadline(processId, clientId, m, processNumber, ins.insertId); }
+      if (ins.affectedRows) {
+        novas++;
+        await detectDeadline(processId, clientId, m, processNumber, ins.insertId, source);
+        if (isTrigger) {
+          await resolveMatchingAlerts(processId, toDate(m.movement_date), desc);
+        }
+      }
     } catch (e: any) {
       if (e.code !== 'ER_DUP_ENTRY') throw e;
     }
