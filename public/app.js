@@ -1181,9 +1181,26 @@ async function gerarDocForm(clientId, onSave) {
   const caseList = cs.data || cs || [];
   const form = el(`<form class="form-grid">
     ${field('Modelo', 'template_id', { options: templates.map((t) => ({ v: t.id, t: t.name })) })}
+    <div id="tpl-info"></div>
     ${field('Processo (opcional)', 'case_id', { options: [{ v: '', t: '—' }].concat(caseList.map((c) => ({ v: c.id, t: c.title || c.case_number }))) })}
     <button type="submit" class="btn-primary">Gerar documento</button>
   </form>`);
+
+  // Mostra as instruções/fundamentação do modelo escolhido (agiliza o preenchimento).
+  const APPLIES = { pf_comum: 'Pessoa Física · Justiça Comum', pj: 'Pessoa Jurídica', pf_trabalhista: 'Pessoa Física · Justiça do Trabalho' };
+  const sel = form.querySelector('[name=template_id]');
+  const info = form.querySelector('#tpl-info');
+  const renderInfo = () => {
+    const t = templates.find((x) => x.id == sel.value);
+    if (!t || (!t.instructions && !t.legal_basis && !t.applies_to)) { info.innerHTML = ''; return; }
+    info.innerHTML = `<div style="font-size:12.5px;line-height:1.55;padding:10px 12px;border-left:3px solid var(--gold);background:var(--surface);border-radius:var(--radius);margin:-4px 0 4px">
+      ${t.applies_to ? `<div><strong>Caso:</strong> ${esc(APPLIES[t.applies_to] || t.applies_to)}</div>` : ''}
+      ${t.legal_basis ? `<div><strong>Fundamentação:</strong> ${esc(t.legal_basis)}</div>` : ''}
+      ${t.instructions ? `<div style="margin-top:4px;white-space:pre-wrap;color:var(--text-soft)">${esc(t.instructions)}</div>` : ''}
+    </div>`;
+  };
+  if (sel) { sel.onchange = renderInfo; renderInfo(); }
+
   form.onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form)); body.client_id = clientId;

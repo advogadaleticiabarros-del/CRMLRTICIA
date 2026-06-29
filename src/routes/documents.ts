@@ -16,7 +16,7 @@ function dataExtenso(): string {
 
 // ── TEMPLATES ───────────────────────────────────────────────────────────────
 router.get('/templates', async (_req: Request, res: Response) => {
-  const [rows] = await db.query('SELECT id, name, category, content, updated_at FROM document_templates ORDER BY category, name') as any;
+  const [rows] = await db.query('SELECT id, name, category, content, instructions, applies_to, legal_basis, updated_at FROM document_templates ORDER BY category, name') as any;
   res.json(rows);
 });
 
