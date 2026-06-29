@@ -73,6 +73,64 @@ router.get('/summary', async (req: Request, res: Response) => {
   });
 });
 
+// ── GET /api/financial/inteligencia — projeção de caixa, DRE e inadimplência ──
+router.get('/inteligencia', async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+
+  // Lançamentos avulsos (financial_records) — por usuário
+  const [[fr]] = await db.query(`
+    SELECT
+      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN valor END),0) AS ent_30,
+      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 60 DAY) THEN valor END),0) AS ent_60,
+      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY) THEN valor END),0) AS ent_90,
+      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN valor END),0) AS sai_30,
+      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 60 DAY) THEN valor END),0) AS sai_60,
+      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY) THEN valor END),0) AS sai_90,
+      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pago' AND paid_at >= DATE_FORMAT(CURDATE(),'%Y-%m-01') THEN valor END),0) AS rec_mes,
+      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pago' AND paid_at >= DATE_FORMAT(CURDATE(),'%Y-%m-01') THEN valor END),0) AS desp_mes,
+      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pago' AND YEAR(paid_at)=YEAR(CURDATE()) THEN valor END),0) AS rec_ano,
+      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pago' AND YEAR(paid_at)=YEAR(CURDATE()) THEN valor END),0) AS desp_ano,
+      COALESCE(SUM(CASE WHEN tipo='receita' AND status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 1 AND 30 THEN valor END),0) AS aging1,
+      COALESCE(SUM(CASE WHEN tipo='receita' AND status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 31 AND 60 THEN valor END),0) AS aging2,
+      COALESCE(SUM(CASE WHEN tipo='receita' AND status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) > 60 THEN valor END),0) AS aging3
+    FROM financial_records WHERE user_id = ?`, [userId]) as any;
+
+  // Parcelas (installments) — sempre receita; mesma base do /summary (global)
+  const [[inst]] = await db.query(`
+    SELECT
+      COALESCE(SUM(CASE WHEN status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN valor END),0) AS ent_30,
+      COALESCE(SUM(CASE WHEN status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 60 DAY) THEN valor END),0) AS ent_60,
+      COALESCE(SUM(CASE WHEN status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY) THEN valor END),0) AS ent_90,
+      COALESCE(SUM(CASE WHEN status='pago' AND paid_at >= DATE_FORMAT(CURDATE(),'%Y-%m-01') THEN valor END),0) AS rec_mes,
+      COALESCE(SUM(CASE WHEN status='pago' AND YEAR(paid_at)=YEAR(CURDATE()) THEN valor END),0) AS rec_ano,
+      COALESCE(SUM(CASE WHEN status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 1 AND 30 THEN valor END),0) AS aging1,
+      COALESCE(SUM(CASE WHEN status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 31 AND 60 THEN valor END),0) AS aging2,
+      COALESCE(SUM(CASE WHEN status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) > 60 THEN valor END),0) AS aging3
+    FROM installments`, []) as any;
+
+  const N = (x: any) => Number(x) || 0;
+  const ent = (k: string) => N(fr[k]) + N(inst[k]);
+  const projecao = [30, 60, 90].map((dias) => {
+    const entradas = ent(`ent_${dias}`);
+    const saidas = N(fr[`sai_${dias}`]);
+    return { dias, entradas, saidas, saldo: entradas - saidas };
+  });
+
+  const dre = {
+    mes: { receitas: ent('rec_mes'), despesas: N(fr.desp_mes), resultado: ent('rec_mes') - N(fr.desp_mes) },
+    ano: { receitas: ent('rec_ano'), despesas: N(fr.desp_ano), resultado: ent('rec_ano') - N(fr.desp_ano) },
+  };
+
+  const inadimplencia = {
+    ate_30: N(fr.aging1) + N(inst.aging1),
+    de_31_60: N(fr.aging2) + N(inst.aging2),
+    mais_60: N(fr.aging3) + N(inst.aging3),
+  };
+  (inadimplencia as any).total = inadimplencia.ate_30 + inadimplencia.de_31_60 + inadimplencia.mais_60;
+
+  res.json({ projecao, dre, inadimplencia });
+});
+
 // ── POST /api/financial — criar lançamento ──────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
   const { tipo, description, valor, due_date, status, cost_center, recurrence_type, client_id, case_id } = req.body;

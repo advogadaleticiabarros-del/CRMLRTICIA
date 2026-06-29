@@ -1726,7 +1726,38 @@ async function dashAgenda(c) {
 }
 
 async function dashFinanceiro(c) {
-  const [s, d] = await Promise.all([api('/api/financial/summary'), api('/api/dashboards/financeiro')]);
+  const [s, d, i] = await Promise.all([
+    api('/api/financial/summary'),
+    api('/api/dashboards/financeiro'),
+    api('/api/financial/inteligencia').catch(() => null),
+  ]);
+
+  const corSaldo = (v) => v < 0 ? 'var(--red)' : 'var(--green)';
+  let inteligencia = '';
+  if (i) {
+    const proj = (i.projecao || []).map((p) => `
+      <div class="card" style="padding:14px 16px;flex:1;min-width:200px">
+        <div style="font-size:12px;color:var(--text-muted)">Próximos ${p.dias} dias</div>
+        <div style="font-size:18px;font-weight:700;color:${corSaldo(p.saldo)};margin:4px 0">${money(p.saldo)}</div>
+        <div style="font-size:12px;color:var(--text-muted)">entra ${money(p.entradas)} · sai ${money(p.saidas)}</div>
+      </div>`).join('');
+    const dre = i.dre || { mes: {}, ano: {} };
+    const ina = i.inadimplencia || {};
+    const dreRow = (rot, o) => `<div class="mini-row"><span>${rot}</span>
+      <span>${money(o.receitas)} <small style="color:var(--red)">- ${money(o.despesas)}</small> =
+      <strong style="color:${corSaldo(o.resultado)}">${money(o.resultado)}</strong></span></div>`;
+    inteligencia = `
+      <h3 style="color:var(--navy);margin:22px 0 10px">📈 Inteligência financeira</h3>
+      <p class="sub" style="margin:-6px 0 12px">Projeção de caixa (saldo previsto acumulado por janela)</p>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px">${proj}</div>
+      ${miniList('DRE — resultado realizado', dreRow('Mês atual', dre.mes) + dreRow('Ano', dre.ano))}
+      ${miniList('Inadimplência por atraso (aging)', `
+        <div class="mini-row"><span>Até 30 dias</span><strong>${money(ina.ate_30)}</strong></div>
+        <div class="mini-row"><span>31 a 60 dias</span><strong>${money(ina.de_31_60)}</strong></div>
+        <div class="mini-row"><span>Mais de 60 dias</span><strong style="color:var(--red)">${money(ina.mais_60)}</strong></div>
+        <div class="mini-row"><span><strong>Total vencido</strong></span><strong style="color:var(--red)">${money(ina.total)}</strong></div>`)}`;
+  }
+
   c.innerHTML = `
     <div class="kpi-grid">
       ${kpi('Receita prevista', money(s.receita_prevista), 'money')}${kpi('Receita realizada', money(s.receita_realizada), 'money')}
@@ -1734,6 +1765,7 @@ async function dashFinanceiro(c) {
       ${kpi('Saldo previsto', money(s.saldo_previsto), 'money')}${kpi('Saldo realizado', money(s.saldo_realizado), 'money')}
       ${kpi('Inadimplência', money(s.inadimplencia), 'money')}
     </div>
+    ${inteligencia}
     ${miniList('Resultado por área jurídica', (d.resultado_por_area || []).map((a) => `<div class="mini-row"><span>${a.legal_area}</span><strong>${money(a.receitas)}</strong></div>`))}
     ${miniList('Previsão (próximos meses)', (d.previsao_mensal || []).slice(0, 6).map((m) => `<div class="mini-row"><span>${m.mes}</span><span style="color:var(--green)">${money(m.receitas)} <small style="color:var(--red)">- ${money(m.despesas)}</small></span></div>`))}`;
 }
