@@ -34,6 +34,12 @@ export const PLAYBOOKS: Playbook[] = [
     description: 'Ao confirmar um prazo cujo processo ainda não tem caso vinculado, cria uma tarefa para fazer o vínculo.',
     defaultEnabled: true,
   },
+  {
+    key: 'prazo_confirmado_agenda', trigger: 'prazo_confirmado',
+    name: 'Agendar o prazo na agenda (com Google)',
+    description: 'Ao confirmar um prazo, cria automaticamente um evento na agenda na data-limite (sincroniza com o Google Calendar) e avisa os administradores.',
+    defaultEnabled: true,
+  },
 ];
 
 const byKey = (key: string) => PLAYBOOKS.find((p) => p.key === key);
@@ -87,16 +93,17 @@ export interface IntimacaoCtx {
   suggestedType: string;
   suggestedDays: number;
   processNumber?: string;
+  processId?: number | null;
 }
 
 export async function runIntimacaoPlaybooks(ctx: IntimacaoCtx): Promise<void> {
   const ref = `detected_deadline:${ctx.detectedDeadlineId}`;
 
-  // 1) Estagiário IA — gera análise + minuta
+  // 1) Estagiário IA — gera análise + minuta (e arquiva a minuta no GED do caso)
   if (await isEnabled('estagiario_intimacao')) {
     try {
       await runEstagiarioForDeadline({
-        detectedDeadlineId: ctx.detectedDeadlineId, clientId: ctx.clientId,
+        detectedDeadlineId: ctx.detectedDeadlineId, clientId: ctx.clientId, processId: ctx.processId ?? null,
         movementText: ctx.movementText, suggestedType: ctx.suggestedType, suggestedDays: ctx.suggestedDays,
       });
       await logRun('estagiario_intimacao', ref, 'ok');
@@ -131,6 +138,8 @@ export interface PrazoConfirmadoCtx {
   deadlineType: string;
   userId: number;
   clientId: number | null;
+  dueDate?: string | null;       // data-limite YYYY-MM-DD
+  deadlineId?: number | null;
 }
 
 export async function runPrazoConfirmadoPlaybooks(ctx: PrazoConfirmadoCtx): Promise<void> {
@@ -149,6 +158,33 @@ export async function runPrazoConfirmadoPlaybooks(ctx: PrazoConfirmadoCtx): Prom
       await logRun('prazo_confirmado_sem_caso', ref, 'ok');
     } catch (e: any) {
       await logRun('prazo_confirmado_sem_caso', ref, 'erro', e?.message);
+    }
+  }
+
+  // Agenda o prazo na agenda (entra no Google sync) na data-limite
+  if (ctx.dueDate && await isEnabled('prazo_confirmado_agenda')) {
+    const ref = `deadline:${ctx.deadlineId ?? ''}`;
+    try {
+      const inicio = `${ctx.dueDate} 09:00:00`;
+      const fim = `${ctx.dueDate} 10:00:00`;
+      await db.query(
+        `INSERT INTO calendar_events
+           (user_id, client_id, case_id, deadline_id, title, description, event_type, start_datetime, end_datetime, source, sync_status)
+         VALUES (?, ?, ?, ?, ?, ?, 'prazo', ?, ?, 'crm', 'pendente')`,
+        [ctx.userId, ctx.clientId ?? null, ctx.caseId ?? null, ctx.deadlineId ?? null,
+         `Prazo: ${ctx.deadlineType}`, 'Prazo confirmado a partir do monitoramento.', inicio, fim]
+      );
+      const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+      for (const a of admins) {
+        await db.query(
+          `INSERT INTO notifications (user_id, client_id, title, message, notification_type, channel, scheduled_at, status)
+           VALUES (?, ?, ?, ?, 'prazo_agendado', 'sistema', NOW(), 'pendente')`,
+          [a.id, ctx.clientId ?? null, 'Prazo agendado na agenda', `Prazo "${ctx.deadlineType}" agendado para ${ctx.dueDate}.`]
+        );
+      }
+      await logRun('prazo_confirmado_agenda', ref, 'ok');
+    } catch (e: any) {
+      await logRun('prazo_confirmado_agenda', ref, 'erro', e?.message);
     }
   }
 }

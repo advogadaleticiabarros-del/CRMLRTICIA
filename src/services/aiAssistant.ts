@@ -52,6 +52,7 @@ export async function runEstagiarioForDeadline(opts: {
   detectedDeadlineId: number;
   clientId: number | null;
   caseId?: number | null;
+  processId?: number | null;
   movementText: string;
   suggestedType: string;
   suggestedDays: number;
@@ -107,6 +108,20 @@ ${teor}`;
           [admin.id, title, minutaPrompt, minuta.text, clientId ?? null, opts.caseId ?? null]
         ) as any;
         await db.query('UPDATE detected_deadlines SET ai_draft_id = ? WHERE id = ?', [r.insertId, detectedDeadlineId]);
+
+        // Arquiva a minuta no GED do caso (só quando há cliente: documents.client_id é NOT NULL).
+        if (clientId) {
+          let caseId = opts.caseId ?? null;
+          if (!caseId && opts.processId) {
+            const [[lp]] = await db.query('SELECT case_id FROM legal_processes WHERE id = ?', [opts.processId]) as any;
+            caseId = lp?.case_id ?? null;
+          }
+          await db.query(
+            `INSERT INTO documents (client_id, case_id, name, type, folder, content, status, created_by)
+             VALUES (?, ?, ?, 'ia', 'processos', ?, 'pendente', ?)`,
+            [clientId, caseId, title, minuta.text, admin.id]
+          );
+        }
       }
     }
   } catch { /* estagiário é best-effort */ }

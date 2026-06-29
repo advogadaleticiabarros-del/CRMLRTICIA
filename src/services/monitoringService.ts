@@ -124,7 +124,7 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     // Playbooks da intimação (estagiário IA + aviso Telegram, conforme ligados).
     await runIntimacaoPlaybooks({
       detectedDeadlineId: ddRes.insertId, clientId, movementText,
-      suggestedType: trig.type, suggestedDays: trig.days, processNumber,
+      suggestedType: trig.type, suggestedDays: trig.days, processNumber, processId,
     });
 
     const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;

@@ -86,6 +86,8 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
     deadlineType: type,
     userId: req.user!.id,
     clientId: lp?.client_id ?? dd.client_id ?? null,
+    dueDate: due,
+    deadlineId,
   });
 
   res.json({ success: true, due_date: due, deadline_id: deadlineId, linked_to_case: !!deadlineId });

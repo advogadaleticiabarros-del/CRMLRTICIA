@@ -1177,7 +1177,11 @@ async function gedModelos(c) {
 }
 
 async function gerarDocForm(clientId, onSave) {
-  const [templates, cs] = await Promise.all([api('/api/documents/templates'), api('/api/cases?limit=200&client_id=' + clientId).catch(() => ({ data: [] }))]);
+  const [templates, cs, client] = await Promise.all([
+    api('/api/documents/templates'),
+    api('/api/cases?limit=200&client_id=' + clientId).catch(() => ({ data: [] })),
+    api('/api/clients/' + clientId).catch(() => null),
+  ]);
   const caseList = cs.data || cs || [];
   const form = el(`<form class="form-grid">
     ${field('Modelo', 'template_id', { options: templates.map((t) => ({ v: t.id, t: t.name })) })}
@@ -1186,20 +1190,42 @@ async function gerarDocForm(clientId, onSave) {
     <button type="submit" class="btn-primary">Gerar documento</button>
   </form>`);
 
-  // Mostra as instruções/fundamentação do modelo escolhido (agiliza o preenchimento).
   const APPLIES = { pf_comum: 'Pessoa Física · Justiça Comum', pj: 'Pessoa Jurídica', pf_trabalhista: 'Pessoa Física · Justiça do Trabalho' };
   const sel = form.querySelector('[name=template_id]');
+  const caseSel = form.querySelector('[name=case_id]');
   const info = form.querySelector('#tpl-info');
+  let userPicked = false;
+
+  // Sugere o modelo certo conforme o caso do cliente (PJ → PJ; PF → Comum, ou
+  // Trabalhista se o processo selecionado for trabalhista).
+  const sugerir = () => {
+    if (String(client?.tipo).toUpperCase() === 'PJ') return 'pj';
+    const c = caseList.find((x) => x.id == caseSel?.value);
+    if (c && c.legal_area === 'trabalhista') return 'pf_trabalhista';
+    return 'pf_comum';
+  };
+  const aplicarSugestao = () => {
+    if (userPicked) return;
+    const alvo = sugerir();
+    const t = templates.find((x) => x.applies_to === alvo);
+    if (t) sel.value = t.id;
+  };
+
   const renderInfo = () => {
     const t = templates.find((x) => x.id == sel.value);
+    const sugerido = !userPicked && t && t.applies_to === sugerir();
     if (!t || (!t.instructions && !t.legal_basis && !t.applies_to)) { info.innerHTML = ''; return; }
     info.innerHTML = `<div style="font-size:12.5px;line-height:1.55;padding:10px 12px;border-left:3px solid var(--gold);background:var(--surface);border-radius:var(--radius);margin:-4px 0 4px">
+      ${sugerido ? '<div style="color:var(--gold);font-weight:600;margin-bottom:2px">★ Sugerido para este cliente</div>' : ''}
       ${t.applies_to ? `<div><strong>Caso:</strong> ${esc(APPLIES[t.applies_to] || t.applies_to)}</div>` : ''}
       ${t.legal_basis ? `<div><strong>Fundamentação:</strong> ${esc(t.legal_basis)}</div>` : ''}
       ${t.instructions ? `<div style="margin-top:4px;white-space:pre-wrap;color:var(--text-soft)">${esc(t.instructions)}</div>` : ''}
     </div>`;
   };
-  if (sel) { sel.onchange = renderInfo; renderInfo(); }
+
+  if (sel) { sel.onchange = () => { userPicked = true; renderInfo(); }; }
+  if (caseSel) caseSel.onchange = () => { aplicarSugestao(); renderInfo(); };
+  aplicarSugestao(); renderInfo();
 
   form.onsubmit = async (e) => {
     e.preventDefault();
