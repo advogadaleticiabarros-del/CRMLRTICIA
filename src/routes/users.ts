@@ -85,16 +85,29 @@ router.put('/:id', async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 
-// ── POST /api/users/:id/reset-password — redefine senha ─────────────────────
+/** Gera uma senha temporária forte e legível (sem caracteres ambíguos). */
+function gerarSenha(len = 10): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  let s = '';
+  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
+  return s;
+}
+
+// ── POST /api/users/:id/reset-password — admin redefine OU gera nova senha ──
+// Sem new_password no corpo: o sistema GERA uma senha temporária e a devolve
+// para o admin repassar ao usuário. Com new_password: usa a informada (>=8).
 router.post('/:id/reset-password', async (req: Request, res: Response) => {
-  const { new_password } = req.body;
-  if (!new_password || String(new_password).length < 8) {
+  const provided = req.body?.new_password;
+  if (provided !== undefined && String(provided).length < 8) {
     res.status(400).json({ error: 'A nova senha deve ter pelo menos 8 caracteres' }); return;
   }
-  const hash = await bcrypt.hash(new_password, 10);
+  const senha = provided ? String(provided) : gerarSenha();
+  const hash = await bcrypt.hash(senha, 10);
   const [result] = await db.query('UPDATE users SET password = ? WHERE id = ?', [hash, req.params.id]) as any;
   if (!result.affectedRows) { res.status(404).json({ error: 'Usuário não encontrado' }); return; }
-  res.json({ success: true });
+  // Marca eventuais pedidos de recuperação como resolvidos.
+  try { await db.query("UPDATE password_reset_requests SET status = 'resolvido', resolved_by = ?, resolved_at = NOW() WHERE user_id = ? AND status = 'aberto'", [req.user!.id, req.params.id]); } catch {}
+  res.json({ success: true, generated: !provided, password: provided ? undefined : senha });
 });
 
 export default router;

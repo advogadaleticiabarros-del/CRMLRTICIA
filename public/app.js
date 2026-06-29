@@ -736,11 +736,24 @@ const ROUTES = {
           <td><strong>${u.name}</strong></td><td>${u.email}</td><td>${badge(u.role)}</td>
           <td>${u.role === 'parceiro' ? (u.commission_percent || '?') + '% repasse' : u.role === 'cliente' ? (u.client_name || '—') : '—'}</td>
           <td>${u.active ? '<span class="badge ativo">ativo</span>' : '<span class="badge inativo">inativo</span>'}</td>
-          <td>${u.role !== 'admin' ? `<button class="btn-sm" data-toggle="${u.id}" data-active="${u.active}">${u.active ? 'Desativar' : 'Ativar'}</button>` : ''}</td>
+          <td style="white-space:nowrap">
+            <button class="btn-sm" data-reset="${u.id}" data-name="${esc(u.name)}">Gerar nova senha</button>
+            ${u.role !== 'admin' ? `<button class="btn-sm" data-toggle="${u.id}" data-active="${u.active}">${u.active ? 'Desativar' : 'Ativar'}</button>` : ''}
+          </td>
         </tr>`).join('')}</tbody></table>`;
       document.querySelectorAll('[data-toggle]').forEach((b) => b.onclick = async () => {
         await api('/api/users/' + b.dataset.toggle, { method: 'PUT', body: JSON.stringify({ active: b.dataset.active !== '1' }) });
         toast('Usuário atualizado'); load();
+      });
+      document.querySelectorAll('[data-reset]').forEach((b) => b.onclick = async () => {
+        if (!confirm(`Gerar uma nova senha para ${b.dataset.name}? A senha atual deixará de funcionar.`)) return;
+        try {
+          const r = await api('/api/users/' + b.dataset.reset + '/reset-password', { method: 'POST', body: '{}' });
+          openModal('Nova senha gerada', el(`<div>
+            <p class="sub">Repasse esta senha temporária para <strong>${esc(b.dataset.name)}</strong>. Recomende a troca no primeiro acesso.</p>
+            <div style="font-size:22px;font-weight:700;letter-spacing:1px;text-align:center;padding:14px;border:1px dashed var(--border);border-radius:var(--radius);background:var(--surface);margin-top:8px">${esc(r.password || '')}</div>
+          </div>`));
+        } catch (e) { toast(e.message, 'error'); }
       });
     };
     $('#new-user').onclick = () => userForm(load);
@@ -3712,6 +3725,15 @@ function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTi
 
 // ── Init ──
 $('#login-form').onsubmit = login;
+const forgotBtn = $('#forgot-link');
+if (forgotBtn) forgotBtn.onclick = async () => {
+  const email = ($('#login-email').value || '').trim() || prompt('Digite seu e-mail para recuperar a senha:');
+  if (!email) return;
+  try {
+    const r = await api('/api/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) });
+    alert(r.message || 'Se o e-mail estiver cadastrado, o administrador será avisado.');
+  } catch (e) { alert('Não foi possível enviar o pedido agora. Tente novamente.'); }
+};
 $('#logout-btn').onclick = logout;
 $('#bell-btn').onclick = openNotifications;
 const navToggle = $('#nav-toggle');

@@ -41,6 +41,42 @@ router.post('/login', async (req: Request, res: Response) => {
   res.json({ token: signToken(payload), user: payload });
 });
 
+// ── POST /api/auth/forgot — recuperação de senha (avisa os admins) ──────────
+// Público. Não revela se o e-mail existe (resposta sempre genérica). Quando o
+// e-mail pertence a um usuário, registra o pedido e notifica os administradores
+// para gerarem uma nova senha em Configurações.
+router.post('/forgot', async (req: Request, res: Response) => {
+  const email = String(req.body?.email || '').trim();
+  const generic = { success: true, message: 'Se o e-mail estiver cadastrado, o administrador será avisado para gerar uma nova senha.' };
+  if (!email) { res.status(400).json({ error: 'Informe o e-mail' }); return; }
+  try {
+    const [rows] = await db.query('SELECT id, name FROM users WHERE email = ? AND active = 1', [email]) as any;
+    const user = rows[0];
+    if (user) {
+      await db.query('INSERT INTO password_reset_requests (user_id, email, status) VALUES (?, ?, \'aberto\')', [user.id, email]);
+      const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+      for (const a of admins) {
+        await db.query(
+          `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+           VALUES (?, ?, ?, 'recuperacao_senha', 'sistema', NOW(), 'pendente')`,
+          [a.id, 'Pedido de recuperação de senha', `${user.name} (${email}) esqueceu a senha. Gere uma nova em Configurações.`]
+        );
+      }
+    }
+  } catch { /* não vaza erro/inexistência */ }
+  res.json(generic);
+});
+
+// ── GET /api/auth/reset-requests — pedidos de recuperação abertos (admin) ────
+router.get('/reset-requests', authenticate, authorize('admin'), async (_req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT r.id, r.user_id, r.email, r.created_at, u.name
+       FROM password_reset_requests r LEFT JOIN users u ON u.id = r.user_id
+      WHERE r.status = 'aberto' ORDER BY r.created_at DESC`
+  ) as any;
+  res.json(rows);
+});
+
 // ── GET /api/auth/me ────────────────────────────────────────────────────────
 router.get('/me', authenticate, async (req: Request, res: Response) => {
   const [rows] = await db.query(
