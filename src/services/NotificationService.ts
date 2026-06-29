@@ -1,6 +1,7 @@
 import { db } from '../config/database';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { whatsappNotificationService } from './WhatsAppNotificationService';
+import { sendToUser as sendPushToUser } from './pushService';
 
 type NotificationChannel = 'sistema' | 'som' | 'telegram' | 'whatsapp';
 type NotificationStatus = 'pendente' | 'enviada' | 'lida' | 'erro';
@@ -90,7 +91,13 @@ export class NotificationService {
           body: notification.message,
         });
       } else {
-        // 'sistema' and 'som' are handled client-side via polling/WebSocket
+        // 'sistema' and 'som' são exibidos no app via polling; além disso,
+        // enviamos um Web Push para alertar mesmo com o app fechado.
+        await sendPushToUser(notification.user_id, {
+          title: notification.title,
+          body: notification.message,
+          tag: `notif-${notification.id}`,
+        });
         sent = true;
       }
 

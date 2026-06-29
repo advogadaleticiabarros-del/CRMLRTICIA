@@ -1,6 +1,6 @@
-/* Service worker do CRM — habilita instalação (PWA) e clique em notificação.
+/* Service worker do CRM — instalação (PWA), Web Push (app fechado) e clique em notificação.
    Estratégia: network-first com fallback ao cache (não serve dado velho quando online). */
-const CACHE = 'crm-cache-v1';
+const CACHE = 'crm-cache-v2';
 const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/logo.png', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
@@ -32,13 +32,29 @@ self.addEventListener('fetch', (e) => {
   );
 });
 
-// Clique na notificação → foca a janela do app (ou abre)
+// Web Push: alerta do servidor (chega mesmo com o app fechado)
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data && e.data.text() }; }
+  const title = d.title || 'CRM Jurídico';
+  const opts = {
+    body: d.body || '',
+    icon: '/logo.png',
+    badge: '/logo.png',
+    tag: d.tag || undefined,
+    data: { url: d.url || '/' },
+  };
+  e.waitUntil(self.registration.showNotification(title, opts));
+});
+
+// Clique na notificação → foca a janela do app (ou abre a URL)
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || '/';
   e.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cls) => {
-      for (const c of cls) { if ('focus' in c) return c.focus(); }
-      if (self.clients.openWindow) return self.clients.openWindow('/');
+      for (const c of cls) { if ('focus' in c) { c.navigate && c.navigate(url); return c.focus(); } }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
     })
   );
 });

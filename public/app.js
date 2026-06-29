@@ -113,7 +113,10 @@ function showApp() {
   bellTimer = setInterval(refreshBell, 60000); // atualiza o sino a cada 60s
   setTimeout(autoDiscoverDaily, 3500); // busca diária de processos/prazos (1x/dia, em 2º plano)
   resetIdle(); // arma o logout por inatividade
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {}); // PWA
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {}); // PWA
+    if ('Notification' in window && Notification.permission === 'granted') subscribePush();
+  }
 }
 
 async function refreshBell() {
@@ -147,12 +150,38 @@ async function maybeNotify() {
   if (novos.length) persistNotified();
 }
 
-// Pede permissão de alertas (acionado por botão — navegadores exigem gesto do usuário).
+// Pede permissão de alertas (acionado por botão — navegadores exigem gesto do usuário)
+// e inscreve o dispositivo no Web Push (alerta com o app fechado).
 async function ativarAlertas() {
   if (!('Notification' in window)) { toast('Este navegador não suporta alertas', 'error'); return; }
   const p = await Notification.requestPermission();
-  if (p === 'granted') { toast('Alertas ativados neste aparelho'); refreshBell(); }
-  else toast('Permissão de alertas negada', 'error');
+  if (p !== 'granted') { toast('Permissão de alertas negada', 'error'); return; }
+  await subscribePush();
+  toast('Alertas ativados neste aparelho'); refreshBell();
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  const arr = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i);
+  return arr;
+}
+
+// Inscreve o dispositivo no Web Push (precisa de service worker + VAPID no servidor).
+async function subscribePush() {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+  try {
+    const { key } = await api('/api/push/vapid-public').catch(() => ({ key: '' }));
+    if (!key) return; // VAPID ainda não configurado no servidor
+    const reg = await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(key) });
+    }
+    await api('/api/push/subscribe', { method: 'POST', body: JSON.stringify({ subscription: sub }) });
+  } catch { /* silencioso: o alerta em primeiro plano continua valendo */ }
 }
 
 // Logout automático por inatividade (1 hora sem ação).
