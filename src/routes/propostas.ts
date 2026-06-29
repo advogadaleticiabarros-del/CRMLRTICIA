@@ -188,16 +188,30 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
     await conn.beginTransaction();
     await conn.query("UPDATE propostas SET status = 'aceita' WHERE id = ?", [id]);
 
+    // Cria o caso automaticamente quando a proposta ainda não tem um (fecha o
+    // elo comercial: proposta aceita → caso → parcelas).
+    let caseId = proposta.case_id;
+    if (!caseId && proposta.client_id) {
+      const [cr] = await conn.query(
+        `INSERT INTO cases (user_id, client_id, title, legal_area, status)
+         VALUES (?, ?, ?, 'outro', 'ativo')`,
+        [req.user!.id, proposta.client_id, proposta.title || 'Caso (proposta aceita)']
+      ) as any;
+      caseId = cr.insertId;
+      await conn.query('UPDATE propostas SET case_id = ? WHERE id = ?', [caseId, id]);
+    }
+
     for (let i = 0; i < installmentsCount; i++) {
       const valor = i === installmentsCount - 1 ? last : base;
       const dueDate = toDateStr(addMonths(firstDueDate, i));
       await conn.query(
         `INSERT INTO installments (client_id, proposta_id, case_id, numero, valor, due_date, status)
          VALUES (?, ?, ?, ?, ?, ?, 'pendente')`,
-        [proposta.client_id, proposta.id, proposta.case_id, i + 1, valor, dueDate]
+        [proposta.client_id, proposta.id, caseId, i + 1, valor, dueDate]
       );
     }
     await conn.commit();
+    proposta.case_id = caseId;
   } catch (err) {
     await conn.rollback();
     throw err;

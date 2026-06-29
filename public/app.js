@@ -54,6 +54,8 @@ async function login(e) {
 function logout() {
   TOKEN = null; USER = null;
   localStorage.removeItem('crm_token'); localStorage.removeItem('crm_user');
+  if (idleTimer) clearTimeout(idleTimer);
+  if (bellTimer) clearInterval(bellTimer);
   $('#app-view').classList.add('hidden');
   $('#login-view').classList.remove('hidden');
 }
@@ -110,6 +112,8 @@ function showApp() {
   if (bellTimer) clearInterval(bellTimer);
   bellTimer = setInterval(refreshBell, 60000); // atualiza o sino a cada 60s
   setTimeout(autoDiscoverDaily, 3500); // busca diária de processos/prazos (1x/dia, em 2º plano)
+  resetIdle(); // arma o logout por inatividade
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {}); // PWA
 }
 
 async function refreshBell() {
@@ -118,8 +122,49 @@ async function refreshBell() {
     const badge = $('#bell-count');
     if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
     else badge.classList.add('hidden');
+    if ('Notification' in window && Notification.permission === 'granted') await maybeNotify();
   } catch {}
 }
+
+// Alertas do navegador (tipo app): dispara notificação do SO para cada nova
+// pendência não lida. Na 1ª sincronização apenas registra (não alerta histórico).
+const notifiedIds = new Set(JSON.parse(localStorage.getItem('crm_notified') || '[]'));
+let notifSeeded = localStorage.getItem('crm_notified') != null;
+function persistNotified() { localStorage.setItem('crm_notified', JSON.stringify([...notifiedIds].slice(-300))); }
+async function maybeNotify() {
+  const items = await api('/api/notifications').catch(() => []);
+  if (!notifSeeded) { items.forEach((n) => notifiedIds.add(n.id)); persistNotified(); notifSeeded = true; return; }
+  const novos = items.filter((n) => !notifiedIds.has(n.id)).slice(0, 5);
+  for (const n of novos) {
+    notifiedIds.add(n.id);
+    const opts = { body: n.message || '', icon: '/logo.png', badge: '/logo.png', tag: 'crm-' + n.id };
+    try {
+      const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+      if (reg && reg.showNotification) await reg.showNotification(n.title || 'CRM', opts);
+      else new Notification(n.title || 'CRM', opts);
+    } catch {}
+  }
+  if (novos.length) persistNotified();
+}
+
+// Pede permissão de alertas (acionado por botão — navegadores exigem gesto do usuário).
+async function ativarAlertas() {
+  if (!('Notification' in window)) { toast('Este navegador não suporta alertas', 'error'); return; }
+  const p = await Notification.requestPermission();
+  if (p === 'granted') { toast('Alertas ativados neste aparelho'); refreshBell(); }
+  else toast('Permissão de alertas negada', 'error');
+}
+
+// Logout automático por inatividade (1 hora sem ação).
+let idleTimer = null;
+const IDLE_MS = 60 * 60 * 1000;
+function resetIdle() {
+  if (!TOKEN) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { toast('Sessão encerrada por inatividade', 'error'); logout(); }, IDLE_MS);
+}
+['click', 'keydown', 'mousemove', 'scroll', 'touchstart'].forEach((ev) =>
+  window.addEventListener(ev, resetIdle, { passive: true }));
 
 // Descoberta por OAB (DJEN) no navegador (IP BR) — reusada pelo botão e pela auto-busca diária.
 async function oabDiscover(lawyerId, oabNum, oabUf, onPage) {
@@ -165,13 +210,15 @@ async function autoDiscoverDaily() {
 
 async function openNotifications() {
   const wrap = el(`<div>
-    <div style="display:flex;gap:8px;margin-bottom:14px">
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       <button class="btn-sm" id="notif-check">Verificar agora</button>
       <button class="btn-sm" id="notif-readall">Marcar todas como lidas</button>
+      <button class="btn-sm" id="notif-bell">🔔 Ativar alertas no aparelho</button>
       <button class="btn-sm" id="notif-settings">Configurações</button>
     </div>
     <div id="notif-list"><div class="spinner"></div></div>
   </div>`);
+  wrap.querySelector('#notif-bell').onclick = ativarAlertas;
   const loadList = async () => {
     const items = await api('/api/notifications');
     wrap.querySelector('#notif-list').innerHTML = items.length
