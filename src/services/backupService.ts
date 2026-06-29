@@ -1,6 +1,7 @@
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
+import zlib from 'zlib';
 import mysqldump from 'mysqldump';
 import { env } from '../config/env';
 
@@ -34,19 +35,19 @@ export async function runBackup(): Promise<BackupResult> {
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19); // 2026-06-22T18-30-00
   const filename = `${PREFIX}${stamp}.sql.gz`;
-  const tmpPath = path.join(os.tmpdir(), filename);
+  const tmpPath = path.join(os.tmpdir(), `${PREFIX}${stamp}.sql`); // dump em SQL puro
 
   try {
-    // 1. Dump lógico comprimido (gzip) — mysqldump puro em JS, sem binário externo
+    // 1. Dump lógico SEM a compressão do pacote (compressFile trava/quebra o stream).
+    //    Geramos o .sql puro e comprimimos com zlib — confiável e rápido.
     await mysqldump({
       connection: {
         host: env.DB_HOST, port: env.DB_PORT, database: env.DB_NAME,
         user: env.DB_USER, password: env.DB_PASSWORD,
       },
       dumpToFile: tmpPath,
-      compressFile: true,
     });
-    const buffer = fs.readFileSync(tmpPath);
+    const buffer = zlib.gzipSync(fs.readFileSync(tmpPath));
 
     // 2. Upload para o MEGA
     await folder.upload({ name: filename, size: buffer.length }, buffer).complete;
