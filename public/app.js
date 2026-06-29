@@ -642,12 +642,36 @@ const ROUTES = {
         <h3 style="color:var(--navy);margin-bottom:12px">Minha conta</h3>
         <button class="btn-sm" id="change-pwd">Trocar minha senha</button>
       </div>
+      <div class="card" style="padding:20px;margin-bottom:20px">
+        <h3 style="color:var(--navy);margin-bottom:6px">Automações</h3>
+        <p class="sub" style="margin-bottom:12px">Regras que rodam sozinhas. Ligue ou desligue conforme o fluxo do escritório.</p>
+        <div id="automation-list"><div class="spinner"></div></div>
+      </div>
       <div class="card" style="padding:20px">
         <h3 style="color:var(--navy);margin-bottom:6px">Backup do sistema</h3>
         <p class="sub" style="margin-bottom:12px">Cópia diária do banco enviada ao MEGA automaticamente às 02h.</p>
         <button class="btn-gold btn-sm" id="run-backup">Fazer backup agora</button>
         <div id="backup-list" style="margin-top:14px"></div>
       </div>`;
+    const loadAutomations = async () => {
+      try {
+        const rules = await api('/api/automation/rules');
+        $('#automation-list').innerHTML = rules.map((r) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid var(--border-soft)">
+            <div><strong>${esc(r.name)}</strong> ${r.enabled ? '<span class="badge ativo">ligada</span>' : '<span class="badge inativo">desligada</span>'}
+              <br><small style="color:var(--text-muted)">${esc(r.description || '')}</small></div>
+            <button class="btn-sm" data-rule="${r.key}" data-on="${r.enabled ? 1 : 0}" style="flex-shrink:0">${r.enabled ? 'Desligar' : 'Ligar'}</button>
+          </div>`).join('');
+        document.querySelectorAll('[data-rule]').forEach((b) => b.onclick = async () => {
+          const turnOn = b.dataset.on !== '1';
+          try {
+            await api(`/api/automation/rules/${b.dataset.rule}`, { method: 'PATCH', body: JSON.stringify({ enabled: turnOn }) });
+            toast(turnOn ? 'Automação ligada' : 'Automação desligada');
+            loadAutomations();
+          } catch (e) { toast(e.message, 'error'); }
+        });
+      } catch (e) { $('#automation-list').innerHTML = `<div class="empty">${e.message}</div>`; }
+    };
     const loadBackups = async () => {
       try {
         const r = await api('/api/backup');
@@ -684,6 +708,7 @@ const ROUTES = {
       finally { btn.disabled = false; btn.textContent = 'Fazer backup agora'; }
     };
     await load();
+    await loadAutomations();
     await loadBackups();
   },
 

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
+import { runPrazoConfirmadoPlaybooks } from '../services/automationService';
 
 const router = Router();
 
@@ -59,8 +60,9 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
 
   // Se o processo está vinculado a um caso, cria o prazo no módulo de Prazos (entra nos alertas 30/15/7/3/1)
   let deadlineId: number | null = null;
+  let lp: any = null;
   if (dd.process_id) {
-    const [[lp]] = await db.query('SELECT case_id, client_id FROM legal_processes WHERE id = ?', [dd.process_id]) as any;
+    [[lp]] = await db.query('SELECT case_id, client_id FROM legal_processes WHERE id = ?', [dd.process_id]) as any;
     if (lp?.case_id) {
       // Busca o texto completo da intimação/origem
       const [[mov]] = dd.movement_id
@@ -76,6 +78,16 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
       deadlineId = r.insertId;
     }
   }
+
+  // Playbooks do gatilho "prazo confirmado" (ex.: tarefa para vincular processo sem caso).
+  await runPrazoConfirmadoPlaybooks({
+    processId: dd.process_id ?? null,
+    caseId: lp?.case_id ?? null,
+    deadlineType: type,
+    userId: req.user!.id,
+    clientId: lp?.client_id ?? dd.client_id ?? null,
+  });
+
   res.json({ success: true, due_date: due, deadline_id: deadlineId, linked_to_case: !!deadlineId });
 });
 

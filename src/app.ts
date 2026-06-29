@@ -46,6 +46,7 @@ import controladoriaRoutes from './routes/controladoria';
 import correspondenteRoutes from './routes/correspondente';
 import documentRoutes from './routes/documents';
 import aiRoutes from './routes/ai';
+import automationRoutes from './routes/automation';
 import signPublicRoutes from './routes/sign-public';
 import propostaPublicRoutes from './routes/propostas-public';
 import backupRoutes from './routes/backup';
@@ -89,6 +90,7 @@ export function createApp() {
   app.use('/api/propostas',             authenticate, requireStaff, propostaRoutes);
   app.use('/api/cases',                 authenticate, requireStaff, caseRoutes);
   app.use('/api/deadlines',             authenticate, requireStaff, deadlineRoutes);
+  app.use('/api/automation',            authenticate, requireAdmin, automationRoutes);
   app.use('/api/tasks',                 authenticate, requireStaff, taskRoutes);
   app.use('/api/financial',             authenticate, requireStaff, financialRoutes);
   app.use('/api/receitas',              authenticate, requireStaff, receitaRoutes);

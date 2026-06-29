@@ -6,7 +6,7 @@ import { fetchDjenByOAB, groupPublicationsByProcess, DjenPublication } from './d
 import { notificationService } from './NotificationService';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
-import { runEstagiarioForDeadline } from './aiAssistant';
+import { runIntimacaoPlaybooks } from './automationService';
 
 // ── Sugestão de fase processual a partir do texto das movimentações ──────────
 const PHASE_RANK: Record<string, number> = { inicial: 1, instrucao: 2, sentenca: 3, recurso: 4, execucao: 5, encerrado: 6 };
@@ -121,10 +121,10 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
       [processId, movementId, clientId, movementText, trig.type, trig.type, trig.days, startStr]
     ) as any;
 
-    // Estagiário IA: gera análise + minuta automaticamente (best-effort, só com chave de IA).
-    await runEstagiarioForDeadline({
+    // Playbooks da intimação (estagiário IA + aviso Telegram, conforme ligados).
+    await runIntimacaoPlaybooks({
       detectedDeadlineId: ddRes.insertId, clientId, movementText,
-      suggestedType: trig.type, suggestedDays: trig.days,
+      suggestedType: trig.type, suggestedDays: trig.days, processNumber,
     });
 
     const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
