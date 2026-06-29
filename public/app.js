@@ -697,9 +697,10 @@ const ROUTES = {
         <button class="tab" data-tab="repasses">Repasses</button>
         <button class="tab" data-tab="inadimplencia">Inadimplência</button>
         <button class="tab" data-tab="fluxo">Fluxo de Caixa</button>
+        <button class="tab" data-tab="auditoria">Auditoria</button>
       </div>
       <div id="fin-content"></div>`;
-    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, pagar: finContasPagar, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa };
+    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, pagar: finContasPagar, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa, auditoria: finAuditoria };
     const show = async (name) => {
       document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#fin-content'); c.innerHTML = '<div class="spinner"></div>';
@@ -3001,6 +3002,59 @@ async function eventForm(onSave, prefillDate) {
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Novo evento / reunião', form);
+}
+
+const AUDIT_ENTIDADE_PT = { Receita: 'Receita', Installment: 'Parcela', Parcela: 'Parcela', Expense: 'Despesa', Agreement: 'Acordo', Repasse: 'Repasse' };
+const AUDIT_ACAO_PT = { create: 'Criação', created: 'Criação', update: 'Edição', updated: 'Edição', delete: 'Exclusão', deleted: 'Exclusão', pay: 'Baixa', paid: 'Baixa', cancel: 'Cancelamento', reschedule: 'Reagendamento', status_change: 'Mudança de status' };
+
+async function finAuditoria(c) {
+  c.innerHTML = `
+    <div id="audit-kpis" class="kpi-grid"></div>
+    <div class="toolbar">
+      <select id="audit-ent"><option value="">Todas as entidades</option>
+        <option value="Receita">Receitas</option><option value="Parcela">Parcelas</option>
+        <option value="Expense">Despesas</option><option value="Agreement">Acordos</option><option value="Repasse">Repasses</option></select>
+      <select id="audit-acao"><option value="">Todas as ações</option>
+        <option value="create">Criação</option><option value="update">Edição</option>
+        <option value="pay">Baixa</option><option value="cancel">Cancelamento</option><option value="status_change">Status</option></select>
+    </div>
+    <div class="card"><div id="audit-table"></div></div>`;
+
+  const stats = await api('/api/auditoria-financeira/stats').catch(() => ({ total_registros: 0, por_acao: {} }));
+  $('#audit-kpis').innerHTML =
+    kpi('Total de registros', stats.total_registros || 0) +
+    kpi('Criações', stats.por_acao?.create || stats.por_acao?.created || 0) +
+    kpi('Edições', stats.por_acao?.update || stats.por_acao?.updated || 0) +
+    kpi('Baixas', stats.por_acao?.pay || stats.por_acao?.paid || 0);
+
+  const fmtChange = (oldV, newV, fmt) => {
+    if (oldV == null && newV == null) return '—';
+    if (oldV == null) return fmt(newV);
+    if (newV == null || String(oldV) === String(newV)) return fmt(oldV);
+    return `<span style="color:var(--text-muted)">${fmt(oldV)}</span> → <strong>${fmt(newV)}</strong>`;
+  };
+
+  const load = async () => {
+    const q = new URLSearchParams();
+    if ($('#audit-ent').value) q.set('entity_type', $('#audit-ent').value);
+    if ($('#audit-acao').value) q.set('action', $('#audit-acao').value);
+    const r = await api('/api/auditoria-financeira?' + q);
+    $('#audit-table').innerHTML = (r.data && r.data.length) ? `
+      <table><thead><tr><th>Data</th><th>Entidade</th><th>Ação</th><th>Responsável</th><th>Valor</th><th>Status</th><th>Motivo</th></tr></thead>
+      <tbody>${r.data.map((a) => `<tr>
+        <td><small>${fmtDate(a.created_at)}</small></td>
+        <td>${AUDIT_ENTIDADE_PT[a.entity_type] || a.entity_type} <small style="color:var(--text-muted)">#${a.entity_id}</small></td>
+        <td>${badge((AUDIT_ACAO_PT[a.action] || a.action))}</td>
+        <td>${a.user_name || '—'}</td>
+        <td>${fmtChange(a.old_value, a.new_value, money)}</td>
+        <td>${fmtChange(a.old_status, a.new_status, (s) => s)}</td>
+        <td><small>${a.reason || ''}</small></td></tr>`).join('')}</tbody></table>
+      <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} registro(s)</div>`
+      : '<div class="empty">Nenhum registro de auditoria ainda. As alterações em receitas, parcelas, despesas, acordos e repasses aparecerão aqui.</div>';
+  };
+  $('#audit-ent').onchange = load;
+  $('#audit-acao').onchange = load;
+  await load();
 }
 
 async function financialForm(onSave) {
