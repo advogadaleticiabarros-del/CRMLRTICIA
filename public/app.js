@@ -1394,17 +1394,41 @@ async function clientPicker(onPick) {
   openModal('Vincular à ficha do cliente', form);
 }
 
-// Bloco com a movimentação/intimação na ÍNTEGRA (rolável, sem corte).
+// Bloco com a movimentação/intimação na ÍNTEGRA (rolável, sem corte) + metadados.
 function movementFullBlock(d) {
   const full = d.movement_full || d.movement_text || '(sem texto)';
-  const meta = [
+  // movement_metadata pode vir como objeto (mysql2 JSON) ou string.
+  let meta = d.movement_metadata;
+  if (typeof meta === 'string') { try { meta = JSON.parse(meta); } catch { meta = null; } }
+  meta = meta || {};
+
+  const linha = [
     d.process_number ? `Processo ${esc(d.process_number)}` : '',
     d.movement_date ? `· ${fmtDate(d.movement_date)}` : '',
     d.movement_source ? `· ${esc(d.movement_source)}` : '',
   ].filter(Boolean).join(' ');
+
+  // Partes (nome — polo), advogado intimado, tipo/órgão/classe e link do PJe.
+  const parties = Array.isArray(meta.parties) ? meta.parties : [];
+  const partesHtml = parties.length
+    ? `<div><strong>Partes:</strong> ${parties.map((p) => `${esc(p.nome)}${p.polo ? ` <span style="color:var(--text-muted)">(${esc(p.polo)})</span>` : ''}`).join('; ')}</div>`
+    : '';
+  const campo = (rotulo, valor) => valor ? `<div><strong>${rotulo}:</strong> ${esc(valor)}</div>` : '';
+  const linkHtml = meta.link
+    ? `<div><a href="${esc(meta.link)}" target="_blank" rel="noopener" style="color:var(--gold)">Abrir no PJe/tribunal ↗</a></div>`
+    : '';
+  const fichaHtml = [
+    campo('Tipo', meta.tipoComunicacao),
+    campo('Órgão/Vara', meta.orgao),
+    campo('Classe', meta.classe),
+    partesHtml,
+    linkHtml,
+  ].filter(Boolean).join('');
+
   return `
-    ${meta ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${meta}</div>` : ''}
-    <div style="font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:12px;background:var(--surface)">${esc(full)}</div>`;
+    ${linha ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${linha}</div>` : ''}
+    ${fichaHtml ? `<div style="font-size:12.5px;line-height:1.6;margin-bottom:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius);background:var(--surface)">${fichaHtml}</div>` : ''}
+    <div style="font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:42vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:12px;background:var(--surface)">${esc(full)}</div>`;
 }
 
 // Modal somente-leitura: ver a movimentação completa sem entrar no fluxo de confirmar.

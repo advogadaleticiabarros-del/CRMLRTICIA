@@ -177,7 +177,7 @@ export function groupPublicationsByProcess(pubs: DjenPublication[]): DjenProcess
       movement_type: isIntimacao ? 'intimacao' : 'publicacao',
       djen_id: p.id || null,
       is_deadline_trigger: isIntimacao,
-      metadata: { tipoComunicacao: p.type, link: p.link, orgao: p.orgao, classe: p.classe },
+      metadata: { tipoComunicacao: p.type, link: p.link, orgao: p.orgao, classe: p.classe, parties: p.parties, adv_count: p.adv_count, disponibilizacao_date: p.date },
     });
     if (p.date && (!proc.last_date || p.date > proc.last_date)) proc.last_date = p.date;
     for (const pt of p.parties || []) {

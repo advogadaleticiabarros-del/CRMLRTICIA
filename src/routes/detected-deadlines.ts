@@ -24,7 +24,8 @@ router.get('/', async (req: Request, res: Response) => {
             COALESCE(pm.description, d.movement_text) AS movement_full,
             pm.title AS movement_title,
             pm.movement_date AS movement_date,
-            pm.source AS movement_source
+            pm.source AS movement_source,
+            pm.movement_metadata AS movement_metadata
        FROM detected_deadlines d
        LEFT JOIN legal_processes lp ON lp.id = d.process_id
        LEFT JOIN clients c  ON c.id  = d.client_id
