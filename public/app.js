@@ -298,7 +298,8 @@ const ROUTES = {
     page.innerHTML = `
       <div class="page-header"><div><h2>Dashboards</h2><p class="sub">Visão gerencial do escritório</p></div></div>
       <div class="tabs" id="dash-tabs">
-        <button class="tab active" data-tab="comercial">Comercial</button>
+        <button class="tab active" data-tab="cockpit">Cockpit</button>
+        <button class="tab" data-tab="comercial">Comercial</button>
         <button class="tab" data-tab="monitoramento">Processos</button>
         <button class="tab" data-tab="processual">Processual</button>
         <button class="tab" data-tab="agenda">Agenda</button>
@@ -306,14 +307,14 @@ const ROUTES = {
         <button class="tab" data-tab="producao">Produção</button>
       </div>
       <div id="dash-content"></div>`;
-    const tabs = { comercial: dashComercial, monitoramento: dashMonitoramento, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao };
+    const tabs = { cockpit: dashCockpit, comercial: dashComercial, monitoramento: dashMonitoramento, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao };
     const show = async (name) => {
       document.querySelectorAll('#dash-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#dash-content'); c.innerHTML = '<div class="spinner"></div>';
       try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
     };
     document.querySelectorAll('#dash-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
-    await show('comercial');
+    await show('cockpit');
   },
 
   async clients(page) {
@@ -1532,6 +1533,89 @@ function miniList(title, rows) {
 
 const LEAD_STATUS_PT = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', contrato_assinado: 'Contrato Assinado', fechada: 'Convertido', convertido: 'Convertido', perdida: 'Perdido' };
 const FUNNEL_ORDER = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado'];
+
+// Cockpit — painel-mãe: dinheiro, prazos, intimações, alertas e agenda num só lugar.
+async function dashCockpit(c) {
+  const d = await api('/api/dashboards/cockpit');
+  const go = (route) => `onclick="location.hash='#${route}'" style="cursor:pointer"`;
+
+  const kpi = (label, valor, cor, route) =>
+    `<div class="card" ${go(route)} style="padding:14px 16px;border-left:4px solid ${cor}">
+      <div style="font-size:12px;color:var(--text-muted)">${label}</div>
+      <div style="font-size:20px;font-weight:700;margin-top:4px">${money(valor)}</div></div>`;
+
+  const f = d.financeiro || {};
+  const kpis = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">
+    ${kpi('A receber (até hoje)', f.receber_hoje, 'var(--green)', 'financeiro')}
+    ${kpi('A receber (7 dias)', f.receber_7d, 'var(--gold)', 'financeiro')}
+    ${kpi('A pagar (7 dias)', f.pagar_7d, 'var(--amber)', 'financeiro')}
+    ${kpi('Inadimplência', f.vencido, 'var(--red)', 'financeiro')}
+  </div>`;
+
+  const painel = (titulo, count, route, inner, vazio) =>
+    `<div class="card" style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)">
+        <strong>${titulo}${count != null ? ` <span style="color:var(--text-muted)">(${count})</span>` : ''}</strong>
+        <button class="btn-sm" ${go(route)}>Abrir →</button>
+      </div>
+      <div style="padding:6px 0">${inner || `<div class="empty" style="padding:14px 16px">${vazio}</div>`}</div>
+    </div>`;
+
+  const row = (esquerda, direita, route, sub) =>
+    `<div class="mini-row" ${go(route)} style="padding:10px 16px;border-bottom:1px solid var(--border-soft)">
+      <span>${esquerda}${sub ? `<br><small style="color:var(--text-muted)">${sub}</small>` : ''}</span>
+      <span style="white-space:nowrap">${direita}</span></div>`;
+
+  // Prazos críticos (72h)
+  const prazosHtml = (d.prazos || []).map((p) => {
+    const venc = Number(p.vencido) === 1;
+    const dias = venc ? 'VENCIDO' : (p.days_remaining <= 0 ? 'hoje' : `${p.days_remaining}d`);
+    const cor = venc ? 'var(--red)' : (p.days_remaining <= 1 ? 'var(--amber)' : 'var(--text-muted)');
+    return row(esc(p.description || 'Prazo'), `<strong style="color:${cor}">${dias}</strong>`, 'prazos',
+      `${esc(p.client_name || '')}${p.case_number ? ' · ' + esc(p.case_number) : ''} · ${fmtDate(p.deadline_date)}`);
+  }).join('');
+
+  // Intimações a confirmar
+  const intim = d.intimacoes || { count: 0, itens: [] };
+  const intimHtml = (intim.itens || []).map((i) =>
+    row(esc(i.client_name || 'A vincular'),
+        `<span class="badge">${esc(i.suggested_type || '—')}</span>${Number(i.tem_minuta) === 1 ? ' 📝' : ''}`,
+        'prazos',
+        `${i.process_number ? 'proc. ' + esc(i.process_number) + ' · ' : ''}início ${fmtDate(i.start_date)}`)
+  ).join('');
+
+  // Alertas (verificar)
+  const al = d.alertas || { count: 0, itens: [] };
+  const alHtml = (al.itens || []).map((a) =>
+    row(esc(a.title || a.detected_keyword || 'Movimentação'), `<span class="badge">verificar</span>`, 'monitor',
+        a.process_number ? 'proc. ' + esc(a.process_number) : '')
+  ).join('');
+
+  // Agenda de hoje
+  const agHtml = (d.agenda_hoje || []).map((e) =>
+    row(esc(e.title || 'Evento'),
+        `<strong>${new Date(e.start_datetime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>`,
+        'agenda',
+        `${esc(e.event_type || '')}${e.client_name ? ' · ' + esc(e.client_name) : ''}`)
+  ).join('');
+
+  c.innerHTML = `
+    ${kpis}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+      ${painel('⏰ Prazos críticos (72h)', (d.prazos || []).length, 'prazos', prazosHtml, 'Nenhum prazo crítico. 👏')}
+      ${painel('📋 Intimações a confirmar', intim.count, 'prazos', intimHtml, 'Nada a confirmar.')}
+      ${painel('⚠ Movimentações a verificar', al.count, 'monitor', alHtml, 'Sem alertas pendentes.')}
+      ${painel('📅 Agenda de hoje', (d.agenda_hoje || []).length, 'agenda', agHtml, 'Nada agendado para hoje.')}
+    </div>
+    <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap">
+      <div class="card" ${go('prazos')} style="padding:12px 16px;flex:1;min-width:160px;cursor:pointer">
+        <div style="font-size:12px;color:var(--text-muted)">Tarefas pendentes</div>
+        <div style="font-size:20px;font-weight:700">${d.tarefas_pendentes ?? 0}</div></div>
+      <div class="card" ${go('propostas')} style="padding:12px 16px;flex:1;min-width:160px;cursor:pointer">
+        <div style="font-size:12px;color:var(--text-muted)">Propostas em análise</div>
+        <div style="font-size:20px;font-weight:700">${d.propostas_paradas ?? 0}</div></div>
+    </div>`;
+}
 
 async function dashComercial(c) {
   const d = await api('/api/dashboards/comercial');

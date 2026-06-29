@@ -7,6 +7,7 @@ import { env } from './config/env';
 import { authenticate, requireStaff, requireAdmin } from './middleware/auth';
 
 // Rotas já existentes
+import cockpitDashboard from './routes/dashboards/cockpit';
 import comercialDashboard from './routes/dashboards/comercial';
 import clienteDashboard from './routes/dashboards/cliente';
 import processualDashboard from './routes/dashboards/processual';
@@ -108,6 +109,7 @@ export function createApp() {
   app.use('/api/correspondente',        authenticate, requireStaff, correspondenteRoutes);
   app.use('/api/documents',             authenticate, requireStaff, documentRoutes);
   app.use('/api/ai',                    authenticate, requireStaff, aiRoutes);
+  app.use('/api/dashboards/cockpit',    authenticate, requireStaff, cockpitDashboard);
   app.use('/api/dashboards/comercial',  authenticate, requireStaff, comercialDashboard);
   app.use('/api/dashboards/cliente',    authenticate, requireStaff, clienteDashboard);
   app.use('/api/dashboards/processual', authenticate, requireStaff, processualDashboard);
