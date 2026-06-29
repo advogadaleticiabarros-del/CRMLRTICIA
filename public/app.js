@@ -487,7 +487,9 @@ const ROUTES = {
             <td><strong>${d.client_name || '<span style=\"color:var(--text-muted)\">a vincular</span>'}</strong></td>
             <td>${esc(full.slice(0, 110))}${full.length > 110 ? '…' : ''}
                 <br><small style="color:var(--text-muted)">início ${fmtDate(d.start_date)}</small>
-                ${full.length > 110 ? `<br><button class="btn-sm" data-full-dd="${d.id}" style="margin-top:6px">📄 Ver na íntegra</button>` : ''}</td>
+                ${full.length > 110 ? `<br><button class="btn-sm" data-full-dd="${d.id}" style="margin-top:6px">📄 Ver na íntegra</button>` : ''}
+                ${d.ai_summary ? `<div style="margin-top:8px;padding:8px 10px;border-left:3px solid var(--gold);background:var(--surface);font-size:12px;line-height:1.5"><strong>🧑‍🎓 Estagiário IA:</strong><br>${esc(d.ai_summary.slice(0, 400))}${d.ai_summary.length > 400 ? '…' : ''}</div>` : ''}
+                ${d.ai_draft_id ? `<button class="btn-sm" data-draft-dd="${d.ai_draft_id}" style="margin-top:6px">📝 Ver minuta</button>` : ''}</td>
             <td>${d.process_number || '—'}</td>
             <td>${d.suggested_type || '—'} · ${d.suggested_days || '?'} dias</td>
             <td style="white-space:nowrap"><button class="btn-gold btn-sm" data-conf-dd="${d.id}">Confirmar</button> <button class="btn-sm" data-disc-dd="${d.id}">Descartar</button></td></tr>`; }).join('')}</tbody></table>
@@ -501,6 +503,15 @@ const ROUTES = {
       });
       document.querySelectorAll('[data-full-dd]').forEach((b) => b.onclick = () => {
         showMovementFull(rows.find((x) => x.id == b.dataset.fullDd));
+      });
+      document.querySelectorAll('[data-draft-dd]').forEach((b) => b.onclick = async () => {
+        try {
+          const g = await api(`/api/ai/${b.dataset.draftDd}`);
+          openModal('Minuta da IA — revisar antes de protocolar', el(`<div>
+            <div style="font-size:12px;color:var(--text-muted);margin-bottom:6px">${esc(g.title || '')}</div>
+            <div style="font-size:13px;line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:60vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius);padding:12px;background:var(--surface)">${esc(g.result || '(vazio)')}</div>
+          </div>`));
+        } catch (e) { toast(e.message, 'error'); }
       });
     };
     $('#new-deadline').onclick = () => deadlineForm(loadDeadlines);

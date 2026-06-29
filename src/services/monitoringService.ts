@@ -6,6 +6,7 @@ import { fetchDjenByOAB, groupPublicationsByProcess, DjenPublication } from './d
 import { notificationService } from './NotificationService';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
+import { runEstagiarioForDeadline } from './aiAssistant';
 
 // ── Sugestão de fase processual a partir do texto das movimentações ──────────
 const PHASE_RANK: Record<string, number> = { inicial: 1, instrucao: 2, sentenca: 3, recurso: 4, execucao: 5, encerrado: 6 };
@@ -113,11 +114,19 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
 
     // DJEN (source = djen_oab): cria prazo a confirmar
     const startStr = start.toISOString().split('T')[0];
-    await db.query(
+    const movementText = (m.description || m.title || '');
+    const [ddRes] = await db.query(
       `INSERT INTO detected_deadlines (process_id, movement_id, client_id, movement_text, detected_keyword, suggested_type, suggested_days, start_date, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'a_confirmar')`,
-      [processId, movementId, clientId, (m.description || m.title || ''), trig.type, trig.type, trig.days, startStr]
-    );
+      [processId, movementId, clientId, movementText, trig.type, trig.type, trig.days, startStr]
+    ) as any;
+
+    // Estagiário IA: gera análise + minuta automaticamente (best-effort, só com chave de IA).
+    await runEstagiarioForDeadline({
+      detectedDeadlineId: ddRes.insertId, clientId, movementText,
+      suggestedType: trig.type, suggestedDays: trig.days,
+    });
+
     const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
     if (admins.length) {
       await db.query(

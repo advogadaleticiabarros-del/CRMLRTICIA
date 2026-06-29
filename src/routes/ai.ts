@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
+import { aiComplete } from '../services/aiAssistant';
 
 const router = Router();
 
@@ -111,37 +112,8 @@ ${inputs.movimentacao || '—'}`,
 
 const findTpl = (t: string) => TEMPLATES.find((x) => x.type === t);
 
-// ── Geração automática OPCIONAL (grátis se houver chave Gemini/Groq) ────────
-async function autoGenerate(prompt: string): Promise<{ ok: boolean; text?: string; message?: string }> {
-  const gemini = process.env.GEMINI_API_KEY;
-  const groq = process.env.GROQ_API_KEY;
-  try {
-    if (gemini) {
-      const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gemini}`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
-      });
-      const d: any = await r.json();
-      if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro Gemini' };
-      const text = d?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || '';
-      return { ok: true, text };
-    }
-    if (groq) {
-      const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
-      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${groq}` },
-        body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
-      });
-      const d: any = await r.json();
-      if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro Groq' };
-      return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
-    }
-    return { ok: false, message: 'sem_chave' };
-  } catch (e: any) {
-    return { ok: false, message: e.message };
-  }
-}
+// Geração automática OPCIONAL (grátis se houver chave Gemini/Groq) — cliente compartilhado.
+const autoGenerate = aiComplete;
 
 // ── GET /api/ai/templates ───────────────────────────────────────────────────
 router.get('/templates', (_req: Request, res: Response) => {
