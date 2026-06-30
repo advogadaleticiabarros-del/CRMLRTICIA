@@ -396,6 +396,15 @@ O presente contrato tem como objeto a prestação de serviços advocatícios par
 CLÁUSULA SEGUNDA - DO PREÇO E FORMA DE PAGAMENTO
 ${clausulaSegunda}
 
+CLÁUSULA SEGUNDA-A - DO INADIMPLEMENTO
+O atraso ou a falta de pagamento de qualquer parcela dos honorários advocatícios na data de seu vencimento acarretará, independentemente de aviso, notificação ou interpelação judicial ou extrajudicial, a incidência de multa moratória de 2% (dois por cento) sobre o valor da parcela em atraso, juros de mora de 1% (um por cento) ao mês, calculados pro rata die, e correção monetária pelo IPCA, ou outro índice oficial que venha a substituí-lo, desde a data do vencimento até o efetivo pagamento.
+
+PARÁGRAFO PRIMEIRO - O inadimplemento de qualquer parcela por período superior a 30 (trinta) dias autoriza a CONTRATADA a suspender a prestação dos serviços não urgentes até a regularização do débito, sem prejuízo da adoção das medidas necessárias para evitar dano irreparável aos interesses da CONTRATANTE.
+
+PARÁGRAFO SEGUNDO - Permanecendo o inadimplemento por período superior a 60 (sessenta) dias, considerar-se-ão antecipadamente vencidas todas as parcelas vincendas, tornando-se imediatamente exigível o saldo remanescente dos honorários contratuais, facultando-se à CONTRATADA promover a cobrança judicial ou extrajudicial do débito.
+
+PARÁGRAFO TERCEIRO - Os encargos previstos nesta cláusula incidirão cumulativamente, sem prejuízo da cobrança das custas, despesas processuais e demais encargos legais decorrentes da execução deste contrato, o qual constitui título executivo extrajudicial, nos termos da legislação vigente.
+
 CLÁUSULA TERCEIRA - DAS DESPESAS JUDICIAIS E ADMINISTRATIVAS
 Todas as despesas necessárias para a execução dos serviços, como custas processuais, perícias, diligências, depósitos, fotocópias e autenticações, não estão incluídas nos honorários e são de responsabilidade da CONTRATANTE.
 

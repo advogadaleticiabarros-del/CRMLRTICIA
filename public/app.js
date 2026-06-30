@@ -3517,26 +3517,38 @@ async function contractEditor(id, onSave) {
   const dataEl = wrap.querySelector('[name=o_data]');
   if (dataEl && !dataEl.value) dataEl.value = new Date().toLocaleDateString('pt-BR');
 
-  wrap.querySelector('#apply-complete').onclick = () => {
-    const map = {
-      '[nacionalidade]': 'c_nac', '[profissão]': 'c_prof', '[CPF]': 'c_cpf', '[e-mail]': 'c_email',
-      '[ENDEREÇO]': 'c_end', '[DATA]': 'o_data', '[FORMA DE PAGAMENTO / PARCELAS]': 'o_forma',
-    };
-    let count = 0;
-    wrap.querySelectorAll('[data-field]').forEach((ta) => {
-      let txt = ta.value;
-      for (const [ph, fn] of Object.entries(map)) {
-        const v = (wrap.querySelector(`[name=${fn}]`)?.value || '').trim();
-        if (v && txt.includes(ph)) { txt = txt.split(ph).join(v); count++; }
-      }
-      ta.value = txt;
-    });
-    const office = {};
-    ['o_forma'].forEach((n) => { office[n] = wrap.querySelector(`[name=${n}]`)?.value || ''; });
-    try { localStorage.setItem('escritorioInfo', JSON.stringify(office)); } catch {}
-    wrap.querySelector('#complete-panel').style.display = 'none';
-    toast(count ? 'Informações aplicadas. Revise e clique em Salvar documentos.' : 'Preencha os campos para substituir.');
+  // Prefill com o complemento já salvo no contrato (persiste entre sessões).
+  const ovMap = { c_nac: 'nacionalidade', c_prof: 'profissao', c_cpf: 'cpf', c_email: 'email', c_end: 'endereco', o_forma: 'forma_pagamento' };
+  let savedOv = {};
+  try { savedOv = ct.party_overrides ? (typeof ct.party_overrides === 'string' ? JSON.parse(ct.party_overrides) : ct.party_overrides) : {}; } catch {}
+  Object.entries(ovMap).forEach(([fn, ok]) => { const inp = wrap.querySelector(`[name=${fn}]`); if (inp && savedOv[ok]) inp.value = savedOv[ok]; });
+
+  const collectOverrides = () => {
+    const o = {};
+    for (const [fn, ok] of Object.entries(ovMap)) { const v = (wrap.querySelector(`[name=${fn}]`)?.value || '').trim(); if (v) o[ok] = v; }
+    return o;
   };
+
+  // Salva o complemento no servidor e regenera os 3 documentos (não se perde ao sair).
+  let pushTimer = null;
+  const pushComplement = async (silent) => {
+    try {
+      const r = await api(`/api/contracts/${id}/complement`, { method: 'PATCH', body: JSON.stringify({ overrides: collectOverrides() }) });
+      ['content', 'procuracao_content', 'declaracao_content'].forEach((k) => {
+        const ta = wrap.querySelector(`[data-field=${k}]`); if (ta && r[k] != null) ta.value = r[k];
+      });
+      if (!silent) toast('Informações salvas e documentos atualizados');
+    } catch (e) { if (!silent) toast(e.message, 'error'); }
+  };
+  const schedulePush = () => { clearTimeout(pushTimer); pushTimer = setTimeout(() => pushComplement(true), 800); };
+
+  // Auto-salva ao digitar (debounce) e ao sair do campo — mesmo sem clicar no botão.
+  Object.keys(ovMap).forEach((fn) => {
+    const inp = wrap.querySelector(`[name=${fn}]`);
+    if (inp) { inp.addEventListener('input', schedulePush); inp.addEventListener('change', () => { clearTimeout(pushTimer); pushComplement(true); }); }
+  });
+
+  wrap.querySelector('#apply-complete').onclick = () => { clearTimeout(pushTimer); pushComplement(false); };
 
   wrap.querySelector('#reprocess-ct').onclick = async () => {
     if (!confirm('Regenerar os 3 documentos com o modelo atual e os dados do cadastro? O texto atual será substituído.')) return;

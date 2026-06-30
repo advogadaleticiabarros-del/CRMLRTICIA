@@ -5,7 +5,7 @@ import { getEscritorio } from './escritorio';
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
 
 /** Regenera os 3 documentos de um contrato a partir dos dados atuais (lead + cliente + proposta + escritório). */
-export async function reprocessContract(contractId: number, userId?: number): Promise<boolean> {
+export async function reprocessContract(contractId: number, userId?: number, overrides?: any): Promise<boolean> {
   const [cts] = await db.query(
     userId ? 'SELECT * FROM contracts WHERE id = ? AND user_id = ?' : 'SELECT * FROM contracts WHERE id = ?',
     userId ? [contractId, userId] : [contractId]
@@ -35,6 +35,19 @@ export async function reprocessContract(contractId: number, userId?: number): Pr
     name: nome, cpf, estadoCivil: lead?.marital_status, profissao: lead?.profession, endereco,
     email: client?.email || lead?.email, phone: client?.phone || lead?.phone,
   };
+
+  // Overrides do painel "Completar informações" (passados ou salvos no contrato).
+  let ov: any = overrides;
+  if (!ov && ct.party_overrides) {
+    try { ov = typeof ct.party_overrides === 'string' ? JSON.parse(ct.party_overrides) : ct.party_overrides; } catch {}
+  }
+  if (ov) {
+    if (ov.nacionalidade) party.nacionalidade = ov.nacionalidade;
+    if (ov.profissao) party.profissao = ov.profissao;
+    if (ov.cpf) party.cpf = ov.cpf;
+    if (ov.email) party.email = ov.email;
+    if (ov.endereco) party.endereco = ov.endereco;
+  }
   const area = AREAS.includes(ct.area) ? ct.area : (AREAS.includes(prop?.legal_area) ? prop.legal_area : (AREAS.includes(lead?.legal_area) ? lead.legal_area : 'outro'));
 
   let honorarios: any = null, parcelamento: any = null, valor = Number(ct.value) || Number(prop?.valor) || undefined;
@@ -44,7 +57,8 @@ export async function reprocessContract(contractId: number, userId?: number): Pr
   } catch {}
 
   const adv = await getEscritorio();
-  const content = buildTemplate({ party, area, value: valor, formaPagamento: formaPagamentoTexto(parcelamento), honorarios, tipoCausa: prop?.tipo_causa, descricao: prop?.description || lead?.case_summary, contratada: adv });
+  const formaPag = (ov && ov.forma_pagamento) ? ov.forma_pagamento : formaPagamentoTexto(parcelamento);
+  const content = buildTemplate({ party, area, value: valor, formaPagamento: formaPag, honorarios, tipoCausa: prop?.tipo_causa, descricao: prop?.description || lead?.case_summary, contratada: adv });
   await db.query(
     'UPDATE contracts SET content = ?, procuracao_content = ?, declaracao_content = ?, value = COALESCE(?, value) WHERE id = ?',
     [content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), valor ?? null, contractId]

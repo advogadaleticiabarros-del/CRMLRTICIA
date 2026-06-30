@@ -90,6 +90,24 @@ router.get('/:id/party', async (req: Request, res: Response) => {
   });
 });
 
+// ── PATCH /api/contracts/:id/complement — salva o complemento e regenera os docs ─
+// Persiste os dados do painel "Completar informações" no contrato e regenera
+// contrato/procuração/declaração a partir deles (não se perde ao sair).
+router.patch('/:id/complement', async (req: Request, res: Response) => {
+  const overrides = req.body?.overrides || {};
+  const [own] = await db.query('SELECT id FROM contracts WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!own.length) { res.status(404).json({ error: 'Contrato não encontrado' }); return; }
+
+  await db.query('UPDATE contracts SET party_overrides = ? WHERE id = ?', [JSON.stringify(overrides), req.params.id]);
+  await reprocessContract(Number(req.params.id), req.user!.id, overrides);
+
+  const [rows] = await db.query(
+    'SELECT content, procuracao_content, declaracao_content, party_overrides FROM contracts WHERE id = ?',
+    [req.params.id]
+  ) as any;
+  res.json(rows[0]);
+});
+
 // ── POST /api/contracts/:id/gerar-menor — gera o contrato de representação de menor ─
 router.post('/:id/gerar-menor', async (req: Request, res: Response) => {
   const [cts] = await db.query('SELECT * FROM contracts WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
