@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 import { notificationService } from '../services/NotificationService';
+import { montarEndereco } from '../services/contractTemplates';
 
 const router = Router();
 
@@ -69,6 +70,81 @@ router.get('/production-board', async (_req: Request, res: Response) => {
      ORDER BY c.production_started_at ASC
   `) as any;
   res.json(rows);
+});
+
+// ── GET /api/cases/:id/production — painel de produção (resumo, cabeçalho, notas) ─
+router.get('/:id/production', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const [[c]] = await db.query(
+    `SELECT c.*, cl.name AS client_name, cl.cpf_cnpj, cl.email AS client_email, cl.address AS client_address
+       FROM cases c LEFT JOIN clients cl ON cl.id = c.client_id WHERE c.id = ?`, [id]
+  ) as any;
+  if (!c) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+
+  // Lead de origem (via contrato) — traz qualificação e resumo do caso.
+  let lead: any = null;
+  if (c.origin_contract_id) {
+    const [[ct]] = await db.query('SELECT lead_id FROM contracts WHERE id = ?', [c.origin_contract_id]) as any;
+    if (ct?.lead_id) {
+      const [[lr]] = await db.query('SELECT name, cpf_cnpj, rg, marital_status, profession, email, case_summary, cep, street, number, neighborhood, city, state FROM leads WHERE id = ?', [ct.lead_id]) as any;
+      lead = lr || null;
+    }
+  }
+
+  const nome = c.client_name || lead?.name || '';
+  const cpf = c.cpf_cnpj || lead?.cpf_cnpj || '';
+  const email = c.client_email || lead?.email || '';
+  const endereco = (c.client_address && String(c.client_address).trim()) ? c.client_address : (montarEndereco(lead || {}) || '');
+  const partes = [
+    nome, 'brasileiro(a)', lead?.marital_status || '', lead?.profession || '',
+    lead?.rg ? `portador(a) do RG nº ${lead.rg}` : '',
+    cpf ? `inscrito(a) no CPF nº ${cpf}` : '',
+    endereco ? `residente e domiciliado(a) em ${endereco}` : '',
+    email ? `e-mail: ${email}` : '',
+  ].filter((x) => x && String(x).trim());
+  const header = { nome, estado_civil: lead?.marital_status || '', profissao: lead?.profession || '', rg: lead?.rg || '', cpf, endereco, email, qualificacao: partes.join(', ') };
+
+  const [notes] = await db.query(
+    `SELECT id, kind, text, author_name, resolved, resolved_at, created_at
+       FROM production_notes WHERE case_id = ? ORDER BY created_at DESC`, [id]
+  ) as any;
+
+  res.json({
+    production_stage: c.production_stage, production_started_at: c.production_started_at,
+    production_labels: c.production_labels, production_assignee: c.production_assignee,
+    case_summary: lead?.case_summary || c.description || '',
+    header, notes,
+  });
+});
+
+// ── PATCH /api/cases/:id/production-meta — etiquetas e responsável ───────────
+router.patch('/:id/production-meta', async (req: Request, res: Response) => {
+  const { labels, assignee } = req.body;
+  const sets: string[] = []; const params: any[] = [];
+  if (labels !== undefined) { sets.push('production_labels = ?'); params.push(Array.isArray(labels) ? JSON.stringify(labels) : null); }
+  if (assignee !== undefined) { sets.push('production_assignee = ?'); params.push(assignee || null); }
+  if (!sets.length) { res.status(400).json({ error: 'Nada para atualizar' }); return; }
+  params.push(req.params.id);
+  await db.query(`UPDATE cases SET ${sets.join(', ')} WHERE id = ?`, params);
+  res.json({ success: true });
+});
+
+// ── POST /api/cases/:id/production-notes — observação/pendência/atualização ──
+router.post('/:id/production-notes', async (req: Request, res: Response) => {
+  const { kind, text } = req.body;
+  const k = ['observacao', 'pendencia', 'atualizacao'].includes(kind) ? kind : 'observacao';
+  if (!text || !String(text).trim()) { res.status(400).json({ error: 'Escreva o texto' }); return; }
+  const [r] = await db.query(
+    'INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, ?, ?, ?)',
+    [req.params.id, req.user!.id, req.user!.name, k, String(text).trim()]
+  ) as any;
+  res.status(201).json({ id: r.insertId });
+});
+
+// ── PATCH /api/cases/production-notes/:noteId/resolve — resolve pendência ────
+router.patch('/production-notes/:noteId/resolve', async (req: Request, res: Response) => {
+  await db.query("UPDATE production_notes SET resolved = 1, resolved_at = NOW() WHERE id = ?", [req.params.noteId]);
+  res.json({ success: true });
 });
 
 // ── GET /api/cases/:id — detalhe com movimentações e resumo ─────────────────
