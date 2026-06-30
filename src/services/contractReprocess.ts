@@ -47,7 +47,7 @@ export async function reprocessContract(contractId: number, userId?: number): Pr
   const content = buildTemplate({ party, area, value: valor, formaPagamento: formaPagamentoTexto(parcelamento), honorarios, tipoCausa: prop?.tipo_causa, descricao: prop?.description || lead?.case_summary, contratada: adv });
   await db.query(
     'UPDATE contracts SET content = ?, procuracao_content = ?, declaracao_content = ?, value = COALESCE(?, value) WHERE id = ?',
-    [content, buildProcuracao(party, adv), buildDeclaracao(party), valor ?? null, contractId]
+    [content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), valor ?? null, contractId]
   );
   return true;
 }
