@@ -1662,21 +1662,42 @@ async function confirmDeadlineForm(d, onSave) {
 }
 
 async function correspondenteForm(onSave, prefill = {}) {
+  // Solicitantes/pagadores já usados — para repetir sem redigitar.
+  const solicitantes = await api('/api/correspondente/solicitantes').catch(() => []);
+  const solOpts = [{ v: '', t: '— Novo solicitante —' }].concat(
+    solicitantes.map((s, i) => ({ v: String(i), t: `${s.payer_name}${s.requesting_office ? ' — ' + s.requesting_office : ''}${s.usos > 1 ? ` (${s.usos}x)` : ''}` }))
+  );
   const form = el(`<form class="form-grid">
     <div class="form-row">${field('Data e hora *', 'hearing_datetime', { type: 'datetime-local', value: prefill.hearing_datetime || '' })}${field('Atuação', 'role', { options: [{ v: 'advogado', t: 'Advogado' }, { v: 'preposto', t: 'Preposto' }] })}</div>
     <div class="form-row">${field('Processo', 'process_number')}${field('Comarca', 'comarca')}</div>
     <div class="form-row">${field('Vara', 'vara')}${field('Fórum / link', 'location')}</div>
+    <div><strong style="color:var(--navy)">Quem solicitou / paga</strong></div>
+    ${solicitantes.length ? field('Repetir solicitante já usado', 'sol_pick', { options: solOpts }) : ''}
     ${field('Escritório/advogado contratante', 'requesting_office')}
-    <div><strong style="color:var(--navy)">Pagamento</strong></div>
     ${field('Pagador (empresa ou pessoa) *', 'payer_name')}
     <div class="form-row">${field('Tipo', 'payer_type', { options: [{ v: 'PJ', t: 'Empresa (PJ)' }, { v: 'PF', t: 'Pessoa (PF)' }] })}${field('CNPJ/CPF', 'payer_document')}</div>
+    <div><strong style="color:var(--navy)">Pagamento</strong></div>
     <div class="form-row">${field('Valor da audiência *', 'value', { type: 'number' })}${field('Vencimento', 'due_date', { type: 'date' })}</div>
     ${field('Observações', 'notes', { type: 'textarea' })}
     <button type="submit" class="btn-primary">Registrar audiência</button>
   </form>`);
+
+  // Ao escolher um solicitante já usado, preenche os campos do pagador.
+  const pick = form.querySelector('[name=sol_pick]');
+  if (pick) pick.onchange = () => {
+    const s = solicitantes[Number(pick.value)];
+    if (!s) return;
+    const set = (n, v) => { const inp = form.querySelector(`[name=${n}]`); if (inp) inp.value = v || ''; };
+    set('requesting_office', s.requesting_office);
+    set('payer_name', s.payer_name);
+    set('payer_type', s.payer_type || 'PJ');
+    set('payer_document', s.payer_document);
+  };
+
   form.onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form));
+    delete body.sol_pick; // campo auxiliar, não vai para a API
     if (prefill.calendar_event_id) body.calendar_event_id = prefill.calendar_event_id;
     try { await api('/api/correspondente', { method: 'POST', body: JSON.stringify(body) });
       closeModal(); toast('Audiência registrada e agendada'); onSave(); }

@@ -44,6 +44,22 @@ router.get('/summary', async (_req: Request, res: Response) => {
   res.json(s);
 });
 
+// ── GET /api/correspondente/solicitantes — pagadores/solicitantes já usados ──
+// Para sugerir no formulário: "é o mesmo parceiro pagador?". Devolve as
+// combinações distintas (solicitante + pagador), das mais usadas/recentes.
+router.get('/solicitantes', async (_req: Request, res: Response) => {
+  const [rows] = await db.query(`
+    SELECT requesting_office, payer_name, payer_type, payer_document,
+           COUNT(*) AS usos, MAX(created_at) AS ultimo
+      FROM correspondent_hearings
+     WHERE payer_name IS NOT NULL AND payer_name <> ''
+     GROUP BY requesting_office, payer_name, payer_type, payer_document
+     ORDER BY usos DESC, ultimo DESC
+     LIMIT 50
+  `) as any;
+  res.json(rows);
+});
+
 // ── GET /api/correspondente — lista com filtros ─────────────────────────────
 router.get('/', async (req: Request, res: Response) => {
   const status = req.query.status as string;
