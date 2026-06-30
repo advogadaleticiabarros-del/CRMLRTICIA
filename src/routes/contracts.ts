@@ -82,6 +82,7 @@ router.get('/:id/party', async (req: Request, res: Response) => {
     rg: lead?.rg || '',
     estado_civil: lead?.marital_status || '',
     profissao: lead?.profession || '',
+    email: client?.email || lead?.email || '',
     endereco: (client?.address && client.address.trim()) ? client.address : (montarEndereco(lead || {}) || ''),
     dependentes: Array.isArray(dependentes) ? dependentes : [],
     tipo_causa: tipoCausa,
@@ -113,6 +114,7 @@ router.post('/:id/gerar-menor', async (req: Request, res: Response) => {
     cpf: client?.cpf_cnpj || lead?.cpf_cnpj || null,
     rg: b.responsavel_rg || lead?.rg || null,
     estadoCivil: lead?.marital_status, profissao: lead?.profession,
+    email: client?.email || lead?.email || null,
     endereco: (client?.address && client.address.trim()) ? client.address : (montarEndereco(lead || {}) || null),
   };
   let honorarios: any = null;
@@ -191,9 +193,9 @@ router.post('/', async (req: Request, res: Response) => {
   let clientName = '';
   let party: PartyData = {};
   if (client_id) {
-    const [c] = await db.query('SELECT name, cpf_cnpj, address FROM clients WHERE id = ?', [client_id]) as any;
+    const [c] = await db.query('SELECT name, cpf_cnpj, address, email FROM clients WHERE id = ?', [client_id]) as any;
     clientName = c[0]?.name ?? '';
-    party = { name: clientName, cpf: c[0]?.cpf_cnpj, endereco: montarEndereco(c[0] || {}) };
+    party = { name: clientName, cpf: c[0]?.cpf_cnpj, email: c[0]?.email || null, endereco: montarEndereco(c[0] || {}) };
   }
   const adv = await getEscritorio();
   const finalContent = content || buildTemplate({ party, area: finalArea, value, contratada: adv });

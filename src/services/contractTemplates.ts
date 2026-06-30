@@ -63,7 +63,7 @@ function f(p: PartyData) {
 /** Qualificação completa da parte (sem estado civil/RG, conforme padrão do escritório). */
 function qualificacao(p: ReturnType<typeof f>): string {
   let q = `${p.nome}, ${p.nac}, ${p.prof}, inscrito(a) no CPF nº ${p.cpf}, residente e domiciliado(a) na ${p.end}`;
-  if (p.email) q += `, endereço eletrônico: ${p.email}`;
+  q += `, endereço eletrônico: ${p.email || '[e-mail]'}`;
   if (p.phone) q += `, telefone: ${p.phone}`;
   return q;
 }

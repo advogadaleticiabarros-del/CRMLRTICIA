@@ -3415,7 +3415,8 @@ async function contractEditor(id, onSave) {
     <div id="complete-panel" class="complete-panel" style="display:none">
       <strong class="cp-grp">Dados da parte (cliente)</strong>
       <div class="form-row">${field('Nacionalidade', 'c_nac', { value: 'brasileiro(a)' })}${field('Profissão', 'c_prof')}</div>
-      <div class="form-row">${field('CPF', 'c_cpf')}${field('Endereço completo', 'c_end')}</div>
+      <div class="form-row">${field('CPF', 'c_cpf')}${field('E-mail', 'c_email', { type: 'email' })}</div>
+      ${field('Endereço completo', 'c_end')}
       <strong class="cp-grp">Data e pagamento</strong>
       <div class="form-row">${field('Data', 'o_data')}${field('Forma de pagamento / parcelas', 'o_forma')}</div>
       <button type="button" class="btn-primary" id="apply-complete">Aplicar aos documentos</button>
@@ -3505,7 +3506,7 @@ async function contractEditor(id, onSave) {
   // Pré-preenche os dados da PARTE já cadastrados (lead + cliente) — sem retrabalho
   api(`/api/contracts/${id}/party`).then((pt) => {
     const set = (n, v) => { const inp = wrap.querySelector(`[name=${n}]`); if (inp && !inp.value && v) inp.value = v; };
-    set('c_cpf', pt.cpf); set('c_prof', pt.profissao); set('c_end', pt.endereco);
+    set('c_cpf', pt.cpf); set('c_prof', pt.profissao); set('c_end', pt.endereco); set('c_email', pt.email);
     set('o_forma', pt.forma_pagamento);
     set('responsavel_rg', pt.rg); set('tipo_acao', pt.tipo_causa);
     if (pt.dependentes && pt.dependentes.length) {
@@ -3518,7 +3519,7 @@ async function contractEditor(id, onSave) {
 
   wrap.querySelector('#apply-complete').onclick = () => {
     const map = {
-      '[nacionalidade]': 'c_nac', '[profissão]': 'c_prof', '[CPF]': 'c_cpf',
+      '[nacionalidade]': 'c_nac', '[profissão]': 'c_prof', '[CPF]': 'c_cpf', '[e-mail]': 'c_email',
       '[ENDEREÇO]': 'c_end', '[DATA]': 'o_data', '[FORMA DE PAGAMENTO / PARCELAS]': 'o_forma',
     };
     let count = 0;
