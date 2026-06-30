@@ -132,4 +132,58 @@ router.get('/:id/cases', async (req: Request, res: Response) => {
   res.json(rows);
 });
 
+// ── POST /api/partners/cases/:caseId/resultado — êxito/sucumbência + repasse ─
+// Calcula a receita do escritório e o repasse ao parceiro conforme o acordo:
+// - êxito: receita = ganho × success_fee% (ex.: 30%); repasse = receita × split% (50%).
+// - sucumbência: receita = valor recebido; repasse = valor × sucumbencia_split% (50%).
+router.post('/cases/:caseId/resultado', async (req: Request, res: Response) => {
+  const kind = req.body?.kind === 'sucumbencia' ? 'sucumbencia' : 'exito';
+  const val = Number(req.body?.amount) || 0;
+  if (val <= 0) { res.status(400).json({ error: 'Informe o valor (maior que zero)' }); return; }
+
+  const [[c]] = await db.query(`
+    SELECT c.id, c.client_id, cl.name AS client_name, c.partner_id,
+           p.name AS partner_name, p.success_fee_percent, p.partner_split_percent, p.sucumbencia_split_percent
+      FROM cases c
+      LEFT JOIN clients cl ON cl.id = c.client_id
+      LEFT JOIN partners p ON p.id = c.partner_id
+     WHERE c.id = ?`, [req.params.caseId]) as any;
+  if (!c || !c.partner_id) { res.status(404).json({ error: 'Caso de parceria não encontrado' }); return; }
+
+  let receita = 0, repasse = 0, desc = '', pct = 0;
+  if (kind === 'sucumbencia') {
+    pct = Number(c.sucumbencia_split_percent) || 50;
+    receita = val;
+    repasse = val * pct / 100;
+    desc = `Sucumbência — ${c.client_name}`;
+  } else {
+    const feePct = Number(c.success_fee_percent) || 30;
+    pct = Number(c.partner_split_percent) || 50;
+    receita = val * feePct / 100;       // o escritório recebe o % do êxito
+    repasse = receita * pct / 100;      // metade desse % vai ao parceiro
+    desc = `Êxito (${feePct}% sobre R$ ${val.toFixed(2)}) — ${c.client_name}`;
+  }
+  receita = Math.round(receita * 100) / 100;
+  repasse = Math.round(repasse * 100) / 100;
+
+  await db.query(
+    `INSERT INTO financial_records (user_id, client_id, case_id, tipo, description, valor, status, due_date)
+     VALUES (?, ?, ?, 'receita', ?, ?, 'pendente', CURDATE())`,
+    [req.user!.id, c.client_id, c.id, desc, receita]
+  );
+  await db.query(
+    `INSERT INTO repasses (case_id, parceiro, tipo, valor, percentual, descricao, status, data_vencimento)
+     VALUES (?, ?, 'indicacao', ?, ?, ?, 'pendente', CURDATE())`,
+    [c.id, c.partner_name, repasse, pct, `Repasse ${kind === 'sucumbencia' ? 'sucumbência' : 'êxito'} — ${c.client_name}`]
+  );
+
+  await logTimeline({
+    clientId: c.client_id, caseId: c.id, eventType: `parceria_${kind}`,
+    description: `${kind === 'sucumbencia' ? 'Sucumbência' : 'Êxito'} registrado: receita R$ ${receita.toFixed(2)} · repasse ${c.partner_name} R$ ${repasse.toFixed(2)}.`,
+    userId: req.user!.id,
+  });
+
+  res.json({ success: true, receita, repasse });
+});
+
 export default router;

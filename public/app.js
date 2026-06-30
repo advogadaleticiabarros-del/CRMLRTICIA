@@ -1077,7 +1077,7 @@ const ROUTES = {
         Entrada R$ ${Number(p.entry_value_single).toFixed(2)} (1 proc.) / R$ ${Number(p.entry_value_double).toFixed(2)} (2 proc.)${Number(p.entry_split) ? ' · dividida' : ' · 100% sua'}</div>`;
       const cases = await api(`/api/partners/${p.id}/cases`).catch(() => []);
       $('#parc-cases').innerHTML = cases.length ? `
-        <table><thead><tr><th>Cliente</th><th>Processo</th><th>Etapa</th><th>SLA</th><th>Receita</th><th>Repasse parceiro</th></tr></thead>
+        <table><thead><tr><th>Cliente</th><th>Processo</th><th>Etapa</th><th>SLA</th><th>Receita</th><th>Repasse parceiro</th><th></th></tr></thead>
         <tbody>${cases.map((c) => {
           const atras = !['protocolado', 'concluido'].includes(c.production_stage) && Number(c.sla_days) > 10;
           return `<tr style="cursor:pointer" data-case="${c.id}">
@@ -1086,9 +1086,11 @@ const ROUTES = {
             <td>${STAGE_PT[c.production_stage] || c.production_stage || '—'}</td>
             <td style="color:${atras ? 'var(--red)' : 'var(--text)'}">${['protocolado', 'concluido'].includes(c.production_stage) ? '✓' : (c.sla_days ?? 0) + '/10d'}</td>
             <td>${money(c.receita)}</td>
-            <td>${money(c.repasse_parceiro)}</td></tr>`;
+            <td>${money(c.repasse_parceiro)}</td>
+            <td style="white-space:nowrap"><button class="btn-sm" data-result="${c.id}" data-name="${esc(c.client_name || '')}">Êxito / Sucumb.</button></td></tr>`;
         }).join('')}</tbody></table>` : '<div class="empty">Nenhum caso desta parceria ainda. Clique em "+ Novo caso de parceria".</div>';
-      $('#parc-cases').querySelectorAll('[data-case]').forEach((tr) => tr.onclick = () => caseDetail(tr.dataset.case, loadCases));
+      $('#parc-cases').querySelectorAll('[data-result]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); resultadoForm(b.dataset.result, b.dataset.name, loadCases); });
+      $('#parc-cases').querySelectorAll('[data-case]').forEach((tr) => tr.onclick = (e) => { if (e.target.closest('[data-result]')) return; caseDetail(tr.dataset.case, loadCases); });
     };
     sel.onchange = loadCases;
     $('#new-parc-case').onclick = () => parceriaCaseForm(partners, sel.value, loadCases);
@@ -1828,6 +1830,26 @@ function parceriaCaseForm(partners, defaultPartnerId, onSave) {
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Novo caso de parceria', form);
+}
+
+function resultadoForm(caseId, clientName, onSave) {
+  const form = el(`<form class="form-grid">
+    <p class="sub">${esc(clientName || '')}</p>
+    ${field('Tipo de resultado', 'kind', { options: [{ v: 'exito', t: 'Êxito (% sobre o ganho)' }, { v: 'sucumbencia', t: 'Sucumbência' }] })}
+    ${field('Valor *', 'amount', { type: 'number' })}
+    <p class="sub">No êxito, informe o <strong>valor ganho no processo</strong> (o sistema aplica o % do acordo). Na sucumbência, o <strong>valor recebido</strong>. A receita do escritório e o repasse ao parceiro (50/50) são lançados automaticamente.</p>
+    <button type="submit" class="btn-primary">Registrar resultado</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const b = Object.fromEntries(new FormData(form));
+    if (!Number(b.amount)) { toast('Informe o valor', 'error'); return; }
+    try {
+      const r = await api(`/api/partners/cases/${caseId}/resultado`, { method: 'POST', body: JSON.stringify({ kind: b.kind, amount: b.amount }) });
+      closeModal(); toast(`Receita ${money(r.receita)} · repasse ao parceiro ${money(r.repasse)}`); onSave && onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Registrar resultado (êxito/sucumbência)', form);
 }
 
 function kpi(label, value, cls = '') {
