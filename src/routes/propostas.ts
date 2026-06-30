@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
+import { sendProposalLink, isEmailConfigured } from '../services/EmailService';
 
 const router = Router();
 
@@ -245,6 +246,32 @@ router.post('/:id/share', async (req: Request, res: Response) => {
     await db.query('UPDATE propostas SET public_token = ? WHERE id = ?', [token, req.params.id]);
   }
   res.json({ token });
+});
+
+// ── POST /api/propostas/:id/send-email — envia a proposta por e-mail ao cliente ─
+router.post('/:id/send-email', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT p.public_token, p.title, COALESCE(p.email, cl.email) AS email,
+            COALESCE(p.contact_name, cl.name) AS name
+     FROM propostas p LEFT JOIN clients cl ON cl.id = p.client_id WHERE p.id = ?`,
+    [req.params.id]
+  ) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
+  const p = rows[0];
+
+  const to = (req.body?.email || p.email || '').trim();
+  if (!to) { res.status(400).json({ error: 'A proposta não tem e-mail do cliente. Informe um e-mail.' }); return; }
+  if (!isEmailConfigured()) { res.status(503).json({ error: 'Envio de e-mail ainda não configurado no servidor (SMTP).' }); return; }
+
+  let token = p.public_token;
+  if (!token) {
+    token = crypto.randomUUID();
+    await db.query('UPDATE propostas SET public_token = ? WHERE id = ?', [token, req.params.id]);
+  }
+  const url = `https://crm.advogadaleticiabarros.com.br/proposta.html?t=${token}`;
+  const r = await sendProposalLink(to, p.name, url, p.title);
+  if (!r.ok) { res.status(400).json({ error: r.error || 'Falha ao enviar e-mail' }); return; }
+  res.json({ success: true, to });
 });
 
 export default router;

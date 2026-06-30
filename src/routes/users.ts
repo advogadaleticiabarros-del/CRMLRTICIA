@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { db } from '../config/database';
+import { sendNewPassword, sendCredentials, isEmailConfigured } from '../services/EmailService';
 
 const router = Router();
 
@@ -57,7 +58,12 @@ router.post('/', async (req: Request, res: Response) => {
      role === 'cliente' ? client_id : null]
   ) as any;
 
-  res.status(201).json({ id: result.insertId, name, email, role });
+  // Envia as credenciais por e-mail (se o e-mail estiver configurado no servidor).
+  let emailed = false;
+  const r = await sendCredentials(email, name, password).catch(() => ({ ok: false }));
+  emailed = !!r.ok;
+
+  res.status(201).json({ id: result.insertId, name, email, role, emailed });
 });
 
 // ── PUT /api/users/:id — editar papel/comissão/ativo ────────────────────────
@@ -103,11 +109,16 @@ router.post('/:id/reset-password', async (req: Request, res: Response) => {
   }
   const senha = provided ? String(provided) : gerarSenha();
   const hash = await bcrypt.hash(senha, 10);
-  const [result] = await db.query('UPDATE users SET password = ? WHERE id = ?', [hash, req.params.id]) as any;
-  if (!result.affectedRows) { res.status(404).json({ error: 'Usuário não encontrado' }); return; }
+  const [users] = await db.query('SELECT name, email FROM users WHERE id = ?', [req.params.id]) as any;
+  if (!users.length) { res.status(404).json({ error: 'Usuário não encontrado' }); return; }
+  await db.query('UPDATE users SET password = ? WHERE id = ?', [hash, req.params.id]);
   // Marca eventuais pedidos de recuperação como resolvidos.
   try { await db.query("UPDATE password_reset_requests SET status = 'resolvido', resolved_by = ?, resolved_at = NOW() WHERE user_id = ? AND status = 'aberto'", [req.user!.id, req.params.id]); } catch {}
-  res.json({ success: true, generated: !provided, password: provided ? undefined : senha });
+
+  // Envia a nova senha por e-mail (se configurado). Continua devolvendo ao admin como fallback.
+  const r = await sendNewPassword(users[0].email, users[0].name, senha).catch(() => ({ ok: false }));
+
+  res.json({ success: true, generated: !provided, password: provided ? undefined : senha, emailed: !!r.ok });
 });
 
 export default router;

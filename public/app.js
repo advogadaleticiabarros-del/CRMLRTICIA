@@ -2740,6 +2740,7 @@ async function propostaDetail(id, onSave) {
         <input id="prop-link" readonly value="" style="flex:1;font-size:12px">
         <button class="btn-sm" id="prop-copy" type="button">Copiar</button>
         <button class="btn-gold btn-sm" id="prop-wpp" type="button">WhatsApp</button>
+        <button class="btn-sm" id="prop-email" type="button">E-mail</button>
         <button class="btn-sm" id="prop-pdf" type="button">Baixar PDF</button>
       </div>
     </div>
@@ -2777,6 +2778,14 @@ async function propostaDetail(id, onSave) {
         window.open(wa, '_blank');
       };
       form.querySelector('#prop-pdf').onclick = () => window.open(link + '&pdf=1', '_blank');
+      form.querySelector('#prop-email').onclick = async () => {
+        let to = (p.email || '').trim();
+        if (!to) to = (prompt('E-mail do cliente para enviar a proposta:') || '').trim();
+        if (!to) return;
+        try { const r = await api(`/api/propostas/${id}/send-email`, { method: 'POST', body: JSON.stringify({ email: to }) });
+          toast('Proposta enviada para ' + r.to); }
+        catch (e) { toast(e.message === 'Envio de e-mail ainda não configurado no servidor (SMTP).' ? 'E-mail ainda não configurado (Configurações do servidor)' : e.message, 'error'); }
+      };
     } catch { const inp = form.querySelector('#prop-link'); if (inp) inp.value = 'erro ao gerar link'; }
   })();
 
