@@ -129,7 +129,7 @@ router.post('/:id/gerar-menor', async (req: Request, res: Response) => {
   });
   await db.query(
     'UPDATE contracts SET content = ?, procuracao_content = ?, declaracao_content = ? WHERE id = ?',
-    [content, buildProcuracaoMenor(party, menor, adv), buildDeclaracaoMenor(party, menor), req.params.id]
+    [content, buildProcuracaoMenor(party, menor, adv), buildDeclaracaoMenor(party, menor, { trabalhista: ct.area === 'trabalhista' }), req.params.id]
   );
   res.json({ success: true });
 });
@@ -169,7 +169,7 @@ router.post('/from-lead/:leadId', async (req: Request, res: Response) => {
     `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'rascunho')`,
     [req.user!.id, lead.client_id ?? null, leadId, area,
-     `Contrato — ${lead.name}`, content, buildProcuracao(party, adv), buildDeclaracao(party), req.body.value ?? null]
+     `Contrato — ${lead.name}`, content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), req.body.value ?? null]
   ) as any;
 
   await db.query("UPDATE leads SET status = 'fechada', analise_since = NULL WHERE id = ?", [leadId]);
@@ -202,7 +202,7 @@ router.post('/', async (req: Request, res: Response) => {
     `INSERT INTO contracts (user_id, client_id, area, title, content, procuracao_content, declaracao_content, value, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'rascunho')`,
     [req.user!.id, client_id ?? null, finalArea, title || `Contrato — ${clientName || finalArea}`,
-     finalContent, buildProcuracao(party, adv), buildDeclaracao(party), value ?? null]
+     finalContent, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista: finalArea === 'trabalhista' }), value ?? null]
   ) as any;
   const [rows] = await db.query('SELECT * FROM contracts WHERE id = ?', [result.insertId]) as any;
   res.status(201).json(rows[0]);

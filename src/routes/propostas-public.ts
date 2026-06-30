@@ -100,7 +100,7 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
       `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'em_producao')`,
       [p.user_id, clientId, p.lead_id ?? null, area, `Contrato — ${nome || 'cliente'}`,
-       content, buildProcuracao(party, adv), buildDeclaracao(party), valorContrato || null]
+       content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), valorContrato || null]
     ) as any;
     contractId = c.insertId;
   }

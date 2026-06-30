@@ -108,13 +108,25 @@ ${p.nome}
 CPF nº ${p.cpf}`;
 }
 
-export function buildDeclaracao(party: PartyData | string): string {
+/**
+ * Fundamentação legal da gratuidade conforme a justiça competente.
+ * - Justiça Comum (padrão): arts. 98 e 99 do CPC + art. 5º, LXXIV, da CF.
+ * - Justiça do Trabalho: art. 790, §§ 3º e 4º, da CLT.
+ * Não se citam as duas bases na mesma declaração.
+ */
+export function fundamentoGratuidade(trabalhista?: boolean): string {
+  return trabalhista
+    ? 'A presente declaração é feita nos termos do art. 790, §§ 3º e 4º, da Consolidação das Leis do Trabalho (CLT).'
+    : 'A presente declaração é feita nos termos dos arts. 98 e 99 do Código de Processo Civil e do art. 5º, inciso LXXIV, da Constituição Federal.';
+}
+
+export function buildDeclaracao(party: PartyData | string, opts: { trabalhista?: boolean } = {}): string {
   const p = typeof party === 'string' ? f({ name: party }) : f(party);
   return `DECLARAÇÃO DE HIPOSSUFICIÊNCIA
 
 Eu, ${qualificacao(p)}, DECLARO para os devidos fins, sob as penas da lei, que não possuo condições financeiras de arcar com as custas, despesas processuais e honorários advocatícios sem prejuízo do meu sustento e de minha família.
 
-A presente declaração é feita nos termos do art. 98 e seguintes do Código de Processo Civil, bem como do art. 790, §§ 3º e 4º, da Consolidação das Leis do Trabalho (CLT).
+${fundamentoGratuidade(opts.trabalhista)}
 
 ${FORO}, [DATA].
 
@@ -259,13 +271,13 @@ Representante legal de ${mNome}`;
 }
 
 /** Declaração de hipossuficiência firmada pelo representante legal em nome do menor. */
-export function buildDeclaracaoMenor(party: PartyData, menor: MenorData): string {
+export function buildDeclaracaoMenor(party: PartyData, menor: MenorData, opts: { trabalhista?: boolean } = {}): string {
   const mNome = menor.nome || '[NOME DO MENOR]';
   return `DECLARAÇÃO DE HIPOSSUFICIÊNCIA
 
 Eu, ${qualResponsavel(party)}, na qualidade de representante legal do(a) menor ${qualMenor(menor)}, DECLARO para os devidos fins, sob as penas da lei, que o(a) representado(a) não possui condições financeiras de arcar com as custas, despesas processuais e honorários advocatícios sem prejuízo do próprio sustento e de sua família.
 
-A presente declaração é feita nos termos do art. 98 e seguintes do Código de Processo Civil, bem como do art. 790, §§ 3º e 4º, da Consolidação das Leis do Trabalho (CLT), quando aplicável.
+${fundamentoGratuidade(opts.trabalhista)}
 
 ${FORO}, [DATA].
 
