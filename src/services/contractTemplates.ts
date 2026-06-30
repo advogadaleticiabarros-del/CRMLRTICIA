@@ -117,16 +117,40 @@ CPF nº ${p.cpf}`;
 export function fundamentoGratuidade(trabalhista?: boolean): string {
   return trabalhista
     ? 'A presente declaração é feita nos termos do art. 790, §§ 3º e 4º, da Consolidação das Leis do Trabalho (CLT).'
-    : 'A presente declaração é feita nos termos dos arts. 98 e 99 do Código de Processo Civil e do art. 5º, inciso LXXIV, da Constituição Federal.';
+    : 'Pleiteio os benefícios da Justiça Gratuita, com fulcro no artigo 5º, inciso LXXIV, da Constituição Federal, combinado com os artigos 98 e 99 da Lei nº 13.105/2015 (Código de Processo Civil) e, se perante os Juizados Especiais, com os artigos 54 e 55 da Lei nº 9.099/1995.';
 }
 
 export function buildDeclaracao(party: PartyData | string, opts: { trabalhista?: boolean } = {}): string {
   const p = typeof party === 'string' ? f({ name: party }) : f(party);
-  return `DECLARAÇÃO DE HIPOSSUFICIÊNCIA
+  // Justiça do Trabalho: fundamentação da CLT.
+  if (opts.trabalhista) {
+    return `DECLARAÇÃO DE HIPOSSUFICIÊNCIA
 
-Eu, ${qualificacao(p)}, DECLARO para os devidos fins, sob as penas da lei, que não possuo condições financeiras de arcar com as custas, despesas processuais e honorários advocatícios sem prejuízo do meu sustento e de minha família.
+Eu, ${qualificacao(p)}, DECLARO para os devidos fins, sob as penas da lei, que não possuo condições financeiras de arcar com as custas e despesas processuais sem prejuízo do meu sustento e de minha família.
 
-${fundamentoGratuidade(opts.trabalhista)}
+${fundamentoGratuidade(true)}
+
+Declaro, ainda, estar ciente de que a falsidade das informações aqui prestadas me sujeitará às sanções civis, administrativas e penais previstas na legislação vigente.
+
+Por ser a expressão da verdade, firmo a presente.
+
+${FORO}, [DATA].
+
+
+_______________________________________
+${p.nome}
+CPF nº ${p.cpf}`;
+  }
+  // Justiça Comum / Juizados Especiais.
+  return `DECLARAÇÃO DE HIPOSSUFICIÊNCIA ECONÔMICA
+
+Eu, ${qualificacao(p)}, por este instrumento particular, DECLARO, para os devidos fins de direito e sob as penas da lei, que não possuo condições financeiras de arcar com o pagamento de custas processuais e honorários advocatícios sem prejuízo do meu próprio sustento e de minha família.
+
+${fundamentoGratuidade(false)}
+
+Declaro, ainda, estar ciente de que a falsidade das informações aqui prestadas me sujeitará às sanções civis, administrativas e penais previstas na legislação vigente.
+
+Por ser a expressão da verdade, firmo a presente.
 
 ${FORO}, [DATA].
 
