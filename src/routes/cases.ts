@@ -52,6 +52,25 @@ router.get('/', async (req: Request, res: Response) => {
   res.json({ data: rows, total, page, limit, pages: Math.ceil(total / limit) });
 });
 
+// ── GET /api/cases/production-board — quadro Kanban da produção (com SLA) ────
+router.get('/production-board', async (_req: Request, res: Response) => {
+  const [rows] = await db.query(`
+    SELECT c.id, c.case_number, c.title, c.legal_area, c.production_stage,
+           c.production_started_at, c.production_labels,
+           DATEDIFF(NOW(), c.production_started_at) AS sla_days,
+           cl.name AS client_name,
+           u.name  AS assignee_name,
+           (SELECT COUNT(*) FROM production_notes pn
+             WHERE pn.case_id = c.id AND pn.kind = 'pendencia' AND pn.resolved = 0) AS pendencias
+      FROM cases c
+      LEFT JOIN clients cl ON cl.id = c.client_id
+      LEFT JOIN users   u  ON u.id  = c.production_assignee
+     WHERE c.production_stage IS NOT NULL
+     ORDER BY c.production_started_at ASC
+  `) as any;
+  res.json(rows);
+});
+
 // ── GET /api/cases/:id — detalhe com movimentações e resumo ─────────────────
 router.get('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -200,8 +219,9 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   }
 
   const finalCaseNumber = (case_number && String(case_number).trim()) ? case_number.trim() : c.case_number;
+  // Marca o início da produção (SLA total) na primeira vez que entra na esteira.
   await db.query(
-    'UPDATE cases SET production_stage = ?, case_number = ? WHERE id = ?',
+    'UPDATE cases SET production_stage = ?, case_number = ?, production_started_at = COALESCE(production_started_at, NOW()) WHERE id = ?',
     [stage, finalCaseNumber, id]
   );
 

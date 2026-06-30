@@ -65,14 +65,14 @@ const NAV_LABELS = {
   agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Controladoria', correspondente: 'Correspondente',
   documentos: 'Documentos', ia: 'IA Jurídica', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
   contratos: 'Contratos', intakes: 'Novo Atendimento',
-  monitor: 'Monitoramento', fases: 'Fases (Kanban)', advogados: 'Advogados/OAB',
+  monitor: 'Monitoramento', fases: 'Fases (Kanban)', producao: 'Produção', advogados: 'Advogados/OAB',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
 };
 const NAV_BY_ROLE = {
-  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
-  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
-  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
-  estagiario: ['cases','prazos','agenda'],
+  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  estagiario: ['producao','cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
 };
@@ -82,7 +82,7 @@ function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; 
 const NAV_ICONS = {
   dashboard: '🏠', agenda: '📅', cases: '⚖️', prazos: '⏰', clients: '👥',
   financeiro: '💰', propostas: '📄', leads: '📋', intakes: '➕', documentos: '📁',
-  ia: '✨', monitor: '🔍', fases: '🗂️', controladoria: '📊', correspondente: '🤝',
+  ia: '✨', monitor: '🔍', fases: '🗂️', producao: '🏭', controladoria: '📊', correspondente: '🤝',
   dativo: '⚖️', advogados: '🎓', contratos: '📝', repasses: '💸', config: '⚙️',
   portal: '⚖️', portalFinanceiro: '💰',
 };
@@ -994,6 +994,63 @@ const ROUTES = {
           toast('Sugestões aplicadas'); allBtn.disabled = false; load();
         };
       } else { allBtn.style.display = 'none'; }
+    };
+    await load();
+  },
+
+  async producao(page) {
+    const STAGES = [['separacao_documentos', 'Separação de docs'], ['criacao_inicial', 'Criação inicial'], ['revisao_inicial', 'Revisão inicial'], ['aguardando_protocolo', 'Aguardando protocolo'], ['protocolado', 'Protocolado'], ['concluido', 'Concluído']];
+    const SLAMAX = 10;
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Produção</h2><p class="sub">Esteira das peças · SLA ${SLAMAX} dias (produção total) · clique no card para abrir</p></div></div>
+      <div id="prod-kpis" class="kpi-grid"></div>
+      <div id="prod-board" class="kanban-fases"></div>`;
+    const esc2 = (s) => String(s || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+    const slaBadge = (r) => {
+      if (['protocolado', 'concluido'].includes(r.production_stage)) return `<span style="font-size:11px;font-weight:600;color:var(--green)">✓ concluído</span>`;
+      const d = Number(r.sla_days) || 0;
+      const cor = d > SLAMAX ? 'var(--red)' : (d >= 7 ? 'var(--amber)' : 'var(--green)');
+      return `<span style="font-size:11px;font-weight:700;color:${cor}">${d}/${SLAMAX}d${d > SLAMAX ? ' · atrasado' : ''}</span>`;
+    };
+    const labelsHtml = (r) => {
+      let labs = []; try { labs = Array.isArray(r.production_labels) ? r.production_labels : (r.production_labels ? JSON.parse(r.production_labels) : []); } catch {}
+      return labs.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${labs.map((l) => `<span style="font-size:10px;background:var(--gold-soft,#efe3c8);color:var(--navy);padding:1px 6px;border-radius:10px">${esc2(l)}</span>`).join('')}</div>` : '';
+    };
+    const load = async () => {
+      const rows = await api('/api/cases/production-board').catch(() => []);
+      const ativos = rows.filter((r) => !['protocolado', 'concluido'].includes(r.production_stage));
+      const atrasados = ativos.filter((r) => Number(r.sla_days) > SLAMAX).length;
+      const pend = rows.reduce((a, r) => a + Number(r.pendencias || 0), 0);
+      $('#prod-kpis').innerHTML = kpi('Em produção', ativos.length) + kpi(`Atrasados (>${SLAMAX}d)`, atrasados, atrasados ? 'red' : '') + kpi('Pendências', pend, pend ? 'amber' : '') + kpi('Total na esteira', rows.length);
+      const by = {}; STAGES.forEach(([k]) => by[k] = []);
+      rows.forEach((r) => { (by[r.production_stage] || (by[r.production_stage] = [])).push(r); });
+      $('#prod-board').innerHTML = STAGES.map(([k, label]) => `
+        <div class="kf-col">
+          <div class="kf-head">${label} <span class="kf-count">${by[k].length}</span></div>
+          <div class="kf-cards">${by[k].map((r) => `
+            <div class="kf-card" data-case="${r.id}">
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">${slaBadge(r)}${Number(r.pendencias) ? `<span style="font-size:11px;color:var(--red);font-weight:600">⚠ ${r.pendencias}</span>` : ''}</div>
+              <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
+              <small>${esc2(r.title) || r.case_number || 's/ número'}${r.legal_area ? ' · ' + r.legal_area : ''}</small>
+              ${r.assignee_name ? `<small style="color:var(--text-muted)">resp.: ${esc2(r.assignee_name)}</small>` : ''}
+              ${labelsHtml(r)}
+              <select class="kf-move" data-id="${r.id}">${STAGES.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}</select>
+            </div>`).join('') || '<div class="kf-empty">—</div>'}</div>
+        </div>`).join('');
+      $('#prod-board').querySelectorAll('.kf-move').forEach((el2) => el2.onclick = (e) => e.stopPropagation());
+      $('#prod-board').querySelectorAll('.kf-move').forEach((sel) => sel.onchange = async () => {
+        try {
+          const extra = {};
+          if (sel.value === 'protocolado') {
+            const num = prompt('Número do processo/protocolo para protocolar:');
+            if (!num) { load(); return; }
+            extra.case_number = num;
+          }
+          await api(`/api/cases/${sel.dataset.id}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage: sel.value, ...extra }) });
+          toast('Etapa atualizada'); load();
+        } catch (e) { toast(e.message, 'error'); load(); }
+      });
+      $('#prod-board').querySelectorAll('.kf-card').forEach((card) => card.onclick = (e) => { if (e.target.closest('.kf-move')) return; caseDetail(card.dataset.case, load); });
     };
     await load();
   },
