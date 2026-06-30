@@ -51,6 +51,7 @@ import pushRoutes from './routes/push';
 import signPublicRoutes from './routes/sign-public';
 import propostaPublicRoutes from './routes/propostas-public';
 import backupRoutes from './routes/backup';
+import briefingRoutes from './routes/briefing';
 import { googleOAuthCallback } from './routes/google-callback';
 
 export function createApp() {
@@ -106,6 +107,7 @@ export function createApp() {
   app.use('/api/contracts',             authenticate, requireStaff, contractRoutes);
   app.use('/api/lawyers',               authenticate, requireAdmin, lawyerRoutes);
   app.use('/api/backup',                authenticate, requireAdmin, backupRoutes);
+  app.use('/api/briefing',              authenticate, requireAdmin, briefingRoutes);
   app.use('/api/processes',             authenticate, requireStaff, processRoutes);
   app.use('/api/prazos-detectados',     authenticate, requireStaff, detectedDeadlineRoutes);
   app.use('/api/journey',               authenticate, requireStaff, journeyRoutes);

@@ -6,8 +6,14 @@ import { calendarSyncService } from '../services/CalendarSyncService';
 import { telegramNotificationService } from '../services/TelegramNotificationService';
 import { runMonitoringJob, runDiscoveryJob } from '../services/monitoringService';
 import { runBackup } from '../services/backupService';
+import { sendMorningBriefings } from '../services/morningBriefingService';
 
 export function startCronJobs() {
+  // ── Resumo matinal por e-mail às 08:00 (horário de Brasília) ──────────────
+  cron.schedule('0 8 * * *', async () => {
+    try { await sendMorningBriefings(); } catch {}
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── a cada 5 min: atualiza contadores de prazos ──────────────────────────
   cron.schedule('*/5 * * * *', async () => {
     try {
