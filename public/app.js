@@ -3758,12 +3758,19 @@ async function lawyerForm(id, onSave) {
 function formatDocHtml(text) {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const lines = String(text || '').split('\n');
-  let html = ''; let inSig = false; let titleDone = false;
+  let html = ''; let inSig = false; let sigOpen = false; let titleDone = false;
+  const closeSig = () => { if (sigOpen) { html += '</div>'; sigOpen = false; } };
   for (const raw of lines) {
     const t = raw.trim();
+    // Linha de assinatura: abre um bloco que NÃO pode quebrar entre páginas.
+    if (/^_{5,}$/.test(t)) {
+      closeSig();
+      html += '<div class="sig-block"><div class="sig-line"></div>';
+      sigOpen = true; inSig = true; continue;
+    }
+    // Dentro do bloco de assinatura: nomes/cargos (ignora linhas em branco).
+    if (inSig) { if (t) html += `<p class="sig-name">${esc(t)}</p>`; continue; }
     if (!t) { html += '<div class="sp"></div>'; continue; }
-    if (/^_{5,}$/.test(t)) { inSig = true; html += '<div class="sig-line"></div>'; continue; }
-    if (inSig) { html += `<p class="sig-name">${esc(t)}</p>`; continue; }
     if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
     if (/^CL[ÁA]USULA\b/i.test(t)) { html += `<p class="clause">${esc(t)}</p>`; continue; }
     const mp = t.match(/^(PAR[ÁA]GRAFO[^-]*-)\s*([\s\S]*)$/i);
@@ -3772,6 +3779,7 @@ function formatDocHtml(text) {
     if (ml) { html += `<p class="party"><strong>${esc(ml[1])}:</strong>${esc(ml[2])}</p>`; continue; }
     html += `<p class="body">${esc(t)}</p>`;
   }
+  closeSig();
   return html;
 }
 
@@ -3835,9 +3843,10 @@ function printDocs(docs) {
       .content .party { margin: 6px 0; text-align: justify; }
       .content .body { margin: 9px 0; text-align: justify; }
       .content .sp { height: 5px; }
-      .content .sig-line { width: 62%; margin: 74px auto 6px; border-bottom: 1px solid #333; }
+      .content .sig-block { break-inside: avoid; page-break-inside: avoid; margin-top: 56px; text-align: center; }
+      .content .sig-block:first-of-type { margin-top: 36px; }
+      .content .sig-line { width: 62%; margin: 0 auto 6px; border-bottom: 1px solid #333; }
       .content .sig-name { text-align: center; margin: 0; line-height: 1.5; }
-      .content .sig-line:first-of-type { margin-top: 40px; }
       .docwrap + .docwrap { page-break-before: always; }
       @media print { .no-print { display: none; } .content .clause, .content .sig-line { page-break-inside: avoid; } }
     </style></head><body>
