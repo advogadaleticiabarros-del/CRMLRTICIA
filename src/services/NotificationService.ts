@@ -53,11 +53,14 @@ export class NotificationService {
   }
 
   async getUnread(userId: number) {
+    // O sininho mostra só PRIORIDADES — exclui as movimentações/alertas de rotina
+    // (eram 50+ por sincronização). Prazos, audiências, cobranças etc. continuam.
     const [rows] = await db.query(
       `SELECT n.*, c.name AS client_name
        FROM notifications n
        LEFT JOIN clients c ON c.id = n.client_id
        WHERE n.user_id = ? AND n.status IN ('pendente', 'enviada')
+         AND n.notification_type NOT IN ('nova_movimentacao', 'alerta_movimentacao')
        ORDER BY n.scheduled_at DESC
        LIMIT 50`,
       [userId]

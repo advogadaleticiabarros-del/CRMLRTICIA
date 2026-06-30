@@ -115,6 +115,18 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     // DJEN (source = djen_oab): cria prazo a confirmar
     const startStr = start.toISOString().split('T')[0];
     const movementText = (m.description || m.title || '');
+
+    // Não recriar um prazo que já foi detectado para esta movimentação — mesmo que
+    // o usuário já tenha CONFIRMADO ou DESCARTADO. Evita reenvio a cada sincronização.
+    const [dup] = await db.query(
+      `SELECT id FROM detected_deadlines
+        WHERE process_id = ? AND suggested_type = ?
+          AND (movement_id = ? OR start_date = ?)
+        LIMIT 1`,
+      [processId, trig.type, movementId, startStr]
+    ) as any;
+    if (dup.length) return;
+
     const [ddRes] = await db.query(
       `INSERT INTO detected_deadlines (process_id, movement_id, client_id, movement_text, detected_keyword, suggested_type, suggested_days, start_date, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'a_confirmar')`,
@@ -215,22 +227,14 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
 }
 
 async function notifyNewMovements(proc: any, novas: number) {
-  // notifica os admins no sistema
-  const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
-  const msg = `${novas} nova(s) movimentação(ões) no processo ${proc.process_number}.`;
-  for (const a of admins) {
-    await notificationService.create({
-      userId: a.id, clientId: proc.client_id, title: 'Nova movimentação processual',
-      message: msg, notificationType: 'nova_movimentacao', channel: 'sistema', scheduledAt: new Date(),
-    });
-    await telegramNotificationService.sendMovimentacaoProcessual(a.id, {
-      caseRef: proc.process_number, movement: `${novas} nova(s) movimentação(ões).`,
-    });
-  }
-  // histórico do cliente
+  // NÃO inunda o sininho/Telegram a cada movimentação (eram 50+ por sincronização).
+  // O que é PRIORIDADE — prazos detectados — continua notificando em detectDeadline().
+  // Aqui apenas registramos no histórico do cliente, sem gerar notificação no sino.
   if (proc.client_id) {
-    await logTimeline({ clientId: proc.client_id, eventType: 'movimentacao_processual',
-      description: msg, userId: null });
+    await logTimeline({
+      clientId: proc.client_id, eventType: 'movimentacao_processual',
+      description: `${novas} nova(s) movimentação(ões) no processo ${proc.process_number}.`, userId: null,
+    });
   }
 }
 

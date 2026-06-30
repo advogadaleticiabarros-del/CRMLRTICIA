@@ -563,7 +563,7 @@ const ROUTES = {
           <tbody>${rows.map((d) => { const full = d.movement_full || d.movement_text || ''; return `<tr>
             <td><strong>${d.client_name || '<span style=\"color:var(--text-muted)\">a vincular</span>'}</strong></td>
             <td>${esc(full.slice(0, 110))}${full.length > 110 ? '…' : ''}
-                <br><small style="color:var(--text-muted)">início ${fmtDate(d.start_date)}</small>
+                <br><small style="color:var(--text-muted)">movimentação ${fmtDate(d.movement_date || d.start_date)}</small>
                 ${full.length > 110 ? `<br><button class="btn-sm" data-full-dd="${d.id}" style="margin-top:6px">📄 Ver na íntegra</button>` : ''}
                 ${d.ai_summary ? `<div style="margin-top:8px;padding:8px 10px;border-left:3px solid var(--gold);background:var(--surface);font-size:12px;line-height:1.5"><strong>🧑‍🎓 Estagiário IA:</strong><br>${esc(d.ai_summary.slice(0, 400))}${d.ai_summary.length > 400 ? '…' : ''}</div>` : ''}
                 ${d.ai_draft_id ? `<button class="btn-sm" data-draft-dd="${d.ai_draft_id}" style="margin-top:6px">📝 Ver minuta</button>` : ''}</td>
@@ -1739,7 +1739,7 @@ async function dashCockpit(c) {
     row(esc(i.client_name || 'A vincular'),
         `<span class="badge">${esc(i.suggested_type || '—')}</span>${Number(i.tem_minuta) === 1 ? ' 📝' : ''}`,
         'prazos',
-        `${i.process_number ? 'proc. ' + esc(i.process_number) + ' · ' : ''}início ${fmtDate(i.start_date)}`)
+        `${i.process_number ? 'proc. ' + esc(i.process_number) + ' · ' : ''}movimentação ${fmtDate(i.movement_date || i.start_date)}`)
   ).join('');
 
   // Alertas (verificar)
