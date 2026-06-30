@@ -3834,8 +3834,9 @@ function printDocs(docs) {
       .content .party { margin: 6px 0; text-align: justify; }
       .content .body { margin: 9px 0; text-align: justify; }
       .content .sp { height: 5px; }
-      .content .sig-line { width: 62%; margin: 32px auto 4px; border-bottom: 1px solid #333; }
-      .content .sig-name { text-align: center; margin: 0; line-height: 1.45; }
+      .content .sig-line { width: 62%; margin: 74px auto 6px; border-bottom: 1px solid #333; }
+      .content .sig-name { text-align: center; margin: 0; line-height: 1.5; }
+      .content .sig-line:first-of-type { margin-top: 40px; }
       .docwrap + .docwrap { page-break-before: always; }
       @media print { .no-print { display: none; } .content .clause, .content .sig-line { page-break-inside: avoid; } }
     </style></head><body>

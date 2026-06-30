@@ -251,10 +251,16 @@ E, por estarem assim justas e contratadas, assinam o presente instrumento.
 ${foro}, [DATA].
 
 
+
+
+
 _______________________________________
 ${rNome}
 CONTRATANTE
 (Representante Legal de ${mNome})
+
+
+
 
 
 _______________________________________
@@ -447,9 +453,16 @@ E por estarem assim justos e contratados, firmam o presente em duas vias de igua
 ${FORO}, [DATA].
 
 
+
+
+
 _______________________________________
 ${adv.nome}
 ${adv.oab.replace(' sob o nº ', ' ')}
+CONTRATADA
+
+
+
 
 
 _______________________________________
