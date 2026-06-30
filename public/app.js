@@ -65,13 +65,13 @@ const NAV_LABELS = {
   agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Controladoria', correspondente: 'Correspondente',
   documentos: 'Documentos', ia: 'IA Jurídica', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
   contratos: 'Contratos', intakes: 'Novo Atendimento',
-  monitor: 'Monitoramento', fases: 'Fases (Kanban)', producao: 'Produção', advogados: 'Advogados/OAB',
+  monitor: 'Monitoramento', fases: 'Fases (Kanban)', producao: 'Produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
 };
 const NAV_BY_ROLE = {
-  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
-  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
-  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
   estagiario: ['producao','cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -82,7 +82,7 @@ function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; 
 const NAV_ICONS = {
   dashboard: '🏠', agenda: '📅', cases: '⚖️', prazos: '⏰', clients: '👥',
   financeiro: '💰', propostas: '📄', leads: '📋', intakes: '➕', documentos: '📁',
-  ia: '✨', monitor: '🔍', fases: '🗂️', producao: '🏭', controladoria: '📊', correspondente: '🤝',
+  ia: '✨', monitor: '🔍', fases: '🗂️', producao: '🏭', parcerias: '🤝', controladoria: '📊', correspondente: '🤝',
   dativo: '⚖️', advogados: '🎓', contratos: '📝', repasses: '💸', config: '⚙️',
   portal: '⚖️', portalFinanceiro: '💰',
 };
@@ -1055,6 +1055,46 @@ const ROUTES = {
     await load();
   },
 
+  async parcerias(page) {
+    const STAGE_PT = { separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguardando protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
+    const partners = await api('/api/partners').catch(() => []);
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Parcerias</h2><p class="sub">Casos indicados por parceiros · registro próprio, entram na esteira de produção</p></div>
+        <button class="btn-gold" id="new-parc-case">+ Novo caso de parceria</button></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><label>Parceiro</label>
+        <select id="parc-sel">${partners.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>
+      <div id="parc-terms"></div>
+      <div id="parc-cases"><div class="spinner"></div></div>`;
+    if (!partners.length) { $('#parc-cases').innerHTML = '<div class="empty">Nenhum parceiro cadastrado ainda.</div>'; }
+
+    const sel = $('#parc-sel');
+    const loadCases = async () => {
+      const p = partners.find((x) => x.id == sel.value);
+      if (!p) return;
+      $('#parc-terms').innerHTML = `<div class="card" style="padding:12px 16px;margin-bottom:14px;font-size:13px">
+        <strong>${esc(p.name)}</strong> · Êxito ${Number(p.success_fee_percent)}% sobre o ganho, dividido ${Number(p.partner_split_percent)}/${100 - Number(p.partner_split_percent)} ·
+        Sucumbência ${Number(p.sucumbencia_split_percent)}/${100 - Number(p.sucumbencia_split_percent)} ·
+        Entrada R$ ${Number(p.entry_value_single).toFixed(2)} (1 proc.) / R$ ${Number(p.entry_value_double).toFixed(2)} (2 proc.)${Number(p.entry_split) ? ' · dividida' : ' · 100% sua'}</div>`;
+      const cases = await api(`/api/partners/${p.id}/cases`).catch(() => []);
+      $('#parc-cases').innerHTML = cases.length ? `
+        <table><thead><tr><th>Cliente</th><th>Processo</th><th>Etapa</th><th>SLA</th><th>Receita</th><th>Repasse parceiro</th></tr></thead>
+        <tbody>${cases.map((c) => {
+          const atras = !['protocolado', 'concluido'].includes(c.production_stage) && Number(c.sla_days) > 10;
+          return `<tr style="cursor:pointer" data-case="${c.id}">
+            <td><strong>${esc(c.client_name || '—')}</strong></td>
+            <td>${esc(c.title || c.case_number || '—')}<br><small style="color:var(--text-muted)">${c.legal_area || ''}</small></td>
+            <td>${STAGE_PT[c.production_stage] || c.production_stage || '—'}</td>
+            <td style="color:${atras ? 'var(--red)' : 'var(--text)'}">${['protocolado', 'concluido'].includes(c.production_stage) ? '✓' : (c.sla_days ?? 0) + '/10d'}</td>
+            <td>${money(c.receita)}</td>
+            <td>${money(c.repasse_parceiro)}</td></tr>`;
+        }).join('')}</tbody></table>` : '<div class="empty">Nenhum caso desta parceria ainda. Clique em "+ Novo caso de parceria".</div>';
+      $('#parc-cases').querySelectorAll('[data-case]').forEach((tr) => tr.onclick = () => caseDetail(tr.dataset.case, loadCases));
+    };
+    sel.onchange = loadCases;
+    $('#new-parc-case').onclick = () => parceriaCaseForm(partners, sel.value, loadCases);
+    if (partners.length) await loadCases();
+  },
+
   async monitor(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Monitoramento Processual</h2><p class="sub">Acompanhamento via DataJud/CNJ</p></div>
@@ -1761,6 +1801,33 @@ async function correspondenteForm(onSave, prefill = {}) {
     catch (err) { toast(err.message, 'error'); }
   };
   openModal('Nova audiência de correspondente', form);
+}
+
+function parceriaCaseForm(partners, defaultPartnerId, onSave) {
+  const AREAS_OPT = [['trabalhista', 'Trabalhista'], ['civel', 'Cível'], ['familia', 'Família'], ['previdenciario', 'Previdenciário'], ['consumidor', 'Consumidor'], ['gestante', 'Gestante'], ['outro', 'Outro']].map(([v, t]) => ({ v, t }));
+  const form = el(`<form class="form-grid">
+    ${field('Parceiro', 'partner_id', { options: partners.map((p) => ({ v: p.id, t: p.name })) })}
+    ${field('Cliente *', 'client_name')}
+    <div class="form-row">${field('CPF', 'cpf')}${field('E-mail', 'email', { type: 'email' })}</div>
+    <div class="form-row">${field('Telefone', 'phone')}${field('Área', 'legal_area', { options: AREAS_OPT })}</div>
+    ${field('Processos (um por linha: título ou nº). Vazio = 1 processo.', 'processos_text', { type: 'textarea' })}
+    ${field('Resumo do caso (vai para a produção)', 'case_summary', { type: 'textarea' })}
+    <p class="sub">A entrada por protocolo é calculada pelo nº de processos e já é lançada no financeiro (100% do escritório).</p>
+    <button type="submit" class="btn-primary">Registrar caso de parceria</button>
+  </form>`);
+  const psel = form.querySelector('[name=partner_id]'); if (psel && defaultPartnerId) psel.value = defaultPartnerId;
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const b = Object.fromEntries(new FormData(form));
+    if (!b.client_name || !b.client_name.trim()) { toast('Informe o cliente', 'error'); return; }
+    const procs = (b.processos_text || '').split('\n').map((s) => s.trim()).filter(Boolean).map((t) => ({ title: t }));
+    const body = { client_name: b.client_name, cpf: b.cpf, email: b.email, phone: b.phone, legal_area: b.legal_area, case_summary: b.case_summary, processos: procs };
+    try {
+      const r = await api(`/api/partners/${b.partner_id}/cases`, { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast(`Registrado · ${r.case_ids.length} processo(s) na esteira · entrada ${money(r.entrada)}`); onSave && onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Novo caso de parceria', form);
 }
 
 function kpi(label, value, cls = '') {
