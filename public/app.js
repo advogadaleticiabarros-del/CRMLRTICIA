@@ -3139,7 +3139,7 @@ async function caseDetail(id, onSave) {
       panel.innerHTML = `
         <hr style="border:none;border-top:1px solid var(--border)">
         <strong style="font-size:13px;color:var(--navy)">Produção — acompanhamento</strong>
-        ${p.case_summary ? `<div style="margin-top:6px"><small style="color:var(--text-muted)">Resumo do caso (do lead)</small><div style="font-size:13px;white-space:pre-wrap;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:2px">${esc(p.case_summary)}</div></div>` : ''}
+        ${p.case_summary ? `<div style="margin-top:6px"><small style="color:var(--text-muted)">Resumo do caso (do lead)</small><div style="font-size:13px;white-space:pre-wrap;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:2px">${esc(p.case_summary)}</div><button class="btn-sm" id="copy-summary" type="button" style="margin-top:4px">Copiar resumo</button></div>` : ''}
         ${p.header && p.header.qualificacao ? `<div style="margin-top:6px"><small style="color:var(--text-muted)">Cabeçalho da peça (qualificação pronta)</small>
           <div style="font-size:12.5px;white-space:pre-wrap;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;margin-top:2px">${esc(p.header.qualificacao)}</div>
           <button class="btn-sm" id="copy-header" type="button" style="margin-top:4px">Copiar cabeçalho</button></div>` : ''}
@@ -3157,6 +3157,8 @@ async function caseDetail(id, onSave) {
       const saveLabels = async (arr) => { try { await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ labels: arr }) }); loadProd(); } catch (e) { toast(e.message, 'error'); } };
       const cp = panel.querySelector('#copy-header');
       if (cp) cp.onclick = () => { try { navigator.clipboard.writeText(p.header.qualificacao); toast('Cabeçalho copiado'); } catch { toast('Copie manualmente', 'error'); } };
+      const cs = panel.querySelector('#copy-summary');
+      if (cs) cs.onclick = () => { try { navigator.clipboard.writeText(p.case_summary || ''); toast('Resumo copiado'); } catch { toast('Copie manualmente', 'error'); } };
       const asg = panel.querySelector('#prod-assignee');
       if (asg) asg.onchange = async () => { try { await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ assignee: asg.value || null }) }); toast('Responsável atualizado'); } catch (e) { toast(e.message, 'error'); } };
       panel.querySelector('#prod-addlabel').onclick = () => { const v = panel.querySelector('#prod-newlabel').value.trim(); if (v) saveLabels([...labels, v]); };
