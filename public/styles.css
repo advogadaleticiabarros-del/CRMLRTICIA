@@ -528,3 +528,116 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ════════════════════════════════════════════════════════
+   📱 MODO APP — iPhone / responsivo (≤ 880px)
+   Ajustes que NÃO afetam o desktop. Corrige "bagunça" no celular
+   e dá cara de aplicativo nativo (safe-area, barra de abas, etc.)
+   ════════════════════════════════════════════════════════ */
+
+/* Barra de abas inferior — escondida no desktop, vira app no mobile */
+.bottom-nav { display: none; }
+
+@media (max-width: 880px) {
+  /* Sem zoom-bounce do iOS e sem flash azul ao tocar */
+  html { -webkit-text-size-adjust: 100%; }
+  body { -webkit-tap-highlight-color: transparent; }
+
+  /* Altura real da tela no Safari (evita o salto da barra de endereço) */
+  .login-view, .app-view { min-height: 100svh; min-height: 100dvh; }
+
+  /* CRÍTICO: inputs com 16px impedem o zoom automático do iOS ao focar */
+  input, select, textarea,
+  .toolbar input, .toolbar select { font-size: 16px; }
+
+  /* Topbar como barra de navegação iOS — respeita o notch/ilha dinâmica */
+  .topbar {
+    height: calc(54px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) 14px 0;
+    align-items: center;
+  }
+  .topbar-greeting { font-size: 13px; line-height: 1.25; }
+  .topbar-actions { gap: 8px; }
+  .bell-icon, .nav-toggle { width: 42px; height: 42px; }
+  .nav-toggle { width: auto; }
+
+  /* Gaveta lateral respeita o topo seguro */
+  .sidebar { padding-top: env(safe-area-inset-top); }
+
+  /* Conteúdo: respiro lateral menor + espaço para a barra de abas */
+  .content > .page {
+    padding: 16px 14px calc(86px + env(safe-area-inset-bottom));
+  }
+  .page-header h2 { font-size: 23px; }
+  .page-header .sub { font-size: 13px; }
+
+  /* KPIs em 2 colunas, compactos e legíveis */
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+  .kpi { padding: 14px 14px; border-radius: 12px; }
+  .kpi .value { font-size: 22px; }
+  .kpi .value.money { font-size: 17px; }
+  .kpi:hover { transform: none; } /* sem hover-jump no toque */
+
+  /* Toolbar: campos ocupam a largura toda (corrige o estouro de 160px) */
+  .toolbar { gap: 8px; }
+  .toolbar input, .toolbar select { min-width: 0; width: 100%; flex: 1 1 100%; }
+  .toolbar .spacer { display: none; }
+  .toolbar .btn-gold, .toolbar .btn-sm, .toolbar button { flex: 1 1 auto; }
+
+  /* Tabelas: rolam dentro do card com toque suave, células mais justas */
+  .card { overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: 12px; }
+  thead th { padding: 11px 14px; }
+  tbody td { padding: 12px 14px; font-size: 13.5px; }
+  tbody tr:hover td:first-child { box-shadow: none; } /* sem filete no toque */
+
+  /* Alvos de toque confortáveis (mín. ~40px) */
+  .btn-sm { padding: 9px 14px; }
+  .btn-ghost, .btn-gold, .btn-primary { padding: 11px 16px; }
+  .nav-item { padding: 12px 14px; font-size: 14.5px; }
+
+  /* Calendário compacto que cabe em 7 colunas no celular */
+  .cal-header { flex-wrap: wrap; gap: 10px; }
+  .cal-header h3 { min-width: auto; font-size: 18px; }
+  .cal-day { min-height: 60px; padding: 4px 3px 5px; }
+  .cal-day .num { width: 20px; height: 20px; font-size: 11px; }
+  .cal-chip { font-size: 9.5px; padding: 1px 4px; border-left-width: 2px; }
+
+  /* Modal vira folha inferior (bottom sheet) com área segura embaixo */
+  #modal-body { padding: 20px 18px calc(22px + env(safe-area-inset-bottom)); }
+
+  /* Toast acima da barra de abas, centralizado */
+  .toast {
+    left: 14px; right: 14px; bottom: calc(82px + env(safe-area-inset-bottom));
+    text-align: center; justify-content: center;
+  }
+
+  /* ── Barra de abas inferior estilo iOS ───────────────────── */
+  .bottom-nav {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+    background: rgba(255,255,255,.94); backdrop-filter: saturate(180%) blur(12px);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -2px 16px rgba(31,48,71,.07);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .bottom-item {
+    flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 3px; padding: 8px 2px 7px; min-height: 54px;
+    background: none; border: none; cursor: pointer; text-decoration: none;
+    color: var(--text-muted); font-family: inherit; -webkit-tap-highlight-color: transparent;
+    transition: color .15s;
+  }
+  .bottom-item .bi-ic { font-size: 21px; line-height: 1; }
+  .bottom-item .bi-lb { font-size: 10px; font-weight: 600; letter-spacing: .1px; }
+  .bottom-item.active { color: var(--gold); }
+  .bottom-item.active .bi-ic { transform: translateY(-1px); }
+  .bottom-item:active { opacity: .6; }
+  /* esconde a barra de abas quando a gaveta está aberta (foco na navegação completa) */
+  body.nav-open .bottom-nav { opacity: 0; pointer-events: none; transition: opacity .2s; }
+}
+
+/* Telas bem estreitas (iPhone SE / mini) — afinamento final */
+@media (max-width: 380px) {
+  .kpi .value { font-size: 20px; }
+  .bottom-item .bi-lb { font-size: 9px; }
+  .page-header h2 { font-size: 21px; }
+}

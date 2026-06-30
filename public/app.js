@@ -78,10 +78,43 @@ const NAV_BY_ROLE = {
 };
 function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; }
 
+// Ícones e rótulos curtos para a barra de abas inferior (mobile)
+const NAV_ICONS = {
+  dashboard: '🏠', agenda: '📅', cases: '⚖️', prazos: '⏰', clients: '👥',
+  financeiro: '💰', propostas: '📄', leads: '📋', intakes: '➕', documentos: '📁',
+  ia: '✨', monitor: '🔍', fases: '🗂️', controladoria: '📊', correspondente: '🤝',
+  dativo: '⚖️', advogados: '🎓', contratos: '📝', repasses: '💸', config: '⚙️',
+  portal: '⚖️', portalFinanceiro: '💰',
+};
+const NAV_SHORT = {
+  dashboard: 'Início', prazos: 'Prazos', cases: 'Processos', clients: 'Clientes',
+  financeiro: 'Financeiro', propostas: 'Propostas', portal: 'Processos', portalFinanceiro: 'Pagar',
+};
+// Ordem de preferência das abas inferiores (as 4 primeiras disponíveis para o papel)
+const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'cases', 'prazos', 'clients', 'financeiro', 'propostas', 'leads', 'portal', 'portalFinanceiro'];
+
 function buildNav() {
   const items = navForRole();
   $('#nav').innerHTML = items.map((r) =>
     `<a href="#${r}" class="nav-item ${r === 'intakes' ? 'nav-highlight' : ''}" data-route="${r}">${NAV_LABELS[r]}</a>`).join('');
+  buildBottomNav(items);
+}
+
+function buildBottomNav(items) {
+  const el = $('#bottom-nav');
+  if (!el) return;
+  let primary = BOTTOM_PREFERRED.filter((r) => items.includes(r)).slice(0, 4);
+  if (primary.length < 4) primary = items.slice(0, 4);
+  const tabs = primary.map((r) =>
+    `<a href="#${r}" class="bottom-item" data-route="${r}">
+       <span class="bi-ic">${NAV_ICONS[r] || '•'}</span>
+       <span class="bi-lb">${NAV_SHORT[r] || NAV_LABELS[r]}</span>
+     </a>`).join('');
+  el.innerHTML = tabs +
+    `<button class="bottom-item bottom-more" id="bottom-more" type="button">
+       <span class="bi-ic">☰</span><span class="bi-lb">Mais</span>
+     </button>`;
+  $('#bottom-more').onclick = () => document.body.classList.toggle('nav-open');
 }
 
 function initials(name) {
@@ -359,6 +392,8 @@ function router() {
   let route = (location.hash.replace('#', '') || allowed[0]);
   if (!allowed.includes(route)) route = allowed[0]; // respeita o papel
   document.querySelectorAll('.nav-item').forEach((a) =>
+    a.classList.toggle('active', a.dataset.route === route));
+  document.querySelectorAll('.bottom-item[data-route]').forEach((a) =>
     a.classList.toggle('active', a.dataset.route === route));
   const page = $('#page');
   if (!page) return;
