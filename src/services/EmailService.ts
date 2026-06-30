@@ -49,13 +49,39 @@ function layout(title: string, bodyHtml: string): string {
 }
 
 export function isEmailConfigured(): boolean {
-  return transporter() !== null;
+  return !!process.env.RESEND_API_KEY || transporter() !== null;
+}
+
+/** Envio via Resend (HTTP/porta 443) — funciona na Railway, que bloqueia SMTP. */
+async function sendViaResend(input: MailInput): Promise<SendResult> {
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: FROM, to: [input.to], subject: input.subject, html: input.html,
+      }),
+    });
+    if (!res.ok) {
+      const t = await res.text();
+      return { ok: false, error: `Resend HTTP ${res.status}: ${t.slice(0, 200)}` };
+    }
+    const data: any = await res.json();
+    return { ok: true, messageId: data?.id };
+  } catch (e: any) {
+    return { ok: false, error: e.message };
+  }
 }
 
 export async function sendEmail(input: MailInput): Promise<SendResult> {
+  if (!input.to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.to)) return { ok: false, error: 'E-mail inválido' };
+
+  // 1) Resend por HTTP (recomendado — funciona na Railway).
+  if (process.env.RESEND_API_KEY) return sendViaResend(input);
+
+  // 2) SMTP (nodemailer) — para ambientes que permitem (local, alguns hosts).
   const tx = transporter();
   if (!tx) return { ok: false, skipped: true };
-  if (!input.to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(input.to)) return { ok: false, error: 'E-mail inválido' };
   try {
     const info = await tx.sendMail({
       from: FROM, to: input.to, subject: input.subject, html: input.html,
