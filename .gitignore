@@ -14,3 +14,6 @@ desktop.ini
 dist/
 build/
 .claude/settings.local.json
+
+# scripts temporarios de teste
+_*.js
