@@ -190,6 +190,21 @@ router.put('/:id', async (req: Request, res: Response) => {
 });
 
 // ── PATCH /api/leads/:id/status — mover no funil ────────────────────────────
+// ── DELETE /api/leads/:id — exclui um lead ──────────────────────────────────
+router.delete('/:id', async (req: Request, res: Response) => {
+  try {
+    const [r] = await db.query('DELETE FROM leads WHERE id = ?', [req.params.id]) as any;
+    if (!r.affectedRows) { res.status(404).json({ error: 'Lead não encontrado' }); return; }
+    res.json({ success: true });
+  } catch (e: any) {
+    if (e?.code === 'ER_ROW_IS_REFERENCED_2' || e?.code === 'ER_ROW_IS_REFERENCED') {
+      res.status(409).json({ error: 'Este lead tem propostas/contratos vinculados. Cancele-os antes de excluir.' });
+      return;
+    }
+    throw e;
+  }
+});
+
 router.patch('/:id/status', async (req: Request, res: Response) => {
   const { id } = req.params;
   const { status } = req.body;

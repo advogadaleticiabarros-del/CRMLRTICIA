@@ -307,6 +307,18 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     userId: req.user!.id,
   });
 
+  // Registra a movimentação no log de produção (de → para), por quem moveu.
+  if (c.production_stage !== stage) {
+    try {
+      await db.query(
+        `INSERT INTO production_notes (case_id, user_id, author_name, kind, text)
+         VALUES (?, ?, ?, 'atualizacao', ?)`,
+        [id, req.user!.id, req.user!.name,
+         `Movido na esteira: ${STAGE_LABELS[c.production_stage] || c.production_stage || '— (início)'} → ${STAGE_LABELS[stage]}`]
+      );
+    } catch { /* tabela pode não existir antes da migration 044 */ }
+  }
+
   let credentials: { login: string; password: string } | null = null;
 
   // Ao PROTOCOLAR: garante login do cliente + alerta com o nº do processo

@@ -1025,32 +1025,53 @@ const ROUTES = {
       const by = {}; STAGES.forEach(([k]) => by[k] = []);
       rows.forEach((r) => { (by[r.production_stage] || (by[r.production_stage] = [])).push(r); });
       $('#prod-board').innerHTML = STAGES.map(([k, label]) => `
-        <div class="kf-col">
+        <div class="kf-col" data-stage="${k}">
           <div class="kf-head">${label} <span class="kf-count">${by[k].length}</span></div>
-          <div class="kf-cards">${by[k].map((r) => `
-            <div class="kf-card" data-case="${r.id}">
+          <div class="kf-cards" data-stage="${k}">${by[k].map((r) => `
+            <div class="kf-card" draggable="true" data-case="${r.id}" data-stage="${r.production_stage}">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">${slaBadge(r)}${Number(r.pendencias) ? `<span style="font-size:11px;color:var(--red);font-weight:600">⚠ ${r.pendencias}</span>` : ''}</div>
               <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
               <small>${esc2(r.title) || r.case_number || 's/ número'}${r.legal_area ? ' · ' + r.legal_area : ''}</small>
               ${r.assignee_name ? `<small style="color:var(--text-muted)">resp.: ${esc2(r.assignee_name)}</small>` : ''}
               ${labelsHtml(r)}
-              <select class="kf-move" data-id="${r.id}">${STAGES.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}</select>
-            </div>`).join('') || '<div class="kf-empty">—</div>'}</div>
+              <select class="kf-move" data-id="${r.id}" title="Mover etapa">${STAGES.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}</select>
+            </div>`).join('') || '<div class="kf-empty">solte um card aqui</div>'}</div>
         </div>`).join('');
-      $('#prod-board').querySelectorAll('.kf-move').forEach((el2) => el2.onclick = (e) => e.stopPropagation());
-      $('#prod-board').querySelectorAll('.kf-move').forEach((sel) => sel.onchange = async () => {
+
+      // Move uma etapa (para frente ou para trás) e registra cada movimento.
+      const moveStage = async (caseId, stage, fromStage) => {
+        if (!caseId || !stage || stage === fromStage) { load(); return; }
         try {
           const extra = {};
-          if (sel.value === 'protocolado') {
+          if (stage === 'protocolado') {
             const num = prompt('Número do processo/protocolo para protocolar:');
             if (!num) { load(); return; }
             extra.case_number = num;
           }
-          await api(`/api/cases/${sel.dataset.id}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage: sel.value, ...extra }) });
-          toast('Etapa atualizada'); load();
+          await api(`/api/cases/${caseId}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage, ...extra }) });
+          toast('Movido · registrado'); load();
         } catch (e) { toast(e.message, 'error'); load(); }
+      };
+
+      // Seletor (alternativa ao arrastar — e funciona no celular)
+      $('#prod-board').querySelectorAll('.kf-move').forEach((el2) => el2.onclick = (e) => e.stopPropagation());
+      $('#prod-board').querySelectorAll('.kf-move').forEach((sel) => sel.onchange = () => moveStage(sel.dataset.id, sel.value, undefined));
+
+      // Arrastar e soltar o card entre colunas (inclusive voltar de etapa)
+      $('#prod-board').querySelectorAll('.kf-card').forEach((card) => {
+        card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', JSON.stringify({ id: card.dataset.case, from: card.dataset.stage })); card.style.opacity = '0.45'; });
+        card.addEventListener('dragend', () => { card.style.opacity = ''; });
+        card.onclick = (e) => { if (e.target.closest('.kf-move')) return; caseDetail(card.dataset.case, load); };
       });
-      $('#prod-board').querySelectorAll('.kf-card').forEach((card) => card.onclick = (e) => { if (e.target.closest('.kf-move')) return; caseDetail(card.dataset.case, load); });
+      $('#prod-board').querySelectorAll('.kf-cards').forEach((zone) => {
+        zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.outline = '2px dashed var(--gold)'; });
+        zone.addEventListener('dragleave', () => { zone.style.outline = ''; });
+        zone.addEventListener('drop', (e) => {
+          e.preventDefault(); zone.style.outline = '';
+          let d = {}; try { d = JSON.parse(e.dataTransfer.getData('text/plain')); } catch {}
+          moveStage(d.id, zone.dataset.stage, d.from);
+        });
+      });
     };
     await load();
   },
@@ -2682,6 +2703,7 @@ async function leadDetail(id, onSave) {
     <hr style="border:none;border-top:1px solid var(--border)">
     <button class="btn-gold" id="gen-prop" style="width:100%">Gerar proposta</button>
     <button class="btn-gold" id="close" style="width:100%">Fechar negócio e gerar contrato</button>
+    <button class="btn-sm" id="del-lead" style="width:100%;color:var(--red);border-color:var(--red)">Excluir lead</button>
     <hr style="border:none;border-top:1px solid var(--border)">
     <div><strong style="color:var(--navy)">Histórico da jornada</strong><p class="sub" style="margin:2px 0 8px">Tudo registrado — do primeiro contato ao fim do processo</p></div>
     <div id="lead-journey"><div class="spinner"></div></div>
@@ -2705,6 +2727,11 @@ async function leadDetail(id, onSave) {
     } catch (e) { toast(e.message, 'error'); }
   };
   form.querySelector('#gen-prop').onclick = () => { closeModal(); propostaForm(onSave, l); };
+  form.querySelector('#del-lead').onclick = async () => {
+    if (!confirm(`Excluir o lead "${l.name || ''}"? Esta ação não pode ser desfeita.`)) return;
+    try { await api('/api/leads/' + id, { method: 'DELETE' }); closeModal(); toast('Lead excluído'); onSave(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
   form.querySelector('#close').onclick = async () => {
     try {
       const ct = await api(`/api/contracts/from-lead/${id}`, { method: 'POST', body: JSON.stringify({}) });
