@@ -9,8 +9,8 @@ import { runBackup } from '../services/backupService';
 import { sendMorningBriefings } from '../services/morningBriefingService';
 
 export function startCronJobs() {
-  // ── Resumo matinal por e-mail às 08:00 (horário de Brasília) ──────────────
-  cron.schedule('0 8 * * *', async () => {
+  // ── Resumo matinal por e-mail às 07:00 (horário de Brasília) ──────────────
+  cron.schedule('0 7 * * *', async () => {
     try { await sendMorningBriefings(); } catch {}
   }, { timezone: 'America/Sao_Paulo' });
 

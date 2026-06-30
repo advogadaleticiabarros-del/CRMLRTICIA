@@ -3881,6 +3881,25 @@ $('#modal-close').onclick = closeModal;
 $('#modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
 window.addEventListener('hashchange', router);
 
+// ── Tabelas viram cartões no mobile: rotula cada célula com o seu cabeçalho ──
+function labelTableCells(table) {
+  const ths = [...table.querySelectorAll('thead th')].map((th) => th.textContent.trim());
+  if (!ths.length) return;
+  table.querySelectorAll('tbody tr').forEach((tr) => {
+    [...tr.children].forEach((td, i) => {
+      if (i < ths.length && !td.hasAttribute('data-label')) td.setAttribute('data-label', ths[i]);
+    });
+  });
+}
+function enhanceTables(root) { (root || document).querySelectorAll('table').forEach(labelTableCells); }
+if ('MutationObserver' in window) {
+  let _raf;
+  new MutationObserver(() => {
+    cancelAnimationFrame(_raf);
+    _raf = requestAnimationFrame(() => enhanceTables(document));
+  }).observe(document.body, { childList: true, subtree: true });
+}
+
 // Retorno do OAuth Google
 const gParam = new URLSearchParams(location.search).get('google');
 if (gParam) {

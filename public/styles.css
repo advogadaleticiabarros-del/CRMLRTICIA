@@ -641,3 +641,62 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
   .bottom-item .bi-lb { font-size: 9px; }
   .page-header h2 { font-size: 21px; }
 }
+
+/* ════════════════════════════════════════════════════════
+   📱 TABELAS → CARTÕES no mobile (sem rolar pro lado)
+   Cada linha vira um cartão: 1ª coluna = título; demais = rótulo→valor.
+   Os rótulos vêm do cabeçalho via data-label (preenchido pelo app.js).
+   ════════════════════════════════════════════════════════ */
+@media (max-width: 880px) {
+  /* o card deixa de rolar na horizontal */
+  .page .card { overflow: visible; }
+  .page .card > table { min-width: 0; }
+
+  .page table,
+  .page thead,
+  .page tbody,
+  .page tr,
+  .page td { display: block; width: 100%; }
+
+  .page thead { display: none; } /* cabeçalho some; vira rótulo de cada célula */
+
+  .page tbody tr {
+    background: #fff; border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: var(--shadow-sm); padding: 12px 14px; margin: 0 0 12px;
+  }
+  .page tbody tr:hover { background: #fff; }
+  .page tbody tr:hover td:first-child { box-shadow: none; }
+
+  .page tbody td {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px;
+    padding: 8px 0; border: none; border-bottom: 1px solid var(--border-soft);
+    font-size: 13.5px; text-align: right; min-height: 0;
+  }
+  .page tbody td:last-child { border-bottom: none; padding-bottom: 0; }
+  .page tbody td::before {
+    content: attr(data-label); flex: 0 0 40%; text-align: left;
+    font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px;
+    color: var(--text-muted); white-space: normal;
+  }
+
+  /* 1ª coluna = título do cartão (sem rótulo, destaque) */
+  .page tbody td:first-child {
+    display: block; text-align: left; padding: 0 0 10px; margin-bottom: 4px;
+    border-bottom: 1px solid var(--border); font-size: 15px; color: var(--text);
+  }
+  .page tbody td:first-child::before { display: none; }
+  .page tbody td:first-child strong { font-size: 15px; color: var(--navy-deep); }
+
+  /* coluna de ações (cabeçalho vazio) → botões largos no rodapé do cartão */
+  .page tbody td[data-label=""] {
+    justify-content: stretch; flex-wrap: wrap; gap: 8px;
+    padding-top: 11px; white-space: normal;
+  }
+  .page tbody td[data-label=""]::before { display: none; }
+  .page tbody td[data-label=""] .btn-sm,
+  .page tbody td[data-label=""] button { flex: 1 1 auto; text-align: center; min-height: 38px; }
+
+  /* valores longos quebram bem em vez de empurrar o layout */
+  .page tbody td { word-break: break-word; }
+  .page tbody td small { text-align: right; }
+}
