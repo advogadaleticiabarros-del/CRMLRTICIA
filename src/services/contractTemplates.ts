@@ -144,7 +144,7 @@ CPF nº ${p.cpf}`;
   // Justiça Comum / Juizados Especiais.
   return `DECLARAÇÃO DE HIPOSSUFICIÊNCIA ECONÔMICA
 
-Eu, ${qualificacao(p)}, por este instrumento particular, DECLARO, para os devidos fins de direito e sob as penas da lei, que não possuo condições financeiras de arcar com o pagamento de custas processuais e honorários advocatícios sem prejuízo do meu próprio sustento e de minha família.
+Eu, ${qualificacao(p)}, por este instrumento particular, DECLARO, para os devidos fins de direito e sob as penas da lei, que não possuo condições financeiras de arcar com o pagamento de custas processuais e demais despesas judiciais sem prejuízo do meu próprio sustento e de minha família.
 
 ${fundamentoGratuidade(false)}
 
@@ -299,7 +299,7 @@ export function buildDeclaracaoMenor(party: PartyData, menor: MenorData, opts: {
   const mNome = menor.nome || '[NOME DO MENOR]';
   return `DECLARAÇÃO DE HIPOSSUFICIÊNCIA
 
-Eu, ${qualResponsavel(party)}, na qualidade de representante legal do(a) menor ${qualMenor(menor)}, DECLARO para os devidos fins, sob as penas da lei, que o(a) representado(a) não possui condições financeiras de arcar com as custas, despesas processuais e honorários advocatícios sem prejuízo do próprio sustento e de sua família.
+Eu, ${qualResponsavel(party)}, na qualidade de representante legal do(a) menor ${qualMenor(menor)}, DECLARO para os devidos fins, sob as penas da lei, que o(a) representado(a) não possui condições financeiras de arcar com as custas processuais e demais despesas judiciais sem prejuízo do próprio sustento e de sua família.
 
 ${fundamentoGratuidade(opts.trabalhista)}
 
