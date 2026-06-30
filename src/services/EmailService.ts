@@ -24,7 +24,9 @@ function transporter(): Transporter | null {
       host: process.env.SMTP_HOST,
       port: Number(process.env.SMTP_PORT) || 587,
       secure: process.env.SMTP_SECURE === 'true' || Number(process.env.SMTP_PORT) === 465,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+      auth: { user: process.env.SMTP_USER, pass: (process.env.SMTP_PASS || '').replace(/\s+/g, '') },
+      // Falha rápido se a porta SMTP estiver bloqueada (não trava a requisição).
+      connectionTimeout: 12000, greetingTimeout: 8000, socketTimeout: 12000,
     });
   }
   return cached;
