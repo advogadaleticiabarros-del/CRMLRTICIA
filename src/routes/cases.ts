@@ -72,6 +72,62 @@ router.get('/production-board', async (_req: Request, res: Response) => {
   res.json(rows);
 });
 
+// ── GET /api/cases/:id/ficha — ficha completa do processo (tudo consolidado) ─
+router.get('/:id/ficha', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const [[c]] = await db.query(
+    `SELECT c.*, cl.name AS client_name, cl.cpf_cnpj, cl.email AS client_email, cl.phone AS client_phone,
+            cl.address AS client_address, u.name AS assignee_name, p.name AS partner_name
+       FROM cases c
+       LEFT JOIN clients cl ON cl.id = c.client_id
+       LEFT JOIN users u ON u.id = c.production_assignee
+       LEFT JOIN partners p ON p.id = c.partner_id
+      WHERE c.id = ?`, [id]
+  ) as any;
+  if (!c) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+
+  // Qualificação (cabeçalho) — busca o lead de origem via contrato, se houver.
+  let lead: any = null;
+  if (c.origin_contract_id) {
+    const [[ct]] = await db.query('SELECT lead_id FROM contracts WHERE id = ?', [c.origin_contract_id]) as any;
+    if (ct?.lead_id) {
+      const [[lr]] = await db.query('SELECT rg, marital_status, profession, case_summary, cep, street, number, neighborhood, city, state FROM leads WHERE id = ?', [ct.lead_id]) as any;
+      lead = lr || null;
+    }
+  }
+  const endereco = (c.client_address && String(c.client_address).trim()) ? c.client_address : (montarEndereco(lead || {}) || '');
+  const qualificacao = [
+    c.client_name, 'brasileiro(a)', lead?.marital_status || '', lead?.profession || '',
+    lead?.rg ? `portador(a) do RG nº ${lead.rg}` : '',
+    c.cpf_cnpj ? `inscrito(a) no CPF nº ${c.cpf_cnpj}` : '',
+    endereco ? `residente e domiciliado(a) em ${endereco}` : '',
+    c.client_email ? `e-mail: ${c.client_email}` : '',
+  ].filter((x) => x && String(x).trim()).join(', ');
+
+  const q = async (sql: string) => { const [r] = await db.query(sql, [id]) as any; return r; };
+  const [notes, movements, deadlines, documents, installments, receitas] = await Promise.all([
+    q('SELECT kind, text, author_name, resolved, created_at FROM production_notes WHERE case_id = ? ORDER BY created_at ASC').catch(() => []),
+    q('SELECT description, movement_date, created_at FROM case_movements WHERE case_id = ? ORDER BY COALESCE(movement_date, created_at) DESC').catch(() => []),
+    q("SELECT description, deadline_date, status, priority FROM deadlines WHERE case_id = ? ORDER BY deadline_date ASC").catch(() => []),
+    q("SELECT name, type, folder, status, created_at FROM documents WHERE case_id = ? ORDER BY created_at DESC").catch(() => []),
+    q('SELECT numero, valor, due_date, status FROM installments WHERE case_id = ? ORDER BY numero ASC').catch(() => []),
+    q("SELECT description, valor, tipo, status, due_date FROM financial_records WHERE case_id = ? ORDER BY due_date ASC").catch(() => []),
+  ]);
+
+  res.json({
+    case: {
+      id: c.id, title: c.title, case_number: c.case_number, legal_area: c.legal_area, phase: c.phase,
+      status: c.status, production_stage: c.production_stage, production_started_at: c.production_started_at,
+      production_labels: c.production_labels, assignee_name: c.assignee_name, partner_name: c.partner_name,
+      description: c.description, created_at: c.created_at,
+    },
+    client: { name: c.client_name, cpf_cnpj: c.cpf_cnpj, email: c.client_email, phone: c.client_phone, address: endereco },
+    header: { qualificacao },
+    case_summary: lead?.case_summary || c.description || '',
+    notes, movements, deadlines, documents, installments, receitas,
+  });
+});
+
 // ── GET /api/cases/:id/production — painel de produção (resumo, cabeçalho, notas) ─
 router.get('/:id/production', async (req: Request, res: Response) => {
   const { id } = req.params;

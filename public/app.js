@@ -3054,6 +3054,58 @@ async function caseForm(onSave) {
   openModal('Novo processo', form);
 }
 
+const FICHA_STAGE = { separacao_documentos: 'Separação de documentos', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguardando protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
+
+function buildFichaHtml(f) {
+  const c = f.case || {}, cl = f.client || {};
+  let labels = []; try { labels = Array.isArray(c.production_labels) ? c.production_labels : (c.production_labels ? JSON.parse(c.production_labels) : []); } catch {}
+  const KIND = { observacao: 'Observação', pendencia: 'Pendência', atualizacao: 'Atualização' };
+  const row = (k, v) => v ? `<div><strong>${k}:</strong> ${esc(v)}</div>` : '';
+  const sec = (t, body) => `<h3 style="margin:16px 0 6px;color:var(--navy);border-bottom:1px solid var(--border);padding-bottom:3px">${t}</h3>${body}`;
+  const slaTxt = c.production_started_at && !['protocolado', 'concluido'].includes(c.production_stage) ? ` · SLA ${Math.max(0, Math.floor((Date.now() - new Date(c.production_started_at)) / 86400000))}/10d` : '';
+  const notes = (f.notes || []).map((n) => `<div style="padding:4px 0;border-bottom:1px solid var(--border-soft)"><span style="font-size:10px;background:#eef2f8;padding:1px 6px;border-radius:8px">${KIND[n.kind] || n.kind}${n.resolved ? ' ✓' : ''}</span> ${esc(n.text)}<br><small style="color:var(--text-muted)">${esc(n.author_name || '')} · ${fmtDate(n.created_at)}</small></div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
+  const movs = (f.movements || []).map((m) => `<div style="padding:4px 0"><small style="color:var(--text-muted)">${fmtDate(m.movement_date || m.created_at)}</small> ${esc(m.description)}</div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
+  const praz = (f.deadlines || []).map((d) => `<div>${fmtDate(d.deadline_date)} — ${esc(d.description)} <span style="color:var(--text-muted)">(${esc(d.status)})</span></div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
+  const docs = (f.documents || []).map((d) => `<div>${esc(d.name)} <small style="color:var(--text-muted)">(${esc(d.folder || d.type || '')} · ${esc(d.status || '')})</small></div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
+  const parc = (f.installments || []).map((p) => `<div>${p.numero}ª — ${money(p.valor)} · venc. ${fmtDate(p.due_date)} · ${esc(p.status)}</div>`).join('');
+  const rec = (f.receitas || []).map((r) => `<div>${esc(r.description)} — ${money(r.valor)} · ${esc(r.status)}</div>`).join('');
+  const fin = (parc + rec) || '<small style="color:var(--text-muted)">—</small>';
+  return `
+    ${sec('Qualificação (cabeçalho da peça)', `<div style="white-space:pre-wrap;font-size:13px">${esc(f.header && f.header.qualificacao || '—')}</div>`)}
+    ${sec('Cliente', row('Nome', cl.name) + row('CPF/CNPJ', cl.cpf_cnpj) + row('E-mail', cl.email) + row('Telefone', cl.phone) + row('Endereço', cl.address))}
+    ${sec('Processo', row('Título', c.title) + row('Número', c.case_number) + row('Área', c.legal_area) + row('Fase', c.phase) + row('Etapa de produção', FICHA_STAGE[c.production_stage] || '—') + slaTxt + row('Responsável', c.assignee_name) + row('Parceiro', c.partner_name) + (labels.length ? `<div><strong>Etiquetas:</strong> ${labels.map(esc).join(', ')}</div>` : ''))}
+    ${f.case_summary ? sec('Resumo do caso', `<div style="white-space:pre-wrap;font-size:13px">${esc(f.case_summary)}</div>`) : ''}
+    ${sec('Histórico de produção', notes)}
+    ${sec('Andamentos processuais', movs)}
+    ${sec('Prazos', praz)}
+    ${sec('Documentos', docs)}
+    ${sec('Financeiro', fin)}`;
+}
+
+async function fichaCompleta(id) {
+  const f = await api(`/api/cases/${id}/ficha`).catch(() => null);
+  if (!f) { toast('Não foi possível carregar a ficha', 'error'); return; }
+  const html = buildFichaHtml(f);
+  const wrap = el(`<div>
+    <div style="display:flex;gap:6px;margin-bottom:8px">
+      <button class="btn-sm" id="ficha-print" type="button">🖨 Imprimir / PDF</button>
+      <button class="btn-sm" id="ficha-copy" type="button">Copiar</button>
+    </div>
+    <div id="ficha-body" style="max-height:65vh;overflow:auto">${html}</div>
+  </div>`);
+  wrap.querySelector('#ficha-print').onclick = () => {
+    const w = window.open('', '_blank'); if (!w) { toast('Permita pop-ups para imprimir', 'error'); return; }
+    w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ficha — ${esc(f.case && f.case.title || '')}</title>
+      <style>body{font-family:Georgia,serif;font-size:12pt;line-height:1.5;color:#1a1a1a;padding:24px;max-width:820px;margin:auto}h1{font-size:16pt;margin:0}h3{font-size:12.5pt;border-bottom:1px solid #ccc;margin:14px 0 5px;color:#243}div{margin:2px 0}small{color:#666}</style></head>
+      <body><h1>Ficha do Processo — ${esc(f.case && f.case.title || '')}</h1><small>${esc(f.client && f.client.name || '')} · ${esc(f.case && f.case.case_number || 's/ número')}</small>${html.replace(/var\(--[a-z-]+\)/g, '#334')}</body></html>`);
+    w.document.close(); setTimeout(() => w.print(), 350);
+  };
+  wrap.querySelector('#ficha-copy').onclick = () => {
+    try { navigator.clipboard.writeText(wrap.querySelector('#ficha-body').innerText); toast('Ficha copiada'); } catch { toast('Copie manualmente', 'error'); }
+  };
+  openModal('Ficha completa do processo', wrap);
+}
+
 async function caseDetail(id, onSave) {
   const c = await api('/api/cases/' + id);
   const movs = (c.movements || []).map((m) =>
@@ -3072,8 +3124,11 @@ async function caseDetail(id, onSave) {
       ${next ? `<button class="btn-gold btn-sm" id="adv-stage" data-next="${next[0]}">Avançar → ${next[1]}</button>` : '<small style="color:var(--green)">Esteira concluída</small>'}`;
   }
   const form = el(`<div class="form-grid">
-    <div><strong style="font-size:18px">${c.title}</strong><br>
-      <small style="color:var(--text-muted)">${c.client_name || ''} · ${c.case_number || 's/ número'}</small></div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
+      <div><strong style="font-size:18px">${c.title}</strong><br>
+        <small style="color:var(--text-muted)">${c.client_name || ''} · ${c.case_number || 's/ número'}</small></div>
+      <button class="btn-sm" id="ficha-btn" type="button" style="white-space:nowrap">📋 Ficha completa</button>
+    </div>
     <div>${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)} ${c.production_stage ? badge(c.production_stage) : ''}</div>
     ${prodHtml}
     ${c.production_stage ? '<div id="prod-panel"><div class="spinner"></div></div>' : ''}
@@ -3146,6 +3201,7 @@ async function caseDetail(id, onSave) {
     try { await api(`/api/cases/${id}/movements`, { method: 'POST', body: JSON.stringify({ description: desc }) });
       caseDetail(id, onSave); toast('Movimentação registrada'); } catch (e) { toast(e.message, 'error'); }
   };
+  form.querySelector('#ficha-btn').onclick = () => fichaCompleta(id);
 
   // Painel de Produção — resumo, cabeçalho, etiquetas, responsável, pendências, log
   if (c.production_stage) {
