@@ -20,6 +20,11 @@ async function api(path, opts = {}) {
 const $ = (sel) => document.querySelector(sel);
 const el = (html) => { const t = document.createElement('template'); t.innerHTML = html.trim(); return t.content.firstChild; };
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const AREA_LABELS = { civel: 'Cível', trabalhista: 'Trabalhista', familia: 'Família', previdenciario: 'Previdenciário', consumidor: 'Consumidor', gestante: 'Gestante', outro: 'Outro' };
+function areaChipsHtml(areas) {
+  let arr = []; try { arr = Array.isArray(areas) ? areas : (areas ? JSON.parse(areas) : []); } catch {}
+  return (arr || []).map((a) => `<span style="font-size:10px;background:var(--gold-soft,#efe3c8);color:var(--navy);padding:1px 7px;border-radius:10px;margin-left:4px">${esc(AREA_LABELS[a] || a)}</span>`).join('');
+}
 const money = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 const badge = (txt) => `<span class="badge ${txt}">${(txt || '').replace(/_/g, ' ')}</span>`;
@@ -445,7 +450,7 @@ const ROUTES = {
       $('#cli-table').innerHTML = r.data.length ? `
         <table><thead><tr><th>Nome</th><th>Tipo</th><th>Contato</th><th>Status</th><th></th></tr></thead>
         <tbody>${r.data.map((c) => `<tr>
-          <td><strong>${c.name}</strong> ${c.is_dative ? '<span class="badge dativo">DATIVO</span>' : ''}<br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
+          <td><strong>${c.name}</strong> ${c.is_dative ? '<span class="badge dativo">DATIVO</span>' : ''}${areaChipsHtml(c.areas)}<br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
           <td>${c.tipo}</td><td>${c.phone || c.email || '—'}</td><td>${badge(c.status)}</td>
           <td style="white-space:nowrap"><button class="btn-sm" data-hist="${c.id}">Histórico</button> <button class="btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table>
         <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} cliente(s)</div>`

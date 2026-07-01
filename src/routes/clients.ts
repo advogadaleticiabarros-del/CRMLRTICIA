@@ -34,7 +34,7 @@ router.get('/', async (req: Request, res: Response) => {
   ) as any;
 
   const [rows] = await db.query(
-    `SELECT id, name, tipo, cpf_cnpj, email, phone, status, is_dative, created_at
+    `SELECT id, name, tipo, cpf_cnpj, email, phone, status, is_dative, areas, created_at
      FROM clients ${whereSql}
      ORDER BY name ASC
      LIMIT ? OFFSET ?`,

@@ -28,6 +28,20 @@ export async function onContractSigned(contractId: number, actorId: number, acto
   ) as any;
   const caseId = caseRes.insertId;
 
+  // Etiqueta o cliente com a ÁREA do contrato (ex.: Cível). Um cliente pode ter várias.
+  if (ct.area) {
+    try {
+      const [[cl]] = await db.query('SELECT areas FROM clients WHERE id = ?', [ct.client_id]) as any;
+      let arr: string[] = [];
+      try { arr = cl?.areas ? (typeof cl.areas === 'string' ? JSON.parse(cl.areas) : cl.areas) : []; } catch {}
+      if (!Array.isArray(arr)) arr = [];
+      if (!arr.includes(ct.area)) {
+        arr.push(ct.area);
+        await db.query('UPDATE clients SET areas = ? WHERE id = ?', [JSON.stringify(arr), ct.client_id]);
+      }
+    } catch { /* coluna areas pode não existir antes da migration 046 */ }
+  }
+
   // 2) Gera os HONORÁRIOS no financeiro conforme o PARCELAMENTO da proposta
   //    (entrada + parcelas nas datas certas). Sem proposta, usa o valor do contrato.
   let receitaId: number | null = null;

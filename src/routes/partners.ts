@@ -99,6 +99,15 @@ router.post('/:id/cases', async (req: Request, res: Response) => {
     caseIds.push(cr.insertId);
   }
 
+  // Etiqueta o cliente com a área
+  try {
+    const [[cl]] = await db.query('SELECT areas FROM clients WHERE id = ?', [clientId]) as any;
+    let arr: string[] = [];
+    try { arr = cl?.areas ? (typeof cl.areas === 'string' ? JSON.parse(cl.areas) : cl.areas) : []; } catch {}
+    if (!Array.isArray(arr)) arr = [];
+    if (!arr.includes(area)) { arr.push(area); await db.query('UPDATE clients SET areas = ? WHERE id = ?', [JSON.stringify(arr), clientId]); }
+  } catch { /* coluna areas pode não existir antes da migration 046 */ }
+
   // Entrada por protocolo (100% do escritório) — uma receita pelo total
   const entrada = entradaValor(partner, processos.length);
   await db.query(
