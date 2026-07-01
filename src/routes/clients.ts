@@ -78,6 +78,44 @@ router.get('/:id/timeline', async (req: Request, res: Response) => {
   res.json(rows);
 });
 
+// ── GET /api/clients/:id/ficha — ficha completa do cliente (consolidada) ────
+router.get('/:id/ficha', async (req: Request, res: Response) => {
+  const id = req.params.id;
+  const [[c]] = await db.query('SELECT * FROM clients WHERE id = ?', [id]) as any;
+  if (!c) { res.status(404).json({ error: 'Cliente não encontrado' }); return; }
+
+  const [[lead]] = await db.query(
+    'SELECT rg, marital_status, profession, case_summary FROM leads WHERE client_id = ? ORDER BY created_at DESC LIMIT 1', [id]
+  ) as any;
+
+  const qualificacao = [
+    c.name, 'brasileiro(a)', lead?.marital_status || '', lead?.profession || '',
+    lead?.rg ? `portador(a) do RG nº ${lead.rg}` : '',
+    c.cpf_cnpj ? `inscrito(a) no CPF nº ${c.cpf_cnpj}` : '',
+    c.address ? `residente e domiciliado(a) em ${c.address}` : '',
+    c.email ? `e-mail: ${c.email}` : '',
+  ].filter((x) => x && String(x).trim()).join(', ');
+
+  const q = async (sql: string) => { try { const [r] = await db.query(sql, [id]) as any; return r; } catch { return []; } };
+  const [cases, installments, receitas, documents, timeline] = await Promise.all([
+    q('SELECT id, title, case_number, legal_area, phase, status, production_stage, production_started_at FROM cases WHERE client_id = ? ORDER BY created_at DESC'),
+    q('SELECT numero, valor, due_date, status FROM installments WHERE client_id = ? ORDER BY due_date ASC'),
+    q("SELECT description, valor, tipo, status, due_date FROM financial_records WHERE client_id = ? AND tipo = 'receita' ORDER BY due_date ASC"),
+    q("SELECT name, type, folder, status, created_at FROM documents WHERE client_id = ? ORDER BY created_at DESC"),
+    q('SELECT description, created_at FROM client_timeline WHERE client_id = ? ORDER BY created_at DESC LIMIT 100'),
+  ]);
+
+  let a_receber = 0, pago = 0;
+  for (const i of installments as any[]) { const v = Number(i.valor) || 0; if (i.status === 'pago') pago += v; else if (['pendente', 'vencido'].includes(i.status)) a_receber += v; }
+  for (const r of receitas as any[]) { const v = Number(r.valor) || 0; if (r.status === 'pago') pago += v; else if (['pendente', 'vencido'].includes(r.status)) a_receber += v; }
+
+  res.json({
+    client: { id: c.id, name: c.name, tipo: c.tipo, cpf_cnpj: c.cpf_cnpj, email: c.email, phone: c.phone, address: c.address, status: c.status, notes: c.notes, areas: c.areas },
+    header: { qualificacao }, case_summary: lead?.case_summary || '',
+    cases, installments, receitas, documents, timeline, financeiro: { a_receber, pago },
+  });
+});
+
 // ── POST /api/clients — criar ───────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
   const { name, tipo, cpf_cnpj, email, phone, address, notes, status } = req.body;

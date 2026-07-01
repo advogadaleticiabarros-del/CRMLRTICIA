@@ -452,11 +452,11 @@ const ROUTES = {
         <tbody>${r.data.map((c) => `<tr>
           <td><strong>${c.name}</strong> ${c.is_dative ? '<span class="badge dativo">DATIVO</span>' : ''}${areaChipsHtml(c.areas)}<br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
           <td>${c.tipo}</td><td>${c.phone || c.email || '—'}</td><td>${badge(c.status)}</td>
-          <td style="white-space:nowrap"><button class="btn-sm" data-hist="${c.id}">Histórico</button> <button class="btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table>
+          <td style="white-space:nowrap"><button class="btn-sm" data-ficha="${c.id}">📋 Ficha</button> <button class="btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table>
         <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} cliente(s)</div>`
         : '<div class="empty">Nenhum cliente encontrado</div>';
       document.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => clientForm(b.dataset.edit, load));
-      document.querySelectorAll('[data-hist]').forEach((b) => b.onclick = () => clientHistory(b.dataset.hist));
+      document.querySelectorAll('[data-ficha]').forEach((b) => b.onclick = () => fichaCliente(b.dataset.ficha, load));
     };
     $('#new-client').onclick = () => clientForm(null, load);
     $('#cli-search').oninput = debounce(load, 350);
@@ -3109,6 +3109,49 @@ async function fichaCompleta(id) {
     try { navigator.clipboard.writeText(wrap.querySelector('#ficha-body').innerText); toast('Ficha copiada'); } catch { toast('Copie manualmente', 'error'); }
   };
   openModal('Ficha completa do processo', wrap);
+}
+
+function buildClientFichaHtml(f) {
+  const c = f.client || {};
+  const sec = (t, body) => `<h3 style="margin:16px 0 6px;color:var(--navy);border-bottom:1px solid var(--border);padding-bottom:3px">${t}</h3>${body}`;
+  const row = (k, v) => v ? `<div><strong>${k}:</strong> ${esc(v)}</div>` : '';
+  const fin = f.financeiro || {};
+  const cases = (f.cases || []).map((x) => `<div style="padding:3px 0"><strong>${esc(x.title || x.case_number || '—')}</strong> <small style="color:var(--text-muted)">${AREA_LABELS[x.legal_area] || x.legal_area || ''}${x.production_stage ? ' · ' + (FICHA_STAGE[x.production_stage] || x.production_stage) : ''} · ${esc(x.status)}</small></div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
+  const parc = (f.installments || []).filter((p) => p.status !== 'pago').map((p) => `<div>${p.numero}ª — ${money(p.valor)} · venc. ${fmtDate(p.due_date)} · ${esc(p.status)}</div>`).join('') || '<small style="color:var(--text-muted)">nenhuma em aberto</small>';
+  const docs = (f.documents || []).map((d) => `<div>${esc(d.name)} <small style="color:var(--text-muted)">(${esc(d.folder || d.type || '')})</small></div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
+  const tl = (f.timeline || []).map((t) => `<div style="padding:3px 0"><small style="color:var(--text-muted)">${fmtDate(t.created_at)}</small> ${esc(t.description)}</div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
+  return `
+    ${sec('Qualificação (cabeçalho da peça)', `<div style="white-space:pre-wrap;font-size:13px">${esc(f.header && f.header.qualificacao || '—')}</div>`)}
+    ${sec('Cadastro', row('Nome', c.name) + row('Tipo', c.tipo) + row('CPF/CNPJ', c.cpf_cnpj) + row('E-mail', c.email) + row('Telefone', c.phone) + row('Endereço', c.address) + row('Status', c.status) + (areaChipsHtml(c.areas) ? `<div style="margin-top:3px"><strong>Áreas:</strong> ${areaChipsHtml(c.areas)}</div>` : '') + (c.notes ? `<div style="margin-top:3px"><strong>Obs.:</strong> ${esc(c.notes)}</div>` : ''))}
+    ${f.case_summary ? sec('Resumo (do lead)', `<div style="white-space:pre-wrap;font-size:13px">${esc(f.case_summary)}</div>`) : ''}
+    ${sec('Processos', cases)}
+    ${sec('Financeiro', `<div>A receber: <strong>${money(fin.a_receber)}</strong> · Recebido: <strong>${money(fin.pago)}</strong></div><div style="margin-top:4px">${parc}</div>`)}
+    ${sec('Documentos', docs)}
+    ${sec('Linha do tempo', tl)}`;
+}
+
+async function fichaCliente(id, onSave) {
+  const f = await api(`/api/clients/${id}/ficha`).catch(() => null);
+  if (!f) { toast('Não foi possível carregar a ficha', 'error'); return; }
+  const html = buildClientFichaHtml(f);
+  const wrap = el(`<div>
+    <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
+      <button class="btn-gold btn-sm" id="fc-edit" type="button">✏️ Editar cadastro</button>
+      <button class="btn-sm" id="fc-print" type="button">🖨 Imprimir / PDF</button>
+      <button class="btn-sm" id="fc-copy" type="button">Copiar</button>
+    </div>
+    <div id="fc-body" style="max-height:65vh;overflow:auto">${html}</div>
+  </div>`);
+  wrap.querySelector('#fc-edit').onclick = () => { closeModal(); clientForm(id, onSave); };
+  wrap.querySelector('#fc-print').onclick = () => {
+    const w = window.open('', '_blank'); if (!w) { toast('Permita pop-ups para imprimir', 'error'); return; }
+    w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ficha — ${esc(f.client && f.client.name || '')}</title>
+      <style>body{font-family:Georgia,serif;font-size:12pt;line-height:1.5;color:#1a1a1a;padding:24px;max-width:820px;margin:auto}h1{font-size:16pt;margin:0}h3{font-size:12.5pt;border-bottom:1px solid #ccc;margin:14px 0 5px;color:#243}div{margin:2px 0}small{color:#666}span{background:none!important;color:#334!important}</style></head>
+      <body><h1>Ficha do Cliente — ${esc(f.client && f.client.name || '')}</h1>${html.replace(/var\(--[a-z-]+\)/g, '#334')}</body></html>`);
+    w.document.close(); setTimeout(() => w.print(), 350);
+  };
+  wrap.querySelector('#fc-copy').onclick = () => { try { navigator.clipboard.writeText(wrap.querySelector('#fc-body').innerText); toast('Ficha copiada'); } catch { toast('Copie manualmente', 'error'); } };
+  openModal('Ficha do cliente', wrap);
 }
 
 async function caseDetail(id, onSave) {
