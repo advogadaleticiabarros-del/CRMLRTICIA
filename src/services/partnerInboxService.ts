@@ -166,6 +166,36 @@ async function ensureRootFolder(auth: any): Promise<string> {
   return id!;
 }
 
+/** Acha (ou cria) uma subpasta com o nome dado dentro de um pai. */
+async function ensureSubfolder(auth: any, parentId: string, name: string): Promise<string> {
+  const drive = google.drive({ version: 'v3', auth });
+  const safe = (name || 'Sem nome').replace(/'/g, "\\'").replace(/[\n\r]/g, ' ').slice(0, 120);
+  const found = await drive.files.list({
+    q: `name='${safe}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+    fields: 'files(id)',
+  });
+  let id = found.data.files?.[0]?.id;
+  if (!id) {
+    const created = await drive.files.create({
+      requestBody: { name: safe, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] },
+      fields: 'id',
+    });
+    id = created.data.id!;
+  }
+  return id!;
+}
+
+/** Caminho no Drive: Raiz → Cliente → Caso. Cada caso tem sua pasta exclusiva. */
+async function ensureCaseFolder(auth: any, clientId: number, caseId: number | null): Promise<string> {
+  const rootId = await ensureRootFolder(auth);
+  const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
+  const clientFolder = await ensureSubfolder(auth, rootId, cl?.name || `Cliente ${clientId}`);
+  if (!caseId) return clientFolder;
+  const [[cs]] = await db.query('SELECT title, case_number FROM cases WHERE id = ?', [caseId]) as any;
+  const caseName = `Caso ${caseId}${cs?.case_number ? ' - ' + cs.case_number : (cs?.title ? ' - ' + cs.title : '')}`;
+  return ensureSubfolder(auth, clientFolder, caseName);
+}
+
 /**
  * Baixa os anexos de uma importação (source gmail) e sobe pro Drive, criando
  * um documento (file_url) por anexo, vinculado ao cliente/caso.
@@ -180,9 +210,8 @@ export async function processAttachmentsForImport(importId: number, clientId: nu
   const auth = await authedClient();
   const gmail = google.gmail({ version: 'v1', auth });
   const drive = google.drive({ version: 'v3', auth });
-  const folderId = await ensureRootFolder(auth);
-  const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
-  const prefix = (cl?.name || 'Cliente').slice(0, 40);
+  // Pasta exclusiva do caso: Raiz → Cliente → Caso.
+  const folderId = await ensureCaseFolder(auth, clientId, caseId);
 
   let n = 0;
   for (const a of atts) {
@@ -190,7 +219,7 @@ export async function processAttachmentsForImport(importId: number, clientId: nu
       const data = await gmail.users.messages.attachments.get({ userId: 'me', messageId: imp.source_message_id, id: a.attachmentId });
       const buf = Buffer.from((data.data.data || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64');
       const up = await drive.files.create({
-        requestBody: { name: `${prefix} - ${a.filename}`, parents: [folderId] },
+        requestBody: { name: a.filename, parents: [folderId] },
         media: { mimeType: a.mimeType || 'application/octet-stream', body: Readable.from(buf) },
         fields: 'id, webViewLink',
       });
