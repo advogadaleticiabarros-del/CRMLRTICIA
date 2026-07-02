@@ -1159,7 +1159,7 @@ img, svg, video { max-width: 100%; }
 [data-theme="escuro"] .kanban-col { background: #211c15; }
 [data-theme="escuro"] .kanban-card, [data-theme="escuro"] .kf-card { background: var(--surface); border-color: var(--border); }
 [data-theme="escuro"] .bell-icon { background: var(--surface-2); border-color: var(--border); }
-[data-theme="escuro"] input, [data-theme="escuro"] select, [data-theme="escuro"] textarea { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+[data-theme="escuro"] input, [data-theme="escuro"] select, [data-theme="escuro"] textarea { background-color: var(--surface-2); color: var(--text); border-color: var(--border); }
 [data-theme="escuro"] .tab:hover, [data-theme="escuro"] tbody tr:hover { background: var(--surface-2); }
 [data-theme="escuro"] .btn-sm, [data-theme="escuro"] .btn-ghost { background: var(--surface-2); color: var(--text-soft); border-color: var(--border); }
 [data-theme="escuro"] .btn-sm:hover { color: var(--gold); border-color: var(--gold); }
