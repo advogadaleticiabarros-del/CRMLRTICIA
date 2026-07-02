@@ -936,3 +936,81 @@ a:focus-visible, button:focus-visible, .nav-item:focus-visible, .bottom-item:foc
   /* Cartão-título das seções internas com um filete dourado discreto */
   .dash-section h3 { padding-bottom: 8px; border-bottom: 1px solid var(--border-soft); }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ✦✦ SWISS MODERNISM 2.0 — orientado pela skill ui-ux-pro-max
+   Legal Services → Trust & Authority + Minimalism · Navy + Gold + White
+   Tipografia: EB Garamond (títulos) + Inter (corpo) · base 8px · 1 acento
+   Responsivo para TODOS os aparelhos (celular → tablet → laptop → TV)
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Escala matemática de espaçamento (base 8px) */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px;
+}
+
+/* Tipografia de autoridade nos títulos de exibição (recomendação da skill) */
+.page-header h2, .modal-header h3, .dash-section h3, .cal-header h3, .prop-sec {
+  font-family: 'EB Garamond', Georgia, serif;
+}
+.page-header h2 { font-weight: 600; letter-spacing: 0; font-size: clamp(23px, 1.4vw + 15px, 34px); }
+.modal-header h3 { font-weight: 600; }
+.dash-section h3 { font-weight: 600; }
+/* Números tabulares e legíveis (KPIs, valores) — precisão “tecnológica” */
+.kpi .value, .funnel-num, td { font-feature-settings: "tnum" 1, "cv01" 1; }
+/* Corpo com leitura confortável e alto contraste (WCAG) */
+body { color: #211c15; }
+.topbar-greeting strong { color: var(--navy-deep); }
+
+/* Transições sutis e coerentes (200ms) — “subtle hover” do Swiss style */
+.card, .kpi, .btn-primary, .btn-gold, .btn-sm, .nav-item, .tab, .kanban-card { transition-duration: .2s; }
+
+/* ── SISTEMA RESPONSIVO COMPLETO ─────────────────────────────────────────── */
+
+/* Celular pequeno (SE/mini) — evita apertar os KPIs */
+@media (max-width: 400px) {
+  .kpi-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .kpi { padding: 12px; }
+  .kpi .value { font-size: 19px; }
+}
+
+/* Tablet retrato / celular grande em paisagem: usa a navegação mobile (gaveta+abas),
+   mas com respiro maior de tablet */
+@media (min-width: 560px) and (max-width: 880px) {
+  .content > .page { padding: 20px 22px calc(90px + env(safe-area-inset-bottom)); }
+  .kpi-grid { grid-template-columns: repeat(3, 1fr); }
+  .page tbody tr { padding: 14px 16px; }
+}
+
+/* Laptop compacto (881–1200): barra lateral e paddings mais justos */
+@media (min-width: 881px) and (max-width: 1200px) {
+  .sidebar { width: 236px; }
+  .content { margin-left: 236px; }
+  .content > .page { padding: 26px 28px 48px; }
+  .topbar { padding: 0 28px; height: 64px; }
+  .nav-item { padding: 9px 11px; font-size: 13px; }
+  .page-header h2 { font-size: 27px; }
+}
+
+/* Desktop grande: mais respiro editorial */
+@media (min-width: 1440px) {
+  .content > .page { max-width: 1400px; padding-left: 48px; padding-right: 48px; }
+  .kpi-grid { gap: 20px; }
+}
+
+/* Telas muito largas / TV / ultrawide: centraliza e limita a medida de leitura */
+@media (min-width: 1750px) {
+  .content > .page { max-width: 1560px; margin-left: auto; margin-right: auto; }
+  body { font-size: 15px; }
+  .kpi .value { font-size: 33px; }
+}
+
+/* Toque em qualquer aparelho híbrido (tablet/2-em-1): alvos confortáveis */
+@media (pointer: coarse) {
+  .btn-sm { min-height: 38px; }
+  .nav-item { padding-top: 11px; padding-bottom: 11px; }
+  .tab { padding-top: 13px; padding-bottom: 13px; }
+}
+
+/* Nunca rolar a página na horizontal, em nenhum aparelho (clip preserva o sticky) */
+html, body { overflow-x: clip; max-width: 100%; }
