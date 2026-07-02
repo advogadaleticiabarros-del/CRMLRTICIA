@@ -573,7 +573,7 @@ const ROUTES = {
     let cliPage = 1;
     const load = async () => {
       const q = new URLSearchParams();
-      q.set('limit', '50');
+      q.set('limit', '20');
       q.set('page', String(cliPage));
       if ($('#cli-search').value) q.set('search', $('#cli-search').value);
       if ($('#cli-status').value) q.set('status', $('#cli-status').value);
@@ -648,22 +648,28 @@ const ROUTES = {
           <option value="recusada">Recusada</option></select>
       </div>
       <div class="card"><div id="prop-table"></div></div>`;
+    let propPage = 1;
     const load = async () => {
       const q = new URLSearchParams();
+      q.set('limit', '20'); q.set('page', String(propPage));
       if ($('#prop-status').value) q.set('status', $('#prop-status').value);
       const r = await api('/api/propostas?' + q);
+      const pages = r.pages || 1;
       $('#prop-table').innerHTML = r.data.length ? `
         <table><thead><tr><th>Título</th><th>Cliente</th><th>Valor</th><th>Status</th><th>Validade</th><th></th></tr></thead>
         <tbody>${r.data.map((p) => `<tr>
           <td><strong>${p.title}</strong></td><td>${p.client_name || '—'}</td>
           <td>${money(p.valor)}</td><td>${badge(p.status)}</td><td>${fmtDate(p.validade)}</td>
           <td><button class="btn-sm" data-prop="${p.id}">Abrir</button></td></tr>`).join('')}</tbody></table>
-        <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} proposta(s)</div>`
+        <div class="list-foot"><span>${r.total} proposta(s) · página ${r.page} de ${pages}</span>${pagerHtml(r.page, pages)}</div>`
         : '<div class="empty">Nenhuma proposta ainda</div>';
       document.querySelectorAll('[data-prop]').forEach((b) => b.onclick = () => propostaDetail(b.dataset.prop, load));
+      document.querySelectorAll('#prop-table [data-page]').forEach((b) => b.onclick = () => {
+        propPage = Number(b.dataset.page); load(); $('#page').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     };
     $('#new-prop').onclick = () => propostaForm(load);
-    $('#prop-status').onchange = load;
+    $('#prop-status').onchange = () => { propPage = 1; load(); };
     await load();
   },
 
@@ -676,24 +682,31 @@ const ROUTES = {
         <select id="case-status"><option value="">Todos status</option><option value="ativo">Ativo</option><option value="suspenso">Suspenso</option><option value="encerrado">Encerrado</option></select>
       </div>
       <div class="card"><div id="case-table"></div></div>`;
+    let casePage = 1;
     const load = async () => {
       const q = new URLSearchParams();
+      q.set('limit', '20'); q.set('page', String(casePage));
       if ($('#case-search').value) q.set('search', $('#case-search').value);
       if ($('#case-status').value) q.set('status', $('#case-status').value);
       const r = await api('/api/cases?' + q);
+      const pages = r.pages || 1;
       $('#case-table').innerHTML = r.data.length ? `
         <table><thead><tr><th>Processo</th><th>Cliente</th><th>Área</th><th>Fase</th><th>Status</th><th></th></tr></thead>
         <tbody>${r.data.map((c) => `<tr>
           <td><strong>${c.title}</strong><br><small style="color:var(--text-muted)">${c.case_number || 's/ número'}</small></td>
           <td>${c.client_name || '—'}</td><td>${c.legal_area}</td><td>${badge(c.phase)}</td><td>${badge(c.status)}</td>
           <td><button class="btn-sm" data-case="${c.id}">Abrir</button></td></tr>`).join('')}</tbody></table>
-        <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} processo(s)</div>`
+        <div class="list-foot"><span>${r.total} processo(s) · página ${r.page} de ${pages}</span>${pagerHtml(r.page, pages)}</div>`
         : '<div class="empty">Nenhum processo ainda</div>';
       document.querySelectorAll('[data-case]').forEach((b) => b.onclick = () => caseDetail(b.dataset.case, load));
+      document.querySelectorAll('#case-table [data-page]').forEach((b) => b.onclick = () => {
+        casePage = Number(b.dataset.page); load(); $('#page').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     };
+    const reload = () => { casePage = 1; load(); };
     $('#new-case').onclick = () => caseForm(load);
-    $('#case-search').oninput = debounce(load, 350);
-    $('#case-status').onchange = load;
+    $('#case-search').oninput = debounce(reload, 350);
+    $('#case-status').onchange = reload;
     await load();
   },
 
@@ -1393,15 +1406,22 @@ const ROUTES = {
       <div class="page-header"><div><h2>Atendimentos</h2><p class="sub">Primeiro contato e triagem</p></div>
         <button class="btn-gold" id="new-intake">+ Novo atendimento</button></div>
       <div class="card"><div id="int-table"></div></div>`;
+    let intPage = 1;
     const load = async () => {
-      const r = await api('/api/intakes');
+      const q = new URLSearchParams();
+      q.set('limit', '20'); q.set('page', String(intPage));
+      const r = await api('/api/intakes?' + q);
+      const pages = r.pages || 1;
       $('#int-table').innerHTML = r.data.length ? `
         <table><thead><tr><th>Contato</th><th>Área</th><th>Origem</th><th>Urgência</th><th>Status</th></tr></thead>
         <tbody>${r.data.map((i) => `<tr>
           <td><strong>${i.contact_name}</strong><br><small style="color:var(--text-muted)">${i.phone || ''}</small></td>
           <td>${i.legal_area}</td><td>${i.source}</td><td>${badge(i.urgency)}</td><td>${badge(i.status)}</td></tr>`).join('')}</tbody></table>
-        <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} atendimento(s)</div>`
+        <div class="list-foot"><span>${r.total} atendimento(s) · página ${r.page} de ${pages}</span>${pagerHtml(r.page, pages)}</div>`
         : '<div class="empty">Nenhum atendimento ainda</div>';
+      document.querySelectorAll('#int-table [data-page]').forEach((b) => b.onclick = () => {
+        intPage = Number(b.dataset.page); load(); $('#page').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     };
     $('#new-intake').onclick = () => intakeForm(load);
     await load();
