@@ -166,6 +166,7 @@ function showApp() {
   if (bellTimer) clearInterval(bellTimer);
   bellTimer = setInterval(refreshBell, 60000); // atualiza o sino a cada 60s
   setTimeout(autoDiscoverDaily, 3500); // busca diária de processos/prazos (1x/dia, em 2º plano)
+  const dbn = $('#discover-btn'); if (dbn) dbn.style.display = ['admin', 'advogado', 'staff'].includes(USER?.role) ? '' : 'none';
   resetIdle(); // arma o logout por inatividade
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {}); // PWA
@@ -289,6 +290,25 @@ async function autoDiscoverDaily() {
     localStorage.setItem('autoDiscover', today);
     if (novos > 0 || clientes > 0) { toast(`Atualização diária: ${novos} processo(s) novo(s) e ${clientes} cliente(s). Confira Prazos e Monitoramento.`); refreshBell(); }
   } catch {}
+}
+
+// Descoberta por OAB sob demanda (botão do cabeçalho) — roda para todos os advogados.
+async function discoverNow() {
+  if (!['admin', 'advogado', 'staff'].includes(USER?.role)) { toast('Sem permissão para descobrir processos', 'error'); return; }
+  const btn = $('#discover-btn'); if (!btn || btn.disabled) return;
+  const orig = btn.textContent; btn.disabled = true; btn.textContent = 'Buscando…';
+  try {
+    const lawyers = await api('/api/lawyers').catch(() => []);
+    const ativos = lawyers.filter((l) => l.oab_number && l.monitoring_enabled);
+    if (!ativos.length) { toast('Nenhum advogado com OAB e monitoramento ativo. Cadastre em Advogados/OAB.', 'error'); return; }
+    let novos = 0, clientes = 0;
+    for (const l of ativos) {
+      try { const r = await oabDiscover(l.id, l.oab_number, l.oab_uf, (p) => { btn.textContent = `Buscando… (pág. ${p})`; }); novos += (r.novos || 0); clientes += (r.clientesNovos || 0); } catch {}
+    }
+    toast(`Descoberta concluída: ${novos} processo(s) novo(s) e ${clientes} cliente(s). Veja em Monitoramento e Prazos.`);
+    refreshBell();
+  } catch (e) { toast(e.message || 'Falha na descoberta', 'error'); }
+  finally { btn.disabled = false; btn.textContent = orig; }
 }
 
 async function openNotifications() {
@@ -4309,6 +4329,7 @@ if (forgotBtn) forgotBtn.onclick = async () => {
 };
 $('#logout-btn').onclick = logout;
 $('#bell-btn').onclick = openNotifications;
+if ($('#discover-btn')) $('#discover-btn').onclick = discoverNow;
 const navToggle = $('#nav-toggle');
 if (navToggle) navToggle.onclick = () => document.body.classList.toggle('nav-open');
 const navOverlay = $('#nav-overlay');
