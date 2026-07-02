@@ -2026,26 +2026,30 @@ async function dashCockpit(c) {
   const d = await api('/api/dashboards/cockpit');
   const go = (route) => `onclick="location.hash='#${route}'" style="cursor:pointer"`;
 
-  const kpi = (label, valor, cor, route) =>
-    `<div class="card" ${go(route)} style="padding:14px 16px;border-left:4px solid ${cor}">
-      <div style="font-size:12px;color:var(--text-muted)">${label}</div>
-      <div style="font-size:20px;font-weight:700;margin-top:4px">${money(valor)}</div></div>`;
-
   const f = d.financeiro || {};
-  const kpis = `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-bottom:18px">
-    ${kpi('A receber (até hoje)', f.receber_hoje, 'var(--green)', 'financeiro')}
-    ${kpi('A receber (7 dias)', f.receber_7d, 'var(--gold)', 'financeiro')}
-    ${kpi('A pagar (7 dias)', f.pagar_7d, 'var(--amber)', 'financeiro')}
-    ${kpi('Inadimplência', f.vencido, 'var(--red)', 'financeiro')}
+  // KPI do sistema (robusto/responsivo) — cockpit equilibrado: financeiro + operacional
+  const stat = (label, value, route, o = {}) =>
+    `<div class="kpi" ${go(route)} style="cursor:pointer">
+       <div class="label">${label}</div>
+       <div class="value${o.money ? ' money' : ''}"${o.color ? ` style="color:${o.color}"` : ''}>${o.money ? money(value) : (value ?? 0)}</div>
+     </div>`;
+  const kpis = `<div class="kpi-grid" style="margin-bottom:20px">
+    ${stat('A receber até hoje', f.receber_hoje, 'financeiro', { money: 1 })}
+    ${stat('A receber (7 dias)', f.receber_7d, 'financeiro', { money: 1 })}
+    ${stat('A pagar (7 dias)', f.pagar_7d, 'financeiro', { money: 1 })}
+    ${stat('Inadimplência', f.vencido, 'financeiro', { money: 1, color: Number(f.vencido) > 0 ? 'var(--red)' : '' })}
+    ${stat('Tarefas pendentes', d.tarefas_pendentes ?? 0, 'prazos', { color: Number(d.tarefas_pendentes) > 0 ? 'var(--amber)' : '' })}
+    ${stat('Propostas em análise', d.propostas_paradas ?? 0, 'propostas')}
   </div>`;
 
+  // Painel que se dimensiona pelo conteúdo (não estica p/ igualar) + corpo rolável
   const painel = (titulo, count, route, inner, vazio) =>
-    `<div class="card" style="margin-bottom:16px">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-bottom:1px solid var(--border)">
-        <strong>${titulo}${count != null ? ` <span style="color:var(--text-muted)">(${count})</span>` : ''}</strong>
+    `<div class="dash-panel">
+      <div class="dash-panel-h">
+        <strong>${titulo}${count != null ? ` <span class="muted">(${count})</span>` : ''}</strong>
         <button class="btn-sm" ${go(route)}>Abrir →</button>
       </div>
-      <div style="padding:6px 0">${inner || `<div class="empty" style="padding:14px 16px">${vazio}</div>`}</div>
+      <div class="dash-panel-b">${inner || `<div class="empty" style="padding:22px 16px">${vazio}</div>`}</div>
     </div>`;
 
   const row = (esquerda, direita, route, sub) =>
@@ -2088,19 +2092,11 @@ async function dashCockpit(c) {
 
   c.innerHTML = `
     ${kpis}
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
+    <div class="cockpit-panels">
       ${painel(`${svgIcon('clock', 'ic-t')}Prazos críticos (72h)`, (d.prazos || []).length, 'prazos', prazosHtml, 'Nenhum prazo crítico. 👏')}
       ${painel(`${svgIcon('file', 'ic-t')}Intimações a confirmar`, intim.count, 'prazos', intimHtml, 'Nada a confirmar.')}
       ${painel(`${svgIcon('alert', 'ic-t')}Movimentações a verificar`, al.count, 'monitor', alHtml, 'Sem alertas pendentes.')}
       ${painel(`${svgIcon('calendar', 'ic-t')}Agenda de hoje`, (d.agenda_hoje || []).length, 'agenda', agHtml, 'Nada agendado para hoje.')}
-    </div>
-    <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap">
-      <div class="card" ${go('prazos')} style="padding:12px 16px;flex:1;min-width:160px;cursor:pointer">
-        <div style="font-size:12px;color:var(--text-muted)">Tarefas pendentes</div>
-        <div style="font-size:20px;font-weight:700">${d.tarefas_pendentes ?? 0}</div></div>
-      <div class="card" ${go('propostas')} style="padding:12px 16px;flex:1;min-width:160px;cursor:pointer">
-        <div style="font-size:12px;color:var(--text-muted)">Propostas em análise</div>
-        <div style="font-size:20px;font-weight:700">${d.propostas_paradas ?? 0}</div></div>
     </div>`;
 }
 

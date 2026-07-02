@@ -1014,3 +1014,49 @@ body { color: #211c15; }
 
 /* Nunca rolar a página na horizontal, em nenhum aparelho (clip preserva o sticky) */
 html, body { overflow-x: clip; max-width: 100%; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ✦ COCKPIT + ROBUSTEZ DE LAYOUT — sem cortes/overflow em nenhuma resolução
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Painéis do cockpit: dimensionam pelo conteúdo (não esticam p/ igualar altura) */
+.cockpit-panels {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px; align-items: start;
+}
+.dash-panel {
+  background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+  box-shadow: var(--shadow-sm); overflow: hidden; min-width: 0; animation: rise .34s ease backwards;
+}
+.dash-panel-h {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 13px 16px; border-bottom: 1px solid var(--border);
+}
+.dash-panel-h strong { font-size: 14.5px; display: flex; align-items: center; min-width: 0; }
+.dash-panel-h .muted { color: var(--text-muted); font-weight: 500; margin-left: 4px; }
+.dash-panel-h .btn-sm { flex: 0 0 auto; white-space: nowrap; }
+.dash-panel-b { max-height: 360px; overflow-y: auto; }
+.dash-panel-b .mini-row { gap: 12px; }
+.dash-panel-b .mini-row span:first-child { min-width: 0; overflow-wrap: anywhere; }
+
+/* ── Blindagem GLOBAL contra cortes de texto (qualquer tela/resolução) ── */
+/* KPIs: rótulos e valores nunca cortam; quebram com elegância */
+.kpi { min-width: 0; }
+.kpi .label { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.kpi .value { overflow-wrap: anywhere; line-height: 1.15; }
+/* Valores monetários longos encolhem um pouco em telas estreitas */
+.kpi .value.money { font-size: clamp(17px, 1.1vw + 12px, 24px); }
+/* Cabeçalhos e células de tabela não estouram a largura */
+thead th, tbody td { overflow-wrap: anywhere; }
+/* Mídia e ícones jamais ultrapassam o container */
+img, svg, video { max-width: 100%; }
+/* Títulos longos quebram em vez de vazar */
+.page-header h2, .dash-section h3, .card strong, .modal-header h3 { overflow-wrap: anywhere; }
+/* Qualquer grade de KPIs: gap coerente e sem overflow */
+.kpi-grid { min-width: 0; }
+
+/* Mobile: painéis do cockpit ocupam a largura toda, corpo um pouco menor */
+@media (max-width: 880px) {
+  .cockpit-panels { grid-template-columns: 1fr; gap: 12px; }
+  .dash-panel-b { max-height: 300px; }
+}
