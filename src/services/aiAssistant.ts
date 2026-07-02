@@ -70,6 +70,50 @@ export function aiConfigured(): boolean {
   return !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY);
 }
 
+/** Tipos canônicos de peça usados para casar o modelo do escritório. */
+export const PIECE_TYPES: { value: string; label: string }[] = [
+  { value: 'peticao_inicial', label: 'Petição inicial' },
+  { value: 'contestacao', label: 'Contestação' },
+  { value: 'replica', label: 'Réplica' },
+  { value: 'recurso', label: 'Recurso' },
+  { value: 'manifestacao', label: 'Manifestação' },
+  { value: 'cumprimento_sentenca', label: 'Cumprimento de sentença' },
+  { value: 'peticao_simples', label: 'Petição simples' },
+];
+
+const semAcento = (s: string) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+
+/** Normaliza um texto livre de tipo ("Contestação", "réplica"...) para o valor canônico. */
+export function normalizePieceType(raw: string): string | null {
+  const t = semAcento(raw);
+  if (!t) return null;
+  if (t.includes('contesta')) return 'contestacao';
+  if (t.includes('replica') || t.includes('impugna')) return 'replica';
+  if (t.includes('cumprimento') && t.includes('sentenc')) return 'cumprimento_sentenca';
+  if (t.includes('recurso') || t.includes('apela') || t.includes('agravo') || t.includes('embargos')) return 'recurso';
+  if (t.includes('manifesta')) return 'manifestacao';
+  if (t.includes('inicial') || t.includes('exordial')) return 'peticao_inicial';
+  if (t.includes('peticao') || t.includes('simples')) return 'peticao_simples';
+  return null;
+}
+
+/**
+ * Procura na biblioteca do escritório (document_templates) um modelo de PEÇA
+ * que case com o tipo informado. Retorna o texto do modelo para servir de
+ * esqueleto/estilo à redação da IA. Match por piece_type canônico.
+ */
+export async function findOfficeModel(rawType: string): Promise<{ id: number; name: string; content: string } | null> {
+  const canon = normalizePieceType(rawType);
+  if (!canon) return null;
+  try {
+    const [rows] = await db.query(
+      'SELECT id, name, content FROM document_templates WHERE piece_type = ? AND content IS NOT NULL AND content <> "" ORDER BY updated_at DESC LIMIT 1',
+      [canon]
+    ) as any;
+    return rows?.[0] || null;
+  } catch { return null; /* coluna piece_type pode não existir antes da migration 047 */ }
+}
+
 /**
  * Reúne o CONTEXTO do processo para alimentar a redação da peça: descrição do
  * caso + trechos dos documentos do GED vinculados (petições, decisões, provas).
@@ -153,17 +197,22 @@ ${teor}`;
       await db.query('UPDATE detected_deadlines SET ai_summary = ? WHERE id = ?', [analise.text, detectedDeadlineId]);
     }
 
-    // 2) MINUTA — Gemini: redige a peça lendo os documentos do processo.
+    // 2) MINUTA — Gemini: redige a peça lendo os documentos do processo e,
+    //    quando houver, SEGUINDO O MODELO DO ESCRITÓRIO para o tipo de peça.
     const contexto = await coletarContextoDoCaso(caseId, clientId);
+    const modelo = await findOfficeModel(suggestedType);
+    const blocoModelo = modelo
+      ? `\nMODELO DO ESCRITÓRIO — "${modelo.name}" (SIGA fielmente esta estrutura, estilo e cláusulas; substitua os campos {{...}} e adapte ao caso concreto):\n${modelo.content}\n`
+      : '';
     const minutaPrompt = `Você é advogado(a) brasileiro(a) redigindo uma peça para protocolo. Sua tarefa:
 1) Leia a intimação e os DOCUMENTOS DO PROCESSO abaixo.
 2) Identifique fatos relevantes, pedidos e fundamentos jurídicos aplicáveis.
-3) Redija a MINUTA de ${suggestedType}, em português jurídico formal, bem estruturada (endereçamento, síntese fática, fundamentação com base legal pertinente, pedidos e fecho), fundamentada e pronta para REVISÃO FINAL antes do protocolo.
+3) ${modelo ? 'Redija a MINUTA SEGUINDO O MODELO DO ESCRITÓRIO abaixo (mesma estrutura e estilo), preenchendo-o com os dados do caso.' : `Redija a MINUTA de ${suggestedType}, em português jurídico formal, bem estruturada (endereçamento, síntese fática, fundamentação com base legal pertinente, pedidos e fecho).`} Deixe fundamentada e pronta para REVISÃO FINAL antes do protocolo.
 Use [colchetes] apenas onde faltar informação que não está nos autos. Não invente fatos.
 
 Cliente: ${client?.name || '[cliente]'}${client?.cpf_cnpj ? ', CPF/CNPJ ' + client.cpf_cnpj : ''}
 Advogada subscritora: ${adv}
-${contexto ? `\nDOCUMENTOS DO PROCESSO (contexto):\n${contexto}\n` : ''}
+${blocoModelo}${contexto ? `\nDOCUMENTOS DO PROCESSO (contexto):\n${contexto}\n` : ''}
 INTIMAÇÃO A RESPONDER:
 ${teor}`;
     const minuta = await aiComplete(minutaPrompt, 'gemini');

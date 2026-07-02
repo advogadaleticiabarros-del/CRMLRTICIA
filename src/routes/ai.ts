@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
-import { aiComplete } from '../services/aiAssistant';
+import { aiComplete, findOfficeModel } from '../services/aiAssistant';
 
 const router = Router();
 
@@ -151,8 +151,20 @@ router.post('/generate', async (req: Request, res: Response) => {
   if (case_id) { const [[p]] = await db.query('SELECT * FROM cases WHERE id = ?', [case_id]) as any; proc = p; }
   const [[lawyer]] = await db.query("SELECT name, oab_number, oab_uf FROM lawyers WHERE active = 1 ORDER BY id LIMIT 1") as any;
 
-  const prompt = tpl.build({ client, proc, lawyer, inputs: inputs || {} });
+  let prompt = tpl.build({ client, proc, lawyer, inputs: inputs || {} });
   const title = `${tpl.label}${client ? ' — ' + client.name : ''}`;
+
+  // Se o escritório tiver um MODELO próprio para este tipo de peça, usa-o como
+  // base/estilo (explícito por office_template_id ou casado pelo tipo).
+  let modelo: any = null;
+  if (req.body.office_template_id) {
+    const [[m]] = await db.query('SELECT id, name, content FROM document_templates WHERE id = ?', [req.body.office_template_id]) as any;
+    modelo = m || null;
+  }
+  if (!modelo) modelo = await findOfficeModel(type);
+  if (modelo?.content) {
+    prompt += `\n\nMODELO DO ESCRITÓRIO — "${modelo.name}" (SIGA fielmente esta estrutura, estilo e cláusulas; substitua os campos {{...}} e adapte ao caso concreto):\n${modelo.content}`;
+  }
 
   // Tenta geração automática (grátis) se houver chave configurada.
   // Redação de peça → Gemini (com fallback no Groq).

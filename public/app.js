@@ -1568,9 +1568,10 @@ async function gedModelos(c) {
   const load = async () => {
     const rows = await api('/api/documents/templates');
     $('#tpl-list').innerHTML = rows.length ? `
-      <table><thead><tr><th>Modelo</th><th>Categoria</th><th></th></tr></thead>
-      <tbody>${rows.map((t) => `<tr><td><strong>${t.name}</strong></td><td>${FOLDER_PT[t.category] || t.category}</td>
-        <td><button class="btn-sm" data-tpl="${t.id}">Editar</button> <button class="btn-sm" data-del-tpl="${t.id}">×</button></td></tr>`).join('')}</tbody></table>`
+      <table><thead><tr><th>Modelo</th><th>Categoria</th><th>Peça (IA)</th><th></th></tr></thead>
+      <tbody>${rows.map((t) => { const pt = (PIECE_TYPES.find((p) => p.v === t.piece_type) || {}).t; return `<tr><td><strong>${t.name}</strong></td><td>${FOLDER_PT[t.category] || t.category}</td>
+        <td>${t.piece_type ? `<span class="badge ativo">🧑‍🎓 ${pt}</span>` : '<span style="color:var(--muted,#8a8175)">—</span>'}</td>
+        <td><button class="btn-sm" data-tpl="${t.id}">Editar</button> <button class="btn-sm" data-del-tpl="${t.id}">×</button></td></tr>`; }).join('')}</tbody></table>`
       : '<div class="empty">Nenhum modelo</div>';
     document.querySelectorAll('[data-tpl]').forEach((b) => b.onclick = async () => {
       const t = (await api('/api/documents/templates')).find((x) => x.id == b.dataset.tpl); templateForm(t, load);
@@ -1687,11 +1688,15 @@ async function docViewer(id, onSave) {
   openModal(doc.name, wrap);
 }
 
+const PIECE_TYPES = [['','— Não é peça (documento comum) —'],['peticao_inicial','Petição inicial'],['contestacao','Contestação'],['replica','Réplica'],['recurso','Recurso'],['manifestacao','Manifestação'],['cumprimento_sentenca','Cumprimento de sentença'],['peticao_simples','Petição simples']].map(([v,t])=>({v,t}));
+
 async function templateForm(tpl, onSave) {
   const cats = Object.entries(FOLDER_PT).map(([v, t]) => ({ v, t }));
   const form = el(`<form class="form-grid">
     ${field('Nome do modelo *', 'name', { value: tpl?.name || '' })}
     ${field('Categoria (pasta)', 'category', { value: tpl?.category || 'outros', options: cats })}
+    ${field('Tipo de peça (para o Estagiário IA usar este modelo)', 'piece_type', { value: tpl?.piece_type || '', options: PIECE_TYPES })}
+    <p style="margin:-4px 0 6px;font-size:12px;color:var(--muted,#8a8175)">Marque o tipo de peça para o Estagiário IA escolher automaticamente este modelo ao redigir a minuta desse tipo, preenchendo-o com os autos do processo.</p>
     <label>Conteúdo (use {{cliente_nome}}, {{cliente_cpf}}, {{cliente_endereco}}, {{processo_numero}}, {{advogada_nome}}, {{advogada_oab}}, {{data_extenso}})
       <textarea name="content" rows="12" style="font-family:Georgia,serif">${tpl?.content || ''}</textarea></label>
     <button type="submit" class="btn-primary">${tpl ? 'Salvar modelo' : 'Criar modelo'}</button>

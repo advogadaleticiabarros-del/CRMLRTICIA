@@ -16,16 +16,16 @@ function dataExtenso(): string {
 
 // ── TEMPLATES ───────────────────────────────────────────────────────────────
 router.get('/templates', async (_req: Request, res: Response) => {
-  const [rows] = await db.query('SELECT id, name, category, content, instructions, applies_to, legal_basis, updated_at FROM document_templates ORDER BY category, name') as any;
+  const [rows] = await db.query('SELECT id, name, category, content, instructions, applies_to, legal_basis, piece_type, updated_at FROM document_templates ORDER BY category, name') as any;
   res.json(rows);
 });
 
 router.post('/templates', async (req: Request, res: Response) => {
-  const { name, category, content } = req.body;
+  const { name, category, content, piece_type } = req.body;
   if (!name || !content) { res.status(400).json({ error: 'Nome e conteúdo são obrigatórios' }); return; }
   const [r] = await db.query(
-    'INSERT INTO document_templates (name, category, content, created_by) VALUES (?, ?, ?, ?)',
-    [name.trim(), category || 'outros', content, req.user!.id]
+    'INSERT INTO document_templates (name, category, content, piece_type, created_by) VALUES (?, ?, ?, ?, ?)',
+    [name.trim(), category || 'outros', content, piece_type || null, req.user!.id]
   ) as any;
   const [rows] = await db.query('SELECT * FROM document_templates WHERE id = ?', [r.insertId]) as any;
   res.status(201).json(rows[0]);
@@ -37,6 +37,7 @@ router.put('/templates/:id', async (req: Request, res: Response) => {
   setIf('name', req.body.name?.trim?.());
   setIf('category', req.body.category);
   setIf('content', req.body.content);
+  setIf('piece_type', req.body.piece_type === '' ? null : req.body.piece_type);
   if (!fields.length) { res.status(400).json({ error: 'Nada para atualizar' }); return; }
   params.push(req.params.id);
   const [r] = await db.query(`UPDATE document_templates SET ${fields.join(', ')} WHERE id = ?`, params) as any;
