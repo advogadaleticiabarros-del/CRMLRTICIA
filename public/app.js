@@ -3116,7 +3116,14 @@ function buildClientFichaHtml(f) {
   const sec = (t, body) => `<h3 style="margin:16px 0 6px;color:var(--navy);border-bottom:1px solid var(--border);padding-bottom:3px">${t}</h3>${body}`;
   const row = (k, v) => v ? `<div><strong>${k}:</strong> ${esc(v)}</div>` : '';
   const fin = f.financeiro || {};
-  const cases = (f.cases || []).map((x) => `<div style="padding:3px 0"><strong>${esc(x.title || x.case_number || '—')}</strong> <small style="color:var(--text-muted)">${AREA_LABELS[x.legal_area] || x.legal_area || ''}${x.production_stage ? ' · ' + (FICHA_STAGE[x.production_stage] || x.production_stage) : ''} · ${esc(x.status)}</small></div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
+  const areaChip = (a) => a ? `<span style="font-size:11px;font-weight:700;background:var(--gold-soft,#efe3c8);color:var(--navy);padding:2px 9px;border-radius:10px;white-space:nowrap">${esc(AREA_LABELS[a] || a)}</span>` : '';
+  const cases = (f.cases || []).map((x) => `<div style="padding:7px 0;border-bottom:1px solid var(--border-soft)">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <span>Nº do processo: <strong style="font-size:15px;color:var(--gold)">${esc(x.case_number || 's/ número')}</strong></span>
+        ${areaChip(x.legal_area)}
+      </div>
+      <div style="margin-top:2px"><strong>${esc(x.title || 'Processo')}</strong> <small style="color:var(--text-muted)">${x.production_stage ? (FICHA_STAGE[x.production_stage] || x.production_stage) + ' · ' : ''}${esc(x.status)}</small></div>
+    </div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
   const parc = (f.installments || []).filter((p) => p.status !== 'pago').map((p) => `<div>${p.numero}ª — ${money(p.valor)} · venc. ${fmtDate(p.due_date)} · ${esc(p.status)}</div>`).join('') || '<small style="color:var(--text-muted)">nenhuma em aberto</small>';
   const docs = (f.documents || []).map((d) => `<div>${esc(d.name)} <small style="color:var(--text-muted)">(${esc(d.folder || d.type || '')})</small></div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
   const tl = (f.timeline || []).map((t) => `<div style="padding:3px 0"><small style="color:var(--text-muted)">${fmtDate(t.created_at)}</small> ${esc(t.description)}</div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
