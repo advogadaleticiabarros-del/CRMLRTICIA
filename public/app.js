@@ -1967,8 +1967,10 @@ async function loadJourney(container, params) {
 }
 
 function miniList(title, rows) {
+  // Aceita array (junta) ou string (usa direto) — evita "rows.join is not a function".
+  const body = Array.isArray(rows) ? rows.join('') : (rows || '');
   return `<div class="dash-section"><h3>${title}</h3><div class="mini-list">${
-    rows && rows.length ? rows.join('') : '<div class="mini-row"><small>Sem registros</small></div>'
+    body ? body : '<div class="mini-row"><small>Sem registros</small></div>'
   }</div></div>`;
 }
 
