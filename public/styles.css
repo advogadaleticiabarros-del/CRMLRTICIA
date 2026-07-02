@@ -755,3 +755,100 @@ a:focus-visible, button:focus-visible, .nav-item:focus-visible, .bottom-item:foc
 
 /* Ícones de título alinham verticalmente com o texto do <strong>/<h3> */
 .card strong .ic-t, .dash-section h3 .ic-t { vertical-align: -2px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ✦ DESIGN SYSTEM 2.0 — repaginação moderna (navy + dourado, sem cara de IA)
+   Ícones no menu (global) + refino do desktop (@media min-width:881px).
+   O mobile já foi repaginado e fica preservado.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Sombras em camadas (mais realistas que a sombra única de template) */
+:root {
+  --shadow-sm: 0 1px 2px rgba(31,41,63,.05), 0 1px 1px rgba(31,41,63,.03);
+  --shadow: 0 2px 4px rgba(31,41,63,.04), 0 6px 16px rgba(31,41,63,.07);
+  --shadow-lg: 0 4px 8px rgba(31,41,63,.06), 0 18px 44px rgba(31,41,63,.14);
+  --ring-gold: 0 0 0 3px rgba(193,154,78,.16);
+}
+
+/* ── Menu lateral com ícones (vale desktop e gaveta mobile) ── */
+.nav-item { gap: 11px; }
+.nav-item .nav-ic { width: 18px; height: 18px; flex: 0 0 auto; opacity: .68; transition: opacity .15s, color .15s; }
+.nav-item span { flex: 1; min-width: 0; }
+.nav-item:hover .nav-ic { opacity: 1; }
+.nav-item.active .nav-ic { opacity: 1; color: var(--gold); }
+.nav-highlight .nav-ic { opacity: 1; }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Refino do DESKTOP (não afeta o celular)
+   ───────────────────────────────────────────────────────────────────────── */
+@media (min-width: 881px) {
+  body { background: var(--bg); }
+
+  /* Sidebar mais estruturada */
+  .sidebar { width: 272px; background: linear-gradient(180deg, #fffdf9 0%, #fbf8f2 100%); border-right: 1px solid var(--border); }
+  .content { margin-left: 272px; }
+  .sidebar-brand { padding: 22px 22px 18px; }
+  .sidebar-brand .emblem { width: 42px; height: 42px; }
+  .sidebar-brand strong { font-size: 15.5px; letter-spacing: .2px; }
+  .nav { padding: 12px 14px; gap: 3px; }
+  .nav-item { padding: 10px 13px; border-radius: 11px; font-size: 13.5px; color: var(--text-soft); transition: background .15s, color .15s; }
+  .nav-item:hover { background: rgba(42,63,95,.05); color: var(--navy-deep); transform: none; }
+  /* Item ativo: pílula dourada limpa (sem barra inset de template) */
+  .nav-item.active { background: rgba(193,154,78,.14); color: var(--navy-deep); font-weight: 600; box-shadow: none; }
+  .nav-highlight, .nav-highlight.active { background: var(--gold); color: #fff; box-shadow: 0 6px 18px rgba(193,154,78,.30); }
+  .nav-highlight:hover { background: #b6893c; color: #fff; }
+  .sidebar-footer { padding: 14px 18px; }
+
+  /* Topbar: mais alta, limpa, com blur */
+  .topbar { height: 68px; padding: 0 40px; background: rgba(251,248,242,.82); backdrop-filter: saturate(180%) blur(10px); border-bottom: 1px solid var(--border); }
+  .topbar-greeting { font-size: 14.5px; }
+  .bell-icon { width: 42px; height: 42px; background: #fff; border-color: var(--border); }
+
+  /* Área de conteúdo com respiro editorial */
+  .content > .page { padding: 34px 40px 56px; max-width: 1280px; }
+  .page-header { margin-bottom: 30px; }
+  .page-header h2 { font-size: 32px; line-height: 1.12; }
+  .page-header h2::after { width: 46px; height: 2px; bottom: 2px; }
+
+  /* KPIs modernos: hairline + sombra em camadas + acento dourado no topo */
+  .kpi-grid { gap: 18px; }
+  .kpi { padding: 22px 22px 20px; border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-sm); }
+  .kpi::before { width: 100%; height: 3px; left: 0; top: 0; bottom: auto; background: linear-gradient(90deg, var(--gold), var(--gold-soft)); opacity: .9; }
+  .kpi .label { letter-spacing: .7px; }
+  .kpi .value { font-size: 31px; margin-top: 8px; }
+  .kpi .value.money { font-size: 24px; }
+  .kpi:hover { box-shadow: var(--shadow); border-color: #e4dcc9; }
+
+  /* Cards: cantos maiores, borda fininha, sombra em camadas */
+  .card { border: 1px solid var(--border); border-radius: 16px; box-shadow: var(--shadow-sm); }
+  .card:hover { box-shadow: var(--shadow); }
+  .card > div:first-child > strong { font-size: 14.5px; }
+
+  /* Tabelas: cabeçalho discreto, linhas arejadas, 1ª coluna com peso */
+  thead th { padding: 14px 22px; font-size: 11px; letter-spacing: .7px; background: #fbf9f4; }
+  tbody td { padding: 15px 22px; }
+  tbody td:first-child { color: var(--navy-deep); }
+  tbody tr { transition: background .12s; }
+  tbody tr:hover { background: #fbfaf6; }
+  tbody tr:hover td:first-child { box-shadow: inset 2px 0 0 var(--gold); }
+
+  /* Botões: sólidos, sem gradiente, com sombra sutil */
+  .btn-primary { border-radius: 11px; box-shadow: 0 1px 2px rgba(31,41,63,.10); }
+  .btn-primary:hover { background: var(--navy-light); box-shadow: var(--shadow); transform: none; }
+  .btn-gold { border-radius: 11px; }
+  .btn-sm, .btn-ghost { border-radius: 9px; }
+  input, select, textarea { border-radius: 11px; }
+  input:focus, select:focus, textarea:focus { box-shadow: var(--ring-gold); }
+
+  /* Abas com trilho e sublinhado dourado */
+  .tabs { gap: 2px; border-bottom: 1px solid var(--border); }
+  .tab { padding: 12px 18px; border-radius: 10px 10px 0 0; }
+  .tab:hover { background: #fbf9f4; }
+
+  /* Badges levemente maiores e mais legíveis */
+  .badge { padding: 4px 12px; font-size: 11.5px; border-radius: 8px; }
+
+  /* Modal mais amplo e sofisticado */
+  .modal-card { border-radius: 18px; box-shadow: var(--shadow-lg); }
+  .modal-header { padding: 22px 28px; }
+}
