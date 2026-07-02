@@ -108,11 +108,12 @@ router.post('/:id/cases', async (req: Request, res: Response) => {
     if (!arr.includes(area)) { arr.push(area); await db.query('UPDATE clients SET areas = ? WHERE id = ?', [JSON.stringify(arr), clientId]); }
   } catch { /* coluna areas pode não existir antes da migration 046 */ }
 
-  // Entrada por protocolo (100% do escritório) — uma receita pelo total
+  // Entrada por protocolo (100% do escritório) — uma receita pelo total.
+  // Vencimento: sempre 7 dias após o lançamento.
   const entrada = entradaValor(partner, processos.length);
   await db.query(
     `INSERT INTO financial_records (user_id, client_id, case_id, tipo, description, valor, status, due_date)
-     VALUES (?, ?, ?, 'receita', ?, ?, 'pendente', CURDATE())`,
+     VALUES (?, ?, ?, 'receita', ?, ?, 'pendente', DATE_ADD(CURDATE(), INTERVAL 7 DAY))`,
     [req.user!.id, clientId, caseIds[0] ?? null,
      `Entrada parceria ${partner.name} — ${nome} (${processos.length} protocolo${processos.length > 1 ? 's' : ''})`, entrada]
   );
@@ -175,14 +176,15 @@ router.post('/cases/:caseId/resultado', async (req: Request, res: Response) => {
   receita = Math.round(receita * 100) / 100;
   repasse = Math.round(repasse * 100) / 100;
 
+  // Receita da parceria (êxito/sucumbência) — vence 7 dias após o lançamento.
   await db.query(
     `INSERT INTO financial_records (user_id, client_id, case_id, tipo, description, valor, status, due_date)
-     VALUES (?, ?, ?, 'receita', ?, ?, 'pendente', CURDATE())`,
+     VALUES (?, ?, ?, 'receita', ?, ?, 'pendente', DATE_ADD(CURDATE(), INTERVAL 7 DAY))`,
     [req.user!.id, c.client_id, c.id, desc, receita]
   );
   await db.query(
     `INSERT INTO repasses (case_id, parceiro, tipo, valor, percentual, descricao, status, data_vencimento)
-     VALUES (?, ?, 'indicacao', ?, ?, ?, 'pendente', CURDATE())`,
+     VALUES (?, ?, 'indicacao', ?, ?, ?, 'pendente', DATE_ADD(CURDATE(), INTERVAL 7 DAY))`,
     [c.id, c.partner_name, repasse, pct, `Repasse ${kind === 'sucumbencia' ? 'sucumbência' : 'êxito'} — ${c.client_name}`]
   );
 
