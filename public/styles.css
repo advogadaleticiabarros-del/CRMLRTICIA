@@ -626,7 +626,8 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
     color: var(--text-muted); font-family: inherit; -webkit-tap-highlight-color: transparent;
     transition: color .15s;
   }
-  .bottom-item .bi-ic { font-size: 21px; line-height: 1; }
+  .bottom-item .bi-ic { display: flex; align-items: center; justify-content: center; height: 25px; }
+  .bottom-item .bi-ic .ic { width: 25px; height: 25px; }
   .bottom-item .bi-lb { font-size: 10px; font-weight: 600; letter-spacing: .1px; }
   .bottom-item.active { color: var(--gold); }
   .bottom-item.active .bi-ic { transform: translateY(-1px); }
@@ -700,3 +701,41 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
   .page tbody td { word-break: break-word; }
   .page tbody td small { text-align: right; }
 }
+
+/* ════════════════════════════════════════════════════════
+   🎨 REFINO PROFISSIONAL — ícones SVG + menos "cara de IA"
+   Ícones de linha no lugar de emojis; sombras/gradientes mais
+   sóbrios; foco e ritmo de espaçamento consistentes.
+   ════════════════════════════════════════════════════════ */
+
+/* Ícone base — herda a cor do contexto (currentColor) */
+.ic { width: 18px; height: 18px; display: inline-block; vertical-align: middle; flex: 0 0 auto; }
+
+/* Ícones nos botões do topo */
+.bell-icon .ic { width: 19px; height: 19px; color: var(--text-soft); }
+.bell-icon:hover .ic { color: var(--navy); }
+
+/* Ícone acompanhando texto em botões (ex.: "Descobrir processos") */
+.btn-gold .ic, .btn-sm .ic, .btn-ghost .ic, .btn-primary .ic { width: 15px; height: 15px; margin-right: 4px; vertical-align: -3px; }
+
+/* Botões um pouco mais sóbrios: menos "pulo" e brilho exagerado */
+.btn-primary:hover, .btn-gold:hover { transform: none; }
+.btn-gold { box-shadow: none; }
+.btn-gold:hover { box-shadow: 0 2px 10px rgba(193,154,78,.28); }
+
+/* KPIs e cards com elevação mais discreta (menos efeito genérico de template) */
+.kpi:hover { transform: none; box-shadow: var(--shadow); }
+.card:hover { box-shadow: var(--shadow-sm); }
+
+/* Foco visível e consistente em tudo que é interativo (acessibilidade) */
+a:focus-visible, button:focus-visible, .nav-item:focus-visible, .bottom-item:focus-visible,
+.tab:focus-visible, [data-route]:focus-visible {
+  outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 8px;
+}
+
+/* Avatar sem giro (micro-interação lúdica demais para um CRM jurídico) */
+.user-chip:hover .avatar { transform: none; }
+
+/* Barra de abas: ícone e rótulo com respiro coeso */
+.bottom-item .bi-ic .ic { stroke-width: 1.9; }
+.bottom-item.active .bi-ic .ic { stroke-width: 2.1; }

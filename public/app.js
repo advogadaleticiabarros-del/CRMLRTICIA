@@ -99,13 +99,34 @@ const NAV_BY_ROLE = {
 };
 function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; }
 
-// Ícones e rótulos curtos para a barra de abas inferior (mobile)
+// ── Sistema de ícones SVG (linha fina, herdam a cor — substituem os emojis) ──
+const ICONS = {
+  home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/>',
+  calendar: '<rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 9h16M8 3v4M16 3v4"/>',
+  clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 1.5"/>',
+  users: '<circle cx="9" cy="8" r="3.2"/><path d="M3.5 19v-1a4 4 0 0 1 4-4h3a4 4 0 0 1 4 4v1"/><path d="M16.6 5.3a3.2 3.2 0 0 1 0 6M20.5 19v-1a4 4 0 0 0-3-3.9"/>',
+  wallet: '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18"/><circle cx="16.5" cy="14.5" r="1.3"/>',
+  file: '<path d="M6 3h7l5 5v11a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M13 3v5h5M8.5 13h7M8.5 16.5h5"/>',
+  briefcase: '<rect x="3" y="8" width="18" height="12" rx="2"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18"/>',
+  folder: '<path d="M3 7a2 2 0 0 1 2-2h3.6a1 1 0 0 1 .7.3L11 7h6a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>',
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+  expand: '<path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M8 20H5a1 1 0 0 1-1-1v-3M16 20h3a1 1 0 0 0 1-1v-3"/>',
+  minimize: '<path d="M9 5v3a1 1 0 0 1-1 1H5M15 5v3a1 1 0 0 0 1 1h3M9 19v-3a1 1 0 0 0-1-1H5M15 19v-3a1 1 0 0 1 1-1h3"/>',
+  bell: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  dot: '<circle cx="12" cy="12" r="3.5"/>',
+};
+function svgIcon(name, extra) {
+  const p = ICONS[name] || ICONS.dot;
+  return `<svg class="ic${extra ? ' ' + extra : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+}
+
+// Ícone (nome no set SVG) por rota — usado na barra de abas inferior
 const NAV_ICONS = {
-  dashboard: '🏠', agenda: '📅', cases: '⚖️', prazos: '⏰', clients: '👥',
-  financeiro: '💰', propostas: '📄', leads: '📋', intakes: '➕', documentos: '📁',
-  ia: '✨', monitor: '🔍', fases: '🗂️', producao: '🏭', parcerias: '🤝', controladoria: '📊', correspondente: '🤝',
-  dativo: '⚖️', advogados: '🎓', contratos: '📝', repasses: '💸', config: '⚙️',
-  portal: '⚖️', portalFinanceiro: '💰',
+  dashboard: 'home', agenda: 'calendar', cases: 'briefcase', prazos: 'clock', clients: 'users',
+  financeiro: 'wallet', propostas: 'file', leads: 'file', intakes: 'plus',
+  portal: 'folder', portalFinanceiro: 'wallet',
 };
 const NAV_SHORT = {
   dashboard: 'Início', prazos: 'Prazos', cases: 'Processos', clients: 'Clientes',
@@ -128,12 +149,12 @@ function buildBottomNav(items) {
   if (primary.length < 4) primary = items.slice(0, 4);
   const tabs = primary.map((r) =>
     `<a href="#${r}" class="bottom-item" data-route="${r}">
-       <span class="bi-ic">${NAV_ICONS[r] || '•'}</span>
+       <span class="bi-ic">${svgIcon(NAV_ICONS[r])}</span>
        <span class="bi-lb">${NAV_SHORT[r] || NAV_LABELS[r]}</span>
      </a>`).join('');
   el.innerHTML = tabs +
     `<button class="bottom-item bottom-more" id="bottom-more" type="button">
-       <span class="bi-ic">☰</span><span class="bi-lb">Mais</span>
+       <span class="bi-ic">${svgIcon('menu')}</span><span class="bi-lb">Mais</span>
      </button>`;
   $('#bottom-more').onclick = () => document.body.classList.toggle('nav-open');
 }
@@ -4338,7 +4359,7 @@ const navOverlay = $('#nav-overlay');
 if (navOverlay) navOverlay.onclick = () => document.body.classList.remove('nav-open');
 const fsBtn = $('#fullscreen-btn');
 if (fsBtn) {
-  const fsSync = () => { const on = !!document.fullscreenElement; fsBtn.textContent = on ? '🗗' : '⛶'; fsBtn.title = on ? 'Sair da tela cheia' : 'Tela cheia'; };
+  const fsSync = () => { const on = !!document.fullscreenElement; fsBtn.innerHTML = svgIcon(on ? 'minimize' : 'expand'); fsBtn.title = on ? 'Sair da tela cheia' : 'Tela cheia'; };
   fsBtn.onclick = () => {
     if (document.fullscreenElement) { document.exitFullscreen && document.exitFullscreen(); }
     else { const el = document.documentElement; (el.requestFullscreen || el.webkitRequestFullscreen || (() => {})).call(el); }
