@@ -3829,6 +3829,7 @@ async function contractEditor(id, onSave) {
     </div>
     <div id="complete-panel" class="complete-panel" style="display:none">
       <strong class="cp-grp">Dados da parte (cliente)</strong>
+      ${field('Nome do cliente (corrigir se estiver errado)', 'c_nome')}
       <div class="form-row">${field('Nacionalidade', 'c_nac', { value: 'brasileiro(a)' })}${field('Profissão', 'c_prof')}</div>
       <div class="form-row">${field('CPF', 'c_cpf')}${field('E-mail', 'c_email', { type: 'email' })}</div>
       ${field('Endereço completo', 'c_end')}
@@ -3921,7 +3922,7 @@ async function contractEditor(id, onSave) {
   // Pré-preenche os dados da PARTE já cadastrados (lead + cliente) — sem retrabalho
   api(`/api/contracts/${id}/party`).then((pt) => {
     const set = (n, v) => { const inp = wrap.querySelector(`[name=${n}]`); if (inp && !inp.value && v) inp.value = v; };
-    set('c_cpf', pt.cpf); set('c_prof', pt.profissao); set('c_end', pt.endereco); set('c_email', pt.email);
+    set('c_nome', pt.name); set('c_cpf', pt.cpf); set('c_prof', pt.profissao); set('c_end', pt.endereco); set('c_email', pt.email);
     set('o_forma', pt.forma_pagamento);
     set('responsavel_rg', pt.rg); set('tipo_acao', pt.tipo_causa);
     if (pt.dependentes && pt.dependentes.length) {
@@ -3933,7 +3934,7 @@ async function contractEditor(id, onSave) {
   if (dataEl && !dataEl.value) dataEl.value = new Date().toLocaleDateString('pt-BR');
 
   // Prefill com o complemento já salvo no contrato (persiste entre sessões).
-  const ovMap = { c_nac: 'nacionalidade', c_prof: 'profissao', c_cpf: 'cpf', c_email: 'email', c_end: 'endereco', o_forma: 'forma_pagamento' };
+  const ovMap = { c_nome: 'nome', c_nac: 'nacionalidade', c_prof: 'profissao', c_cpf: 'cpf', c_email: 'email', c_end: 'endereco', o_forma: 'forma_pagamento' };
   let savedOv = {};
   try { savedOv = ct.party_overrides ? (typeof ct.party_overrides === 'string' ? JSON.parse(ct.party_overrides) : ct.party_overrides) : {}; } catch {}
   Object.entries(ovMap).forEach(([fn, ok]) => { const inp = wrap.querySelector(`[name=${fn}]`); if (inp && savedOv[ok]) inp.value = savedOv[ok]; });

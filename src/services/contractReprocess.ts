@@ -42,6 +42,7 @@ export async function reprocessContract(contractId: number, userId?: number, ove
     try { ov = typeof ct.party_overrides === 'string' ? JSON.parse(ct.party_overrides) : ct.party_overrides; } catch {}
   }
   if (ov) {
+    if (ov.nome) party.name = ov.nome;
     if (ov.nacionalidade) party.nacionalidade = ov.nacionalidade;
     if (ov.profissao) party.profissao = ov.profissao;
     if (ov.cpf) party.cpf = ov.cpf;
