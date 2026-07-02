@@ -51,6 +51,7 @@
 
   <!-- APP -->
   <div id="app-view" class="app-view hidden">
+    <a href="#page" class="skip-link">Pular para o conteúdo</a>
     <div id="nav-overlay" class="nav-overlay"></div>
     <aside class="sidebar">
       <div class="sidebar-brand">
@@ -78,10 +79,10 @@
         <div class="topbar-actions">
           <button id="discover-btn" class="btn-gold btn-sm" title="Buscar processos novos por OAB (DJEN)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg> Descobrir processos</button>
           <button id="fullscreen-btn" class="bell-icon" title="Tela cheia"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M8 20H5a1 1 0 0 1-1-1v-3M16 20h3a1 1 0 0 0 1-1v-3"/></svg></button>
-          <button id="bell-btn" class="bell-icon" title="Notificações"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span id="bell-count" class="bell-count hidden">0</span></button>
+          <button id="bell-btn" class="bell-icon" title="Notificações" aria-label="Notificações"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span id="bell-count" class="bell-count hidden">0</span></button>
         </div>
       </header>
-      <div id="page" class="page"></div>
+      <div id="page" class="page" role="main" tabindex="-1"></div>
     </main>
 
     <!-- Barra de abas inferior (estilo app iOS) — só aparece no mobile -->
@@ -99,7 +100,7 @@
     </div>
   </div>
 
-  <div id="toast" class="toast hidden"></div>
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
   <script src="/app.js"></script>
 </body>

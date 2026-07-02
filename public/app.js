@@ -52,8 +52,16 @@ function openModal(title, bodyEl) {
   $('#modal-title').textContent = title;
   $('#modal-body').innerHTML = ''; $('#modal-body').appendChild(bodyEl);
   $('#modal').classList.remove('hidden');
+  // Acessibilidade: foca o primeiro campo ao abrir
+  setTimeout(() => { const f = $('#modal-body').querySelector('input, select, textarea, button'); if (f) f.focus(); }, 30);
 }
 function closeModal() { $('#modal').classList.add('hidden'); }
+// Esc fecha o modal aberto (ou a gaveta no mobile)
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!$('#modal').classList.contains('hidden')) closeModal();
+  else if (document.body.classList.contains('nav-open')) document.body.classList.remove('nav-open');
+});
 
 // ── Auth ──
 async function login(e) {
