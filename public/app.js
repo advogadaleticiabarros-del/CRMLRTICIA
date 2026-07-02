@@ -582,6 +582,8 @@ function router() {
     a.classList.toggle('active', a.dataset.route === route));
   const page = $('#page');
   if (!page) return;
+  // Transição sutil da página a cada navegação (respeita prefers-reduced-motion)
+  page.classList.remove('page-in'); void page.offsetWidth; page.classList.add('page-in');
   page.innerHTML = '<div class="spinner"></div>';
   const fn = ROUTES[route] || ROUTES[allowed[0]];
   // Só escreve o erro se ainda estivermos na mesma rota (evita atropelar a tela nova)
@@ -2471,8 +2473,8 @@ async function dashMonitoramento(c) {
     </div>
     ${chart}
     <div class="dash-2col">
-      ${miniList('Tipos de caso', (d.por_tipo || []).map((t) => `<div class="mini-row"><span>${t.tipo}</span><strong>${t.total}</strong></div>`))}
-      ${miniList('Processos por tribunal', (d.por_tribunal || []).map((t) => `<div class="mini-row"><span>${t.court}</span><strong>${t.total}</strong></div>`))}
+      ${chartCard('Tipos de caso', chartHBars((d.por_tipo || []).map((t) => ({ label: t.tipo, value: t.total }))))}
+      ${chartCard('Processos por tribunal', chartHBars((d.por_tribunal || []).map((t) => ({ label: t.court, value: t.total })), { color: 'var(--navy)' }))}
     </div>
     ${miniList('Movimentações recentes', (d.recentes || []).map((m) => `<div class="mini-row"><span>${(m.title || '').slice(0, 64)}<br><small>${m.client_name || m.process_number || ''}${m.court ? ' · ' + m.court : ''}</small></span><small>${fmtDate(m.movement_date)}</small></div>`))}
     ${miniList('Processos com atualização recente', (d.top_processos || []).map((p) => `<div class="mini-row"><span>${p.process_number}<br><small>${p.client_name || '—'} · ${p.movs} mov.</small></span><small>${p.last_movement_at ? fmtDate(p.last_movement_at) : '—'}</small></div>`))}`;
@@ -2560,7 +2562,7 @@ async function dashProducao(c) {
       ${kpi('Rascunho', p.rascunho)}${kpi('Em produção', p.producao)}${kpi('Em revisão', p.revisao)}
       ${kpi('Finalizadas', p.finalizado)}${kpi('Protocoladas', p.protocolado)}
     </div>
-    ${miniList('Produtividade por responsável', (d.produtividade_por_responsavel || []).map((r) => `<div class="mini-row"><span>${r.responsavel}</span><span><strong>${r.concluidas}</strong> concluídas / ${r.em_andamento} em andamento</span></div>`))}
+    ${chartCard('Produtividade por responsável (concluídas)', chartHBars((d.produtividade_por_responsavel || []).map((r) => ({ label: r.responsavel, value: r.concluidas }))))}
     ${miniList('Peças vencendo prazo', (d.pecas_vencendo_prazo || []).map((pc) => `<div class="mini-row"><span>${pc.title}<br><small>${pc.client_name || ''}</small></span>${badge(pc.status_label || 'atencao')}</div>`))}`;
 }
 

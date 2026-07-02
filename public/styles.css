@@ -1230,3 +1230,7 @@ img, svg, video { max-width: 100%; }
   .cols { gap: 7px; height: 140px; }
   .col-bar { width: 11px; }
 }
+
+/* Transição sutil ao navegar entre telas (desativada em prefers-reduced-motion) */
+@keyframes pageIn { from { opacity: 0; transform: translateY(7px); } to { opacity: 1; transform: none; } }
+.page.page-in { animation: pageIn .28s cubic-bezier(.16, .8, .3, 1); }
