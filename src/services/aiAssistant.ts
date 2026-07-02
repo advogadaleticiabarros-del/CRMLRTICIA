@@ -11,7 +11,7 @@ export async function aiComplete(prompt: string): Promise<{ ok: boolean; text?: 
   const groq = process.env.GROQ_API_KEY;
   try {
     if (gemini) {
-      const model = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
+      const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
       const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${gemini}`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
