@@ -25,6 +25,17 @@ function areaChipsHtml(areas) {
   let arr = []; try { arr = Array.isArray(areas) ? areas : (areas ? JSON.parse(areas) : []); } catch {}
   return (arr || []).map((a) => `<span style="font-size:10px;background:var(--gold-soft,#efe3c8);color:var(--navy);padding:1px 7px;border-radius:10px;margin-left:4px">${esc(AREA_LABELS[a] || a)}</span>`).join('');
 }
+// Link de WhatsApp a partir do telefone (adiciona DDI 55 do Brasil se faltar).
+function waLink(phone) {
+  let d = String(phone || '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.length <= 11) d = '55' + d;
+  return 'https://wa.me/' + d;
+}
+function waBtn(phone, label) {
+  const l = waLink(phone); if (!l) return '';
+  return `<a href="${l}" target="_blank" rel="noopener" title="Chamar no WhatsApp" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;padding:2px 9px;border-radius:12px;text-decoration:none;font-size:12px;font-weight:700;margin-left:6px">💬${label ? ' ' + label : ''}</a>`;
+}
 const money = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 const badge = (txt) => `<span class="badge ${txt}">${(txt || '').replace(/_/g, ' ')}</span>`;
@@ -451,7 +462,7 @@ const ROUTES = {
         <table><thead><tr><th>Nome</th><th>Tipo</th><th>Contato</th><th>Status</th><th></th></tr></thead>
         <tbody>${r.data.map((c) => `<tr>
           <td><strong>${c.name}</strong> ${c.is_dative ? '<span class="badge dativo">DATIVO</span>' : ''}${areaChipsHtml(c.areas)}<br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
-          <td>${c.tipo}</td><td>${c.phone || c.email || '—'}</td><td>${badge(c.status)}</td>
+          <td>${c.tipo}</td><td>${c.phone ? esc(c.phone) + waBtn(c.phone) : (c.email || '—')}</td><td>${badge(c.status)}</td>
           <td style="white-space:nowrap"><button class="btn-sm" data-ficha="${c.id}">📋 Ficha</button> <button class="btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table>
         <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} cliente(s)</div>`
         : '<div class="empty">Nenhum cliente encontrado</div>';
@@ -3129,7 +3140,7 @@ function buildClientFichaHtml(f) {
   const tl = (f.timeline || []).map((t) => `<div style="padding:3px 0"><small style="color:var(--text-muted)">${fmtDate(t.created_at)}</small> ${esc(t.description)}</div>`).join('') || '<small style="color:var(--text-muted)">—</small>';
   return `
     ${sec('Qualificação (cabeçalho da peça)', `<div style="white-space:pre-wrap;font-size:13px">${esc(f.header && f.header.qualificacao || '—')}</div>`)}
-    ${sec('Cadastro', row('Nome', c.name) + row('Tipo', c.tipo) + row('CPF/CNPJ', c.cpf_cnpj) + row('E-mail', c.email) + row('Telefone', c.phone) + row('Endereço', c.address) + row('Status', c.status) + (areaChipsHtml(c.areas) ? `<div style="margin-top:3px"><strong>Áreas:</strong> ${areaChipsHtml(c.areas)}</div>` : '') + (c.notes ? `<div style="margin-top:3px"><strong>Obs.:</strong> ${esc(c.notes)}</div>` : ''))}
+    ${sec('Cadastro', row('Nome', c.name) + row('Tipo', c.tipo) + row('CPF/CNPJ', c.cpf_cnpj) + row('E-mail', c.email) + (c.phone ? `<div><strong>Telefone:</strong> ${esc(c.phone)} ${waBtn(c.phone, 'WhatsApp')}</div>` : '') + row('Endereço', c.address) + row('Status', c.status) + (areaChipsHtml(c.areas) ? `<div style="margin-top:3px"><strong>Áreas:</strong> ${areaChipsHtml(c.areas)}</div>` : '') + (c.notes ? `<div style="margin-top:3px"><strong>Obs.:</strong> ${esc(c.notes)}</div>` : ''))}
     ${f.case_summary ? sec('Resumo (do lead)', `<div style="white-space:pre-wrap;font-size:13px">${esc(f.case_summary)}</div>`) : ''}
     ${sec('Processos', cases)}
     ${sec('Financeiro', `<div>A receber: <strong>${money(fin.a_receber)}</strong> · Recebido: <strong>${money(fin.pago)}</strong></div><div style="margin-top:4px">${parc}</div>`)}
