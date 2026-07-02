@@ -2708,7 +2708,7 @@ async function leadDetail(id, onSave) {
   ].filter(Boolean).join(' · ');
   const form = el(`<div class="form-grid">
     <div><strong style="font-size:18px">${l.name}</strong><br><small style="color:var(--text-muted)">${l.source || ''}${l.legal_area ? ' · ' + l.legal_area : ''}</small></div>
-    <div>${l.phone || ''} ${l.email ? '· ' + l.email : ''}</div>
+    <div>${l.phone ? esc(l.phone) + waBtn(l.phone, 'WhatsApp') : ''} ${l.email ? '· ' + esc(l.email) : ''}</div>
     ${info ? `<div style="font-size:13px;color:var(--text-soft)">${info}</div>` : ''}
     ${l.case_summary ? `<div style="font-size:13px;color:var(--text-soft)"><strong>Caso:</strong> ${l.case_summary}</div>` : ''}
     <div class="form-row">${field('Área', 'legal_area', { value: l.legal_area || 'outro', options: AREAS })}<button class="btn-sm" id="save-area" style="align-self:end">Salvar área</button></div>
@@ -3088,7 +3088,7 @@ function buildFichaHtml(f) {
   const fin = (parc + rec) || '<small style="color:var(--text-muted)">—</small>';
   return `
     ${sec('Qualificação (cabeçalho da peça)', `<div style="white-space:pre-wrap;font-size:13px">${esc(f.header && f.header.qualificacao || '—')}</div>`)}
-    ${sec('Cliente', row('Nome', cl.name) + row('CPF/CNPJ', cl.cpf_cnpj) + row('E-mail', cl.email) + row('Telefone', cl.phone) + row('Endereço', cl.address))}
+    ${sec('Cliente', row('Nome', cl.name) + row('CPF/CNPJ', cl.cpf_cnpj) + row('E-mail', cl.email) + (cl.phone ? `<div><strong>Telefone:</strong> ${esc(cl.phone)} ${waBtn(cl.phone, 'WhatsApp')}</div>` : '') + row('Endereço', cl.address))}
     ${sec('Processo', row('Título', c.title) + row('Número', c.case_number) + row('Área', c.legal_area) + row('Fase', c.phase) + row('Etapa de produção', FICHA_STAGE[c.production_stage] || '—') + slaTxt + row('Responsável', c.assignee_name) + row('Parceiro', c.partner_name) + (labels.length ? `<div><strong>Etiquetas:</strong> ${labels.map(esc).join(', ')}</div>` : ''))}
     ${f.case_summary ? sec('Resumo do caso', `<div style="white-space:pre-wrap;font-size:13px">${esc(f.case_summary)}</div>`) : ''}
     ${sec('Histórico de produção', notes)}
