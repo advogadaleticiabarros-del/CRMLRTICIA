@@ -3536,13 +3536,9 @@ async function fichaCompleta(id) {
     </div>
     <div id="ficha-body" style="max-height:65vh;overflow:auto">${html}</div>
   </div>`);
-  wrap.querySelector('#ficha-print').onclick = () => {
-    const w = window.open('', '_blank'); if (!w) { toast('Permita pop-ups para imprimir', 'error'); return; }
-    w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ficha — ${esc(f.case && f.case.title || '')}</title>
-      <style>body{font-family:Georgia,serif;font-size:12pt;line-height:1.5;color:#1a1a1a;padding:24px;max-width:820px;margin:auto}h1{font-size:16pt;margin:0}h3{font-size:12.5pt;border-bottom:1px solid #ccc;margin:14px 0 5px;color:#243}div{margin:2px 0}small{color:#666}</style></head>
-      <body><h1>Ficha do Processo — ${esc(f.case && f.case.title || '')}</h1><small>${esc(f.client && f.client.name || '')} · ${esc(f.case && f.case.case_number || 's/ número')}</small>${html.replace(/var\(--[a-z-]+\)/g, '#334')}</body></html>`);
-    w.document.close(); setTimeout(() => w.print(), 350);
-  };
+  wrap.querySelector('#ficha-print').onclick = () => printBranded(
+    `Ficha do Processo — ${f.case && f.case.title || ''}`,
+    `${f.client && f.client.name || ''} · ${f.case && f.case.case_number || 's/ número'}`, html);
   wrap.querySelector('#ficha-copy').onclick = () => {
     try { navigator.clipboard.writeText(wrap.querySelector('#ficha-body').innerText); toast('Ficha copiada'); } catch { toast('Copie manualmente', 'error'); }
   };
@@ -3588,13 +3584,9 @@ async function fichaCliente(id, onSave) {
     <div id="fc-body" style="max-height:65vh;overflow:auto">${html}</div>
   </div>`);
   wrap.querySelector('#fc-edit').onclick = () => { closeModal(); clientForm(id, onSave); };
-  wrap.querySelector('#fc-print').onclick = () => {
-    const w = window.open('', '_blank'); if (!w) { toast('Permita pop-ups para imprimir', 'error'); return; }
-    w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Ficha — ${esc(f.client && f.client.name || '')}</title>
-      <style>body{font-family:Georgia,serif;font-size:12pt;line-height:1.5;color:#1a1a1a;padding:24px;max-width:820px;margin:auto}h1{font-size:16pt;margin:0}h3{font-size:12.5pt;border-bottom:1px solid #ccc;margin:14px 0 5px;color:#243}div{margin:2px 0}small{color:#666}span{background:none!important;color:#334!important}</style></head>
-      <body><h1>Ficha do Cliente — ${esc(f.client && f.client.name || '')}</h1>${html.replace(/var\(--[a-z-]+\)/g, '#334')}</body></html>`);
-    w.document.close(); setTimeout(() => w.print(), 350);
-  };
+  wrap.querySelector('#fc-print').onclick = () => printBranded(
+    `Ficha do Cliente — ${f.client && f.client.name || ''}`,
+    `${f.client && f.client.tipo || ''}${f.client && f.client.cpf_cnpj ? ' · ' + f.client.cpf_cnpj : ''}`, html);
   wrap.querySelector('#fc-copy').onclick = () => { try { navigator.clipboard.writeText(wrap.querySelector('#fc-body').innerText); toast('Ficha copiada'); } catch { toast('Copie manualmente', 'error'); } };
   openModal('Ficha do cliente', wrap);
 }
@@ -4615,6 +4607,41 @@ function dataExtensoHoje() {
   const meses = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
   const d = new Date();
   return `${d.getDate()} de ${meses[d.getMonth()]} de ${d.getFullYear()}`;
+}
+
+// Impressão com papel timbrado da marca (fichas/relatórios) — elegante e consistente
+function printBranded(docTitle, subtitle, innerHtml) {
+  const w = window.open('', '_blank');
+  if (!w) { toast('Permita pop-ups para imprimir', 'error'); return; }
+  const clean = String(innerHtml || '').replace(/var\(--[a-z0-9-]+\)/gi, '#33475b');
+  const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(docTitle)}</title>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    @page { margin: 1.6cm 1.8cm; }
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', Arial, sans-serif; font-size: 11.5pt; line-height: 1.55; color: #232323; margin: 0; max-width: 900px; }
+    .lh { display: flex; align-items: center; gap: 14px; border-bottom: 2px solid #c19a4e; padding-bottom: 12px; }
+    .lh img { width: 52px; height: 52px; object-fit: contain; }
+    .lh .nm { font-family: 'EB Garamond', Georgia, serif; font-size: 20pt; color: #1f3047; line-height: 1; }
+    .lh .sb { font-size: 8.5pt; letter-spacing: 2px; text-transform: uppercase; color: #c19a4e; font-weight: 600; margin-top: 3px; }
+    h1 { font-family: 'EB Garamond', Georgia, serif; font-size: 16pt; color: #1f3047; margin: 16px 0 2px; }
+    .sub { color: #6b6252; font-size: 10pt; margin-bottom: 8px; }
+    h3 { font-family: 'EB Garamond', Georgia, serif; font-size: 13pt; color: #1f3047; border-bottom: 1px solid #ddd; margin: 16px 0 6px; padding-bottom: 3px; }
+    div { margin: 2px 0; } small { color: #6b6252; }
+    span[style*="background"] { background: #f2ead3 !important; color: #5a4a1e !important; }
+    .ft { margin-top: 26px; border-top: 1px solid #ddd; padding-top: 8px; font-size: 8.5pt; color: #8a8271; display: flex; justify-content: space-between; }
+    .no-print { text-align: center; margin: 18px 0; }
+    @media print { .no-print, button { display: none !important; } h3, .lh { page-break-after: avoid; } }
+  </style></head>
+  <body>
+    <div class="lh"><img src="${location.origin}/logo.png" alt=""><div><div class="nm">Letícia Barros</div><div class="sb">Advocacia &amp; Consultoria</div></div></div>
+    <h1>${esc(docTitle)}</h1>${subtitle ? `<div class="sub">${esc(subtitle)}</div>` : ''}
+    ${clean}
+    <div class="ft"><span>Documento gerado em ${today}</span><span>Advocacia Letícia Barros</span></div>
+    <div class="no-print"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer;background:#c19a4e;color:#fff;border:none;border-radius:8px;font-weight:600">Imprimir / Salvar PDF</button></div>
+  </body></html>`);
+  w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch {} }, 500);
 }
 
 function printDoc(title, content) { printDocs([{ title, content }]); }
