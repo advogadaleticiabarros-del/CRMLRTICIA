@@ -36,6 +36,11 @@ function waBtn(phone, label) {
   const l = waLink(phone); if (!l) return '';
   return `<a href="${l}" target="_blank" rel="noopener" title="Chamar no WhatsApp" style="display:inline-flex;align-items:center;gap:4px;background:#25D366;color:#fff;padding:2px 9px;border-radius:12px;text-decoration:none;font-size:12px;font-weight:700;margin-left:6px">💬${label ? ' ' + label : ''}</a>`;
 }
+// Número do processo em destaque + botão de copiar (usa o handler global [data-copy]).
+function procNumHtml(num) {
+  if (!num) return `<span style="color:var(--text-muted)">s/ número</span>`;
+  return `<span style="font-weight:700;color:var(--gold);font-size:14px;letter-spacing:.3px">${esc(num)}</span><button type="button" class="btn-copy" data-copy="${esc(num)}" title="Copiar número do processo" style="margin-left:6px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;padding:1px 7px">📋</button>`;
+}
 const money = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 const badge = (txt) => `<span class="badge ${txt}">${(txt || '').replace(/_/g, ' ')}</span>`;
@@ -461,7 +466,7 @@ const ROUTES = {
       $('#cli-table').innerHTML = r.data.length ? `
         <table><thead><tr><th>Nome</th><th>Tipo</th><th>Contato</th><th>Status</th><th></th></tr></thead>
         <tbody>${r.data.map((c) => `<tr>
-          <td><strong>${c.name}</strong> ${c.is_dative ? '<span class="badge dativo">DATIVO</span>' : ''}${areaChipsHtml(c.areas)}<br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
+          <td><strong>${c.name}</strong> ${c.is_dative ? '<span class="badge dativo">DATIVO</span>' : ''}${Number(c.movs_recentes) ? '<span style="font-size:10px;background:#fdecec;color:var(--red);font-weight:700;padding:1px 7px;border-radius:10px;margin-left:4px">🔔 movimentação</span>' : ''}${areaChipsHtml(c.areas)}<br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
           <td>${c.tipo}</td><td>${c.phone ? esc(c.phone) + waBtn(c.phone) : (c.email || '—')}</td><td>${badge(c.status)}</td>
           <td style="white-space:nowrap"><button class="btn-sm" data-ficha="${c.id}">📋 Ficha</button> <button class="btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table>
         <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} cliente(s)</div>`
@@ -1151,7 +1156,7 @@ const ROUTES = {
       $('#proc-table').innerHTML = rows.length ? `
         <table><thead><tr><th>Processo</th><th>Cliente</th><th>Tribunal</th><th>Última movimentação</th><th>Data</th><th></th></tr></thead>
         <tbody>${rows.map((p) => { const mv = (p.last_movement_text || p.last_movement_title || '').replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch])); return `<tr>
-          <td><strong>${p.process_number}</strong><br><small style="color:var(--text-muted)">${p.judicial_area || ''}</small></td>
+          <td>${procNumHtml(p.process_number)}<br><small style="color:var(--text-muted)">${p.judicial_area || ''}</small></td>
           <td>${p.client_name || '—'}</td><td>${p.court || '—'}</td>
           <td style="max-width:340px"><span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${mv}">${mv || '—'}</span></td>
           <td style="white-space:nowrap">${p.last_movement_at ? fmtDate(p.last_movement_at) : '—'}</td>
@@ -3089,7 +3094,7 @@ function buildFichaHtml(f) {
   return `
     ${sec('Qualificação (cabeçalho da peça)', `<div style="white-space:pre-wrap;font-size:13px">${esc(f.header && f.header.qualificacao || '—')}</div>`)}
     ${sec('Cliente', row('Nome', cl.name) + row('CPF/CNPJ', cl.cpf_cnpj) + row('E-mail', cl.email) + (cl.phone ? `<div><strong>Telefone:</strong> ${esc(cl.phone)} ${waBtn(cl.phone, 'WhatsApp')}</div>` : '') + row('Endereço', cl.address))}
-    ${sec('Processo', row('Título', c.title) + row('Número', c.case_number) + row('Área', c.legal_area) + row('Fase', c.phase) + row('Etapa de produção', FICHA_STAGE[c.production_stage] || '—') + slaTxt + row('Responsável', c.assignee_name) + row('Parceiro', c.partner_name) + (labels.length ? `<div><strong>Etiquetas:</strong> ${labels.map(esc).join(', ')}</div>` : ''))}
+    ${sec('Processo', row('Título', c.title) + (c.case_number ? `<div><strong>Número:</strong> ${procNumHtml(c.case_number)}</div>` : '') + row('Área', c.legal_area) + row('Fase', c.phase) + row('Etapa de produção', FICHA_STAGE[c.production_stage] || '—') + slaTxt + row('Responsável', c.assignee_name) + row('Parceiro', c.partner_name) + (labels.length ? `<div><strong>Etiquetas:</strong> ${labels.map(esc).join(', ')}</div>` : ''))}
     ${f.case_summary ? sec('Resumo do caso', `<div style="white-space:pre-wrap;font-size:13px">${esc(f.case_summary)}</div>`) : ''}
     ${sec('Histórico de produção', notes)}
     ${sec('Andamentos processuais', movs)}
@@ -3130,7 +3135,7 @@ function buildClientFichaHtml(f) {
   const areaChip = (a) => a ? `<span style="font-size:11px;font-weight:700;background:var(--gold-soft,#efe3c8);color:var(--navy);padding:2px 9px;border-radius:10px;white-space:nowrap">${esc(AREA_LABELS[a] || a)}</span>` : '';
   const cases = (f.cases || []).map((x) => `<div style="padding:7px 0;border-bottom:1px solid var(--border-soft)">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <span>Nº do processo: <strong style="font-size:15px;color:var(--gold)">${esc(x.case_number || 's/ número')}</strong></span>
+        <span>Nº do processo: ${procNumHtml(x.case_number)}</span>
         ${areaChip(x.legal_area)}
       </div>
       <div style="margin-top:2px"><strong>${esc(x.title || 'Processo')}</strong> <small style="color:var(--text-muted)">${x.production_stage ? (FICHA_STAGE[x.production_stage] || x.production_stage) + ' · ' : ''}${esc(x.status)}</small></div>
@@ -4089,7 +4094,7 @@ async function processDetail(id, onSave) {
     <div style="font-size:13px"><strong>${(m.title || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</strong> ${m.description ? '— ' + clamp(m.description) : ''}</div>
     <small style="color:var(--gold)">abrir na íntegra ›</small></div>`).join('') || '<p class="empty">Sem movimentações ainda</p>';
   const wrap = el(`<div class="form-grid">
-    <div><strong style="font-size:17px">${p.process_number}</strong><br>
+    <div><strong style="font-size:17px">${esc(p.process_number)}</strong> <button type="button" class="btn-copy" data-copy="${esc(p.process_number)}" title="Copiar número" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;padding:1px 7px">📋</button><br>
       <small style="color:var(--text-muted)">${p.court || ''} · ${p.client_name || ''}</small></div>
     <div>${badge(p.status)} ${p.judicial_area ? badge(p.judicial_area) : ''} · última sync ${p.last_sync_at ? fmtDate(p.last_sync_at) : 'nunca'}</div>
     <button class="btn-primary" id="sync-now">Sincronizar agora</button>
@@ -4242,6 +4247,13 @@ function printDocs(docs) {
 function debounce(fn, ms) { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; }
 
 // ── Init ──
+// Copiar com um clique qualquer elemento com [data-copy] (ex.: número do processo)
+document.addEventListener('click', (e) => {
+  const b = e.target.closest('[data-copy]');
+  if (!b) return;
+  e.preventDefault(); e.stopPropagation();
+  try { navigator.clipboard.writeText(b.dataset.copy); toast('Copiado: ' + b.dataset.copy); } catch { toast('Copie manualmente', 'error'); }
+});
 $('#login-form').onsubmit = login;
 const forgotBtn = $('#forgot-link');
 if (forgotBtn) forgotBtn.onclick = async () => {

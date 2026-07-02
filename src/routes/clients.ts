@@ -34,9 +34,11 @@ router.get('/', async (req: Request, res: Response) => {
   ) as any;
 
   const [rows] = await db.query(
-    `SELECT id, name, tipo, cpf_cnpj, email, phone, status, is_dative, areas, created_at
+    `SELECT id, name, tipo, cpf_cnpj, email, phone, status, is_dative, areas, created_at,
+            (SELECT COUNT(*) FROM legal_processes lp
+              WHERE lp.client_id = clients.id AND lp.last_movement_at >= (NOW() - INTERVAL 30 DAY)) AS movs_recentes
      FROM clients ${whereSql}
-     ORDER BY name ASC
+     ORDER BY (SELECT MAX(lp.last_movement_at) FROM legal_processes lp WHERE lp.client_id = clients.id) DESC, name ASC
      LIMIT ? OFFSET ?`,
     [...params, limit, offset]
   ) as any;
