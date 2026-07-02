@@ -1284,7 +1284,8 @@ const ROUTES = {
     const partners = await api('/api/partners').catch(() => []);
     page.innerHTML = `
       <div class="page-header"><div><h2>Parcerias</h2><p class="sub">Casos indicados por parceiros · registro próprio, entram na esteira de produção</p></div>
-        <button class="btn-gold" id="new-parc-case">+ Novo caso de parceria</button></div>
+        <div style="display:flex;gap:8px"><button class="btn-ghost" id="import-email">📧 Importar do e-mail</button><button class="btn-gold" id="new-parc-case">+ Novo caso de parceria</button></div></div>
+      <div id="parc-import-queue"></div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><label>Parceiro</label>
         <select id="parc-sel">${partners.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>
       <div id="parc-terms"></div>
@@ -1318,6 +1319,9 @@ const ROUTES = {
     };
     sel.onchange = loadCases;
     $('#new-parc-case').onclick = () => parceriaCaseForm(partners, sel.value, loadCases);
+    const reloadAll = async () => { await loadImportQueue(partners, reloadAll); if (partners.length) await loadCases(); };
+    $('#import-email').onclick = () => importEmailForm(partners, sel.value, reloadAll);
+    await loadImportQueue(partners, reloadAll);
     if (partners.length) await loadCases();
   },
 
@@ -2039,6 +2043,109 @@ async function correspondenteForm(onSave, prefill = {}) {
     catch (err) { toast(err.message, 'error'); }
   };
   openModal('Nova audiência de correspondente', form);
+}
+
+const INTAKE_AREAS = [['trabalhista', 'Trabalhista'], ['civel', 'Cível'], ['familia', 'Família'], ['previdenciario', 'Previdenciário'], ['consumidor', 'Consumidor'], ['gestante', 'Gestante'], ['outro', 'Outro']].map(([v, t]) => ({ v, t }));
+
+// Fila de importações pendentes (revisão antes de criar cliente/casos).
+async function loadImportQueue(partners, onChange) {
+  const box = $('#parc-import-queue');
+  if (!box) return;
+  const rows = await api('/api/email-intake?status=pendente').catch(() => []);
+  if (!rows.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="card" style="margin-bottom:14px;border-left:3px solid var(--gold,#b08d57)">
+    <div style="padding:10px 14px;font-weight:600">📥 Importados do e-mail — aguardando revisão (${rows.length})</div>
+    <table><thead><tr><th>Cliente</th><th>Casos</th><th>Origem</th><th></th></tr></thead><tbody>
+    ${rows.map((r) => {
+      const p = r.parsed || {};
+      const casos = (p.casos || []).map((c) => `${INTAKE_AREAS.find((a) => a.v === c.area)?.t || c.area}${c.tipo ? ' · ' + esc(c.tipo) : ''}${c.banco ? ' (' + esc(c.banco) + ')' : ''}`).join('<br>');
+      return `<tr>
+        <td><strong>${esc(p.cliente?.nome || '—')}</strong>${p.cliente?.cpf ? '<br><small>' + esc(p.cliente.cpf) + '</small>' : ''}</td>
+        <td style="font-size:12px">${casos || '<span style="color:var(--red)">não estruturado</span>'}</td>
+        <td><small>${esc(r.from_email || r.source || '')}</small></td>
+        <td style="white-space:nowrap"><button class="btn-sm btn-gold" data-review="${r.id}">Revisar</button> <button class="btn-sm" data-discard="${r.id}">×</button></td>
+      </tr>`;
+    }).join('')}</tbody></table></div>`;
+  box.querySelectorAll('[data-review]').forEach((b) => b.onclick = async () => {
+    const r = (await api('/api/email-intake?status=pendente')).find((x) => x.id == b.dataset.review);
+    if (r) reviewImportForm(r, partners, onChange);
+  });
+  box.querySelectorAll('[data-discard]').forEach((b) => b.onclick = async () => {
+    if (!confirm('Descartar esta importação?')) return;
+    try { await api(`/api/email-intake/${b.dataset.discard}/discard`, { method: 'POST', body: '{}' }); toast('Descartado'); onChange(); }
+    catch (e) { toast(e.message, 'error'); }
+  });
+}
+
+// Colar o e-mail do parceiro → IA estrutura → cai na fila de revisão.
+function importEmailForm(partners, defaultPartnerId, onSave) {
+  const form = el(`<form class="form-grid">
+    <p style="font-size:13px;color:var(--text-muted)">Cole o corpo do e-mail do parceiro. A IA vai identificar o cliente e os casos (inclusive quando houver 2 demandas do mesmo cliente). Nada é criado ainda — vai para a fila de revisão.</p>
+    ${field('Parceiro', 'partner_id', { value: defaultPartnerId, options: partners.map((p) => ({ v: p.id, t: p.name })) })}
+    ${field('E-mail do remetente (opcional)', 'from_email')}
+    <label>Texto do e-mail *<textarea name="raw_text" rows="12" placeholder="Cole aqui o conteúdo do e-mail..." required></textarea></label>
+    <button type="submit" class="btn-primary">Analisar com IA</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Analisando...';
+    try {
+      const body = Object.fromEntries(new FormData(form));
+      const out = await api('/api/email-intake/parse', { method: 'POST', body: JSON.stringify(body) });
+      closeModal();
+      if (out.warning) toast(out.warning, 'error');
+      else toast('E-mail analisado — revise na fila');
+      onSave();
+      if (out.parsed) { const r = (await api('/api/email-intake?status=pendente')).find((x) => x.id == out.id); if (r) reviewImportForm(r, partners, onSave); }
+    } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Analisar com IA'; }
+  };
+  openModal('Importar cliente do e-mail', form);
+}
+
+// Revisar/editar os dados extraídos e confirmar (cria cliente + casos + entrada).
+function reviewImportForm(imp, partners, onSave) {
+  const p = imp.parsed || { cliente: { nome: '' }, casos: [] };
+  const cl = p.cliente || {};
+  let casos = (p.casos && p.casos.length ? p.casos : [{ area: 'outro' }]).map((c) => ({ ...c }));
+  const wrap = el('<div></div>');
+  const render = () => {
+    wrap.innerHTML = `<form class="form-grid" id="rev-form">
+      <div class="form-row">${field('Nome do cliente *', 'nome', { value: cl.nome || '' })}${field('CPF', 'cpf', { value: cl.cpf || '' })}</div>
+      <div class="form-row">${field('E-mail', 'email', { value: cl.email || '' })}${field('Telefone', 'telefone', { value: cl.telefone || '' })}</div>
+      <div style="font-weight:600;margin-top:6px">Casos (${casos.length}) — cada um vira um processo na esteira</div>
+      <div id="rev-casos"></div>
+      <button type="button" class="btn-ghost btn-sm" id="add-caso">+ Adicionar caso</button>
+      <button type="submit" class="btn-primary">✓ Confirmar e cadastrar</button>
+    </form>`;
+    const cbox = wrap.querySelector('#rev-casos');
+    cbox.innerHTML = casos.map((c, i) => `<div class="card" style="padding:10px 12px;margin:6px 0">
+      <div class="form-row">${field('Área', `area_${i}`, { value: c.area || 'outro', options: INTAKE_AREAS })}${field('Tipo (ex.: empréstimo pessoal)', `tipo_${i}`, { value: c.tipo || '' })}</div>
+      <div class="form-row">${field('Banco/instituição', `banco_${i}`, { value: c.banco || '' })}${field('Descrição', `descricao_${i}`, { value: c.descricao || '' })}</div>
+      ${casos.length > 1 ? `<button type="button" class="btn-sm" data-rm="${i}">Remover caso</button>` : ''}
+    </div>`).join('');
+    const collect = () => {
+      const f = wrap.querySelector('#rev-form');
+      const g = (n) => f.querySelector(`[name="${n}"]`)?.value?.trim() || '';
+      return {
+        cliente: { nome: g('nome'), cpf: g('cpf'), email: g('email'), telefone: g('telefone') },
+        casos: casos.map((_, i) => ({ area: g(`area_${i}`) || 'outro', tipo: g(`tipo_${i}`), banco: g(`banco_${i}`), descricao: g(`descricao_${i}`) })),
+      };
+    };
+    wrap.querySelectorAll('[data-rm]').forEach((b) => b.onclick = () => { casos = collect().casos; casos.splice(Number(b.dataset.rm), 1); Object.assign(cl, collect().cliente); render(); });
+    wrap.querySelector('#add-caso').onclick = () => { const cur = collect(); casos = cur.casos.concat([{ area: 'outro' }]); Object.assign(cl, cur.cliente); render(); };
+    wrap.querySelector('#rev-form').onsubmit = async (e) => {
+      e.preventDefault();
+      const parsed = collect();
+      if (!parsed.cliente.nome) { toast('Informe o nome do cliente', 'error'); return; }
+      const btn = wrap.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Cadastrando...';
+      try {
+        const out = await api(`/api/email-intake/${imp.id}/confirm`, { method: 'POST', body: JSON.stringify({ parsed }) });
+        closeModal(); toast(`Cliente cadastrado · ${out.caseIds.length} caso(s)${out.entrada ? ' · entrada R$ ' + Number(out.entrada).toFixed(2) : ''}`); onSave();
+      } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = '✓ Confirmar e cadastrar'; }
+    };
+  };
+  render();
+  openModal('Revisar importação', wrap);
 }
 
 function parceriaCaseForm(partners, defaultPartnerId, onSave) {
