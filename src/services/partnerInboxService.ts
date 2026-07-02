@@ -88,6 +88,16 @@ export async function disconnectInbox(): Promise<void> {
   await db.query('UPDATE email_integration SET active = 0, access_token = NULL, refresh_token = NULL WHERE id = 1');
 }
 
+/** Epoch (segundos) da meia-noite de HOJE em Brasília (UTC-3 fixo, sem DST). */
+function startOfTodayBrazilSec(): number {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const get = (t: string) => Number(parts.find((p) => p.type === t)?.value);
+  // Meia-noite em Brasília (UTC-3) = 03:00 UTC do mesmo dia.
+  return Math.floor(Date.UTC(get('year'), get('month') - 1, get('day'), 3, 0, 0) / 1000);
+}
+
 // ── Extração de corpo e anexos de uma mensagem Gmail ────────────────────────
 function decodeB64(data?: string | null): string {
   if (!data) return '';
@@ -113,7 +123,11 @@ export async function syncInboxNow(actorId?: number | null): Promise<{ imported:
   const auth = await authedClient();
   const gmail = google.gmail({ version: 'v1', auth });
 
-  const sinceSec = row.last_sync ? Math.floor(new Date(row.last_sync).getTime() / 1000) : Math.floor((Date.now() - 30 * 864e5) / 1000);
+  // Ponto de partida: a partir do último sync; na PRIMEIRA vez, a partir de
+  // HOJE (00:00 de Brasília) — não puxa histórico antigo.
+  const sinceSec = row.last_sync
+    ? Math.floor(new Date(row.last_sync).getTime() / 1000)
+    : startOfTodayBrazilSec();
   const q = `from:${row.sender_filter} after:${sinceSec}`;
   let imported = 0, skipped = 0;
   const list = await gmail.users.messages.list({ userId: 'me', q, maxResults: 25 });
