@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
+import { ajustarEntradaParceria } from '../services/partnerEntry';
 
 const router = Router();
 
@@ -45,15 +46,6 @@ router.put('/:id', async (req: Request, res: Response) => {
   await db.query(`UPDATE partners SET ${fields.join(', ')} WHERE id = ?`, params);
   res.json({ success: true });
 });
-
-/** Valor da entrada conforme o nº de protocolos (1 → single, 2 → double, +2 → double + single*(n-2)). */
-function entradaValor(p: any, n: number): number {
-  const single = Number(p.entry_value_single) || 100;
-  const double = Number(p.entry_value_double) || 130;
-  if (n <= 1) return single;
-  if (n === 2) return double;
-  return double + (n - 2) * single;
-}
 
 // ── POST /api/partners/:id/cases — registra cliente + processos da parceria ──
 // Cria o cliente (sem passar pelo lead), os casos já na esteira de produção
@@ -108,15 +100,10 @@ router.post('/:id/cases', async (req: Request, res: Response) => {
     if (!arr.includes(area)) { arr.push(area); await db.query('UPDATE clients SET areas = ? WHERE id = ?', [JSON.stringify(arr), clientId]); }
   } catch { /* coluna areas pode não existir antes da migration 046 */ }
 
-  // Entrada por protocolo (100% do escritório) — uma receita pelo total.
+  // Entrada da parceria (100% do escritório) — calculada POR CLIENTE:
+  // 1 caso = R$100; 2+ casos = R$130 total. Lança só a diferença que faltar.
   // Vencimento: sempre 7 dias após o lançamento.
-  const entrada = entradaValor(partner, processos.length);
-  await db.query(
-    `INSERT INTO financial_records (user_id, client_id, case_id, tipo, description, valor, status, due_date)
-     VALUES (?, ?, ?, 'receita', ?, ?, 'pendente', DATE_ADD(CURDATE(), INTERVAL 7 DAY))`,
-    [req.user!.id, clientId, caseIds[0] ?? null,
-     `Entrada parceria ${partner.name} — ${nome} (${processos.length} protocolo${processos.length > 1 ? 's' : ''})`, entrada]
-  );
+  const entrada = await ajustarEntradaParceria(clientId, partner, caseIds[0] ?? null, req.user!.id);
 
   await logTimeline({
     clientId, caseId: caseIds[0] ?? null, eventType: 'parceria_registrada',

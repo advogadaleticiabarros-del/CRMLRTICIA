@@ -13,7 +13,8 @@
     "migrate:dev": "ts-node src/scripts/migrate.ts",
     "seed:admin": "ts-node src/scripts/seed-admin.ts",
     "seed:admin:prod": "node dist/scripts/seed-admin.js",
-    "deploy:start": "npm run migrate && npm run seed:admin:prod && npm start"
+    "reconcile:partner-entries": "node dist/scripts/reconcilePartnerEntries.js",
+    "deploy:start": "npm run migrate && npm run seed:admin:prod && npm run reconcile:partner-entries && npm start"
   },
   "engines": {
     "node": ">=20.0.0"

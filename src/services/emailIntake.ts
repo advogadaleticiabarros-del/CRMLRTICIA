@@ -1,6 +1,7 @@
 import { db } from '../config/database';
 import { aiComplete } from './aiAssistant';
 import { logTimeline } from './TimelineService';
+import { ajustarEntradaParceria } from './partnerEntry';
 
 /**
  * Importação de clientes/casos a partir do e-mail do parceiro (Infinity Law).
@@ -95,13 +96,6 @@ async function resolvePartner(partnerId?: number | null): Promise<any> {
   return any || null;
 }
 
-function entradaValor(p: any, n: number): number {
-  const single = Number(p?.entry_value_single) || 100;
-  const double = Number(p?.entry_value_double) || 130;
-  if (n <= 1) return single;
-  if (n === 2) return double;
-  return double + (n - 2) * single;
-}
 
 /**
  * Registra uma importação PENDENTE (não cria cliente/casos ainda).
@@ -202,16 +196,11 @@ export async function confirmIntake(id: number, actorId: number, override?: Pars
     await db.query('UPDATE clients SET areas = ? WHERE id = ?', [JSON.stringify(arr), clientId]);
   } catch { /* migration 046 pode não ter rodado */ }
 
-  // Entrada da parceria (100% do escritório), vencimento 7 dias após o lançamento.
+  // Entrada da parceria (100% do escritório) — POR CLIENTE: 1 caso = R$100,
+  // 2+ casos = R$130 total. Lança só a diferença que faltar. Venc. +7 dias.
   let entrada = 0;
   if (novos > 0 && partner) {
-    entrada = entradaValor(partner, parsed.casos.length);
-    await db.query(
-      `INSERT INTO financial_records (user_id, client_id, case_id, tipo, description, valor, status, due_date)
-       VALUES (?, ?, ?, 'receita', ?, ?, 'pendente', DATE_ADD(CURDATE(), INTERVAL 7 DAY))`,
-      [actorId, clientId, caseIds[0] ?? null,
-       `Entrada parceria ${partner.name} — ${nome} (${parsed.casos.length} protocolo${parsed.casos.length > 1 ? 's' : ''})`, entrada]
-    );
+    entrada = await ajustarEntradaParceria(clientId, partner, caseIds[0] ?? null, actorId);
   }
 
   await db.query("UPDATE email_imports SET status = 'confirmado', client_id = ?, confirmed_at = NOW() WHERE id = ?", [clientId, id]);
