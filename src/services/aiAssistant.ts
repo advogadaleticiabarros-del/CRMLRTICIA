@@ -70,6 +70,29 @@ export function aiConfigured(): boolean {
   return !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY);
 }
 
+/**
+ * Lê um ARQUIVO (PDF/imagem) com o Gemini multimodal e extrai o conteúdo e os
+ * dados relevantes para uma peça — SEM inventar. Requer GEMINI_API_KEY (o Groq
+ * não lê arquivos). Usado para analisar os anexos dos clientes.
+ */
+export async function aiExtractFromFile(
+  base64: string, mimeType: string, instruction: string
+): Promise<{ ok: boolean; text?: string; message?: string }> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return { ok: false, message: 'A leitura de documentos exige GEMINI_API_KEY' };
+  const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  try {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: instruction }, { inline_data: { mime_type: mimeType, data: base64 } }] }] }),
+    });
+    const d: any = await r.json();
+    if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro Gemini (visão)' };
+    const text = d?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || '';
+    return { ok: true, text };
+  } catch (e: any) { return { ok: false, message: e.message }; }
+}
+
 /** Tipos canônicos de peça usados para casar o modelo do escritório. */
 export const PIECE_TYPES: { value: string; label: string }[] = [
   { value: 'peticao_inicial', label: 'Petição inicial' },

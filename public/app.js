@@ -1322,8 +1322,13 @@ const ROUTES = {
             if (!num) { load(); return; }
             extra.case_number = num;
           }
-          await api(`/api/cases/${caseId}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage, ...extra }) });
-          toast('Movido · registrado'); load();
+          if (stage === 'criacao_inicial') toast('Gerando petição inicial com IA…');
+          const resp = await api(`/api/cases/${caseId}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage, ...extra }) });
+          if (resp && resp.peticao) {
+            if (resp.peticao.ok) toast('✓ Petição inicial gerada — confira em Documentos do caso');
+            else toast('Movido, mas a petição falhou: ' + (resp.peticao.message || ''), 'error');
+          } else { toast('Movido · registrado'); }
+          load();
         } catch (e) { toast(e.message, 'error'); load(); }
       };
 

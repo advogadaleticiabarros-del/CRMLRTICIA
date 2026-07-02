@@ -5,6 +5,7 @@ import { logTimeline } from '../services/TimelineService';
 import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
 import { montarEndereco } from '../services/contractTemplates';
+import { buildPeticaoInicial } from '../services/peticaoBuilder';
 
 const router = Router();
 
@@ -432,7 +433,15 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     });
   }
 
-  res.json({ success: true, production_stage: stage, case_number: finalCaseNumber, credentials });
+  // Ao mover para "CRIAÇÃO INICIAL": gera a petição inicial com a IA, lendo o
+  // relato + os DOCUMENTOS anexados (Drive) do caso. Só na entrada na etapa.
+  let peticao: { ok: boolean; docId?: number; message?: string } | null = null;
+  if (stage === 'criacao_inicial' && c.production_stage !== 'criacao_inicial') {
+    try { peticao = await buildPeticaoInicial(Number(id), req.user!.id); }
+    catch (e: any) { peticao = { ok: false, message: e?.message || 'Falha ao gerar a petição' }; }
+  }
+
+  res.json({ success: true, production_stage: stage, case_number: finalCaseNumber, credentials, peticao });
 });
 
 // ── GET /api/cases/:id/timeline — histórico ligado a este caso ──────────────

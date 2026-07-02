@@ -166,6 +166,25 @@ async function ensureRootFolder(auth: any): Promise<string> {
   return id!;
 }
 
+/** Extrai o fileId de uma URL do Drive (/d/<id>/ ou ?id=<id>). */
+export function driveFileId(url: string): string | null {
+  if (!url) return null;
+  const m = String(url).match(/\/d\/([^/]+)/) || String(url).match(/[?&]id=([^&]+)/);
+  return m ? m[1] : null;
+}
+
+/** Baixa os bytes de um arquivo do Drive (base64) + mimeType. Para análise por IA. */
+export async function downloadDriveFile(fileId: string): Promise<{ base64: string; mimeType: string; name: string } | null> {
+  try {
+    const auth = await authedClient();
+    const drive = google.drive({ version: 'v3', auth });
+    const meta = await drive.files.get({ fileId, fields: 'mimeType, name, size' });
+    const media = await drive.files.get({ fileId, alt: 'media' }, { responseType: 'arraybuffer' });
+    const buf = Buffer.from(media.data as ArrayBuffer);
+    return { base64: buf.toString('base64'), mimeType: meta.data.mimeType || 'application/octet-stream', name: meta.data.name || '' };
+  } catch { return null; }
+}
+
 /** Acha (ou cria) uma subpasta com o nome dado dentro de um pai. */
 async function ensureSubfolder(auth: any, parentId: string, name: string): Promise<string> {
   const drive = google.drive({ version: 'v3', auth });
