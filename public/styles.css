@@ -854,25 +854,25 @@ a:focus-visible, button:focus-visible, .nav-item:focus-visible, .bottom-item:foc
 }
 
 /* ════════════════════════════════════════════════════════════════════════
-   ✦ SIDEBAR ESCURA — identidade premium (espresso + dourado, como o login)
-   Vale desktop e gaveta mobile. Escopo em .sidebar para não vazar ao conteúdo.
+   ✦ SIDEBAR CLARA & ELEGANTE — tons claros (como antes), com refino
+   Escopo em .sidebar para não vazar ao conteúdo. Vale desktop e gaveta mobile.
    ════════════════════════════════════════════════════════════════════════ */
-.sidebar { background: linear-gradient(180deg, #26201b 0%, #1b1611 100%); border-right: 1px solid rgba(224,192,116,.12); }
-.sidebar-brand { border-bottom: 1px solid rgba(224,192,116,.14); }
-.sidebar-brand strong { color: #f4eee2; }
-.sidebar-brand small { color: var(--gold-soft); }
-.sidebar .nav-item { color: rgba(244,238,226,.72); }
-.sidebar .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; transform: none; }
-.sidebar .nav-item.active { background: rgba(193,154,78,.20); color: #fff; box-shadow: none; }
-.sidebar .nav-item.active .nav-ic { color: var(--gold-soft); opacity: 1; }
-.sidebar .nav-highlight, .sidebar .nav-highlight.active { background: var(--gold); color: #231e1a; font-weight: 700; box-shadow: 0 6px 18px rgba(193,154,78,.28); }
-.sidebar .nav-highlight:hover { background: #d4bc7d; color: #231e1a; }
-.sidebar .nav-highlight .nav-ic { color: #231e1a; opacity: 1; }
-.sidebar-footer { border-top: 1px solid rgba(255,255,255,.08); }
-.sidebar-footer #user-name { color: #efe8da; }
-.sidebar-footer .btn-ghost { color: rgba(244,238,226,.82); border-color: rgba(255,255,255,.16); background: transparent; }
-.sidebar-footer .btn-ghost:hover { background: rgba(255,255,255,.08); color: #fff; border-color: var(--gold); }
-.nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-color: transparent; }
+.sidebar { background: linear-gradient(180deg, #ffffff 0%, #fbf8f2 100%); border-right: 1px solid var(--border); }
+.sidebar-brand { border-bottom: 1px solid var(--border-soft); }
+.sidebar-brand strong { color: var(--navy-deep); }
+.sidebar-brand small { color: var(--gold); }
+.sidebar .nav-item { color: var(--text-soft); }
+.sidebar .nav-item .nav-ic { opacity: .55; }
+.sidebar .nav-item:hover { background: rgba(42,63,95,.05); color: var(--navy-deep); transform: none; }
+.sidebar .nav-item:hover .nav-ic { opacity: .9; color: var(--navy); }
+/* Item ativo: pílula dourada limpa + fina barra de acento à esquerda */
+.sidebar .nav-item.active { background: rgba(193,154,78,.13); color: var(--navy-deep); font-weight: 600; box-shadow: inset 2px 0 0 var(--gold); }
+.sidebar .nav-item.active .nav-ic { color: var(--gold); opacity: 1; }
+.sidebar .nav-highlight, .sidebar .nav-highlight.active { background: var(--gold); color: #fff; font-weight: 700; box-shadow: 0 6px 18px rgba(193,154,78,.26); }
+.sidebar .nav-highlight:hover { background: #b6893c; color: #fff; }
+.sidebar .nav-highlight .nav-ic { color: #fff; opacity: 1; }
+.sidebar-footer { border-top: 1px solid var(--border-soft); }
+.sidebar-footer #user-name { color: var(--text); }
 
 /* ════════════════════════════════════════════════════════════════════════
    ✦ FORMULÁRIOS & MODAIS — mesmo nível do resto (login, cadastro, edições)
@@ -895,3 +895,44 @@ a:focus-visible, button:focus-visible, .nav-item:focus-visible, .bottom-item:foc
 .login-card h2 { letter-spacing: -.015em; }
 .login-view input { border-radius: 11px; }
 #login-form .btn-primary { border-radius: 11px; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ✦ PASSADA FINAL DE ELEGÂNCIA — telas especiais alinhadas à paleta quente
+   (Kanban, calendário, funil, listas, linha do tempo) — sem cara de IA
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Kanban comercial: colunas quentes e elegantes (deixa o azul-acinzentado) */
+.kanban-col { background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; }
+.kanban-col h4 .count { background: var(--navy); }
+.kanban-card { border-radius: 11px; border: 1px solid var(--border); box-shadow: var(--shadow-sm); transition: box-shadow .18s, border-color .18s, transform .15s; }
+.kanban-card:hover { box-shadow: var(--shadow); border-color: #e4dcc9; transform: translateY(-1px); }
+
+/* Kanban de fases/produção: cartões e colunas coerentes */
+.kf-col { border-radius: 14px; }
+.kf-card { border-radius: 11px; }
+.kf-card:hover { border-color: #e4dcc9; }
+
+/* Calendário: moldura arredondada + "hoje" com brilho dourado sutil */
+#cal-body { border-radius: 14px; }
+.cal-day.today .num { box-shadow: 0 2px 7px rgba(193,154,78,.45); }
+.cal-chip { border-radius: 6px; }
+
+/* Funil comercial: barras arredondadas e elegantes */
+.funnel-bar { border-radius: 9px; }
+.funnel-fill { border-radius: 9px; }
+
+/* Listas resumidas e linha do tempo com cantos coerentes ao sistema */
+.mini-list { border-radius: 14px; border: 1px solid var(--border); }
+.notif-item:hover { background: var(--surface-2); }
+
+/* Chips de área/etiquetas mais suaves */
+.badge { line-height: 1.5; }
+
+/* Toolbar (busca/filtros) com respiro e alinhamento elegante */
+.toolbar { gap: 10px; }
+@media (min-width: 881px) {
+  .toolbar input, .toolbar select { border-radius: 10px; }
+  .kanban-col { padding: 14px; }
+  /* Cartão-título das seções internas com um filete dourado discreto */
+  .dash-section h3 { padding-bottom: 8px; border-bottom: 1px solid var(--border-soft); }
+}
