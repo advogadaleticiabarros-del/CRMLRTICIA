@@ -489,10 +489,29 @@ const ROUTES = {
     const load = async () => {
       const b = await api('/api/leads/board');
       $('#board').innerHTML = Object.entries(cols).map(([k, label]) => `
-        <div class="kanban-col"><h4>${label}<span class="count">${(b[k] || []).length}</span></h4>
-        ${(b[k] || []).map((l) => `<div class="kanban-card" data-lead="${l.id}">
-          <strong>${l.name}</strong><small>${l.legal_area || ''} · ${l.source || ''}</small></div>`).join('')}</div>`).join('');
-      document.querySelectorAll('[data-lead]').forEach((c) => c.onclick = () => leadDetail(c.dataset.lead, load));
+        <div class="kanban-col" data-stage="${k}"><h4>${label}<span class="count">${(b[k] || []).length}</span></h4>
+        ${(b[k] || []).map((l) => `<div class="kanban-card" draggable="true" data-lead="${l.id}" data-stage="${k}">
+          <strong>${esc(l.name)}</strong><small>${l.legal_area || ''} · ${l.source || ''}</small></div>`).join('')}</div>`).join('');
+
+      const moveLead = async (leadId, stage, from) => {
+        if (!leadId || !stage || stage === from) return;
+        try { await api(`/api/leads/${leadId}/status`, { method: 'PATCH', body: JSON.stringify({ status: stage }) }); toast('Etapa do lead atualizada'); load(); }
+        catch (e) { toast(e.message, 'error'); load(); }
+      };
+      $('#board').querySelectorAll('.kanban-card').forEach((c) => {
+        c.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', JSON.stringify({ id: c.dataset.lead, from: c.dataset.stage })); c.style.opacity = '0.45'; });
+        c.addEventListener('dragend', () => { c.style.opacity = ''; });
+        c.onclick = () => leadDetail(c.dataset.lead, load);
+      });
+      $('#board').querySelectorAll('.kanban-col').forEach((col) => {
+        col.addEventListener('dragover', (e) => { e.preventDefault(); col.style.outline = '2px dashed var(--gold)'; });
+        col.addEventListener('dragleave', () => { col.style.outline = ''; });
+        col.addEventListener('drop', (e) => {
+          e.preventDefault(); col.style.outline = '';
+          let d = {}; try { d = JSON.parse(e.dataTransfer.getData('text/plain')); } catch {}
+          moveLead(d.id, col.dataset.stage, d.from);
+        });
+      });
     };
     $('#new-lead').onclick = () => leadForm(load);
     await load();
