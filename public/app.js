@@ -99,6 +99,34 @@ const NAV_BY_ROLE = {
 };
 function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; }
 
+// ── Aparência (temas) & barra lateral recolhível ──────────────────────────
+const THEME_META = [
+  { id: 'claro',    label: 'Clássico Claro', desc: 'Creme quente + dourado',  sb: '#fbf8f2', bg: '#f6f4ef', ink: '#221d16', dark: false },
+  { id: 'espresso', label: 'Espresso',       desc: 'Barra café + dourado',    sb: '#241d16', bg: '#f6f4ef', ink: '#221d16', dark: false },
+  { id: 'marinho',  label: 'Marinho',        desc: 'Barra navy profundo',     sb: '#1f3047', bg: '#f4f6f9', ink: '#1f2a3a', dark: false },
+  { id: 'onix',     label: 'Ônix',           desc: 'Barra grafite sóbrio',    sb: '#1a1a1d', bg: '#f5f4f2', ink: '#20201f', dark: false },
+  { id: 'marfim',   label: 'Marfim',         desc: 'Claro minimalista',       sb: '#ffffff', bg: '#faf8f3', ink: '#221d16', dark: false },
+  { id: 'escuro',   label: 'Escuro',         desc: 'Modo escuro completo',    sb: '#161310', bg: '#14110d', ink: '#ece6da', dark: true },
+];
+const THEME_IDS = THEME_META.map((t) => t.id);
+function applyTheme(id) {
+  if (!THEME_IDS.includes(id)) id = 'claro';
+  document.documentElement.setAttribute('data-theme', id);
+  try { localStorage.setItem('crm_theme', id); } catch {}
+  const meta = THEME_META.find((t) => t.id === id);
+  const tc = document.querySelector('meta[name="theme-color"]');
+  if (tc && meta) tc.setAttribute('content', meta.dark ? '#14110d' : meta.sb);
+}
+function currentTheme() { return localStorage.getItem('crm_theme') || 'claro'; }
+function setSidebarCollapsed(on) {
+  document.body.classList.toggle('sidebar-collapsed', !!on);
+  try { localStorage.setItem('crm_sidebar', on ? '1' : '0'); } catch {}
+}
+function initAppearance() {
+  applyTheme(currentTheme());
+  setSidebarCollapsed(localStorage.getItem('crm_sidebar') === '1');
+}
+
 // ── Sistema de ícones SVG (linha fina, herdam a cor — substituem os emojis) ──
 const ICONS = {
   home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/>',
@@ -161,7 +189,7 @@ const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'cases', 'prazos', 'clients', '
 function buildNav() {
   const items = navForRole();
   $('#nav').innerHTML = items.map((r) =>
-    `<a href="#${r}" class="nav-item ${r === 'intakes' ? 'nav-highlight' : ''}" data-route="${r}">${svgIcon(NAV_ICONS[r], 'nav-ic')}<span>${NAV_LABELS[r]}</span></a>`).join('');
+    `<a href="#${r}" class="nav-item ${r === 'intakes' ? 'nav-highlight' : ''}" data-route="${r}" title="${NAV_LABELS[r]}">${svgIcon(NAV_ICONS[r], 'nav-ic')}<span>${NAV_LABELS[r]}</span></a>`).join('');
   buildBottomNav(items);
 }
 
@@ -859,6 +887,14 @@ const ROUTES = {
         <button class="btn-sm" id="change-pwd">Trocar minha senha</button>
       </div>
       <div class="card" style="padding:20px;margin-bottom:20px">
+        <h3 style="color:var(--navy);margin-bottom:6px">Aparência</h3>
+        <p class="sub" style="margin-bottom:14px">Escolha o visual do sistema. A preferência fica salva neste aparelho.</p>
+        <div class="theme-grid" id="theme-grid"></div>
+        <label class="agree" style="display:flex;align-items:center;gap:9px;margin-top:16px;font-size:13.5px;cursor:pointer">
+          <input type="checkbox" id="sb-collapse-opt" /> Iniciar com a barra lateral recolhida (mais espaço)
+        </label>
+      </div>
+      <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:6px">Automações</h3>
         <p class="sub" style="margin-bottom:12px">Regras que rodam sozinhas. Ligue ou desligue conforme o fluxo do escritório.</p>
         <div id="automation-list"><div class="spinner"></div></div>
@@ -869,6 +905,28 @@ const ROUTES = {
         <button class="btn-gold btn-sm" id="run-backup">Fazer backup agora</button>
         <div id="backup-list" style="margin-top:14px"></div>
       </div>`;
+
+    // ── Seletor de aparência (6 temas) ──
+    const renderThemes = () => {
+      const cur = currentTheme();
+      $('#theme-grid').innerHTML = THEME_META.map((t) => `
+        <button type="button" class="theme-card ${t.id === cur ? 'sel' : ''}" data-theme="${t.id}">
+          <span class="theme-prev" style="background:${t.bg}">
+            <span class="theme-sb" style="background:${t.sb}"></span>
+            <span class="theme-dot"></span>
+          </span>
+          <span class="theme-name">${t.label}</span>
+          <span class="theme-desc">${t.desc}</span>
+        </button>`).join('');
+      document.querySelectorAll('#theme-grid .theme-card').forEach((b) => b.onclick = () => {
+        applyTheme(b.dataset.theme); renderThemes(); toast('Aparência aplicada');
+      });
+    };
+    renderThemes();
+    const sbOpt = $('#sb-collapse-opt');
+    sbOpt.checked = localStorage.getItem('crm_sidebar') === '1';
+    sbOpt.onchange = () => setSidebarCollapsed(sbOpt.checked);
+
     const loadAutomations = async () => {
       try {
         const rules = await api('/api/automation/rules');
@@ -4376,6 +4434,9 @@ const navToggle = $('#nav-toggle');
 if (navToggle) navToggle.onclick = () => document.body.classList.toggle('nav-open');
 const navOverlay = $('#nav-overlay');
 if (navOverlay) navOverlay.onclick = () => document.body.classList.remove('nav-open');
+const sbCollapse = $('#sidebar-collapse');
+if (sbCollapse) sbCollapse.onclick = () => setSidebarCollapsed(!document.body.classList.contains('sidebar-collapsed'));
+initAppearance();
 const fsBtn = $('#fullscreen-btn');
 if (fsBtn) {
   const fsSync = () => { const on = !!document.fullscreenElement; fsBtn.innerHTML = svgIcon(on ? 'minimize' : 'expand'); fsBtn.title = on ? 'Sair da tela cheia' : 'Tela cheia'; };

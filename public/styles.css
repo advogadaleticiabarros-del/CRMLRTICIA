@@ -1060,3 +1060,136 @@ img, svg, video { max-width: 100%; }
   .cockpit-panels { grid-template-columns: 1fr; gap: 12px; }
   .dash-panel-b { max-height: 300px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ✦✦✦ APARÊNCIA — 6 temas + barra lateral recolhível + modo escuro
+   A sidebar usa variáveis --sb-*; cada tema redefine essas variáveis.
+   O tema "escuro" também redefine os tokens globais (canvas/superfícies/texto).
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Variáveis da barra lateral — padrão (tema Clássico Claro) */
+:root {
+  --sb-bg: linear-gradient(180deg, #ffffff 0%, #fbf8f2 100%);
+  --sb-border: var(--border);
+  --sb-brand: var(--navy-deep); --sb-brand-sub: var(--gold);
+  --sb-text: var(--text-soft); --sb-text-strong: var(--navy-deep);
+  --sb-hover-bg: rgba(42,63,95,.05);
+  --sb-active-bg: rgba(193,154,78,.13); --sb-active-ic: var(--gold);
+  --sb-ic-op: .55; --sb-foot-name: var(--text);
+}
+
+/* Sidebar via variáveis (sobrepõe as regras claras anteriores) */
+.sidebar { background: var(--sb-bg); border-right: 1px solid var(--sb-border); }
+.sidebar-brand { border-bottom: 1px solid var(--sb-border); }
+.sidebar-brand strong { color: var(--sb-brand); }
+.sidebar-brand small { color: var(--sb-brand-sub); }
+.sidebar .nav-item { color: var(--sb-text); }
+.sidebar .nav-item .nav-ic { opacity: var(--sb-ic-op); }
+.sidebar .nav-item:hover { background: var(--sb-hover-bg); color: var(--sb-text-strong); }
+.sidebar .nav-item:hover .nav-ic { opacity: .95; }
+.sidebar .nav-item.active { background: var(--sb-active-bg); color: var(--sb-text-strong); box-shadow: inset 2px 0 0 var(--gold); }
+.sidebar .nav-item.active .nav-ic { color: var(--sb-active-ic); opacity: 1; }
+.sidebar-footer { border-top: 1px solid var(--sb-border); }
+.sidebar-footer #user-name { color: var(--sb-foot-name); }
+.sidebar-footer .btn-ghost { color: var(--sb-text); border-color: var(--sb-border); }
+.sidebar-footer .btn-ghost:hover { background: var(--sb-hover-bg); color: var(--sb-text-strong); border-color: var(--gold); }
+
+/* ── Temas (variam principalmente a barra lateral) ── */
+[data-theme="espresso"] {
+  --sb-bg: linear-gradient(180deg,#241d16,#191410); --sb-border: rgba(224,192,116,.12);
+  --sb-brand:#f4eee2; --sb-brand-sub:#d4bc7d; --sb-text: rgba(244,238,226,.72); --sb-text-strong:#fff;
+  --sb-hover-bg: rgba(255,255,255,.06); --sb-active-bg: rgba(201,169,98,.20); --sb-active-ic:#e0c074;
+  --sb-ic-op:.7; --sb-foot-name:#efe8da;
+}
+[data-theme="marinho"] {
+  --sb-bg: linear-gradient(180deg,#22354d,#1a2a3e); --sb-border: rgba(255,255,255,.10);
+  --sb-brand:#eaf0f7; --sb-brand-sub:#d4bc7d; --sb-text: rgba(228,236,246,.74); --sb-text-strong:#fff;
+  --sb-hover-bg: rgba(255,255,255,.07); --sb-active-bg: rgba(201,169,98,.22); --sb-active-ic:#e6cf92;
+  --sb-ic-op:.72; --sb-foot-name:#eaf0f7;
+}
+[data-theme="onix"] {
+  --sb-bg: linear-gradient(180deg,#1e1e21,#161618); --sb-border: rgba(255,255,255,.09);
+  --sb-brand:#f0efec; --sb-brand-sub:#cdb079; --sb-text: rgba(238,236,232,.68); --sb-text-strong:#fff;
+  --sb-hover-bg: rgba(255,255,255,.06); --sb-active-bg: rgba(201,169,98,.20); --sb-active-ic:#dcbf82;
+  --sb-ic-op:.66; --sb-foot-name:#efeeeb;
+}
+[data-theme="marfim"] {
+  --sb-bg:#ffffff; --sb-hover-bg: rgba(31,48,71,.045); --sb-ic-op:.5;
+}
+
+/* ── Botão "recolher" (só desktop) + estado recolhido ── */
+.only-desktop { display: none; }
+@media (min-width: 881px) {
+  .only-desktop { display: inline-flex; align-items: center; justify-content: center; }
+  .sidebar, .content { transition: width .22s cubic-bezier(.16,.8,.3,1), margin-left .22s cubic-bezier(.16,.8,.3,1); }
+  body.sidebar-collapsed .sidebar { width: 76px; }
+  body.sidebar-collapsed .content { margin-left: 76px; }
+  body.sidebar-collapsed .sidebar-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+  body.sidebar-collapsed .sidebar-brand > div { display: none; }
+  body.sidebar-collapsed .nav { padding-left: 10px; padding-right: 10px; }
+  body.sidebar-collapsed .nav-item { justify-content: center; padding-left: 0; padding-right: 0; gap: 0; }
+  body.sidebar-collapsed .nav-item span { display: none; }
+  body.sidebar-collapsed .nav-item.active { box-shadow: none; }
+  body.sidebar-collapsed .nav-item .nav-ic { width: 20px; height: 20px; opacity: .85; }
+  body.sidebar-collapsed .sidebar-footer { align-items: center; padding-left: 10px; padding-right: 10px; }
+  body.sidebar-collapsed .user-chip { justify-content: center; }
+  body.sidebar-collapsed #user-name { display: none; }
+  body.sidebar-collapsed .sidebar-footer .btn-ghost { font-size: 11px; padding: 8px 4px; }
+}
+
+/* ── MODO ESCURO (tema "escuro") ── */
+[data-theme="escuro"] {
+  --bg:#14110d; --surface:#1e1a14; --surface-2:#26211a;
+  --text:#ece6da; --text-soft:#bcb4a4; --text-muted:#8b8474;
+  --border:#332c22; --border-soft:#2a241b;
+  --navy:#e7dcc2; --navy-deep:#f2ead7; --navy-light:#e7dcc2;
+  --green-bg: rgba(47,143,99,.18); --red-bg: rgba(196,69,59,.18); --amber-bg: rgba(192,138,46,.18);
+  --sb-bg: linear-gradient(180deg,#1b1712,#151109); --sb-border: rgba(224,192,116,.12);
+  --sb-brand:#f2ead7; --sb-brand-sub:#d9bd7e; --sb-text: rgba(236,230,218,.7); --sb-text-strong:#fff;
+  --sb-hover-bg: rgba(255,255,255,.06); --sb-active-bg: rgba(201,169,98,.20); --sb-active-ic:#e0c074;
+  --sb-ic-op:.7; --sb-foot-name:#efe8da;
+}
+[data-theme="escuro"] body { color: var(--text); }
+[data-theme="escuro"] .topbar { background: rgba(20,17,13,.82); border-bottom-color: var(--border); }
+[data-theme="escuro"] thead th { background: #241d16; color: var(--text-muted); }
+[data-theme="escuro"] .kpi, [data-theme="escuro"] .card, [data-theme="escuro"] .dash-panel,
+[data-theme="escuro"] .mini-list, [data-theme="escuro"] .modal-card { background: var(--surface); border-color: var(--border); }
+[data-theme="escuro"] .modal-header { background: var(--surface); }
+[data-theme="escuro"] .modal { background: rgba(0,0,0,.62); }
+[data-theme="escuro"] .kanban-col { background: #211c15; }
+[data-theme="escuro"] .kanban-card, [data-theme="escuro"] .kf-card { background: var(--surface); border-color: var(--border); }
+[data-theme="escuro"] .bell-icon { background: var(--surface-2); border-color: var(--border); }
+[data-theme="escuro"] input, [data-theme="escuro"] select, [data-theme="escuro"] textarea { background: var(--surface-2); color: var(--text); border-color: var(--border); }
+[data-theme="escuro"] .tab:hover, [data-theme="escuro"] tbody tr:hover { background: var(--surface-2); }
+[data-theme="escuro"] .btn-sm, [data-theme="escuro"] .btn-ghost { background: var(--surface-2); color: var(--text-soft); border-color: var(--border); }
+[data-theme="escuro"] .btn-sm:hover { color: var(--gold); border-color: var(--gold); }
+[data-theme="escuro"] .cal-day { background: var(--surface); }
+[data-theme="escuro"] .cal-day.other { background: #1a160f; }
+[data-theme="escuro"] #cal-body { border-color: var(--border); }
+[data-theme="escuro"] .kanban-col h4 .count, [data-theme="escuro"] .badge.dativo { background: var(--gold); color: #231e1a; }
+[data-theme="escuro"] .empty { color: var(--text-muted); }
+/* Chevron do select legível no escuro */
+[data-theme="escuro"] select { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23bcb4a4' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M6 9l6 6 6-6'/></svg>"); }
+/* Etiquetas de status “azul-claras” ganham chip escuro legível */
+[data-theme="escuro"] .badge.novo, [data-theme="escuro"] .badge.prospecto, [data-theme="escuro"] .badge.pendente,
+[data-theme="escuro"] .badge.rascunho, [data-theme="escuro"] .badge.nomeada, [data-theme="escuro"] .badge.previsto,
+[data-theme="escuro"] .badge.triagem, [data-theme="escuro"] .badge.agendada, [data-theme="escuro"] .badge.admin,
+[data-theme="escuro"] .badge.advogado, [data-theme="escuro"] .badge.parceiro, [data-theme="escuro"] .badge.estagiario,
+[data-theme="escuro"] .badge.cliente, [data-theme="escuro"] .badge.responsavel, [data-theme="escuro"] .badge.colaborador,
+[data-theme="escuro"] .badge.staff, [data-theme="escuro"] .badge.concluida {
+  background: rgba(231,220,194,.14); color: #e7dcc2;
+}
+
+/* ── Cartões do seletor de temas (Configurações) ── */
+.theme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.theme-card { text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+  padding: 10px; cursor: pointer; display: flex; flex-direction: column; gap: 4px; font-family: inherit;
+  transition: border-color .15s, box-shadow .15s, transform .12s; }
+.theme-card:hover { border-color: var(--gold); transform: translateY(-1px); }
+.theme-card.sel { border-color: var(--gold); box-shadow: 0 0 0 2px rgba(193,154,78,.28); }
+.theme-prev { position: relative; height: 46px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-soft); }
+.theme-sb { position: absolute; left: 0; top: 0; bottom: 0; width: 32%; }
+.theme-dot { position: absolute; right: 8px; bottom: 8px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--gold); box-shadow: 0 0 0 2px rgba(255,255,255,.55); }
+.theme-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.theme-desc { font-size: 11px; color: var(--text-muted); }
