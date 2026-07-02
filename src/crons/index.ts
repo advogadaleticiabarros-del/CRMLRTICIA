@@ -57,6 +57,14 @@ export function startCronJobs() {
     } catch {}
   });
 
+  // ── a cada 10 min: busca e-mails novos do parceiro (Infinity) no Gmail ────
+  cron.schedule('*/10 * * * *', async () => {
+    try {
+      const { syncInboxNow } = await import('../services/partnerInboxService');
+      await syncInboxNow(null);
+    } catch {}
+  });
+
   // ── sincronização completa diária às 06:00 (Brasília) ─────────────────────
   // Reconcilia nos dois sentidos: puxa o que mudou direto no app do Google
   // para o CRM e envia ao Google o que foi criado/alterado no CRM.

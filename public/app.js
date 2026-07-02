@@ -1285,6 +1285,7 @@ const ROUTES = {
     page.innerHTML = `
       <div class="page-header"><div><h2>Parcerias</h2><p class="sub">Casos indicados por parceiros · registro próprio, entram na esteira de produção</p></div>
         <div style="display:flex;gap:8px"><button class="btn-ghost" id="import-email">📧 Importar do e-mail</button><button class="btn-gold" id="new-parc-case">+ Novo caso de parceria</button></div></div>
+      <div id="parc-inbox"></div>
       <div id="parc-import-queue"></div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><label>Parceiro</label>
         <select id="parc-sel">${partners.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>
@@ -1319,8 +1320,9 @@ const ROUTES = {
     };
     sel.onchange = loadCases;
     $('#new-parc-case').onclick = () => parceriaCaseForm(partners, sel.value, loadCases);
-    const reloadAll = async () => { await loadImportQueue(partners, reloadAll); if (partners.length) await loadCases(); };
+    const reloadAll = async () => { await loadInboxPanel(reloadAll); await loadImportQueue(partners, reloadAll); if (partners.length) await loadCases(); };
     $('#import-email').onclick = () => importEmailForm(partners, sel.value, reloadAll);
+    await loadInboxPanel(reloadAll);
     await loadImportQueue(partners, reloadAll);
     if (partners.length) await loadCases();
   },
@@ -2047,6 +2049,39 @@ async function correspondenteForm(onSave, prefill = {}) {
 
 const INTAKE_AREAS = [['trabalhista', 'Trabalhista'], ['civel', 'Cível'], ['familia', 'Família'], ['previdenciario', 'Previdenciário'], ['consumidor', 'Consumidor'], ['gestante', 'Gestante'], ['outro', 'Outro']].map(([v, t]) => ({ v, t }));
 
+// Painel de conexão do Gmail da parceria (Fase 2 — busca automática + Drive).
+async function loadInboxPanel(onChange) {
+  const box = $('#parc-inbox');
+  if (!box) return;
+  const st = await api('/api/email-intake/integration').catch(() => ({ connected: false }));
+  if (!st.connected) {
+    box.innerHTML = `<div class="card" style="margin-bottom:14px;padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div style="font-size:13px">📨 <strong>Busca automática por e-mail</strong> — conecte o Gmail que recebe os e-mails da Infinity para o CRM buscar sozinho e guardar os anexos no Drive.</div>
+      <button class="btn-gold btn-sm" id="inbox-connect">Conectar Gmail da parceria</button></div>`;
+    $('#inbox-connect').onclick = async () => {
+      try { const { url } = await api('/api/email-intake/integration/auth-url'); window.location.href = url; }
+      catch (e) { toast(e.message, 'error'); }
+    };
+    return;
+  }
+  const last = st.last_sync ? new Date(st.last_sync).toLocaleString('pt-BR') : 'nunca';
+  box.innerHTML = `<div class="card" style="margin-bottom:14px;padding:12px 14px">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="font-size:13px">📨 Gmail conectado: <strong>${esc(st.google_email || '—')}</strong> · remetente <code>${esc(st.sender_filter || '')}</code> · última busca: ${last} ${st.active ? '' : '<span style="color:var(--red)">(pausado)</span>'}</div>
+      <div style="display:flex;gap:6px"><button class="btn-gold btn-sm" id="inbox-sync">🔄 Buscar agora</button><button class="btn-sm" id="inbox-disc">Desconectar</button></div>
+    </div></div>`;
+  $('#inbox-sync').onclick = async () => {
+    const b = $('#inbox-sync'); b.disabled = true; b.textContent = 'Buscando...';
+    try { const r = await api('/api/email-intake/integration/sync', { method: 'POST', body: '{}' }); toast(`Busca concluída · ${r.imported} novo(s)`); onChange(); }
+    catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = '🔄 Buscar agora'; }
+  };
+  $('#inbox-disc').onclick = async () => {
+    if (!confirm('Desconectar o Gmail da parceria?')) return;
+    try { await api('/api/email-intake/integration/disconnect', { method: 'POST', body: '{}' }); toast('Desconectado'); onChange(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+}
+
 // Fila de importações pendentes (revisão antes de criar cliente/casos).
 async function loadImportQueue(partners, onChange) {
   const box = $('#parc-import-queue');
@@ -2080,8 +2115,10 @@ async function loadImportQueue(partners, onChange) {
 // Colar o e-mail do parceiro → IA estrutura → cai na fila de revisão.
 function importEmailForm(partners, defaultPartnerId, onSave) {
   const form = el(`<form class="form-grid">
-    <p style="font-size:13px;color:var(--text-muted)">Cole o corpo do e-mail do parceiro. A IA vai identificar o cliente e os casos (inclusive quando houver 2 demandas do mesmo cliente). Nada é criado ainda — vai para a fila de revisão.</p>
+    <p style="font-size:13px;color:var(--text-muted)">Cole o <strong>assunto e o corpo</strong> do e-mail do parceiro. A IA lê os dois e separa em casos por contraparte (banco/produto). Nada é criado ainda — vai para a fila de revisão.</p>
     ${field('Parceiro', 'partner_id', { value: defaultPartnerId, options: partners.map((p) => ({ v: p.id, t: p.name })) })}
+    ${field('Assunto do e-mail', 'subject')}
+    <p style="font-size:12px;color:var(--text-muted);margin:-6px 0 2px">Cole também o assunto — as contrapartes costumam vir nele (ex.: "Banco PAN (RCC) e Agibank (RMC) — Fulano").</p>
     ${field('E-mail do remetente (opcional)', 'from_email')}
     <label>Texto do e-mail *<textarea name="raw_text" rows="12" placeholder="Cole aqui o conteúdo do e-mail..." required></textarea></label>
     <button type="submit" class="btn-primary">Analisar com IA</button>

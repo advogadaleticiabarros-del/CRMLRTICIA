@@ -17,6 +17,7 @@ export interface ParsedIntake {
   cliente: { nome: string; cpf?: string; email?: string; telefone?: string };
   casos: ParsedCase[];
 }
+/** "contra parte" = banco/instituição adversa. Cada contraparte distinta = um caso. */
 
 /** Extrai o primeiro bloco JSON de um texto (a IA às vezes embrulha em ```json). */
 function extractJson(text: string): any {
@@ -29,23 +30,32 @@ function extractJson(text: string): any {
   try { return JSON.parse(raw.slice(start, end + 1)); } catch { return null; }
 }
 
-/** Chama a IA para transformar o corpo do e-mail em estrutura cliente+casos. */
-export async function parseEmailBody(rawText: string): Promise<ParsedIntake | null> {
+/**
+ * Chama a IA para transformar o e-mail (ASSUNTO + CORPO) em cliente + casos.
+ * Análise minuciosa: pode haver mais de um caso com CONTRAPARTES diferentes
+ * (bancos/instituições distintas), e a informação pode estar no assunto e/ou
+ * no corpo. Cada contraparte/produto distinto vira um caso separado.
+ */
+export async function parseEmail(subject: string | null, rawText: string): Promise<ParsedIntake | null> {
   const teor = (rawText || '').trim();
-  if (!teor) return null;
-  const prompt = `Você é um assistente de um escritório de advocacia. Leia o e-mail abaixo, enviado por um parceiro que INDICA clientes, e extraia os dados para cadastro. O e-mail pode conter MAIS DE UM CASO do MESMO cliente (ex.: dois processos de consumidor, um de "empréstimo pessoal" e outro de "RCC e RMC", de bancos diferentes) — nesse caso devolva um caso para cada demanda.
+  const assunto = (subject || '').trim();
+  if (!teor && !assunto) return null;
+  const prompt = `Você é um assistente de um escritório de advocacia, minucioso na leitura. Um parceiro INDICA clientes por e-mail. Extraia os dados para cadastro lendo o ASSUNTO e o CORPO — informações importantes (nome do cliente, bancos, produtos) podem estar em qualquer um dos dois.
+
+REGRA CRÍTICA — separe por CONTRAPARTE: se houver mais de um banco/instituição adversa OU mais de um produto (ex.: RCC, RMC, empréstimo pessoal, cartão consignado), gere UM CASO PARA CADA. Ex.: "Cartões Consignados Banco PAN (RCC) e Agibank (RMC) — Maria Benedita" = 2 casos: (1) consumidor, banco "Banco PAN", tipo "RCC"; (2) consumidor, banco "Agibank", tipo "RMC". Não junte contrapartes diferentes no mesmo caso.
 
 Responda SOMENTE com JSON válido, sem comentários, neste formato exato:
 {"cliente":{"nome":"","cpf":"","email":"","telefone":""},"casos":[{"area":"","banco":"","tipo":"","descricao":""}]}
 
 Regras:
-- "area" deve ser uma destas: ${AREAS.join(', ')}. Se não souber, use "outro".
-- "banco": nome do banco/instituição, se citado. "tipo": a natureza da demanda (ex.: "empréstimo pessoal", "RCC e RMC", "revisional"). "descricao": 1 frase resumindo o caso.
-- Não invente dados que não estão no e-mail. Campos desconhecidos ficam vazios.
-- Se houver 2 demandas distintas, gere 2 objetos em "casos".
+- "area" deve ser uma destas: ${AREAS.join(', ')}. Cobrança/banco/cartão/empréstimo = "consumidor". Se não souber, use "outro".
+- "banco": a instituição adversa (contraparte) daquele caso. "tipo": o produto/natureza (ex.: "RCC", "RMC", "empréstimo pessoal", "cartão consignado", "revisional"). "descricao": 1 frase resumindo o caso.
+- Não invente dados. Campos desconhecidos ficam vazios. O nome do cliente costuma vir após um travessão no assunto ou identificado no corpo.
 
-E-MAIL:
-${teor}`;
+ASSUNTO: ${assunto || '(vazio)'}
+
+CORPO:
+${teor || '(vazio)'}`;
   const r = await aiComplete(prompt, 'groq'); // leitura/triagem → Groq
   if (!r.ok || !r.text) return null;
   const j = extractJson(r.text);
@@ -100,18 +110,20 @@ function entradaValor(p: any, n: number): number {
 export async function enqueueIntake(opts: {
   rawText: string; source?: string; sourceMessageId?: string | null;
   fromEmail?: string | null; subject?: string | null; partnerId?: number | null; createdBy?: number | null;
+  attachments?: any[] | null;
 }): Promise<{ id: number; parsed: ParsedIntake | null; duplicated?: boolean }> {
   if (opts.sourceMessageId) {
     const [[exists]] = await db.query('SELECT id FROM email_imports WHERE source_message_id = ?', [opts.sourceMessageId]) as any;
     if (exists) return { id: exists.id, parsed: null, duplicated: true };
   }
-  const parsed = await parseEmailBody(opts.rawText);
+  const parsed = await parseEmail(opts.subject || null, opts.rawText);
   const partner = await resolvePartner(opts.partnerId);
+  const atts = opts.attachments && opts.attachments.length ? JSON.stringify(opts.attachments) : null;
   const [r] = await db.query(
-    `INSERT INTO email_imports (source, source_message_id, from_email, subject, raw_text, parsed_json, partner_id, status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'pendente', ?)`,
+    `INSERT INTO email_imports (source, source_message_id, from_email, subject, raw_text, parsed_json, attachments_json, partner_id, status, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)`,
     [opts.source || 'manual', opts.sourceMessageId || null, opts.fromEmail || null, opts.subject || null,
-     opts.rawText, parsed ? JSON.stringify(parsed) : null, partner?.id || null, opts.createdBy || null]
+     opts.rawText, parsed ? JSON.stringify(parsed) : null, atts, partner?.id || null, opts.createdBy || null]
   ) as any;
   return { id: r.insertId, parsed };
 }

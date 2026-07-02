@@ -20,11 +20,25 @@ export async function googleOAuthCallback(req: Request, res: Response): Promise<
   }
 
   let userId: number;
+  let purpose: string | undefined;
   try {
-    const payload = jwt.verify(state, env.JWT_SECRET) as { id: number };
+    const payload = jwt.verify(state, env.JWT_SECRET) as { id: number; purpose?: string };
     userId = payload.id;
+    purpose = payload.purpose;
   } catch {
     res.redirect('/?google=error');
+    return;
+  }
+
+  // Fluxo da caixa de entrada da parceria (Gmail + Drive) — conta dedicada.
+  if (purpose === 'inbox') {
+    try {
+      const { saveInboxTokens } = await import('../services/partnerInboxService');
+      await saveInboxTokens(code);
+      res.redirect('/?inbox=connected#parcerias');
+    } catch {
+      res.redirect('/?inbox=error#parcerias');
+    }
     return;
   }
 

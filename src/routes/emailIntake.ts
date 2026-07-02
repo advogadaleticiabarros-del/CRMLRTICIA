@@ -1,8 +1,37 @@
 import { Router, Request, Response } from 'express';
+import jwt from 'jsonwebtoken';
 import { db } from '../config/database';
+import { env } from '../config/env';
 import { enqueueIntake, confirmIntake, ParsedIntake } from '../services/emailIntake';
+import { getInboxAuthUrl, getInboxStatus, updateInboxConfig, disconnectInbox, syncInboxNow, processAttachmentsForImport } from '../services/partnerInboxService';
 
 const router = Router();
+
+// ── INTEGRAÇÃO GMAIL (Fase 2) ───────────────────────────────────────────────
+router.get('/integration', async (_req: Request, res: Response) => {
+  res.json(await getInboxStatus());
+});
+
+router.get('/integration/auth-url', (req: Request, res: Response) => {
+  if (!env.GOOGLE_CLIENT_ID) { res.status(400).json({ error: 'OAuth Google não configurado no servidor' }); return; }
+  const state = jwt.sign({ id: req.user!.id, purpose: 'inbox' }, env.JWT_SECRET, { expiresIn: '15m' });
+  res.json({ url: getInboxAuthUrl(state) });
+});
+
+router.put('/integration', async (req: Request, res: Response) => {
+  await updateInboxConfig({ sender_filter: req.body?.sender_filter, active: req.body?.active });
+  res.json({ success: true });
+});
+
+router.post('/integration/disconnect', async (_req: Request, res: Response) => {
+  await disconnectInbox();
+  res.json({ success: true });
+});
+
+router.post('/integration/sync', async (req: Request, res: Response) => {
+  try { res.json({ success: true, ...(await syncInboxNow(req.user!.id)) }); }
+  catch (e: any) { res.status(400).json({ error: e.message }); }
+});
 
 // ── GET /api/email-intake — fila de importações (pendentes primeiro) ────────
 router.get('/', async (req: Request, res: Response) => {
@@ -23,7 +52,7 @@ router.post('/parse', async (req: Request, res: Response) => {
     rawText: raw, source: 'manual',
     fromEmail: req.body?.from_email || null, subject: req.body?.subject || null,
     partnerId: req.body?.partner_id ? Number(req.body.partner_id) : null, createdBy: req.user!.id,
-  });
+  }); // assunto entra na análise da IA (contrapartes podem estar no assunto)
   if (!out.parsed) {
     res.status(200).json({ id: out.id, parsed: null, warning: 'A IA não conseguiu estruturar automaticamente. Edite os dados manualmente antes de confirmar.' });
     return;
@@ -45,7 +74,10 @@ router.post('/:id/confirm', async (req: Request, res: Response) => {
   try {
     const override = req.body?.parsed as ParsedIntake | undefined;
     const out = await confirmIntake(Number(req.params.id), req.user!.id, override);
-    res.json({ success: true, ...out });
+    // Anexos do e-mail (Gmail) → Google Drive, vinculados ao caso.
+    let anexos = 0;
+    try { anexos = await processAttachmentsForImport(Number(req.params.id), out.clientId, out.caseIds[0] ?? null, req.user!.id); } catch { /* Drive indisponível não trava a confirmação */ }
+    res.json({ success: true, ...out, anexos });
   } catch (e: any) {
     res.status(400).json({ error: e.message });
   }
