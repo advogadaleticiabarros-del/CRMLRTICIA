@@ -1,8 +1,34 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { runPrazoConfirmadoPlaybooks } from '../services/automationService';
+import { runEstagiarioForDeadline } from '../services/aiAssistant';
 
 const router = Router();
+
+// ── POST /api/prazos-detectados/:id/minuta — gera a minuta com IA (Gemini) ──
+// Gatilho MANUAL do Estagiário para um prazo específico. Diferente do fluxo
+// automático, aqui devolvemos o resultado (sucesso/erro) para o usuário.
+router.post('/:id/minuta', async (req: Request, res: Response) => {
+  const [[dd]] = await db.query(
+    `SELECT d.*, COALESCE(pm.description, d.movement_text) AS movement_full
+       FROM detected_deadlines d
+       LEFT JOIN process_movements pm ON pm.id = d.movement_id
+      WHERE d.id = ?`, [req.params.id]
+  ) as any;
+  if (!dd) { res.status(404).json({ error: 'Prazo detectado não encontrado' }); return; }
+
+  const r = await runEstagiarioForDeadline({
+    detectedDeadlineId: dd.id,
+    clientId: dd.client_id ?? null,
+    caseId: dd.case_id ?? null,
+    processId: dd.process_id ?? null,
+    movementText: dd.movement_full || dd.movement_text || '',
+    suggestedType: dd.suggested_type || 'Manifestação',
+    suggestedDays: dd.suggested_days || 15,
+  });
+  if (!r.ok) { res.status(400).json({ error: r.message || 'Não foi possível gerar a minuta' }); return; }
+  res.json({ success: true, ai_draft_id: r.minutaId });
+});
 
 /** Soma N dias ÚTEIS a uma data (pula sábado/domingo). */
 function addBusinessDays(startStr: string, n: number): string {

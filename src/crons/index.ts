@@ -52,7 +52,8 @@ export function startCronJobs() {
         'SELECT DISTINCT user_id FROM google_accounts WHERE sync_enabled = 1'
       ) as any;
       for (const u of users) {
-        await calendarSyncService.fullSync(u.user_id);
+        // Isola cada usuário: falha em um não impede a sync dos demais.
+        try { await calendarSyncService.fullSync(u.user_id); } catch {}
       }
     } catch {}
   });

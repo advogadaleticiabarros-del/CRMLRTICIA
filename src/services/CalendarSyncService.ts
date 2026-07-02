@@ -66,16 +66,23 @@ export class CalendarSyncService {
     return result;
   }
 
+  /** Máximo de tentativas automáticas antes de parar de reprocessar um evento. */
+  private static readonly MAX_ATTEMPTS = 8;
+
   async pushToGoogle(userId: number): Promise<SyncResult> {
     const result: SyncResult = { created: 0, updated: 0, errors: 0 };
 
+    // Reprocessa PENDENTES e também os que deram ERRO (até o limite de
+    // tentativas). Assim uma falha transitória — token, rede, rate limit —
+    // não trava o evento para sempre.
     const [pending] = await db.query(
       `SELECT * FROM calendar_events
        WHERE user_id = ? AND source = 'crm'
-         AND sync_status = 'pendente'
+         AND sync_status IN ('pendente', 'erro')
+         AND sync_attempts < ?
          AND start_datetime >= NOW()
        ORDER BY start_datetime ASC`,
-      [userId]
+      [userId, CalendarSyncService.MAX_ATTEMPTS]
     ) as any;
 
     for (const event of pending) {
@@ -105,13 +112,15 @@ export class CalendarSyncService {
         }
 
         await db.query(
-          "UPDATE calendar_events SET sync_status = 'sincronizado' WHERE id = ?",
+          "UPDATE calendar_events SET sync_status = 'sincronizado', sync_error = NULL WHERE id = ?",
           [event.id]
         );
-      } catch {
+      } catch (e: any) {
+        // Marca erro, conta a tentativa e guarda a mensagem — mas continua
+        // elegível para novo retry na próxima rodada (até MAX_ATTEMPTS).
         await db.query(
-          "UPDATE calendar_events SET sync_status = 'erro' WHERE id = ?",
-          [event.id]
+          "UPDATE calendar_events SET sync_status = 'erro', sync_attempts = sync_attempts + 1, sync_error = ? WHERE id = ?",
+          [String(e?.message || 'erro na sincronização').slice(0, 500), event.id]
         );
         result.errors++;
       }

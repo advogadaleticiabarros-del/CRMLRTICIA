@@ -213,6 +213,11 @@ router.delete('/events/:id', async (req: Request, res: Response) => {
 router.post('/google/sync', async (req: Request, res: Response) => {
   const userId = (req as any).user.id;
   try {
+    // Sync manual destrava eventos que ficaram em erro e força novo envio.
+    await db.query(
+      "UPDATE calendar_events SET sync_status = 'pendente', sync_attempts = 0 WHERE user_id = ? AND source = 'crm' AND sync_status = 'erro' AND start_datetime >= NOW()",
+      [userId]
+    );
     const result = await calendarSyncService.fullSync(userId);
     res.json(result);
   } catch (err: any) {

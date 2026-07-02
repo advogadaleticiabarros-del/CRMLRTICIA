@@ -159,11 +159,11 @@ export async function runEstagiarioForDeadline(opts: {
   movementText: string;
   suggestedType: string;
   suggestedDays: number;
-}): Promise<void> {
-  if (!aiConfigured()) return;
+}): Promise<{ ok: boolean; minutaId?: number; message?: string }> {
+  if (!aiConfigured()) return { ok: false, message: 'Nenhuma IA configurada (defina GEMINI_API_KEY ou GROQ_API_KEY)' };
   const { detectedDeadlineId, clientId, movementText, suggestedType, suggestedDays } = opts;
   const teor = (movementText || '').trim();
-  if (!teor) return;
+  if (!teor) return { ok: false, message: 'Sem texto da intimação para gerar a minuta' };
 
   try {
     const [[client]] = clientId
@@ -237,7 +237,11 @@ ${teor}`;
             [clientId, caseId, title, minuta.text, admin.id]
           );
         }
+        return { ok: true, minutaId: r.insertId };
       }
     }
-  } catch { /* estagiário é best-effort */ }
+    return { ok: false, message: minuta.message || 'A IA não retornou a minuta' };
+  } catch (e: any) {
+    return { ok: false, message: e?.message || 'Falha ao gerar a minuta' };
+  }
 }

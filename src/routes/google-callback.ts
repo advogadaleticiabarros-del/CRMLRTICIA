@@ -64,6 +64,12 @@ export async function googleOAuthCallback(req: Request, res: Response): Promise<
       [userId, data.email, tokens.access_token, tokens.refresh_token, tokens.token_expiry]
     );
 
+    // Ao (re)conectar, destrava eventos que ficaram em erro: com o token novo,
+    // eles voltam a ser reprocessados na próxima sincronização.
+    await db.query(
+      "UPDATE calendar_events SET sync_status = 'pendente', sync_attempts = 0 WHERE user_id = ? AND source = 'crm' AND sync_status = 'erro'",
+      [userId]
+    );
     await calendarSyncService.syncFromGoogle(userId);
     res.redirect('/?google=connected');
   } catch {
