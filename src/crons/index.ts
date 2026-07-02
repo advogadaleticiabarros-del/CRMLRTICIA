@@ -57,6 +57,26 @@ export function startCronJobs() {
     } catch {}
   });
 
+  // ── sincronização completa diária às 06:00 (Brasília) ─────────────────────
+  // Reconcilia nos dois sentidos: puxa o que mudou direto no app do Google
+  // para o CRM e envia ao Google o que foi criado/alterado no CRM.
+  cron.schedule('0 6 * * *', async () => {
+    try {
+      const [users] = await db.query(
+        'SELECT DISTINCT user_id FROM google_accounts WHERE sync_enabled = 1'
+      ) as any;
+      let fromG = 0, toG = 0;
+      for (const u of users) {
+        const r = await calendarSyncService.fullSync(u.user_id);
+        fromG += r.fromGoogle.created + r.fromGoogle.updated;
+        toG   += r.toGoogle.created + r.toGoogle.updated;
+      }
+      console.log(`📅 Sync diária da agenda (06h): ${users.length} conta(s) · Google→CRM ${fromG} · CRM→Google ${toG}`);
+    } catch (e: any) {
+      console.error('❌ Falha na sync diária da agenda:', e.message);
+    }
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── diário 7h: prazos e cobranças vencidas ────────────────────────────────
   cron.schedule('0 7 * * *', async () => {
     try {
