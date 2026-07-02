@@ -852,3 +852,46 @@ a:focus-visible, button:focus-visible, .nav-item:focus-visible, .bottom-item:foc
   .modal-card { border-radius: 18px; box-shadow: var(--shadow-lg); }
   .modal-header { padding: 22px 28px; }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ✦ SIDEBAR ESCURA — identidade premium (espresso + dourado, como o login)
+   Vale desktop e gaveta mobile. Escopo em .sidebar para não vazar ao conteúdo.
+   ════════════════════════════════════════════════════════════════════════ */
+.sidebar { background: linear-gradient(180deg, #26201b 0%, #1b1611 100%); border-right: 1px solid rgba(224,192,116,.12); }
+.sidebar-brand { border-bottom: 1px solid rgba(224,192,116,.14); }
+.sidebar-brand strong { color: #f4eee2; }
+.sidebar-brand small { color: var(--gold-soft); }
+.sidebar .nav-item { color: rgba(244,238,226,.72); }
+.sidebar .nav-item:hover { background: rgba(255,255,255,.06); color: #fff; transform: none; }
+.sidebar .nav-item.active { background: rgba(193,154,78,.20); color: #fff; box-shadow: none; }
+.sidebar .nav-item.active .nav-ic { color: var(--gold-soft); opacity: 1; }
+.sidebar .nav-highlight, .sidebar .nav-highlight.active { background: var(--gold); color: #231e1a; font-weight: 700; box-shadow: 0 6px 18px rgba(193,154,78,.28); }
+.sidebar .nav-highlight:hover { background: #d4bc7d; color: #231e1a; }
+.sidebar .nav-highlight .nav-ic { color: #231e1a; opacity: 1; }
+.sidebar-footer { border-top: 1px solid rgba(255,255,255,.08); }
+.sidebar-footer #user-name { color: #efe8da; }
+.sidebar-footer .btn-ghost { color: rgba(244,238,226,.82); border-color: rgba(255,255,255,.16); background: transparent; }
+.sidebar-footer .btn-ghost:hover { background: rgba(255,255,255,.08); color: #fff; border-color: var(--gold); }
+.nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,.14); border-color: transparent; }
+
+/* ════════════════════════════════════════════════════════════════════════
+   ✦ FORMULÁRIOS & MODAIS — mesmo nível do resto (login, cadastro, edições)
+   ════════════════════════════════════════════════════════════════════════ */
+/* Fundo do modal mais profundo e com desfoque suave */
+.modal { background: rgba(24,20,16,.55); backdrop-filter: blur(4px); }
+/* Título do modal em serifa editorial (igual aos títulos de página) */
+.modal-header h3 { font-family: 'Spectral', Georgia, serif; font-weight: 600; letter-spacing: -.01em; }
+/* Rótulos de campo mais definidos e com respiro */
+.form-grid label, #modal-body label, #login-form label { font-weight: 600; color: var(--text-soft); }
+.form-grid label small, #modal-body label small, #login-form label small { font-weight: 400; color: var(--text-muted); }
+/* Campos consistentes com o novo sistema (cantos + anel de foco dourado) */
+#modal-body input, #modal-body select, #modal-body textarea { border-radius: 11px; }
+#modal-body input:focus, #modal-body select:focus, #modal-body textarea:focus { box-shadow: 0 0 0 3px rgba(193,154,78,.16); }
+/* Ações do modal com respiro superior e separação sutil */
+#modal-body .form-grid > .btn-primary,
+#modal-body .form-grid > .btn-gold { margin-top: 6px; }
+
+/* Login: cartão um pouco mais refinado, alinhado ao sistema */
+.login-card h2 { letter-spacing: -.015em; }
+.login-view input { border-radius: 11px; }
+#login-form .btn-primary { border-radius: 11px; }
