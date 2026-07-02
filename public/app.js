@@ -147,6 +147,50 @@ function pagerHtml(current, pages) {
   return `<div class="pager">${out}</div>`;
 }
 
+// ── Mini-gráficos (SVG/CSS, paleta da marca, sem bibliotecas) ─────────────
+const MESES_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+function monthShort(ym) {
+  const m = String(ym || '').match(/^(\d{4})-(\d{2})/);
+  return m ? `${MESES_PT[Number(m[2]) - 1]}/${m[1].slice(2)}` : String(ym || '');
+}
+function chartCard(title, inner) {
+  return `<div class="card" style="padding:18px;margin-bottom:16px"><strong style="color:var(--navy)">${title}</strong><div style="margin-top:14px">${inner}</div></div>`;
+}
+// Barras horizontais — comparar categorias (1 série, ordena desc, rótulos sempre)
+function chartHBars(items, opts = {}) {
+  const fmt = opts.fmt || ((v) => v);
+  const list = (items || []).map((i) => ({ label: String(i.label ?? '—'), value: Number(i.value) || 0 }))
+    .sort((a, b) => b.value - a.value).slice(0, opts.limit || 12);
+  if (!list.length) return '<div class="empty" style="padding:16px">Sem dados no período</div>';
+  const max = Math.max(1, ...list.map((i) => i.value));
+  const color = opts.color || 'var(--gold)';
+  return `<div class="hbars">${list.map((i) => `
+    <div class="hbar-row" title="${esc(i.label)}: ${fmt(i.value)}">
+      <span class="hbar-lab">${esc(i.label)}</span>
+      <span class="hbar-track"><span class="hbar-fill" style="width:${Math.max(2, Math.round(i.value / max * 100))}%;background:${color}"></span></span>
+      <span class="hbar-val">${fmt(i.value)}</span>
+    </div>`).join('')}</div>`;
+}
+// Colunas agrupadas — 2 séries por período (ex.: receitas x despesas por mês)
+function chartColumns(rows, opts = {}) {
+  const fmt = opts.fmt || ((v) => v);
+  const list = (rows || []).map((r) => ({ label: String(r.label ?? ''), a: Number(r.a) || 0, b: Number(r.b) || 0 }));
+  if (!list.length) return '<div class="empty" style="padding:16px">Sem dados</div>';
+  const max = Math.max(1, ...list.flatMap((r) => [r.a, r.b]));
+  const ca = opts.aColor || 'var(--green)', cb = opts.bColor || 'var(--red)';
+  const legend = `<div class="chart-legend">
+    <span class="lg"><span class="sw" style="background:${ca}"></span>${opts.aLabel || 'A'}</span>
+    <span class="lg"><span class="sw" style="background:${cb}"></span>${opts.bLabel || 'B'}</span></div>`;
+  return `${legend}<div class="cols">${list.map((r) => `
+    <div class="col">
+      <div class="col-bars">
+        <span class="col-bar" style="height:${Math.max(2, Math.round(r.a / max * 100))}%;background:${ca}" title="${opts.aLabel || ''}: ${fmt(r.a)}"></span>
+        <span class="col-bar" style="height:${Math.max(2, Math.round(r.b / max * 100))}%;background:${cb}" title="${opts.bLabel || ''}: ${fmt(r.b)}"></span>
+      </div>
+      <span class="col-lab">${esc(r.label)}</span>
+    </div>`).join('')}</div>`;
+}
+
 // ── Sistema de ícones SVG (linha fina, herdam a cor — substituem os emojis) ──
 const ICONS = {
   home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/>',
@@ -2365,9 +2409,6 @@ async function dashComercial(c) {
       <div class="funnel-bar"><div class="funnel-fill" style="width:${Math.round((n / maxFunnel) * 100)}%"></div></div>
       <strong class="funnel-num">${n}</strong></div>`;
   }).join('');
-  const breakdown = (title, rows, key) => miniList(title, (rows || []).map((r) =>
-    `<div class="mini-row"><span>${r[key]}</span><strong>${r.total}</strong></div>`));
-
   c.innerHTML = `
     <div class="kpi-grid">
       ${kpi('Leads hoje', d.leads_hoje)}${kpi('Total de leads', d.leads_total)}
@@ -2378,8 +2419,8 @@ async function dashComercial(c) {
     <div class="card" style="margin-bottom:20px;padding:18px"><strong style="color:var(--navy)">Funil comercial</strong>
       <div class="funnel" style="margin-top:12px">${funnelHTML}</div></div>
     <div class="dash-2col">
-      ${breakdown('Conversão por origem', d.por_origem, 'origem')}
-      ${breakdown('Leads por área jurídica', d.por_area, 'area')}
+      ${chartCard('Leads por origem', chartHBars((d.por_origem || []).map((r) => ({ label: r.origem, value: r.total }))))}
+      ${chartCard('Leads por área jurídica', chartHBars((d.por_area || []).map((r) => ({ label: r.area, value: r.total }))))}
     </div>`;
 }
 
@@ -2479,8 +2520,11 @@ async function dashFinanceiro(c) {
       ${kpi('Inadimplência', money(s.inadimplencia), 'money')}
     </div>
     ${inteligencia}
-    ${miniList('Resultado por área jurídica', (d.resultado_por_area || []).map((a) => `<div class="mini-row"><span>${a.legal_area}</span><strong>${money(a.receitas)}</strong></div>`))}
-    ${miniList('Previsão (próximos meses)', (d.previsao_mensal || []).slice(0, 6).map((m) => `<div class="mini-row"><span>${m.mes}</span><span style="color:var(--green)">${money(m.receitas)} <small style="color:var(--red)">- ${money(m.despesas)}</small></span></div>`))}`;
+    ${chartCard('Fluxo mensal — receitas × despesas', chartColumns(
+      (d.previsao_mensal || []).slice(0, 8).map((m) => ({ label: monthShort(m.mes), a: m.receitas, b: m.despesas })),
+      { aLabel: 'Receitas', bLabel: 'Despesas', aColor: 'var(--green)', bColor: 'var(--red)', fmt: money }))}
+    ${chartCard('Resultado por área jurídica', chartHBars(
+      (d.resultado_por_area || []).map((a) => ({ label: a.legal_area, value: a.receitas })), { fmt: money }))}`;
 }
 
 async function dashProducao(c) {
