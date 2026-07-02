@@ -154,8 +154,9 @@ router.post('/generate', async (req: Request, res: Response) => {
   const prompt = tpl.build({ client, proc, lawyer, inputs: inputs || {} });
   const title = `${tpl.label}${client ? ' — ' + client.name : ''}`;
 
-  // Tenta geração automática (grátis) se houver chave configurada
-  const auto = await autoGenerate(prompt);
+  // Tenta geração automática (grátis) se houver chave configurada.
+  // Redação de peça → Gemini (com fallback no Groq).
+  const auto = await autoGenerate(prompt, 'gemini');
   const result = auto.ok ? (auto.text || '') : '';
   const status = auto.ok ? 'completed' : 'pending';
 
