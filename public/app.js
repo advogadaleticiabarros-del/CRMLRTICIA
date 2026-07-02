@@ -39,7 +39,7 @@ function waBtn(phone, label) {
 // Número do processo em destaque + botão de copiar (usa o handler global [data-copy]).
 function procNumHtml(num) {
   if (!num) return `<span style="color:var(--text-muted)">s/ número</span>`;
-  return `<span style="font-weight:700;color:var(--gold);font-size:14px;letter-spacing:.3px">${esc(num)}</span><button type="button" class="btn-copy" data-copy="${esc(num)}" title="Copiar número do processo" style="margin-left:6px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;padding:1px 7px">📋</button>`;
+  return `<span style="font-weight:700;color:var(--gold);font-size:14px;letter-spacing:.3px">${esc(num)}</span><button type="button" class="btn-copy" data-copy="${esc(num)}" title="Copiar número do processo" style="margin-left:6px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:3px 6px;line-height:0">${svgIcon('clipboard')}</button>`;
 }
 const money = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
@@ -115,6 +115,12 @@ const ICONS = {
   minimize: '<path d="M9 5v3a1 1 0 0 1-1 1H5M15 5v3a1 1 0 0 0 1 1h3M9 19v-3a1 1 0 0 0-1-1H5M15 19v-3a1 1 0 0 1 1-1h3"/>',
   bell: '<path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
+  alert: '<path d="M12 3 2.5 20h19z"/><path d="M12 10v4M12 17.5v.4"/>',
+  chart: '<path d="M4 20V4M4 20h16"/><path d="M8 20v-6M12 20v-9M16 20v-4M20 20V8"/>',
+  printer: '<path d="M7 8V4h10v4"/><rect x="4" y="8" width="16" height="8" rx="1.5"/><path d="M7 14h10v6H7z"/>',
+  edit: '<path d="M4 20h4L18.5 9.5a2 2 0 0 0-3-3L5 17z"/><path d="M13.5 7l3 3"/>',
+  check: '<path d="M4 12.5 9 17.5 20 6.5"/>',
+  clipboard: '<rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h4"/>',
   dot: '<circle cx="12" cy="12" r="3.5"/>',
 };
 function svgIcon(name, extra) {
@@ -337,7 +343,7 @@ async function openNotifications() {
     <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
       <button class="btn-sm" id="notif-check">Verificar agora</button>
       <button class="btn-sm" id="notif-readall">Marcar todas como lidas</button>
-      <button class="btn-sm" id="notif-bell">🔔 Ativar alertas no aparelho</button>
+      <button class="btn-sm" id="notif-bell">${svgIcon('bell')}Ativar alertas no aparelho</button>
       <button class="btn-sm" id="notif-settings">Configurações</button>
     </div>
     <div id="notif-list"><div class="spinner"></div></div>
@@ -507,9 +513,9 @@ const ROUTES = {
       $('#cli-table').innerHTML = r.data.length ? `
         <table><thead><tr><th>Nome</th><th>Tipo</th><th>Contato</th><th>Status</th><th></th></tr></thead>
         <tbody>${r.data.map((c) => `<tr>
-          <td><strong>${c.name}</strong> ${c.is_dative ? '<span class="badge dativo">DATIVO</span>' : ''}${Number(c.movs_recentes) ? '<span style="font-size:10px;background:#fdecec;color:var(--red);font-weight:700;padding:1px 7px;border-radius:10px;margin-left:4px">🔔 movimentação</span>' : ''}${areaChipsHtml(c.areas)}<br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
+          <td><strong>${c.name}</strong> ${c.is_dative ? '<span class="badge dativo">DATIVO</span>' : ''}${Number(c.movs_recentes) ? '<span style="font-size:10px;background:#fdecec;color:var(--red);font-weight:700;padding:1px 7px;border-radius:10px;margin-left:4px">' + svgIcon('bell', 'ic-xs') + ' movimentação</span>' : ''}${areaChipsHtml(c.areas)}<br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
           <td>${c.tipo}</td><td>${c.phone ? esc(c.phone) + waBtn(c.phone) : (c.email || '—')}</td><td>${badge(c.status)}</td>
-          <td style="white-space:nowrap"><button class="btn-sm" data-ficha="${c.id}">📋 Ficha</button> <button class="btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table>
+          <td style="white-space:nowrap"><button class="btn-sm" data-ficha="${c.id}">${svgIcon('clipboard')}Ficha</button> <button class="btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table>
         <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} cliente(s)</div>`
         : '<div class="empty">Nenhum cliente encontrado</div>';
       document.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => clientForm(b.dataset.edit, load));
@@ -625,7 +631,7 @@ const ROUTES = {
         <button class="btn-gold" id="new-task">+ Tarefa</button></div></div>
       <div id="dd-card"></div>
       <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Prazos processuais</strong></div><div id="dl-table"></div></div>
-      <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">✓ Tarefas</strong></div><div id="task-table"></div></div>`;
+      <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">${svgIcon('check', 'ic-t')}Tarefas</strong></div><div id="task-table"></div></div>`;
 
     const countdown = (days, label) => {
       if (label === 'vencido') return `<span class="badge vencido">vencido</span>`;
@@ -680,9 +686,9 @@ const ROUTES = {
             <td><strong>${d.client_name || '<span style=\"color:var(--text-muted)\">a vincular</span>'}</strong></td>
             <td>${esc(full.slice(0, 110))}${full.length > 110 ? '…' : ''}
                 <br><small style="color:var(--text-muted)">movimentação ${fmtDate(d.movement_date || d.start_date)}</small>
-                ${full.length > 110 ? `<br><button class="btn-sm" data-full-dd="${d.id}" style="margin-top:6px">📄 Ver na íntegra</button>` : ''}
+                ${full.length > 110 ? `<br><button class="btn-sm" data-full-dd="${d.id}" style="margin-top:6px">${svgIcon('file')}Ver na íntegra</button>` : ''}
                 ${d.ai_summary ? `<div style="margin-top:8px;padding:8px 10px;border-left:3px solid var(--gold);background:var(--surface);font-size:12px;line-height:1.5"><strong>🧑‍🎓 Estagiário IA:</strong><br>${esc(d.ai_summary.slice(0, 400))}${d.ai_summary.length > 400 ? '…' : ''}</div>` : ''}
-                ${d.ai_draft_id ? `<button class="btn-sm" data-draft-dd="${d.ai_draft_id}" style="margin-top:6px">📝 Ver minuta</button>` : ''}</td>
+                ${d.ai_draft_id ? `<button class="btn-sm" data-draft-dd="${d.ai_draft_id}" style="margin-top:6px">${svgIcon('edit')}Ver minuta</button>` : ''}</td>
             <td>${d.process_number || '—'}</td>
             <td>${d.suggested_type || '—'} · ${d.suggested_days || '?'} dias</td>
             <td style="white-space:nowrap"><button class="btn-gold btn-sm" data-conf-dd="${d.id}">Confirmar</button> <button class="btn-sm" data-disc-dd="${d.id}">Descartar</button></td></tr>`; }).join('')}</tbody></table>
@@ -2043,7 +2049,7 @@ async function dashCockpit(c) {
   const intim = d.intimacoes || { count: 0, itens: [] };
   const intimHtml = (intim.itens || []).map((i) =>
     row(esc(i.client_name || 'A vincular'),
-        `<span class="badge">${esc(i.suggested_type || '—')}</span>${Number(i.tem_minuta) === 1 ? ' 📝' : ''}`,
+        `<span class="badge">${esc(i.suggested_type || '—')}</span>${Number(i.tem_minuta) === 1 ? ' ' + svgIcon('edit', 'ic-xs') : ''}`,
         'prazos',
         `${i.process_number ? 'proc. ' + esc(i.process_number) + ' · ' : ''}movimentação ${fmtDate(i.movement_date || i.start_date)}`)
   ).join('');
@@ -2066,10 +2072,10 @@ async function dashCockpit(c) {
   c.innerHTML = `
     ${kpis}
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:16px">
-      ${painel('⏰ Prazos críticos (72h)', (d.prazos || []).length, 'prazos', prazosHtml, 'Nenhum prazo crítico. 👏')}
-      ${painel('📋 Intimações a confirmar', intim.count, 'prazos', intimHtml, 'Nada a confirmar.')}
-      ${painel('⚠ Movimentações a verificar', al.count, 'monitor', alHtml, 'Sem alertas pendentes.')}
-      ${painel('📅 Agenda de hoje', (d.agenda_hoje || []).length, 'agenda', agHtml, 'Nada agendado para hoje.')}
+      ${painel(`${svgIcon('clock', 'ic-t')}Prazos críticos (72h)`, (d.prazos || []).length, 'prazos', prazosHtml, 'Nenhum prazo crítico. 👏')}
+      ${painel(`${svgIcon('file', 'ic-t')}Intimações a confirmar`, intim.count, 'prazos', intimHtml, 'Nada a confirmar.')}
+      ${painel(`${svgIcon('alert', 'ic-t')}Movimentações a verificar`, al.count, 'monitor', alHtml, 'Sem alertas pendentes.')}
+      ${painel(`${svgIcon('calendar', 'ic-t')}Agenda de hoje`, (d.agenda_hoje || []).length, 'agenda', agHtml, 'Nada agendado para hoje.')}
     </div>
     <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap">
       <div class="card" ${go('prazos')} style="padding:12px 16px;flex:1;min-width:160px;cursor:pointer">
@@ -2186,7 +2192,7 @@ async function dashFinanceiro(c) {
       <span>${money(o.receitas)} <small style="color:var(--red)">- ${money(o.despesas)}</small> =
       <strong style="color:${corSaldo(o.resultado)}">${money(o.resultado)}</strong></span></div>`;
     inteligencia = `
-      <h3 style="color:var(--navy);margin:22px 0 10px">📈 Inteligência financeira</h3>
+      <h3 style="color:var(--navy);margin:22px 0 10px">${svgIcon('chart', 'ic-t')}Inteligência financeira</h3>
       <p class="sub" style="margin:-6px 0 12px">Projeção de caixa (saldo previsto acumulado por janela)</p>
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:8px">${proj}</div>
       ${miniList('DRE — resultado realizado', dreRow('Mês atual', dre.mes) + dreRow('Ano', dre.ano))}
@@ -3188,7 +3194,7 @@ async function fichaCompleta(id) {
   const html = buildFichaHtml(f);
   const wrap = el(`<div>
     <div style="display:flex;gap:6px;margin-bottom:8px">
-      <button class="btn-sm" id="ficha-print" type="button">🖨 Imprimir / PDF</button>
+      <button class="btn-sm" id="ficha-print" type="button">${svgIcon('printer')}Imprimir / PDF</button>
       <button class="btn-sm" id="ficha-copy" type="button">Copiar</button>
     </div>
     <div id="ficha-body" style="max-height:65vh;overflow:auto">${html}</div>
@@ -3238,8 +3244,8 @@ async function fichaCliente(id, onSave) {
   const html = buildClientFichaHtml(f);
   const wrap = el(`<div>
     <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
-      <button class="btn-gold btn-sm" id="fc-edit" type="button">✏️ Editar cadastro</button>
-      <button class="btn-sm" id="fc-print" type="button">🖨 Imprimir / PDF</button>
+      <button class="btn-gold btn-sm" id="fc-edit" type="button">${svgIcon('edit')}Editar cadastro</button>
+      <button class="btn-sm" id="fc-print" type="button">${svgIcon('printer')}Imprimir / PDF</button>
       <button class="btn-sm" id="fc-copy" type="button">Copiar</button>
     </div>
     <div id="fc-body" style="max-height:65vh;overflow:auto">${html}</div>
@@ -3277,7 +3283,7 @@ async function caseDetail(id, onSave) {
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
       <div><strong style="font-size:18px">${c.title}</strong><br>
         <small style="color:var(--text-muted)">${c.client_name || ''} · ${c.case_number || 's/ número'}</small></div>
-      <button class="btn-sm" id="ficha-btn" type="button" style="white-space:nowrap">📋 Ficha completa</button>
+      <button class="btn-sm" id="ficha-btn" type="button" style="white-space:nowrap">${svgIcon('clipboard')}Ficha completa</button>
     </div>
     <div>${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)} ${c.production_stage ? badge(c.production_stage) : ''}</div>
     ${prodHtml}
@@ -3904,7 +3910,7 @@ async function contractEditor(id, onSave) {
       <button class="btn-sm" id="zap-wpp" type="button">WhatsApp</button>
     </div>
     <textarea id="zap-text" rows="8" placeholder="A mensagem orientando o cliente aparecerá aqui."></textarea>
-    ${ct.status === 'assinado' ? '' : '<button class="btn-primary" id="zap-signed" type="button" style="background:var(--green)">✓ Marcar como assinado (ZapSign)</button>'}
+    ${ct.status === 'assinado' ? '' : `<button class="btn-primary" id="zap-signed" type="button" style="background:var(--green)">${svgIcon('check')}Marcar como assinado (ZapSign)</button>`}
     ${signAction}
   </div>`);
 
@@ -4180,7 +4186,7 @@ async function processDetail(id, onSave) {
     <div style="font-size:13px"><strong>${(m.title || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</strong> ${m.description ? '— ' + clamp(m.description) : ''}</div>
     <small style="color:var(--gold)">abrir na íntegra ›</small></div>`).join('') || '<p class="empty">Sem movimentações ainda</p>';
   const wrap = el(`<div class="form-grid">
-    <div><strong style="font-size:17px">${esc(p.process_number)}</strong> <button type="button" class="btn-copy" data-copy="${esc(p.process_number)}" title="Copiar número" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;font-size:12px;padding:1px 7px">📋</button><br>
+    <div><strong style="font-size:17px">${esc(p.process_number)}</strong> <button type="button" class="btn-copy" data-copy="${esc(p.process_number)}" title="Copiar número" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:3px 6px;line-height:0">${svgIcon('clipboard')}</button><br>
       <small style="color:var(--text-muted)">${p.court || ''} · ${p.client_name || ''}</small></div>
     <div>${badge(p.status)} ${p.judicial_area ? badge(p.judicial_area) : ''} · última sync ${p.last_sync_at ? fmtDate(p.last_sync_at) : 'nunca'}</div>
     <button class="btn-primary" id="sync-now">Sincronizar agora</button>

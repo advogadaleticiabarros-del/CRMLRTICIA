@@ -718,6 +718,14 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
 /* Ícone acompanhando texto em botões (ex.: "Descobrir processos") */
 .btn-gold .ic, .btn-sm .ic, .btn-ghost .ic, .btn-primary .ic { width: 15px; height: 15px; margin-right: 4px; vertical-align: -3px; }
 
+/* Ícone de título de seção (dashboards) — acento dourado */
+.ic-t { width: 17px; height: 17px; margin-right: 8px; vertical-align: -3px; color: var(--gold); }
+/* Ícone minúsculo dentro de etiquetas/badges */
+.ic-xs { width: 11px; height: 11px; vertical-align: -1px; }
+/* Botão de copiar (só ícone) */
+.btn-copy .ic { width: 14px; height: 14px; color: var(--text-soft); vertical-align: middle; }
+.btn-copy:hover .ic { color: var(--gold); }
+
 /* Botões um pouco mais sóbrios: menos "pulo" e brilho exagerado */
 .btn-primary:hover, .btn-gold:hover { transform: none; }
 .btn-gold { box-shadow: none; }
@@ -739,3 +747,11 @@ a:focus-visible, button:focus-visible, .nav-item:focus-visible, .bottom-item:foc
 /* Barra de abas: ícone e rótulo com respiro coeso */
 .bottom-item .bi-ic .ic { stroke-width: 1.9; }
 .bottom-item.active .bi-ic .ic { stroke-width: 2.1; }
+
+/* Tipografia editorial nos títulos de página — sóbrio e profissional
+   (serifa Spectral já carregada; diferencia do "Inter em tudo" genérico) */
+.page-header h2 { font-family: 'Spectral', Georgia, serif; font-weight: 600; letter-spacing: -.01em; }
+.dash-section h3, .card > div:first-child > strong { letter-spacing: -.005em; }
+
+/* Ícones de título alinham verticalmente com o texto do <strong>/<h3> */
+.card strong .ic-t, .dash-section h3 .ic-t { vertical-align: -2px; }
