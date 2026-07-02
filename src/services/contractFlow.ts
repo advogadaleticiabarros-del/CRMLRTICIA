@@ -1,6 +1,7 @@
 import { db } from '../config/database';
 import { logTimeline } from './TimelineService';
 import { logActivity } from './JourneyService';
+import { montarEndereco } from './contractTemplates';
 
 /**
  * Disparado quando um contrato é assinado (manualmente ou por assinatura eletrônica).
@@ -9,11 +10,38 @@ import { logActivity } from './JourneyService';
  */
 export async function onContractSigned(contractId: number, actorId: number, actorName?: string | null): Promise<{ caseId: number | null; receitaId: number | null }> {
   const [[ct]] = await db.query('SELECT * FROM contracts WHERE id = ?', [contractId]) as any;
-  if (!ct || !ct.client_id) return { caseId: null, receitaId: null };
+  if (!ct) return { caseId: null, receitaId: null };
   const actor = actorId || ct.user_id; // fallback: dono do contrato (assinatura pública)
 
   // Marca o contrato como assinado
   await db.query("UPDATE contracts SET status = 'assinado' WHERE id = ?", [contractId]);
+
+  // CADASTRA o cliente ao confirmar a assinatura, se ainda não existir —
+  // usando os dados do lead + as correções feitas no contrato (party_overrides).
+  if (!ct.client_id) {
+    let lead: any = null;
+    if (ct.lead_id) {
+      const [[l]] = await db.query(
+        'SELECT name, cpf_cnpj, email, phone, cep, street, number, neighborhood, city, state, address FROM leads WHERE id = ?',
+        [ct.lead_id]
+      ) as any;
+      lead = l || null;
+    }
+    let ov: any = {};
+    try { ov = ct.party_overrides ? (typeof ct.party_overrides === 'string' ? JSON.parse(ct.party_overrides) : ct.party_overrides) : {}; } catch {}
+    const nome = ov.nome || lead?.name;
+    if (nome) {
+      const endereco = ov.endereco || (lead ? montarEndereco(lead) : null);
+      const [ins] = await db.query(
+        "INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, address, status, notes, created_by) VALUES (?, 'PF', ?, ?, ?, ?, 'ativo', 'Cadastrado ao confirmar a assinatura do contrato.', ?)",
+        [nome, ov.cpf || lead?.cpf_cnpj || null, ov.email || lead?.email || null, lead?.phone || null, endereco, ct.user_id]
+      ) as any;
+      ct.client_id = ins.insertId;
+      await db.query('UPDATE contracts SET client_id = ? WHERE id = ?', [ct.client_id, contractId]);
+      if (ct.lead_id) await db.query('UPDATE leads SET client_id = COALESCE(client_id, ?) WHERE id = ?', [ct.client_id, ct.lead_id]);
+    }
+  }
+  if (!ct.client_id) return { caseId: null, receitaId: null };
 
   // Já processado? (processo de origem existe) — não duplica
   const [existsCase] = await db.query('SELECT id FROM cases WHERE origin_contract_id = ?', [contractId]) as any;

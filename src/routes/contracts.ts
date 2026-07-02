@@ -95,11 +95,30 @@ router.get('/:id/party', async (req: Request, res: Response) => {
 // contrato/procuração/declaração a partir deles (não se perde ao sair).
 router.patch('/:id/complement', async (req: Request, res: Response) => {
   const overrides = req.body?.overrides || {};
-  const [own] = await db.query('SELECT id FROM contracts WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  const [own] = await db.query('SELECT id, client_id, lead_id FROM contracts WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
   if (!own.length) { res.status(404).json({ error: 'Contrato não encontrado' }); return; }
+  const ct = own[0];
 
   await db.query('UPDATE contracts SET party_overrides = ? WHERE id = ?', [JSON.stringify(overrides), req.params.id]);
   await reprocessContract(Number(req.params.id), req.user!.id, overrides);
+
+  // Propaga a correção para o CADASTRO (cliente e lead) — não fica só no documento.
+  if (ct.client_id) {
+    const s: string[] = []; const p: any[] = [];
+    if (overrides.nome) { s.push('name = ?'); p.push(overrides.nome); }
+    if (overrides.cpf) { s.push('cpf_cnpj = ?'); p.push(overrides.cpf); }
+    if (overrides.email) { s.push('email = ?'); p.push(overrides.email); }
+    if (overrides.endereco) { s.push('address = ?'); p.push(overrides.endereco); }
+    if (s.length) { p.push(ct.client_id); await db.query(`UPDATE clients SET ${s.join(', ')} WHERE id = ?`, p); }
+  }
+  if (ct.lead_id) {
+    const s: string[] = []; const p: any[] = [];
+    if (overrides.nome) { s.push('name = ?'); p.push(overrides.nome); }
+    if (overrides.cpf) { s.push('cpf_cnpj = ?'); p.push(overrides.cpf); }
+    if (overrides.email) { s.push('email = ?'); p.push(overrides.email); }
+    if (overrides.profissao) { s.push('profession = ?'); p.push(overrides.profissao); }
+    if (s.length) { p.push(ct.lead_id); await db.query(`UPDATE leads SET ${s.join(', ')} WHERE id = ?`, p); }
+  }
 
   const [rows] = await db.query(
     'SELECT content, procuracao_content, declaracao_content, party_overrides FROM contracts WHERE id = ?',
