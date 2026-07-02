@@ -190,6 +190,21 @@ router.put('/:id', async (req: Request, res: Response) => {
 });
 
 // ── PATCH /api/leads/:id/status — mover no funil ────────────────────────────
+// ── POST /api/leads/:id/contexto — acrescenta uma atualização ao caso (append) ─
+// Não sobrescreve o resumo: registra uma nova entrada na jornada, preservando o histórico.
+router.post('/:id/contexto', async (req: Request, res: Response) => {
+  const text = String(req.body?.text || '').trim();
+  if (!text) { res.status(400).json({ error: 'Escreva a atualização' }); return; }
+  const [[l]] = await db.query('SELECT client_id FROM leads WHERE id = ?', [req.params.id]) as any;
+  if (!l) { res.status(404).json({ error: 'Lead não encontrado' }); return; }
+  await logActivity({
+    leadId: Number(req.params.id), clientId: l.client_id ?? null,
+    actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'contexto_atualizado', title: 'Atualização do caso', description: text,
+  });
+  res.status(201).json({ success: true });
+});
+
 // ── DELETE /api/leads/:id — exclui um lead ──────────────────────────────────
 router.delete('/:id', async (req: Request, res: Response) => {
   try {

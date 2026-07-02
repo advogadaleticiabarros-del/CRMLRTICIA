@@ -2746,6 +2746,10 @@ async function leadDetail(id, onSave) {
     <button class="btn-gold" id="close" style="width:100%">Fechar negócio e gerar contrato</button>
     <button class="btn-sm" id="del-lead" style="width:100%;color:var(--red);border-color:var(--red)">Excluir lead</button>
     <hr style="border:none;border-top:1px solid var(--border)">
+    <div><strong style="color:var(--navy)">Atualizações do caso</strong><p class="sub" style="margin:2px 0 6px">Acrescente informações quando precisar — não apaga o que já foi registrado.</p></div>
+    <textarea id="ctx-note" rows="2" placeholder="Nova informação/atualização do caso…"></textarea>
+    <button class="btn-primary btn-sm" id="add-ctx" style="align-self:start">Adicionar atualização</button>
+    <hr style="border:none;border-top:1px solid var(--border)">
     <div><strong style="color:var(--navy)">Histórico da jornada</strong><p class="sub" style="margin:2px 0 8px">Tudo registrado — do primeiro contato ao fim do processo</p></div>
     <div id="lead-journey"><div class="spinner"></div></div>
   </div>`);
@@ -2757,6 +2761,14 @@ async function leadDetail(id, onSave) {
   form.querySelector('#save-summary').onclick = async () => {
     try { await api('/api/leads/' + id, { method: 'PUT', body: JSON.stringify({ case_summary: form.querySelector('[name=case_summary]').value }) });
       toast('Resumo/contexto salvo'); } catch (e) { toast(e.message, 'error'); }
+  };
+  form.querySelector('#add-ctx').onclick = async () => {
+    const ta = form.querySelector('#ctx-note'); const text = ta.value.trim();
+    if (!text) { toast('Escreva a atualização', 'error'); return; }
+    try {
+      await api(`/api/leads/${id}/contexto`, { method: 'POST', body: JSON.stringify({ text }) });
+      ta.value = ''; toast('Atualização adicionada'); loadJourney(form.querySelector('#lead-journey'), { lead_id: id });
+    } catch (e) { toast(e.message, 'error'); }
   };
   const statusSel = form.querySelector('[name=status]');
   const syncLoss = () => { form.querySelector('#loss-wrap').style.display = statusSel.value === 'perdida' ? 'block' : 'none'; };
