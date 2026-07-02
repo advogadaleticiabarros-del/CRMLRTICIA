@@ -2715,7 +2715,8 @@ async function leadDetail(id, onSave) {
     <div><strong style="font-size:18px">${l.name}</strong><br><small style="color:var(--text-muted)">${l.source || ''}${l.legal_area ? ' · ' + l.legal_area : ''}</small></div>
     <div>${l.phone ? esc(l.phone) + waBtn(l.phone, 'WhatsApp') : ''} ${l.email ? '· ' + esc(l.email) : ''}</div>
     ${info ? `<div style="font-size:13px;color:var(--text-soft)">${info}</div>` : ''}
-    ${l.case_summary ? `<div style="font-size:13px;color:var(--text-soft)"><strong>Caso:</strong> ${l.case_summary}</div>` : ''}
+    ${field('Resumo / contexto do caso', 'case_summary', { type: 'textarea', value: l.case_summary || '' })}
+    <button class="btn-sm" id="save-summary" style="align-self:start">Salvar resumo/contexto</button>
     <div class="form-row">${field('Área', 'legal_area', { value: l.legal_area || 'outro', options: AREAS })}<button class="btn-sm" id="save-area" style="align-self:end">Salvar área</button></div>
     <hr style="border:none;border-top:1px solid var(--border)">
     ${field('Mover no funil', 'status', { value: l.status, options: stages.map(([v,t])=>({v,t})) })}
@@ -2733,6 +2734,10 @@ async function leadDetail(id, onSave) {
   form.querySelector('#save-area').onclick = async () => {
     try { await api('/api/leads/' + id, { method: 'PUT', body: JSON.stringify({ legal_area: form.querySelector('[name=legal_area]').value }) });
       toast('Área salva'); } catch (e) { toast(e.message, 'error'); }
+  };
+  form.querySelector('#save-summary').onclick = async () => {
+    try { await api('/api/leads/' + id, { method: 'PUT', body: JSON.stringify({ case_summary: form.querySelector('[name=case_summary]').value }) });
+      toast('Resumo/contexto salvo'); } catch (e) { toast(e.message, 'error'); }
   };
   const statusSel = form.querySelector('[name=status]');
   const syncLoss = () => { form.querySelector('#loss-wrap').style.display = statusSel.value === 'perdida' ? 'block' : 'none'; };
