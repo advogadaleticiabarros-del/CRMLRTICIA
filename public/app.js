@@ -3712,6 +3712,9 @@ async function caseDetail(id, onSave) {
         ...log.map((n) => ({ when: n.created_at, who: n.author_name, tag: KINDS[n.kind] || n.kind, text: n.text })),
       ].sort((a, b) => new Date(b.when) - new Date(a.when));
       const histHtml = histItems.length ? histItems.map((h) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="font-size:10px;background:#eef2f8;padding:1px 6px;border-radius:8px">${esc(h.tag)}</span> <span style="font-size:13px">${esc(h.text)}</span><br><small style="color:var(--text-muted)">${esc(h.who || '')} · ${fmtDate(h.when)}</small></div>`).join('') : '<small style="color:var(--text-muted)">Sem registros</small>';
+      // Documentos vinculados a este caso (petições, minutas, anexos…).
+      const docs = (await api('/api/documents?client_id=' + (c.client_id || '')).catch(() => [])).filter((d) => d.case_id == id);
+      const docsHtml = docs.length ? docs.map((d) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:center;gap:6px"><span style="font-size:13px">📄 ${esc(d.name)}<br><small style="color:var(--text-muted)">${esc(d.type || 'documento')} · ${esc(d.status || '')} · ${fmtDate(d.created_at)}</small></span><button class="btn-gold btn-sm" type="button" data-doc="${d.id}">Abrir</button></div>`).join('') : '<small style="color:var(--text-muted)">Nenhum documento vinculado a este caso ainda.</small>';
       panel.innerHTML = `
         <hr style="border:none;border-top:1px solid var(--border)">
         <strong style="font-size:13px;color:var(--navy)">Produção — acompanhamento</strong>
@@ -3726,6 +3729,8 @@ async function caseDetail(id, onSave) {
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Pendências (falta algo?)</small>
           <div id="prod-pend">${pend.length ? pend.map((n) => `<div class="mini-row" style="padding:5px 0"><span>⚠ ${esc(n.text)}<br><small style="color:var(--text-muted)">${esc(n.author_name || '')} · ${fmtDate(n.created_at)}</small></span><button class="btn-sm" type="button" data-resolve="${n.id}">Resolver</button></div>`).join('') : '<small style="color:var(--green)">Sem pendências</small>'}</div>
           <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-newpend" placeholder="o que falta…" style="flex:1"><button class="btn-sm" type="button" id="prod-addpend">+ pendência</button></div></div>
+        <div style="margin-top:10px"><small style="color:var(--text-muted)">📄 Documentos do caso (peças, minutas, anexos)</small>
+          <div id="prod-docs">${docsHtml}</div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Histórico e atualizações do caso (do lead à produção)</small>
           <div style="max-height:240px;overflow:auto">${histHtml}</div>
           <div style="display:flex;gap:6px;margin-top:6px"><input id="prod-note" placeholder="acrescentar atualização ao caso…" style="flex:1"><button class="btn-primary btn-sm" type="button" id="prod-addnote">Adicionar</button></div></div>`;
@@ -3742,6 +3747,18 @@ async function caseDetail(id, onSave) {
       panel.querySelector('#prod-addpend').onclick = async () => { const v = panel.querySelector('#prod-newpend').value.trim(); if (!v) return; try { await api(`/api/cases/${id}/production-notes`, { method: 'POST', body: JSON.stringify({ kind: 'pendencia', text: v }) }); loadProd(); } catch (e) { toast(e.message, 'error'); } };
       panel.querySelectorAll('[data-resolve]').forEach((b) => b.onclick = async () => { try { await api(`/api/cases/production-notes/${b.dataset.resolve}/resolve`, { method: 'PATCH', body: '{}' }); loadProd(); } catch (e) { toast(e.message, 'error'); } });
       panel.querySelector('#prod-addnote').onclick = async () => { const v = panel.querySelector('#prod-note').value.trim(); if (!v) return; try { await api(`/api/cases/${id}/contexto`, { method: 'POST', body: JSON.stringify({ text: v }) }); toast('Atualização adicionada'); loadProd(); } catch (e) { toast(e.message, 'error'); } };
+      panel.querySelectorAll('[data-doc]').forEach((b) => b.onclick = async () => {
+        try {
+          const g = await api('/api/documents/' + b.dataset.doc);
+          const body = el(`<div>
+            <div style="font-size:13px;line-height:1.6;white-space:pre-wrap;word-break:break-word;max-height:62vh;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface)">${esc(g.content || g.file_url || '(sem conteúdo)')}</div>
+            <div style="display:flex;gap:6px;margin-top:8px">${g.content ? '<button class="btn-sm" id="doc-copy2" type="button">Copiar</button><button class="btn-gold btn-sm" id="doc-print2" type="button">Imprimir / PDF</button>' : ''}</div>
+          </div>`);
+          openModal(g.name || 'Documento', body);
+          const cpy = body.querySelector('#doc-copy2'); if (cpy) cpy.onclick = () => { try { navigator.clipboard.writeText(g.content || ''); toast('Copiado'); } catch { toast('Copie manualmente', 'error'); } };
+          const prt = body.querySelector('#doc-print2'); if (prt) prt.onclick = () => { const w = window.open('', '_blank'); w.document.write(`<html><head><title>${esc(g.name || 'Documento')}</title></head><body style="font-family:Georgia,serif;line-height:1.7;max-width:720px;margin:48px auto;padding:0 24px;white-space:pre-wrap;color:#231E1A">${(g.content || '').replace(/</g, '&lt;')}</body></html>`); w.document.close(); w.focus(); setTimeout(() => w.print(), 300); };
+        } catch (e) { toast(e.message, 'error'); }
+      });
     };
     loadProd();
   }
