@@ -280,7 +280,9 @@ router.put('/:id', async (req: Request, res: Response) => {
 
   // Ao ASSINAR: cria o processo na esteira + gera honorários no financeiro (sem retrabalho)
   let createdCaseId: number | null = null;
-  if (req.body.status === 'assinado' && before.status !== 'assinado' && before.client_id) {
+  // Não exige before.client_id: contratos vindos de LEAD ainda não têm cliente —
+  // o onContractSigned cria o cliente na assinatura e move o caso para a esteira.
+  if (req.body.status === 'assinado' && before.status !== 'assinado') {
     const r = await onContractSigned(Number(id), req.user!.id, req.user!.name);
     createdCaseId = r.caseId;
   } else if ((req.body.status === 'enviado_assinatura' || zlink) && before.status !== 'enviado_assinatura' && before.status !== 'assinado' && before.client_id) {
