@@ -1193,3 +1193,15 @@ img, svg, video { max-width: 100%; }
   background: var(--gold); box-shadow: 0 0 0 2px rgba(255,255,255,.55); }
 .theme-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .theme-desc { font-size: 11px; color: var(--text-muted); }
+
+/* ── Rodapé de lista + Paginador ── */
+.list-foot { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  flex-wrap: wrap; padding: 12px 18px; color: var(--text-muted); font-size: 13px; border-top: 1px solid var(--border-soft); }
+.pager { display: flex; gap: 4px; flex-wrap: wrap; }
+.pg-btn { min-width: 34px; height: 34px; padding: 0 9px; border: 1px solid var(--border);
+  background: var(--surface); border-radius: 9px; cursor: pointer; color: var(--text-soft);
+  font-family: inherit; font-size: 13px; font-weight: 600; transition: border-color .15s, color .15s, background .15s; }
+.pg-btn:hover:not(:disabled) { border-color: var(--gold); color: var(--gold); }
+.pg-btn.act { background: var(--gold); color: #fff; border-color: var(--gold); }
+.pg-btn:disabled { opacity: .4; cursor: default; }
+.pg-gap { padding: 0 2px; color: var(--text-muted); align-self: center; }

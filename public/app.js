@@ -127,6 +127,26 @@ function initAppearance() {
   setSidebarCollapsed(localStorage.getItem('crm_sidebar') === '1');
 }
 
+// Paginador reutilizável — botões « ‹ 1 … 4 5 6 … 20 › » (usa data-page)
+function pagerHtml(current, pages) {
+  if (!pages || pages <= 1) return '';
+  const btn = (p, label, dis, act) =>
+    `<button class="pg-btn${act ? ' act' : ''}"${dis ? ' disabled' : ` data-page="${p}"`}>${label || p}</button>`;
+  let out = btn(current - 1, '‹', current <= 1);
+  const win = [];
+  const add = (p) => { if (p >= 1 && p <= pages && !win.includes(p)) win.push(p); };
+  add(1); for (let p = current - 2; p <= current + 2; p++) add(p); add(pages);
+  win.sort((a, b) => a - b);
+  let prev = 0;
+  for (const p of win) {
+    if (p - prev > 1) out += `<span class="pg-gap">…</span>`;
+    out += btn(p, null, false, p === current);
+    prev = p;
+  }
+  out += btn(current + 1, '›', current >= pages);
+  return `<div class="pager">${out}</div>`;
+}
+
 // ── Sistema de ícones SVG (linha fina, herdam a cor — substituem os emojis) ──
 const ICONS = {
   home: '<path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/>',
@@ -550,25 +570,33 @@ const ROUTES = {
         <select id="cli-status"><option value="">Todos status</option><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="prospecto">Prospecto</option></select>
       </div>
       <div class="card"><div id="cli-table"></div></div>`;
+    let cliPage = 1;
     const load = async () => {
       const q = new URLSearchParams();
+      q.set('limit', '50');
+      q.set('page', String(cliPage));
       if ($('#cli-search').value) q.set('search', $('#cli-search').value);
       if ($('#cli-status').value) q.set('status', $('#cli-status').value);
       const r = await api('/api/clients?' + q);
+      const pages = r.pages || 1;
       $('#cli-table').innerHTML = r.data.length ? `
         <table><thead><tr><th>Nome</th><th>Tipo</th><th>Contato</th><th>Status</th><th></th></tr></thead>
         <tbody>${r.data.map((c) => `<tr>
           <td><strong>${c.name}</strong> ${c.is_dative ? '<span class="badge dativo">DATIVO</span>' : ''}${Number(c.movs_recentes) ? '<span style="display:inline-block;white-space:nowrap;font-size:10px;background:#fdecec;color:var(--red);font-weight:700;padding:1px 7px;border-radius:10px;margin-left:4px">' + svgIcon('bell', 'ic-xs') + ' movimentação</span>' : ''}${areaChipsHtml(c.areas)}<br><small style="color:var(--text-muted)">${c.cpf_cnpj || ''}</small></td>
           <td>${c.tipo}</td><td>${c.phone ? esc(c.phone) + waBtn(c.phone) : (c.email || '—')}</td><td>${badge(c.status)}</td>
           <td style="white-space:nowrap"><button class="btn-sm" data-ficha="${c.id}">${svgIcon('clipboard')}Ficha</button> <button class="btn-sm" data-edit="${c.id}">Editar</button></td></tr>`).join('')}</tbody></table>
-        <div style="padding:12px 18px;color:var(--text-muted);font-size:13px">${r.total} cliente(s)</div>`
+        <div class="list-foot"><span>${r.total} cliente(s) · página ${r.page} de ${pages}</span>${pagerHtml(r.page, pages)}</div>`
         : '<div class="empty">Nenhum cliente encontrado</div>';
       document.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => clientForm(b.dataset.edit, load));
       document.querySelectorAll('[data-ficha]').forEach((b) => b.onclick = () => fichaCliente(b.dataset.ficha, load));
+      document.querySelectorAll('#cli-table [data-page]').forEach((b) => b.onclick = () => {
+        cliPage = Number(b.dataset.page); load(); $('#page').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
     };
+    const reload = () => { cliPage = 1; load(); };
     $('#new-client').onclick = () => clientForm(null, load);
-    $('#cli-search').oninput = debounce(load, 350);
-    $('#cli-status').onchange = load;
+    $('#cli-search').oninput = debounce(reload, 350);
+    $('#cli-status').onchange = reload;
     await load();
   },
 
