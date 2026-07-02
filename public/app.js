@@ -3326,6 +3326,12 @@ async function caseDetail(id, onSave) {
         const able = users.filter((u) => ['estagiario', 'parceiro', 'advogado'].includes(u.role) && u.active);
         assignOpts = `<option value="">— responsável —</option>` + able.map((u) => `<option value="${u.id}" ${u.id == p.production_assignee ? 'selected' : ''}>${esc(u.name)}</option>`).join('');
       }
+      // Histórico unificado: jornada (lead → produção) + observações da produção, em ordem.
+      const histItems = [
+        ...(p.journey || []).map((j) => ({ when: j.created_at, who: j.actor_name, tag: 'Jornada', text: (j.title ? j.title + (j.description ? ': ' + j.description : '') : j.description) || j.event_type })),
+        ...log.map((n) => ({ when: n.created_at, who: n.author_name, tag: KINDS[n.kind] || n.kind, text: n.text })),
+      ].sort((a, b) => new Date(b.when) - new Date(a.when));
+      const histHtml = histItems.length ? histItems.map((h) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="font-size:10px;background:#eef2f8;padding:1px 6px;border-radius:8px">${esc(h.tag)}</span> <span style="font-size:13px">${esc(h.text)}</span><br><small style="color:var(--text-muted)">${esc(h.who || '')} · ${fmtDate(h.when)}</small></div>`).join('') : '<small style="color:var(--text-muted)">Sem registros</small>';
       panel.innerHTML = `
         <hr style="border:none;border-top:1px solid var(--border)">
         <strong style="font-size:13px;color:var(--navy)">Produção — acompanhamento</strong>
@@ -3340,9 +3346,9 @@ async function caseDetail(id, onSave) {
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Pendências (falta algo?)</small>
           <div id="prod-pend">${pend.length ? pend.map((n) => `<div class="mini-row" style="padding:5px 0"><span>⚠ ${esc(n.text)}<br><small style="color:var(--text-muted)">${esc(n.author_name || '')} · ${fmtDate(n.created_at)}</small></span><button class="btn-sm" type="button" data-resolve="${n.id}">Resolver</button></div>`).join('') : '<small style="color:var(--green)">Sem pendências</small>'}</div>
           <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-newpend" placeholder="o que falta…" style="flex:1"><button class="btn-sm" type="button" id="prod-addpend">+ pendência</button></div></div>
-        <div style="margin-top:10px"><small style="color:var(--text-muted)">Observações / atualizações</small>
-          <div style="max-height:160px;overflow:auto">${log.length ? log.map((n) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="font-size:10px;background:#eef2f8;padding:1px 6px;border-radius:8px">${KINDS[n.kind] || n.kind}${n.resolved ? ' ✓' : ''}</span> <span style="font-size:13px">${esc(n.text)}</span><br><small style="color:var(--text-muted)">${esc(n.author_name || '')} · ${fmtDate(n.created_at)}</small></div>`).join('') : '<small style="color:var(--text-muted)">Sem registros</small>'}</div>
-          <div style="display:flex;gap:6px;margin-top:6px"><select id="prod-kind"><option value="atualizacao">Atualização</option><option value="observacao">Observação</option></select><input id="prod-note" placeholder="escreva uma atualização…" style="flex:1"><button class="btn-primary btn-sm" type="button" id="prod-addnote">Registrar</button></div></div>`;
+        <div style="margin-top:10px"><small style="color:var(--text-muted)">Histórico e atualizações do caso (do lead à produção)</small>
+          <div style="max-height:240px;overflow:auto">${histHtml}</div>
+          <div style="display:flex;gap:6px;margin-top:6px"><input id="prod-note" placeholder="acrescentar atualização ao caso…" style="flex:1"><button class="btn-primary btn-sm" type="button" id="prod-addnote">Adicionar</button></div></div>`;
 
       const saveLabels = async (arr) => { try { await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ labels: arr }) }); loadProd(); } catch (e) { toast(e.message, 'error'); } };
       const cp = panel.querySelector('#copy-header');
@@ -3355,7 +3361,7 @@ async function caseDetail(id, onSave) {
       panel.querySelectorAll('[data-rmlab]').forEach((a) => a.onclick = (e) => { e.preventDefault(); saveLabels(labels.filter((_, i) => i != a.dataset.rmlab)); });
       panel.querySelector('#prod-addpend').onclick = async () => { const v = panel.querySelector('#prod-newpend').value.trim(); if (!v) return; try { await api(`/api/cases/${id}/production-notes`, { method: 'POST', body: JSON.stringify({ kind: 'pendencia', text: v }) }); loadProd(); } catch (e) { toast(e.message, 'error'); } };
       panel.querySelectorAll('[data-resolve]').forEach((b) => b.onclick = async () => { try { await api(`/api/cases/production-notes/${b.dataset.resolve}/resolve`, { method: 'PATCH', body: '{}' }); loadProd(); } catch (e) { toast(e.message, 'error'); } });
-      panel.querySelector('#prod-addnote').onclick = async () => { const v = panel.querySelector('#prod-note').value.trim(); if (!v) return; try { await api(`/api/cases/${id}/production-notes`, { method: 'POST', body: JSON.stringify({ kind: panel.querySelector('#prod-kind').value, text: v }) }); loadProd(); } catch (e) { toast(e.message, 'error'); } };
+      panel.querySelector('#prod-addnote').onclick = async () => { const v = panel.querySelector('#prod-note').value.trim(); if (!v) return; try { await api(`/api/cases/${id}/contexto`, { method: 'POST', body: JSON.stringify({ text: v }) }); toast('Atualização adicionada'); loadProd(); } catch (e) { toast(e.message, 'error'); } };
     };
     loadProd();
   }

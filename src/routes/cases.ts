@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
+import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
 import { montarEndereco } from '../services/contractTemplates';
 
@@ -138,10 +139,11 @@ router.get('/:id/production', async (req: Request, res: Response) => {
   if (!c) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
 
   // Lead de origem (via contrato) — traz qualificação e resumo do caso.
-  let lead: any = null;
+  let lead: any = null; let originLeadId: number | null = null;
   if (c.origin_contract_id) {
     const [[ct]] = await db.query('SELECT lead_id FROM contracts WHERE id = ?', [c.origin_contract_id]) as any;
     if (ct?.lead_id) {
+      originLeadId = ct.lead_id;
       const [[lr]] = await db.query('SELECT name, cpf_cnpj, rg, marital_status, profession, email, case_summary, cep, street, number, neighborhood, city, state FROM leads WHERE id = ?', [ct.lead_id]) as any;
       lead = lr || null;
     }
@@ -165,12 +167,34 @@ router.get('/:id/production', async (req: Request, res: Response) => {
        FROM production_notes WHERE case_id = ? ORDER BY created_at DESC`, [id]
   ) as any;
 
+  // Jornada completa do caso: eventos do próprio caso + os da fase de lead (origem).
+  const [journey] = await db.query(
+    `SELECT event_type, title, description, actor_name, created_at
+       FROM journey_log
+      WHERE case_id = ? OR (? IS NOT NULL AND lead_id = ?)
+      ORDER BY created_at DESC LIMIT 200`, [id, originLeadId, originLeadId]
+  ).catch(() => [[]]) as any;
+
   res.json({
     production_stage: c.production_stage, production_started_at: c.production_started_at,
     production_labels: c.production_labels, production_assignee: c.production_assignee,
     case_summary: lead?.case_summary || c.description || '',
-    header, notes,
+    header, notes, journey,
   });
+});
+
+// ── POST /api/cases/:id/contexto — acrescenta atualização ao caso (append) ───
+router.post('/:id/contexto', async (req: Request, res: Response) => {
+  const text = String(req.body?.text || '').trim();
+  if (!text) { res.status(400).json({ error: 'Escreva a atualização' }); return; }
+  const [[c]] = await db.query('SELECT client_id FROM cases WHERE id = ?', [req.params.id]) as any;
+  if (!c) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+  await logActivity({
+    caseId: Number(req.params.id), clientId: c.client_id ?? null,
+    actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'contexto_atualizado', title: 'Atualização do caso', description: text,
+  });
+  res.status(201).json({ success: true });
 });
 
 // ── PATCH /api/cases/:id/production-meta — etiquetas e responsável ───────────
