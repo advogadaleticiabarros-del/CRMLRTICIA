@@ -5,7 +5,7 @@ import { logTimeline } from '../services/TimelineService';
 import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
 import { montarEndereco } from '../services/contractTemplates';
-import { buildPeticaoInicial } from '../services/peticaoBuilder';
+import { buildPeticaoInicial, analyzeCaseDrive } from '../services/peticaoBuilder';
 
 const router = Router();
 
@@ -210,6 +210,16 @@ router.patch('/:id/production-meta', async (req: Request, res: Response) => {
   params.push(req.params.id);
   await db.query(`UPDATE cases SET ${sets.join(', ')} WHERE id = ?`, params);
   res.json({ success: true });
+});
+
+// ── POST /api/cases/:id/analisar-documentos — lê a pasta do Drive e gera a análise-checklist
+router.post('/:id/analisar-documentos', async (req: Request, res: Response) => {
+  try {
+    const r = await analyzeCaseDrive(Number(req.params.id), req.user!.id);
+    res.json(r);
+  } catch (e: any) {
+    res.status(500).json({ ok: false, message: e?.message || 'Falha ao analisar os documentos' });
+  }
 });
 
 // ── POST /api/cases/:id/production-notes — observação/pendência/atualização ──

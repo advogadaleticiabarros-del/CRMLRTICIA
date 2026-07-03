@@ -3877,8 +3877,9 @@ async function caseDetail(id, onSave) {
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Pendências (falta algo?)</small>
           <div id="prod-pend">${pend.length ? pend.map((n) => `<div class="mini-row" style="padding:5px 0"><span>⚠ ${esc(n.text)}<br><small style="color:var(--text-muted)">${esc(n.author_name || '')} · ${fmtDate(n.created_at)}</small></span><button class="btn-sm" type="button" data-resolve="${n.id}">Resolver</button></div>`).join('') : '<small style="color:var(--green)">Sem pendências</small>'}</div>
           <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-newpend" placeholder="o que falta…" style="flex:1"><button class="btn-sm" type="button" id="prod-addpend">+ pendência</button></div></div>
-        <div style="margin-top:10px"><small style="color:var(--text-muted)">📁 Pasta do Drive com documentos deste caso — a IA lê ao gerar a petição</small>
-          <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-drive" placeholder="cole o link da pasta do Google Drive" value="${esc(p.drive_folder_url || '')}" style="flex:1"><button class="btn-sm" type="button" id="prod-drive-save">Salvar</button></div></div>
+        <div style="margin-top:10px"><small style="color:var(--text-muted)">Pasta do Drive com os documentos deste caso — a IA lê, organiza e monta o checklist</small>
+          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap"><input id="prod-drive" placeholder="cole o link da pasta do Google Drive" value="${esc(p.drive_folder_url || '')}" style="flex:1;min-width:180px"><button class="btn-sm" type="button" id="prod-drive-save">Salvar</button><button class="btn-gold btn-sm" type="button" id="prod-analyze">${svgIcon('ia')}Analisar documentos</button></div>
+          <div id="prod-analysis" style="margin-top:8px"></div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">📄 Documentos do caso (peças, minutas, anexos)</small>
           <div id="prod-docs">${docsHtml}</div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Histórico e atualizações do caso (do lead à produção)</small>
@@ -3899,6 +3900,27 @@ async function caseDetail(id, onSave) {
       panel.querySelector('#prod-addnote').onclick = async () => { const v = panel.querySelector('#prod-note').value.trim(); if (!v) return; try { await api(`/api/cases/${id}/contexto`, { method: 'POST', body: JSON.stringify({ text: v }) }); toast('Atualização adicionada'); loadProd(); } catch (e) { toast(e.message, 'error'); } };
       const dsave = panel.querySelector('#prod-drive-save');
       if (dsave) dsave.onclick = async () => { try { await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ drive_folder_url: panel.querySelector('#prod-drive').value.trim() }) }); toast('Pasta do Drive salva — será lida ao gerar a petição'); } catch (e) { toast(e.message, 'error'); } };
+      const danalyze = panel.querySelector('#prod-analyze');
+      if (danalyze) danalyze.onclick = async () => {
+        const url = panel.querySelector('#prod-drive').value.trim();
+        if (!url) { toast('Cole o link da pasta do Drive primeiro', 'error'); return; }
+        const out = panel.querySelector('#prod-analysis');
+        const orig = danalyze.innerHTML; danalyze.disabled = true; danalyze.textContent = 'Analisando…';
+        out.innerHTML = '<div class="spinner"></div>';
+        try {
+          await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ drive_folder_url: url }) });
+          const r = await api(`/api/cases/${id}/analisar-documentos`, { method: 'POST' });
+          if (r.ok) {
+            toast(`Análise pronta — ${r.imported || 0} novo(s) do Drive · ${r.docsLidos || 0} documento(s) lido(s)`);
+            out.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px 16px;max-height:60vh;overflow:auto">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong style="color:var(--navy)">Análise do caso (checklist)</strong>
+                  <small style="color:var(--text-muted)">salvo em Documentos do caso</small></div>
+                <div style="white-space:pre-wrap;font-size:13px;line-height:1.6">${esc(r.text)}</div></div>`;
+            loadProd();
+          } else { out.innerHTML = ''; toast('Não foi possível analisar: ' + (r.message || ''), 'error'); }
+        } catch (e) { out.innerHTML = ''; toast(e.message, 'error'); }
+        danalyze.disabled = false; danalyze.innerHTML = orig;
+      };
       panel.querySelectorAll('[data-doc]').forEach((b) => b.onclick = async () => {
         try {
           const g = await api('/api/documents/' + b.dataset.doc);

@@ -127,6 +127,87 @@ ${docsTxt || '[Nenhum documento com conteúdo extraído]'}`;
 }
 
 /**
+ * ANÁLISE-CHECKLIST do caso: importa a pasta do Drive (novos arquivos), lê os
+ * documentos com IA e produz um relatório analítico organizado para embasar a
+ * petição inicial (checklist + método fato→prova→fundamento→pedido).
+ * Reprocessável a qualquer momento pelo botão — cada execução puxa o que há de
+ * novo no Drive e refaz a análise. Substitui a análise anterior do caso.
+ */
+export async function analyzeCaseDrive(
+  caseId: number, actorId: number
+): Promise<{ ok: boolean; docId?: number; text?: string; message?: string; imported: number; docsLidos: number }> {
+  const [[cf]] = await db.query(
+    'SELECT client_id, title, legal_area, description, drive_folder_url FROM cases WHERE id = ?', [caseId]
+  ) as any;
+  if (!cf) return { ok: false, message: 'Caso não encontrado', imported: 0, docsLidos: 0 };
+
+  // 1) puxa novidades do Drive (dedup por nome) e 2) lê anexos ainda sem texto.
+  let imported = 0;
+  if (cf.drive_folder_url) imported = await importDriveFolder(caseId, cf.client_id ?? null, cf.drive_folder_url, actorId).catch(() => 0);
+  await extractCaseDocuments(caseId).catch(() => 0);
+
+  const clientId = cf.client_id ?? null;
+  const [[cl]] = clientId ? await db.query('SELECT name, cpf_cnpj, email, phone, address FROM clients WHERE id = ?', [clientId]) as any : [[null]];
+  const [docs] = await db.query(
+    "SELECT name, content FROM documents WHERE case_id = ? AND content IS NOT NULL AND content <> '' ORDER BY id ASC LIMIT 30", [caseId]
+  ) as any;
+  const docsTxt = (docs || []).map((d: any) => `--- ${d.name} ---\n${String(d.content).slice(0, 4000)}`).join('\n\n').slice(0, 28000);
+  const relato = cf.description || '';
+
+  const prompt = `Você é advogado(a) brasileiro(a) sênior, analista minucioso(a) de casos. Analise EXCLUSIVAMENTE o relato e os documentos abaixo e produza um RELATÓRIO ANALÍTICO organizado para embasar uma PETIÇÃO INICIAL de alto nível. NÃO invente fatos, datas, valores, nomes ou fundamentos. Onde faltar informação, escreva claramente "PENDENTE: ..." indicando o que obter.
+
+Responda em português, em Markdown, EXATAMENTE com estas seções:
+
+## 1. Documentos recebidos
+Liste cada documento e, em uma linha, o que ele comprova. Aponte problemas (ilegível, sem data, sem assinatura, página faltando).
+
+## 2. Linha do tempo
+Ordene cronologicamente os fatos e as datas dos documentos (o que ocorreu, quando, o que prova).
+
+## 3. Partes e qualificação
+Autor e Réu: marque o que já temos e o que está PENDENTE (nome, CPF/CNPJ, RG, estado civil, profissão, endereço, contato).
+
+## 4. Checklist analítico
+Percorra e marque cada item com ✅ (temos), ⚠️ (parcial) ou ⛔ (falta):
+Competência · Documentos pessoais · Documentos do caso · Prescrição/decadência · Legitimidade (ativa/passiva) · Fundamentação jurídica aplicável (CF, Código pertinente — CLT/CPC/CC/CDC/ECA, súmulas, temas) · Danos (material, moral, estético, lucros cessantes, dano emergente, perda de uma chance) · Cálculos/valor da causa · Tutela de urgência (cabível?) · Justiça gratuita · Requisitos do art. 319 do CPC.
+
+## 5. Matriz Fato → Prova → Fundamento → Pedido
+Tabela com uma linha por fato relevante: | Fato | Prova (qual documento/testemunha) | Fundamento (dispositivo/súmula) | Pedido |. Se faltar prova ou fundamento para algum fato, marque "PENDENTE".
+
+## 6. Provas a produzir
+O que requerer (documental, testemunhal, pericial, exibição de documentos, ofícios) e provas que ainda faltam obter.
+
+## 7. Riscos e pendências
+Prescrição/decadência, provas frágeis, contradições, informações faltantes — o que resolver antes de protocolar.
+
+## 8. Próximos passos recomendados
+Lista objetiva do que fazer em seguida.
+
+DADOS DO CASO
+Cliente/Autor: ${cl?.name || '[nome]'} · CPF: ${cl?.cpf_cnpj || '[PENDENTE]'} · Contato: ${cl?.phone || '—'} ${cl?.email || ''}
+Endereço: ${cl?.address || '[PENDENTE]'}
+Área: ${cf.legal_area || '[a definir]'} · Título do caso: ${cf.title || ''}
+
+RELATO DO CASO:
+${relato || '[Sem relato cadastrado — extraia dos documentos o que for possível]'}
+
+DOCUMENTOS DO CASO (conteúdo extraído pela IA):
+${docsTxt || '[Nenhum documento com conteúdo lido — verifique o link da pasta do Drive e as permissões]'}`;
+
+  const out = await aiComplete(prompt, 'gemini');
+  if (!out.ok || !out.text) return { ok: false, imported, docsLidos: (docs || []).length, message: out.message || 'A IA não retornou a análise' };
+
+  const name = `Análise do caso (checklist) — ${cl?.name || cf.title || 'Caso'}`;
+  await db.query("DELETE FROM documents WHERE case_id = ? AND type = 'ia' AND name LIKE 'Análise do caso (checklist)%'", [caseId]);
+  const [r] = await db.query(
+    `INSERT INTO documents (client_id, case_id, name, type, folder, content, status, created_by)
+     VALUES (?, ?, ?, 'ia', 'processos', ?, 'pendente', ?)`,
+    [clientId, caseId, name, out.text, actorId]
+  ) as any;
+  return { ok: true, docId: r.insertId, text: out.text, imported, docsLidos: (docs || []).length };
+}
+
+/**
  * Gera a petição inicial do caso e salva na produção. Idempotente: se já houver
  * uma petição gerada para o caso, não recria (a menos que force=true).
  */
