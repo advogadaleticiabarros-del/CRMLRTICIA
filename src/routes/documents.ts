@@ -101,7 +101,7 @@ router.get('/', async (req: Request, res: Response) => {
   if (req.query.folder) { where.push('d.folder = ?'); params.push(req.query.folder); }
   const [rows] = await db.query(
     `SELECT d.id, d.client_id, d.case_id, d.name, d.type, d.folder, d.status, d.file_url,
-            (d.content IS NOT NULL) AS has_content, d.created_at, c.name AS client_name
+            d.visible_to_client, (d.content IS NOT NULL) AS has_content, d.created_at, c.name AS client_name
        FROM documents d LEFT JOIN clients c ON c.id = d.client_id
       WHERE ${where.join(' AND ')} ORDER BY d.created_at DESC LIMIT 500`, params
   ) as any;
@@ -137,6 +137,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
   setIf('content', req.body.content);
   setIf('file_url', req.body.file_url);
+  setIf('visible_to_client', req.body.visible_to_client === undefined ? undefined : (req.body.visible_to_client ? 1 : 0));
   if (!fields.length) { res.status(400).json({ error: 'Nada para atualizar' }); return; }
   params.push(req.params.id);
   await db.query(`UPDATE documents SET ${fields.join(', ')} WHERE id = ?`, params);

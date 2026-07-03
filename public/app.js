@@ -1104,10 +1104,11 @@ const ROUTES = {
         <button class="tab" data-tab="repasses">Repasses</button>
         <button class="tab" data-tab="inadimplencia">Inadimplência</button>
         <button class="tab" data-tab="fluxo">Fluxo de Caixa</button>
+        <button class="tab" data-tab="pagamentos">Pagamentos a confirmar</button>
         <button class="tab" data-tab="auditoria">Auditoria</button>
       </div>
       <div id="fin-content"></div>`;
-    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, pagar: finContasPagar, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa, auditoria: finAuditoria };
+    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, pagar: finContasPagar, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa, pagamentos: finPagamentos, auditoria: finAuditoria };
     const show = async (name) => {
       document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#fin-content'); c.innerHTML = '<div class="spinner"></div>';
@@ -1133,6 +1134,15 @@ const ROUTES = {
         <label class="agree" style="display:flex;align-items:center;gap:9px;margin-top:16px;font-size:13.5px;cursor:pointer">
           <input type="checkbox" id="sb-collapse-opt" /> Iniciar com a barra lateral recolhida (mais espaço)
         </label>
+      </div>
+      <div class="card" style="padding:20px;margin-bottom:20px">
+        <h3 style="color:var(--navy);margin-bottom:6px">Escritório — Pix e contato</h3>
+        <p class="sub" style="margin-bottom:12px">Usados no portal do cliente (pagar com Pix e falar com o escritório).</p>
+        <div class="form-row"><label>Chave Pix<input id="os-pix-key" placeholder="e-mail, CPF/CNPJ, telefone ou aleatória" /></label>
+        <label>Nome do beneficiário<input id="os-pix-nome" placeholder="ex.: Leticia Barros Advocacia" /></label></div>
+        <div class="form-row" style="margin-top:10px"><label>Cidade<input id="os-pix-cidade" placeholder="ex.: Vitória" /></label>
+        <label>WhatsApp do escritório<input id="os-whats" placeholder="ex.: 5527999998888 (só números, com DDI)" /></label></div>
+        <button class="btn-gold btn-sm" id="os-save" style="margin-top:12px">Salvar</button>
       </div>
       <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:6px">Automações</h3>
@@ -1166,6 +1176,23 @@ const ROUTES = {
     const sbOpt = $('#sb-collapse-opt');
     sbOpt.checked = localStorage.getItem('crm_sidebar') === '1';
     sbOpt.onchange = () => setSidebarCollapsed(sbOpt.checked);
+
+    // ── Escritório (Pix e contato do portal do cliente) ──
+    (async () => {
+      try {
+        const os = await api('/api/office-settings');
+        $('#os-pix-key').value = os.pix_key || ''; $('#os-pix-nome').value = os.pix_nome || '';
+        $('#os-pix-cidade').value = os.pix_cidade || ''; $('#os-whats').value = os.whatsapp || '';
+      } catch {}
+    })();
+    $('#os-save').onclick = async () => {
+      try {
+        await api('/api/office-settings', { method: 'PATCH', body: JSON.stringify({
+          pix_key: $('#os-pix-key').value, pix_nome: $('#os-pix-nome').value,
+          pix_cidade: $('#os-pix-cidade').value, whatsapp: $('#os-whats').value }) });
+        toast('Configurações do escritório salvas');
+      } catch (e) { toast(e.message, 'error'); }
+    };
 
     const loadAutomations = async () => {
       try {
@@ -4147,7 +4174,7 @@ async function caseDetail(id, onSave) {
       const histHtml = histItems.length ? histItems.map((h) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="font-size:10px;background:#eef2f8;padding:1px 6px;border-radius:8px">${esc(h.tag)}</span> <span style="font-size:13px">${esc(h.text)}</span><br><small style="color:var(--text-muted)">${esc(h.who || '')} · ${fmtDate(h.when)}</small></div>`).join('') : '<small style="color:var(--text-muted)">Sem registros</small>';
       // Documentos vinculados a este caso (petições, minutas, anexos…).
       const docs = (await api('/api/documents?client_id=' + (c.client_id || '')).catch(() => [])).filter((d) => d.case_id == id);
-      const docsHtml = docs.length ? docs.map((d) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:center;gap:6px"><span style="font-size:13px">📄 ${esc(d.name)}<br><small style="color:var(--text-muted)">${esc(d.type || 'documento')} · ${esc(d.status || '')} · ${fmtDate(d.created_at)}</small></span><button class="btn-gold btn-sm" type="button" data-doc="${d.id}">Abrir</button></div>`).join('') : '<small style="color:var(--text-muted)">Nenhum documento vinculado a este caso ainda.</small>';
+      const docsHtml = docs.length ? docs.map((d) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:13px">📄 ${esc(d.name)}<br><small style="color:var(--text-muted)">${esc(d.type || 'documento')} · ${esc(d.status || '')} · ${fmtDate(d.created_at)}</small></span><span style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn-sm" type="button" data-vis="${d.id}" data-on="${Number(d.visible_to_client) ? 1 : 0}" title="Mostrar/ocultar no portal do cliente" ${Number(d.visible_to_client) ? 'style="border-color:var(--green);color:var(--green)"' : ''}>${Number(d.visible_to_client) ? 'Visível ao cliente ✓' : 'Liberar p/ cliente'}</button><button class="btn-gold btn-sm" type="button" data-doc="${d.id}">Abrir</button></span></div>`).join('') : '<small style="color:var(--text-muted)">Nenhum documento vinculado a este caso ainda.</small>';
       panel.innerHTML = `
         <hr style="border:none;border-top:1px solid var(--border)">
         <strong style="font-size:13px;color:var(--navy)">Produção — acompanhamento</strong>
@@ -4165,6 +4192,8 @@ async function caseDetail(id, onSave) {
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Pasta do Drive com os documentos deste caso — a IA lê, organiza e monta o checklist</small>
           <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap"><input id="prod-drive" placeholder="cole o link da pasta do Google Drive" value="${esc(p.drive_folder_url || '')}" style="flex:1;min-width:180px"><button class="btn-sm" type="button" id="prod-drive-save">Salvar</button><button class="btn-gold btn-sm" type="button" id="prod-analyze">${svgIcon('ia')}Analisar documentos</button></div>
           <div id="prod-analysis" style="margin-top:8px"></div></div>
+        <div style="margin-top:10px"><small style="color:var(--text-muted)">Recado ao cliente (aparece no portal, em linguagem simples)</small>
+          <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-climsg" placeholder="ex.: Seu processo foi protocolado; agora aguardamos a resposta do INSS" value="${esc(p.client_message || '')}" style="flex:1"><button class="btn-sm" type="button" id="prod-climsg-save">Salvar</button></div></div>
         <div style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center"><small style="color:var(--text-muted)">📄 Documentos do caso (peças, minutas, anexos)</small><button class="btn-sm btn-gold" type="button" id="prod-gen-peticao">🔄 Gerar nova versão da petição (IA)</button></div>
           <div id="prod-docs">${docsHtml}</div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Histórico e atualizações do caso (do lead à produção)</small>
@@ -4185,6 +4214,13 @@ async function caseDetail(id, onSave) {
       panel.querySelector('#prod-addnote').onclick = async () => { const v = panel.querySelector('#prod-note').value.trim(); if (!v) return; try { await api(`/api/cases/${id}/contexto`, { method: 'POST', body: JSON.stringify({ text: v }) }); toast('Atualização adicionada'); loadProd(); } catch (e) { toast(e.message, 'error'); } };
       const dsave = panel.querySelector('#prod-drive-save');
       if (dsave) dsave.onclick = async () => { try { await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ drive_folder_url: panel.querySelector('#prod-drive').value.trim() }) }); toast('Pasta do Drive salva — será lida ao gerar a petição'); } catch (e) { toast(e.message, 'error'); } };
+      const cmsave = panel.querySelector('#prod-climsg-save');
+      if (cmsave) cmsave.onclick = async () => { try { await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ client_message: panel.querySelector('#prod-climsg').value.trim() }) }); toast('Recado salvo — visível no portal do cliente'); } catch (e) { toast(e.message, 'error'); } };
+      panel.querySelectorAll('[data-vis]').forEach((b) => b.onclick = async () => {
+        const on = b.dataset.on !== '1';
+        try { await api(`/api/documents/${b.dataset.vis}`, { method: 'PUT', body: JSON.stringify({ visible_to_client: on }) }); toast(on ? 'Documento liberado no portal do cliente' : 'Documento oculto do portal'); loadProd(); }
+        catch (e) { toast(e.message, 'error'); }
+      });
       const danalyze = panel.querySelector('#prod-analyze');
       if (danalyze) danalyze.onclick = async () => {
         const url = panel.querySelector('#prod-drive').value.trim();
@@ -4327,6 +4363,27 @@ async function eventForm(onSave, prefillDate) {
 
 const AUDIT_ENTIDADE_PT = { Receita: 'Receita', Installment: 'Parcela', Parcela: 'Parcela', Expense: 'Despesa', Agreement: 'Acordo', Repasse: 'Repasse' };
 const AUDIT_ACAO_PT = { create: 'Criação', created: 'Criação', update: 'Edição', updated: 'Edição', delete: 'Exclusão', deleted: 'Exclusão', pay: 'Baixa', paid: 'Baixa', cancel: 'Cancelamento', reschedule: 'Reagendamento', status_change: 'Mudança de status' };
+
+// ── Financeiro → Pagamentos a confirmar (informados pelos clientes no portal) ─
+async function finPagamentos(c) {
+  const rows = await api('/api/payments?status=em_processamento');
+  c.innerHTML = `
+    <p class="sub" style="margin-bottom:14px">Pagamentos que os clientes marcaram como pagos no portal. Confira o extrato e dê a baixa (ou recuse).</p>
+    ${rows.length ? `
+    <div class="card"><table><thead><tr><th>Cliente</th><th>Parcela</th><th>Valor</th><th>Informado em</th><th>Obs.</th><th></th></tr></thead>
+    <tbody>${rows.map((p) => `<tr>
+      <td><strong>${esc(p.client_name)}</strong></td>
+      <td>${p.numero ? p.numero + 'ª' : '—'}${p.proposta ? `<br><small style="color:var(--text-muted)">${esc(p.proposta)}</small>` : ''}<br><small style="color:var(--text-muted)">venc. ${fmtDate(p.due_date)}</small></td>
+      <td><strong>${money(p.amount)}</strong></td><td>${fmtDate(p.created_at)}</td><td>${esc(p.note || '—')}</td>
+      <td style="white-space:nowrap"><button class="btn-gold btn-sm" data-pay-ok="${p.id}">Confirmar baixa</button> <button class="btn-sm" data-pay-no="${p.id}">Recusar</button></td></tr>`).join('')}</tbody></table></div>`
+    : '<div class="empty">Nenhum pagamento aguardando confirmação</div>'}`;
+  c.querySelectorAll('[data-pay-ok]').forEach((b) => b.onclick = async () => {
+    try { await api(`/api/payments/${b.dataset.payOk}/confirmar`, { method: 'POST', body: '{}' }); toast('Baixa confirmada — parcela paga'); finPagamentos(c); } catch (e) { toast(e.message, 'error'); }
+  });
+  c.querySelectorAll('[data-pay-no]').forEach((b) => b.onclick = async () => {
+    try { await api(`/api/payments/${b.dataset.payNo}/recusar`, { method: 'POST', body: '{}' }); toast('Pagamento recusado — parcela voltou a pendente'); finPagamentos(c); } catch (e) { toast(e.message, 'error'); }
+  });
+}
 
 async function finAuditoria(c) {
   c.innerHTML = `

@@ -181,6 +181,7 @@ router.get('/:id/production', async (req: Request, res: Response) => {
     production_stage: c.production_stage, production_started_at: c.production_started_at,
     production_labels: c.production_labels, production_assignee: c.production_assignee,
     drive_folder_url: c.drive_folder_url || '',
+    client_message: c.client_message || '',
     case_summary: lead?.case_summary || c.description || '',
     header, notes, journey,
   });
@@ -212,11 +213,12 @@ router.post('/:id/peticao-inicial', async (req: Request, res: Response) => {
 
 // ── PATCH /api/cases/:id/production-meta — etiquetas e responsável ───────────
 router.patch('/:id/production-meta', async (req: Request, res: Response) => {
-  const { labels, assignee, drive_folder_url } = req.body;
+  const { labels, assignee, drive_folder_url, client_message } = req.body;
   const sets: string[] = []; const params: any[] = [];
   if (labels !== undefined) { sets.push('production_labels = ?'); params.push(Array.isArray(labels) ? JSON.stringify(labels) : null); }
   if (assignee !== undefined) { sets.push('production_assignee = ?'); params.push(assignee || null); }
   if (drive_folder_url !== undefined) { sets.push('drive_folder_url = ?'); params.push(drive_folder_url ? String(drive_folder_url).trim() : null); }
+  if (client_message !== undefined) { sets.push('client_message = ?'); params.push(client_message ? String(client_message).trim() : null); }
   if (!sets.length) { res.status(400).json({ error: 'Nada para atualizar' }); return; }
   params.push(req.params.id);
   await db.query(`UPDATE cases SET ${sets.join(', ')} WHERE id = ?`, params);
