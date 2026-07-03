@@ -208,6 +208,19 @@ function sparkline(values, opts = {}) {
     <polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
     <circle cx="${lx}" cy="${ly}" r="2.2" fill="${color}"/></svg>`;
 }
+// Variação vs ~7 dias atrás. goodUp=true → subir é bom (verde); false → subir é ruim (vermelho).
+function deltaBadge(values, goodUp = true) {
+  const v = (values || []).map(Number).filter((n) => !isNaN(n));
+  if (v.length < 2) return '';
+  const cur = v[v.length - 1];
+  const prev = v.length > 7 ? v[v.length - 8] : v[0]; // ~7 dias atrás, ou o ponto mais antigo
+  if (cur === prev) return '';
+  const up = cur > prev;
+  const txt = prev === 0 ? 'novo' : `${(cur - prev) > 0 ? '+' : ''}${Math.round((cur - prev) / Math.abs(prev) * 100)}%`;
+  if (txt === '+0%' || txt === '0%') return '';
+  const cls = (up === goodUp) ? 'good' : 'bad';
+  return `<span class="delta ${cls}" title="vs. ~7 dias atrás">${up ? '▲' : '▼'} ${txt}</span>`;
+}
 // Barras horizontais — comparar categorias (1 série, ordena desc, rótulos sempre)
 function chartHBars(items, opts = {}) {
   const fmt = opts.fmt || ((v) => v);
@@ -2480,19 +2493,20 @@ async function dashCockpit(c) {
   const stat = (label, value, route, o = {}) => {
     const sp = serie(o.key);
     const spark = sp.length > 1 ? sparkline(sp, { color: o.sparkColor || 'var(--gold)' }) : '';
+    const delta = deltaBadge(sp, o.goodUp !== false);
     return `<div class="kpi" ${go(route)} style="cursor:pointer">
        <div class="label">${label}</div>
        <div class="value${o.money ? ' money' : ''}"${o.color ? ` style="color:${o.color}"` : ''}>${o.money ? money(value) : (value ?? 0)}</div>
-       ${spark}
+       ${delta}${spark}
      </div>`;
   };
   const kpis = `<div class="kpi-grid" style="margin-bottom:20px">
     ${stat('A receber até hoje', f.receber_hoje, 'financeiro', { money: 1, key: 'receber_hoje', sparkColor: 'var(--green)' })}
     ${stat('A receber (7 dias)', f.receber_7d, 'financeiro', { money: 1, key: 'receber_7d', sparkColor: 'var(--green)' })}
-    ${stat('A pagar (7 dias)', f.pagar_7d, 'financeiro', { money: 1, key: 'pagar_7d' })}
-    ${stat('Inadimplência', f.vencido, 'financeiro', { money: 1, key: 'inadimplencia', color: Number(f.vencido) > 0 ? 'var(--red)' : '', sparkColor: 'var(--red)' })}
-    ${stat('Tarefas pendentes', d.tarefas_pendentes ?? 0, 'prazos', { key: 'tarefas_pendentes', color: Number(d.tarefas_pendentes) > 0 ? 'var(--amber)' : '', sparkColor: 'var(--amber)' })}
-    ${stat('Propostas em análise', d.propostas_paradas ?? 0, 'propostas', { key: 'propostas_analise' })}
+    ${stat('A pagar (7 dias)', f.pagar_7d, 'financeiro', { money: 1, key: 'pagar_7d', goodUp: false })}
+    ${stat('Inadimplência', f.vencido, 'financeiro', { money: 1, key: 'inadimplencia', color: Number(f.vencido) > 0 ? 'var(--red)' : '', sparkColor: 'var(--red)', goodUp: false })}
+    ${stat('Tarefas pendentes', d.tarefas_pendentes ?? 0, 'prazos', { key: 'tarefas_pendentes', color: Number(d.tarefas_pendentes) > 0 ? 'var(--amber)' : '', sparkColor: 'var(--amber)', goodUp: false })}
+    ${stat('Propostas em análise', d.propostas_paradas ?? 0, 'propostas', { key: 'propostas_analise', goodUp: false })}
   </div>`;
 
   // Painel que se dimensiona pelo conteúdo (não estica p/ igualar) + corpo rolável
@@ -2641,9 +2655,10 @@ async function dashFinanceiro(c) {
     api('/api/metrics/series?days=30').catch(() => ({})),
   ]);
   const serieF = (k) => ((series && series[k]) || []).map((p) => p.value);
-  const statF = (label, value, key, color) => {
+  const statF = (label, value, key, color, goodUp = true) => {
     const sp = serieF(key), spark = sp.length > 1 ? sparkline(sp, { color: color || 'var(--gold)' }) : '';
-    return `<div class="kpi"><div class="label">${label}</div><div class="value money">${money(value)}</div>${spark}</div>`;
+    const delta = deltaBadge(sp, goodUp);
+    return `<div class="kpi"><div class="label">${label}</div><div class="value money">${money(value)}</div>${delta}${spark}</div>`;
   };
 
   const corSaldo = (v) => v < 0 ? 'var(--red)' : 'var(--green)';
@@ -2674,10 +2689,10 @@ async function dashFinanceiro(c) {
 
   c.innerHTML = `
     <div class="kpi-grid">
-      ${statF('Receita prevista', s.receita_prevista, 'receita_prevista', 'var(--green)')}${statF('Receita realizada', s.receita_realizada, 'receita_realizada', 'var(--green)')}
-      ${statF('Despesa prevista', s.despesa_prevista, 'despesa_prevista', 'var(--red)')}${statF('Despesa paga', s.despesa_paga, 'despesa_paga', 'var(--red)')}
-      ${statF('Saldo previsto', s.saldo_previsto, 'saldo_previsto', 'var(--gold)')}${statF('Saldo realizado', s.saldo_realizado, 'saldo_realizado', 'var(--gold)')}
-      ${statF('Inadimplência', s.inadimplencia, 'inadimplencia', 'var(--red)')}
+      ${statF('Receita prevista', s.receita_prevista, 'receita_prevista', 'var(--green)', true)}${statF('Receita realizada', s.receita_realizada, 'receita_realizada', 'var(--green)', true)}
+      ${statF('Despesa prevista', s.despesa_prevista, 'despesa_prevista', 'var(--red)', false)}${statF('Despesa paga', s.despesa_paga, 'despesa_paga', 'var(--red)', false)}
+      ${statF('Saldo previsto', s.saldo_previsto, 'saldo_previsto', 'var(--gold)', true)}${statF('Saldo realizado', s.saldo_realizado, 'saldo_realizado', 'var(--gold)', true)}
+      ${statF('Inadimplência', s.inadimplencia, 'inadimplencia', 'var(--red)', false)}
     </div>
     ${inteligencia}
     ${chartCard('Fluxo mensal — receitas × despesas', chartColumns(
