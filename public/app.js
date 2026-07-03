@@ -2895,36 +2895,109 @@ async function finAcordos(c) {
 
 async function finReceitas(c) {
   c.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-receita">+ Nova receita</button></div>
-    <div class="card"><div id="receita-table"></div></div>
-    <h3 style="margin:20px 0 10px;color:var(--navy)">Audiências — Correspondente Jurídico</h3>
-    <div class="card"><div id="audiencia-table"></div></div>`;
-  const load = async () => {
-    const r = await api('/api/receitas');
-    $('#receita-table').innerHTML = r.data.length ? `
-      <table><thead><tr><th>Descrição</th><th>Cliente</th><th>Valor</th><th>Recebido</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
-      <tbody>${r.data.map((rc) => `<tr>
-        <td><strong>${rc.descricao}</strong><br><small style="color:var(--text-muted)">${rc.tipo}</small></td>
-        <td>${rc.client_name || '—'}</td><td>${money(rc.valor)}</td><td>${money(rc.total_recebido)}</td>
-        <td>${fmtDate(rc.data_vencimento)}</td><td>${badge(rc.status)}</td>
-        <td><button class="btn-sm" data-rec="${rc.id}">Parcelas</button></td></tr>`).join('')}</tbody></table>`
-      : '<div class="empty">Nenhuma receita cadastrada</div>';
-    const aud = await api('/api/correspondente');
-    $('#audiencia-table').innerHTML = aud.length ? `
-      <table><thead><tr><th>Pagador</th><th>Processo</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
-      <tbody>${aud.map((a) => `<tr>
-        <td><strong>${a.payer_name}</strong><br><small>${a.payer_type === 'PJ' ? 'Jurídica' : 'Física'}</small></td>
-        <td>${a.process_number || '—'}</td><td>${money(a.value)}</td>
-        <td>${fmtDate(a.due_date)}</td><td>${badge(a.status)}</td>
-        <td><button class="btn-sm" data-aud="${a.id}">Editar</button></td></tr>`).join('')}</tbody></table>`
-      : '<div class="empty">Nenhuma audiência registrada</div>';
-    document.querySelectorAll('[data-rec]').forEach((b) => b.onclick = () => receitaDetail(b.dataset.rec, load));
-    document.querySelectorAll('[data-aud]').forEach((b) => b.onclick = async () => {
-      const aud = await api('/api/correspondente/' + b.dataset.aud);
-      correspondentForm(aud, load);
-    });
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
+      <div><h3 style="color:var(--navy);margin:0">💰 Receitas & Parcelas</h3></div>
+      <div style="display:flex;gap:8px"><button class="btn-gold btn-sm" id="new-receita">+ Nova receita</button><button class="btn-sm" id="print-receitas">🖨️ Imprimir</button><button class="btn-sm" id="export-receitas">📊 Exportar CSV</button></div>
+    </div>
+
+    <div class="form-section" style="margin-bottom:16px">
+      <div class="section-header">🔍 Filtros</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
+        <label>Status
+          <select id="rec-filter-status"><option value="">Todos</option><option value="pendente">Pendente</option><option value="recebido">Recebido</option><option value="vencido">Vencido</option></select>
+        </label>
+        <label>Tipo
+          <select id="rec-filter-tipo"><option value="">Todos</option><option value="receita">Receita</option><option value="parcela">Parcela</option><option value="audiencia">Audiência</option></select>
+        </label>
+        <label>Cliente
+          <select id="rec-filter-cliente"><option value="">Todos</option><option id="rec-clients" disabled>Carregando...</option></select>
+        </label>
+        <label>Data de
+          <input type="date" id="rec-filter-date-from" />
+        </label>
+        <label>até
+          <input type="date" id="rec-filter-date-to" />
+        </label>
+      </div>
+    </div>
+
+    <div class="kpi-grid" id="rec-kpis" style="margin-bottom:16px"></div>
+
+    <div class="card"><div id="receita-consolidada"></div></div>`;
+
+  const loadClients = async () => {
+    const clients = await api('/api/clients?limit=200').catch(() => ({ data: [] }));
+    const sel = $('#rec-filter-cliente');
+    sel.innerHTML = '<option value="">Todos</option>' + clients.data.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   };
+
+  const loadKpis = async () => {
+    const r = await api('/api/receitas').catch(() => ({ data: [] }));
+    const inst = await api('/api/financial/installments').catch(() => []);
+    const aud = await api('/api/correspondente').catch(() => []);
+    const totalVal = r.data.reduce((a, x) => a + (x.valor || 0), 0) + inst.reduce((a, x) => a + (x.valor || 0), 0) + aud.reduce((a, x) => a + (x.value || 0), 0);
+    const recebido = r.data.filter((x) => x.status === 'recebido').reduce((a, x) => a + (x.valor || 0), 0) + aud.filter((x) => x.status === 'paga').reduce((a, x) => a + (x.value || 0), 0);
+    const aReceber = totalVal - recebido;
+    const vencido = r.data.filter((x) => x.status === 'vencido').reduce((a, x) => a + (x.valor || 0), 0);
+    $('#rec-kpis').innerHTML = kpi('💰 Total programado', money(totalVal), 'money') + kpi('✅ Já recebido', money(recebido), 'money', 'var(--green)') + kpi('📍 A receber', money(aReceber), 'money', 'var(--orange)') + kpi('⚠️ Vencido', money(vencido), 'money', 'var(--red)');
+  };
+
+  const load = async () => {
+    const r = await api('/api/receitas').catch(() => ({ data: [] }));
+    const inst = await api('/api/financial/installments').catch(() => []);
+    const aud = await api('/api/correspondente').catch(() => []);
+
+    const status = $('#rec-filter-status').value;
+    const tipo = $('#rec-filter-tipo').value;
+    const cliente = $('#rec-filter-cliente').value;
+    const dateFrom = $('#rec-filter-date-from').value;
+    const dateTo = $('#rec-filter-date-to').value;
+
+    let receitas = r.data.map((x) => ({ ...x, tipo_: 'receita', descricao: x.descricao, cliente: x.client_name, valor: x.valor, vencimento: x.data_vencimento, status: x.status }));
+    let parcelas = inst.map((x) => ({ ...x, tipo_: 'parcela', descricao: `${x.numero}ª parcela — ${x.proposta_title || ''}`, cliente: x.client_name, valor: x.valor, vencimento: x.due_date, status: x.status === 'pago' ? 'recebido' : 'pendente' }));
+    let audiencias = aud.map((x) => ({ ...x, tipo_: 'audiencia', descricao: `Audiência — ${x.payer_name} (${x.process_number || '—'})`, cliente: '—', valor: x.value, vencimento: x.due_date, status: x.status === 'paga' ? 'recebido' : 'pendente' }));
+
+    let all = [...receitas, ...parcelas, ...audiencias];
+    if (status) all = all.filter((x) => x.status === status || (status === 'vencido' && new Date(x.vencimento) < new Date()));
+    if (tipo) all = all.filter((x) => x.tipo_ === tipo);
+    if (cliente) all = all.filter((x) => x.cliente_id === Number(cliente) || (x.client_id === Number(cliente)));
+    if (dateFrom) all = all.filter((x) => new Date(x.vencimento) >= new Date(dateFrom));
+    if (dateTo) all = all.filter((x) => new Date(x.vencimento) <= new Date(dateTo));
+
+    const html = all.length ? `
+      <table><thead><tr><th>Tipo</th><th>Descrição</th><th>Cliente</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
+      <tbody>${all.map((x) => `<tr>
+        <td><span style="font-weight:700;color:var(--gold)">${x.tipo_ === 'receita' ? '📄' : x.tipo_ === 'parcela' ? '📊' : '🎤'} ${x.tipo_.toUpperCase()}</span></td>
+        <td><strong>${esc(x.descricao)}</strong></td>
+        <td>${esc(x.cliente || '—')}</td>
+        <td>${money(x.valor)}</td>
+        <td>${fmtDate(x.vencimento)}</td>
+        <td>${badge(x.status)}</td>
+        <td><button class="btn-sm" data-pay-all="${x.id}-${x.tipo_}">Receber</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nenhum registro com esses filtros</div>';
+    $('#receita-consolidada').innerHTML = html;
+
+    document.querySelectorAll('[data-pay-all]').forEach((b) => b.onclick = async () => {
+      const [id, tp] = b.dataset.payAll.split('-');
+      try {
+        if (tp === 'receita') await api(`/api/receitas/${id}/pay`, { method: 'PATCH' });
+        else if (tp === 'parcela') await api(`/api/financial/installments/${id}/pay`, { method: 'PATCH' });
+        toast('Recebimento registrado'); load();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+
+    await loadKpis();
+  };
+
+  $('#rec-filter-status').onchange = load;
+  $('#rec-filter-tipo').onchange = load;
+  $('#rec-filter-cliente').onchange = load;
+  $('#rec-filter-date-from').onchange = load;
+  $('#rec-filter-date-to').onchange = load;
+  $('#print-receitas').onclick = () => window.print();
+  $('#export-receitas').onclick = async () => { toast('Exportar em desenvolvimento'); };
   $('#new-receita').onclick = () => receitaForm(load);
+
+  await loadClients();
   await load();
 }
 
