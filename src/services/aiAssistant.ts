@@ -231,7 +231,7 @@ ${teor}`;
 1) Leia a intimação e os DOCUMENTOS DO PROCESSO abaixo.
 2) Identifique fatos relevantes, pedidos e fundamentos jurídicos aplicáveis.
 3) ${modelo ? 'Redija a MINUTA SEGUINDO O MODELO DO ESCRITÓRIO abaixo (mesma estrutura e estilo), preenchendo-o com os dados do caso.' : `Redija a MINUTA de ${suggestedType}, em português jurídico formal, bem estruturada (endereçamento, síntese fática, fundamentação com base legal pertinente, pedidos e fecho).`} Deixe fundamentada e pronta para REVISÃO FINAL antes do protocolo.
-Use [colchetes] apenas onde faltar informação que não está nos autos. Não invente fatos.
+REGRAS ANTI-INVENÇÃO (obrigatórias): use SOMENTE o que está no texto/autos. É PROIBIDO inventar, inferir ou completar dados. NUNCA crie/complete CPF, CNPJ, RG, nº de processo/benefício, endereços, valores ou datas — se não constar, escreva [colchete a preencher]. Dados da parte contrária só se afirmam se constarem de documento; caso contrário, "[a comprovar]". Número que pareça inválido/incompleto → "[conferir]". Na dúvida, prefira o [colchete] a afirmar.
 
 Cliente: ${client?.name || '[cliente]'}${client?.cpf_cnpj ? ', CPF/CNPJ ' + client.cpf_cnpj : ''}
 Advogada subscritora: ${adv}

@@ -110,10 +110,13 @@ async function gatherContext(caseId: number): Promise<{ prompt: string; clientId
 
   const prompt = `Você é advogado(a) brasileiro(a), redator(a) de peças, minucioso(a). Redija uma PETIÇÃO INICIAL completa e profissional, pronta para revisão final, com base EXCLUSIVAMENTE no relato e nos documentos abaixo.
 
-REGRAS INEGOCIÁVEIS:
-- NÃO invente fatos, valores, datas, nomes ou fundamentos que não estejam no relato ou nos documentos.
-- Onde faltar informação necessária (ex.: RG, CPF de terceiros, endereço, valor da causa), escreva [colchetes] indicando o que preencher.
-- Analise os DOCUMENTOS para extrair partes, CPF/CNPJ, valores, datas e o que comprovam, e use isso na peça.
+REGRAS ANTI-INVENÇÃO (OBRIGATÓRIAS — descumprir é falha grave):
+- Use SOMENTE fatos e dados EXPLÍCITOS no relato ou nos documentos. É TERMINANTEMENTE PROIBIDO inventar, inferir, deduzir, presumir, completar ou "corrigir" qualquer dado.
+- NUNCA crie, complete ou ajuste identificadores/números: CPF, CNPJ, RG, nº de processo/benefício/conta/OAB, endereços, valores ou datas. Se não estiver escrito na fonte, escreva [colchete indicando o dado a preencher] — jamais um número aproximado ou fictício.
+- Dados da PARTE CONTRÁRIA (nome, CPF/CNPJ, endereço) só podem ser afirmados se constarem de um DOCUMENTO/PROVA. Se aparecerem só no relato do cliente (versão da parte), trate como alegação e marque "[a comprovar — não consta em documento]".
+- Se um número parecer inválido/incompleto (ex.: CNPJ sem 14 dígitos, CPF sem 11), NÃO o reproduza: escreva "[número informado parece inválido — conferir]".
+- Na dúvida, SEMPRE prefira o [colchete] a afirmar. Melhor a peça pedir o dado do que trazer um dado errado.
+- Analise os DOCUMENTOS para extrair partes, CPF/CNPJ, valores, datas e o que comprovam — mas use apenas o que de fato estiver neles.
 - Estruture: endereçamento ao juízo competente (deduza pela área/comarca do relato), qualificação do autor, qualificação do(s) réu(s), DOS FATOS, DO DIREITO (com fundamentos legais pertinentes — CDC, CC, CPC, Lei 9.099/95 conforme o caso), DOS PEDIDOS, DAS PROVAS, DO VALOR DA CAUSA, fecho.
 - Português jurídico formal.
 
