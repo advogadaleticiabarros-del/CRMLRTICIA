@@ -48,9 +48,11 @@ function toast(msg, type = 'success') {
   const t = $('#toast'); t.textContent = msg; t.className = `toast ${type}`;
   setTimeout(() => t.classList.add('hidden'), 3000);
 }
-function openModal(title, bodyEl) {
+function openModal(title, bodyEl, opts) {
   $('#modal-title').textContent = title;
   $('#modal-body').innerHTML = ''; $('#modal-body').appendChild(bodyEl);
+  const card = document.querySelector('#modal .modal-card');
+  if (card) card.classList.toggle('wide', !!(opts && opts.wide));
   $('#modal').classList.remove('hidden');
   // Acessibilidade: foca o primeiro campo ao abrir
   setTimeout(() => { const f = $('#modal-body').querySelector('input, select, textarea, button'); if (f) f.focus(); }, 30);
@@ -1445,10 +1447,17 @@ const ROUTES = {
             extra.case_number = num;
           }
           if (stage === 'criacao_inicial') toast('Gerando petição inicial com IA…');
+          if (stage === 'revisao_inicial') toast('Revisando a petição com IA…');
           const resp = await api(`/api/cases/${caseId}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage, ...extra }) });
           if (resp && resp.peticao) {
             if (resp.peticao.ok) toast('✓ Petição inicial gerada — confira em Documentos do caso');
             else toast('Movido, mas a petição falhou: ' + (resp.peticao.message || ''), 'error');
+          } else if (resp && resp.revisao) {
+            if (resp.revisao.ok) {
+              const r = resp.revisao.resumo || {};
+              const crit = r.pendencias_criticas ? ` · ${r.pendencias_criticas} pendência(s) crítica(s)` : '';
+              toast(`✓ Revisão pronta: ${r.itens_ok}/${r.itens_verificados} itens OK${crit} — veja em Documentos`, r.pendencias_criticas ? 'error' : 'success');
+            } else toast('Movido, mas a revisão falhou: ' + (resp.revisao.message || ''), 'error');
           } else { toast('Movido · registrado'); }
           load();
         } catch (e) { toast(e.message, 'error'); load(); }
@@ -3751,20 +3760,25 @@ async function caseDetail(id, onSave) {
   let prodHtml = '';
   if (c.production_stage) {
     const idx = PROD_STAGES.findIndex(([v]) => v === c.production_stage);
-    const steps = PROD_STAGES.map(([v,t],i) => `<span style="font-size:11px;padding:3px 8px;border-radius:12px;${i<=idx?'background:var(--gold);color:#fff':'background:#eef2f8;color:var(--text-muted)'}">${t}</span>`).join(' ');
+    const steps = PROD_STAGES.map(([v,t],i) => {
+      const state = i < idx ? 'done' : i === idx ? 'cur' : 'todo';
+      return `<div class="prod-step ${state}"><span class="dot">${i < idx ? '✓' : i + 1}</span><span class="lbl">${t}</span></div>`;
+    }).join('<span class="prod-step-sep">›</span>');
     const next = PROD_STAGES[idx+1];
     prodHtml = `<hr style="border:none;border-top:1px solid var(--border)">
-      <strong style="font-size:13px">Esteira de produção</strong>
-      <div style="display:flex;gap:5px;flex-wrap:wrap;line-height:2">${steps}</div>
-      ${next ? `<button class="btn-gold btn-sm" id="adv-stage" data-next="${next[0]}">Avançar → ${next[1]}</button>` : '<small style="color:var(--green)">Esteira concluída</small>'}`;
+      <div style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:13px;color:var(--navy-deep)">Esteira de produção</strong><small style="color:var(--text-muted)">Etapa ${idx + 1} de ${PROD_STAGES.length}</small></div>
+      <div class="prod-stepper">${steps}</div>
+      ${next ? `<button class="btn-gold btn-advance" id="adv-stage" data-next="${next[0]}">Avançar para “${next[1]}” →</button>` : '<div style="text-align:center;padding:10px;color:var(--green);font-weight:600">✓ Esteira concluída</div>'}`;
   }
   const form = el(`<div class="form-grid">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">
-      <div><strong style="font-size:18px">${c.title}</strong><br>
-        <small style="color:var(--text-muted)">${c.client_name || ''} · ${c.case_number || 's/ número'}</small></div>
-      <button class="btn-sm" id="ficha-btn" type="button" style="white-space:nowrap">${svgIcon('clipboard')}Ficha completa</button>
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+      <div style="min-width:0">
+        <strong style="font-size:20px;color:var(--navy-deep);line-height:1.25;display:block">${c.title}</strong>
+        <small style="color:var(--text-muted)">${c.client_name || ''} · ${c.case_number || 's/ número'}</small>
+        <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap">${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)} ${c.production_stage ? badge(c.production_stage) : ''}</div>
+      </div>
+      <button class="btn-gold btn-sm" id="ficha-btn" type="button" style="white-space:nowrap;flex:0 0 auto">${svgIcon('clipboard')} Ficha completa</button>
     </div>
-    <div>${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)} ${c.production_stage ? badge(c.production_stage) : ''}</div>
     ${prodHtml}
     ${c.production_stage ? '<div id="prod-panel"><div class="spinner"></div></div>' : ''}
     <hr style="border:none;border-top:1px solid var(--border)">
@@ -3943,7 +3957,7 @@ async function caseDetail(id, onSave) {
     loadProd();
   }
 
-  openModal('Processo', form);
+  openModal('Processo', form, { wide: true });
 }
 
 const PRIORITIES = [['media','Média'],['alta','Alta'],['critica','Crítica'],['baixa','Baixa']].map(([v,t])=>({v,t}));
