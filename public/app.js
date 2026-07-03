@@ -2731,8 +2731,10 @@ async function dashProducao(c) {
 // ── Financeiro avançado (abas) ───────────────────────────────────────────────
 async function finVisaoGeral(c) {
   const s = await api('/api/financial/summary');
+  const proj = await api('/api/dashboards/financeiro/projecao-mes');
   c.innerHTML = `
     <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-fin">+ Lançamento</button></div>
+    <h3 style="color:var(--navy);margin:16px 0 8px">Resumo Geral</h3>
     <div class="kpi-grid">
       ${kpi('Receita prevista', money(s.receita_prevista), 'money')}
       ${kpi('Receita realizada', money(s.receita_realizada), 'money')}
@@ -2741,6 +2743,15 @@ async function finVisaoGeral(c) {
       ${kpi('Saldo previsto', money(s.saldo_previsto), 'money')}
       ${kpi('Saldo realizado', money(s.saldo_realizado), 'money')}
       ${kpi('Inadimplência', money(s.inadimplencia), 'money')}
+    </div>
+    <h3 style="color:var(--navy);margin:20px 0 8px">📊 Projeção do Mês (${proj.mes})</h3>
+    <div class="kpi-grid">
+      ${kpi('✅ Entradas recebidas', money(proj.entrada_realizado), 'money', proj.entrada_realizado > 0 ? 'var(--green)' : '')}
+      ${kpi('📍 A receber', money(proj.entrada_previsto), 'money', proj.entrada_previsto > 0 ? 'var(--orange)' : '')}
+      ${kpi('💰 Saídas pagas', money(proj.saida_realizado), 'money', 'var(--red)')}
+      ${kpi('⏳ A pagar', money(proj.saida_previsto), 'money', 'var(--orange)')}
+      ${kpi('Saldo realizado', money(proj.saldo_realizado), 'money', proj.saldo_realizado > 0 ? 'var(--green)' : 'var(--red)')}
+      ${kpi('Saldo previsto', money(proj.saldo_previsto), 'money', proj.saldo_previsto > 0 ? 'var(--green)' : 'var(--red)')}
     </div>
     <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Lançamentos</strong></div><div id="fin-table"></div></div>
     <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Parcelas a receber</strong></div><div id="inst-table"></div></div>`;

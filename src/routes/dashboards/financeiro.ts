@@ -3,6 +3,44 @@ import { db } from '../../config/database';
 
 const router = Router();
 
+// GET /api/dashboards/financeiro/projecao-mes — Resumo do mês atual (entradas/saídas, realizado/previsto)
+router.get('/projecao-mes', async (req: Request, res: Response) => {
+  try {
+    const userId = (req as any).user.id;
+    const now = new Date();
+    const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const inicioMes = `${mesAtual}-01`;
+    const fimMes = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const fimMesStr = fimMes.toISOString().split('T')[0];
+
+    // Resumo do mês: realizado e previsto (entrada/saída)
+    const [[resumo]] = await db.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN tipo = 'receita' AND status = 'pago' AND DATE_FORMAT(paid_at, '%Y-%m') = ? THEN valor ELSE 0 END), 0) AS entrada_realizado,
+        COALESCE(SUM(CASE WHEN tipo = 'receita' AND status IN ('pendente','pago') AND due_date BETWEEN ? AND ? THEN valor ELSE 0 END), 0) AS entrada_previsto,
+        COALESCE(SUM(CASE WHEN tipo = 'despesa' AND status = 'pago' AND DATE_FORMAT(paid_at, '%Y-%m') = ? THEN valor ELSE 0 END), 0) AS saida_realizado,
+        COALESCE(SUM(CASE WHEN tipo = 'despesa' AND status IN ('pendente','pago') AND due_date BETWEEN ? AND ? THEN valor ELSE 0 END), 0) AS saida_previsto
+      FROM financial_records
+      WHERE user_id = ?
+    `, [mesAtual, inicioMes, fimMesStr, mesAtual, inicioMes, fimMesStr, userId]) as any;
+
+    const saldo_realizado = resumo.entrada_realizado - resumo.saida_realizado;
+    const saldo_previsto = resumo.entrada_previsto - resumo.saida_previsto;
+
+    res.json({
+      mes: mesAtual,
+      entrada_realizado: Math.round(resumo.entrada_realizado * 100) / 100,
+      entrada_previsto: Math.round(resumo.entrada_previsto * 100) / 100,
+      saida_realizado: Math.round(resumo.saida_realizado * 100) / 100,
+      saida_previsto: Math.round(resumo.saida_previsto * 100) / 100,
+      saldo_realizado: Math.round(saldo_realizado * 100) / 100,
+      saldo_previsto: Math.round(saldo_previsto * 100) / 100,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao carregar projeção do mês' });
+  }
+});
+
 // GET /api/dashboards/financeiro
 router.get('/', async (req: Request, res: Response) => {
   try {
