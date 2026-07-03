@@ -13,7 +13,17 @@ import { driveFileId, downloadDriveFile, driveFolderId, listDriveFolderFiles } f
  * Gatilho: ao mover o caso para a etapa "Criação inicial" (criacao_inicial).
  */
 
-const MIME_OK = /^(application\/pdf|image\/(jpeg|jpg|png|webp|heic|heif))$/i;
+const DOC_OK = /^(application\/pdf|image\/(jpeg|jpg|png|webp|heic|heif))$/i;
+const AUDIO_OK = /^audio\//i; // Gemini transcreve áudio nativamente (mp3, ogg/opus do WhatsApp, m4a, wav…)
+const READABLE = (m: string) => DOC_OK.test(m) || AUDIO_OK.test(m);
+/** Instrução conforme o tipo de arquivo (documento/foto vs. áudio). */
+function instructionFor(mime: string): string {
+  if (AUDIO_OK.test(mime)) {
+    return `Este é um ÁUDIO (possível prova). 1) TRANSCREVA integralmente em português, verbatim e fiel; identifique quem fala quando possível (ex.: "Homem:", "Mulher:"). 2) Em seguida, liste os PONTOS JURIDICAMENTE RELEVANTES: datas, valores, fatos, promessas/ameaças/confissões e o que o áudio comprova. NÃO invente nada; marque [inaudível] onde não der para entender. Formato: "TRANSCRIÇÃO:" e depois "PONTOS RELEVANTES:".`;
+  }
+  return `Você é um analista jurídico. Leia este documento (anexo de um caso) e extraia, de forma objetiva e FIEL, todo o conteúdo e os dados relevantes para uma petição: tipo do documento, partes envolvidas, CPF/CNPJ, valores, datas, números (contrato, benefício, processo, conta), endereços e o que o documento comprova. NÃO invente nada; se algo estiver ilegível, escreva "[ilegível]". Responda em português, em tópicos curtos.`;
+}
+const tagFor = (mime: string) => AUDIO_OK.test(mime) ? 'Transcrição por IA' : 'Extraído por IA';
 
 /** Lê os anexos do caso (que ainda não têm texto) com a IA e salva o conteúdo. */
 export async function extractCaseDocuments(caseId: number): Promise<number> {
@@ -27,11 +37,10 @@ export async function extractCaseDocuments(caseId: number): Promise<number> {
     const fid = driveFileId(d.file_url);
     if (!fid) continue;
     const file = await downloadDriveFile(fid);
-    if (!file || !MIME_OK.test(file.mimeType)) continue;
-    const instruction = `Você é um analista jurídico. Leia este documento (anexo de um caso) e extraia, de forma objetiva e FIEL, todo o conteúdo e os dados relevantes para uma petição: tipo do documento, partes envolvidas, CPF/CNPJ, valores, datas, números (contrato, benefício, processo, conta), endereços e o que o documento comprova. NÃO invente nada; se algo estiver ilegível, escreva "[ilegível]". Responda em português, em tópicos curtos.`;
-    const r = await aiExtractFromFile(file.base64, file.mimeType, instruction);
+    if (!file || !READABLE(file.mimeType)) continue;
+    const r = await aiExtractFromFile(file.base64, file.mimeType, instructionFor(file.mimeType));
     if (r.ok && r.text) {
-      await db.query('UPDATE documents SET content = ? WHERE id = ?', [`[Extraído por IA de "${d.name}"]\n${r.text}`, d.id]);
+      await db.query('UPDATE documents SET content = ? WHERE id = ?', [`[${tagFor(file.mimeType)} de "${d.name}"]\n${r.text}`, d.id]);
       n++;
     }
   }
@@ -51,8 +60,8 @@ export async function importDriveFolder(caseId: number, clientId: number | null,
   for (const f of files) {
     const [[dup]] = await db.query('SELECT id FROM documents WHERE case_id = ? AND name = ? LIMIT 1', [caseId, f.name]) as any;
     if (dup) continue;
-    if (!MIME_OK.test(f.mimeType)) {
-      // Guarda o arquivo (link) mesmo sem leitura por IA (ex.: formato não suportado).
+    if (!READABLE(f.mimeType)) {
+      // Guarda o arquivo (link) mesmo sem leitura por IA (ex.: vídeo/formato não suportado).
       await db.query(
         `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, status, created_by)
          VALUES (?, ?, ?, 'anexo', 'processos', ?, 'recebido', ?)`,
@@ -63,8 +72,8 @@ export async function importDriveFolder(caseId: number, clientId: number | null,
     const file = await downloadDriveFile(f.id);
     let content: string | null = null;
     if (file) {
-      const r = await aiExtractFromFile(file.base64, file.mimeType, `Você é um analista jurídico. Extraia de forma fiel e objetiva o conteúdo e os dados relevantes deste documento para uma petição (partes, CPF/CNPJ, valores, datas, números, o que comprova). NÃO invente; se ilegível, escreva "[ilegível]". Em tópicos.`);
-      if (r.ok && r.text) content = `[Extraído por IA de "${f.name}"]\n${r.text}`;
+      const r = await aiExtractFromFile(file.base64, file.mimeType, instructionFor(file.mimeType));
+      if (r.ok && r.text) content = `[${tagFor(file.mimeType)} de "${f.name}"]\n${r.text}`;
     }
     await db.query(
       `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, content, status, created_by)
