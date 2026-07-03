@@ -3464,11 +3464,18 @@ async function propostaForm(onSave, lead = null) {
     <div id="dep-list"></div>
     <button type="button" class="btn-sm" id="add-dep" style="align-self:flex-start">+ Dependente</button>
 
-    ${sec('Honorário total e parcelamento')}
-    ${field('Honorário total (R$) *', 'valor_total', { type: 'number' })}
-    <div class="form-row">${field('Entrada (R$)', 'entrada_valor', { type: 'number' })}${field('Data da entrada', 'entrada_data', { type: 'date' })}</div>
-    <div class="form-row">${field('Qtd. de parcelas (restante)', 'parcelas_qtd', { type: 'number', value: 1 })}${field('1º vencimento das parcelas', 'parcelas_primeiro_venc', { type: 'date' })}</div>
-    <div id="parc-preview" class="parc-preview"></div>
+    ${sec('Honorários')}
+    <label class="hon-mod" style="border:1px solid var(--gold);border-radius:10px;padding:10px 12px;background:rgba(193,154,78,.07)"><input type="checkbox" id="hon-apenas-exito"> <span><strong>💼 Apenas êxito</strong> — sem valor fixo nem entrada (ex.: 30% sobre o proveito)</span></label>
+    <div id="hon-exito-only" style="display:none">
+      ${field('Percentual de êxito (%) *', 'exito_only_pct', { type: 'number' })}
+      <p class="sub" style="margin-top:-6px">A proposta e o contrato constarão como <strong>honorários exclusivamente de êxito</strong>, sem cobrança inicial.</p>
+    </div>
+    <div id="hon-fixo">
+      ${field('Honorário total (R$)', 'valor_total', { type: 'number' })}
+      <div class="form-row">${field('Entrada (R$)', 'entrada_valor', { type: 'number' })}${field('Data da entrada', 'entrada_data', { type: 'date' })}</div>
+      <div class="form-row">${field('Qtd. de parcelas (restante)', 'parcelas_qtd', { type: 'number', value: 1 })}${field('1º vencimento das parcelas', 'parcelas_primeiro_venc', { type: 'date' })}</div>
+      <div id="parc-preview" class="parc-preview"></div>
+    </div>
 
     ${sec('Outras modalidades (opcional)')}
     <div class="hon-presets">${HON_PRESETS.map((p, i) => `<button type="button" class="btn-sm" data-preset="${i}">${p[0]}</button>`).join('')}</div>
@@ -3541,6 +3548,13 @@ async function propostaForm(onSave, lead = null) {
   });
   syncHon();
 
+  // Modo "Apenas êxito": esconde o bloco de valor fixo/parcelas.
+  const apenasEx = form.querySelector('#hon-apenas-exito');
+  apenasEx.onchange = () => {
+    form.querySelector('#hon-fixo').style.display = apenasEx.checked ? 'none' : '';
+    form.querySelector('#hon-exito-only').style.display = apenasEx.checked ? 'block' : 'none';
+  };
+
   form.onsubmit = async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(form));
@@ -3557,13 +3571,25 @@ async function propostaForm(onSave, lead = null) {
         if (m.extra) honorarios.values[m.extra] = form.querySelector(`[data-hon-extra="${m.extra}"]`).value;
       }
     });
-    const pc = calcParcelas();
-    honorarios.parcelamento = {
-      total: pc.total, entrada: pc.entrada, entrada_data: fd.entrada_data || null,
-      parcelas: pc.qtd, primeiro_vencimento: pc.venc || null,
-      valor_parcela: pc.base, ultima_parcela: pc.ultima,
-    };
-    const valor = pc.total || ((Number(honorarios.values.entrada) || 0) + (Number(honorarios.values.fixo) || 0));
+    let valor;
+    if (apenasEx.checked) {
+      // Apenas êxito: sem valor fixo, sem entrada, sem parcelas.
+      const pct = Number(fd.exito_only_pct) || 0;
+      if (!pct) { toast('Informe o percentual de êxito', 'error'); return; }
+      honorarios.modalidades = ['exito'];
+      honorarios.values = { exito: pct };
+      honorarios.parcelamento = { total: 0 };
+      honorarios.apenas_exito = true;
+      valor = 0;
+    } else {
+      const pc = calcParcelas();
+      honorarios.parcelamento = {
+        total: pc.total, entrada: pc.entrada, entrada_data: fd.entrada_data || null,
+        parcelas: pc.qtd, primeiro_vencimento: pc.venc || null,
+        valor_parcela: pc.base, ultima_parcela: pc.ultima,
+      };
+      valor = pc.total || ((Number(honorarios.values.entrada) || 0) + (Number(honorarios.values.fixo) || 0));
+    }
     const body = {
       contact_name: fd.contact_name, cpf: fd.cpf, phone: fd.phone, email: fd.email,
       client_id: fd.client_id || undefined, lead_id: lead?.id,
