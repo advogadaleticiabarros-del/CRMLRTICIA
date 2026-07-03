@@ -2071,12 +2071,12 @@ async function provisaoForm(onSave) {
 // ── Correspondente Jurídico (audiências para terceiros) ──────────────────────
 async function renderCorrespondente(page) {
   page.innerHTML = `
-    <div class="page-header"><div><h2>Correspondente Jurídico</h2><p class="sub">Audiências para outros escritórios — como advogado ou preposto</p></div></div>
+    <div class="page-header"><div><div><h2>Correspondente Jurídico</h2><p class="sub">Audiências para outros escritórios — como advogado ou preposto</p></div>
+      <button class="btn-gold btn-large" id="new-corr-btn">📋 Lançar audiência</button></div></div>
     <div id="corr-kpis" class="kpi-grid"></div>
     <div class="tabs" id="corr-tabs">
-      <button class="tab active" data-tab="lancar">+ Lançar audiência</button>
-      <button class="tab" data-tab="agenda">Audiências da Agenda</button>
-      <button class="tab" data-tab="historico">Histórico</button>
+      <button class="tab active" data-tab="historico">📊 Histórico</button>
+      <button class="tab" data-tab="agenda">📅 Audiências da Agenda</button>
     </div>
     <div id="corr-content"></div>`;
 
@@ -2088,46 +2088,20 @@ async function renderCorrespondente(page) {
       kpi('Previsto total', money(s.previsto), 'money');
   };
 
-  // TAB: Lançar audiência (formulário)
-  const showLancar = async () => {
-    const c = $('#corr-content');
-    c.innerHTML = `<div class="card" style="max-width:1000px;margin:0 auto;width:90%"><div style="padding:20px">${await correspondenteFormHtml()}</div></div>`;
-    await attachCorrespondenteFormHandlers(() => showLancar());
-  };
-
-  // TAB: Audiências da Agenda (pendências)
-  const showAgenda = async () => {
-    const c = $('#corr-content');
-    const pend = await api('/api/correspondente/agenda-pendencias').catch(() => []);
-    c.innerHTML = pend.length ? `
-      <div class="card" style="border:1px solid var(--gold)">
-        <div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--gold)">Audiências vindas do Google (${pend.length})</strong>
-          <p class="sub" style="margin:2px 0 0">Clique em "É correspondente" para lançar como audiência de correspondente, ou "É do cliente" para vincular à ficha.</p></div>
-        ${pend.map((e) => `<div class="mini-row">
-          <span><strong>${e.title}</strong><br><small style="color:var(--text-muted)">${fmtDateTime(e.start_datetime)} ${e.location ? '· ' + e.location : ''}</small></span>
-          <span style="white-space:nowrap">
-            <button class="btn-sm" data-pend-corr="${e.id}" data-dt="${e.start_datetime}">É correspondente</button>
-            <button class="btn-sm" data-pend-cli="${e.id}">É do cliente</button></span></div>`).join('')}
-      </div>` : '<div class="empty">Nenhuma audiência na agenda para classificar</div>';
-
-    document.querySelectorAll('[data-pend-corr]').forEach((b) => b.onclick = () => {
-      const dt = new Date(b.dataset.dt); const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-      correspondenteForm(() => showAgenda(), { hearing_datetime: local, calendar_event_id: b.dataset.pendCorr });
-    });
-    document.querySelectorAll('[data-pend-cli]').forEach((b) => b.onclick = () => clientPicker(async (clientId) => {
-      try { await api(`/api/correspondente/agenda-pendencias/${b.dataset.pendCli}/cliente`, { method: 'POST', body: JSON.stringify({ client_id: clientId }) }); toast('Audiência vinculada ao cliente'); await showAgenda(); }
-      catch (e) { toast(e.message, 'error'); }
-    }));
-  };
-
   // TAB: Histórico (tabela com filtros)
   const showHistorico = async () => {
     const c = $('#corr-content');
     c.innerHTML = `
-      <div class="toolbar">
-        <select id="corr-filter"><option value="">Todas</option>
-          <option value="agendada">Agendadas</option><option value="realizada">Realizadas</option>
-          <option value="faturada">Faturadas</option><option value="paga">Pagas</option><option value="cancelada">Canceladas</option></select>
+      <div class="form-section" style="margin-bottom:16px">
+        <div class="section-header">🔍 Filtro de Status</div>
+        <select id="corr-filter" style="width:100%;max-width:300px">
+          <option value="">Todas</option>
+          <option value="agendada">Agendadas</option>
+          <option value="realizada">Realizadas</option>
+          <option value="faturada">Faturadas</option>
+          <option value="paga">Pagas</option>
+          <option value="cancelada">Canceladas</option>
+        </select>
       </div>
       <div class="card"><div id="corr-table"></div></div>`;
 
@@ -2160,20 +2134,46 @@ async function renderCorrespondente(page) {
     await loadHistorico();
   };
 
+  // TAB: Audiências da Agenda (pendências)
+  const showAgenda = async () => {
+    const c = $('#corr-content');
+    const pend = await api('/api/correspondente/agenda-pendencias').catch(() => []);
+    c.innerHTML = pend.length ? `
+      <div class="form-section" style="border:1px solid var(--gold)">
+        <div class="section-header">📅 Eventos do Google Calendar</div>
+        <p class="sub" style="margin-bottom:12px">Clique em "É correspondente" para registrar como audiência, ou "É do cliente" para vincular à ficha.</p>
+        ${pend.map((e) => `<div class="mini-row" style="background:var(--surface-2);padding:12px;border-radius:8px;margin-bottom:8px">
+          <span><strong>${e.title}</strong><br><small style="color:var(--text-muted)">${fmtDateTime(e.start_datetime)} ${e.location ? '· ' + e.location : ''}</small></span>
+          <span style="white-space:nowrap;display:flex;gap:6px">
+            <button class="btn-sm" data-pend-corr="${e.id}" data-dt="${e.start_datetime}">✓ Correspondente</button>
+            <button class="btn-sm" data-pend-cli="${e.id}">👤 Cliente</button></span></div>`).join('')}
+      </div>` : '<div class="empty">Nenhuma audiência da agenda para classificar</div>';
+
+    document.querySelectorAll('[data-pend-corr]').forEach((b) => b.onclick = () => {
+      const dt = new Date(b.dataset.dt); const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+      correspondenteForm(() => showAgenda(), { hearing_datetime: local, calendar_event_id: b.dataset.pendCorr });
+    });
+    document.querySelectorAll('[data-pend-cli]').forEach((b) => b.onclick = () => clientPicker(async (clientId) => {
+      try { await api(`/api/correspondente/agenda-pendencias/${b.dataset.pendCli}/cliente`, { method: 'POST', body: JSON.stringify({ client_id: clientId }) }); toast('Audiência vinculada ao cliente'); await showAgenda(); }
+      catch (e) { toast(e.message, 'error'); }
+    }));
+  };
+
   // Switch entre abas
   document.querySelectorAll('#corr-tabs .tab').forEach((tab) => {
     tab.onclick = async () => {
       document.querySelectorAll('#corr-tabs .tab').forEach((t) => t.classList.remove('active'));
       tab.classList.add('active');
       const tabName = tab.dataset.tab;
-      if (tabName === 'lancar') await showLancar();
+      if (tabName === 'historico') await showHistorico();
       else if (tabName === 'agenda') await showAgenda();
-      else if (tabName === 'historico') await showHistorico();
     };
   });
 
+  $('#new-corr-btn').onclick = () => correspondenteForm(() => renderCorrespondente(page));
+
   await loadKpis();
-  await showLancar();
+  await showHistorico();
 }
 
 async function clientPicker(onPick) {
