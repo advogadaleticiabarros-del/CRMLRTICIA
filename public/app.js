@@ -2091,7 +2091,7 @@ async function renderCorrespondente(page) {
   // TAB: Lançar audiência (formulário)
   const showLancar = async () => {
     const c = $('#corr-content');
-    c.innerHTML = `<div class="card" style="max-width:600px;margin:0 auto"><div style="padding:20px">${await correspondenteFormHtml()}</div></div>`;
+    c.innerHTML = `<div class="card" style="max-width:1000px;margin:0 auto;width:90%"><div style="padding:20px">${await correspondenteFormHtml()}</div></div>`;
     await attachCorrespondenteFormHandlers(() => showLancar());
   };
 

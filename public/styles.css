@@ -1268,3 +1268,28 @@ img, svg, video { max-width: 100%; }
 .kpi .delta { display: inline-block; font-size: 11px; font-weight: 700; margin-top: 6px; padding: 1px 8px; border-radius: 7px; letter-spacing: .01em; }
 .kpi .delta.good { background: rgba(47, 143, 99, .14); color: var(--green); }
 .kpi .delta.bad { background: rgba(196, 69, 59, .14); color: var(--red); }
+
+/* ── Responsividade: Desktop, Tablet, Mobile ── */
+@media (min-width: 1440px) {
+  /* Desktop grande: expandir cards e formulários */
+  .card { max-width: 100%; }
+}
+
+@media (min-width: 1024px) and (max-width: 1439px) {
+  /* Desktop padrão: cards ocupam 85% */
+  .card { width: 85% !important; margin-left: auto !important; margin-right: auto !important; }
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+  /* Tablet: cards ocupam 90% */
+  .card { width: 90% !important; margin-left: auto !important; margin-right: auto !important; }
+}
+
+@media (max-width: 767px) {
+  /* Mobile: full width, sem excesso de padding */
+  .card { width: 100% !important; margin: 0 !important; border-radius: 0; }
+  .form-grid { gap: 12px; }
+  .form-row { flex-direction: column; }
+  .tabs { flex-wrap: wrap; }
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
