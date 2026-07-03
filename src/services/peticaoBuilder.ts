@@ -1,6 +1,6 @@
 import { db } from '../config/database';
 import { aiComplete, aiExtractFromFile } from './aiAssistant';
-import { driveFileId, downloadDriveFile } from './partnerInboxService';
+import { driveFileId, downloadDriveFile, driveFolderId, listDriveFolderFiles } from './partnerInboxService';
 
 /**
  * Geração da PETIÇÃO INICIAL a partir de TUDO que se tem do cliente:
@@ -34,6 +34,44 @@ export async function extractCaseDocuments(caseId: number): Promise<number> {
       await db.query('UPDATE documents SET content = ? WHERE id = ?', [`[Extraído por IA de "${d.name}"]\n${r.text}`, d.id]);
       n++;
     }
+  }
+  return n;
+}
+
+/**
+ * Importa os arquivos de uma PASTA do Drive indicada no caso: baixa, lê com IA
+ * e grava como documentos do caso (com conteúdo). Dedup por nome. Requer o
+ * escopo drive.readonly (a advogada reconecta o Google para conceder).
+ */
+export async function importDriveFolder(caseId: number, clientId: number | null, folderUrl: string, actorId: number): Promise<number> {
+  const fid = driveFolderId(folderUrl);
+  if (!fid) return 0;
+  const files = await listDriveFolderFiles(fid);
+  let n = 0;
+  for (const f of files) {
+    const [[dup]] = await db.query('SELECT id FROM documents WHERE case_id = ? AND name = ? LIMIT 1', [caseId, f.name]) as any;
+    if (dup) continue;
+    if (!MIME_OK.test(f.mimeType)) {
+      // Guarda o arquivo (link) mesmo sem leitura por IA (ex.: formato não suportado).
+      await db.query(
+        `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, status, created_by)
+         VALUES (?, ?, ?, 'anexo', 'processos', ?, 'recebido', ?)`,
+        [clientId, caseId, f.name, `https://drive.google.com/file/d/${f.id}/view`, actorId]
+      );
+      continue;
+    }
+    const file = await downloadDriveFile(f.id);
+    let content: string | null = null;
+    if (file) {
+      const r = await aiExtractFromFile(file.base64, file.mimeType, `Você é um analista jurídico. Extraia de forma fiel e objetiva o conteúdo e os dados relevantes deste documento para uma petição (partes, CPF/CNPJ, valores, datas, números, o que comprova). NÃO invente; se ilegível, escreva "[ilegível]". Em tópicos.`);
+      if (r.ok && r.text) content = `[Extraído por IA de "${f.name}"]\n${r.text}`;
+    }
+    await db.query(
+      `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, content, status, created_by)
+       VALUES (?, ?, ?, 'anexo', 'processos', ?, ?, 'recebido', ?)`,
+      [clientId, caseId, f.name, `https://drive.google.com/file/d/${f.id}/view`, content, actorId]
+    );
+    n++;
   }
   return n;
 }
@@ -97,6 +135,10 @@ export async function buildPeticaoInicial(caseId: number, actorId: number, force
     "SELECT id FROM documents WHERE case_id = ? AND type = 'ia' AND name LIKE 'Petição Inicial%' ORDER BY id DESC LIMIT 1", [caseId]
   ) as any;
   if (exists && !force) return { ok: true, docId: exists.id, message: 'Petição já existente' };
+
+  // 0) se o caso aponta uma pasta do Drive, importa os arquivos dela.
+  const [[cf]] = await db.query('SELECT client_id, drive_folder_url FROM cases WHERE id = ?', [caseId]) as any;
+  if (cf?.drive_folder_url) await importDriveFolder(caseId, cf.client_id ?? null, cf.drive_folder_url, actorId).catch(() => 0);
 
   // 1) lê os anexos (best-effort) e 2) monta o contexto.
   await extractCaseDocuments(caseId).catch(() => 0);

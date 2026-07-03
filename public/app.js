@@ -2144,8 +2144,13 @@ async function loadInboxPanel(onChange) {
   box.innerHTML = `<div class="card" style="margin-bottom:14px;padding:12px 14px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <div style="font-size:13px">📨 Gmail conectado: <strong>${esc(st.google_email || '—')}</strong> · remetente <code>${esc(st.sender_filter || '')}</code> · última busca: ${last} ${st.active ? '' : '<span style="color:var(--red)">(pausado)</span>'}</div>
-      <div style="display:flex;gap:6px"><button class="btn-gold btn-sm" id="inbox-sync">🔄 Buscar agora</button><button class="btn-sm" id="inbox-disc">Desconectar</button></div>
+      <div style="display:flex;gap:6px"><button class="btn-gold btn-sm" id="inbox-sync">🔄 Buscar agora</button><button class="btn-sm" id="inbox-perm">🔑 Atualizar permissões</button><button class="btn-sm" id="inbox-disc">Desconectar</button></div>
     </div></div>`;
+  const permBtn = $('#inbox-perm');
+  if (permBtn) permBtn.onclick = async () => {
+    try { const { url } = await api('/api/email-intake/integration/auth-url'); window.location.href = url; }
+    catch (e) { toast(e.message, 'error'); }
+  };
   $('#inbox-sync').onclick = async () => {
     const b = $('#inbox-sync'); b.disabled = true; b.textContent = 'Buscando...';
     try { const r = await api('/api/email-intake/integration/sync', { method: 'POST', body: '{}' }); toast(`Busca concluída · ${r.imported} novo(s)`); onChange(); }
@@ -3734,6 +3739,8 @@ async function caseDetail(id, onSave) {
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Pendências (falta algo?)</small>
           <div id="prod-pend">${pend.length ? pend.map((n) => `<div class="mini-row" style="padding:5px 0"><span>⚠ ${esc(n.text)}<br><small style="color:var(--text-muted)">${esc(n.author_name || '')} · ${fmtDate(n.created_at)}</small></span><button class="btn-sm" type="button" data-resolve="${n.id}">Resolver</button></div>`).join('') : '<small style="color:var(--green)">Sem pendências</small>'}</div>
           <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-newpend" placeholder="o que falta…" style="flex:1"><button class="btn-sm" type="button" id="prod-addpend">+ pendência</button></div></div>
+        <div style="margin-top:10px"><small style="color:var(--text-muted)">📁 Pasta do Drive com documentos deste caso — a IA lê ao gerar a petição</small>
+          <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-drive" placeholder="cole o link da pasta do Google Drive" value="${esc(p.drive_folder_url || '')}" style="flex:1"><button class="btn-sm" type="button" id="prod-drive-save">Salvar</button></div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">📄 Documentos do caso (peças, minutas, anexos)</small>
           <div id="prod-docs">${docsHtml}</div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Histórico e atualizações do caso (do lead à produção)</small>
@@ -3752,6 +3759,8 @@ async function caseDetail(id, onSave) {
       panel.querySelector('#prod-addpend').onclick = async () => { const v = panel.querySelector('#prod-newpend').value.trim(); if (!v) return; try { await api(`/api/cases/${id}/production-notes`, { method: 'POST', body: JSON.stringify({ kind: 'pendencia', text: v }) }); loadProd(); } catch (e) { toast(e.message, 'error'); } };
       panel.querySelectorAll('[data-resolve]').forEach((b) => b.onclick = async () => { try { await api(`/api/cases/production-notes/${b.dataset.resolve}/resolve`, { method: 'PATCH', body: '{}' }); loadProd(); } catch (e) { toast(e.message, 'error'); } });
       panel.querySelector('#prod-addnote').onclick = async () => { const v = panel.querySelector('#prod-note').value.trim(); if (!v) return; try { await api(`/api/cases/${id}/contexto`, { method: 'POST', body: JSON.stringify({ text: v }) }); toast('Atualização adicionada'); loadProd(); } catch (e) { toast(e.message, 'error'); } };
+      const dsave = panel.querySelector('#prod-drive-save');
+      if (dsave) dsave.onclick = async () => { try { await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ drive_folder_url: panel.querySelector('#prod-drive').value.trim() }) }); toast('Pasta do Drive salva — será lida ao gerar a petição'); } catch (e) { toast(e.message, 'error'); } };
       panel.querySelectorAll('[data-doc]').forEach((b) => b.onclick = async () => {
         try {
           const g = await api('/api/documents/' + b.dataset.doc);

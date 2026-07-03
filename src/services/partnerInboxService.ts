@@ -17,6 +17,7 @@ import { enqueueIntake } from './emailIntake';
 const SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
   'https://www.googleapis.com/auth/drive.file',
+  'https://www.googleapis.com/auth/drive.readonly',
   'https://www.googleapis.com/auth/userinfo.email',
 ];
 const DRIVE_ROOT_NAME = 'CRM Jurídico - Anexos';
@@ -171,6 +172,32 @@ export function driveFileId(url: string): string | null {
   if (!url) return null;
   const m = String(url).match(/\/d\/([^/]+)/) || String(url).match(/[?&]id=([^&]+)/);
   return m ? m[1] : null;
+}
+
+/** Extrai o ID de uma pasta a partir do link do Drive (/folders/<id> ou ?id=). */
+export function driveFolderId(url: string): string | null {
+  if (!url) return null;
+  const m = String(url).match(/\/folders\/([^/?]+)/) || String(url).match(/[?&]id=([^&]+)/);
+  return m ? m[1] : (/^[A-Za-z0-9_-]{20,}$/.test(url.trim()) ? url.trim() : null);
+}
+
+/** Lista os arquivos (não-pastas) dentro de uma pasta do Drive. */
+export async function listDriveFolderFiles(folderId: string): Promise<{ id: string; name: string; mimeType: string }[]> {
+  try {
+    const auth = await authedClient();
+    const drive = google.drive({ version: 'v3', auth });
+    const out: any[] = [];
+    let pageToken: string | undefined;
+    do {
+      const r = await drive.files.list({
+        q: `'${folderId}' in parents and trashed=false and mimeType != 'application/vnd.google-apps.folder'`,
+        fields: 'nextPageToken, files(id, name, mimeType)', pageSize: 100, pageToken,
+      });
+      for (const f of r.data.files || []) out.push(f);
+      pageToken = r.data.nextPageToken || undefined;
+    } while (pageToken && out.length < 200);
+    return out;
+  } catch { return []; }
 }
 
 /** Baixa os bytes de um arquivo do Drive (base64) + mimeType. Para análise por IA. */
