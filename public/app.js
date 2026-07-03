@@ -191,6 +191,23 @@ function monthShort(ym) {
 function chartCard(title, inner) {
   return `<div class="card" style="padding:18px;margin-bottom:16px"><strong style="color:var(--navy)">${title}</strong><div style="margin-top:14px">${inner}</div></div>`;
 }
+// Sparkline — mini-tendência (linha) para dentro de um KPI
+function sparkline(values, opts = {}) {
+  const v = (values || []).map(Number).filter((n) => !isNaN(n));
+  if (v.length < 2) return '';
+  const w = 100, h = 26, pad = 2.5;
+  const min = Math.min(...v), max = Math.max(...v), rng = (max - min) || 1;
+  const pts = v.map((n, i) => {
+    const x = pad + i * (w - 2 * pad) / (v.length - 1);
+    const y = h - pad - (n - min) / rng * (h - 2 * pad);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const [lx, ly] = pts[pts.length - 1].split(',');
+  const color = opts.color || 'var(--gold)';
+  return `<svg class="spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+    <polyline points="${pts.join(' ')}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${lx}" cy="${ly}" r="2.2" fill="${color}"/></svg>`;
+}
 // Barras horizontais — comparar categorias (1 série, ordena desc, rótulos sempre)
 function chartHBars(items, opts = {}) {
   const fmt = opts.fmt || ((v) => v);
@@ -2451,23 +2468,31 @@ const FUNNEL_ORDER = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao
 
 // Cockpit — painel-mãe: dinheiro, prazos, intimações, alertas e agenda num só lugar.
 async function dashCockpit(c) {
-  const d = await api('/api/dashboards/cockpit');
+  const [d, series] = await Promise.all([
+    api('/api/dashboards/cockpit'),
+    api('/api/metrics/series?days=30').catch(() => ({})),
+  ]);
   const go = (route) => `onclick="location.hash='#${route}'" style="cursor:pointer"`;
+  const serie = (k) => ((series && series[k]) || []).map((p) => p.value);
 
   const f = d.financeiro || {};
-  // KPI do sistema (robusto/responsivo) — cockpit equilibrado: financeiro + operacional
-  const stat = (label, value, route, o = {}) =>
-    `<div class="kpi" ${go(route)} style="cursor:pointer">
+  // KPI do sistema (robusto/responsivo) + mini-tendência (sparkline) dos últimos 30 dias
+  const stat = (label, value, route, o = {}) => {
+    const sp = serie(o.key);
+    const spark = sp.length > 1 ? sparkline(sp, { color: o.sparkColor || 'var(--gold)' }) : '';
+    return `<div class="kpi" ${go(route)} style="cursor:pointer">
        <div class="label">${label}</div>
        <div class="value${o.money ? ' money' : ''}"${o.color ? ` style="color:${o.color}"` : ''}>${o.money ? money(value) : (value ?? 0)}</div>
+       ${spark}
      </div>`;
+  };
   const kpis = `<div class="kpi-grid" style="margin-bottom:20px">
-    ${stat('A receber até hoje', f.receber_hoje, 'financeiro', { money: 1 })}
-    ${stat('A receber (7 dias)', f.receber_7d, 'financeiro', { money: 1 })}
-    ${stat('A pagar (7 dias)', f.pagar_7d, 'financeiro', { money: 1 })}
-    ${stat('Inadimplência', f.vencido, 'financeiro', { money: 1, color: Number(f.vencido) > 0 ? 'var(--red)' : '' })}
-    ${stat('Tarefas pendentes', d.tarefas_pendentes ?? 0, 'prazos', { color: Number(d.tarefas_pendentes) > 0 ? 'var(--amber)' : '' })}
-    ${stat('Propostas em análise', d.propostas_paradas ?? 0, 'propostas')}
+    ${stat('A receber até hoje', f.receber_hoje, 'financeiro', { money: 1, key: 'receber_hoje', sparkColor: 'var(--green)' })}
+    ${stat('A receber (7 dias)', f.receber_7d, 'financeiro', { money: 1, key: 'receber_7d', sparkColor: 'var(--green)' })}
+    ${stat('A pagar (7 dias)', f.pagar_7d, 'financeiro', { money: 1, key: 'pagar_7d' })}
+    ${stat('Inadimplência', f.vencido, 'financeiro', { money: 1, key: 'inadimplencia', color: Number(f.vencido) > 0 ? 'var(--red)' : '', sparkColor: 'var(--red)' })}
+    ${stat('Tarefas pendentes', d.tarefas_pendentes ?? 0, 'prazos', { key: 'tarefas_pendentes', color: Number(d.tarefas_pendentes) > 0 ? 'var(--amber)' : '', sparkColor: 'var(--amber)' })}
+    ${stat('Propostas em análise', d.propostas_paradas ?? 0, 'propostas', { key: 'propostas_analise' })}
   </div>`;
 
   // Painel que se dimensiona pelo conteúdo (não estica p/ igualar) + corpo rolável

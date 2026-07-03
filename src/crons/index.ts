@@ -7,12 +7,20 @@ import { telegramNotificationService } from '../services/TelegramNotificationSer
 import { runMonitoringJob, runDiscoveryJob } from '../services/monitoringService';
 import { runBackup } from '../services/backupService';
 import { sendMorningBriefings } from '../services/morningBriefingService';
+import { captureDailyMetrics } from '../services/metricsSnapshotService';
 
 export function startCronJobs() {
   // ── Resumo matinal por e-mail às 07:00 (horário de Brasília) ──────────────
   cron.schedule('0 7 * * *', async () => {
     try { await sendMorningBriefings(); } catch {}
   }, { timezone: 'America/Sao_Paulo' });
+
+  // ── Retrato diário das métricas (sparklines) às 23:00 (Brasília) ──────────
+  cron.schedule('0 23 * * *', async () => {
+    try { await captureDailyMetrics(); } catch {}
+  }, { timezone: 'America/Sao_Paulo' });
+  // Garante o ponto de hoje logo após subir o servidor (não espera até 23h)
+  setTimeout(() => { captureDailyMetrics().catch(() => {}); }, 12000);
 
   // ── a cada 5 min: atualiza contadores de prazos ──────────────────────────
   cron.schedule('*/5 * * * *', async () => {
