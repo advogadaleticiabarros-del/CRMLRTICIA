@@ -37,6 +37,8 @@ router.get('/', async (req: Request, res: Response) => {
   if (type && TYPES.includes(type)) { where.push('type = ?'); params.push(type); }
   if (from) { where.push('due_date >= ?'); params.push(from); }
   if (to) { where.push('due_date <= ?'); params.push(to); }
+  const escopo = req.query.escopo as string;
+  if (escopo === 'empresa' || escopo === 'pessoal') { where.push('escopo = ?'); params.push(escopo); }
 
   const [rows] = await db.query(
     `SELECT * FROM cashflow_entries WHERE ${where.join(' AND ')} ORDER BY due_date ASC LIMIT 500`, params
@@ -44,9 +46,16 @@ router.get('/', async (req: Request, res: Response) => {
   res.json(rows);
 });
 
+// ── GET /api/cashflow/opcoes — pagadoras e bancos já usados (sugestões) ──────
+router.get('/opcoes', async (_req: Request, res: Response) => {
+  const [pag] = await db.query("SELECT DISTINCT pagador FROM cashflow_entries WHERE pagador IS NOT NULL AND pagador <> '' ORDER BY pagador") as any;
+  const [ban] = await db.query("SELECT DISTINCT banco FROM cashflow_entries WHERE banco IS NOT NULL AND banco <> '' ORDER BY banco") as any;
+  res.json({ pagadores: pag.map((r: any) => r.pagador), bancos: ban.map((r: any) => r.banco) });
+});
+
 // ── POST /api/cashflow — cria lançamento (única ou mensal por N meses) ───────
 router.post('/', async (req: Request, res: Response) => {
-  const { type, category, description, amount, due_date, recurrence, occurrences, client_id, case_id, cost_center, notes } = req.body;
+  const { type, category, description, amount, due_date, recurrence, occurrences, client_id, case_id, cost_center, notes, pagador, banco, escopo } = req.body;
   if (!TYPES.includes(type)) { res.status(400).json({ error: "type deve ser 'entrada' ou 'saida'" }); return; }
   if (!category) { res.status(400).json({ error: 'category é obrigatória' }); return; }
   if (!description || !String(description).trim()) { res.status(400).json({ error: 'A descrição é obrigatória' }); return; }
@@ -55,16 +64,19 @@ router.post('/', async (req: Request, res: Response) => {
   const valor = Number(amount) || 0;
   const total = recurrence === 'mensal' ? Math.min(120, Math.max(1, parseInt(occurrences) || 1)) : 1;
   const group = total > 1 ? crypto.randomUUID() : null;
+  const esc = escopo === 'pessoal' ? 'pessoal' : 'empresa';
+  const pag = (pagador && String(pagador).trim()) || null;
+  const ban = (banco && String(banco).trim()) || null;
 
   const ids: number[] = [];
   for (let i = 0; i < total; i++) {
     const due = i === 0 ? due_date : addMonthsStr(due_date, i);
     const [r] = await db.query(
       `INSERT INTO cashflow_entries
-         (user_id, type, category, description, amount, due_date, status, client_id, case_id, cost_center, recurrence_group, installment_no, installment_total, notes)
-       VALUES (?, ?, ?, ?, ?, ?, 'previsto', ?, ?, ?, ?, ?, ?, ?)`,
+         (user_id, type, category, description, amount, due_date, status, client_id, case_id, cost_center, recurrence_group, installment_no, installment_total, notes, pagador, banco, escopo)
+       VALUES (?, ?, ?, ?, ?, ?, 'previsto', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [req.user!.id, type, category, description.trim(), valor, due,
-       client_id ?? null, case_id ?? null, cost_center ?? null, group, i + 1, total, notes ?? null]
+       client_id ?? null, case_id ?? null, cost_center ?? null, group, i + 1, total, notes ?? null, pag, ban, esc]
     ) as any;
     ids.push(r.insertId);
   }
@@ -93,6 +105,9 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('due_date', req.body.due_date);
   setIf('category', req.body.category);
   setIf('cost_center', req.body.cost_center);
+  setIf('pagador', req.body.pagador);
+  setIf('banco', req.body.banco);
+  setIf('escopo', req.body.escopo, req.body.escopo === 'empresa' || req.body.escopo === 'pessoal');
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido' }); return; }
   params.push(id);
   await db.query(`UPDATE cashflow_entries SET ${fields.join(', ')} WHERE id = ?`, params);

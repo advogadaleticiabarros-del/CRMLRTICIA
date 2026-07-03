@@ -253,6 +253,17 @@ tbody tr:hover { background: var(--surface-2); }
 .prod-step.todo .lbl { color: var(--text-muted); font-weight: 500; }
 .prod-step-sep { color: var(--border); font-size: 15px; align-self: center; }
 .btn-advance { width: 100%; padding: 14px 20px; font-size: 14.5px; font-weight: 700; margin-top: 6px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+/* Toggle segmentado (Empresa/Pessoal) */
+.seg-toggle { display: flex; gap: 6px; margin-top: 5px; }
+.seg-toggle label { flex: 1; text-align: center; padding: 9px 12px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--text-muted); background: #fff; transition: all .15s; }
+.seg-toggle label input { display: none; }
+.seg-toggle label.on { border-color: var(--gold); color: var(--navy-deep); background: rgba(193,154,78,.12); box-shadow: inset 0 0 0 1px var(--gold); }
+/* Chip de escopo (contraste empresa x pessoal) */
+.chip-escopo { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+.chip-escopo.empresa { background: rgba(42,63,95,.10); color: var(--navy); }
+.chip-escopo.pessoal { background: rgba(193,154,78,.16); color: var(--gold); }
+/* Linha de despesa pessoal com leve destaque dourado */
+tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 22px 26px; border-bottom: 1px solid var(--border-soft); }
 .modal-header h3 { font-size: 22px; }
 #modal-body { padding: 26px; }

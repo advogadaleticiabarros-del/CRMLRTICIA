@@ -28,13 +28,15 @@ router.get('/', async (req: Request, res: Response) => {
   if (tipo && TIPOS.includes(tipo))         { where.push('fr.tipo = ?'); params.push(tipo); }
   if (status && STATUSES.includes(status))  { where.push('fr.status = ?'); params.push(status); }
   if (costCenter) { where.push('fr.cost_center = ?'); params.push(costCenter); }
+  const escopo = req.query.escopo as string;
+  if (escopo === 'empresa' || escopo === 'pessoal') { where.push('fr.escopo = ?'); params.push(escopo); }
   const whereSql = `WHERE ${where.join(' AND ')}`;
 
   const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM financial_records fr ${whereSql}`, params) as any;
 
   const [rows] = await db.query(
     `SELECT fr.id, fr.tipo, fr.description, fr.valor, fr.status, fr.due_date, fr.paid_at,
-            fr.cost_center, fr.recurrence_type, cl.name AS client_name
+            fr.cost_center, fr.recurrence_type, fr.pagador, fr.banco, fr.escopo, cl.name AS client_name
      FROM financial_records fr
      LEFT JOIN clients cl ON cl.id = fr.client_id
      ${whereSql} ORDER BY fr.due_date DESC LIMIT ? OFFSET ?`,
@@ -42,6 +44,13 @@ router.get('/', async (req: Request, res: Response) => {
   ) as any;
 
   res.json({ data: rows, total, page, limit, pages: Math.ceil(total / limit) });
+});
+
+// ── GET /api/financial/opcoes — pagadoras e bancos já usados (sugestões) ─────
+router.get('/opcoes', async (req: Request, res: Response) => {
+  const [pag] = await db.query("SELECT DISTINCT pagador FROM financial_records WHERE user_id = ? AND pagador IS NOT NULL AND pagador <> '' ORDER BY pagador", [req.user!.id]) as any;
+  const [ban] = await db.query("SELECT DISTINCT banco FROM financial_records WHERE user_id = ? AND banco IS NOT NULL AND banco <> '' ORDER BY banco", [req.user!.id]) as any;
+  res.json({ pagadores: pag.map((r: any) => r.pagador), bancos: ban.map((r: any) => r.banco) });
 });
 
 // ── GET /api/financial/summary — KPIs rápidos ───────────────────────────────
@@ -133,20 +142,22 @@ router.get('/inteligencia', async (req: Request, res: Response) => {
 
 // ── POST /api/financial — criar lançamento ──────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
-  const { tipo, description, valor, due_date, status, cost_center, recurrence_type, client_id, case_id } = req.body;
+  const { tipo, description, valor, due_date, status, cost_center, recurrence_type, client_id, case_id, pagador, banco, escopo } = req.body;
   if (!TIPOS.includes(tipo)) { res.status(400).json({ error: "tipo deve ser 'receita' ou 'despesa'" }); return; }
   if (!description || !String(description).trim()) { res.status(400).json({ error: 'A descrição é obrigatória' }); return; }
 
   const recur = RECURRENCES.includes(recurrence_type) ? recurrence_type : null;
   const nextDue = recur && due_date ? addMonthsStr(due_date, RECUR_MONTHS[recur]) : null;
+  const esc = escopo === 'pessoal' ? 'pessoal' : 'empresa';
 
   const [result] = await db.query(
     `INSERT INTO financial_records
-       (user_id, client_id, case_id, tipo, description, valor, status, due_date, cost_center, recurrence_type, next_due_date)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (user_id, client_id, case_id, tipo, description, valor, status, due_date, cost_center, recurrence_type, next_due_date, pagador, banco, escopo)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [req.user!.id, client_id ?? null, case_id ?? null, tipo, description.trim(),
      Number(valor) || 0, STATUSES.includes(status) ? status : 'pendente',
-     due_date || null, cost_center ?? null, recur, nextDue]
+     due_date || null, cost_center ?? null, recur, nextDue,
+     (pagador && String(pagador).trim()) || null, (banco && String(banco).trim()) || null, esc]
   ) as any;
 
   const [rows] = await db.query('SELECT * FROM financial_records WHERE id = ?', [result.insertId]) as any;
@@ -179,6 +190,9 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('due_date', req.body.due_date);
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
   setIf('cost_center', req.body.cost_center);
+  setIf('pagador', req.body.pagador);
+  setIf('banco', req.body.banco);
+  setIf('escopo', req.body.escopo, req.body.escopo === 'empresa' || req.body.escopo === 'pessoal');
 
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
   params.push(id);

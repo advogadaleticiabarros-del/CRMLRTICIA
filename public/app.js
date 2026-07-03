@@ -2901,10 +2901,16 @@ async function finContasPagar(c) {
   const now = new Date();
   const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const todayStr = new Date().toISOString().split('T')[0];
+  let scope = 'todas';
   c.innerHTML = `
     <div class="toolbar">
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-soft)">Mês
         <input type="month" id="cp-month" value="${curYM}"></label>
+      <div class="seg-toggle" id="cp-scope" style="margin-top:0;max-width:340px">
+        <label class="on"><input type="radio" name="scope" value="todas" checked>Todas</label>
+        <label><input type="radio" name="scope" value="empresa">🏢 Empresa</label>
+        <label><input type="radio" name="scope" value="pessoal">👤 Pessoal</label>
+      </div>
       <span class="spacer"></span>
       <button class="btn-gold" id="cp-new">+ Conta a pagar</button>
     </div>
@@ -2916,7 +2922,7 @@ async function finContasPagar(c) {
     const [y, m] = ym.split('-').map(Number);
     const from = `${ym}-01`;
     const to = `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
-    const rows = await api(`/api/cashflow?type=saida&from=${from}&to=${to}`);
+    const rows = await api(`/api/cashflow?type=saida&from=${from}&to=${to}${scope !== 'todas' ? '&escopo=' + scope : ''}`);
 
     let total = 0, pago = 0, aberto = 0, vencido = 0;
     rows.forEach((r) => {
@@ -2949,8 +2955,10 @@ async function finContasPagar(c) {
           const st = r.status === 'realizado' ? '<span class="badge ativo">pago</span>'
             : isVenc ? '<span class="badge vencido">vencido</span>' : '<span class="badge">em aberto</span>';
           const rec = r.installment_total > 1 ? ` <small style="color:var(--text-muted)">(${r.installment_no}/${r.installment_total})</small>` : '';
-          return `<tr>
-            <td>${r.description}${rec}</td>
+          const escChip = r.escopo === 'pessoal' ? '<span class="chip-escopo pessoal">👤 Pessoal</span>' : '<span class="chip-escopo empresa">🏢 Empresa</span>';
+          const quem = [r.pagador, r.banco].filter(Boolean).join(' · ');
+          return `<tr class="${r.escopo === 'pessoal' ? 'row-pessoal' : ''}">
+            <td>${r.description}${rec} ${escChip}${quem ? `<br><small style="color:var(--text-muted)">💳 ${esc(quem)}</small>` : ''}</td>
             <td>${due ? fmtDate(due) : '—'}</td>
             <td>${money(r.amount)}</td>
             <td>${st}</td>
@@ -2978,22 +2986,40 @@ async function finContasPagar(c) {
     });
   };
   $('#cp-month').onchange = load;
-  $('#cp-new').onclick = () => contaPagarForm(load, $('#cp-month').value);
+  c.querySelectorAll('#cp-scope input').forEach((r) => r.onchange = () => {
+    scope = r.value;
+    c.querySelectorAll('#cp-scope label').forEach((l) => l.classList.toggle('on', l.querySelector('input').checked));
+    load();
+  });
+  $('#cp-new').onclick = () => contaPagarForm(load, $('#cp-month').value, scope === 'pessoal' ? 'pessoal' : 'empresa');
   await load();
 }
 
-async function contaPagarForm(onSave, ym) {
+async function contaPagarForm(onSave, ym, escopoInicial) {
   const now = new Date();
   const base = ym || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const opc = await api('/api/cashflow/opcoes').catch(() => ({ pagadores: [], bancos: [] }));
+  const dl = (id, arr) => `<datalist id="${id}">${(arr || []).map((v) => `<option value="${esc(v)}">`).join('')}</datalist>`;
+  const isPessoal = escopoInicial === 'pessoal';
   const form = el(`<form class="form-grid">
+    <div><small style="color:var(--text-muted)">Tipo da conta</small>
+      <div class="seg-toggle" id="cp-escopo">
+        <label class="${isPessoal ? '' : 'on'}"><input type="radio" name="escopo" value="empresa" ${isPessoal ? '' : 'checked'}>🏢 Empresa</label>
+        <label class="${isPessoal ? 'on' : ''}"><input type="radio" name="escopo" value="pessoal" ${isPessoal ? 'checked' : ''}>👤 Pessoal</label>
+      </div></div>
     <label>Grupo de despesa<select name="category">${GRUPOS_DESPESA.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></label>
     ${field('Descrição *', 'description')}
     <div class="form-row">${field('Valor (R$) *', 'amount', { type: 'number' })}${field('Vencimento *', 'due_date', { type: 'date', value: `${base}-10` })}</div>
+    <div class="form-row">
+      <label>Pagadora (quem paga)<input name="pagador" list="dl-pag" placeholder="ex.: Escritório, você…" autocomplete="off">${dl('dl-pag', opc.pagadores)}</label>
+      <label>Banco / conta de saída<input name="banco" list="dl-ban" placeholder="ex.: Itaú, Nubank…" autocomplete="off">${dl('dl-ban', opc.bancos)}</label>
+    </div>
     ${field('Recorrência', 'recurrence', { options: [{ v: 'unica', t: 'Única (1x)' }, { v: 'mensal', t: 'Mensal (repetir)' }] })}
     <div id="cp-occ" style="display:none">${field('Quantos meses', 'occurrences', { type: 'number', value: 12 })}</div>
     ${field('Observações', 'notes', { type: 'textarea' })}
     <button type="submit" class="btn-primary">Lançar conta</button>
   </form>`);
+  form.querySelectorAll('#cp-escopo input').forEach((r) => r.onchange = () => form.querySelectorAll('#cp-escopo label').forEach((l) => l.classList.toggle('on', l.querySelector('input').checked)));
   form.querySelector('[name=recurrence]').onchange = (e) => { form.querySelector('#cp-occ').style.display = e.target.value === 'mensal' ? 'block' : 'none'; };
   form.onsubmit = async (e) => {
     e.preventDefault();
