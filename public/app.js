@@ -155,6 +155,33 @@ function pagerHtml(current, pages) {
   return `<div class="pager">${out}</div>`;
 }
 
+// ── Exportação CSV (Excel-friendly, com BOM) ──────────────────────────────
+function csvEscape(v) {
+  const s = v == null ? '' : String(v);
+  return /[";\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function downloadCsv(filename, columns, rows) {
+  const head = columns.map((c) => csvEscape(c.label)).join(';');
+  const body = rows.map((r) => columns.map((c) => csvEscape(typeof c.get === 'function' ? c.get(r) : r[c.key])).join(';')).join('\n');
+  const blob = new Blob(['﻿' + head + '\n' + body], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+// Busca todas as páginas de um endpoint paginado (limite 100/página)
+async function fetchAllPages(path, params) {
+  const all = []; let page = 1, pages = 1;
+  do {
+    const q = new URLSearchParams(params || {});
+    q.set('limit', '100'); q.set('page', String(page));
+    const r = await api(path + '?' + q);
+    (r.data || []).forEach((x) => all.push(x));
+    pages = r.pages || 1; page++;
+  } while (page <= pages && page <= 200);
+  return all;
+}
+
 // ── Mini-gráficos (SVG/CSS, paleta da marca, sem bibliotecas) ─────────────
 const MESES_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 function monthShort(ym) {
@@ -316,6 +343,29 @@ function showApp() {
     navigator.serviceWorker.register('/sw.js').catch(() => {}); // PWA
     if ('Notification' in window && Notification.permission === 'granted') subscribePush();
   }
+  setTimeout(maybeWelcome, 900); // boas-vindas no 1º acesso
+}
+
+// ── Tour de primeiro acesso (uma vez por aparelho) ────────────────────────
+function maybeWelcome() {
+  if (localStorage.getItem('crm_welcomed') === '1') return;
+  if (USER?.role === 'cliente') { localStorage.setItem('crm_welcomed', '1'); return; }
+  const first = (USER?.name || '').split(' ')[0] || '';
+  const tip = (icon, t, d) => `<div style="display:flex;gap:12px;align-items:flex-start;padding:11px 0;border-bottom:1px solid var(--border-soft)">
+      <span style="color:var(--gold);flex:0 0 auto;margin-top:1px">${svgIcon(icon)}</span>
+      <div><strong style="color:var(--navy-deep);font-size:14px">${t}</strong><div style="font-size:13px;color:var(--text-soft);margin-top:1px">${d}</div></div></div>`;
+  const wrap = el(`<div>
+    <p style="font-size:14.5px;color:var(--text-soft);margin:0 0 12px">Que bom ter você aqui, ${esc(first)}! Um resumo rápido do que dá para fazer:</p>
+    ${tip('plus', 'Novo Atendimento', 'O botão dourado no topo do menu inicia um atendimento e vira lead, proposta e processo.')}
+    ${tip('home', 'Dashboards', 'Visão gerencial: financeiro, comercial, prazos e agenda — agora com gráficos.')}
+    ${tip('gear', 'Aparência', 'Em Configurações você escolhe entre 6 temas (inclui modo escuro) e recolhe a barra lateral.')}
+    ${tip('docs', 'Listas e exportação', 'Clientes, Processos e Propostas paginam de 20 em 20 e exportam em CSV.')}
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:16px">
+      <button class="btn-primary" id="wl-ok" style="width:auto">Começar</button>
+    </div>
+  </div>`);
+  wrap.querySelector('#wl-ok').onclick = () => { localStorage.setItem('crm_welcomed', '1'); closeModal(); };
+  openModal('Bem-vinda ao seu CRM', wrap);
 }
 
 async function refreshBell() {
@@ -622,6 +672,8 @@ const ROUTES = {
       <div class="toolbar">
         <input id="cli-search" placeholder="Buscar por nome, CPF/CNPJ ou e-mail…" />
         <select id="cli-status"><option value="">Todos status</option><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="prospecto">Prospecto</option></select>
+        <span class="spacer"></span>
+        <button class="btn-ghost" id="cli-export">${svgIcon('docs')}Exportar CSV</button>
       </div>
       <div class="card"><div id="cli-table"></div></div>`;
     let cliPage = 1;
@@ -651,6 +703,18 @@ const ROUTES = {
     $('#new-client').onclick = () => clientForm(null, load);
     $('#cli-search').oninput = debounce(reload, 350);
     $('#cli-status').onchange = reload;
+    $('#cli-export').onclick = async () => {
+      const params = {};
+      if ($('#cli-search').value) params.search = $('#cli-search').value;
+      if ($('#cli-status').value) params.status = $('#cli-status').value;
+      toast('Gerando CSV…');
+      const rows = await fetchAllPages('/api/clients', params);
+      downloadCsv('clientes.csv', [
+        { label: 'Nome', key: 'name' }, { label: 'Tipo', key: 'tipo' }, { label: 'CPF/CNPJ', key: 'cpf_cnpj' },
+        { label: 'E-mail', key: 'email' }, { label: 'Telefone', key: 'phone' }, { label: 'Status', key: 'status' },
+      ], rows);
+      toast(`${rows.length} cliente(s) exportado(s)`);
+    };
     await load();
   },
 
@@ -700,6 +764,8 @@ const ROUTES = {
           <option value="rascunho">Rascunho</option><option value="enviada">Enviada</option>
           <option value="em_negociacao">Em negociação</option><option value="aceita">Aceita</option>
           <option value="recusada">Recusada</option></select>
+        <span class="spacer"></span>
+        <button class="btn-ghost" id="prop-export">${svgIcon('docs')}Exportar CSV</button>
       </div>
       <div class="card"><div id="prop-table"></div></div>`;
     let propPage = 1;
@@ -724,6 +790,18 @@ const ROUTES = {
     };
     $('#new-prop').onclick = () => propostaForm(load);
     $('#prop-status').onchange = () => { propPage = 1; load(); };
+    $('#prop-export').onclick = async () => {
+      const params = {};
+      if ($('#prop-status').value) params.status = $('#prop-status').value;
+      toast('Gerando CSV…');
+      const rows = await fetchAllPages('/api/propostas', params);
+      downloadCsv('propostas.csv', [
+        { label: 'Título', key: 'title' }, { label: 'Cliente', key: 'client_name' },
+        { label: 'Valor', get: (r) => r.valor }, { label: 'Status', key: 'status' },
+        { label: 'Validade', get: (r) => r.validade ? fmtDate(r.validade) : '' },
+      ], rows);
+      toast(`${rows.length} proposta(s) exportada(s)`);
+    };
     await load();
   },
 
@@ -734,6 +812,8 @@ const ROUTES = {
       <div class="toolbar">
         <input id="case-search" placeholder="Buscar por título ou número…" />
         <select id="case-status"><option value="">Todos status</option><option value="ativo">Ativo</option><option value="suspenso">Suspenso</option><option value="encerrado">Encerrado</option></select>
+        <span class="spacer"></span>
+        <button class="btn-ghost" id="case-export">${svgIcon('docs')}Exportar CSV</button>
       </div>
       <div class="card"><div id="case-table"></div></div>`;
     let casePage = 1;
@@ -761,6 +841,18 @@ const ROUTES = {
     $('#new-case').onclick = () => caseForm(load);
     $('#case-search').oninput = debounce(reload, 350);
     $('#case-status').onchange = reload;
+    $('#case-export').onclick = async () => {
+      const params = {};
+      if ($('#case-search').value) params.search = $('#case-search').value;
+      if ($('#case-status').value) params.status = $('#case-status').value;
+      toast('Gerando CSV…');
+      const rows = await fetchAllPages('/api/cases', params);
+      downloadCsv('processos.csv', [
+        { label: 'Título', key: 'title' }, { label: 'Número', key: 'case_number' }, { label: 'Cliente', key: 'client_name' },
+        { label: 'Área', key: 'legal_area' }, { label: 'Fase', key: 'phase' }, { label: 'Status', key: 'status' },
+      ], rows);
+      toast(`${rows.length} processo(s) exportado(s)`);
+    };
     await load();
   },
 
