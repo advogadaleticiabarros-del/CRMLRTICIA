@@ -812,9 +812,13 @@ const ROUTES = {
         <tbody>${r.data.map((p) => `<tr>
           <td><strong>${p.title}</strong></td><td>${p.client_name || '—'}</td>
           <td>${money(p.valor)}</td><td>${badge(p.status)}</td><td>${fmtDate(p.validade)}</td>
-          <td><button class="btn-sm" data-prop="${p.id}">Abrir</button></td></tr>`).join('')}</tbody></table>
+          <td style="white-space:nowrap"><button class="btn-sm" data-edit-prop="${p.id}">✏️ Editar</button> <button class="btn-sm" data-prop="${p.id}">Abrir</button></td></tr>`).join('')}</tbody></table>
         <div class="list-foot"><span>${r.total} proposta(s) · página ${r.page} de ${pages}</span>${pagerHtml(r.page, pages)}</div>`
         : '<div class="empty">Nenhuma proposta ainda</div>';
+      document.querySelectorAll('[data-edit-prop]').forEach((b) => b.onclick = async () => {
+        const prop = await api('/api/propostas/' + b.dataset.editProp);
+        propostaForm(load, null, prop);
+      });
       document.querySelectorAll('[data-prop]').forEach((b) => b.onclick = () => propostaDetail(b.dataset.prop, load));
       document.querySelectorAll('#prop-table [data-page]').forEach((b) => b.onclick = () => {
         propPage = Number(b.dataset.page); load(); $('#page').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2807,7 +2811,9 @@ async function finAcordos(c) {
 async function finReceitas(c) {
   c.innerHTML = `
     <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-receita">+ Nova receita</button></div>
-    <div class="card"><div id="receita-table"></div></div>`;
+    <div class="card"><div id="receita-table"></div></div>
+    <h3 style="margin:20px 0 10px;color:var(--navy)">Audiências — Correspondente Jurídico</h3>
+    <div class="card"><div id="audiencia-table"></div></div>`;
   const load = async () => {
     const r = await api('/api/receitas');
     $('#receita-table').innerHTML = r.data.length ? `
@@ -2818,7 +2824,20 @@ async function finReceitas(c) {
         <td>${fmtDate(rc.data_vencimento)}</td><td>${badge(rc.status)}</td>
         <td><button class="btn-sm" data-rec="${rc.id}">Parcelas</button></td></tr>`).join('')}</tbody></table>`
       : '<div class="empty">Nenhuma receita cadastrada</div>';
+    const aud = await api('/api/correspondente');
+    $('#audiencia-table').innerHTML = aud.length ? `
+      <table><thead><tr><th>Pagador</th><th>Processo</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
+      <tbody>${aud.map((a) => `<tr>
+        <td><strong>${a.payer_name}</strong><br><small>${a.payer_type === 'PJ' ? 'Jurídica' : 'Física'}</small></td>
+        <td>${a.process_number || '—'}</td><td>${money(a.value)}</td>
+        <td>${fmtDate(a.due_date)}</td><td>${badge(a.status)}</td>
+        <td><button class="btn-sm" data-aud="${a.id}">Editar</button></td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhuma audiência registrada</div>';
     document.querySelectorAll('[data-rec]').forEach((b) => b.onclick = () => receitaDetail(b.dataset.rec, load));
+    document.querySelectorAll('[data-aud]').forEach((b) => b.onclick = async () => {
+      const aud = await api('/api/correspondente/' + b.dataset.aud);
+      correspondentForm(aud, load);
+    });
   };
   $('#new-receita').onclick = () => receitaForm(load);
   await load();
@@ -3437,7 +3456,7 @@ const HON_PRESETS = [
   ['Consulta + Causa', ['consulta', 'fixo']],
 ];
 
-async function propostaForm(onSave, lead = null) {
+async function propostaForm(onSave, lead = null, existing = null) {
   const clients = await api('/api/clients?limit=200');
   const sec = (t) => `<div class="prop-sec">${t}</div>`;
   const honRows = HON_MODS.map((m) => `
@@ -3449,15 +3468,15 @@ async function propostaForm(onSave, lead = null) {
 
   const form = el(`<form class="form-grid prop-form">
     ${sec('Cliente / Contato')}
-    ${field('Nome completo *', 'contact_name', { value: lead?.name || '' })}
-    <div class="form-row">${field('CPF', 'cpf', { value: lead?.cpf_cnpj || '' })}${field('Telefone / WhatsApp', 'phone', { value: lead?.phone || '' })}</div>
-    ${field('E-mail', 'email', { type: 'email', value: lead?.email || '' })}
+    ${field('Nome completo *', 'contact_name', { value: existing?.contact_name || lead?.name || '' })}
+    <div class="form-row">${field('CPF', 'cpf', { value: existing?.cpf || lead?.cpf_cnpj || '' })}${field('Telefone / WhatsApp', 'phone', { value: existing?.phone || lead?.phone || '' })}</div>
+    ${field('E-mail', 'email', { type: 'email', value: existing?.email || lead?.email || '' })}
     ${field('Vincular a cliente existente (opcional)', 'client_id', { options: [{ v: '', t: '—' }].concat(clients.data.map((c) => ({ v: c.id, t: c.name }))) })}
 
     ${sec('Causa')}
-    <div class="form-row">${field('Área de atuação', 'legal_area', { value: lead?.legal_area || 'outro', options: AREAS })}
-      <label>Tipo de causa<input name="tipo_causa" list="tipos-causa-dl" placeholder="Comece a digitar…" autocomplete="off"><datalist id="tipos-causa-dl">${TIPOS_CAUSA.map((t) => `<option value="${t}">`).join('')}</datalist></label></div>
-    ${field('Breve descrição do caso', 'description', { type: 'textarea', value: lead?.case_summary || '' })}
+    <div class="form-row">${field('Área de atuação', 'legal_area', { value: existing?.legal_area || lead?.legal_area || 'outro', options: AREAS })}
+      <label>Tipo de causa<input name="tipo_causa" value="${esc(existing?.tipo_causa || '')}" list="tipos-causa-dl" placeholder="Comece a digitar…" autocomplete="off"><datalist id="tipos-causa-dl">${TIPOS_CAUSA.map((t) => `<option value="${t}">`).join('')}</datalist></label></div>
+    ${field('Breve descrição do caso', 'description', { type: 'textarea', value: existing?.description || lead?.case_summary || '' })}
 
     ${sec('Dependentes')}
     <p class="sub" style="margin-top:-6px">Informe os dependentes (importante em BPC/LOAS e Família — guarda/pensão).</p>
@@ -3482,10 +3501,10 @@ async function propostaForm(onSave, lead = null) {
     <div class="hon-grid">${honRows}</div>
 
     ${sec('Validade & Observações')}
-    ${field('Validade da proposta', 'validade', { type: 'date' })}
-    ${field('Observações e cláusulas (OAB)', 'observacoes', { type: 'textarea', value: OBSERVACOES_PROPOSTA })}
+    ${field('Validade da proposta', 'validade', { type: 'date', value: existing?.validade || '' })}
+    ${field('Observações e cláusulas (OAB)', 'observacoes', { type: 'textarea', value: existing?.observacoes || OBSERVACOES_PROPOSTA })}
 
-    <button type="submit" class="btn-primary">Criar proposta</button>
+    <button type="submit" class="btn-primary">${existing ? 'Salvar alterações' : 'Criar proposta'}</button>
   </form>`);
 
   // Dependentes (repeater)
@@ -3498,6 +3517,10 @@ async function propostaForm(onSave, lead = null) {
     row.querySelector('[data-dep-x]').onclick = () => row.remove();
     depList.appendChild(row);
   };
+  // Pre-fill dependentes se existentes
+  if (existing?.dependentes && Array.isArray(existing.dependentes)) {
+    existing.dependentes.forEach((d) => addDep(d.nome || '', d.cpf || ''));
+  }
   form.querySelector('#add-dep').onclick = () => addDep();
 
   // Parcelamento — cálculo e prévia ao vivo
@@ -3547,6 +3570,31 @@ async function propostaForm(onSave, lead = null) {
     syncHon();
   });
   syncHon();
+
+  // Pre-fill honorários se existentes
+  if (existing?.honorarios) {
+    const hon = typeof existing.honorarios === 'string' ? JSON.parse(existing.honorarios) : existing.honorarios;
+    if (hon.apenas_exito && hon.values?.exito) {
+      apenasEx.checked = true;
+      form.querySelector('[name=exito_only_pct]').value = hon.values.exito;
+    } else if (hon.parcelamento) {
+      const p = hon.parcelamento;
+      if (p.total) form.querySelector('[name=valor_total]').value = p.total;
+      if (p.entrada) form.querySelector('[name=entrada_valor]').value = p.entrada;
+      if (p.entrada_data) form.querySelector('[name=entrada_data]').value = p.entrada_data;
+      if (p.parcelas) form.querySelector('[name=parcelas_qtd]').value = p.parcelas;
+      if (p.primeiro_vencimento) form.querySelector('[name=parcelas_primeiro_venc]').value = p.primeiro_vencimento;
+    }
+    if (hon.modalidades && Array.isArray(hon.modalidades)) {
+      hon.modalidades.forEach((mod) => {
+        const cb = form.querySelector(`[data-hon="${mod}"]`);
+        if (cb) {
+          cb.checked = true;
+          if (hon.values && hon.values[mod]) form.querySelector(`[data-hon-input="${mod}"]`).value = hon.values[mod];
+        }
+      });
+    }
+  }
 
   // Modo "Apenas êxito": esconde o bloco de valor fixo/parcelas.
   const apenasEx = form.querySelector('#hon-apenas-exito');
@@ -3599,8 +3647,16 @@ async function propostaForm(onSave, lead = null) {
       title: `Proposta — ${fd.contact_name || fd.tipo_causa || 'cliente'}`,
     };
     if (!body.client_id) delete body.client_id;
-    try { await api('/api/propostas', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Proposta criada'); onSave && onSave(); }
-    catch (err) { toast(err.message, 'error'); }
+    try {
+      if (existing) {
+        await api(`/api/propostas/${existing.id}`, { method: 'PUT', body: JSON.stringify(body) });
+        toast('Proposta atualizada');
+      } else {
+        await api('/api/propostas', { method: 'POST', body: JSON.stringify(body) });
+        toast('Proposta criada');
+      }
+      closeModal(); onSave && onSave();
+    } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Produção da Proposta', form);
 }
@@ -3630,6 +3686,7 @@ async function propostaDetail(id, onSave) {
     ${parcelasHtml}
     ${isAceita ? '' : `
       <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn-sm" id="edit-prop">✏️ Editar proposta</button>
         <button class="btn-sm" data-st="enviada">Marcar enviada</button>
         <button class="btn-sm" data-st="em_negociacao">Em negociação</button>
         <button class="btn-sm" data-st="recusada">Recusar</button>
@@ -3683,6 +3740,8 @@ async function propostaDetail(id, onSave) {
     try { await api(`/api/propostas/${id}/accept`, { method: 'POST', body: JSON.stringify({ installments_count: count, first_due_date: due }) });
       closeModal(); toast('Proposta aceita — parcelas geradas'); onSave(); } catch (e) { toast(e.message, 'error'); }
   };
+  const editPropBtn = form.querySelector('#edit-prop');
+  if (editPropBtn) editPropBtn.onclick = () => { closeModal(); propostaForm(onSave, null, p); };
   openModal('Proposta', form);
 }
 

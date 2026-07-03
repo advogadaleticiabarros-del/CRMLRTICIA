@@ -79,6 +79,7 @@ router.post('/', async (req: Request, res: Response) => {
   if (!hearing_datetime) { res.status(400).json({ error: 'Data e hora da audiência são obrigatórias' }); return; }
   if (!payer_name || !String(payer_name).trim()) { res.status(400).json({ error: 'O pagador é obrigatório' }); return; }
 
+  const finalDueDate = due_date || hearing_datetime; // Default to hearing datetime if not provided
   const [result] = await db.query(
     `INSERT INTO correspondent_hearings
        (user_id, hearing_datetime, role, process_number, comarca, vara, location, requesting_office,
@@ -87,7 +88,7 @@ router.post('/', async (req: Request, res: Response) => {
     [req.user!.id, hearing_datetime, ROLES.includes(role) ? role : 'advogado',
      process_number ?? null, comarca ?? null, vara ?? null, location ?? null, requesting_office ?? null,
      payer_name.trim(), payer_type === 'PF' ? 'PF' : 'PJ', payer_document ?? null,
-     Number(value) || 0, STATUSES.includes(status) ? status : 'agendada', due_date || null, notes ?? null]
+     Number(value) || 0, STATUSES.includes(status) ? status : 'agendada', finalDueDate, notes ?? null]
   ) as any;
   // Agenda: vincula a um evento do Google existente (veio de pendência) ou cria um novo
   if (req.body?.calendar_event_id) {
@@ -120,7 +121,8 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('payer_document', req.body.payer_document);
   setIf('value', req.body.value !== undefined ? Number(req.body.value) : undefined);
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
-  setIf('due_date', req.body.due_date);
+  if (req.body.due_date !== undefined) { fields.push('due_date = ?'); params.push(req.body.due_date || null); }
+  else if (req.body.hearing_datetime !== undefined) { fields.push('due_date = ?'); params.push(req.body.hearing_datetime); }
   setIf('notes', req.body.notes);
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido' }); return; }
   params.push(id);

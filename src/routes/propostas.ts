@@ -133,10 +133,21 @@ router.put('/:id', async (req: Request, res: Response) => {
 
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
   params.push(id);
+
+  const [before] = await db.query('SELECT * FROM propostas WHERE id = ?', [id]) as any;
   await db.query(`UPDATE propostas SET ${fields.join(', ')} WHERE id = ?`, params);
 
   const [rows] = await db.query('SELECT * FROM propostas WHERE id = ?', [id]) as any;
-  res.json(rows[0]);
+  const after = rows[0];
+
+  await logActivity({
+    leadId: after.lead_id, clientId: after.client_id, caseId: after.case_id,
+    actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'proposal_edited', title: 'Proposta editada',
+    description: `${after.title} — valor ${after.valor}`,
+  });
+
+  res.json(after);
 });
 
 // ── PATCH /api/propostas/:id/status — enviar, negociar, recusar ─────────────

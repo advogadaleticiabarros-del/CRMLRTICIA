@@ -6,6 +6,7 @@ import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
 import { montarEndereco } from '../services/contractTemplates';
 import { buildPeticaoInicial, analyzeCaseDrive } from '../services/peticaoBuilder';
+import { revisarPeticaoDoCaso } from '../services/peticaoReviewer';
 
 const router = Router();
 
@@ -463,7 +464,15 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     catch (e: any) { peticao = { ok: false, message: e?.message || 'Falha ao gerar a petição' }; }
   }
 
-  res.json({ success: true, production_stage: stage, case_number: finalCaseNumber, credentials, peticao });
+  // Ao mover para "REVISÃO INICIAL": revisa a petição (checagens estruturais +
+  // análise de mérito por IA) e salva o parecer nos Documentos do caso.
+  let revisao: { ok: boolean; docId?: number; message?: string; resumo?: any } | null = null;
+  if (stage === 'revisao_inicial' && c.production_stage !== 'revisao_inicial') {
+    try { revisao = await revisarPeticaoDoCaso(Number(id), req.user!.id); }
+    catch (e: any) { revisao = { ok: false, message: e?.message || 'Falha ao revisar a petição' }; }
+  }
+
+  res.json({ success: true, production_stage: stage, case_number: finalCaseNumber, credentials, peticao, revisao });
 });
 
 // ── GET /api/cases/:id/timeline — histórico ligado a este caso ──────────────

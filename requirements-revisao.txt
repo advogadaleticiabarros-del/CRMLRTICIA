@@ -1,0 +1,4 @@
+# Dependências do Revisar_peticao.py
+# HTTP, regex e JSON são da biblioteca padrão — só precisa destes p/ ler arquivos:
+pdfplumber>=0.11    # extração de texto de PDF
+python-docx>=1.1    # extração de texto de DOCX
