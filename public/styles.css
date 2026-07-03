@@ -1050,12 +1050,13 @@ html, body { overflow-x: clip; max-width: 100%; }
 .kpi .value { overflow-wrap: anywhere; line-height: 1.15; }
 /* Valores monetários longos encolhem um pouco em telas estreitas */
 .kpi .value.money { font-size: clamp(17px, 1.1vw + 12px, 24px); }
-/* Cabeçalhos e células de tabela não estouram a largura */
-thead th, tbody td { overflow-wrap: anywhere; }
+/* (removido) NÃO forçar overflow-wrap nas células de tabela: quebrava palavras
+   no meio (ex.: "resumo_cliente" -> "resumo_cli/ente") em todas as resoluções.
+   No mobile as tabelas já viram cartões, então não é necessário. */
 /* Mídia e ícones jamais ultrapassam o container */
 img, svg, video { max-width: 100%; }
-/* Títulos longos quebram em vez de vazar */
-.page-header h2, .dash-section h3, .card strong, .modal-header h3 { overflow-wrap: anywhere; }
+/* Títulos de página longos quebram por palavra (não no meio) em vez de vazar */
+.page-header h2 { overflow-wrap: break-word; }
 /* Qualquer grade de KPIs: gap coerente e sem overflow */
 .kpi-grid { min-width: 0; }
 
