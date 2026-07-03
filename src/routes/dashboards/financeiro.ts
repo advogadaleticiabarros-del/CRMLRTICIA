@@ -96,7 +96,7 @@ router.get('/', async (req: Request, res: Response) => {
     const saldo_previsto   = recebimentos_previstos - despesas_previstas;
     const saldo_realizado  = recebimentos_realizados - despesas_pagas;
 
-    // Previsão próximos 3/6/12 meses (financial_records + installments + correspondent_hearings)
+    // Previsão próximos 3/6/12 meses (financial_records + correspondent_hearings)
     const [previsao] = await db.query(`
       SELECT mes, SUM(receitas) AS receitas, SUM(despesas) AS despesas
       FROM (
@@ -106,14 +106,14 @@ router.get('/', async (req: Request, res: Response) => {
         FROM financial_records
         WHERE user_id = ? AND status = 'pendente'
           AND due_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 12 MONTH)
-        GROUP BY mes
+        GROUP BY DATE_FORMAT(due_date, '%Y-%m')
         UNION ALL
         SELECT DATE_FORMAT(due_date, '%Y-%m') AS mes,
           SUM(value) AS receitas, 0 AS despesas
         FROM correspondent_hearings
         WHERE user_id = ? AND status IN ('agendada','realizada','faturada')
           AND due_date BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 12 MONTH)
-        GROUP BY mes
+        GROUP BY DATE_FORMAT(due_date, '%Y-%m')
       ) combined
       GROUP BY mes
       ORDER BY mes ASC

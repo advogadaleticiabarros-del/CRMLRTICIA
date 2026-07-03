@@ -28,12 +28,18 @@ router.get('/', async (req: Request, res: Response) => {
         COALESCE(SUM(CASE WHEN status='pendente' AND due_date <= CURDATE() THEN valor END),0) AS receber_hoje,
         COALESCE(SUM(CASE WHEN status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS receber_7d,
         COALESCE(SUM(CASE WHEN status='pendente' AND due_date < CURDATE() THEN valor END),0) AS vencido
-      FROM installments`, []) as any;
+      FROM installments WHERE user_id = ?`, [userId]) as any;
+    const [[aud]] = await db.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date <= CURDATE() THEN value END),0) AS receber_hoje,
+        COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN value END),0) AS receber_7d,
+        COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date < CURDATE() THEN value END),0) AS vencido
+      FROM correspondent_hearings WHERE user_id = ?`, [userId]) as any;
     return {
-      receber_hoje: Number(fr.receber_hoje) + Number(inst.receber_hoje),
-      receber_7d:   Number(fr.receber_7d)   + Number(inst.receber_7d),
+      receber_hoje: Number(fr.receber_hoje) + Number(inst.receber_hoje) + Number(aud.receber_hoje),
+      receber_7d:   Number(fr.receber_7d)   + Number(inst.receber_7d)   + Number(aud.receber_7d),
       pagar_7d:     Number(fr.pagar_7d),
-      vencido:      Number(fr.vencido)      + Number(inst.vencido),
+      vencido:      Number(fr.vencido)      + Number(inst.vencido)      + Number(aud.vencido),
     };
   }, { receber_hoje: 0, receber_7d: 0, pagar_7d: 0, vencido: 0 });
 
@@ -63,8 +69,8 @@ router.get('/', async (req: Request, res: Response) => {
         LEFT JOIN legal_processes lp ON lp.id = d.process_id
         LEFT JOIN clients c  ON c.id  = d.client_id
         LEFT JOIN clients cp ON cp.id = lp.client_id
-       WHERE d.status = 'a_confirmar'
-       ORDER BY d.start_date DESC LIMIT 10`, []) as any;
+       WHERE d.status = 'a_confirmar' AND (lp.user_id = ? OR lp.id IS NULL)
+       ORDER BY d.start_date DESC LIMIT 10`, [userId]) as any;
     return rows;
   }, [] as any[]);
 
@@ -74,18 +80,18 @@ router.get('/', async (req: Request, res: Response) => {
       SELECT ma.id, ma.title, ma.detected_keyword, lp.process_number
         FROM movement_alerts ma
         LEFT JOIN legal_processes lp ON lp.id = ma.process_id
-       WHERE ma.status = 'aberto'
-       ORDER BY ma.created_at DESC LIMIT 10`, []) as any;
+       WHERE ma.status = 'aberto' AND (lp.user_id = ? OR lp.id IS NULL)
+       ORDER BY ma.created_at DESC LIMIT 10`, [userId]) as any;
     return rows;
   }, [] as any[]);
 
-  // Agenda de hoje (reuniões/audiências/compromissos)
+  // Agenda de hoje (reuniões/audiências/compromissos — excluindo canceladas)
   const agenda_hoje = await safe(async () => {
     const [rows] = await db.query(`
       SELECT ce.id, ce.title, ce.event_type, ce.start_datetime, cl.name AS client_name
         FROM calendar_events ce
         LEFT JOIN clients cl ON cl.id = ce.client_id
-       WHERE ce.user_id = ? AND DATE(ce.start_datetime) = CURDATE()
+       WHERE ce.user_id = ? AND DATE(ce.start_datetime) = CURDATE() AND ce.sync_status NOT IN ('cancelado','erro')
        ORDER BY ce.start_datetime ASC`, [userId]) as any;
     return rows;
   }, [] as any[]);
@@ -100,7 +106,7 @@ router.get('/', async (req: Request, res: Response) => {
     }, 0),
     safe(async () => {
       const [[r]] = await db.query(
-        "SELECT COUNT(*) total FROM leads WHERE status = 'proposta_em_analise'", []
+        "SELECT COUNT(*) total FROM leads WHERE user_id = ? AND status = 'proposta_em_analise'", [userId]
       ) as any;
       return Number(r.total);
     }, 0),

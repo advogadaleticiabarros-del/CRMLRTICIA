@@ -26,10 +26,10 @@ router.get('/', async (req: Request, res: Response) => {
         SUM(lp.status IN ('rascunho','producao','revisao')) AS em_andamento
       FROM legal_pieces lp
       JOIN users u ON u.id = lp.user_id
-      WHERE lp.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      WHERE lp.user_id = ? AND lp.created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
       GROUP BY u.id, u.name
       ORDER BY total DESC
-    `, []) as any;
+    `, [userId]) as any;
 
     const [pecasVencendo] = await db.query(`
       SELECT lp.id, lp.title, lp.type, lp.due_date, lp.status,

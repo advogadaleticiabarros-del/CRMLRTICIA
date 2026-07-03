@@ -41,32 +41,32 @@ router.get('/', async (req: Request, res: Response) => {
       ORDER BY d.deadline_date ASC
     `, []) as any;
 
-    // Compromissos do dia
+    // Compromissos do dia (excluindo cancelados)
     const [compromissosDia] = await db.query(`
       SELECT ce.id, ce.title, ce.event_type, ce.start_datetime, ce.end_datetime,
              ce.location, ce.video_link, cl.name AS client_name
       FROM calendar_events ce
       LEFT JOIN clients cl ON cl.id = ce.client_id
-      WHERE ce.user_id = ? AND DATE(ce.start_datetime) = ?
+      WHERE ce.user_id = ? AND DATE(ce.start_datetime) = ? AND ce.sync_status NOT IN ('cancelado','erro')
       ORDER BY ce.start_datetime ASC
     `, [userId, today]) as any;
 
-    // Reuniões futuras
+    // Reuniões futuras (excluindo canceladas)
     const [reunioesFuturas] = await db.query(`
       SELECT ce.id, ce.title, ce.start_datetime, ce.video_link, cl.name AS client_name
       FROM calendar_events ce
       LEFT JOIN clients cl ON cl.id = ce.client_id
-      WHERE ce.user_id = ? AND ce.event_type = 'reuniao' AND ce.start_datetime > NOW()
+      WHERE ce.user_id = ? AND ce.event_type = 'reuniao' AND ce.start_datetime > NOW() AND ce.sync_status NOT IN ('cancelado','erro')
       ORDER BY ce.start_datetime ASC
       LIMIT 10
     `, [userId]) as any;
 
-    // Audiências
+    // Audiências (excluindo canceladas)
     const [audiencias] = await db.query(`
       SELECT ce.id, ce.title, ce.start_datetime, ce.location, cl.name AS client_name
       FROM calendar_events ce
       LEFT JOIN clients cl ON cl.id = ce.client_id
-      WHERE ce.user_id = ? AND ce.event_type = 'audiencia' AND ce.start_datetime >= NOW()
+      WHERE ce.user_id = ? AND ce.event_type = 'audiencia' AND ce.start_datetime >= NOW() AND ce.sync_status NOT IN ('cancelado','erro')
       ORDER BY ce.start_datetime ASC
       LIMIT 10
     `, [userId]) as any;
