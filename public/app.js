@@ -2071,12 +2071,14 @@ async function provisaoForm(onSave) {
 // ── Correspondente Jurídico (audiências para terceiros) ──────────────────────
 async function renderCorrespondente(page) {
   page.innerHTML = `
-    <div class="page-header"><div><div><h2>Correspondente Jurídico</h2><p class="sub">Audiências para outros escritórios — como advogado ou preposto</p></div>
-      <button class="btn-gold btn-large" id="new-corr-btn">📋 Lançar audiência</button></div></div>
+    <div class="page-header"><div><h2>Correspondente Jurídico</h2><p class="sub">Audiências para outros escritórios — como advogado ou preposto</p></div></div>
     <div id="corr-kpis" class="kpi-grid"></div>
-    <div class="tabs" id="corr-tabs">
-      <button class="tab active" data-tab="historico">📊 Histórico</button>
-      <button class="tab" data-tab="agenda">📅 Audiências da Agenda</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div class="tabs" id="corr-tabs">
+        <button class="tab active" data-tab="historico">📊 Histórico</button>
+        <button class="tab" data-tab="agenda">📅 Audiências da Agenda</button>
+      </div>
+      <button class="btn-subtle" id="new-corr-btn" title="Lançar nova audiência">+ Audiência</button>
     </div>
     <div id="corr-content"></div>`;
 

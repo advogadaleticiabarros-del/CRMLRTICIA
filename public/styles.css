@@ -1323,6 +1323,28 @@ img, svg, video { max-width: 100%; }
   transform: translateY(0);
 }
 
+/* ── Botão Subtle: delicado, elegante, sem peso ── */
+.btn-subtle {
+  background: transparent;
+  color: var(--gold-soft);
+  border: 1px solid var(--gold-soft);
+  padding: 8px 14px;
+  font-size: 13px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all .2s ease-out;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.btn-subtle:hover {
+  color: var(--gold);
+  border-color: var(--gold);
+  background: rgba(193, 154, 78, .04);
+}
+.btn-subtle:active {
+  transform: scale(.98);
+}
+
 /* ── Responsividade: Desktop, Tablet, Mobile ── */
 @media (min-width: 1440px) {
   /* Desktop grande: expandir cards e formulários */
