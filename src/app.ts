@@ -55,6 +55,8 @@ import propostaPublicRoutes from './routes/propostas-public';
 import backupRoutes from './routes/backup';
 import briefingRoutes from './routes/briefing';
 import metricsRoutes from './routes/metrics';
+import officeSettingsRoutes from './routes/office-settings';
+import paymentsRoutes from './routes/payments';
 import { googleOAuthCallback } from './routes/google-callback';
 
 export function createApp() {
@@ -114,6 +116,8 @@ export function createApp() {
   app.use('/api/backup',                authenticate, requireAdmin, backupRoutes);
   app.use('/api/briefing',              authenticate, requireAdmin, briefingRoutes);
   app.use('/api/metrics',               authenticate, requireStaff, metricsRoutes);
+  app.use('/api/office-settings',       authenticate, requireAdmin, officeSettingsRoutes);
+  app.use('/api/payments',              authenticate, requireStaff, paymentsRoutes);
   app.use('/api/processes',             authenticate, requireStaff, processRoutes);
   app.use('/api/prazos-detectados',     authenticate, requireStaff, detectedDeadlineRoutes);
   app.use('/api/journey',               authenticate, requireStaff, journeyRoutes);
