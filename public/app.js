@@ -2253,19 +2253,33 @@ async function correspondenteFormHtml(prefill = {}) {
   const solOpts = [{ v: '', t: '— Novo solicitante —' }].concat(
     solicitantes.map((s, i) => ({ v: String(i), t: `${s.payer_name}${s.requesting_office ? ' — ' + s.requesting_office : ''}${s.usos > 1 ? ` (${s.usos}x)` : ''}` }))
   );
-  return `<form class="form-grid" id="corresp-form">
-    <div class="form-row">${field('Data e hora *', 'hearing_datetime', { type: 'datetime-local', value: prefill.hearing_datetime || '' })}${field('Atuação', 'role', { options: [{ v: 'advogado', t: 'Advogado' }, { v: 'preposto', t: 'Preposto' }] })}</div>
-    <div class="form-row">${field('Processo', 'process_number')}${field('Comarca', 'comarca')}</div>
-    <div class="form-row">${field('Vara', 'vara')}${field('Fórum / link', 'location')}</div>
-    <div><strong style="color:var(--navy)">Quem solicitou / paga</strong></div>
-    ${solicitantes.length ? field('Repetir solicitante já usado', 'sol_pick', { options: solOpts }) : ''}
-    ${field('Escritório/advogado contratante', 'requesting_office')}
-    ${field('Pagador (empresa ou pessoa) *', 'payer_name')}
-    <div class="form-row">${field('Tipo', 'payer_type', { options: [{ v: 'PJ', t: 'Empresa (PJ)' }, { v: 'PF', t: 'Pessoa (PF)' }] })}${field('CNPJ/CPF', 'payer_document')}</div>
-    <div><strong style="color:var(--navy)">Pagamento</strong></div>
-    <div class="form-row">${field('Valor da audiência *', 'value', { type: 'number' })}${field('Vencimento', 'due_date', { type: 'date' })}</div>
-    ${field('Observações', 'notes', { type: 'textarea' })}
-    <button type="submit" class="btn-primary">Registrar audiência</button>
+  return `<form class="form-grid form-pro-max" id="corresp-form">
+    <div class="form-section">
+      <div class="section-header">📅 Quando</div>
+      <div class="form-row">${field('Data e hora *', 'hearing_datetime', { type: 'datetime-local', value: prefill.hearing_datetime || '' })}${field('Atuação', 'role', { options: [{ v: 'advogado', t: '👨‍⚖️ Advogado' }, { v: 'preposto', t: '📋 Preposto' }] })}</div>
+    </div>
+
+    <div class="form-section">
+      <div class="section-header">⚖️ Processo</div>
+      <div class="form-row">${field('Número do processo', 'process_number')}${field('Comarca', 'comarca')}</div>
+      <div class="form-row">${field('Vara', 'vara')}${field('Fórum / link', 'location')}</div>
+    </div>
+
+    <div class="form-section">
+      <div class="section-header">🤝 Quem pagou</div>
+      ${solicitantes.length ? field('Repetir solicitante já usado', 'sol_pick', { options: solOpts }) : ''}
+      ${field('Escritório/advogado contratante', 'requesting_office')}
+      <div class="form-row">${field('Pagador (empresa ou pessoa) *', 'payer_name', { style: 'grid-column: 1 / -1;' })}${field('Tipo', 'payer_type', { options: [{ v: 'PJ', t: 'PJ' }, { v: 'PF', t: 'PF' }] })}</div>
+      ${field('CNPJ/CPF', 'payer_document')}
+    </div>
+
+    <div class="form-section">
+      <div class="section-header">💰 Pagamento</div>
+      <div class="form-row">${field('Valor da audiência *', 'value', { type: 'number' })}${field('Vencimento', 'due_date', { type: 'date' })}</div>
+      ${field('Observações', 'notes', { type: 'textarea' })}
+    </div>
+
+    <button type="submit" class="btn-primary btn-large">✓ Registrar audiência</button>
   </form>`;
 }
 
