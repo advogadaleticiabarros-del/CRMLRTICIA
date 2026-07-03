@@ -2634,11 +2634,17 @@ async function dashAgenda(c) {
 }
 
 async function dashFinanceiro(c) {
-  const [s, d, i] = await Promise.all([
+  const [s, d, i, series] = await Promise.all([
     api('/api/financial/summary'),
     api('/api/dashboards/financeiro'),
     api('/api/financial/inteligencia').catch(() => null),
+    api('/api/metrics/series?days=30').catch(() => ({})),
   ]);
+  const serieF = (k) => ((series && series[k]) || []).map((p) => p.value);
+  const statF = (label, value, key, color) => {
+    const sp = serieF(key), spark = sp.length > 1 ? sparkline(sp, { color: color || 'var(--gold)' }) : '';
+    return `<div class="kpi"><div class="label">${label}</div><div class="value money">${money(value)}</div>${spark}</div>`;
+  };
 
   const corSaldo = (v) => v < 0 ? 'var(--red)' : 'var(--green)';
   let inteligencia = '';
@@ -2668,10 +2674,10 @@ async function dashFinanceiro(c) {
 
   c.innerHTML = `
     <div class="kpi-grid">
-      ${kpi('Receita prevista', money(s.receita_prevista), 'money')}${kpi('Receita realizada', money(s.receita_realizada), 'money')}
-      ${kpi('Despesa prevista', money(s.despesa_prevista), 'money')}${kpi('Despesa paga', money(s.despesa_paga), 'money')}
-      ${kpi('Saldo previsto', money(s.saldo_previsto), 'money')}${kpi('Saldo realizado', money(s.saldo_realizado), 'money')}
-      ${kpi('Inadimplência', money(s.inadimplencia), 'money')}
+      ${statF('Receita prevista', s.receita_prevista, 'receita_prevista', 'var(--green)')}${statF('Receita realizada', s.receita_realizada, 'receita_realizada', 'var(--green)')}
+      ${statF('Despesa prevista', s.despesa_prevista, 'despesa_prevista', 'var(--red)')}${statF('Despesa paga', s.despesa_paga, 'despesa_paga', 'var(--red)')}
+      ${statF('Saldo previsto', s.saldo_previsto, 'saldo_previsto', 'var(--gold)')}${statF('Saldo realizado', s.saldo_realizado, 'saldo_realizado', 'var(--gold)')}
+      ${statF('Inadimplência', s.inadimplencia, 'inadimplencia', 'var(--red)')}
     </div>
     ${inteligencia}
     ${chartCard('Fluxo mensal — receitas × despesas', chartColumns(
