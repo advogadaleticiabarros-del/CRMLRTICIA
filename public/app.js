@@ -3880,7 +3880,7 @@ async function caseDetail(id, onSave) {
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Pasta do Drive com os documentos deste caso — a IA lê, organiza e monta o checklist</small>
           <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap"><input id="prod-drive" placeholder="cole o link da pasta do Google Drive" value="${esc(p.drive_folder_url || '')}" style="flex:1;min-width:180px"><button class="btn-sm" type="button" id="prod-drive-save">Salvar</button><button class="btn-gold btn-sm" type="button" id="prod-analyze">${svgIcon('ia')}Analisar documentos</button></div>
           <div id="prod-analysis" style="margin-top:8px"></div></div>
-        <div style="margin-top:10px"><small style="color:var(--text-muted)">📄 Documentos do caso (peças, minutas, anexos)</small>
+        <div style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center"><small style="color:var(--text-muted)">📄 Documentos do caso (peças, minutas, anexos)</small><button class="btn-sm btn-gold" type="button" id="prod-gen-peticao">🔄 Gerar nova versão da petição (IA)</button></div>
           <div id="prod-docs">${docsHtml}</div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Histórico e atualizações do caso (do lead à produção)</small>
           <div style="max-height:240px;overflow:auto">${histHtml}</div>
@@ -3920,6 +3920,12 @@ async function caseDetail(id, onSave) {
           } else { out.innerHTML = ''; toast('Não foi possível analisar: ' + (r.message || ''), 'error'); }
         } catch (e) { out.innerHTML = ''; toast(e.message, 'error'); }
         danalyze.disabled = false; danalyze.innerHTML = orig;
+      };
+      const genBtn = panel.querySelector('#prod-gen-peticao');
+      if (genBtn) genBtn.onclick = async () => {
+        genBtn.disabled = true; genBtn.textContent = 'Gerando com IA…';
+        try { const r = await api(`/api/cases/${id}/peticao-inicial`, { method: 'POST', body: '{}' }); toast(`✓ Petição v${r.version || ''} gerada`); loadProd(); }
+        catch (e) { toast(e.message, 'error'); genBtn.disabled = false; genBtn.textContent = '🔄 Gerar nova versão da petição (IA)'; }
       };
       panel.querySelectorAll('[data-doc]').forEach((b) => b.onclick = async () => {
         try {

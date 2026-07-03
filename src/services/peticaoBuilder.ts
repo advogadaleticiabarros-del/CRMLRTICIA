@@ -211,11 +211,17 @@ ${docsTxt || '[Nenhum documento com conteúdo lido — verifique o link da pasta
  * Gera a petição inicial do caso e salva na produção. Idempotente: se já houver
  * uma petição gerada para o caso, não recria (a menos que force=true).
  */
-export async function buildPeticaoInicial(caseId: number, actorId: number, force = false): Promise<{ ok: boolean; docId?: number; message?: string }> {
-  const [[exists]] = await db.query(
-    "SELECT id FROM documents WHERE case_id = ? AND type = 'ia' AND name LIKE 'Petição Inicial%' ORDER BY id DESC LIMIT 1", [caseId]
+export async function buildPeticaoInicial(caseId: number, actorId: number, force = false): Promise<{ ok: boolean; docId?: number; version?: number; message?: string }> {
+  // Versões preservadas (v1, v2, v3…) — nunca sobrescreve, para comparação.
+  const [existing] = await db.query(
+    "SELECT id, name FROM documents WHERE case_id = ? AND type = 'ia' AND name LIKE 'Petição Inicial%' ORDER BY id DESC", [caseId]
   ) as any;
-  if (exists && !force) return { ok: true, docId: exists.id, message: 'Petição já existente' };
+  // No gatilho automático (move para "Criação inicial") gera só a 1ª; regeração
+  // é sempre por ação manual (force=true), que cria a próxima versão.
+  if (existing.length && !force) return { ok: true, docId: existing[0].id, message: 'Petição já existente (use "gerar nova versão" para regerar)' };
+  let maxV = 0;
+  for (const d of existing) { const m = String(d.name).match(/\(v(\d+)\)/); maxV = Math.max(maxV, m ? Number(m[1]) : 1); }
+  const version = maxV + 1;
 
   // 0) se o caso aponta uma pasta do Drive, importa os arquivos dela.
   const [[cf]] = await db.query('SELECT client_id, drive_folder_url FROM cases WHERE id = ?', [caseId]) as any;
@@ -229,12 +235,12 @@ export async function buildPeticaoInicial(caseId: number, actorId: number, force
   const out = await aiComplete(prompt, 'gemini');
   if (!out.ok || !out.text) return { ok: false, message: out.message || 'A IA não retornou a petição' };
 
-  // 4) salva na produção.
-  const name = `Petição Inicial — ${clientName} (IA)`;
+  // 4) salva na produção como NOVA VERSÃO (não sobrescreve as anteriores).
+  const name = `Petição Inicial — ${clientName} (v${version})`;
   const [r] = await db.query(
     `INSERT INTO documents (client_id, case_id, name, type, folder, content, status, created_by)
      VALUES (?, ?, ?, 'ia', 'processos', ?, 'pendente', ?)`,
     [clientId, caseId, name, out.text, actorId]
   ) as any;
-  return { ok: true, docId: r.insertId };
+  return { ok: true, docId: r.insertId, version };
 }

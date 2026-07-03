@@ -199,6 +199,16 @@ router.post('/:id/contexto', async (req: Request, res: Response) => {
   res.status(201).json({ success: true });
 });
 
+// ── POST /api/cases/:id/peticao-inicial — gera uma NOVA VERSÃO da petição ────
+// Regeração manual: cria v2, v3… (preserva as anteriores para comparação).
+router.post('/:id/peticao-inicial', async (req: Request, res: Response) => {
+  try {
+    const r = await buildPeticaoInicial(Number(req.params.id), req.user!.id, true);
+    if (!r.ok) { res.status(400).json({ error: r.message || 'Não foi possível gerar' }); return; }
+    res.json({ success: true, ...r });
+  } catch (e: any) { res.status(400).json({ error: e?.message || 'Falha ao gerar a petição' }); }
+});
+
 // ── PATCH /api/cases/:id/production-meta — etiquetas e responsável ───────────
 router.patch('/:id/production-meta', async (req: Request, res: Response) => {
   const { labels, assignee, drive_folder_url } = req.body;
