@@ -2071,16 +2071,14 @@ async function provisaoForm(onSave) {
 // ── Correspondente Jurídico (audiências para terceiros) ──────────────────────
 async function renderCorrespondente(page) {
   page.innerHTML = `
-    <div class="page-header"><div><h2>Correspondente Jurídico</h2><p class="sub">Audiências para outros escritórios — como advogado ou preposto</p></div>
-      <button class="btn-gold" id="new-corr">+ Nova audiência</button></div>
+    <div class="page-header"><div><h2>Correspondente Jurídico</h2><p class="sub">Audiências para outros escritórios — como advogado ou preposto</p></div></div>
     <div id="corr-kpis" class="kpi-grid"></div>
-    <div id="corr-pend"></div>
-    <div class="toolbar">
-      <select id="corr-filter"><option value="">Todas</option>
-        <option value="agendada">Agendadas</option><option value="realizada">Realizadas</option>
-        <option value="faturada">Faturadas</option><option value="paga">Pagas</option><option value="cancelada">Canceladas</option></select>
+    <div class="tabs" id="corr-tabs">
+      <button class="tab active" data-tab="lancar">+ Lançar audiência</button>
+      <button class="tab" data-tab="agenda">Audiências da Agenda</button>
+      <button class="tab" data-tab="historico">Histórico</button>
     </div>
-    <div class="card"><div id="corr-table"></div></div>`;
+    <div id="corr-content"></div>`;
 
   const loadKpis = async () => {
     const s = await api('/api/correspondente/summary');
@@ -2089,56 +2087,93 @@ async function renderCorrespondente(page) {
       kpi('A receber', money(s.a_receber), 'money') + kpi('Recebido', money(s.recebido), 'money') +
       kpi('Previsto total', money(s.previsto), 'money');
   };
-  const load = async () => {
-    const q = $('#corr-filter').value ? '?status=' + $('#corr-filter').value : '';
-    const rows = await api('/api/correspondente' + q);
-    $('#corr-table').innerHTML = rows.length ? `
-      <table><thead><tr><th>Data/hora</th><th>Atuação</th><th>Processo</th><th>Pagador</th><th>Valor</th><th>Status</th><th></th></tr></thead>
-      <tbody>${rows.map((h) => {
-        const acoes = [];
-        if (h.status === 'agendada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="realizada">Realizada</button>`);
-        if (h.status === 'realizada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="faturada">Faturar</button>`);
-        if (h.status === 'faturada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="paga">Receber</button>`);
-        if (!['paga','cancelada'].includes(h.status)) acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="cancelada">Cancelar</button>`);
-        return `<tr>
-          <td>${fmtDateTime(h.hearing_datetime)}<br><small style="color:var(--text-muted)">${h.comarca || ''}</small></td>
-          <td>${h.role === 'preposto' ? 'Preposto' : 'Advogado'}</td>
-          <td>${h.process_number || '—'}<br><small style="color:var(--text-muted)">${h.requesting_office || ''}</small></td>
-          <td>${h.payer_name}<br><small style="color:var(--text-muted)">${h.payer_type}${h.payer_document ? ' · ' + h.payer_document : ''}</small></td>
-          <td>${money(h.value)}</td><td>${badge(h.status)}</td>
-          <td style="white-space:nowrap">${acoes.join(' ')}</td></tr>`;
-      }).join('')}</tbody></table>`
-      : '<div class="empty">Nenhuma audiência registrada</div>';
-    document.querySelectorAll('[data-st]').forEach((b) => b.onclick = async () => {
-      try { await api(`/api/correspondente/${b.dataset.st}/status`, { method: 'PATCH', body: JSON.stringify({ status: b.dataset.to }) }); toast('Status atualizado'); loadKpis(); load(); }
-      catch (e) { toast(e.message, 'error'); }
-    });
+
+  // TAB: Lançar audiência (formulário)
+  const showLancar = async () => {
+    const c = $('#corr-content');
+    c.innerHTML = `<div class="card" style="max-width:600px;margin:0 auto"><div style="padding:20px">${await correspondenteFormHtml()}</div></div>`;
+    await attachCorrespondenteFormHandlers(() => showLancar());
   };
-  const refresh = () => { loadKpis(); load(); loadPend(); };
-  const loadPend = async () => {
+
+  // TAB: Audiências da Agenda (pendências)
+  const showAgenda = async () => {
+    const c = $('#corr-content');
     const pend = await api('/api/correspondente/agenda-pendencias').catch(() => []);
-    $('#corr-pend').innerHTML = pend.length ? `
-      <div class="card" style="margin-bottom:16px;border:1px solid var(--gold)">
-        <div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--gold)">Audiências vindas do Google a classificar (${pend.length})</strong>
-          <p class="sub" style="margin:2px 0 0">Eventos do Google com "audiência" no título — diga se é correspondente ou do cliente.</p></div>
+    c.innerHTML = pend.length ? `
+      <div class="card" style="border:1px solid var(--gold)">
+        <div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--gold)">Audiências vindas do Google (${pend.length})</strong>
+          <p class="sub" style="margin:2px 0 0">Clique em "É correspondente" para lançar como audiência de correspondente, ou "É do cliente" para vincular à ficha.</p></div>
         ${pend.map((e) => `<div class="mini-row">
           <span><strong>${e.title}</strong><br><small style="color:var(--text-muted)">${fmtDateTime(e.start_datetime)} ${e.location ? '· ' + e.location : ''}</small></span>
           <span style="white-space:nowrap">
             <button class="btn-sm" data-pend-corr="${e.id}" data-dt="${e.start_datetime}">É correspondente</button>
             <button class="btn-sm" data-pend-cli="${e.id}">É do cliente</button></span></div>`).join('')}
-      </div>` : '';
+      </div>` : '<div class="empty">Nenhuma audiência na agenda para classificar</div>';
+
     document.querySelectorAll('[data-pend-corr]').forEach((b) => b.onclick = () => {
       const dt = new Date(b.dataset.dt); const local = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-      correspondenteForm(refresh, { hearing_datetime: local, calendar_event_id: b.dataset.pendCorr });
+      correspondenteForm(() => showAgenda(), { hearing_datetime: local, calendar_event_id: b.dataset.pendCorr });
     });
     document.querySelectorAll('[data-pend-cli]').forEach((b) => b.onclick = () => clientPicker(async (clientId) => {
-      try { await api(`/api/correspondente/agenda-pendencias/${b.dataset.pendCli}/cliente`, { method: 'POST', body: JSON.stringify({ client_id: clientId }) }); toast('Audiência vinculada ao cliente'); loadPend(); }
+      try { await api(`/api/correspondente/agenda-pendencias/${b.dataset.pendCli}/cliente`, { method: 'POST', body: JSON.stringify({ client_id: clientId }) }); toast('Audiência vinculada ao cliente'); await showAgenda(); }
       catch (e) { toast(e.message, 'error'); }
     }));
   };
-  $('#corr-filter').onchange = load;
-  $('#new-corr').onclick = () => correspondenteForm(refresh);
-  await loadKpis(); await load(); await loadPend();
+
+  // TAB: Histórico (tabela com filtros)
+  const showHistorico = async () => {
+    const c = $('#corr-content');
+    c.innerHTML = `
+      <div class="toolbar">
+        <select id="corr-filter"><option value="">Todas</option>
+          <option value="agendada">Agendadas</option><option value="realizada">Realizadas</option>
+          <option value="faturada">Faturadas</option><option value="paga">Pagas</option><option value="cancelada">Canceladas</option></select>
+      </div>
+      <div class="card"><div id="corr-table"></div></div>`;
+
+    const loadHistorico = async () => {
+      const q = $('#corr-filter').value ? '?status=' + $('#corr-filter').value : '';
+      const rows = await api('/api/correspondente' + q);
+      $('#corr-table').innerHTML = rows.length ? `
+        <table><thead><tr><th>Data/hora</th><th>Atuação</th><th>Processo</th><th>Pagador</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+        <tbody>${rows.map((h) => {
+          const acoes = [];
+          if (h.status === 'agendada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="realizada">Realizada</button>`);
+          if (h.status === 'realizada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="faturada">Faturar</button>`);
+          if (h.status === 'faturada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="paga">Receber</button>`);
+          if (!['paga','cancelada'].includes(h.status)) acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="cancelada">Cancelar</button>`);
+          return `<tr>
+            <td>${fmtDateTime(h.hearing_datetime)}<br><small style="color:var(--text-muted)">${h.comarca || ''}</small></td>
+            <td>${h.role === 'preposto' ? 'Preposto' : 'Advogado'}</td>
+            <td>${h.process_number || '—'}<br><small style="color:var(--text-muted)">${h.requesting_office || ''}</small></td>
+            <td>${h.payer_name}<br><small style="color:var(--text-muted)">${h.payer_type}${h.payer_document ? ' · ' + h.payer_document : ''}</small></td>
+            <td>${money(h.value)}</td><td>${badge(h.status)}</td>
+            <td style="white-space:nowrap">${acoes.join(' ')}</td></tr>`;
+        }).join('')}</tbody></table>`
+        : '<div class="empty">Nenhuma audiência registrada</div>';
+      document.querySelectorAll('[data-st]').forEach((b) => b.onclick = async () => {
+        try { await api(`/api/correspondente/${b.dataset.st}/status`, { method: 'PATCH', body: JSON.stringify({ status: b.dataset.to }) }); toast('Status atualizado'); loadKpis(); loadHistorico(); }
+        catch (e) { toast(e.message, 'error'); }
+      });
+    };
+    $('#corr-filter').onchange = loadHistorico;
+    await loadHistorico();
+  };
+
+  // Switch entre abas
+  document.querySelectorAll('#corr-tabs .tab').forEach((tab) => {
+    tab.onclick = async () => {
+      document.querySelectorAll('#corr-tabs .tab').forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+      const tabName = tab.dataset.tab;
+      if (tabName === 'lancar') await showLancar();
+      else if (tabName === 'agenda') await showAgenda();
+      else if (tabName === 'historico') await showHistorico();
+    };
+  });
+
+  await loadKpis();
+  await showLancar();
 }
 
 async function clientPicker(onPick) {
@@ -2213,13 +2248,12 @@ async function confirmDeadlineForm(d, onSave) {
   openModal('Confirmar prazo', form);
 }
 
-async function correspondenteForm(onSave, prefill = {}) {
-  // Solicitantes/pagadores já usados — para repetir sem redigitar.
+async function correspondenteFormHtml(prefill = {}) {
   const solicitantes = await api('/api/correspondente/solicitantes').catch(() => []);
   const solOpts = [{ v: '', t: '— Novo solicitante —' }].concat(
     solicitantes.map((s, i) => ({ v: String(i), t: `${s.payer_name}${s.requesting_office ? ' — ' + s.requesting_office : ''}${s.usos > 1 ? ` (${s.usos}x)` : ''}` }))
   );
-  const form = el(`<form class="form-grid">
+  return `<form class="form-grid" id="corresp-form">
     <div class="form-row">${field('Data e hora *', 'hearing_datetime', { type: 'datetime-local', value: prefill.hearing_datetime || '' })}${field('Atuação', 'role', { options: [{ v: 'advogado', t: 'Advogado' }, { v: 'preposto', t: 'Preposto' }] })}</div>
     <div class="form-row">${field('Processo', 'process_number')}${field('Comarca', 'comarca')}</div>
     <div class="form-row">${field('Vara', 'vara')}${field('Fórum / link', 'location')}</div>
@@ -2232,9 +2266,12 @@ async function correspondenteForm(onSave, prefill = {}) {
     <div class="form-row">${field('Valor da audiência *', 'value', { type: 'number' })}${field('Vencimento', 'due_date', { type: 'date' })}</div>
     ${field('Observações', 'notes', { type: 'textarea' })}
     <button type="submit" class="btn-primary">Registrar audiência</button>
-  </form>`);
+  </form>`;
+}
 
-  // Ao escolher um solicitante já usado, preenche os campos do pagador.
+async function attachCorrespondenteFormHandlers(onSave, prefill = {}) {
+  const form = $('#corresp-form');
+  const solicitantes = await api('/api/correspondente/solicitantes').catch(() => []);
   const pick = form.querySelector('[name=sol_pick]');
   if (pick) pick.onchange = () => {
     const s = solicitantes[Number(pick.value)];
@@ -2245,11 +2282,34 @@ async function correspondenteForm(onSave, prefill = {}) {
     set('payer_type', s.payer_type || 'PJ');
     set('payer_document', s.payer_document);
   };
-
   form.onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form));
-    delete body.sol_pick; // campo auxiliar, não vai para a API
+    delete body.sol_pick;
+    if (prefill.calendar_event_id) body.calendar_event_id = prefill.calendar_event_id;
+    try { await api('/api/correspondente', { method: 'POST', body: JSON.stringify(body) });
+      toast('Audiência registrada'); form.reset(); onSave(); }
+    catch (err) { toast(err.message, 'error'); }
+  };
+}
+
+async function correspondenteForm(onSave, prefill = {}) {
+  const form = el(`<form class="form-grid">${await correspondenteFormHtml(prefill)}</form>`);
+  const solicitantes = await api('/api/correspondente/solicitantes').catch(() => []);
+  const pick = form.querySelector('[name=sol_pick]');
+  if (pick) pick.onchange = () => {
+    const s = solicitantes[Number(pick.value)];
+    if (!s) return;
+    const set = (n, v) => { const inp = form.querySelector(`[name=${n}]`); if (inp) inp.value = v || ''; };
+    set('requesting_office', s.requesting_office);
+    set('payer_name', s.payer_name);
+    set('payer_type', s.payer_type || 'PJ');
+    set('payer_document', s.payer_document);
+  };
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    delete body.sol_pick;
     if (prefill.calendar_event_id) body.calendar_event_id = prefill.calendar_event_id;
     try { await api('/api/correspondente', { method: 'POST', body: JSON.stringify(body) });
       closeModal(); toast('Audiência registrada e agendada'); onSave(); }
