@@ -13,7 +13,7 @@ router.get('/projecao-mes', async (req: Request, res: Response) => {
     const fimMes = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const fimMesStr = fimMes.toISOString().split('T')[0];
 
-    // Resumo do mês: realizado e previsto (entrada/saída)
+    // Resumo do mês: realizado e previsto (entrada/saída) — financial_records
     const [[resumo]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN tipo = 'receita' AND status = 'pago' AND DATE_FORMAT(paid_at, '%Y-%m') = ? THEN valor ELSE 0 END), 0) AS entrada_realizado,
@@ -24,15 +24,29 @@ router.get('/projecao-mes', async (req: Request, res: Response) => {
       WHERE user_id = ?
     `, [mesAtual, inicioMes, fimMesStr, mesAtual, inicioMes, fimMesStr, userId]) as any;
 
-    const saldo_realizado = resumo.entrada_realizado - resumo.saida_realizado;
-    const saldo_previsto = resumo.entrada_previsto - resumo.saida_previsto;
+    // Audiências de correspondente: já recebidas (paga) e a receber (realizada/faturada/agendada)
+    const [[audiencias]] = await db.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status = 'paga' AND DATE_FORMAT(paid_at, '%Y-%m') = ? THEN value ELSE 0 END), 0) AS aud_recebido,
+        COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date BETWEEN ? AND ? THEN value ELSE 0 END), 0) AS aud_previsto
+      FROM correspondent_hearings
+      WHERE user_id = ?
+    `, [mesAtual, inicioMes, fimMesStr, userId]) as any;
+
+    const entrada_realizado = Number(resumo.entrada_realizado) + Number(audiencias.aud_recebido);
+    const entrada_previsto = Number(resumo.entrada_previsto) + Number(audiencias.aud_previsto);
+    const saida_realizado = resumo.saida_realizado;
+    const saida_previsto = resumo.saida_previsto;
+
+    const saldo_realizado = entrada_realizado - saida_realizado;
+    const saldo_previsto = entrada_previsto - saida_previsto;
 
     res.json({
       mes: mesAtual,
-      entrada_realizado: Math.round(resumo.entrada_realizado * 100) / 100,
-      entrada_previsto: Math.round(resumo.entrada_previsto * 100) / 100,
-      saida_realizado: Math.round(resumo.saida_realizado * 100) / 100,
-      saida_previsto: Math.round(resumo.saida_previsto * 100) / 100,
+      entrada_realizado: Math.round(entrada_realizado * 100) / 100,
+      entrada_previsto: Math.round(entrada_previsto * 100) / 100,
+      saida_realizado: Math.round(saida_realizado * 100) / 100,
+      saida_previsto: Math.round(saida_previsto * 100) / 100,
       saldo_realizado: Math.round(saldo_realizado * 100) / 100,
       saldo_previsto: Math.round(saldo_previsto * 100) / 100,
     });

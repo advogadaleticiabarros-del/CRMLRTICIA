@@ -36,7 +36,7 @@ router.get('/summary', async (_req: Request, res: Response) => {
     SELECT
       COALESCE(SUM(CASE WHEN status='agendada' THEN 1 ELSE 0 END),0)                          AS agendadas,
       COALESCE(SUM(CASE WHEN status='realizada' THEN 1 ELSE 0 END),0)                         AS realizadas,
-      COALESCE(SUM(CASE WHEN status IN ('realizada','faturada') THEN value ELSE 0 END),0)     AS a_receber,
+      COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') THEN value ELSE 0 END),0)     AS a_receber,
       COALESCE(SUM(CASE WHEN status='paga' THEN value ELSE 0 END),0)                          AS recebido,
       COALESCE(SUM(CASE WHEN status NOT IN ('cancelada','paga') THEN value ELSE 0 END),0)     AS previsto
     FROM correspondent_hearings
