@@ -157,6 +157,31 @@ function pagerHtml(current, pages) {
   return `<div class="pager">${out}</div>`;
 }
 
+// ── Portal do cliente: etapas amigáveis do processo ───────────────────────
+const PORTAL_STEPS = [
+  { id: 'documentos', label: 'Documentos' },
+  { id: 'elaboracao', label: 'Elaboração' },
+  { id: 'protocolo', label: 'Protocolo' },
+  { id: 'andamento', label: 'Em andamento' },
+  { id: 'conclusao', label: 'Conclusão' },
+];
+function portalStepIndex(c) {
+  const ps = c.production_stage;
+  if (c.status === 'encerrado' || c.phase === 'encerrado' || ps === 'concluido') return 4;
+  if (ps === 'separacao_documentos') return 0;
+  if (ps === 'criacao_inicial' || ps === 'revisao_inicial') return 1;
+  if (ps === 'aguardando_protocolo') return 2;
+  if (ps === 'protocolado' || c.case_number) return 3;
+  return 0;
+}
+function stepperHtml(c) {
+  const cur = portalStepIndex(c);
+  return `<div class="stepper">${PORTAL_STEPS.map((s, i) => `
+    <div class="step ${i < cur ? 'done' : ''} ${i === cur ? 'now' : ''}">
+      <div class="dot">${i < cur ? '✓' : i + 1}</div><div class="lb">${s.label}</div>
+    </div>`).join('')}</div>`;
+}
+
 // ── Exportação CSV (Excel-friendly, com BOM) ──────────────────────────────
 function csvEscape(v) {
   const s = v == null ? '' : String(v);
@@ -1283,44 +1308,95 @@ const ROUTES = {
   },
 
   async portal(page) {
-    const me = await api('/api/portal/me');
-    const cases = await api('/api/portal/cases');
+    const [me, cases, contact] = await Promise.all([
+      api('/api/portal/me'), api('/api/portal/cases'), api('/api/portal/contact').catch(() => ({ whatsapp: '' })),
+    ]);
+    const wa = (contact.whatsapp || '').replace(/\D/g, '');
     page.innerHTML = `
-      <div class="page-header"><div><h2>Olá, ${me.name}</h2><p class="sub">Acompanhe seus processos</p></div></div>
+      <div class="page-header"><div><h2>Olá, ${esc((me.name || '').split(' ')[0])}</h2><p class="sub">Acompanhe seus processos e pagamentos</p></div>
+        ${wa ? `<a class="btn-gold" href="https://wa.me/${wa}" target="_blank" rel="noopener" style="text-decoration:none">Falar com o escritório</a>` : ''}</div>
       <div class="kpi-grid">
         ${kpi('Processos ativos', me.resumo.processos_ativos)}
         ${kpi('Valores a pagar', money(me.resumo.a_pagar), 'money')}
         ${kpi('Em atraso', money(me.resumo.vencido), 'money')}
       </div>
-      <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Meus processos</strong></div><div id="portal-cases"></div></div>
-      <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Histórico / Atualizações</strong></div><div id="portal-tl"></div></div>`;
-    const STAGE_PT = { separacao_documentos:'Separação de documentos', criacao_inicial:'Criação inicial', revisao_inicial:'Revisão inicial', aguardando_protocolo:'Aguardando protocolo', protocolado:'Protocolado', concluido:'Concluído' };
-    $('#portal-cases').innerHTML = cases.length ? `
-      <table><thead><tr><th>Processo</th><th>Área</th><th>Estágio</th><th></th></tr></thead>
-      <tbody>${cases.map((c) => `<tr>
-        <td><strong>${c.title}</strong><br><small style="color:var(--text-muted)">${c.case_number || 'aguardando protocolo'}</small></td>
-        <td>${c.legal_area}</td>
-        <td>${c.production_stage ? `<span class="badge ${c.production_stage}">${STAGE_PT[c.production_stage] || c.production_stage}</span>` : badge(c.phase)}</td>
-        <td><button class="btn-sm" data-pcase="${c.id}">Ver andamento</button></td></tr>`).join('')}</tbody></table>`
-      : '<div class="empty">Nenhum processo no momento</div>';
+      <div id="portal-cases"></div>
+      <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Meus documentos</strong></div><div id="portal-docs"><div class="spinner"></div></div></div>
+      <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Atualizações</strong></div><div id="portal-tl"><div class="spinner"></div></div></div>`;
+    $('#portal-cases').innerHTML = cases.length ? cases.map((c) => `
+      <div class="card" style="padding:18px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
+          <strong style="font-size:15.5px;color:var(--navy-deep)">${esc(c.title)}</strong>
+          <small style="color:var(--text-muted)">${c.case_number ? 'Processo ' + esc(c.case_number) : 'Em preparação'}</small>
+        </div>
+        ${stepperHtml(c)}
+        ${c.client_message ? `<div class="client-msg">${esc(c.client_message)}</div>` : ''}
+        <div style="margin-top:12px"><button class="btn-sm" data-pcase="${c.id}">Ver detalhes</button></div>
+      </div>`).join('') : '<div class="empty">Nenhum processo no momento</div>';
     document.querySelectorAll('[data-pcase]').forEach((b) => b.onclick = () => portalCaseDetail(b.dataset.pcase));
-    const tl = await api('/api/portal/timeline');
-    $('#portal-tl').innerHTML = tl.length ? tl.map((e) => `<div class="notif-item"><strong>${e.description}</strong><div style="margin-top:4px"><small>${e.case_number ? 'Proc. ' + e.case_number + ' · ' : ''}${fmtDate(e.created_at)}</small></div></div>`).join('') : '<div class="empty">Sem atualizações ainda</div>';
+    api('/api/portal/documents').then((docs) => {
+      $('#portal-docs').innerHTML = docs.length ? docs.map((d) => `
+        <div class="mini-row"><span>${esc(d.name)}${d.case_title ? `<br><small style="color:var(--text-muted)">${esc(d.case_title)}</small>` : ''}</span>
+        <a class="btn-sm" href="${esc(d.file_url)}" target="_blank" rel="noopener" style="text-decoration:none">Baixar</a></div>`).join('')
+        : '<div class="empty" style="padding:16px">Nenhum documento liberado ainda</div>';
+    }).catch(() => { $('#portal-docs').innerHTML = '<div class="empty" style="padding:16px">—</div>'; });
+    api('/api/portal/timeline').then((tl) => {
+      $('#portal-tl').innerHTML = tl.length ? tl.map((e) => `<div class="notif-item"><strong>${esc(e.description)}</strong><div style="margin-top:4px"><small>${e.case_number ? 'Proc. ' + esc(e.case_number) + ' · ' : ''}${fmtDate(e.created_at)}</small></div></div>`).join('') : '<div class="empty">Sem atualizações ainda</div>';
+    }).catch(() => { $('#portal-tl').innerHTML = '<div class="empty">—</div>'; });
   },
 
   async portalFinanceiro(page) {
-    const items = await api('/api/portal/financial');
-    const totalPagar = items.filter((i) => i.status === 'pendente').reduce((s, i) => s + Number(i.valor), 0);
-    page.innerHTML = `
-      <div class="page-header"><div><h2>Valores a Pagar</h2><p class="sub">Suas parcelas</p></div></div>
-      <div class="kpi-grid">${kpi('Total a pagar', money(totalPagar), 'money')}</div>
-      <div class="card"><div>${items.length ? `
-        <table><thead><tr><th>Parcela</th><th>Referência</th><th>Valor</th><th>Vencimento</th><th>Status</th></tr></thead>
-        <tbody>${items.map((i) => `<tr>
-          <td>${i.numero}ª</td><td>${i.proposta || '—'}</td><td>${money(i.valor)}</td>
-          <td>${fmtDate(i.due_date)} ${i.vencida ? '<span class="badge vencido">vencida</span>' : ''}</td>
-          <td>${badge(i.status)}</td></tr>`).join('')}</tbody></table>`
-        : '<div class="empty">Nenhuma parcela registrada</div>'}</div></div>`;
+    const load = async () => {
+      const items = await api('/api/portal/financial');
+      const totalPagar = items.filter((i) => ['pendente', 'vencido', 'em_processamento'].includes(i.status)).reduce((s, i) => s + Number(i.valor), 0);
+      page.innerHTML = `
+        <div class="page-header"><div><h2>Valores a Pagar</h2><p class="sub">Suas parcelas — pague com Pix e avise com um clique</p></div></div>
+        <div class="kpi-grid">${kpi('Total a pagar', money(totalPagar), 'money')}</div>
+        <div id="pf-list"></div>`;
+      $('#pf-list').innerHTML = items.length ? items.map((i) => `
+        <div class="card" style="padding:16px;margin-bottom:12px">
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+            <div><strong>${i.numero ? i.numero + 'ª parcela' : 'Parcela'}</strong>${i.proposta ? ` <small style="color:var(--text-muted)">· ${esc(i.proposta)}</small>` : ''}
+              <div style="font-size:13px;color:var(--text-muted)">vence ${fmtDate(i.due_date)} ${Number(i.vencida) ? '<span class="badge vencido">vencida</span>' : ''}</div></div>
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <strong style="font-size:17px;color:var(--navy-deep)">${money(i.valor)}</strong>
+              ${i.status === 'pago' ? '<span class="badge pago">paga</span>'
+                : i.status === 'em_processamento' ? '<span class="badge" style="background:var(--amber-bg);color:var(--amber)">em processamento</span>'
+                : i.status === 'cancelado' ? '<span class="badge cancelado">cancelada</span>'
+                : `<button class="btn-gold btn-sm" data-pix="${i.id}">Pagar com Pix</button>`}
+            </div>
+          </div>
+          ${i.status === 'em_processamento' ? '<div style="font-size:12px;color:var(--text-muted);margin-top:8px">Você avisou que pagou — o escritório vai conferir e confirmar. Obrigado!</div>' : ''}
+          <div id="pix-${i.id}"></div>
+        </div>`).join('') : '<div class="empty">Nenhuma parcela registrada</div>';
+      $('#pf-list').querySelectorAll('[data-pix]').forEach((b) => b.onclick = async () => {
+        const id = b.dataset.pix; const box = $(`#pix-${id}`);
+        if (box.innerHTML) { box.innerHTML = ''; return; }
+        box.innerHTML = '<div class="spinner"></div>';
+        try {
+          const r = await api('/api/portal/pix/' + id);
+          box.innerHTML = `<div class="pix-box">
+            <div style="font-size:13.5px"><strong>Como pagar:</strong> abra o aplicativo do seu banco, escolha <strong>Pix</strong> e aponte a câmera para o código abaixo — ou copie e cole o código.</div>
+            <img src="${r.qr}" alt="QR Code Pix">
+            ${r.beneficiario ? `<div style="text-align:center;font-size:12.5px;color:var(--text-muted)">Beneficiário: <strong>${esc(r.beneficiario)}</strong> · ${money(r.valor)}</div>` : ''}
+            <div class="pix-copy"><input readonly value="${esc(r.payload)}" id="pixv-${id}"><button class="btn-sm" type="button" data-copy-pix="${id}">Copiar</button></div>
+            <div style="text-align:center;margin-top:14px">
+              <button class="btn-primary" type="button" data-paguei="${id}" style="width:auto">Já paguei ✓</button>
+              <div style="font-size:12px;color:var(--text-muted);margin-top:6px">Depois de pagar, clique acima — o escritório vai conferir e confirmar.</div>
+            </div></div>`;
+          box.querySelector('[data-copy-pix]').onclick = () => {
+            const inp = $(`#pixv-${id}`); inp.select();
+            try { navigator.clipboard.writeText(inp.value); toast('Código Pix copiado'); } catch { document.execCommand('copy'); toast('Código copiado'); }
+          };
+          box.querySelector('[data-paguei]').onclick = async (ev) => {
+            ev.target.disabled = true; ev.target.textContent = 'Enviando…';
+            try { await api(`/api/portal/installments/${id}/pagar`, { method: 'POST', body: '{}' }); toast('Aviso enviado! O escritório vai confirmar o pagamento.'); load(); }
+            catch (e) { toast(e.message, 'error'); ev.target.disabled = false; ev.target.textContent = 'Já paguei ✓'; }
+          };
+        } catch (e) { box.innerHTML = ''; toast(e.message, 'error'); }
+      });
+    };
+    await load();
   },
 
   async contratos(page) {
@@ -4510,18 +4586,27 @@ function changePasswordForm() {
 async function portalCaseDetail(id) {
   const c = await api('/api/portal/cases/' + id);
   const movs = (c.movements || []).map((m) =>
-    `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
+    `<div style="padding:10px 0;border-bottom:1px solid var(--border-soft)">
       <small style="color:var(--text-muted)">${fmtDate(m.movement_date || m.created_at)}</small>
-      <div>${m.description}</div></div>`).join('') || '<p class="empty">Sem movimentações registradas</p>';
-  const wrap = el(`<div class="form-grid">
-    <div><strong style="font-size:18px">${c.title}</strong><br>
-      <small style="color:var(--text-muted)">${c.case_number || ''}</small></div>
-    <div>${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)}</div>
-    <hr style="border:none;border-top:1px solid var(--border)">
-    <strong style="font-size:13px">Andamento do processo</strong>
-    <div style="max-height:300px;overflow-y:auto">${movs}</div>
+      <div style="font-size:13.5px">${esc(m.description)}</div></div>`).join('') || '<p class="empty">Sem movimentações registradas</p>';
+  const docs = (c.documents || []).map((d) =>
+    `<div class="mini-row"><span>${esc(d.name)}</span><a class="btn-sm" href="${esc(d.file_url)}" target="_blank" rel="noopener" style="text-decoration:none">Baixar</a></div>`).join('');
+  const wrap = el(`<div>
+    <div><strong style="font-size:18px;color:var(--navy-deep)">${esc(c.title)}</strong><br>
+      <small style="color:var(--text-muted)">${c.case_number ? 'Processo ' + esc(c.case_number) : 'Em preparação'}</small></div>
+    ${stepperHtml(c)}
+    ${c.client_message ? `<div class="client-msg">${esc(c.client_message)}</div>` : ''}
+    ${docs ? `<div style="margin-top:16px"><strong style="font-size:13px;color:var(--navy)">Documentos liberados</strong><div style="margin-top:6px">${docs}</div></div>` : ''}
+    <div style="margin-top:16px"><button class="btn-sm" id="pcd-toggle" type="button">Ver detalhes técnicos (movimentações)</button>
+      <div id="pcd-movs" style="display:none;max-height:300px;overflow-y:auto;margin-top:8px">${movs}</div></div>
   </div>`);
-  openModal('Andamento', wrap);
+  wrap.querySelector('#pcd-toggle').onclick = (e) => {
+    const box = wrap.querySelector('#pcd-movs');
+    const open = box.style.display === 'none';
+    box.style.display = open ? 'block' : 'none';
+    e.target.textContent = open ? 'Ocultar detalhes técnicos' : 'Ver detalhes técnicos (movimentações)';
+  };
+  openModal('Meu processo', wrap);
 }
 
 // ── Módulo Dativo ──
