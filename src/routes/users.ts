@@ -5,16 +5,17 @@ import { sendNewPassword, sendCredentials, isEmailConfigured } from '../services
 
 const router = Router();
 
-const ROLES = ['admin', 'advogado', 'estagiario', 'parceiro', 'cliente'];
+const ROLES = ['admin', 'advogado', 'estagiario', 'parceiro', 'cliente', 'parceiro_portal'];
 const COMMISSIONS = [30, 50];
 
 // ── GET /api/users — lista usuários ─────────────────────────────────────────
 router.get('/', async (_req: Request, res: Response) => {
   const [rows] = await db.query(
-    `SELECT u.id, u.name, u.email, u.role, u.active, u.commission_percent, u.client_id,
-            c.name AS client_name, u.created_at
+    `SELECT u.id, u.name, u.email, u.role, u.active, u.commission_percent, u.client_id, u.partner_id,
+            c.name AS client_name, pt.name AS partner_name, u.created_at
      FROM users u
      LEFT JOIN clients c ON c.id = u.client_id
+     LEFT JOIN partners pt ON pt.id = u.partner_id
      ORDER BY u.role, u.name`
   ) as any;
   res.json(rows);
@@ -22,7 +23,7 @@ router.get('/', async (_req: Request, res: Response) => {
 
 // ── POST /api/users — cadastrar usuário ─────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
-  const { name, email, password, role, commission_percent, client_id } = req.body;
+  const { name, email, password, role, commission_percent, client_id, partner_id } = req.body;
 
   if (!name || !email || !password) {
     res.status(400).json({ error: 'name, email e password são obrigatórios' }); return;
@@ -39,6 +40,9 @@ router.post('/', async (req: Request, res: Response) => {
   if (role === 'cliente' && !client_id) {
     res.status(400).json({ error: 'Usuário cliente precisa estar vinculado a um cliente' }); return;
   }
+  if (role === 'parceiro_portal' && !partner_id) {
+    res.status(400).json({ error: 'Usuário do portal do parceiro precisa estar vinculado a um parceiro' }); return;
+  }
 
   const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [email]) as any;
   if (existing.length) { res.status(409).json({ error: 'E-mail já cadastrado' }); return; }
@@ -48,14 +52,19 @@ router.post('/', async (req: Request, res: Response) => {
     const [cl] = await db.query('SELECT id FROM clients WHERE id = ?', [client_id]) as any;
     if (!cl.length) { res.status(400).json({ error: 'Cliente vinculado não encontrado' }); return; }
   }
+  if (role === 'parceiro_portal') {
+    const [pt] = await db.query('SELECT id FROM partners WHERE id = ?', [partner_id]) as any;
+    if (!pt.length) { res.status(400).json({ error: 'Parceiro vinculado não encontrado' }); return; }
+  }
 
   const hash = await bcrypt.hash(password, 10);
   const [result] = await db.query(
-    `INSERT INTO users (name, email, password, role, commission_percent, client_id)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO users (name, email, password, role, commission_percent, client_id, partner_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [name, email, hash, role,
      role === 'parceiro' ? Number(commission_percent) : null,
-     role === 'cliente' ? client_id : null]
+     role === 'cliente' ? client_id : null,
+     role === 'parceiro_portal' ? partner_id : null]
   ) as any;
 
   // Envia as credenciais por e-mail (se o e-mail estiver configurado no servidor).

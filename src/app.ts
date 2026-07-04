@@ -57,6 +57,7 @@ import briefingRoutes from './routes/briefing';
 import metricsRoutes from './routes/metrics';
 import officeSettingsRoutes from './routes/office-settings';
 import paymentsRoutes from './routes/payments';
+import partnerPortalRoutes from './routes/partner-portal';
 import { googleOAuthCallback } from './routes/google-callback';
 
 export function createApp() {
@@ -85,6 +86,7 @@ export function createApp() {
 
   // ── Portal do Cliente (papel 'cliente' — escopo isolado por client_id) ────
   app.use('/api/portal',                authenticate, portalRoutes);
+  app.use('/api/partner-portal',        authenticate, partnerPortalRoutes);
 
   // ── Administração de usuários (somente admin) ─────────────────────────────
   app.use('/api/users',                 authenticate, requireAdmin, userRoutes);
