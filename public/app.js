@@ -1617,7 +1617,15 @@ const ROUTES = {
             } else toast('Movido, mas a revisão falhou: ' + (resp.revisao.message || ''), 'error');
           } else { toast('Movido · registrado'); }
           load();
-        } catch (e) { toast(e.message, 'error'); load(); }
+        } catch (e) {
+          // NOVO: Tratamento de erro 400 — pendências abertas
+          if (e.status === 400 && e.pendencias && Array.isArray(e.pendencias)) {
+            toast(`❌ Resolva as pendências abaixo antes de continuar:\n\n${e.pendencias.join('\n')}`, 'error');
+            return; // NÃO carrega; fica na tela atual
+          }
+          toast(e.message, 'error');
+          load();
+        }
       };
 
       // Seletor (alternativa ao arrastar — e funciona no celular)
