@@ -4,6 +4,7 @@ import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
+import { createProductionFolder } from '../services/DriveService';
 import { montarEndereco } from '../services/contractTemplates';
 import { buildPeticaoInicial, analyzeCaseDrive } from '../services/peticaoBuilder';
 import { revisarPeticaoDoCaso } from '../services/peticaoReviewer';
@@ -417,6 +418,28 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
       });
       return;
     }
+  }
+
+  // ── NOVO: Auto-criar pasta Drive ao entrar em produção ──
+  if (stage === 'separacao_documentos' && !c.drive_folder_url) {
+    // Busca nome do cliente
+    const [clientRows] = await db.query(
+      'SELECT name FROM clients WHERE id = ?',
+      [c.client_id]
+    ) as any;
+    const clientName = clientRows[0]?.name || 'Cliente Desconhecido';
+
+    // Extrai descrição do processo (prioridade: legal_area, title, description)
+    const description = (c.legal_area || c.title || c.description || '').substring(0, 50);
+
+    // Cria pasta async (não bloqueia o avanço)
+    createProductionFolder(req.user!.id, clientName, c.legal_area || '', description)
+      .then((result) => {
+        if (result) {
+          db.query('UPDATE cases SET drive_folder_url = ? WHERE id = ?', [result.folderUrl, id]).catch(() => {});
+        }
+      })
+      .catch(() => {}); // Silent fail
   }
 
   const finalCaseNumber = (case_number && String(case_number).trim()) ? case_number.trim() : c.case_number;
