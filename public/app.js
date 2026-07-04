@@ -1664,23 +1664,84 @@ const ROUTES = {
       $('#parc-terms').innerHTML = `<div class="card" style="padding:12px 16px;margin-bottom:14px;font-size:13px">
         <strong>${esc(p.name)}</strong> · Êxito ${Number(p.success_fee_percent)}% sobre o ganho, dividido ${Number(p.partner_split_percent)}/${100 - Number(p.partner_split_percent)} ·
         Sucumbência ${Number(p.sucumbencia_split_percent)}/${100 - Number(p.sucumbencia_split_percent)} ·
-        Entrada R$ ${Number(p.entry_value_single).toFixed(2)} (1 proc.) / R$ ${Number(p.entry_value_double).toFixed(2)} (2 proc.)${Number(p.entry_split) ? ' · dividida' : ' · 100% sua'}</div>`;
-      const cases = await api(`/api/partners/${p.id}/cases`).catch(() => []);
-      $('#parc-cases').innerHTML = cases.length ? `
-        <table><thead><tr><th>Cliente</th><th>Processo</th><th>Etapa</th><th>SLA</th><th>Receita</th><th>Repasse parceiro</th><th></th></tr></thead>
-        <tbody>${cases.map((c) => {
-          const atras = !['protocolado', 'concluido'].includes(c.production_stage) && Number(c.sla_days) > 10;
-          return `<tr style="cursor:pointer" data-case="${c.id}">
-            <td><strong>${esc(c.client_name || '—')}</strong></td>
-            <td>${esc(c.title || c.case_number || '—')}<br><small style="color:var(--text-muted)">${c.legal_area || ''}</small></td>
-            <td>${STAGE_PT[c.production_stage] || c.production_stage || '—'}</td>
-            <td style="color:${atras ? 'var(--red)' : 'var(--text)'}">${['protocolado', 'concluido'].includes(c.production_stage) ? '✓' : (c.sla_days ?? 0) + '/10d'}</td>
-            <td>${money(c.receita)}</td>
-            <td>${money(c.repasse_parceiro)}</td>
-            <td style="white-space:nowrap"><button class="btn-sm" data-result="${c.id}" data-name="${esc(c.client_name || '')}">Êxito / Sucumb.</button></td></tr>`;
-        }).join('')}</tbody></table>` : '<div class="empty">Nenhum caso desta parceria ainda. Clique em "+ Novo caso de parceria".</div>';
-      $('#parc-cases').querySelectorAll('[data-result]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); resultadoForm(b.dataset.result, b.dataset.name, loadCases); });
-      $('#parc-cases').querySelectorAll('[data-case]').forEach((tr) => tr.onclick = (e) => { if (e.target.closest('[data-result]')) return; caseDetail(tr.dataset.case, loadCases); });
+        Entrada R$ ${Number(p.entry_value_single).toFixed(2)} (1 proc.) / R$ ${Number(p.entry_value_double).toFixed(2)} (2 proc.)${Number(p.entry_split) ? ' · dividida' : ' · 100% sua'}
+        <button class="btn-sm" type="button" id="parc-edit" style="margin-left:8px">Editar parceiro</button></div>`;
+      $('#parc-edit').onclick = () => partnerForm(p.id, () => ROUTES.parcerias($('#page')));
+      const allCases = await api(`/api/partners/${p.id}/cases`).catch(() => []);
+      if (!allCases.length) { $('#parc-cases').innerHTML = '<div class="empty">Nenhum caso desta parceria ainda. Clique em "+ Novo caso de parceria".</div>'; return; }
+      const areas = [...new Set(allCases.map((c) => c.legal_area).filter(Boolean))].sort();
+      const lbl = (t, inner) => `<label style="display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--text-muted)">${t}${inner}</label>`;
+      $('#parc-cases').innerHTML = `
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px">
+          ${lbl('Buscar', '<input id="pf-q" placeholder="cliente ou processo" style="min-width:170px">')}
+          ${lbl('Tipo de caso', `<select id="pf-area"><option value="">Todos</option>${areas.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join('')}</select>`)}
+          ${lbl('Status', `<select id="pf-stage"><option value="">Todos</option>${Object.entries(STAGE_PT).map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>`)}
+          ${lbl('De', '<input type="date" id="pf-from">')}
+          ${lbl('Até', '<input type="date" id="pf-to">')}
+          <button class="btn-ghost btn-sm" type="button" id="pf-clear">Limpar</button>
+          <button class="btn-gold btn-sm" type="button" id="pf-export">Exportar relatório (CSV)</button>
+        </div>
+        <div id="pf-count" style="font-size:12px;color:var(--text-muted);margin-bottom:6px"></div>
+        <div id="parc-rows"></div>`;
+      let current = allCases;
+      const filtered = () => {
+        const q = ($('#pf-q').value || '').toLowerCase().trim();
+        const area = $('#pf-area').value, stage = $('#pf-stage').value, from = $('#pf-from').value, to = $('#pf-to').value;
+        return allCases.filter((c) => {
+          if (q && !((c.client_name || '').toLowerCase().includes(q) || (c.title || '').toLowerCase().includes(q) || String(c.case_number || '').toLowerCase().includes(q))) return false;
+          if (area && c.legal_area !== area) return false;
+          if (stage && c.production_stage !== stage) return false;
+          const d = String(c.created_at || '').slice(0, 10);
+          if (from && d < from) return false;
+          if (to && d > to) return false;
+          return true;
+        });
+      };
+      const render = () => {
+        current = filtered();
+        $('#pf-count').textContent = `${current.length} caso(s)`;
+        $('#parc-rows').innerHTML = current.length ? `
+          <table><thead><tr><th>Cliente</th><th>Processo</th><th>Status</th><th>SLA</th><th>Receita</th><th>Repasse</th><th></th></tr></thead>
+          <tbody>${current.map((c) => {
+            const proto = ['protocolado', 'concluido'].includes(c.production_stage);
+            const atras = !proto && Number(c.sla_days) > 10;
+            return `<tr class="parc-main" data-open="${c.id}" style="cursor:pointer">
+              <td><strong>${esc(c.client_name || '—')}</strong><br><span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">Parceria: ${esc(p.name)}</span></td>
+              <td>${esc(c.title || '—')}${c.case_number ? `<br><small style="color:var(--text-muted)">nº ${esc(c.case_number)}</small>` : ''}<br><small style="color:var(--text-muted)">${esc(c.legal_area || '')}</small></td>
+              <td>${proto ? `<span class="badge protocolado" style="background:#e3f0e6;color:var(--green)">${STAGE_PT[c.production_stage]}</span>` : (STAGE_PT[c.production_stage] || '—')}</td>
+              <td style="color:${atras ? 'var(--red)' : 'var(--text)'}">${proto ? '✓' : (c.sla_days ?? 0) + '/10d'}</td>
+              <td>${money(c.receita)}</td>
+              <td>${money(c.repasse_parceiro)}</td>
+              <td style="white-space:nowrap"><button class="btn-sm" data-result="${c.id}" data-name="${esc(c.client_name || '')}">Êxito / Sucumb.</button></td></tr>
+            <tr class="parc-drawer" id="drawer-${c.id}" style="display:none"><td colspan="7" style="background:var(--surface-2);padding:0"><div class="dr-body" style="padding:16px"></div></td></tr>`;
+          }).join('')}</tbody></table>` : '<div class="empty">Nenhum caso com esses filtros.</div>';
+        $('#parc-rows').querySelectorAll('[data-result]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); resultadoForm(b.dataset.result, b.dataset.name, loadCases); });
+        $('#parc-rows').querySelectorAll('.parc-main').forEach((tr) => tr.onclick = async (e) => {
+          if (e.target.closest('[data-result]')) return;
+          const id = tr.dataset.open, drawer = $(`#drawer-${id}`);
+          const open = drawer.style.display === 'none';
+          drawer.style.display = open ? 'table-row' : 'none';
+          if (open && !drawer.dataset.loaded) {
+            drawer.dataset.loaded = '1';
+            try { const f = await api(`/api/cases/${id}/ficha`); drawer.querySelector('.dr-body').innerHTML = parcDrawerHtml(f, p.name, loadCases); bindParcDrawer(drawer, id, loadCases); }
+            catch (err) { drawer.querySelector('.dr-body').innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+          }
+        });
+      };
+      render();
+      ['pf-q', 'pf-area', 'pf-stage', 'pf-from', 'pf-to'].forEach((id) => { const e = $('#' + id); e.oninput = render; e.onchange = render; });
+      $('#pf-clear').onclick = () => { ['pf-q', 'pf-area', 'pf-stage', 'pf-from', 'pf-to'].forEach((id) => $('#' + id).value = ''); render(); };
+      $('#pf-export').onclick = () => downloadCsv(`parceria-${p.name}-${new Date().toISOString().slice(0, 10)}.csv`, [
+        { label: 'Cliente', get: (c) => c.client_name || '' },
+        { label: 'Processo', get: (c) => c.title || '' },
+        { label: 'Número', get: (c) => c.case_number || '' },
+        { label: 'Tipo', get: (c) => c.legal_area || '' },
+        { label: 'Status', get: (c) => STAGE_PT[c.production_stage] || c.production_stage || '' },
+        { label: 'SLA (dias)', get: (c) => c.sla_days ?? '' },
+        { label: 'Receita', get: (c) => Number(c.receita || 0).toFixed(2) },
+        { label: 'Repasse', get: (c) => Number(c.repasse_parceiro || 0).toFixed(2) },
+        { label: 'Criado em', get: (c) => fmtDate(c.created_at) },
+      ], current);
     };
     sel.onchange = loadCases;
     $('#new-partner').onclick = () => partnerForm(null, () => ROUTES.parcerias($('#page')));
@@ -4207,6 +4268,35 @@ async function fichaCliente(id, onSave) {
   openModal('Ficha do cliente', wrap);
 }
 
+// Conteúdo da "gaveta" expansível de um caso de parceria (usa a ficha consolidada).
+function parcDrawerHtml(f, partnerName) {
+  const c = f.case || {};
+  const STAGE_PT = { separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguardando protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
+  const insts = (f.installments || []).map((i) => `<div class="mini-row"><span>${i.numero ? i.numero + 'ª' : 'Parcela'} · venc. ${fmtDate(i.due_date)}</span><span><strong>${money(i.valor)}</strong> ${badge(i.status)}</span></div>`).join('');
+  const recs = (f.receitas || []).map((r) => `<div class="mini-row"><span>${esc(r.description || r.tipo || '—')}</span><span><strong>${money(r.valor)}</strong> ${badge(r.status)}</span></div>`).join('');
+  const fin = (insts + recs) || '<small style="color:var(--text-muted)">Sem lançamentos</small>';
+  const movs = (f.movements || []).slice(0, 20).map((m) => `<div style="padding:7px 0;border-bottom:1px solid var(--border-soft)"><small style="color:var(--text-muted)">${fmtDate(m.movement_date || m.created_at)}</small><div style="font-size:13px">${esc(m.description)}</div></div>`).join('') || '<small style="color:var(--text-muted)">Sem movimentações</small>';
+  const prazos = (f.deadlines || []).map((d) => `<div class="mini-row"><span>${esc(d.description || '')}</span><span>${fmtDate(d.deadline_date)} ${badge(d.status)}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem prazos</small>';
+  return `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">
+      <span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">Parceria com ${esc(partnerName)}</span>
+      <span class="badge">${STAGE_PT[c.production_stage] || c.production_stage || '—'}</span>
+      ${c.case_number ? `<span class="badge protocolado" style="background:#e3f0e6;color:var(--green)">nº ${esc(c.case_number)}</span>` : ''}
+    </div>
+    ${f.header && f.header.qualificacao ? `<div style="font-size:12.5px;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:8px;margin-bottom:10px"><strong style="color:var(--navy)">Ficha do cliente:</strong> ${esc(f.header.qualificacao)}</div>` : ''}
+    ${f.case_summary ? `<div class="client-msg" style="margin-bottom:10px">${esc(f.case_summary)}</div>` : ''}
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px">
+      <div><strong style="font-size:12px;color:var(--navy)">Financeiro do processo</strong><div style="margin-top:6px">${fin}</div></div>
+      <div><strong style="font-size:12px;color:var(--navy)">Prazos</strong><div style="margin-top:6px">${prazos}</div></div>
+    </div>
+    <div style="margin-top:12px"><strong style="font-size:12px;color:var(--navy)">Movimentações</strong><div style="max-height:220px;overflow:auto;margin-top:6px">${movs}</div></div>
+    <div style="margin-top:12px"><button class="btn-gold btn-sm" type="button" data-openfull="${c.id}">Abrir ficha completa</button></div>`;
+}
+function bindParcDrawer(drawer, id, onSave) {
+  const b = drawer.querySelector('[data-openfull]');
+  if (b) b.onclick = () => caseDetail(id, onSave);
+}
+
 async function caseDetail(id, onSave) {
   const c = await api('/api/cases/' + id);
   const movs = (c.movements || []).map((m) =>
@@ -4232,7 +4322,7 @@ async function caseDetail(id, onSave) {
       <div style="min-width:0">
         <strong style="font-size:20px;color:var(--navy-deep);line-height:1.25;display:block">${c.title}</strong>
         <small style="color:var(--text-muted)">${c.client_name || ''} · ${c.case_number || 's/ número'}</small>
-        <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap">${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)} ${c.production_stage ? badge(c.production_stage) : ''}</div>
+        <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap">${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)} ${c.production_stage ? badge(c.production_stage) : ''} ${c.partner_name ? `<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">Parceria com ${esc(c.partner_name)}</span>` : ''}</div>
       </div>
       <button class="btn-gold btn-sm" id="ficha-btn" type="button" style="white-space:nowrap;flex:0 0 auto">${svgIcon('clipboard')} Ficha completa</button>
     </div>

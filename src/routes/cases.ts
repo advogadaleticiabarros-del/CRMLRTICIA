@@ -257,8 +257,9 @@ router.patch('/production-notes/:noteId/resolve', async (req: Request, res: Resp
 router.get('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   const [rows] = await db.query(
-    `SELECT c.*, cl.name AS client_name FROM cases c
-     LEFT JOIN clients cl ON cl.id = c.client_id WHERE c.id = ?`, [id]
+    `SELECT c.*, cl.name AS client_name, pt.name AS partner_name FROM cases c
+     LEFT JOIN clients cl ON cl.id = c.client_id
+     LEFT JOIN partners pt ON pt.id = c.partner_id WHERE c.id = ?`, [id]
   ) as any;
   if (!rows.length) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
 
