@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 import { ajustarEntradaParceria } from '../services/partnerEntry';
+import { createProductionFolder } from '../services/DriveService';
 
 const router = Router();
 
@@ -89,6 +90,16 @@ router.post('/:id/cases', async (req: Request, res: Response) => {
       [req.user!.id, clientId, partner.id, title, proc.process_number || null, area, labels, b.case_summary || null]
     ) as any;
     caseIds.push(cr.insertId);
+
+    // NOVO: Auto-criar pasta Drive para o novo caso
+    const description = (proc.process_number || proc.title || nome).substring(0, 50);
+    createProductionFolder(req.user!.id, nome, area, description)
+      .then((result) => {
+        if (result) {
+          db.query('UPDATE cases SET drive_folder_url = ? WHERE id = ?', [result.folderUrl, cr.insertId]).catch(() => {});
+        }
+      })
+      .catch(() => {}); // Silent fail — não bloqueia o fluxo
   }
 
   // Etiqueta o cliente com a área
