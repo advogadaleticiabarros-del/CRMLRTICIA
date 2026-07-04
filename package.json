@@ -15,6 +15,7 @@
     "seed:admin:prod": "node dist/scripts/seed-admin.js",
     "reconcile:partner-entries": "node dist/scripts/reconcilePartnerEntries.js",
     "fix:aracelia": "ts-node src/scripts/fixAraceliaFolders.ts",
+    "create:drive-folders": "ts-node src/scripts/createMissingDriveFolders.ts",
     "deploy:start": "npm run migrate && npm run seed:admin:prod && npm run reconcile:partner-entries && npm start",
     "test": "node --test \"tests/**/*.test.mjs\""
   },
