@@ -401,6 +401,24 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     return;
   }
 
+  // ── NOVO: Validação — se tentando ir para 'aguardando_protocolo', verificar pendências ──
+  if (stage === 'aguardando_protocolo') {
+    const [openPieces] = await db.query(
+      `SELECT id, description FROM legal_pieces
+       WHERE case_id = ? AND status NOT IN ('protocolado', 'cancelado')
+       ORDER BY id ASC`,
+      [id]
+    ) as any;
+
+    if (openPieces.length) {
+      res.status(400).json({
+        error: `Não é possível avançar com ${openPieces.length} pendência(s) aberta(s). Resolva antes de continuar.`,
+        pendencias: openPieces.map((p: any) => p.description || `Peça #${p.id}`)
+      });
+      return;
+    }
+  }
+
   const finalCaseNumber = (case_number && String(case_number).trim()) ? case_number.trim() : c.case_number;
   // Marca o início da produção (SLA total) na primeira vez que entra na esteira.
   await db.query(
