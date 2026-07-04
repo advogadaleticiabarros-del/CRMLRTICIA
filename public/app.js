@@ -98,6 +98,7 @@ const NAV_LABELS = {
   contratos: 'Contratos', intakes: 'Novo Atendimento',
   monitor: 'Monitoramento', fases: 'Fases (Kanban)', producao: 'Produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
+  ppcases: 'Meus Indicados', ppfin: 'Financeiro',
 };
 const NAV_BY_ROLE = {
   admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
@@ -106,6 +107,7 @@ const NAV_BY_ROLE = {
   estagiario: ['producao','cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
+  parceiro_portal: ['ppcases','ppfin'],
 };
 function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; }
 
@@ -334,6 +336,7 @@ const NAV_ICONS = {
   financeiro: 'wallet', controladoria: 'pie', correspondente: 'pin', dativo: 'scale',
   advogados: 'cap', config: 'gear', repasses: 'banknote',
   portal: 'folder', portalFinanceiro: 'banknote',
+  ppcases: 'briefcase', ppfin: 'wallet',
 };
 const NAV_SHORT = {
   dashboard: 'Início', prazos: 'Prazos', cases: 'Processos', clients: 'Clientes',
@@ -1397,6 +1400,53 @@ const ROUTES = {
       });
     };
     await load();
+  },
+
+  // ── Portal do PARCEIRO (papel parceiro_portal) — somente leitura ──
+  async ppcases(page) {
+    const [me, cases] = await Promise.all([api('/api/partner-portal/me'), api('/api/partner-portal/cases')]);
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Olá, ${esc((me.name || '').split(' ')[0] || 'Parceiro')}</h2><p class="sub">Acompanhe os casos que você indicou</p></div></div>
+      <div class="kpi-grid">
+        ${kpi('Casos ativos', me.resumo.casos_ativos)}
+        ${kpi('Repasse a receber', money(me.resumo.repasse_a_receber), 'money')}
+        ${kpi('Repasse recebido', money(me.resumo.repasse_recebido), 'money')}
+      </div>
+      <div id="pp-cases"></div>`;
+    $('#pp-cases').innerHTML = cases.length ? cases.map((c) => {
+      const atras = !['protocolado', 'concluido'].includes(c.production_stage) && Number(c.sla_days) > 10;
+      return `<div class="card" style="padding:18px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
+          <strong style="font-size:15.5px;color:var(--navy-deep)">${esc(c.client_name || '—')}</strong>
+          <small style="color:var(--text-muted)">${c.case_number ? 'Processo ' + esc(c.case_number) : 'Em preparação'}</small>
+        </div>
+        ${stepperHtml(c)}
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:13px">
+          <span>SLA: <strong style="color:${atras ? 'var(--red)' : 'var(--text)'}">${['protocolado', 'concluido'].includes(c.production_stage) ? 'concluído' : (c.sla_days ?? 0) + '/10 dias'}</strong></span>
+          <span>Valor do processo: <strong>${money(c.valor_processo)}</strong></span>
+          <span>Seu repasse: <strong style="color:var(--gold)">${money(c.repasse_parceiro)}</strong></span>
+        </div>
+        <div style="margin-top:12px"><button class="btn-sm" data-ppcase="${c.id}">Ver detalhes</button></div>
+      </div>`;
+    }).join('') : '<div class="empty">Nenhum caso indicado ainda</div>';
+    page.querySelectorAll('[data-ppcase]').forEach((b) => b.onclick = () => partnerCaseDetail(b.dataset.ppcase));
+  },
+
+  async ppfin(page) {
+    const rows = await api('/api/partner-portal/financial');
+    const aReceber = rows.filter((r) => r.status !== 'pago').reduce((s, r) => s + Number(r.valor), 0);
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Seus repasses da parceria (somente leitura)</p></div></div>
+      <div class="kpi-grid">${kpi('Repasse a receber', money(aReceber), 'money')}</div>
+      <div id="pp-fin"></div>`;
+    $('#pp-fin').innerHTML = rows.length ? `
+      <div class="card"><table><thead><tr><th>Cliente / Caso</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Status</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr>
+        <td><strong>${esc(r.client_name || '—')}</strong><br><small style="color:var(--text-muted)">${esc(r.case_title || r.case_number || '')}</small></td>
+        <td>${esc(r.tipo || '—')}</td><td><strong>${money(r.valor)}</strong></td>
+        <td>${fmtDate(r.data_vencimento)}</td>
+        <td>${r.status === 'pago' ? '<span class="badge pago">recebido</span>' : '<span class="badge pendente">a receber</span>'}</td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="empty">Nenhum repasse registrado ainda</div>';
   },
 
   async contratos(page) {
@@ -4643,6 +4693,34 @@ async function portalCaseDetail(id) {
     e.target.textContent = open ? 'Ocultar detalhes técnicos' : 'Ver detalhes técnicos (movimentações)';
   };
   openModal('Meu processo', wrap);
+}
+
+// Detalhe do caso para o PARCEIRO — ficha SEM contato do cliente + movimentações + financeiro
+async function partnerCaseDetail(id) {
+  const c = await api('/api/partner-portal/cases/' + id);
+  const movs = (c.movements || []).map((m) =>
+    `<div style="padding:9px 0;border-bottom:1px solid var(--border-soft)"><small style="color:var(--text-muted)">${fmtDate(m.movement_date || m.created_at)}</small><div style="font-size:13.5px">${esc(m.description)}</div></div>`).join('') || '<p class="empty">Sem movimentações registradas</p>';
+  const parc = (c.installments || []).map((i) =>
+    `<div class="mini-row"><span>${i.numero ? i.numero + 'ª' : 'Parcela'} · venc. ${fmtDate(i.due_date)}</span><span><strong>${money(i.valor)}</strong> ${badge(i.status)}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem parcelas</small>';
+  const rep = (c.repasses || []).map((r) =>
+    `<div class="mini-row"><span>${esc(r.tipo || 'repasse')} · venc. ${fmtDate(r.data_vencimento)}</span><span><strong style="color:var(--gold)">${money(r.valor)}</strong> ${r.status === 'pago' ? '<span class="badge pago">recebido</span>' : '<span class="badge pendente">a receber</span>'}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem repasses ainda</small>';
+  const wrap = el(`<div>
+    <div><strong style="font-size:18px;color:var(--navy-deep)">${esc(c.client_name || 'Cliente')}</strong><br>
+      <small style="color:var(--text-muted)">${esc(c.legal_area || '')}${c.case_number ? ' · Processo ' + esc(c.case_number) : ' · Em preparação'}</small></div>
+    ${stepperHtml(c)}
+    ${c.resumo ? `<div class="client-msg">${esc(c.resumo)}</div>` : ''}
+    <div style="margin-top:16px"><strong style="font-size:13px;color:var(--navy)">Financeiro do processo</strong><div style="margin-top:6px">${parc}</div></div>
+    <div style="margin-top:14px"><strong style="font-size:13px;color:var(--navy)">Seus repasses</strong><div style="margin-top:6px">${rep}</div></div>
+    <div style="margin-top:16px"><button class="btn-sm" id="ppd-toggle" type="button">Ver movimentações do processo</button>
+      <div id="ppd-movs" style="display:none;max-height:300px;overflow-y:auto;margin-top:8px">${movs}</div></div>
+  </div>`);
+  wrap.querySelector('#ppd-toggle').onclick = (e) => {
+    const box = wrap.querySelector('#ppd-movs');
+    const open = box.style.display === 'none';
+    box.style.display = open ? 'block' : 'none';
+    e.target.textContent = open ? 'Ocultar movimentações' : 'Ver movimentações do processo';
+  };
+  openModal('Caso indicado', wrap);
 }
 
 // ── Módulo Dativo ──
