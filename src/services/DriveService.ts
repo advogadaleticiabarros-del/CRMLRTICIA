@@ -71,23 +71,20 @@ export async function createProductionFolder(
 
 /**
  * Obtém token de auth OAuth do user para acessar Google Drive
- * Atualmente retorna null (TODO: integrar com sessão/DB de tokens)
+ * Busca na tabela google_accounts (preenchida pelo oauth callback)
  */
 async function getUserDriveAuth(userId: number): Promise<any | null> {
-  // PLACEHOLDER: esta função depende de como o projeto armazena tokens OAuth
-  // Exemplo: buscar em tabela 'oauth_tokens' ou sessão
-  // Por enquanto, retorna null (não bloqueia o fluxo, apenas não cria pasta)
   try {
     const [rows] = await db.query(
-      'SELECT access_token FROM oauth_tokens WHERE user_id = ? AND provider = ? LIMIT 1',
-      [userId, 'google']
+      'SELECT access_token, refresh_token FROM google_accounts WHERE user_id = ? LIMIT 1',
+      [userId]
     ) as any;
+
     if (rows.length && rows[0].access_token) {
-      // Retorna auth object com token
-      return { credentials: { access_token: rows[0].access_token } };
+      return { credentials: { access_token: rows[0].access_token, refresh_token: rows[0].refresh_token } };
     }
-  } catch {
-    // Tabela pode não existir ainda
+  } catch (err) {
+    console.warn(`[DriveService] Erro ao buscar token Google para user ${userId}:`, err);
   }
   return null;
 }
