@@ -1598,7 +1598,7 @@ const ROUTES = {
     const partners = await api('/api/partners').catch(() => []);
     page.innerHTML = `
       <div class="page-header"><div><h2>Parcerias</h2><p class="sub">Casos indicados por parceiros · registro próprio, entram na esteira de produção</p></div>
-        <div style="display:flex;gap:8px"><button class="btn-ghost" id="import-email">📧 Importar do e-mail</button><button class="btn-gold" id="new-parc-case">+ Novo caso de parceria</button></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-ghost" id="import-email">📧 Importar do e-mail</button><button class="btn-ghost" id="new-partner">+ Novo parceiro</button><button class="btn-gold" id="new-parc-case">+ Novo caso de parceria</button></div></div>
       <div id="parc-inbox"></div>
       <div id="parc-import-queue"></div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><label>Parceiro</label>
@@ -1633,6 +1633,7 @@ const ROUTES = {
       $('#parc-cases').querySelectorAll('[data-case]').forEach((tr) => tr.onclick = (e) => { if (e.target.closest('[data-result]')) return; caseDetail(tr.dataset.case, loadCases); });
     };
     sel.onchange = loadCases;
+    $('#new-partner').onclick = () => partnerForm(null, () => ROUTES.parcerias($('#page')));
     $('#new-parc-case').onclick = () => parceriaCaseForm(partners, sel.value, loadCases);
     const reloadAll = async () => { await loadInboxPanel(reloadAll); await loadImportQueue(partners, reloadAll); if (partners.length) await loadCases(); };
     $('#import-email').onclick = () => importEmailForm(partners, sel.value, reloadAll);
@@ -2625,6 +2626,38 @@ function resultadoForm(caseId, clientName, onSave) {
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Registrar resultado (êxito/sucumbência)', form);
+}
+
+// Cadastro/edição de parceiro (empresa que indica clientes)
+async function partnerForm(id, onSave) {
+  let p = { name: '', success_fee_percent: 30, partner_split_percent: 50, sucumbencia_split_percent: 50, entry_value_single: 100, entry_value_double: 130, entry_split: 0, notes: '' };
+  if (id) { const all = await api('/api/partners').catch(() => []); p = all.find((x) => x.id == id) || p; }
+  const form = el(`<form class="form-grid">
+    ${field('Nome do parceiro *', 'name', { value: p.name })}
+    <div class="form-row">${field('Êxito (% sobre o ganho)', 'success_fee_percent', { type: 'number', value: p.success_fee_percent })}${field('Fatia do parceiro no êxito (%)', 'partner_split_percent', { type: 'number', value: p.partner_split_percent })}</div>
+    <div class="form-row">${field('Divisão da sucumbência (%)', 'sucumbencia_split_percent', { type: 'number', value: p.sucumbencia_split_percent })}${field('Entrada — 1 processo (R$)', 'entry_value_single', { type: 'number', value: p.entry_value_single })}</div>
+    <div class="form-row">${field('Entrada — 2 processos (R$)', 'entry_value_double', { type: 'number', value: p.entry_value_double })}${field('A entrada é dividida com o parceiro?', 'entry_split', { options: [{ v: '0', t: 'Não (100% do escritório)' }, { v: '1', t: 'Sim' }] })}</div>
+    ${field('Observações', 'notes', { type: 'textarea', value: p.notes || '' })}
+    <button type="submit" class="btn-primary">${id ? 'Salvar' : 'Cadastrar parceiro'}</button>
+  </form>`);
+  if (id) form.querySelector('[name=entry_split]').value = String(p.entry_split ? 1 : 0);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const b = Object.fromEntries(new FormData(form));
+    if (!b.name.trim()) { toast('Informe o nome do parceiro', 'error'); return; }
+    const body = {
+      name: b.name.trim(),
+      success_fee_percent: Number(b.success_fee_percent) || 0, partner_split_percent: Number(b.partner_split_percent) || 0,
+      sucumbencia_split_percent: Number(b.sucumbencia_split_percent) || 0,
+      entry_value_single: Number(b.entry_value_single) || 0, entry_value_double: Number(b.entry_value_double) || 0,
+      entry_split: b.entry_split === '1' ? 1 : 0, notes: b.notes || null,
+    };
+    try {
+      await api(id ? `/api/partners/${id}` : '/api/partners', { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) });
+      closeModal(); toast(id ? 'Parceiro atualizado' : 'Parceiro cadastrado'); onSave && onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal(id ? 'Editar parceiro' : 'Novo parceiro', form);
 }
 
 function kpi(label, value, cls = '') {
@@ -4538,20 +4571,22 @@ async function financialForm(onSave) {
 }
 
 async function userForm(onSave) {
-  const clients = await api('/api/clients?limit=100');
+  const [clients, partners] = await Promise.all([api('/api/clients?limit=100'), api('/api/partners').catch(() => [])]);
   const form = el(`<form class="form-grid">
     ${field('Nome *', 'name')}
     ${field('E-mail *', 'email', { type: 'email' })}
     ${field('Senha provisória *', 'password', { type: 'password' })}
-    ${field('Papel', 'role', { options: [['advogado','Advogado do escritório'],['estagiario','Estagiário'],['parceiro','Advogado parceiro'],['cliente','Cliente (portal)'],['admin','Administrador']].map(([v,t])=>({v,t})) })}
+    ${field('Papel', 'role', { options: [['advogado','Advogado do escritório'],['estagiario','Estagiário'],['parceiro','Advogado parceiro'],['parceiro_portal','Parceiro (portal de acompanhamento)'],['cliente','Cliente (portal)'],['admin','Administrador']].map(([v,t])=>({v,t})) })}
     <div id="f-commission" style="display:none">${field('Repasse do parceiro', 'commission_percent', { options: [{v:30,t:'30%'},{v:50,t:'50%'}] })}</div>
     <div id="f-client" style="display:none">${field('Cliente vinculado', 'client_id', { options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}</div>
+    <div id="f-partner" style="display:none">${field('Parceiro vinculado', 'partner_id', { options: partners.map((p) => ({ v: p.id, t: p.name })) })}</div>
     <button type="submit" class="btn-primary">Cadastrar usuário</button>
   </form>`);
   const roleSel = form.querySelector('[name=role]');
   const sync = () => {
     form.querySelector('#f-commission').style.display = roleSel.value === 'parceiro' ? 'block' : 'none';
     form.querySelector('#f-client').style.display = roleSel.value === 'cliente' ? 'block' : 'none';
+    form.querySelector('#f-partner').style.display = roleSel.value === 'parceiro_portal' ? 'block' : 'none';
   };
   roleSel.onchange = sync; sync();
   form.onsubmit = async (e) => {
@@ -4559,6 +4594,7 @@ async function userForm(onSave) {
     const body = Object.fromEntries(new FormData(form));
     if (body.role !== 'parceiro') delete body.commission_percent;
     if (body.role !== 'cliente') delete body.client_id;
+    if (body.role !== 'parceiro_portal') delete body.partner_id;
     try {
       await api('/api/users', { method: 'POST', body: JSON.stringify(body) });
       closeModal(); toast('Usuário cadastrado'); onSave();
