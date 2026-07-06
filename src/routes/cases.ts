@@ -4,7 +4,6 @@ import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
-import { createProductionFolder } from '../services/DriveService';
 import { montarEndereco } from '../services/contractTemplates';
 import { buildPeticaoInicial, analyzeCaseDrive } from '../services/peticaoBuilder';
 import { revisarPeticaoDoCaso } from '../services/peticaoReviewer';
@@ -168,7 +167,7 @@ router.get('/:id/production', async (req: Request, res: Response) => {
   const [notes] = await db.query(
     `SELECT id, kind, text, author_name, resolved, resolved_at, created_at
        FROM production_notes WHERE case_id = ? ORDER BY created_at DESC`, [id]
-  ) as any;
+  ).catch(() => [[]]) as any;
 
   // Jornada completa do caso: eventos do próprio caso + os da fase de lead (origem).
   const [journey] = await db.query(
@@ -182,7 +181,6 @@ router.get('/:id/production', async (req: Request, res: Response) => {
     production_stage: c.production_stage, production_started_at: c.production_started_at,
     production_labels: c.production_labels, production_assignee: c.production_assignee,
     drive_folder_url: c.drive_folder_url || '',
-    client_message: c.client_message || '',
     case_summary: lead?.case_summary || c.description || '',
     header, notes, journey,
   });
@@ -214,16 +212,17 @@ router.post('/:id/peticao-inicial', async (req: Request, res: Response) => {
 
 // ── PATCH /api/cases/:id/production-meta — etiquetas e responsável ───────────
 router.patch('/:id/production-meta', async (req: Request, res: Response) => {
-  const { labels, assignee, drive_folder_url, client_message } = req.body;
-  const sets: string[] = []; const params: any[] = [];
-  if (labels !== undefined) { sets.push('production_labels = ?'); params.push(Array.isArray(labels) ? JSON.stringify(labels) : null); }
-  if (assignee !== undefined) { sets.push('production_assignee = ?'); params.push(assignee || null); }
-  if (drive_folder_url !== undefined) { sets.push('drive_folder_url = ?'); params.push(drive_folder_url ? String(drive_folder_url).trim() : null); }
-  if (client_message !== undefined) { sets.push('client_message = ?'); params.push(client_message ? String(client_message).trim() : null); }
-  if (!sets.length) { res.status(400).json({ error: 'Nada para atualizar' }); return; }
-  params.push(req.params.id);
-  await db.query(`UPDATE cases SET ${sets.join(', ')} WHERE id = ?`, params);
-  res.json({ success: true });
+  try {
+    const { labels, assignee, drive_folder_url } = req.body;
+    const sets: string[] = []; const params: any[] = [];
+    if (labels !== undefined) { sets.push('production_labels = ?'); params.push(Array.isArray(labels) ? JSON.stringify(labels) : null); }
+    if (assignee !== undefined) { sets.push('production_assignee = ?'); params.push(assignee || null); }
+    if (drive_folder_url !== undefined) { sets.push('drive_folder_url = ?'); params.push(drive_folder_url ? String(drive_folder_url).trim() : null); }
+    if (!sets.length) { res.status(400).json({ error: 'Nada para atualizar' }); return; }
+    params.push(req.params.id);
+    await db.query(`UPDATE cases SET ${sets.join(', ')} WHERE id = ?`, params);
+    res.json({ success: true });
+  } catch (err: any) { res.status(500).json({ error: err?.message || 'Erro ao atualizar metadados' }); }
 });
 
 // ── POST /api/cases/:id/analisar-documentos — lê a pasta do Drive e gera a análise-checklist
@@ -238,14 +237,16 @@ router.post('/:id/analisar-documentos', async (req: Request, res: Response) => {
 
 // ── POST /api/cases/:id/production-notes — observação/pendência/atualização ──
 router.post('/:id/production-notes', async (req: Request, res: Response) => {
-  const { kind, text } = req.body;
-  const k = ['observacao', 'pendencia', 'atualizacao'].includes(kind) ? kind : 'observacao';
-  if (!text || !String(text).trim()) { res.status(400).json({ error: 'Escreva o texto' }); return; }
-  const [r] = await db.query(
-    'INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, ?, ?, ?)',
-    [req.params.id, req.user!.id, req.user!.name, k, String(text).trim()]
-  ) as any;
-  res.status(201).json({ id: r.insertId });
+  try {
+    const { kind, text } = req.body;
+    const k = ['observacao', 'pendencia', 'atualizacao'].includes(kind) ? kind : 'observacao';
+    if (!text || !String(text).trim()) { res.status(400).json({ error: 'Escreva o texto' }); return; }
+    const [r] = await db.query(
+      'INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, ?, ?, ?)',
+      [req.params.id, req.user!.id, req.user!.name, k, String(text).trim()]
+    ) as any;
+    res.status(201).json({ id: r.insertId });
+  } catch (err: any) { res.status(500).json({ error: err?.message || 'Erro ao salvar nota' }); }
 });
 
 // ── PATCH /api/cases/production-notes/:noteId/resolve — resolve pendência ────
@@ -258,9 +259,8 @@ router.patch('/production-notes/:noteId/resolve', async (req: Request, res: Resp
 router.get('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   const [rows] = await db.query(
-    `SELECT c.*, cl.name AS client_name, pt.name AS partner_name FROM cases c
-     LEFT JOIN clients cl ON cl.id = c.client_id
-     LEFT JOIN partners pt ON pt.id = c.partner_id WHERE c.id = ?`, [id]
+    `SELECT c.*, cl.name AS client_name FROM cases c
+     LEFT JOIN clients cl ON cl.id = c.client_id WHERE c.id = ?`, [id]
   ) as any;
   if (!rows.length) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
 
@@ -386,6 +386,7 @@ router.post('/:id/movements', async (req: Request, res: Response) => {
 
 // ── PATCH /api/cases/:id/production-stage — move na esteira de produção ─────
 router.patch('/:id/production-stage', async (req: Request, res: Response) => {
+  try {
   const { id } = req.params;
   const { stage, case_number } = req.body;
   if (!PROD_STAGES.includes(stage)) {
@@ -402,46 +403,6 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     return;
   }
 
-  // ── NOVO: Validação — se tentando ir para 'aguardando_protocolo', verificar pendências ──
-  if (stage === 'aguardando_protocolo') {
-    const [openPieces] = await db.query(
-      `SELECT id, description FROM legal_pieces
-       WHERE case_id = ? AND status NOT IN ('protocolado', 'cancelado')
-       ORDER BY id ASC`,
-      [id]
-    ) as any;
-
-    if (openPieces.length) {
-      res.status(400).json({
-        error: `Não é possível avançar com ${openPieces.length} pendência(s) aberta(s). Resolva antes de continuar.`,
-        pendencias: openPieces.map((p: any) => p.description || `Peça #${p.id}`)
-      });
-      return;
-    }
-  }
-
-  // ── NOVO: Auto-criar pasta Drive ao entrar em produção ──
-  if (stage === 'separacao_documentos' && !c.drive_folder_url) {
-    // Busca nome do cliente
-    const [clientRows] = await db.query(
-      'SELECT name FROM clients WHERE id = ?',
-      [c.client_id]
-    ) as any;
-    const clientName = clientRows[0]?.name || 'Cliente Desconhecido';
-
-    // Extrai descrição do processo (prioridade: legal_area, title, description)
-    const description = (c.legal_area || c.title || c.description || '').substring(0, 50);
-
-    // Cria pasta async (não bloqueia o avanço)
-    createProductionFolder(req.user!.id, clientName, c.legal_area || '', description)
-      .then((result) => {
-        if (result) {
-          db.query('UPDATE cases SET drive_folder_url = ? WHERE id = ?', [result.folderUrl, id]).catch(() => {});
-        }
-      })
-      .catch(() => {}); // Silent fail
-  }
-
   const finalCaseNumber = (case_number && String(case_number).trim()) ? case_number.trim() : c.case_number;
   // Marca o início da produção (SLA total) na primeira vez que entra na esteira.
   await db.query(
@@ -449,11 +410,13 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     [stage, finalCaseNumber, id]
   );
 
-  await logTimeline({
-    clientId: c.client_id, caseId: Number(id), eventType: `etapa_${stage}`,
-    description: `Produção movida para: ${STAGE_LABELS[stage]}${stage === 'protocolado' ? ` — processo nº ${finalCaseNumber}` : ''}.`,
-    userId: req.user!.id,
-  });
+  try {
+    await logTimeline({
+      clientId: c.client_id, caseId: Number(id), eventType: `etapa_${stage}`,
+      description: `Produção movida para: ${STAGE_LABELS[stage]}${stage === 'protocolado' ? ` — processo nº ${finalCaseNumber}` : ''}.`,
+      userId: req.user!.id,
+    });
+  } catch { /* timeline não crítica */ }
 
   // Registra a movimentação no log de produção (de → para), por quem moveu.
   if (c.production_stage !== stage) {
@@ -517,6 +480,10 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   }
 
   res.json({ success: true, production_stage: stage, case_number: finalCaseNumber, credentials, peticao, revisao });
+  } catch (err: any) {
+    console.error('Erro no production-stage:', err?.message || err);
+    res.status(500).json({ error: err?.message || 'Erro ao mover a etapa de produção' });
+  }
 });
 
 // ── GET /api/cases/:id/timeline — histórico ligado a este caso ──────────────
