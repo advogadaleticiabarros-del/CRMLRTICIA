@@ -3363,17 +3363,31 @@ async function finContasPagar(c) {
       <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap">
         <input type="checkbox" id="cp-show-pagas"> Ver pagas</label>
       <span class="spacer"></span>
+      <button class="btn-sm" id="cp-new-entrada" style="border-color:var(--green);color:var(--green)">+ Registrar entrada</button>
       <button class="btn-gold" id="cp-new">+ Conta a pagar</button>
     </div>
     <div id="cp-kpis" class="kpi-grid"></div>
-    <div id="cp-groups"></div>`;
+    <div id="cp-groups"></div>
+    <div id="cp-entradas-section" style="margin-top:20px;display:none">
+      <div class="card">
+        <div style="padding:12px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+          <strong style="color:var(--navy)">Entradas do mês</strong>
+          <span id="cp-entradas-total" style="font-weight:600;color:var(--green)"></span>
+        </div>
+        <div id="cp-entradas-list"></div>
+      </div>
+    </div>`;
 
   const load = async () => {
     const ym = $('#cp-month').value || curYM;
     const [y, m] = ym.split('-').map(Number);
     const from = `${ym}-01`;
     const to = `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
-    const rows = await api(`/api/cashflow?type=saida&from=${from}&to=${to}${scope !== 'todas' ? '&escopo=' + scope : ''}`);
+    const escFilter = scope !== 'todas' ? '&escopo=' + scope : '';
+    const [rows, entradas] = await Promise.all([
+      api(`/api/cashflow?type=saida&from=${from}&to=${to}${escFilter}`),
+      api(`/api/cashflow?type=entrada&from=${from}&to=${to}${escFilter}`).catch(() => []),
+    ]);
 
     const visible = showPagas ? rows : rows.filter((r) => r.status !== 'realizado');
 
@@ -3384,11 +3398,46 @@ async function finContasPagar(c) {
       if (r.status === 'realizado') pago += v;
       else { aberto += v; if (due && due < todayStr) vencido += v; }
     });
+    const totalEntradas = entradas.reduce((s, r) => s + (Number(r.amount) || 0), 0);
+    const saldo = totalEntradas - total;
     $('#cp-kpis').innerHTML =
-      kpi('Total do mês', money(total), 'money') +
+      kpi('Saídas do mês', money(total), 'money') +
       kpi('Pago', money(pago), 'money') +
       kpi('Em aberto', money(aberto), 'money') +
-      kpi('Vencido', money(vencido), 'money');
+      kpi('Vencido', money(vencido), 'money') +
+      (totalEntradas > 0 ? kpi('Entradas', money(totalEntradas), 'money') + kpi('Saldo', money(saldo), 'money') : '');
+
+    // Entradas section
+    const entradasEl = $('#cp-entradas-section');
+    if (entradas.length) {
+      entradasEl.style.display = '';
+      const ENTRADA_PT = Object.fromEntries([['honorario_inicial','Honorários iniciais'],['honorario_total','Honorários'],['exito','Êxito'],['acordo','Acordos'],['dativo','Dativo'],['correspondente','Correspondente'],['salario_conjuge','Salário cônjuge/familiar'],['contribuicao_familiar','Contribuição familiar'],['salario_proprio','Salário próprio'],['freelance','Freelance'],['aluguel_recebido','Aluguel recebido'],['investimento','Rendimento'],['outro_entrada','Outras entradas']]);
+      $('#cp-entradas-total').textContent = money(totalEntradas);
+      $('#cp-entradas-list').innerHTML = `<table><thead><tr><th>Descrição</th><th>Data</th><th>Valor</th><th>Status</th><th></th></tr></thead><tbody>` +
+        entradas.map((r) => {
+          const due = (r.due_date || '').split('T')[0];
+          const st = r.status === 'realizado' ? '<span class="badge ativo">recebido</span>' : '<span class="badge">previsto</span>';
+          const escChip = r.escopo === 'pessoal' ? '<span class="chip-escopo pessoal">👤 Pessoal</span>' : '<span class="chip-escopo empresa">🏢 Empresa</span>';
+          return `<tr><td>${esc(r.description)} ${escChip}<br><small style="color:var(--text-muted)">${ENTRADA_PT[r.category] || r.category}</small></td>
+            <td>${due ? fmtDate(due) : '—'}</td><td>${money(r.amount)}</td><td>${st}</td>
+            <td style="white-space:nowrap;text-align:right">
+              ${r.status !== 'realizado' ? `<button class="btn-sm" data-pay-ent="${r.id}">Recebido</button>` : `<button class="btn-sm" data-reopen-ent="${r.id}">Reabrir</button>`}
+              <button class="btn-sm" data-del-ent="${r.id}">Excluir</button></td></tr>`;
+        }).join('') + `</tbody></table>`;
+      $('#cp-entradas-list').querySelectorAll('[data-pay-ent]').forEach((b) => b.onclick = async () => {
+        try { await api(`/api/cashflow/${b.dataset.payEnt}/pay`, { method: 'PATCH', body: '{}' }); toast('Marcado como recebido'); load(); } catch (e) { toast(e.message, 'error'); }
+      });
+      $('#cp-entradas-list').querySelectorAll('[data-reopen-ent]').forEach((b) => b.onclick = async () => {
+        if (!confirm('Reabrir esta entrada?')) return;
+        try { await api(`/api/cashflow/${b.dataset.reopenEnt}/reopen`, { method: 'PATCH', body: '{}' }); toast('Entrada reaberta'); load(); } catch (e) { toast(e.message, 'error'); }
+      });
+      $('#cp-entradas-list').querySelectorAll('[data-del-ent]').forEach((b) => b.onclick = async () => {
+        if (!confirm('Excluir esta entrada?')) return;
+        try { await api(`/api/cashflow/${b.dataset.delEnt}`, { method: 'DELETE' }); toast('Entrada excluída'); load(); } catch (e) { toast(e.message, 'error'); }
+      });
+    } else {
+      entradasEl.style.display = 'none';
+    }
 
     const groups = {};
     visible.forEach((r) => { (groups[r.category] ??= []).push(r); });
@@ -3451,6 +3500,7 @@ async function finContasPagar(c) {
     load();
   });
   $('#cp-new').onclick = () => contaPagarForm(load, $('#cp-month').value, scope === 'pessoal' ? 'pessoal' : 'empresa');
+  $('#cp-new-entrada').onclick = () => cashflowForm(load, 'entrada');
   await load();
 }
 
@@ -3541,25 +3591,44 @@ async function finFluxoCaixa(c) {
   await load();
 }
 
-async function cashflowForm(onSave) {
+async function cashflowForm(onSave, preType) {
   const CATS = {
-    entrada: [['honorario_inicial','Honorários iniciais'],['honorario_total','Honorários (totais)'],['exito','Êxito / decisão'],['acordo','Acordos'],['dativo','Dativo (Estado)'],['correspondente','Correspondente jurídico'],['outro_entrada','Outras entradas']],
+    entrada: [
+      ['honorario_inicial','Honorários iniciais'],['honorario_total','Honorários (totais)'],
+      ['exito','Êxito / decisão'],['acordo','Acordos'],
+      ['dativo','Dativo (Estado)'],['correspondente','Correspondente jurídico'],
+      ['salario_conjuge','Salário cônjuge / familiar'],['contribuicao_familiar','Contribuição familiar'],
+      ['salario_proprio','Salário próprio'],['freelance','Freelance / bico'],
+      ['aluguel_recebido','Aluguel recebido'],['investimento','Rendimento / investimento'],
+      ['outro_entrada','Outras entradas'],
+    ],
     saida: GRUPOS_DESPESA,
   };
+  const initType = preType === 'entrada' ? 'entrada' : preType === 'saida' ? 'saida' : 'entrada';
   const catOptions = (type) => CATS[type].map(([v, t]) => `<option value="${v}">${t}</option>`).join('');
   const form = el(`<form class="form-grid">
-    ${field('Tipo', 'type', { options: [{ v: 'entrada', t: 'Entrada (receita)' }, { v: 'saida', t: 'Saída (despesa)' }] })}
-    <label>Categoria<select name="category">${catOptions('entrada')}</select></label>
+    ${field('Tipo', 'type', { options: [{ v: 'entrada', t: 'Entrada (receita)' }, { v: 'saida', t: 'Saída (despesa)' }], value: initType })}
+    <label>Categoria<select name="category">${catOptions(initType)}</select></label>
     ${field('Descrição *', 'description')}
-    ${field('Valor *', 'amount', { type: 'number' })}
-    ${field('Vencimento *', 'due_date', { type: 'date' })}
+    <div class="form-row">
+      ${field('Valor *', 'amount', { type: 'number' })}
+      ${field('Data *', 'due_date', { type: 'date' })}
+    </div>
+    <div class="seg-toggle" id="cf-escopo-toggle" style="margin-top:0">
+      <label class="on"><input type="radio" name="escopo" value="empresa" checked>🏢 Empresa</label>
+      <label><input type="radio" name="escopo" value="pessoal">👤 Pessoal</label>
+    </div>
     ${field('Recorrência', 'recurrence', { options: [{ v: 'unica', t: 'Única (1x)' }, { v: 'mensal', t: 'Mensal (repetir)' }] })}
     <div id="cf-occ" style="display:none">${field('Quantos meses', 'occurrences', { type: 'number', value: 12 })}</div>
+    ${field('Observações', 'notes', { type: 'textarea' })}
     <button type="submit" class="btn-primary">Lançar</button>
   </form>`);
   const typeSel = form.querySelector('[name=type]');
   const catSel = form.querySelector('[name=category]');
   typeSel.onchange = () => { catSel.innerHTML = catOptions(typeSel.value); };
+  form.querySelectorAll('#cf-escopo-toggle input').forEach((r) => r.onchange = () => {
+    form.querySelectorAll('#cf-escopo-toggle label').forEach((l) => l.classList.toggle('on', l.querySelector('input').checked));
+  });
   form.querySelector('[name=recurrence]').onchange = (e) => { form.querySelector('#cf-occ').style.display = e.target.value === 'mensal' ? 'block' : 'none'; };
   form.onsubmit = async (e) => {
     e.preventDefault();
@@ -3569,7 +3638,7 @@ async function cashflowForm(onSave) {
       closeModal(); toast(`Lançado (${r.created}x)`); onSave();
     } catch (err) { toast(err.message, 'error'); }
   };
-  openModal('Novo lançamento no fluxo', form);
+  openModal('Novo lançamento', form);
 }
 
 // ── Formulários financeiros ──
