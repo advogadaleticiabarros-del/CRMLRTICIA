@@ -217,9 +217,9 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
       const valor = i === installmentsCount - 1 ? last : base;
       const dueDate = toDateStr(addMonths(firstDueDate, i));
       await conn.query(
-        `INSERT INTO installments (client_id, proposta_id, case_id, numero, valor, due_date, status)
-         VALUES (?, ?, ?, ?, ?, ?, 'pendente')`,
-        [proposta.client_id, proposta.id, caseId, i + 1, valor, dueDate]
+        `INSERT INTO installments (user_id, client_id, proposta_id, case_id, numero, valor, due_date, status)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'pendente')`,
+        [req.user!.id, proposta.client_id, proposta.id, caseId, i + 1, valor, dueDate]
       );
     }
     await conn.commit();

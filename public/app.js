@@ -1323,6 +1323,7 @@ const ROUTES = {
         ${kpi('Valores a pagar', money(me.resumo.a_pagar), 'money')}
         ${kpi('Em atraso', money(me.resumo.vencido), 'money')}
       </div>
+      <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Minhas parcelas</strong></div><div id="portal-parc"><div class="spinner"></div></div></div>
       <div id="portal-cases"></div>
       <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Meus documentos</strong></div><div id="portal-docs"><div class="spinner"></div></div></div>
       <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Atualizações</strong></div><div id="portal-tl"><div class="spinner"></div></div></div>`;
@@ -1337,6 +1338,19 @@ const ROUTES = {
         <div style="margin-top:12px"><button class="btn-sm" data-pcase="${c.id}">Ver detalhes</button></div>
       </div>`).join('') : '<div class="empty">Nenhum processo no momento</div>';
     document.querySelectorAll('[data-pcase]').forEach((b) => b.onclick = () => portalCaseDetail(b.dataset.pcase));
+    api('/api/portal/financial').then((parcelas) => {
+      if (!parcelas.length) { $('#portal-parc').innerHTML = '<div class="empty" style="padding:16px">Nenhuma parcela registrada</div>'; return; }
+      const statusBadge = (i) => i.status === 'pago' ? '<span class="badge pago">paga</span>'
+        : i.status === 'em_processamento' ? '<span class="badge" style="background:var(--amber-bg);color:var(--amber)">em processamento</span>'
+        : i.status === 'cancelado' ? '<span class="badge cancelado">cancelada</span>'
+        : Number(i.vencida) ? '<span class="badge vencido">vencida</span>' : '<span class="badge" style="background:#e8f5e9;color:#2e7d32">pendente</span>';
+      $('#portal-parc').innerHTML = `<div style="padding:8px 12px">` + parcelas.map((i) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 6px;border-bottom:1px solid var(--border)">
+          <div><strong style="font-size:14px">${i.numero ? i.numero + 'ª parcela' : 'Parcela'}${i.proposta ? ` <small style="color:var(--text-muted);font-weight:400">· ${esc(i.proposta)}</small>` : ''}</strong>
+            <div style="font-size:12px;color:var(--text-muted)">vence ${fmtDate(i.due_date)}</div></div>
+          <div style="display:flex;align-items:center;gap:8px"><strong style="font-size:15px;color:var(--navy-deep)">${money(i.valor)}</strong>${statusBadge(i)}</div>
+        </div>`).join('') + `</div>`;
+    }).catch(() => { $('#portal-parc').innerHTML = '<div class="empty" style="padding:16px">—</div>'; });
     api('/api/portal/documents').then((docs) => {
       $('#portal-docs').innerHTML = docs.length ? docs.map((d) => `
         <div class="mini-row"><span>${esc(d.name)}${d.case_title ? `<br><small style="color:var(--text-muted)">${esc(d.case_title)}</small>` : ''}</span>
