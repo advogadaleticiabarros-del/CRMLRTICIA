@@ -3350,6 +3350,7 @@ async function finContasPagar(c) {
   const curYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const todayStr = new Date().toISOString().split('T')[0];
   let scope = 'todas';
+  let showPagas = false;
   c.innerHTML = `
     <div class="toolbar">
       <label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-soft)">Mês
@@ -3359,6 +3360,8 @@ async function finContasPagar(c) {
         <label><input type="radio" name="scope" value="empresa">🏢 Empresa</label>
         <label><input type="radio" name="scope" value="pessoal">👤 Pessoal</label>
       </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;white-space:nowrap">
+        <input type="checkbox" id="cp-show-pagas"> Ver pagas</label>
       <span class="spacer"></span>
       <button class="btn-gold" id="cp-new">+ Conta a pagar</button>
     </div>
@@ -3371,6 +3374,8 @@ async function finContasPagar(c) {
     const from = `${ym}-01`;
     const to = `${ym}-${String(new Date(y, m, 0).getDate()).padStart(2, '0')}`;
     const rows = await api(`/api/cashflow?type=saida&from=${from}&to=${to}${scope !== 'todas' ? '&escopo=' + scope : ''}`);
+
+    const visible = showPagas ? rows : rows.filter((r) => r.status !== 'realizado');
 
     let total = 0, pago = 0, aberto = 0, vencido = 0;
     rows.forEach((r) => {
@@ -3386,11 +3391,11 @@ async function finContasPagar(c) {
       kpi('Vencido', money(vencido), 'money');
 
     const groups = {};
-    rows.forEach((r) => { (groups[r.category] ??= []).push(r); });
+    visible.forEach((r) => { (groups[r.category] ??= []).push(r); });
     const order = GRUPOS_DESPESA.map(([k]) => k);
     const keys = Object.keys(groups).sort((a, b) => (order.indexOf(a) + 99) % 100 - (order.indexOf(b) + 99) % 100);
 
-    $('#cp-groups').innerHTML = rows.length ? keys.map((k) => {
+    $('#cp-groups').innerHTML = visible.length ? keys.map((k) => {
       const items = groups[k].sort((a, b) => (a.due_date || '').localeCompare(b.due_date || ''));
       const sub = items.reduce((s, r) => s + (Number(r.amount) || 0), 0);
       return `<div class="card" style="margin-bottom:16px">
@@ -3411,14 +3416,19 @@ async function finContasPagar(c) {
             <td>${money(r.amount)}</td>
             <td>${st}</td>
             <td style="white-space:nowrap;text-align:right">
-              ${r.status !== 'realizado' ? `<button class="btn-sm" data-pay="${r.id}">Pagar</button>` : ''}
+              ${r.status !== 'realizado' ? `<button class="btn-sm" data-pay="${r.id}">Pagar</button>` : `<button class="btn-sm" data-reopen="${r.id}" title="Desfazer pagamento">Reabrir</button>`}
               <button class="btn-sm" data-del="${r.id}" data-grp="${r.recurrence_group || ''}" data-tot="${r.installment_total || 1}">Excluir</button>
             </td></tr>`;
         }).join('')}</tbody></table></div>`;
-    }).join('') : '<div class="empty">Nenhuma conta a pagar neste mês. Clique em "+ Conta a pagar".</div>';
+    }).join('') : `<div class="empty">${showPagas ? 'Nenhuma conta neste mês.' : 'Nenhuma conta a pagar em aberto neste mês.'} ${!showPagas && rows.some((r) => r.status === 'realizado') ? '<br><small>Há contas pagas — ative "Ver pagas" para exibi-las.</small>' : ''}</div>`;
 
     $('#cp-groups').querySelectorAll('[data-pay]').forEach((b) => b.onclick = async () => {
       try { await api(`/api/cashflow/${b.dataset.pay}/pay`, { method: 'PATCH', body: '{}' }); toast('Marcado como pago'); load(); }
+      catch (e) { toast(e.message, 'error'); }
+    });
+    $('#cp-groups').querySelectorAll('[data-reopen]').forEach((b) => b.onclick = async () => {
+      if (!confirm('Desfazer o pagamento e reabrir esta conta?')) return;
+      try { await api(`/api/cashflow/${b.dataset.reopen}/reopen`, { method: 'PATCH', body: '{}' }); toast('Conta reaberta'); load(); }
       catch (e) { toast(e.message, 'error'); }
     });
     $('#cp-groups').querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => {
@@ -3434,6 +3444,7 @@ async function finContasPagar(c) {
     });
   };
   $('#cp-month').onchange = load;
+  $('#cp-show-pagas').onchange = (e) => { showPagas = e.target.checked; load(); };
   c.querySelectorAll('#cp-scope input').forEach((r) => r.onchange = () => {
     scope = r.value;
     c.querySelectorAll('#cp-scope label').forEach((l) => l.classList.toggle('on', l.querySelector('input').checked));

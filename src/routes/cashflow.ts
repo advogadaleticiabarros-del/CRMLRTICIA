@@ -93,6 +93,15 @@ router.patch('/:id/pay', async (req: Request, res: Response) => {
   res.json({ success: true, id: Number(req.params.id), status: 'realizado' });
 });
 
+// ── PATCH /api/cashflow/:id/reopen — desfaz pagamento (volta a previsto) ────
+router.patch('/:id/reopen', async (req: Request, res: Response) => {
+  const [r] = await db.query(
+    "UPDATE cashflow_entries SET status = 'previsto', paid_at = NULL WHERE id = ?", [req.params.id]
+  ) as any;
+  if (!r.affectedRows) { res.status(404).json({ error: 'Lançamento não encontrado' }); return; }
+  res.json({ success: true, id: Number(req.params.id), status: 'previsto' });
+});
+
 // ── PUT /api/cashflow/:id ───────────────────────────────────────────────────
 router.put('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
