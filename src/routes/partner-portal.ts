@@ -86,4 +86,32 @@ router.get('/financial', async (req: Request, res: Response) => {
   res.json(repasses);
 });
 
+// ── GET /api/partner-portal/entradas — taxas de entrada que o parceiro deve ─
+// São os financial_records lançados pela regra da parceria (Entrada parceria…).
+router.get('/entradas', async (req: Request, res: Response) => {
+  const [rows] = await db.query(`
+    SELECT fr.id, fr.description, fr.valor, fr.status, fr.due_date, fr.paid_at,
+           cl.name AS client_name, c.case_number, c.title AS case_title
+      FROM financial_records fr
+      JOIN cases c  ON c.id  = fr.case_id  AND c.partner_id = ?
+      LEFT JOIN clients cl ON cl.id = fr.client_id
+     WHERE fr.description LIKE 'Entrada parceria%'
+     ORDER BY fr.due_date ASC`, [(req as any).partnerId]) as any;
+  const total_devido = rows.reduce((s: number, r: any) => s + (r.status !== 'pago' ? Number(r.valor) : 0), 0);
+  const total_pago   = rows.reduce((s: number, r: any) => s + (r.status === 'pago'  ? Number(r.valor) : 0), 0);
+  res.json({ rows, total_devido, total_pago });
+});
+
+// ── GET /api/partner-portal/timeline — atualizações de todos os casos ────────
+router.get('/timeline', async (req: Request, res: Response) => {
+  const [rows] = await db.query(`
+    SELECT cm.description, cm.movement_date, cm.created_at,
+           c.id AS case_id, c.case_number, c.title AS case_title, cl.name AS client_name
+      FROM case_movements cm
+      JOIN cases c ON c.id = cm.case_id AND c.partner_id = ?
+      LEFT JOIN clients cl ON cl.id = c.client_id
+     ORDER BY COALESCE(cm.movement_date, cm.created_at) DESC LIMIT 60`, [(req as any).partnerId]) as any;
+  res.json(rows);
+});
+
 export default router;

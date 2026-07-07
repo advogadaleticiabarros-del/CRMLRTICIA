@@ -1426,10 +1426,12 @@ const ROUTES = {
         ${kpi('Repasse a receber', money(me.resumo.repasse_a_receber), 'money')}
         ${kpi('Repasse recebido', money(me.resumo.repasse_recebido), 'money')}
       </div>
-      <div id="pp-cases"></div>`;
+      <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Taxas de entrada</strong><small style="color:var(--text-muted);margin-left:8px">o que devo ao escritório</small></div><div id="pp-entradas"><div class="spinner"></div></div></div>
+      <div id="pp-cases"></div>
+      <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Atualizações</strong></div><div id="pp-tl"><div class="spinner"></div></div></div>`;
     $('#pp-cases').innerHTML = cases.length ? cases.map((c) => {
       const atras = !['protocolado', 'concluido'].includes(c.production_stage) && Number(c.sla_days) > 10;
-      return `<div class="card" style="padding:18px;margin-bottom:14px">
+      return `<div class="card" style="padding:18px;margin-bottom:14px;margin-top:14px">
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
           <strong style="font-size:15.5px;color:var(--navy-deep)">${esc(c.client_name || '—')}</strong>
           <small style="color:var(--text-muted)">${c.case_number ? 'Processo ' + esc(c.case_number) : 'Em preparação'}</small>
@@ -1442,25 +1444,69 @@ const ROUTES = {
         </div>
         <div style="margin-top:12px"><button class="btn-sm" data-ppcase="${c.id}">Ver detalhes</button></div>
       </div>`;
-    }).join('') : '<div class="empty">Nenhum caso indicado ainda</div>';
+    }).join('') : '<div class="empty" style="padding:16px">Nenhum caso indicado ainda</div>';
     page.querySelectorAll('[data-ppcase]').forEach((b) => b.onclick = () => partnerCaseDetail(b.dataset.ppcase));
+    api('/api/partner-portal/entradas').then((e) => {
+      if (!e.rows.length) { $('#pp-entradas').innerHTML = '<div class="empty" style="padding:16px">Nenhuma taxa de entrada lançada</div>'; return; }
+      $('#pp-entradas').innerHTML = `<div style="padding:8px 12px">` + e.rows.map((r) => {
+        const st = r.status === 'pago' ? '<span class="badge pago">pago</span>' : (r.due_date && r.due_date.split('T')[0] < new Date().toISOString().split('T')[0] ? '<span class="badge vencido">vencido</span>' : '<span class="badge">pendente</span>');
+        return `<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 6px;border-bottom:1px solid var(--border)">
+          <div><strong style="font-size:14px">${esc(r.client_name || '—')}</strong>${r.case_number ? ` <small style="color:var(--text-muted)">· Proc. ${esc(r.case_number)}</small>` : ''}
+            <div style="font-size:12px;color:var(--text-muted)">${esc(r.description)} · vence ${fmtDate(r.due_date)}</div></div>
+          <div style="display:flex;align-items:center;gap:8px"><strong style="font-size:15px;color:var(--navy-deep)">${money(r.valor)}</strong>${st}</div>
+        </div>`;
+      }).join('') + `<div style="padding:12px 6px;font-size:13px;color:var(--text-muted)">Total devido: <strong style="color:var(--red)">${money(e.total_devido)}</strong> · Total pago: <strong style="color:var(--green)">${money(e.total_pago)}</strong></div></div>`;
+    }).catch(() => { $('#pp-entradas').innerHTML = '<div class="empty" style="padding:16px">—</div>'; });
+    api('/api/partner-portal/timeline').then((tl) => {
+      $('#pp-tl').innerHTML = tl.length ? tl.map((e) => `<div class="notif-item">
+        <strong>${esc(e.description)}</strong>
+        <div style="margin-top:4px"><small style="color:var(--text-muted)">${esc(e.client_name || '')}${e.case_number ? ' · Proc. ' + esc(e.case_number) : ''} · ${fmtDate(e.created_at)}</small></div>
+      </div>`).join('') : '<div class="empty" style="padding:16px">Sem atualizações ainda</div>';
+    }).catch(() => { $('#pp-tl').innerHTML = '<div class="empty">—</div>'; });
   },
 
   async ppfin(page) {
-    const rows = await api('/api/partner-portal/financial');
+    const [rows, entradas] = await Promise.all([
+      api('/api/partner-portal/financial'),
+      api('/api/partner-portal/entradas').catch(() => ({ rows: [], total_devido: 0, total_pago: 0 })),
+    ]);
     const aReceber = rows.filter((r) => r.status !== 'pago').reduce((s, r) => s + Number(r.valor), 0);
     page.innerHTML = `
-      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Seus repasses da parceria (somente leitura)</p></div></div>
-      <div class="kpi-grid">${kpi('Repasse a receber', money(aReceber), 'money')}</div>
-      <div id="pp-fin"></div>`;
+      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Repasses a receber e taxas de entrada</p></div></div>
+      <div class="kpi-grid">
+        ${kpi('Repasse a receber', money(aReceber), 'money')}
+        ${kpi('Taxas pendentes', money(entradas.total_devido), 'money')}
+        ${kpi('Taxas pagas', money(entradas.total_pago), 'money')}
+      </div>
+      <div class="card" style="margin-bottom:20px">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Repasses — o que o escritório me deve</strong></div>
+        <div id="pp-fin"></div>
+      </div>
+      <div class="card">
+        <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Taxas de entrada — o que devo ao escritório</strong></div>
+        <div id="pp-entradas-fin"></div>
+      </div>`;
     $('#pp-fin').innerHTML = rows.length ? `
-      <div class="card"><table><thead><tr><th>Cliente / Caso</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Status</th></tr></thead>
+      <table><thead><tr><th>Cliente / Caso</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Status</th></tr></thead>
       <tbody>${rows.map((r) => `<tr>
         <td><strong>${esc(r.client_name || '—')}</strong><br><small style="color:var(--text-muted)">${esc(r.case_title || r.case_number || '')}</small></td>
         <td>${esc(r.tipo || '—')}</td><td><strong>${money(r.valor)}</strong></td>
         <td>${fmtDate(r.data_vencimento)}</td>
-        <td>${r.status === 'pago' ? '<span class="badge pago">recebido</span>' : '<span class="badge pendente">a receber</span>'}</td></tr>`).join('')}</tbody></table></div>`
-      : '<div class="empty">Nenhum repasse registrado ainda</div>';
+        <td>${r.status === 'pago' ? '<span class="badge pago">recebido</span>' : '<span class="badge">a receber</span>'}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty" style="padding:16px">Nenhum repasse registrado ainda</div>';
+    $('#pp-entradas-fin').innerHTML = entradas.rows.length ? `
+      <table><thead><tr><th>Cliente / Proc.</th><th>Descrição</th><th>Valor</th><th>Vencimento</th><th>Status</th></tr></thead>
+      <tbody>${entradas.rows.map((r) => {
+        const vencida = r.status !== 'pago' && r.due_date && r.due_date.split('T')[0] < new Date().toISOString().split('T')[0];
+        return `<tr>
+          <td><strong>${esc(r.client_name || '—')}</strong>${r.case_number ? `<br><small style="color:var(--text-muted)">Proc. ${esc(r.case_number)}</small>` : ''}</td>
+          <td><small>${esc(r.description)}</small></td>
+          <td><strong>${money(r.valor)}</strong></td>
+          <td>${fmtDate(r.due_date)}</td>
+          <td>${r.status === 'pago' ? '<span class="badge pago">pago</span>' : vencida ? '<span class="badge vencido">vencido</span>' : '<span class="badge">pendente</span>'}</td>
+        </tr>`;
+      }).join('')}</tbody></table>`
+      : '<div class="empty" style="padding:16px">Nenhuma taxa lançada ainda</div>';
   },
 
   async contratos(page) {
