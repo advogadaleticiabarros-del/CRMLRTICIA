@@ -26,8 +26,8 @@ router.get('/me', async (req: Request, res: Response) => {
     SELECT
       (SELECT COUNT(*) FROM cases WHERE partner_id = ?) AS casos,
       (SELECT COUNT(*) FROM cases WHERE partner_id = ? AND status = 'ativo') AS casos_ativos,
-      (SELECT COALESCE(SUM(r.valor),0) FROM repasses r JOIN cases c ON c.id = r.case_id WHERE c.partner_id = ? AND r.status = 'pendente') AS repasse_a_receber,
-      (SELECT COALESCE(SUM(r.valor),0) FROM repasses r JOIN cases c ON c.id = r.case_id WHERE c.partner_id = ? AND r.status = 'pago') AS repasse_recebido
+      (SELECT COALESCE(SUM(r.valor),0) FROM repasses r JOIN cases c ON c.id = r.case_id WHERE c.partner_id = ? AND r.status IN ('pendente','processando')) AS repasse_a_receber,
+      (SELECT COALESCE(SUM(r.valor),0) FROM repasses r JOIN cases c ON c.id = r.case_id WHERE c.partner_id = ? AND r.status = 'repassado') AS repasse_recebido
   `, [partnerId, partnerId, partnerId, partnerId]) as any;
   res.json({ ...(p || {}), resumo });
 });
@@ -77,22 +77,25 @@ router.get('/cases/:id', async (req: Request, res: Response) => {
     'SELECT numero, valor, due_date, status FROM installments WHERE case_id = ? ORDER BY numero ASC',
     [req.params.id]) as any;
   const [repasses] = await db.query(
-    'SELECT valor, tipo, status, data_vencimento, data_repasse, descricao FROM repasses WHERE case_id = ? ORDER BY id DESC',
+    'SELECT valor, tipo, status, data_vencimento, data_repasse, descricao, comprovante_url FROM repasses WHERE case_id = ? ORDER BY id DESC',
     [req.params.id]) as any;
+  const [pendencias] = await db.query(
+    "SELECT text, author_name, created_at FROM production_notes WHERE case_id = ? AND kind = 'pendencia' AND resolved = 0 ORDER BY created_at DESC",
+    [req.params.id]).catch(() => [[]]) as any;
 
   // Ficha do cliente ao parceiro: SEM contato (telefone/e-mail).
   res.json({
     id: c.id, case_number: c.case_number, title: c.title, legal_area: c.legal_area,
     phase: c.phase, status: c.status, production_stage: c.production_stage,
     valor_causa: c.valor_causa, client_name: c.client_name, resumo: c.description || '',
-    movements, installments, repasses,
+    movements, installments, repasses, pendencias,
   });
 });
 
 // ── GET /api/partner-portal/financial — repasses do parceiro (todos os casos) ─
 router.get('/financial', async (req: Request, res: Response) => {
   const [repasses] = await db.query(`
-    SELECT r.valor, r.tipo, r.status, r.data_vencimento, r.data_repasse, r.descricao,
+    SELECT r.valor, r.tipo, r.status, r.data_vencimento, r.data_repasse, r.descricao, r.comprovante_url,
            c.title AS case_title, c.case_number, cl.name AS client_name
       FROM repasses r
       JOIN cases c ON c.id = r.case_id

@@ -1552,9 +1552,10 @@ const ROUTES = {
       api('/api/partner-portal/financial'),
       api('/api/partner-portal/entradas').catch(() => ({ rows: [], total_devido: 0, total_pago: 0 })),
     ]);
-    const aReceber = rows.filter((r) => r.status !== 'pago').reduce((s, r) => s + Number(r.valor), 0);
+    const aReceber = rows.filter((r) => ['pendente', 'processando'].includes(r.status)).reduce((s, r) => s + Number(r.valor), 0);
     page.innerHTML = `
-      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Repasses a receber e taxas de entrada</p></div></div>
+      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Repasses a receber e taxas de entrada</p></div>
+        <button class="btn-ghost" id="pp-extrato">Baixar extrato do mês</button></div>
       <div class="kpi-grid">
         ${kpi('Repasse a receber', money(aReceber), 'money')}
         ${kpi('Taxas pendentes', money(entradas.total_devido), 'money')}
@@ -1574,8 +1575,34 @@ const ROUTES = {
         <td><strong>${esc(r.client_name || '—')}</strong><br><small style="color:var(--text-muted)">${esc(r.case_title || r.case_number || '')}</small></td>
         <td>${esc(r.tipo || '—')}</td><td><strong>${money(r.valor)}</strong></td>
         <td>${fmtDate(r.data_vencimento)}</td>
-        <td>${r.status === 'pago' ? '<span class="badge pago">recebido</span>' : '<span class="badge">a receber</span>'}</td></tr>`).join('')}</tbody></table>`
+        <td>${r.status === 'repassado' ? `<span class="badge pago">recebido${r.data_repasse ? ' em ' + fmtDate(r.data_repasse) : ''}</span>${r.comprovante_url ? ` <a class="btn-sm" style="text-decoration:none" href="${esc(r.comprovante_url)}" target="_blank" rel="noopener">Comprovante</a>` : ''}`
+          : r.status === 'cancelado' ? '<span class="badge cancelado">cancelado</span>'
+          : '<span class="badge">a receber</span>'}</td></tr>`).join('')}</tbody></table>`
       : '<div class="empty" style="padding:16px">Nenhum repasse registrado ainda</div>';
+    // Extrato do mês — janela de impressão com o papel timbrado (salvar como PDF)
+    $('#pp-extrato').onclick = () => {
+      const mesRef = new Date();
+      const mes = mesRef.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+      const ym = mesRef.toISOString().slice(0, 7);
+      const noMes = (d) => d && String(d).slice(0, 7) === ym;
+      const repMes = rows.filter((r) => noMes(r.data_vencimento) || noMes(r.data_repasse));
+      const entMes = entradas.rows.filter((r) => noMes(r.due_date) || noMes(r.paid_at));
+      const tbl = (cab, linhas) => linhas.length
+        ? `<table style="width:100%;border-collapse:collapse;margin:8px 0 18px">${cab}${linhas}</table>`
+        : '<p style="color:#777;font-size:13px;margin:6px 0 18px">Nenhum lançamento neste mês.</p>';
+      printBranded(`Extrato da parceria — ${mes}`, 'Documento informativo (não fiscal)', `
+        <h3 style="margin:14px 0 4px">Repasses</h3>
+        ${tbl('<tr><th style="text-align:left;border-bottom:1px solid #ccc;padding:6px">Cliente / Caso</th><th style="text-align:right;border-bottom:1px solid #ccc;padding:6px">Valor</th><th style="text-align:left;border-bottom:1px solid #ccc;padding:6px">Status</th></tr>',
+          repMes.map((r) => `<tr><td style="padding:6px;border-bottom:1px solid #eee">${esc(r.client_name || '')} — ${esc(r.case_title || r.case_number || '')}</td><td style="padding:6px;text-align:right;border-bottom:1px solid #eee">${money(r.valor)}</td><td style="padding:6px;border-bottom:1px solid #eee">${r.status === 'repassado' ? 'recebido em ' + fmtDate(r.data_repasse) : r.status}</td></tr>`).join(''))}
+        <h3 style="margin:14px 0 4px">Taxas de entrada</h3>
+        ${tbl('<tr><th style="text-align:left;border-bottom:1px solid #ccc;padding:6px">Cliente</th><th style="text-align:right;border-bottom:1px solid #ccc;padding:6px">Valor</th><th style="text-align:left;border-bottom:1px solid #ccc;padding:6px">Status</th></tr>',
+          entMes.map((r) => `<tr><td style="padding:6px;border-bottom:1px solid #eee">${esc(r.client_name || '')}</td><td style="padding:6px;text-align:right;border-bottom:1px solid #eee">${money(r.valor)}</td><td style="padding:6px;border-bottom:1px solid #eee">${r.status}</td></tr>`).join(''))}
+        <p style="margin-top:10px"><strong>Totais do mês:</strong>
+          repasses recebidos ${money(repMes.filter((r) => r.status === 'repassado').reduce((s, r) => s + Number(r.valor), 0))} ·
+          a receber ${money(repMes.filter((r) => ['pendente', 'processando'].includes(r.status)).reduce((s, r) => s + Number(r.valor), 0))} ·
+          entradas devidas ${money(entMes.filter((r) => r.status !== 'pago').reduce((s, r) => s + Number(r.valor), 0))}</p>
+        <p style="color:#777;font-size:12px">Use "Imprimir → Salvar como PDF" para arquivar este extrato.</p>`);
+    };
     $('#pp-entradas-fin').innerHTML = entradas.rows.length ? `
       <table><thead><tr><th>Cliente / Proc.</th><th>Descrição</th><th>Valor</th><th>Vencimento</th><th>Status</th></tr></thead>
       <tbody>${entradas.rows.map((r) => {
@@ -3455,7 +3482,12 @@ async function finRepasses(c) {
       }).join('')}</tbody></table>`
       : '<div class="empty">Nenhum repasse cadastrado</div>';
     document.querySelectorAll('[data-rep-pay]').forEach((b) => b.onclick = async () => {
-      try { await api(`/api/repasses/${b.dataset.repPay}/repassar`, { method: 'POST', body: '{}' }); toast('Repasse efetuado'); load(); } catch (e) { toast(e.message, 'error'); }
+      const comp = prompt('Link do comprovante (Drive/banco) — o parceiro vê no portal. Deixe vazio para pular:');
+      if (comp === null) return;
+      try {
+        await api(`/api/repasses/${b.dataset.repPay}/repassar`, { method: 'POST', body: JSON.stringify(comp && comp.trim() ? { comprovante_url: comp.trim() } : {}) });
+        toast('Repasse efetuado'); load();
+      } catch (e) { toast(e.message, 'error'); }
     });
     document.querySelectorAll('[data-rep-cancel]').forEach((b) => b.onclick = async () => {
       try { await api(`/api/repasses/${b.dataset.repCancel}/cancelar`, { method: 'POST', body: '{}' }); toast('Repasse cancelado'); load(); } catch (e) { toast(e.message, 'error'); }
@@ -5061,11 +5093,14 @@ async function partnerCaseDetail(id) {
   const parc = (c.installments || []).map((i) =>
     `<div class="mini-row"><span>${i.numero ? i.numero + 'ª' : 'Parcela'} · venc. ${fmtDate(i.due_date)}</span><span><strong>${money(i.valor)}</strong> ${badge(i.status)}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem parcelas</small>';
   const rep = (c.repasses || []).map((r) =>
-    `<div class="mini-row"><span>${esc(r.tipo || 'repasse')} · venc. ${fmtDate(r.data_vencimento)}</span><span><strong style="color:var(--gold)">${money(r.valor)}</strong> ${r.status === 'pago' ? '<span class="badge pago">recebido</span>' : '<span class="badge pendente">a receber</span>'}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem repasses ainda</small>';
+    `<div class="mini-row"><span>${esc(r.tipo || 'repasse')} · venc. ${fmtDate(r.data_vencimento)}</span><span><strong style="color:var(--gold)">${money(r.valor)}</strong> ${r.status === 'repassado' ? '<span class="badge pago">recebido</span>' : r.status === 'cancelado' ? '<span class="badge cancelado">cancelado</span>' : '<span class="badge pendente">a receber</span>'}${r.comprovante_url ? ` <a class="btn-sm" style="text-decoration:none" href="${esc(r.comprovante_url)}" target="_blank" rel="noopener">Comprovante</a>` : ''}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem repasses ainda</small>';
+  const pend = (c.pendencias || []).map((p) =>
+    `<div style="padding:7px 10px;border-left:3px solid var(--red);background:var(--surface);border-radius:6px;margin-top:6px;font-size:13px">⚠ ${esc(p.text)}<br><small style="color:var(--text-muted)">${fmtDate(p.created_at)}</small></div>`).join('');
   const wrap = el(`<div>
     <div><strong style="font-size:18px;color:var(--navy-deep)">${esc(c.client_name || 'Cliente')}</strong>${c.title ? ` <span style="color:var(--text-muted);font-size:14px">· ${esc(c.title)}</span>` : ''}<br>
       <small style="color:var(--text-muted)">${esc(c.legal_area || '')}${c.case_number ? ' · Processo ' + esc(c.case_number) : ' · Em preparação'}${c.valor_causa ? ' · Valor da causa: ' + money(c.valor_causa) : ''}</small></div>
     ${stepperHtml(c)}
+    ${pend ? `<div style="margin-top:12px"><strong style="font-size:13px;color:var(--red)">Pendências — precisamos de você</strong>${pend}</div>` : ''}
     ${c.resumo ? `<div class="client-msg">${esc(c.resumo)}</div>` : ''}
     <div style="margin-top:16px"><strong style="font-size:13px;color:var(--navy)">Financeiro do processo</strong><div style="margin-top:6px">${parc}</div></div>
     <div style="margin-top:14px"><strong style="font-size:13px;color:var(--navy)">Seus repasses</strong><div style="margin-top:6px">${rep}</div></div>

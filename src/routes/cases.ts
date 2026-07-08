@@ -245,6 +245,33 @@ router.post('/:id/production-notes', async (req: Request, res: Response) => {
       'INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, ?, ?, ?)',
       [req.params.id, req.user!.id, req.user!.name, k, String(text).trim()]
     ) as any;
+
+    // PENDÊNCIA em caso de PARCERIA → avisa o parceiro (sino + e-mail) na hora
+    if (k === 'pendencia') {
+      const [[pc]] = await db.query(
+        `SELECT c.partner_id, c.title, c.case_number, cl.name AS client_name
+           FROM cases c LEFT JOIN clients cl ON cl.id = c.client_id WHERE c.id = ?`, [req.params.id]) as any;
+      if (pc?.partner_id) {
+        const { notifyPartnerUsers } = await import('../services/partnerNotify');
+        notifyPartnerUsers(pc.partner_id, {
+          title: `Pendência no caso de ${pc.client_name || 'cliente'}`,
+          message: `${pc.client_name || ''} · ${pc.title || ''}${pc.case_number ? ` · Proc. ${pc.case_number}` : ''} — ${String(text).trim()}`,
+          caseId: Number(req.params.id), notificationType: 'parceria_pendencia',
+          emailSubject: `⚠️ Pendência no caso de ${pc.client_name || 'cliente'} — precisamos de você`,
+          emailHtmlBody: `
+            <p>O escritório registrou uma <strong>pendência</strong> em um caso indicado por você:</p>
+            <div style="background:#f4f6fa;border-radius:8px;padding:14px 16px;margin:14px 0;line-height:1.8">
+              <div><strong>Cliente:</strong> ${pc.client_name || '—'}</div>
+              <div><strong>Caso:</strong> ${pc.title || '—'}</div>
+              ${pc.case_number ? `<div><strong>Nº do processo:</strong> ${pc.case_number}</div>` : ''}
+              <div><strong>Pendência:</strong> ${String(text).trim()}</div>
+            </div>
+            <p>Se a pendência depender de documento ou informação do cliente, ajude-nos a resolvê-la
+               o quanto antes para não atrasar a produção (SLA de 10 dias).</p>`,
+        }).catch(() => {});
+      }
+    }
+
     res.status(201).json({ id: r.insertId });
   } catch (err: any) { res.status(500).json({ error: err?.message || 'Erro ao salvar nota' }); }
 });
@@ -498,6 +525,29 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
         }
       }
     } catch { /* entrada é best-effort — não trava o protocolo */ }
+
+    // Aviso de PROTOCOLO ao parceiro (sino + e-mail), com nº e valor da causa
+    try {
+      const { notifyPartnerUsers } = await import('../services/partnerNotify');
+      const [[cli]] = await db.query('SELECT name FROM clients WHERE id = ?', [c.client_id]) as any;
+      const vc = valorCausa !== undefined && valorCausa !== null ? valorCausa : c.valor_causa;
+      notifyPartnerUsers(c.partner_id, {
+        title: `Processo protocolado — ${cli?.name || 'cliente'}`,
+        message: `${cli?.name || ''} · ${c.title || ''} — protocolado sob o nº ${finalCaseNumber}${vc ? ` · valor da causa R$ ${Number(vc).toFixed(2)}` : ''}.`,
+        caseId: Number(id), notificationType: 'parceria_protocolo',
+        emailSubject: `✅ Processo protocolado — ${cli?.name || 'cliente'} (Proc. ${finalCaseNumber})`,
+        emailHtmlBody: `
+          <p>Boa notícia: um processo indicado por você foi <strong>protocolado</strong>.</p>
+          <div style="background:#f4f6fa;border-radius:8px;padding:14px 16px;margin:14px 0;line-height:1.8">
+            <div><strong>Cliente:</strong> ${cli?.name || '—'}</div>
+            <div><strong>Caso:</strong> ${c.title || '—'}</div>
+            <div><strong>Nº do processo:</strong> ${finalCaseNumber}</div>
+            ${vc ? `<div><strong>Valor da causa:</strong> R$ ${Number(vc).toFixed(2)} <small>(registro do protocolo, não definitivo)</small></div>` : ''}
+          </div>
+          <p>A partir de agora o processo entra no monitoramento e as movimentações aparecem
+             na aba <strong>Atualizações</strong> do seu portal.</p>`,
+      }).catch(() => {});
+    } catch { /* aviso é best-effort */ }
   }
 
   // Ao PROTOCOLAR: garante login do cliente + alerta com o nº do processo.

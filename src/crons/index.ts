@@ -101,6 +101,14 @@ export function startCronJobs() {
     } catch {}
   });
 
+  // ── segunda 08:00 (Brasília): resumo semanal por e-mail aos parceiros ──────
+  cron.schedule('0 8 * * 1', async () => {
+    try {
+      const { sendPartnerWeeklyDigests } = await import('../services/partnerWeeklyDigest');
+      await sendPartnerWeeklyDigests();
+    } catch {}
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── diário 07:10 (Brasília): audiências de casos de PARCERIA a 7 e 3 dias ──
   // Sino no CRM + e-mail ao parceiro com dados e orientações completas.
   cron.schedule('10 7 * * *', async () => {

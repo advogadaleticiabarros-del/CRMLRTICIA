@@ -88,6 +88,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('descricao', req.body.descricao?.trim?.());
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
   setIf('data_vencimento', req.body.data_vencimento);
+  setIf('comprovante_url', req.body.comprovante_url !== undefined ? (String(req.body.comprovante_url).trim() || null) : undefined);
 
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
   params.push(id);
@@ -110,7 +111,11 @@ router.post('/:id/repassar', async (req: Request, res: Response) => {
   if (!existing.length) { res.status(404).json({ error: 'Repasse não encontrado' }); return; }
   const prev = existing[0];
 
-  await db.query("UPDATE repasses SET status = 'repassado', data_repasse = NOW() WHERE id = ?", [id]);
+  const comprovante = req.body?.comprovante_url ? String(req.body.comprovante_url).trim() : null;
+  await db.query(
+    "UPDATE repasses SET status = 'repassado', data_repasse = NOW(), comprovante_url = COALESCE(?, comprovante_url) WHERE id = ?",
+    [comprovante, id]
+  );
   await logFinancialAudit({
     entityType: 'Repasse', entityId: Number(id), action: 'paid',
     userId: req.user!.id, userName: req.user!.name, caseId: prev.case_id, repasseId: Number(id),
