@@ -287,6 +287,14 @@ router.patch('/production-notes/:noteId/resolve', async (req: Request, res: Resp
   res.json({ success: true });
 });
 
+// ── GET /api/cases/:id/checklist — documentos por tipo de ação ──────────────
+router.get('/:id/checklist', async (req: Request, res: Response) => {
+  const { buildCaseChecklist } = await import('../services/caseChecklists');
+  const r = await buildCaseChecklist(Number(req.params.id));
+  if (!r) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+  res.json(r);
+});
+
 // ── GET /api/cases/:id — detalhe com movimentações e resumo ─────────────────
 router.get('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;

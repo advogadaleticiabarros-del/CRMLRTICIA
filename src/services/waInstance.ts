@@ -96,19 +96,66 @@ function extractText(msg: any): string | null {
   return m.conversation || m.extendedTextMessage?.text || m.imageMessage?.caption || m.videoMessage?.caption || null;
 }
 
+const MEDIA_TYPES: Record<string, { rotulo: string; ext: string }> = {
+  imageMessage: { rotulo: 'Foto', ext: 'jpg' },
+  documentMessage: { rotulo: 'Documento', ext: 'pdf' },
+  audioMessage: { rotulo: 'Áudio', ext: 'ogg' },
+  videoMessage: { rotulo: 'Vídeo', ext: 'mp4' },
+};
+const MEDIA_MAX = 15 * 1024 * 1024; // 15 MB
+
+/** Baixa a mídia recebida, guarda no banco e registra em Documentos do cliente. */
+async function storeMedia(msg: any, phone: string, clientId: number | null): Promise<{ mediaId: number; label: string } | null> {
+  const m = msg?.message || {};
+  const tipo = Object.keys(MEDIA_TYPES).find((k) => m[k]);
+  if (!tipo) return null;
+  try {
+    const buffer: Buffer = await baileys.downloadMediaMessage(
+      msg, 'buffer', {}, { logger: pino({ level: 'silent' }), reuploadRequest: sock?.updateMediaMessage });
+    if (!buffer || buffer.length === 0 || buffer.length > MEDIA_MAX) return null;
+
+    const info = MEDIA_TYPES[tipo];
+    const mime = m[tipo]?.mimetype?.split(';')[0] || 'application/octet-stream';
+    const original = m[tipo]?.fileName || '';
+    const stamp = new Date().toISOString().slice(0, 10);
+    const fileName = original || `WhatsApp_${info.rotulo}_${stamp}.${mime.split('/')[1] || info.ext}`;
+
+    const [r] = await db.query(
+      'INSERT INTO whatsapp_media (phone, client_id, file_name, mime, data) VALUES (?, ?, ?, ?, ?)',
+      [phone, clientId, fileName.slice(0, 255), mime.slice(0, 120), buffer]) as any;
+    const mediaId = r.insertId;
+
+    // Vira Documento do cliente automaticamente (Central de Documentos)
+    if (clientId) {
+      await db.query(
+        `INSERT INTO documents (client_id, name, type, folder, file_url, status, created_by)
+         VALUES (?, ?, 'recebido', 'outros', ?, 'ativo', 1)`,
+        [clientId, `WhatsApp — ${fileName}`.slice(0, 255), `/api/whatsapp-instance/media/${mediaId}`]).catch(() => {});
+    }
+    return { mediaId, label: `${info.rotulo}: ${fileName}` };
+  } catch { return null; }
+}
+
 async function storeMessage(msg: any): Promise<void> {
   try {
     const jid = String(msg.key?.remoteJid || '');
     if (!jid.endsWith('@s.whatsapp.net')) return; // ignora grupos/status
-    const body = extractText(msg);
-    if (!body) return;
     const phone = jid.split('@')[0];
     const clientId = await findClientByPhone(phone);
+
+    // Mídia (foto/PDF/áudio/vídeo) → salva e registra como documento
+    let mediaId: number | null = null;
+    let body = extractText(msg);
+    if (!msg.key?.fromMe) {
+      const media = await storeMedia(msg, phone, clientId);
+      if (media) { mediaId = media.mediaId; body = body || `📎 ${media.label}`; }
+    }
+    if (!body) return;
     const [r] = await db.query(
-      `INSERT IGNORE INTO whatsapp_messages (message_id, phone, client_id, from_me, body, msg_time)
-       VALUES (?, ?, ?, ?, ?, FROM_UNIXTIME(?))`,
+      `INSERT IGNORE INTO whatsapp_messages (message_id, phone, client_id, from_me, body, msg_time, media_id)
+       VALUES (?, ?, ?, ?, ?, FROM_UNIXTIME(?), ?)`,
       [msg.key?.id || null, phone, clientId, msg.key?.fromMe ? 1 : 0, String(body).slice(0, 4000),
-       Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000)]) as any;
+       Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000), mediaId]) as any;
 
     // Mensagem recebida (nova) → soma no contador de não lidas da conversa
     if (r.affectedRows > 0 && !msg.key?.fromMe) {

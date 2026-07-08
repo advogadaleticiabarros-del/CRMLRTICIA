@@ -130,6 +130,14 @@ export function startCronJobs() {
     } catch {}
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── diário 09:00 (Brasília): conversas sem resposta do cliente há 7 dias ──
+  cron.schedule('0 9 * * *', async () => {
+    try {
+      const { alertSilentChats } = await import('../services/whatsappQueue');
+      await alertSilentChats();
+    } catch {}
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── segunda 08:00 (Brasília): resumo semanal por e-mail aos parceiros ──────
   cron.schedule('0 8 * * 1', async () => {
     try {

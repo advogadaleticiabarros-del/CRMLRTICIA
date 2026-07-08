@@ -33,6 +33,8 @@ function areaChipsHtml(areas) {
   let arr = []; try { arr = Array.isArray(areas) ? areas : (areas ? JSON.parse(areas) : []); } catch {}
   return (arr || []).map((a) => `<span style="font-size:10px;background:var(--gold-soft,#efe3c8);color:var(--navy);padding:1px 7px;border-radius:10px;margin-left:4px">${esc(AREA_LABELS[a] || a)}</span>`).join('');
 }
+// Links de arquivos internos (/api/...) abrem em nova aba sem header — anexa o token via ?t=
+const fileHref = (u) => (u && String(u).startsWith('/api/') ? `${u}${String(u).includes('?') ? '&' : '?'}t=${encodeURIComponent(TOKEN || '')}` : (u || ''));
 // Link de WhatsApp a partir do telefone (adiciona DDI 55 do Brasil se faltar).
 function waLink(phone) {
   let d = String(phone || '').replace(/\D/g, '');
@@ -1906,6 +1908,7 @@ const ROUTES = {
           <div class="wa-list" id="wal"></div>
         </div>
         <div class="wa-pane" id="wap"><div class="wa-empty">Escolha uma conversa ao lado 💬</div></div>
+        <div class="wa-ctx" id="wa-ctx"></div>
       </div>`;
 
       const todasEtiquetas = () => [...new Set(chats.flatMap((c) => parseLabels(c.labels)))];
@@ -1952,8 +1955,81 @@ const ROUTES = {
           const d = fmtDia(m.msg_time);
           const sep = d !== dia ? `<div class="wa-day">${d}</div>` : '';
           dia = d;
-          return `${sep}<div class="wa-bub ${Number(m.from_me) ? 'out' : 'in'}">${esc(m.body)}<span class="wa-time">${fmtHora(m.msg_time)}</span></div>`;
+          const anexo = m.media_id ? `<br><a href="${esc(fileHref('/api/whatsapp-instance/media/' + m.media_id))}" target="_blank" rel="noopener" style="font-size:12px;font-weight:600">📎 Abrir anexo</a>` : '';
+          return `${sep}<div class="wa-bub ${Number(m.from_me) ? 'out' : 'in'}">${esc(m.body)}${anexo}<span class="wa-time">${fmtHora(m.msg_time)}</span></div>`;
         }).join('') || '<div class="wa-empty">Sem mensagens</div>';
+      };
+
+      // ── Painel de contexto (ficha ao lado da conversa) ──
+      const renderContexto = async () => {
+        const box = $('#wa-ctx'); if (!box || !ativo) return;
+        box.innerHTML = '<div class="spinner"></div>';
+        const cx = await api(`/api/whatsapp-instance/chats/${ativo.phone}/context`).catch(() => null);
+        if (!cx) { box.innerHTML = '<div class="wa-empty">—</div>'; return; }
+        const STG = { separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguard. protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
+        const bloco = (t, inner) => `<div style="padding:12px 14px;border-bottom:1px solid var(--border-soft)"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px">${t}</div>${inner}</div>`;
+        let html = '';
+        if (cx.client) {
+          html += bloco('Cliente', `<strong style="color:var(--navy-deep)">${esc(cx.client.name)}</strong>${cx.client.cpf_cnpj ? `<br><small style="color:var(--text-muted)">CPF: ${esc(cx.client.cpf_cnpj)}</small>` : ''}`);
+          html += bloco('Processos', (cx.cases || []).length ? cx.cases.map((c) => `<div style="font-size:12.5px;margin-bottom:6px"><strong>${esc(c.title || '—')}</strong><br><small style="color:var(--text-muted)">${c.case_number ? 'nº ' + esc(c.case_number) + ' · ' : ''}${STG[c.production_stage] || c.production_stage || c.status || ''}</small></div>`).join('') : '<small style="color:var(--text-muted)">Nenhum processo</small>');
+          html += bloco('Próxima audiência', cx.audiencia ? `<strong style="font-size:13px">${fmtDateTime(cx.audiencia.start_datetime)}</strong><br><small style="color:var(--text-muted)">${cx.audiencia.video_link ? 'ONLINE' : esc(cx.audiencia.location || 'presencial')}</small>` : '<small style="color:var(--text-muted)">Nenhuma marcada</small>');
+          const f = cx.financeiro || {};
+          html += bloco('Honorários', Number(f.pendentes)
+            ? `<strong style="color:${Number(f.vencidas) ? 'var(--red)' : 'var(--navy-deep)'}">${money(f.valor_aberto)}</strong> <small style="color:var(--text-muted)">em aberto (${f.pendentes} parcela${f.pendentes > 1 ? 's' : ''}${Number(f.vencidas) ? ` · ${f.vencidas} vencida${f.vencidas > 1 ? 's' : ''}` : ''})</small>`
+            : '<small style="color:var(--green)">✓ Nada em aberto</small>');
+        } else if (cx.lead) {
+          html += bloco('Lead', `<strong style="color:var(--navy-deep)">${esc(cx.lead.name)}</strong><br><small style="color:var(--text-muted)">${esc(cx.lead.legal_area || '')} · ${esc(cx.lead.status || '')}</small>`);
+        } else {
+          html += bloco('Contato', `<small style="color:var(--text-muted)">Número não cadastrado.</small><div style="margin-top:8px"><button class="btn-gold btn-sm" id="wa-mklead">+ Cadastrar como lead</button></div>`);
+        }
+        html += bloco('Última resposta do contato', cx.ultima_resposta ? `<small>${fmtDateTime(cx.ultima_resposta)}</small>` : '<small style="color:var(--text-muted)">nunca respondeu</small>');
+        html += `<div style="padding:12px 14px"><button class="btn-sm" id="wa-resumo" style="width:100%">✨ Resumir conversa com IA</button></div>`;
+        box.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:13px;color:var(--navy)">Ficha do contato</strong><button class="btn-sm" id="wa-ctx-close">✕</button></div>` + html;
+        box.querySelector('#wa-ctx-close').onclick = () => $('#wa-shell').classList.remove('ctx-open');
+
+        const mk = box.querySelector('#wa-mklead');
+        if (mk) mk.onclick = () => {
+          const form = el(`<form class="form-grid">
+            ${field('Nome *', 'name', { value: ativo.name.startsWith('+') ? '' : ativo.name })}
+            ${field('Área', 'legal_area', { options: [['trabalhista','Trabalhista'],['previdenciario','Previdenciário'],['consumidor','Consumidor'],['familia','Família'],['civel','Cível'],['gestante','Gestante'],['outro','Outro']].map(([v, t]) => ({ v, t })) })}
+            ${field('Origem', 'source', { options: [['whatsapp','WhatsApp'],['instagram','Instagram'],['google','Google'],['indicacao','Indicação'],['outro','Outro']].map(([v, t]) => ({ v, t })) })}
+            ${field('Observações', 'notes', { type: 'textarea' })}
+            <div style="display:flex;gap:8px"><button type="button" class="btn-ghost" id="lead-ia" style="flex:1">✨ Preencher com IA</button><button type="submit" class="btn-primary" style="flex:1">Cadastrar lead</button></div>
+          </form>`);
+          form.querySelector('#lead-ia').onclick = async (ev) => {
+            ev.target.disabled = true; ev.target.textContent = 'Lendo a conversa…';
+            try {
+              const r = await api(`/api/whatsapp-instance/chats/${ativo.phone}/extrair`, { method: 'POST', body: '{}' });
+              if (r.nome) form.querySelector('[name=name]').value = r.nome;
+              if (r.area) form.querySelector('[name=legal_area]').value = r.area;
+              if (r.resumo) form.querySelector('[name=notes]').value = r.resumo;
+              toast('Dados extraídos da conversa ✨');
+            } catch (e) { toast(e.message, 'error'); }
+            ev.target.disabled = false; ev.target.textContent = '✨ Preencher com IA';
+          };
+          form.onsubmit = async (ev) => {
+            ev.preventDefault();
+            const b = Object.fromEntries(new FormData(form));
+            try {
+              await api('/api/leads', { method: 'POST', body: JSON.stringify({ name: b.name, phone: ativo.phone, legal_area: b.legal_area, source: b.source, notes: b.notes || null }) });
+              closeModal(); toast('Lead cadastrado — já aparece no funil'); renderContexto();
+            } catch (e) { toast(e.message, 'error'); }
+          };
+          openModal('Novo lead a partir da conversa', form);
+        };
+
+        const rs = box.querySelector('#wa-resumo');
+        if (rs) rs.onclick = async () => {
+          rs.disabled = true; rs.textContent = 'Lendo a conversa…';
+          try {
+            const r = await api(`/api/whatsapp-instance/chats/${ativo.phone}/resumo`, { method: 'POST', body: '{}' });
+            openModal('Resumo da conversa (IA)', el(`<div>
+              <div style="white-space:pre-wrap;font-size:13.5px;line-height:1.65;max-height:60vh;overflow:auto;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px">${esc(r.resumo)}</div>
+              <button class="btn-sm" style="margin-top:10px" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent).then(()=>{})">Copiar resumo</button>
+            </div>`));
+          } catch (e) { toast(e.message, 'error'); }
+          rs.disabled = false; rs.textContent = '✨ Resumir conversa com IA';
+        };
       };
 
       const abrirChat = async (c, manterInput) => {
@@ -1974,6 +2050,7 @@ const ROUTES = {
             </div>
             <div class="wa-tags" id="wah-tags">${ativo.labels.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>
             <button class="btn-sm" id="wa-label">🏷 Etiquetas</button>
+            <button class="btn-sm" id="wa-info" title="Ficha do contato">ℹ</button>
           </div>
           <div class="wa-msgs" id="wam">${renderMsgs(msgs)}</div>
           <form class="wa-input" id="wa-reply">
@@ -1982,6 +2059,10 @@ const ROUTES = {
           </form>`;
         const box = $('#wam'); box.scrollTop = box.scrollHeight;
         if (window.innerWidth < 760) { const bk = $('#wa-back'); bk.style.display = ''; bk.onclick = () => { ativo = null; $('#wa-shell').classList.remove('chat-open'); renderLista(); }; }
+        // Painel de contexto: abre sozinho em telas largas; botão ℹ alterna
+        $('#wa-info').onclick = () => { $('#wa-shell').classList.toggle('ctx-open'); if ($('#wa-shell').classList.contains('ctx-open')) renderContexto(); };
+        if (window.innerWidth >= 1100 && !manterInput) { $('#wa-shell').classList.add('ctx-open'); renderContexto(); }
+        else if ($('#wa-shell').classList.contains('ctx-open')) renderContexto();
         $('#wa-reply').onsubmit = async (ev) => {
           ev.preventDefault();
           const inp = $('#wa-reply [name=text]');
@@ -2360,8 +2441,8 @@ async function gedDocumentos(c) {
       <div class="card" style="margin-bottom:14px">
         <div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">${FOLDER_PT[f]}</strong> <small style="color:var(--text-muted)">(${byFolder[f].length})</small></div>
         <div>${byFolder[f].length ? byFolder[f].map((d) => `<div class="mini-row">
-          <span>${d.name} ${d.has_content ? '' : (d.file_url ? '🔗' : '')}<br><small style="color:var(--text-muted)">${fmtDate(d.created_at)}</small></span>
-          <span>${badge(d.status)} ${d.has_content == 1 ? `<button class="btn-sm" data-doc="${d.id}">Abrir</button>` : ''} <button class="btn-sm" data-del-doc="${d.id}">×</button></span></div>`).join('') : '<div class="mini-row"><small>Vazia</small></div>'}</div>
+          <span>${d.name}<br><small style="color:var(--text-muted)">${fmtDate(d.created_at)}</small></span>
+          <span>${badge(d.status)} ${d.has_content == 1 ? `<button class="btn-sm" data-doc="${d.id}">Abrir</button>` : ''} ${!d.has_content && d.file_url ? `<a class="btn-sm" style="text-decoration:none" href="${esc(fileHref(d.file_url))}" target="_blank" rel="noopener">Abrir</a>` : ''} <button class="btn-sm" data-del-doc="${d.id}">×</button></span></div>`).join('') : '<div class="mini-row"><small>Vazia</small></div>'}</div>
       </div>`).join('');
     document.querySelectorAll('[data-doc]').forEach((b) => b.onclick = () => docViewer(b.dataset.doc, load));
     document.querySelectorAll('[data-del-doc]').forEach((b) => b.onclick = async () => {
@@ -4746,11 +4827,12 @@ async function caseDetail(id, onSave) {
       <button class="btn-gold btn-sm" id="ficha-btn" type="button" style="white-space:nowrap;flex:0 0 auto">${svgIcon('clipboard')} Ficha completa</button>
     </div>
     ${prodHtml}
-    ${c.production_stage ? '<div id="prod-panel"><div class="spinner"></div></div>' : ''}
+    ${c.production_stage ? '<div id="case-checklist"></div><div id="prod-panel"><div class="spinner"></div></div>' : ''}
     <hr style="border:none;border-top:1px solid var(--border)">
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <select id="case-phase">${PHASES.map((p)=>`<option value="${p.v}" ${p.v===c.phase?'selected':''}>${p.t}</option>`).join('')}</select>
       <button class="btn-sm" id="upd-phase">Atualizar fase</button>
+      <button class="btn-sm" id="gerar-peca" type="button">${svgIcon('ia', 'ic-xs')} Gerar peça</button>
     </div>
     <hr style="border:none;border-top:1px solid var(--border)">
     <strong style="font-size:13px">Equipe do processo</strong>
@@ -4789,6 +4871,51 @@ async function caseDetail(id, onSave) {
     };
   };
   loadCollabs();
+
+  // Gerar peça por tipo, com os dados do caso (usa modelos do escritório se houver)
+  const pecaBtn = form.querySelector('#gerar-peca');
+  if (pecaBtn) pecaBtn.onclick = async () => {
+    const tpls = await api('/api/ai/templates').catch(() => []);
+    if (!tpls.length) { toast('Nenhum tipo de peça disponível', 'error'); return; }
+    const pf = el(`<form class="form-grid">
+      ${field('Tipo de peça', 'type', { options: tpls.map((t) => ({ v: t.value || t.type, t: t.label })) })}
+      <p class="sub">A IA usa os dados do caso, do cliente e — se existir — o SEU modelo desse tipo de peça. A minuta fica em IA Jurídica e pode ser salva nos Documentos.</p>
+      <button type="submit" class="btn-primary">Gerar minuta</button>
+    </form>`);
+    pf.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const tipo = pf.querySelector('[name=type]').value;
+      const btn = pf.querySelector('button[type=submit]');
+      btn.disabled = true; btn.textContent = 'Gerando…';
+      try {
+        const r = await api('/api/ai/generate', { method: 'POST', body: JSON.stringify({ type: tipo, client_id: c.client_id, case_id: id }) });
+        closeModal();
+        if (r.auto && r.result) toast('✓ Minuta gerada — confira em IA Jurídica');
+        else toast('Prompt preparado em IA Jurídica (IA automática indisponível)', 'error');
+        location.hash = '#ia';
+      } catch (e) { toast(e.message, 'error'); btn.disabled = false; btn.textContent = 'Gerar minuta'; }
+    };
+    openModal('Gerar peça deste caso', pf);
+  };
+
+  // Checklist de documentos por tipo de ação (tudo verde = pode iniciar a petição)
+  const ckBox = form.querySelector('#case-checklist');
+  if (ckBox) api(`/api/cases/${id}/checklist`).then((ck) => {
+    if (!ck || !ck.itens.length) return;
+    const completo = ck.completos === ck.total;
+    ckBox.innerHTML = `
+      <div style="border:1px solid ${completo ? 'var(--green)' : 'var(--border)'};border-radius:var(--radius);padding:14px 16px;margin-top:6px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <strong style="font-size:13px;color:var(--navy-deep)">Checklist — ${esc(ck.titulo)}</strong>
+          <span class="badge" style="${completo ? 'background:#e3f0e6;color:var(--green)' : ''}">${ck.completos}/${ck.total} ${completo ? '· pronto para a petição ✓' : ''}</span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 16px;margin-top:10px">
+          ${ck.itens.map((i) => `<div style="font-size:12.5px;display:flex;gap:7px;align-items:baseline">
+            <span style="color:${i.done ? 'var(--green)' : 'var(--text-muted)'}">${i.done ? '✓' : '□'}</span>
+            <span style="${i.done ? '' : 'color:var(--text-soft)'}">${esc(i.label)}</span></div>`).join('')}
+        </div>
+      </div>`;
+  }).catch(() => {});
 
   const advBtn = form.querySelector('#adv-stage');
   if (advBtn) advBtn.onclick = async () => {

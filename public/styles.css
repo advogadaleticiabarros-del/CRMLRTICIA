@@ -1431,3 +1431,12 @@ img, svg, video { max-width: 100%; }
   .wa-shell:not(.chat-open) .wa-pane { display: none; }
   .wa-msgs { padding: 14px 4%; }
 }
+.wa-ctx { display: none; border-left: 1px solid var(--border); overflow-y: auto; background: var(--surface-card, var(--surface)); min-width: 0; }
+.wa-shell.ctx-open { grid-template-columns: minmax(260px, 320px) 1fr minmax(230px, 280px); }
+.wa-shell.ctx-open .wa-ctx { display: block; }
+@media (max-width: 1099px) { .wa-shell.ctx-open { grid-template-columns: minmax(260px, 320px) 1fr; } .wa-shell.ctx-open .wa-ctx { display: none; } }
+@media (max-width: 760px) {
+  .wa-shell.chat-open.ctx-open { grid-template-columns: 1fr; }
+  .wa-shell.chat-open.ctx-open .wa-ctx { display: block; position: absolute; inset: 0; z-index: 5; }
+  .wa-shell { position: relative; }
+}

@@ -92,3 +92,36 @@ export async function generateWhatsappQueue(): Promise<number> {
   if (created) console.log(`💬 Fila de WhatsApp: ${created} mensagem(ns) preparadas.`);
   return created;
 }
+
+/**
+ * Alerta "cliente sem resposta": a ÚLTIMA mensagem da conversa é nossa e o
+ * contato está em silêncio há 7+ dias → sino para os admins (1x por mensagem).
+ */
+export async function alertSilentChats(): Promise<number> {
+  const [chats] = await db.query(`
+    SELECT w.phone, w.id AS last_id, w.msg_time, cl.name AS client_name
+      FROM whatsapp_messages w
+      JOIN (SELECT phone, MAX(CONCAT(msg_time, LPAD(id, 12, '0'))) AS mx FROM whatsapp_messages GROUP BY phone) u
+        ON u.phone = w.phone AND CONCAT(w.msg_time, LPAD(w.id, 12, '0')) = u.mx
+      LEFT JOIN clients cl ON cl.id = w.client_id
+     WHERE w.from_me = 1 AND w.msg_time < NOW() - INTERVAL 7 DAY`) as any;
+
+  let alerts = 0;
+  for (const c of chats) {
+    const [dup] = await db.query(
+      'INSERT IGNORE INTO sent_reminders (ref_key, channel) VALUES (?, ?)',
+      [`wa_noresp_${c.phone}_${c.last_id}`, 'sino']) as any;
+    if (!dup.affectedRows) continue;
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+    for (const a of admins) {
+      await db.query(
+        `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+         VALUES (?, ?, ?, 'wa_sem_resposta', 'sistema', NOW(), 'pendente')`,
+        [a.id, 'Cliente sem resposta há 7 dias',
+         `${c.client_name || '+' + c.phone} não responde no WhatsApp desde ${new Date(c.msg_time).toLocaleDateString('pt-BR')}. Vale um novo contato?`]).catch(() => {});
+      alerts++;
+    }
+  }
+  if (alerts) console.log(`🔕 Conversas sem resposta: ${alerts} alerta(s).`);
+  return alerts;
+}
