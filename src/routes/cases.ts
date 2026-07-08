@@ -107,6 +107,11 @@ router.get('/:id/ficha', async (req: Request, res: Response) => {
     c.client_email ? `e-mail: ${c.client_email}` : '',
   ].filter((x) => x && String(x).trim()).join(', ');
 
+  // LGPD: registra o acesso à ficha completa do processo (dados pessoais)
+  import('../services/accessLog')
+    .then(({ logAccess }) => logAccess({ userId: req.user!.id, userName: req.user!.name, clientId: c.client_id, caseId: Number(id), action: 'ficha_processo', ip: req.ip }))
+    .catch(() => {});
+
   const q = async (sql: string) => { const [r] = await db.query(sql, [id]) as any; return r; };
   const [notes, movements, deadlines, documents, installments, receitas] = await Promise.all([
     q('SELECT kind, text, author_name, resolved, created_at FROM production_notes WHERE case_id = ? ORDER BY created_at ASC').catch(() => []),
@@ -449,10 +454,8 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   // Valor da causa (informado no protocolo; não definitivo — registro do que foi protocolado)
   let valorCausa: number | null | undefined = undefined;
   if (valor_causa !== undefined && valor_causa !== null && String(valor_causa).trim() !== '') {
-    const s = String(valor_causa).replace(/[R$\s]/g, '');
-    // "1.500,50" (pt-BR) → 1500.50 · "1500.50" → 1500.50 · "1500" → 1500
-    const n = s.includes(',') ? Number(s.replace(/\./g, '').replace(',', '.')) : Number(s);
-    valorCausa = Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+    const { parseValorBR } = await import('../utils/money');
+    valorCausa = parseValorBR(valor_causa);
   }
   // Marca o início da produção (SLA total) na primeira vez que entra na esteira.
   await db.query(

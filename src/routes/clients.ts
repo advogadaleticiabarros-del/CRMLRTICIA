@@ -56,6 +56,11 @@ router.get('/:id', async (req: Request, res: Response) => {
     return;
   }
 
+  // LGPD: registra o acesso à ficha do cliente (best-effort, não bloqueia)
+  import('../services/accessLog')
+    .then(({ logAccess }) => logAccess({ userId: req.user!.id, userName: req.user!.name, clientId: Number(id), action: 'ficha_cliente', ip: req.ip }))
+    .catch(() => {});
+
   const [[resumo]] = await db.query(`
     SELECT
       (SELECT COUNT(*) FROM cases WHERE client_id = ? AND status = 'ativo')           AS processos_ativos,
