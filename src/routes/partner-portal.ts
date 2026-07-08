@@ -55,9 +55,24 @@ router.get('/cases/:id', async (req: Request, res: Response) => {
      WHERE c.id = ? AND c.partner_id = ?`, [req.params.id, partnerId]) as any;
   if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
 
+  // Movimentações: registros manuais do caso + movimentações capturadas pelo
+  // MONITORAMENTO (DataJud) do processo vinculado (por case_id ou nº do processo).
   const [movements] = await db.query(
-    'SELECT description, movement_date, created_at FROM case_movements WHERE case_id = ? ORDER BY COALESCE(movement_date, created_at) DESC LIMIT 50',
-    [req.params.id]) as any;
+    `SELECT description, movement_date, created_at FROM (
+       SELECT description, movement_date, created_at
+         FROM case_movements WHERE case_id = ?
+       UNION ALL
+       SELECT TRIM(CONCAT(COALESCE(pm.title, ''),
+                          CASE WHEN pm.description IS NOT NULL AND pm.description <> ''
+                               THEN CONCAT(' — ', LEFT(pm.description, 600)) ELSE '' END)) AS description,
+              pm.movement_date, pm.created_at
+         FROM process_movements pm
+         JOIN legal_processes lp ON lp.id = pm.process_id
+        WHERE lp.case_id = ? OR (? <> '' AND lp.process_number = ?)
+     ) m
+     WHERE m.description <> ''
+     ORDER BY COALESCE(m.movement_date, m.created_at) DESC LIMIT 80`,
+    [req.params.id, req.params.id, c.case_number || '', c.case_number || '']) as any;
   const [installments] = await db.query(
     'SELECT numero, valor, due_date, status FROM installments WHERE case_id = ? ORDER BY numero ASC',
     [req.params.id]) as any;

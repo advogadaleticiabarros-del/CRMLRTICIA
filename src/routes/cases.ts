@@ -447,8 +447,36 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
 
   let credentials: { login: string; password: string } | null = null;
 
-  // Ao PROTOCOLAR: garante login do cliente + alerta com o nº do processo
-  if (stage === 'protocolado' && c.client_id) {
+  // Ao PROTOCOLAR: registra o processo no MONITORAMENTO (DataJud) automaticamente,
+  // para que as movimentações passem a ser acompanhadas (inclusive no portal do parceiro).
+  if (stage === 'protocolado' && finalCaseNumber) {
+    try {
+      const [existsLp] = await db.query(
+        'SELECT id, case_id FROM legal_processes WHERE process_number = ? LIMIT 1', [finalCaseNumber]
+      ) as any;
+      if (!existsLp.length) {
+        const { suggestCourtAlias, TRIBUNAIS } = await import('../services/datajud');
+        const alias = suggestCourtAlias(c.legal_area, 'ES');
+        const court = alias && (TRIBUNAIS as any)[alias] ? (TRIBUNAIS as any)[alias].nome : null;
+        const [lp] = await db.query(
+          `INSERT INTO legal_processes (client_id, case_id, process_number, court, court_alias, judicial_area, status, source)
+           VALUES (?, ?, ?, ?, ?, ?, 'ativo', 'auto_protocolo')`,
+          [c.client_id ?? null, Number(id), finalCaseNumber, court, alias, c.legal_area ?? null]
+        ) as any;
+        // Primeira sincronização em background (best-effort)
+        import('../services/monitoringService')
+          .then(({ syncProcess }) => syncProcess(lp.insertId))
+          .catch(() => {});
+      } else if (!existsLp[0].case_id) {
+        await db.query('UPDATE legal_processes SET case_id = ? WHERE id = ?', [Number(id), existsLp[0].id]);
+      }
+    } catch { /* monitoramento é best-effort — não trava o protocolo */ }
+  }
+
+  // Ao PROTOCOLAR: garante login do cliente + alerta com o nº do processo.
+  // Casos de PARCERIA (partner_id) NÃO ganham portal do cliente — o acompanhamento
+  // é feito pelo parceiro, no portal do parceiro.
+  if (stage === 'protocolado' && c.client_id && !c.partner_id) {
     const [clRows] = await db.query('SELECT id, name, email FROM clients WHERE id = ?', [c.client_id]) as any;
     const client = clRows[0];
     const [userRows] = await db.query("SELECT id FROM users WHERE client_id = ? AND role = 'cliente' LIMIT 1", [c.client_id]) as any;
