@@ -66,7 +66,16 @@ export function createApp() {
   app.set('trust proxy', true); // Railway atrás de proxy — captura IP real do signatário
 
   app.use(compression()); // gzip nas respostas (HTML/JS/CSS/JSON) — reduz transferência
-  app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+  app.use(cors({ origin: env.CORS_ORIGIN, credentials: true, exposedHeaders: ['X-Renew-Token'] }));
+
+  // Headers de segurança (sistema com dados pessoais — LGPD)
+  app.use((_req: Request, res: Response, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+  });
   app.use(express.json({ limit: '20mb' })); // ingestão DJEN pode trazer muitas publicações
   app.use(express.urlencoded({ extended: true }));
 

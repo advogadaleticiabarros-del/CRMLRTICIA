@@ -5,12 +5,42 @@ import { signToken, authenticate, authorize, AuthPayload } from '../middleware/a
 
 const router = Router();
 
+// ── Proteção contra força bruta no login ────────────────────────────────────
+// 5 tentativas erradas por IP+e-mail em 15 min → bloqueia por 15 min.
+// Em memória (instância única no Railway); zera no acerto e no restart.
+const LOGIN_MAX = 5;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const loginAttempts = new Map<string, { count: number; first: number }>();
+
+function loginKey(req: Request): string {
+  return `${req.ip || 'ip'}|${String(req.body?.email || '').toLowerCase().trim()}`;
+}
+function isBlocked(req: Request): number { // minutos restantes de bloqueio (0 = livre)
+  const a = loginAttempts.get(loginKey(req));
+  if (!a) return 0;
+  if (Date.now() - a.first > LOGIN_WINDOW_MS) { loginAttempts.delete(loginKey(req)); return 0; }
+  return a.count >= LOGIN_MAX ? Math.ceil((a.first + LOGIN_WINDOW_MS - Date.now()) / 60000) : 0;
+}
+function registerFail(req: Request): void {
+  const k = loginKey(req);
+  const a = loginAttempts.get(k);
+  if (!a || Date.now() - a.first > LOGIN_WINDOW_MS) loginAttempts.set(k, { count: 1, first: Date.now() });
+  else a.count++;
+  if (loginAttempts.size > 5000) loginAttempts.clear(); // não cresce sem limite
+}
+
 // ── POST /api/auth/login ────────────────────────────────────────────────────
 router.post('/login', async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
     res.status(400).json({ error: 'E-mail e senha são obrigatórios' });
+    return;
+  }
+
+  const bloqueado = isBlocked(req);
+  if (bloqueado) {
+    res.status(429).json({ error: `Muitas tentativas. Aguarde ${bloqueado} minuto(s) e tente novamente.` });
     return;
   }
 
@@ -21,15 +51,18 @@ router.post('/login', async (req: Request, res: Response) => {
 
   const user = rows[0];
   if (!user || !user.active) {
+    registerFail(req);
     res.status(401).json({ error: 'Credenciais inválidas' });
     return;
   }
 
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) {
+    registerFail(req);
     res.status(401).json({ error: 'Credenciais inválidas' });
     return;
   }
+  loginAttempts.delete(loginKey(req));
 
   const payload: AuthPayload = {
     id: user.id,

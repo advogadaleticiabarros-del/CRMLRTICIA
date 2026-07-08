@@ -10,9 +10,17 @@ async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
   if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
   const res = await fetch(API + path, { ...opts, headers });
+  // Renovação deslizante da sessão: o servidor manda um token novo perto de expirar
+  const renewed = res.headers.get('X-Renew-Token');
+  if (renewed) { TOKEN = renewed; localStorage.setItem('crm_token', renewed); }
   if (res.status === 401) { logout(); throw new Error('Sessão expirada'); }
   const data = res.status === 204 ? null : await res.json();
-  if (!res.ok) throw new Error(data?.error || 'Erro na requisição');
+  if (!res.ok) {
+    const err = new Error(data?.error || 'Erro na requisição');
+    err.status = res.status;               // permite tratar 400/429 etc.
+    if (data) Object.assign(err, data);    // ex.: err.pendencias (bloqueio de etapa)
+    throw err;
+  }
   return data;
 }
 

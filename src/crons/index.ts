@@ -137,6 +137,15 @@ export function startCronJobs() {
     }
   });
 
+  // ── dia 1 do mês, 03h30: PROVA REAL do backup (restaura num banco temporário)
+  // Falhou → alerta os admins no sino. Backup que não restaura não é backup.
+  cron.schedule('30 3 1 * *', async () => {
+    try {
+      const { runRestoreCheckAndNotify } = await import('../services/restoreService');
+      await runRestoreCheckAndNotify();
+    } catch {}
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── descoberta por OAB: diário 06h (varre tribunais e cadastra novos) ─────
   cron.schedule('0 6 * * *', async () => {
     try {

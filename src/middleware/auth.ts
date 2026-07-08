@@ -18,14 +18,17 @@ declare global {
   }
 }
 
-/** Gera um JWT para um usuário autenticado. */
+/** Gera um JWT para um usuário autenticado. Sessão de 24h (renova em uso). */
 export function signToken(payload: AuthPayload): string {
-  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: '7d' });
+  return jwt.sign(payload, env.JWT_SECRET, { expiresIn: '24h' });
 }
 
 /**
  * Middleware de autenticação. Lê o token do header Authorization: Bearer <token>,
  * valida e popula req.user. Bloqueia com 401 se ausente ou inválido.
+ * RENOVAÇÃO DESLIZANTE: se faltar menos de 12h para expirar, devolve um token
+ * novo no header X-Renew-Token — quem usa o sistema nunca é deslogado no meio
+ * do trabalho; quem para de usar perde a sessão em até 24h.
  */
 export function authenticate(req: Request, res: Response, next: NextFunction): void {
   const header = req.headers.authorization;
@@ -38,8 +41,13 @@ export function authenticate(req: Request, res: Response, next: NextFunction): v
   const token = header.slice(7);
 
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as AuthPayload;
-    req.user = payload;
+    const payload = jwt.verify(token, env.JWT_SECRET) as AuthPayload & { exp?: number };
+    req.user = { id: payload.id, email: payload.email, name: payload.name, role: payload.role };
+
+    const restante = (payload.exp || 0) * 1000 - Date.now();
+    if (restante > 0 && restante < 12 * 60 * 60 * 1000) {
+      res.setHeader('X-Renew-Token', signToken(req.user));
+    }
     next();
   } catch {
     res.status(401).json({ error: 'Token inválido ou expirado' });
