@@ -189,18 +189,25 @@ router.get('/clients', async (req: Request, res: Response) => {
   res.json(out);
 });
 
-// ── GET /api/partner-portal/agenda — audiências futuras dos casos do parceiro ─
+// ── GET /api/partner-portal/agenda — audiências futuras do parceiro ─────────
+// Entra na agenda do portal a audiência atrelada a um CASO da parceria OU
+// atrelada apenas a um CLIENTE que tem casos desta parceria.
 router.get('/agenda', async (req: Request, res: Response) => {
+  const partnerId = (req as any).partnerId;
   const [rows] = await db.query(`
     SELECT ce.id, ce.title, ce.start_datetime, ce.end_datetime, ce.location, ce.video_link, ce.description,
            DATEDIFF(DATE(ce.start_datetime), CURDATE()) AS dias,
            c.id AS case_id, c.case_number, c.title AS case_title, cl.name AS client_name
       FROM calendar_events ce
-      JOIN cases c ON c.id = ce.case_id AND c.partner_id = ?
+      LEFT JOIN cases c ON c.id = ce.case_id
       LEFT JOIN clients cl ON cl.id = COALESCE(ce.client_id, c.client_id)
      WHERE ce.event_type = 'audiencia' AND ce.start_datetime >= NOW()
+       AND (
+         (c.id IS NOT NULL AND c.partner_id = ?)
+         OR (ce.case_id IS NULL AND ce.client_id IN (SELECT DISTINCT client_id FROM cases WHERE partner_id = ? AND client_id IS NOT NULL))
+       )
      GROUP BY ce.id
-     ORDER BY ce.start_datetime ASC LIMIT 100`, [(req as any).partnerId]) as any;
+     ORDER BY ce.start_datetime ASC LIMIT 100`, [partnerId, partnerId]) as any;
   res.json(rows);
 });
 

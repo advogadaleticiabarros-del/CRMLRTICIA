@@ -37,19 +37,23 @@ function orientacoes(online: boolean, videoLink: string | null): string {
 }
 
 export async function sendPartnerHearingAlerts(): Promise<{ alerts: number; emails: number }> {
-  // Audiências exatamente a 7 ou 3 dias, de casos de parceria
+  // Audiências exatamente a 7 ou 3 dias: atreladas a um CASO de parceria OU
+  // apenas ao CLIENTE de um parceiro (lançadas na agenda sem vincular o caso).
   const [events] = await db.query(`
     SELECT ce.id, ce.title, ce.start_datetime, ce.location, ce.video_link, ce.description,
            DATEDIFF(DATE(ce.start_datetime), CURDATE()) AS dias,
-           c.id AS case_id, c.case_number, c.title AS case_title, c.partner_id,
-           cl.name AS client_name, p.name AS partner_name
+           c.id AS case_id, c.case_number, c.title AS case_title,
+           COALESCE(c.partner_id, pc.partner_id) AS partner_id,
+           cl.name AS client_name
       FROM calendar_events ce
-      JOIN cases c   ON c.id = ce.case_id AND c.partner_id IS NOT NULL
-      LEFT JOIN clients cl ON cl.id = ce.client_id OR cl.id = c.client_id
-      JOIN partners p ON p.id = c.partner_id
+      LEFT JOIN cases c ON c.id = ce.case_id
+      LEFT JOIN clients cl ON cl.id = COALESCE(ce.client_id, c.client_id)
+      LEFT JOIN (SELECT client_id, MIN(partner_id) AS partner_id FROM cases
+                  WHERE partner_id IS NOT NULL AND client_id IS NOT NULL GROUP BY client_id) pc
+             ON pc.client_id = ce.client_id AND ce.case_id IS NULL
      WHERE ce.event_type = 'audiencia'
        AND DATE(ce.start_datetime) IN (DATE_ADD(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 3 DAY))
-     GROUP BY ce.id
+    HAVING partner_id IS NOT NULL
   `) as any;
 
   let alerts = 0, emails = 0;
