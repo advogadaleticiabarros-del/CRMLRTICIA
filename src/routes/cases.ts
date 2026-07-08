@@ -482,6 +482,21 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
 
   let credentials: { login: string; password: string } | null = null;
 
+  // Ao PROTOCOLAR: prepara aviso de WhatsApp ao CLIENTE (fila — envio em 1 clique)
+  if (stage === 'protocolado' && c.client_id && c.production_stage !== 'protocolado') {
+    try {
+      const { enqueueWhatsapp } = await import('../services/whatsappQueue');
+      const [[cw]] = await db.query('SELECT name, phone FROM clients WHERE id = ?', [c.client_id]) as any;
+      if (cw?.phone) {
+        await enqueueWhatsapp({
+          clientId: c.client_id, name: cw.name, phone: cw.phone,
+          message: `Olá, ${String(cw.name || '').split(' ')[0]}! Ótima notícia: seu processo foi protocolado sob o nº ${finalCaseNumber}. A partir de agora acompanhamos cada movimentação e mantemos você informado(a). — Advocacia Letícia Barros`,
+          context: 'protocolo', refKey: `prot_${id}`,
+        });
+      }
+    } catch { /* fila é best-effort */ }
+  }
+
   // Ao PROTOCOLAR: registra o processo no MONITORAMENTO (DataJud) automaticamente,
   // para que as movimentações passem a ser acompanhadas (inclusive no portal do parceiro).
   if (stage === 'protocolado' && finalCaseNumber) {

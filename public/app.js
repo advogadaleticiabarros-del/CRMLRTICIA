@@ -96,14 +96,14 @@ const NAV_LABELS = {
   agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Controladoria', correspondente: 'Correspondente',
   documentos: 'Documentos', ia: 'IA Jurídica', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
   contratos: 'Contratos', intakes: 'Novo Atendimento',
-  monitor: 'Monitoramento', fases: 'Fases (Kanban)', producao: 'Produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB',
+  monitor: 'Monitoramento', fases: 'Fases (Kanban)', producao: 'Produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB', whatsapp: 'WhatsApp',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
   ppcases: 'Meus Indicados', ppclients: 'Fichas dos Clientes', ppupdates: 'Atualizações', ppagenda: 'Audiências', ppfin: 'Financeiro',
 };
 const NAV_BY_ROLE = {
-  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
-  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
-  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo'],
+  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
+  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
   estagiario: ['producao','cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -322,6 +322,7 @@ const ICONS = {
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
   banknote: '<rect x="3" y="7" width="18" height="10" rx="2"/><circle cx="12" cy="12" r="2.3"/><path d="M6.5 10v4M17.5 10v4"/>',
   dot: '<circle cx="12" cy="12" r="3.5"/>',
+  chat: '<path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.5 0-2.9-.36-4.1-1L3 20l1.05-5.2A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/>',
 };
 function svgIcon(name, extra) {
   const p = ICONS[name] || ICONS.dot;
@@ -334,7 +335,7 @@ const NAV_ICONS = {
   contratos: 'contract', documentos: 'docs', ia: 'ia', cases: 'briefcase', producao: 'kanban',
   parcerias: 'swap', monitor: 'activity', fases: 'branch', prazos: 'clock', agenda: 'calendar',
   financeiro: 'wallet', controladoria: 'pie', correspondente: 'pin', dativo: 'scale',
-  advogados: 'cap', config: 'gear', repasses: 'banknote',
+  advogados: 'cap', config: 'gear', repasses: 'banknote', whatsapp: 'chat',
   portal: 'folder', portalFinanceiro: 'banknote',
   ppcases: 'briefcase', ppclients: 'users', ppupdates: 'activity', ppagenda: 'clock', ppfin: 'wallet',
 };
@@ -1962,6 +1963,78 @@ const ROUTES = {
     await loadInboxPanel(reloadAll);
     await loadImportQueue(partners, reloadAll);
     if (partners.length) await loadCases();
+  },
+
+  // ── WhatsApp — fila de mensagens prontas (envio manual em 1 clique, sem API paga)
+  async whatsapp(page) {
+    const CTX = { cobranca: ['Cobrança', 'var(--amber)'], audiencia: ['Audiência', 'var(--red)'], protocolo: ['Protocolo', 'var(--green)'], avulsa: ['Avulsa', 'var(--text-muted)'] };
+    const load = async () => {
+      const d = await api('/api/whatsapp-queue');
+      page.innerHTML = `
+        <div class="page-header"><div><h2>WhatsApp</h2><p class="sub">Mensagens preparadas pelo sistema — revise e envie em 1 clique pelo seu WhatsApp</p></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-ghost" id="wa-gerar">Gerar agora</button><button class="btn-gold" id="wa-nova">+ Nova mensagem</button></div></div>
+        <div class="kpi-grid">${kpi('Aguardando envio', d.pendentes.length, d.pendentes.length ? 'money' : '')}</div>
+        <div id="wa-list"></div>
+        ${d.enviadas.length ? `<div class="card" style="margin-top:16px"><div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Enviadas recentemente</strong></div>
+          ${d.enviadas.map((e) => `<div class="mini-row" style="padding:8px 16px"><span>${esc(e.recipient_name)} <span class="badge">${(CTX[e.context] || CTX.avulsa)[0]}</span></span><small style="color:var(--text-muted)">${fmtDateTime(e.sent_at)}</small></div>`).join('')}</div>` : ''}`;
+      $('#wa-list').innerHTML = d.pendentes.length ? d.pendentes.map((m) => {
+        const [ctxLabel, ctxColor] = CTX[m.context] || CTX.avulsa;
+        return `<div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:3px solid ${ctxColor}">
+          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
+            <span><strong style="color:var(--navy-deep)">${esc(m.recipient_name)}</strong> <small style="color:var(--text-muted)">· ${esc(m.phone)}</small></span>
+            <span class="badge" style="color:${ctxColor}">${ctxLabel}</span>
+          </div>
+          <textarea data-msg="${m.id}" style="width:100%;margin-top:10px;min-height:74px;font-size:13.5px;line-height:1.5">${esc(m.message)}</textarea>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <button class="btn-gold btn-sm" data-send="${m.id}" data-phone="${esc(m.phone)}">${svgIcon('chat', 'ic-xs')} Enviar no WhatsApp</button>
+            <button class="btn-sm" data-done="${m.id}">Já enviei ✓</button>
+            <button class="btn-ghost btn-sm" data-skip="${m.id}">Descartar</button>
+          </div>
+        </div>`;
+      }).join('') : '<div class="empty">Nenhuma mensagem aguardando. O sistema prepara cobranças e lembretes de audiência todo dia às 07h15 — ou clique em "Gerar agora".</div>';
+
+      // Abre o WhatsApp com a mensagem pronta e marca como enviada
+      page.querySelectorAll('[data-send]').forEach((b) => b.onclick = async () => {
+        const texto = page.querySelector(`[data-msg="${b.dataset.send}"]`).value;
+        window.open(`https://wa.me/${b.dataset.phone}?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
+        try { await api(`/api/whatsapp-queue/${b.dataset.send}/enviada`, { method: 'POST', body: '{}' }); load(); } catch (e) { toast(e.message, 'error'); }
+      });
+      page.querySelectorAll('[data-done]').forEach((b) => b.onclick = async () => {
+        try { await api(`/api/whatsapp-queue/${b.dataset.done}/enviada`, { method: 'POST', body: '{}' }); toast('Marcada como enviada'); load(); } catch (e) { toast(e.message, 'error'); }
+      });
+      page.querySelectorAll('[data-skip]').forEach((b) => b.onclick = async () => {
+        try { await api(`/api/whatsapp-queue/${b.dataset.skip}/descartar`, { method: 'POST', body: '{}' }); load(); } catch (e) { toast(e.message, 'error'); }
+      });
+      $('#wa-gerar').onclick = async () => {
+        try { const r = await api('/api/whatsapp-queue/gerar', { method: 'POST', body: '{}' }); toast(r.created ? `${r.created} mensagem(ns) preparadas` : 'Nada novo para preparar'); load(); }
+        catch (e) { toast(e.message, 'error'); }
+      };
+      $('#wa-nova').onclick = async () => {
+        const clients = await api('/api/clients?limit=100').catch(() => ({ data: [] }));
+        const form = el(`<form class="form-grid">
+          ${field('Cliente', 'client_id', { options: [{ v: '', t: '— avulso (digitar telefone) —' }, ...clients.data.map((c2) => ({ v: c2.id, t: c2.name }))] })}
+          ${field('Nome *', 'name')}
+          ${field('Telefone (DDD + número) *', 'phone')}
+          ${field('Mensagem *', 'message', { type: 'textarea' })}
+          <button type="submit" class="btn-primary">Adicionar à fila</button>
+        </form>`);
+        const sel = form.querySelector('[name=client_id]');
+        sel.onchange = () => {
+          const c2 = clients.data.find((x) => x.id == sel.value);
+          if (c2) { form.querySelector('[name=name]').value = c2.name || ''; form.querySelector('[name=phone]').value = c2.phone || ''; }
+        };
+        form.onsubmit = async (ev) => {
+          ev.preventDefault();
+          const b = Object.fromEntries(new FormData(form));
+          try {
+            await api('/api/whatsapp-queue', { method: 'POST', body: JSON.stringify({ client_id: b.client_id || null, name: b.name, phone: b.phone, message: b.message }) });
+            closeModal(); toast('Mensagem adicionada à fila'); load();
+          } catch (e) { toast(e.message, 'error'); }
+        };
+        openModal('Nova mensagem de WhatsApp', form);
+      };
+    };
+    await load();
   },
 
   async monitor(page) {

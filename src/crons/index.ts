@@ -101,6 +101,14 @@ export function startCronJobs() {
     } catch {}
   });
 
+  // ── diário 07:15 (Brasília): prepara a fila de WhatsApp (cobrança/audiência)
+  cron.schedule('15 7 * * *', async () => {
+    try {
+      const { generateWhatsappQueue } = await import('../services/whatsappQueue');
+      await generateWhatsappQueue();
+    } catch {}
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── segunda 08:00 (Brasília): resumo semanal por e-mail aos parceiros ──────
   cron.schedule('0 8 * * 1', async () => {
     try {

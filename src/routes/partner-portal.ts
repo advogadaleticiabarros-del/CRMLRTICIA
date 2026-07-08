@@ -209,7 +209,6 @@ router.get('/agenda', async (req: Request, res: Response) => {
          (c.id IS NOT NULL AND c.partner_id = ?)
          OR (ce.case_id IS NULL AND ce.client_id IN (SELECT DISTINCT client_id FROM cases WHERE partner_id = ? AND client_id IS NOT NULL))
        )
-     GROUP BY ce.id
      ORDER BY ce.start_datetime ASC LIMIT 100`, [partnerId, partnerId]) as any;
   res.json(rows);
 });
