@@ -19,12 +19,17 @@ export function entradaDevida(totalCasos: number, single = 100, double = 130): n
 /**
  * Recalcula a entrada devida pelo cliente e lança apenas a diferença que faltar.
  * Retorna o valor lançado agora (0 se nada a lançar).
+ *
+ * REGRA: a entrada só é cobrada APÓS O PROTOCOLO — por isso contam apenas os
+ * casos da parceria já protocolados (ou concluídos) do cliente.
  */
 export async function ajustarEntradaParceria(
   clientId: number, partner: any, caseIdParaRegistro: number | null, actorId: number
 ): Promise<number> {
   const [[c]] = await db.query(
-    'SELECT COUNT(*) AS n FROM cases WHERE client_id = ? AND partner_id IS NOT NULL', [clientId]
+    `SELECT COUNT(*) AS n FROM cases
+      WHERE client_id = ? AND partner_id IS NOT NULL
+        AND production_stage IN ('protocolado', 'concluido')`, [clientId]
   ) as any;
   const totalCasos = Number(c?.n) || 0;
   if (totalCasos === 0) return 0;

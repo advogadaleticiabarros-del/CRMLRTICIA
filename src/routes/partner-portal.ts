@@ -118,14 +118,33 @@ router.get('/entradas', async (req: Request, res: Response) => {
 });
 
 // ── GET /api/partner-portal/timeline — atualizações de todos os casos ────────
+// Une os registros manuais (case_movements) com as movimentações capturadas
+// pelo MONITORAMENTO (DataJud) dos processos vinculados aos casos do parceiro.
 router.get('/timeline', async (req: Request, res: Response) => {
+  const partnerId = (req as any).partnerId;
   const [rows] = await db.query(`
-    SELECT cm.description, cm.movement_date, cm.created_at,
-           c.id AS case_id, c.case_number, c.title AS case_title, cl.name AS client_name
-      FROM case_movements cm
-      JOIN cases c ON c.id = cm.case_id AND c.partner_id = ?
-      LEFT JOIN clients cl ON cl.id = c.client_id
-     ORDER BY COALESCE(cm.movement_date, cm.created_at) DESC LIMIT 60`, [(req as any).partnerId]) as any;
+    SELECT description, movement_date, created_at, case_id, case_number, case_title, client_name, origem FROM (
+      SELECT cm.description, cm.movement_date, cm.created_at,
+             c.id AS case_id, c.case_number, c.title AS case_title, cl.name AS client_name,
+             'escritorio' AS origem
+        FROM case_movements cm
+        JOIN cases c ON c.id = cm.case_id AND c.partner_id = ?
+        LEFT JOIN clients cl ON cl.id = c.client_id
+      UNION ALL
+      SELECT TRIM(CONCAT(COALESCE(pm.title, ''),
+                         CASE WHEN pm.description IS NOT NULL AND pm.description <> ''
+                              THEN CONCAT(' — ', LEFT(pm.description, 600)) ELSE '' END)) AS description,
+             pm.movement_date, pm.created_at,
+             c.id AS case_id, c.case_number, c.title AS case_title, cl.name AS client_name,
+             'tribunal' AS origem
+        FROM process_movements pm
+        JOIN legal_processes lp ON lp.id = pm.process_id
+        JOIN cases c ON c.partner_id = ? AND (lp.case_id = c.id OR (c.case_number IS NOT NULL AND c.case_number <> '' AND lp.process_number = c.case_number))
+        LEFT JOIN clients cl ON cl.id = c.client_id
+    ) m
+    WHERE m.description <> ''
+    ORDER BY COALESCE(m.movement_date, m.created_at) DESC LIMIT 100`,
+    [partnerId, partnerId]) as any;
   res.json(rows);
 });
 

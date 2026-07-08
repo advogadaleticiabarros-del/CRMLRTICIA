@@ -473,6 +473,25 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     } catch { /* monitoramento é best-effort — não trava o protocolo */ }
   }
 
+  // Ao PROTOCOLAR caso de PARCERIA: agora sim a ENTRADA vira "a receber".
+  // (No registro do caso nada é cobrado — a cobrança nasce com o protocolo.)
+  if (stage === 'protocolado' && c.partner_id && c.client_id && c.production_stage !== 'protocolado') {
+    try {
+      const { ajustarEntradaParceria } = await import('../services/partnerEntry');
+      const [[partner]] = await db.query('SELECT * FROM partners WHERE id = ?', [c.partner_id]) as any;
+      if (partner) {
+        const entrada = await ajustarEntradaParceria(c.client_id, partner, Number(id), req.user!.id);
+        if (entrada > 0) {
+          await logTimeline({
+            clientId: c.client_id, caseId: Number(id), eventType: 'financeiro',
+            description: `Entrada da parceria ${partner.name} lançada no protocolo — R$ ${entrada.toFixed(2)} (a receber).`,
+            userId: req.user!.id,
+          }).catch(() => {});
+        }
+      }
+    } catch { /* entrada é best-effort — não trava o protocolo */ }
+  }
+
   // Ao PROTOCOLAR: garante login do cliente + alerta com o nº do processo.
   // Casos de PARCERIA (partner_id) NÃO ganham portal do cliente — o acompanhamento
   // é feito pelo parceiro, no portal do parceiro.

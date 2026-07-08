@@ -37,7 +37,7 @@ async function backfillMonitoring() {
  */
 async function run() {
   const email = process.env.PARTNER_PORTAL_EMAIL ?? 'infinitylaw@outlook.com.br';
-  const name = process.env.PARTNER_PORTAL_NAME ?? 'INFINITY LAW (portal)';
+  const name = process.env.PARTNER_PORTAL_NAME ?? 'INFINITY LAW';
   const partnerLike = process.env.PARTNER_NAME_LIKE ?? '%infinity%';
 
   await backfillMonitoring().catch((e) => console.warn('Backfill de monitoramento falhou:', e.message));
@@ -57,13 +57,9 @@ async function run() {
   const partner = partners[0];
 
   if (existing.length) {
-    // Garante o vínculo correto mesmo se o usuário já existir
-    if (existing[0].role !== 'parceiro_portal' || existing[0].partner_id !== partner.id) {
-      await db.query("UPDATE users SET role = 'parceiro_portal', partner_id = ? WHERE id = ?", [partner.id, existing[0].id]);
-      console.log(`✅ Usuário ${email} atualizado: papel parceiro_portal · vinculado a "${partner.name}" (#${partner.id})`);
-    } else {
-      console.log(`ℹ️  Portal do parceiro já configurado: ${email} → "${partner.name}" (nada a fazer)`);
-    }
+    // Garante papel, vínculo E o nome de exibição (sempre INFINITY LAW)
+    await db.query("UPDATE users SET name = ?, role = 'parceiro_portal', partner_id = ? WHERE id = ?", [name, partner.id, existing[0].id]);
+    console.log(`✅ Usuário ${email} garantido: "${name}" · papel parceiro_portal · vinculado a "${partner.name}" (#${partner.id})`);
     await closeDatabase();
     return;
   }

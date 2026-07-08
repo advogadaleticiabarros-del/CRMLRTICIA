@@ -111,18 +111,15 @@ router.post('/:id/cases', async (req: Request, res: Response) => {
     if (!arr.includes(area)) { arr.push(area); await db.query('UPDATE clients SET areas = ? WHERE id = ?', [JSON.stringify(arr), clientId]); }
   } catch { /* coluna areas pode não existir antes da migration 046 */ }
 
-  // Entrada da parceria (100% do escritório) — calculada POR CLIENTE:
-  // 1 caso = R$100; 2+ casos = R$130 total. Lança só a diferença que faltar.
-  // Vencimento: sempre 7 dias após o lançamento.
-  const entrada = await ajustarEntradaParceria(clientId, partner, caseIds[0] ?? null, req.user!.id);
-
+  // Entrada da parceria: NÃO é lançada no registro — a cobrança só nasce (fica
+  // "a receber") quando o caso é PROTOCOLADO (ver rota production-stage em cases.ts).
   await logTimeline({
     clientId, caseId: caseIds[0] ?? null, eventType: 'parceria_registrada',
-    description: `Cliente registrado pela parceria ${partner.name} — ${processos.length} processo(s) na esteira · entrada R$ ${entrada.toFixed(2)}.`,
+    description: `Cliente registrado pela parceria ${partner.name} — ${processos.length} processo(s) na esteira · entrada será cobrada no protocolo.`,
     userId: req.user!.id,
   });
 
-  res.status(201).json({ success: true, client_id: clientId, case_ids: caseIds, entrada });
+  res.status(201).json({ success: true, client_id: clientId, case_ids: caseIds, entrada: 0 });
 });
 
 // ── GET /api/partners/:id/cases — acompanhamento dos casos da parceria ──────

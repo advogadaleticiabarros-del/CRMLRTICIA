@@ -98,7 +98,7 @@ const NAV_LABELS = {
   contratos: 'Contratos', intakes: 'Novo Atendimento',
   monitor: 'Monitoramento', fases: 'Fases (Kanban)', producao: 'Produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
-  ppcases: 'Meus Indicados', ppfin: 'Financeiro',
+  ppcases: 'Meus Indicados', ppupdates: 'Atualizações', ppfin: 'Financeiro',
 };
 const NAV_BY_ROLE = {
   admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
@@ -107,7 +107,7 @@ const NAV_BY_ROLE = {
   estagiario: ['producao','cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
-  parceiro_portal: ['ppcases','ppfin'],
+  parceiro_portal: ['ppcases','ppupdates','ppfin'],
 };
 function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; }
 
@@ -336,14 +336,15 @@ const NAV_ICONS = {
   financeiro: 'wallet', controladoria: 'pie', correspondente: 'pin', dativo: 'scale',
   advogados: 'cap', config: 'gear', repasses: 'banknote',
   portal: 'folder', portalFinanceiro: 'banknote',
-  ppcases: 'briefcase', ppfin: 'wallet',
+  ppcases: 'briefcase', ppupdates: 'activity', ppfin: 'wallet',
 };
 const NAV_SHORT = {
   dashboard: 'Início', prazos: 'Prazos', cases: 'Processos', clients: 'Clientes',
   financeiro: 'Financeiro', propostas: 'Propostas', portal: 'Processos', portalFinanceiro: 'Pagar',
+  ppcases: 'Indicados', ppupdates: 'Novidades', ppfin: 'Financeiro',
 };
 // Ordem de preferência das abas inferiores (as 4 primeiras disponíveis para o papel)
-const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'cases', 'prazos', 'clients', 'financeiro', 'propostas', 'leads', 'portal', 'portalFinanceiro'];
+const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'cases', 'prazos', 'clients', 'financeiro', 'propostas', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppfin'];
 
 function buildNav() {
   const items = navForRole();
@@ -1420,20 +1421,19 @@ const ROUTES = {
   async ppcases(page) {
     const [me, cases] = await Promise.all([api('/api/partner-portal/me'), api('/api/partner-portal/cases')]);
     page.innerHTML = `
-      <div class="page-header"><div><h2>Olá, ${esc((me.name || '').split(' ')[0] || 'Parceiro')}</h2><p class="sub">Acompanhe os casos que você indicou</p></div></div>
+      <div class="page-header"><div><h2>Olá, ${esc(me.name || 'Parceiro')}</h2><p class="sub">Acompanhe os casos que você indicou</p></div></div>
       <div class="kpi-grid">
         ${kpi('Casos ativos', me.resumo.casos_ativos)}
         ${kpi('Repasse a receber', money(me.resumo.repasse_a_receber), 'money')}
         ${kpi('Repasse recebido', money(me.resumo.repasse_recebido), 'money')}
       </div>
       <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Taxas de entrada</strong><small style="color:var(--text-muted);margin-left:8px">o que devo ao escritório</small></div><div id="pp-entradas"><div class="spinner"></div></div></div>
-      <div id="pp-cases"></div>
-      <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Atualizações</strong></div><div id="pp-tl"><div class="spinner"></div></div></div>`;
+      <div id="pp-cases"></div>`;
     $('#pp-cases').innerHTML = cases.length ? cases.map((c) => {
       const atras = !['protocolado', 'concluido'].includes(c.production_stage) && Number(c.sla_days) > 10;
       return `<div class="card" style="padding:18px;margin-bottom:14px;margin-top:14px">
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
-          <strong style="font-size:15.5px;color:var(--navy-deep)">${esc(c.client_name || '—')}</strong>
+          <span style="min-width:0"><strong style="font-size:15.5px;color:var(--navy-deep)">${esc(c.client_name || '—')}</strong>${c.title ? ` <span style="color:var(--text-muted);font-size:13px">· ${esc(c.title)}</span>` : ''}</span>
           <small style="color:var(--text-muted)">${c.case_number ? 'Processo ' + esc(c.case_number) : 'Em preparação'}</small>
         </div>
         ${stepperHtml(c)}
@@ -1457,12 +1457,27 @@ const ROUTES = {
         </div>`;
       }).join('') + `<div style="padding:12px 6px;font-size:13px;color:var(--text-muted)">Total devido: <strong style="color:var(--red)">${money(e.total_devido)}</strong> · Total pago: <strong style="color:var(--green)">${money(e.total_pago)}</strong></div></div>`;
     }).catch(() => { $('#pp-entradas').innerHTML = '<div class="empty" style="padding:16px">—</div>'; });
-    api('/api/partner-portal/timeline').then((tl) => {
-      $('#pp-tl').innerHTML = tl.length ? tl.map((e) => `<div class="notif-item">
-        <strong>${esc(e.description)}</strong>
-        <div style="margin-top:4px"><small style="color:var(--text-muted)">${esc(e.client_name || '')}${e.case_number ? ' · Proc. ' + esc(e.case_number) : ''} · ${fmtDate(e.created_at)}</small></div>
-      </div>`).join('') : '<div class="empty" style="padding:16px">Sem atualizações ainda</div>';
-    }).catch(() => { $('#pp-tl').innerHTML = '<div class="empty">—</div>'; });
+  },
+
+  // Módulo próprio: linha do tempo de todos os casos do parceiro
+  // (registros do escritório + movimentações do tribunal via monitoramento).
+  async ppupdates(page) {
+    const tl = await api('/api/partner-portal/timeline').catch(() => []);
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Atualizações</h2><p class="sub">Tudo o que aconteceu nos seus casos, do mais recente ao mais antigo</p></div></div>
+      <div id="ppu-list"></div>`;
+    $('#ppu-list').innerHTML = tl.length ? tl.map((e) => `
+      <div class="card" style="padding:14px 18px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
+          <span style="min-width:0"><strong style="color:var(--navy-deep)">${esc(e.client_name || '—')}</strong>${e.case_title ? ` <span style="color:var(--text-muted);font-size:13px">· ${esc(e.case_title)}</span>` : ''}</span>
+          <small style="color:var(--text-muted)">${fmtDate(e.movement_date || e.created_at)}</small>
+        </div>
+        <div style="font-size:13.5px;margin-top:6px">${esc(e.description)}</div>
+        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+          ${e.case_number ? `<span class="badge">Proc. ${esc(e.case_number)}</span>` : ''}
+          ${e.origem === 'tribunal' ? '<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">movimentação do tribunal</span>' : '<span class="badge">atualização do escritório</span>'}
+        </div>
+      </div>`).join('') : '<div class="empty">Sem atualizações ainda — assim que houver movimentação nos seus casos, ela aparece aqui.</div>';
   },
 
   async ppfin(page) {
@@ -4959,7 +4974,7 @@ async function partnerCaseDetail(id) {
   const rep = (c.repasses || []).map((r) =>
     `<div class="mini-row"><span>${esc(r.tipo || 'repasse')} · venc. ${fmtDate(r.data_vencimento)}</span><span><strong style="color:var(--gold)">${money(r.valor)}</strong> ${r.status === 'pago' ? '<span class="badge pago">recebido</span>' : '<span class="badge pendente">a receber</span>'}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem repasses ainda</small>';
   const wrap = el(`<div>
-    <div><strong style="font-size:18px;color:var(--navy-deep)">${esc(c.client_name || 'Cliente')}</strong><br>
+    <div><strong style="font-size:18px;color:var(--navy-deep)">${esc(c.client_name || 'Cliente')}</strong>${c.title ? ` <span style="color:var(--text-muted);font-size:14px">· ${esc(c.title)}</span>` : ''}<br>
       <small style="color:var(--text-muted)">${esc(c.legal_area || '')}${c.case_number ? ' · Processo ' + esc(c.case_number) : ' · Em preparação'}</small></div>
     ${stepperHtml(c)}
     ${c.resumo ? `<div class="client-msg">${esc(c.resumo)}</div>` : ''}
