@@ -6063,15 +6063,69 @@ document.addEventListener('click', (e) => {
   try { navigator.clipboard.writeText(b.dataset.copy); toast('Copiado: ' + b.dataset.copy); } catch { toast('Copie manualmente', 'error'); }
 });
 $('#login-form').onsubmit = login;
+
+// Mostrar/ocultar a senha digitada (olho mágico)
+const eyeBtn = $('#login-eye');
+if (eyeBtn) eyeBtn.onclick = () => {
+  const inp = $('#login-password');
+  const mostrando = inp.type === 'text';
+  inp.type = mostrando ? 'password' : 'text';
+  $('#eye-open').style.display = mostrando ? '' : 'none';
+  $('#eye-off').style.display = mostrando ? 'none' : '';
+  inp.focus();
+};
+
 const forgotBtn = $('#forgot-link');
 if (forgotBtn) forgotBtn.onclick = async () => {
   const email = ($('#login-email').value || '').trim() || prompt('Digite seu e-mail para recuperar a senha:');
   if (!email) return;
   try {
     const r = await api('/api/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) });
-    alert(r.message || 'Se o e-mail estiver cadastrado, o administrador será avisado.');
+    alert(r.message || 'Se o e-mail estiver cadastrado, você receberá um link de redefinição.');
   } catch (e) { alert('Não foi possível enviar o pedido agora. Tente novamente.'); }
 };
+
+// ── Redefinição de senha via link do e-mail (#redefinir=<token>) ────────────
+(function resetViaLink() {
+  const m = location.hash.match(/^#redefinir=([a-f0-9]{64})$/i);
+  if (!m) return;
+  const token = m[1];
+  const card = document.querySelector('.login-card');
+  if (!card) return;
+  // Garante a tela de redefinição mesmo com sessão salva neste navegador
+  TOKEN = null; USER = null;
+  localStorage.removeItem('crm_token'); localStorage.removeItem('crm_user');
+  card.innerHTML = `
+    <h2>Criar nova senha</h2>
+    <p class="login-hint">Escolha a sua nova senha de acesso (mínimo de 8 caracteres)</p>
+    <form id="reset-form">
+      <label>Nova senha
+        <input type="password" id="reset-p1" required minlength="8" autocomplete="new-password" placeholder="••••••••" />
+      </label>
+      <label>Repita a nova senha
+        <input type="password" id="reset-p2" required minlength="8" autocomplete="new-password" placeholder="••••••••" />
+      </label>
+      <label style="display:flex;gap:8px;align-items:center;font-size:13px;font-weight:400;cursor:pointer">
+        <input type="checkbox" id="reset-show" style="width:auto"> Mostrar senha
+      </label>
+      <button type="submit" class="btn-primary">Salvar nova senha</button>
+      <p id="reset-error" class="error-msg"></p>
+    </form>`;
+  $('#reset-show').onchange = (e) => {
+    const t = e.target.checked ? 'text' : 'password';
+    $('#reset-p1').type = t; $('#reset-p2').type = t;
+  };
+  $('#reset-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const p1 = $('#reset-p1').value, p2 = $('#reset-p2').value;
+    if (p1 !== p2) { $('#reset-error').textContent = 'As senhas não conferem.'; return; }
+    try {
+      const r = await api('/api/auth/reset', { method: 'POST', body: JSON.stringify({ token, password: p1 }) });
+      alert(r.message || 'Senha redefinida! Entre com a nova senha.');
+      location.hash = ''; location.reload();
+    } catch (err) { $('#reset-error').textContent = err.message; }
+  };
+})();
 $('#logout-btn').onclick = logout;
 $('#bell-btn').onclick = openNotifications;
 if ($('#discover-btn')) $('#discover-btn').onclick = discoverNow;

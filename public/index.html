@@ -39,7 +39,14 @@
             <input type="email" id="login-email" required autocomplete="username" placeholder="seu@email.com" />
           </label>
           <label>Senha
-            <input type="password" id="login-password" required autocomplete="current-password" placeholder="••••••••" />
+            <span style="position:relative;display:block">
+              <input type="password" id="login-password" required autocomplete="current-password" placeholder="••••••••" style="width:100%;padding-right:42px" />
+              <button type="button" id="login-eye" aria-label="Mostrar senha" title="Mostrar/ocultar senha"
+                style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;padding:6px;color:#93a0b5;display:flex;align-items:center">
+                <svg id="eye-open" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="2.8"/></svg>
+                <svg id="eye-off" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M2 12s3.5-6.5 10-6.5c2 0 3.7.6 5.1 1.4M22 12s-3.5 6.5-10 6.5c-2 0-3.7-.6-5.1-1.4"/><path d="M4 20 20 4"/></svg>
+              </button>
+            </span>
           </label>
           <button type="submit" class="btn-primary">Entrar</button>
           <p id="login-error" class="error-msg"></p>

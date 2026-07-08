@@ -80,24 +80,68 @@ router.post('/login', async (req: Request, res: Response) => {
 // para gerarem uma nova senha em Configurações.
 router.post('/forgot', async (req: Request, res: Response) => {
   const email = String(req.body?.email || '').trim();
-  const generic = { success: true, message: 'Se o e-mail estiver cadastrado, o administrador será avisado para gerar uma nova senha.' };
+  const generic = { success: true, message: 'Se o e-mail estiver cadastrado, você receberá um link de redefinição em instantes.' };
   if (!email) { res.status(400).json({ error: 'Informe o e-mail' }); return; }
   try {
     const [rows] = await db.query('SELECT id, name FROM users WHERE email = ? AND active = 1', [email]) as any;
     const user = rows[0];
     if (user) {
-      await db.query('INSERT INTO password_reset_requests (user_id, email, status) VALUES (?, ?, \'aberto\')', [user.id, email]);
+      // 1) Link de redefinição por E-MAIL (self-service, válido por 30 min)
+      const crypto = await import('crypto');
+      const token = crypto.randomBytes(32).toString('hex');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      await db.query(
+        'INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 30 MINUTE))',
+        [user.id, tokenHash]);
+      const base = process.env.APP_URL || 'https://crm.advogadaleticiabarros.com.br';
+      const link = `${base}/#redefinir=${token}`;
+      const { sendEmail, layout } = await import('../services/EmailService');
+      await sendEmail({
+        to: email,
+        subject: 'Redefinir sua senha — Advocacia Letícia Barros',
+        html: layout('Redefinição de senha', `
+          <p>Olá, ${user.name || ''}.</p>
+          <p>Recebemos um pedido para redefinir a sua senha. Clique no botão abaixo — o link vale por <strong>30 minutos</strong> e só pode ser usado uma vez:</p>
+          <p style="margin:18px 0"><a href="${link}" style="display:inline-block;background:#0d1b2e;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:bold">Criar nova senha</a></p>
+          <p style="color:#93a0b5;font-size:13px">Se não foi você quem pediu, ignore este e-mail — sua senha continua a mesma.</p>`),
+      }).catch(() => { /* sem e-mail configurado, fica o caminho via admin */ });
+
+      // 2) Mantém o registro/aviso aos admins (fallback e auditoria)
+      await db.query('INSERT INTO password_reset_requests (user_id, email, status) VALUES (?, ?, \'aberto\')', [user.id, email]).catch(() => {});
       const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
       for (const a of admins) {
         await db.query(
           `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
            VALUES (?, ?, ?, 'recuperacao_senha', 'sistema', NOW(), 'pendente')`,
-          [a.id, 'Pedido de recuperação de senha', `${user.name} (${email}) esqueceu a senha. Gere uma nova em Configurações.`]
-        );
+          [a.id, 'Pedido de recuperação de senha', `${user.name} (${email}) pediu redefinição de senha (link enviado por e-mail).`]
+        ).catch(() => {});
       }
     }
   } catch { /* não vaza erro/inexistência */ }
   res.json(generic);
+});
+
+// ── POST /api/auth/reset — redefine a senha com o token do e-mail ───────────
+// Público. Token de uso único, expira em 30 min.
+router.post('/reset', async (req: Request, res: Response) => {
+  const token = String(req.body?.token || '').trim();
+  const password = String(req.body?.password || '');
+  if (!token || token.length < 32) { res.status(400).json({ error: 'Link inválido' }); return; }
+  if (password.length < 8) { res.status(400).json({ error: 'A nova senha deve ter pelo menos 8 caracteres' }); return; }
+
+  const crypto = await import('crypto');
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  const [rows] = await db.query(
+    'SELECT id, user_id FROM password_resets WHERE token_hash = ? AND used_at IS NULL AND expires_at > NOW() LIMIT 1',
+    [tokenHash]) as any;
+  const pr = rows[0];
+  if (!pr) { res.status(400).json({ error: 'Link expirado ou já utilizado. Peça um novo em "Esqueci minha senha".' }); return; }
+
+  const hash = await bcrypt.hash(password, 10);
+  await db.query('UPDATE users SET password = ? WHERE id = ?', [hash, pr.user_id]);
+  await db.query('UPDATE password_resets SET used_at = NOW() WHERE id = ?', [pr.id]);
+  await db.query("UPDATE password_reset_requests SET status = 'resolvido', resolved_at = NOW() WHERE user_id = ? AND status = 'aberto'", [pr.user_id]).catch(() => {});
+  res.json({ success: true, message: 'Senha redefinida! Entre com a nova senha.' });
 });
 
 // ── GET /api/auth/reset-requests — pedidos de recuperação abertos (admin) ────
