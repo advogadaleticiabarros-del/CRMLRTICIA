@@ -10,6 +10,11 @@ import { sendMorningBriefings } from '../services/morningBriefingService';
 import { captureDailyMetrics } from '../services/metricsSnapshotService';
 
 export function startCronJobs() {
+  // ── WhatsApp: reconecta a instância no boot se já houver sessão salva ─────
+  setTimeout(() => {
+    import('../services/waInstance').then((m) => m.startIfSession()).catch(() => {});
+  }, 8000);
+
   // ── Resumo matinal por e-mail às 07:00 (horário de Brasília) ──────────────
   cron.schedule('0 7 * * *', async () => {
     try { await sendMorningBriefings(); } catch {}

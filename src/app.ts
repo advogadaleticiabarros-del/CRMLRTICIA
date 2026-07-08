@@ -59,6 +59,7 @@ import officeSettingsRoutes from './routes/office-settings';
 import paymentsRoutes from './routes/payments';
 import partnerPortalRoutes from './routes/partner-portal';
 import whatsappQueueRoutes from './routes/whatsapp-queue';
+import whatsappInstanceRoutes from './routes/whatsapp-instance';
 import { googleOAuthCallback } from './routes/google-callback';
 
 export function createApp() {
@@ -116,6 +117,7 @@ export function createApp() {
   app.use('/api/tasks',                 authenticate, requireStaff, taskRoutes);
   app.use('/api/financial',             authenticate, requireStaff, financialRoutes);
   app.use('/api/whatsapp-queue',        authenticate, requireStaff, whatsappQueueRoutes);
+  app.use('/api/whatsapp-instance',     authenticate, requireStaff, whatsappInstanceRoutes);
   app.use('/api/receitas',              authenticate, requireStaff, receitaRoutes);
   app.use('/api/parcelas',              authenticate, requireStaff, parcelaRoutes);
   app.use('/api/acordos',               authenticate, requireStaff, acordoRoutes);
