@@ -98,7 +98,7 @@ const NAV_LABELS = {
   contratos: 'Contratos', intakes: 'Novo Atendimento',
   monitor: 'Monitoramento', fases: 'Fases (Kanban)', producao: 'Produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
-  ppcases: 'Meus Indicados', ppupdates: 'Atualizações', ppagenda: 'Audiências', ppfin: 'Financeiro',
+  ppcases: 'Meus Indicados', ppclients: 'Fichas dos Clientes', ppupdates: 'Atualizações', ppagenda: 'Audiências', ppfin: 'Financeiro',
 };
 const NAV_BY_ROLE = {
   admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
@@ -107,7 +107,7 @@ const NAV_BY_ROLE = {
   estagiario: ['producao','cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
-  parceiro_portal: ['ppcases','ppupdates','ppagenda','ppfin'],
+  parceiro_portal: ['ppcases','ppclients','ppupdates','ppagenda','ppfin'],
 };
 function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; }
 
@@ -336,12 +336,12 @@ const NAV_ICONS = {
   financeiro: 'wallet', controladoria: 'pie', correspondente: 'pin', dativo: 'scale',
   advogados: 'cap', config: 'gear', repasses: 'banknote',
   portal: 'folder', portalFinanceiro: 'banknote',
-  ppcases: 'briefcase', ppupdates: 'activity', ppagenda: 'clock', ppfin: 'wallet',
+  ppcases: 'briefcase', ppclients: 'users', ppupdates: 'activity', ppagenda: 'clock', ppfin: 'wallet',
 };
 const NAV_SHORT = {
   dashboard: 'Início', prazos: 'Prazos', cases: 'Processos', clients: 'Clientes',
   financeiro: 'Financeiro', propostas: 'Propostas', portal: 'Processos', portalFinanceiro: 'Pagar',
-  ppcases: 'Indicados', ppupdates: 'Novidades', ppagenda: 'Audiências', ppfin: 'Financeiro',
+  ppcases: 'Indicados', ppclients: 'Fichas', ppupdates: 'Novidades', ppagenda: 'Audiências', ppfin: 'Financeiro',
 };
 // Ordem de preferência das abas inferiores (as 4 primeiras disponíveis para o papel)
 const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'cases', 'prazos', 'clients', 'financeiro', 'propostas', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppagenda', 'ppfin'];
@@ -374,7 +374,7 @@ function initials(name) {
   const parts = (name || '').trim().split(/\s+/);
   return ((parts[0]?.[0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || 'U';
 }
-const ROLE_PT = { admin: 'Administrador', advogado: 'Advogado(a)', estagiario: 'Estagiário(a)', parceiro: 'Parceiro(a)', cliente: 'Cliente', staff: 'Equipe' };
+const ROLE_PT = { admin: 'Administrador', advogado: 'Advogado(a)', estagiario: 'Estagiário(a)', parceiro: 'Parceiro(a)', cliente: 'Cliente', staff: 'Equipe', parceiro_portal: 'Parceiro' };
 
 let bellTimer = null;
 function showApp() {
@@ -387,6 +387,15 @@ function showApp() {
     const h = new Date().getHours();
     const saud = h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite';
     greet.innerHTML = `${saud}, <strong>${(USER?.name || '').split(' ')[0]}</strong> <span class="topbar-date">· ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>`;
+    // Portal do parceiro: a identidade exibida é SEMPRE o nome do parceiro (ex.: INFINITY LAW)
+    if (USER?.role === 'parceiro_portal') {
+      api('/api/partner-portal/me').then((me) => {
+        if (!me?.name) return;
+        greet.innerHTML = `${saud}, <strong>${esc(me.name)}</strong> <span class="topbar-date">· ${new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' })}</span>`;
+        $('#user-name').innerHTML = `${esc(me.name)}<small style="display:block;color:var(--gold-soft);font-size:11px">${ROLE_PT[USER?.role] || 'Parceiro'}</small>`;
+        const av2 = $('#user-avatar'); if (av2) av2.textContent = initials(me.name);
+      }).catch(() => {});
+    }
   }
   buildNav();
   // rota padrão do papel
@@ -1439,6 +1448,7 @@ const ROUTES = {
         ${stepperHtml(c)}
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:13px">
           <span>SLA: <strong style="color:${atras ? 'var(--red)' : 'var(--text)'}">${['protocolado', 'concluido'].includes(c.production_stage) ? 'concluído' : (c.sla_days ?? 0) + '/10 dias'}</strong></span>
+          ${c.valor_causa ? `<span>Valor da causa: <strong style="color:var(--navy-deep)">${money(c.valor_causa)}</strong></span>` : ''}
           <span>Valor do processo: <strong>${money(c.valor_processo)}</strong></span>
           <span>Seu repasse: <strong style="color:var(--gold)">${money(c.repasse_parceiro)}</strong></span>
         </div>
@@ -1478,6 +1488,37 @@ const ROUTES = {
           ${e.origem === 'tribunal' ? '<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">movimentação do tribunal</span>' : '<span class="badge">atualização do escritório</span>'}
         </div>
       </div>`).join('') : '<div class="empty">Sem atualizações ainda — assim que houver movimentação nos seus casos, ela aparece aqui.</div>';
+  },
+
+  // Fichas dos clientes indicados — preenchidas com o que o escritório já tem (sem contato)
+  async ppclients(page) {
+    const fichas = await api('/api/partner-portal/clients').catch(() => []);
+    const STAGE_PT = { separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguardando protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Fichas dos Clientes</h2><p class="sub">Os clientes que você indicou, com os dados que o escritório já possui</p></div></div>
+      <div id="ppc-list"></div>`;
+    const linha = (rotulo, valor) => valor ? `<div style="display:flex;gap:8px;font-size:13px;padding:3px 0"><span style="color:var(--text-muted);min-width:110px">${rotulo}</span><strong>${esc(String(valor))}</strong></div>` : '';
+    $('#ppc-list').innerHTML = fichas.length ? fichas.map((f) => `
+      <div class="card" style="padding:18px;margin-bottom:14px">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
+          <strong style="font-size:16px;color:var(--navy-deep)">${esc(f.name)}</strong>
+          <small style="color:var(--text-muted)">cliente desde ${fmtDate(f.cliente_desde)}</small>
+        </div>
+        <div style="margin-top:10px">
+          ${linha('CPF/CNPJ', f.cpf_cnpj)}
+          ${linha('RG', f.rg)}
+          ${linha('Profissão', f.profissao)}
+          ${linha('Estado civil', f.estado_civil)}
+          ${linha('Endereço', f.endereco)}
+        </div>
+        <div style="margin-top:12px"><strong style="font-size:12px;color:var(--navy)">Processos desta parceria</strong>
+          ${(f.cases || []).map((c) => `
+            <div class="mini-row" style="align-items:baseline">
+              <span style="min-width:0">${esc(c.title || '—')}${c.case_number ? `<br><small style="color:var(--text-muted)">nº ${esc(c.case_number)}</small>` : ''}</span>
+              <span style="text-align:right;white-space:nowrap">${c.valor_causa ? `<strong style="color:var(--navy-deep)">${money(c.valor_causa)}</strong> · ` : ''}<span class="badge">${STAGE_PT[c.production_stage] || c.production_stage || '—'}</span></span>
+            </div>`).join('')}
+        </div>
+      </div>`).join('') : '<div class="empty">Nenhum cliente indicado ainda.</div>';
   },
 
   // Agenda de audiências dos casos do parceiro (alertas automáticos 7 e 3 dias antes)
@@ -1706,6 +1747,8 @@ const ROUTES = {
             const num = prompt('Número do processo/protocolo para protocolar:');
             if (!num) { load(); return; }
             extra.case_number = num;
+            const vc = prompt('Valor da causa (R$) — não definitivo, apenas registro do protocolado (deixe vazio para pular):');
+            if (vc && vc.trim()) extra.valor_causa = vc.trim();
           }
           if (stage === 'criacao_inicial') toast('Gerando petição inicial com IA…');
           if (stage === 'revisao_inicial') toast('Revisando a petição com IA…');
@@ -2968,6 +3011,8 @@ async function dashCockpit(c) {
     ${stat('Inadimplência', f.vencido, 'financeiro', { money: 1, key: 'inadimplencia', color: Number(f.vencido) > 0 ? 'var(--red)' : '', sparkColor: 'var(--red)', goodUp: false })}
     ${stat('Tarefas pendentes', d.tarefas_pendentes ?? 0, 'prazos', { key: 'tarefas_pendentes', color: Number(d.tarefas_pendentes) > 0 ? 'var(--amber)' : '', sparkColor: 'var(--amber)', goodUp: false })}
     ${stat('Propostas em análise', d.propostas_paradas ?? 0, 'propostas', { key: 'propostas_analise', goodUp: false })}
+    ${stat('Total a protocolar', d.producao?.a_protocolar ?? 0, 'producao', { color: Number(d.producao?.a_protocolar) > 0 ? 'var(--amber)' : '', goodUp: false })}
+    ${stat('Protocolados no mês', d.producao?.protocolados_mes ?? 0, 'producao', { color: 'var(--green)' })}
   </div>`;
 
   // Painel que se dimensiona pelo conteúdo (não estica p/ igualar) + corpo rolável
@@ -4584,6 +4629,8 @@ async function caseDetail(id, onSave) {
       const num = prompt('Número do processo/protocolo (obrigatório para protocolar):');
       if (!num || !num.trim()) { toast('Número do processo é obrigatório', 'error'); return; }
       body.case_number = num.trim();
+      const vc = prompt('Valor da causa (R$) — não definitivo, apenas registro do protocolado (deixe vazio para pular):');
+      if (vc && vc.trim()) body.valor_causa = vc.trim();
     }
     try {
       const r = await api(`/api/cases/${id}/production-stage`, { method: 'PATCH', body: JSON.stringify(body) });
@@ -5001,7 +5048,7 @@ async function partnerCaseDetail(id) {
     `<div class="mini-row"><span>${esc(r.tipo || 'repasse')} · venc. ${fmtDate(r.data_vencimento)}</span><span><strong style="color:var(--gold)">${money(r.valor)}</strong> ${r.status === 'pago' ? '<span class="badge pago">recebido</span>' : '<span class="badge pendente">a receber</span>'}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem repasses ainda</small>';
   const wrap = el(`<div>
     <div><strong style="font-size:18px;color:var(--navy-deep)">${esc(c.client_name || 'Cliente')}</strong>${c.title ? ` <span style="color:var(--text-muted);font-size:14px">· ${esc(c.title)}</span>` : ''}<br>
-      <small style="color:var(--text-muted)">${esc(c.legal_area || '')}${c.case_number ? ' · Processo ' + esc(c.case_number) : ' · Em preparação'}</small></div>
+      <small style="color:var(--text-muted)">${esc(c.legal_area || '')}${c.case_number ? ' · Processo ' + esc(c.case_number) : ' · Em preparação'}${c.valor_causa ? ' · Valor da causa: ' + money(c.valor_causa) : ''}</small></div>
     ${stepperHtml(c)}
     ${c.resumo ? `<div class="client-msg">${esc(c.resumo)}</div>` : ''}
     <div style="margin-top:16px"><strong style="font-size:13px;color:var(--navy)">Financeiro do processo</strong><div style="margin-top:6px">${parc}</div></div>

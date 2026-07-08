@@ -112,6 +112,18 @@ router.get('/', async (req: Request, res: Response) => {
     }, 0),
   ]);
 
+  // Produção — total a protocolar (na esteira, antes do protocolo) e protocolados no mês
+  const producao = await safe(async () => {
+    const [[ap]] = await db.query(`
+      SELECT COUNT(*) AS total FROM cases
+       WHERE production_stage IN ('separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')`) as any;
+    const [[pm]] = await db.query(`
+      SELECT COUNT(DISTINCT case_id) AS total FROM client_timeline
+       WHERE event_type = 'etapa_protocolado'
+         AND created_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')`) as any;
+    return { a_protocolar: Number(ap.total) || 0, protocolados_mes: Number(pm.total) || 0 };
+  }, { a_protocolar: 0, protocolados_mes: 0 });
+
   res.json({
     financeiro,
     prazos,
@@ -120,6 +132,7 @@ router.get('/', async (req: Request, res: Response) => {
     agenda_hoje,
     tarefas_pendentes,
     propostas_paradas,
+    producao,
   });
 });
 

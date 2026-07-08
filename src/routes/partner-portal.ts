@@ -35,7 +35,7 @@ router.get('/me', async (req: Request, res: Response) => {
 // ── GET /api/partner-portal/cases — casos indicados por mim ─────────────────
 router.get('/cases', async (req: Request, res: Response) => {
   const [rows] = await db.query(`
-    SELECT c.id, c.case_number, c.title, c.legal_area, c.status, c.production_stage,
+    SELECT c.id, c.case_number, c.title, c.legal_area, c.status, c.production_stage, c.valor_causa,
            DATEDIFF(NOW(), c.production_started_at) AS sla_days, c.created_at,
            cl.name AS client_name,
            (SELECT COALESCE(SUM(valor),0) FROM installments i WHERE i.case_id = c.id) AS valor_processo,
@@ -50,7 +50,7 @@ router.get('/cases/:id', async (req: Request, res: Response) => {
   const partnerId = (req as any).partnerId;
   const [[c]] = await db.query(`
     SELECT c.id, c.case_number, c.title, c.legal_area, c.phase, c.status, c.production_stage,
-           c.production_started_at, c.description, cl.name AS client_name
+           c.production_started_at, c.description, c.valor_causa, cl.name AS client_name
       FROM cases c LEFT JOIN clients cl ON cl.id = c.client_id
      WHERE c.id = ? AND c.partner_id = ?`, [req.params.id, partnerId]) as any;
   if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
@@ -84,7 +84,7 @@ router.get('/cases/:id', async (req: Request, res: Response) => {
   res.json({
     id: c.id, case_number: c.case_number, title: c.title, legal_area: c.legal_area,
     phase: c.phase, status: c.status, production_stage: c.production_stage,
-    client_name: c.client_name, resumo: c.description || '',
+    valor_causa: c.valor_causa, client_name: c.client_name, resumo: c.description || '',
     movements, installments, repasses,
   });
 });
@@ -146,6 +146,47 @@ router.get('/timeline', async (req: Request, res: Response) => {
     ORDER BY COALESCE(m.movement_date, m.created_at) DESC LIMIT 100`,
     [partnerId, partnerId]) as any;
   res.json(rows);
+});
+
+// ── GET /api/partner-portal/clients — FICHAS dos clientes indicados ─────────
+// Uma ficha por cliente, preenchida com o que já temos (SEM telefone/e-mail),
+// com os casos do cliente nesta parceria (etapa, nº, valor da causa).
+router.get('/clients', async (req: Request, res: Response) => {
+  const partnerId = (req as any).partnerId;
+  const [clients] = await db.query(`
+    SELECT DISTINCT cl.id, cl.name, cl.cpf_cnpj, cl.tipo, cl.address, cl.areas, cl.created_at
+      FROM clients cl JOIN cases c ON c.client_id = cl.id AND c.partner_id = ?
+     ORDER BY cl.name ASC`, [partnerId]) as any;
+
+  const out: any[] = [];
+  for (const cl of clients) {
+    const [cases] = await db.query(`
+      SELECT c.id, c.title, c.case_number, c.legal_area, c.production_stage, c.status, c.valor_causa,
+             DATEDIFF(NOW(), c.production_started_at) AS sla_days
+        FROM cases c WHERE c.client_id = ? AND c.partner_id = ? ORDER BY c.created_at DESC`,
+      [cl.id, partnerId]) as any;
+
+    // Qualificação a partir do lead de origem (via contrato), quando existir
+    let qual: any = null;
+    try {
+      const [[lr]] = await db.query(`
+        SELECT l.rg, l.marital_status, l.profession, l.cep, l.street, l.number, l.neighborhood, l.city, l.state
+          FROM contracts ct JOIN leads l ON l.id = ct.lead_id
+         WHERE ct.id IN (SELECT origin_contract_id FROM cases WHERE client_id = ? AND origin_contract_id IS NOT NULL)
+         LIMIT 1`, [cl.id]) as any;
+      qual = lr || null;
+    } catch { /* opcional */ }
+
+    const endereco = cl.address || (qual ? [qual.street, qual.number, qual.neighborhood, qual.city && `${qual.city}/${qual.state || ''}`, qual.cep]
+      .filter(Boolean).join(', ') : '');
+    out.push({
+      id: cl.id, name: cl.name, cpf_cnpj: cl.cpf_cnpj, tipo: cl.tipo,
+      profissao: qual?.profession || '', estado_civil: qual?.marital_status || '',
+      rg: qual?.rg || '', endereco, areas: cl.areas, cliente_desde: cl.created_at,
+      cases,
+    });
+  }
+  res.json(out);
 });
 
 // ── GET /api/partner-portal/agenda — audiências futuras dos casos do parceiro ─

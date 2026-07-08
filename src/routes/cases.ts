@@ -403,7 +403,7 @@ router.post('/:id/movements', async (req: Request, res: Response) => {
 router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   try {
   const { id } = req.params;
-  const { stage, case_number } = req.body;
+  const { stage, case_number, valor_causa } = req.body;
   if (!PROD_STAGES.includes(stage)) {
     res.status(400).json({ error: `stage deve ser: ${PROD_STAGES.join(', ')}` }); return;
   }
@@ -419,10 +419,18 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   }
 
   const finalCaseNumber = (case_number && String(case_number).trim()) ? case_number.trim() : c.case_number;
+  // Valor da causa (informado no protocolo; não definitivo — registro do que foi protocolado)
+  let valorCausa: number | null | undefined = undefined;
+  if (valor_causa !== undefined && valor_causa !== null && String(valor_causa).trim() !== '') {
+    const s = String(valor_causa).replace(/[R$\s]/g, '');
+    // "1.500,50" (pt-BR) → 1500.50 · "1500.50" → 1500.50 · "1500" → 1500
+    const n = s.includes(',') ? Number(s.replace(/\./g, '').replace(',', '.')) : Number(s);
+    valorCausa = Number.isFinite(n) && n > 0 ? Math.round(n * 100) / 100 : null;
+  }
   // Marca o início da produção (SLA total) na primeira vez que entra na esteira.
   await db.query(
-    'UPDATE cases SET production_stage = ?, case_number = ?, production_started_at = COALESCE(production_started_at, NOW()) WHERE id = ?',
-    [stage, finalCaseNumber, id]
+    `UPDATE cases SET production_stage = ?, case_number = ?, ${valorCausa !== undefined ? 'valor_causa = ?, ' : ''}production_started_at = COALESCE(production_started_at, NOW()) WHERE id = ?`,
+    valorCausa !== undefined ? [stage, finalCaseNumber, valorCausa, id] : [stage, finalCaseNumber, id]
   );
 
   try {
