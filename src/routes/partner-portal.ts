@@ -148,4 +148,19 @@ router.get('/timeline', async (req: Request, res: Response) => {
   res.json(rows);
 });
 
+// ── GET /api/partner-portal/agenda — audiências futuras dos casos do parceiro ─
+router.get('/agenda', async (req: Request, res: Response) => {
+  const [rows] = await db.query(`
+    SELECT ce.id, ce.title, ce.start_datetime, ce.end_datetime, ce.location, ce.video_link, ce.description,
+           DATEDIFF(DATE(ce.start_datetime), CURDATE()) AS dias,
+           c.id AS case_id, c.case_number, c.title AS case_title, cl.name AS client_name
+      FROM calendar_events ce
+      JOIN cases c ON c.id = ce.case_id AND c.partner_id = ?
+      LEFT JOIN clients cl ON cl.id = COALESCE(ce.client_id, c.client_id)
+     WHERE ce.event_type = 'audiencia' AND ce.start_datetime >= NOW()
+     GROUP BY ce.id
+     ORDER BY ce.start_datetime ASC LIMIT 100`, [(req as any).partnerId]) as any;
+  res.json(rows);
+});
+
 export default router;

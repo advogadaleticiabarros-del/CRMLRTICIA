@@ -33,7 +33,7 @@ function transporter(): Transporter | null {
 }
 
 /** Envolve o conteúdo num layout simples com a marca do escritório. */
-function layout(title: string, bodyHtml: string): string {
+export function layout(title: string, bodyHtml: string): string {
   return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1f2a3a">
     <div style="background:${BRAND};color:#fff;padding:22px 28px;border-radius:12px 12px 0 0">
       <div style="font-size:20px;font-weight:bold;letter-spacing:.5px">Advocacia Letícia Barros</div>

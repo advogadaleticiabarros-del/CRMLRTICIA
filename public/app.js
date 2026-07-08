@@ -98,7 +98,7 @@ const NAV_LABELS = {
   contratos: 'Contratos', intakes: 'Novo Atendimento',
   monitor: 'Monitoramento', fases: 'Fases (Kanban)', producao: 'Produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
-  ppcases: 'Meus Indicados', ppupdates: 'Atualizações', ppfin: 'Financeiro',
+  ppcases: 'Meus Indicados', ppupdates: 'Atualizações', ppagenda: 'Audiências', ppfin: 'Financeiro',
 };
 const NAV_BY_ROLE = {
   admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','controladoria','correspondente','dativo','advogados','config'],
@@ -107,7 +107,7 @@ const NAV_BY_ROLE = {
   estagiario: ['producao','cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
-  parceiro_portal: ['ppcases','ppupdates','ppfin'],
+  parceiro_portal: ['ppcases','ppupdates','ppagenda','ppfin'],
 };
 function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; }
 
@@ -336,15 +336,15 @@ const NAV_ICONS = {
   financeiro: 'wallet', controladoria: 'pie', correspondente: 'pin', dativo: 'scale',
   advogados: 'cap', config: 'gear', repasses: 'banknote',
   portal: 'folder', portalFinanceiro: 'banknote',
-  ppcases: 'briefcase', ppupdates: 'activity', ppfin: 'wallet',
+  ppcases: 'briefcase', ppupdates: 'activity', ppagenda: 'clock', ppfin: 'wallet',
 };
 const NAV_SHORT = {
   dashboard: 'Início', prazos: 'Prazos', cases: 'Processos', clients: 'Clientes',
   financeiro: 'Financeiro', propostas: 'Propostas', portal: 'Processos', portalFinanceiro: 'Pagar',
-  ppcases: 'Indicados', ppupdates: 'Novidades', ppfin: 'Financeiro',
+  ppcases: 'Indicados', ppupdates: 'Novidades', ppagenda: 'Audiências', ppfin: 'Financeiro',
 };
 // Ordem de preferência das abas inferiores (as 4 primeiras disponíveis para o papel)
-const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'cases', 'prazos', 'clients', 'financeiro', 'propostas', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppfin'];
+const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'cases', 'prazos', 'clients', 'financeiro', 'propostas', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppagenda', 'ppfin'];
 
 function buildNav() {
   const items = navForRole();
@@ -1478,6 +1478,32 @@ const ROUTES = {
           ${e.origem === 'tribunal' ? '<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">movimentação do tribunal</span>' : '<span class="badge">atualização do escritório</span>'}
         </div>
       </div>`).join('') : '<div class="empty">Sem atualizações ainda — assim que houver movimentação nos seus casos, ela aparece aqui.</div>';
+  },
+
+  // Agenda de audiências dos casos do parceiro (alertas automáticos 7 e 3 dias antes)
+  async ppagenda(page) {
+    const evs = await api('/api/partner-portal/agenda').catch(() => []);
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Audiências</h2><p class="sub">Audiências marcadas nos seus casos — você recebe alerta e e-mail 7 e 3 dias antes</p></div></div>
+      <div id="ppa-list"></div>`;
+    $('#ppa-list').innerHTML = evs.length ? evs.map((e) => {
+      const start = new Date(e.start_datetime);
+      const online = !!(e.video_link && String(e.video_link).trim());
+      const urg = Number(e.dias) <= 3;
+      return `<div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:3px solid ${urg ? 'var(--red)' : 'var(--gold)'}">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
+          <span style="min-width:0"><strong style="color:var(--navy-deep)">${esc(e.client_name || '—')}</strong>${e.case_title ? ` <span style="color:var(--text-muted);font-size:13px">· ${esc(e.case_title)}</span>` : ''}</span>
+          <strong style="color:${urg ? 'var(--red)' : 'var(--navy)'};font-size:13px">${Number(e.dias) === 0 ? 'HOJE' : `em ${e.dias} dia${Number(e.dias) > 1 ? 's' : ''}`}</strong>
+        </div>
+        <div style="margin-top:8px;font-size:14px"><strong>${fmtDateTime(e.start_datetime)}</strong> <span class="badge" style="margin-left:6px;${online ? 'background:var(--gold-soft,#efe3c8);color:var(--navy)' : ''}">${online ? 'ONLINE' : 'presencial'}</span></div>
+        <div style="margin-top:6px;font-size:13px;color:var(--text-muted)">
+          ${e.case_number ? `Proc. ${esc(e.case_number)} · ` : ''}${esc(e.title || 'Audiência')}
+          ${!online && e.location ? `<br>Local: ${esc(e.location)}` : ''}
+        </div>
+        ${online && e.video_link ? `<div style="margin-top:10px"><a class="btn-gold btn-sm" style="text-decoration:none" href="${esc(e.video_link)}" target="_blank" rel="noopener">Abrir link da audiência</a> <small style="color:var(--text-muted);margin-left:6px">oriente o cliente a entrar 15 min antes</small></div>`
+          : `<div style="margin-top:8px;font-size:12.5px;color:var(--text-muted)">Oriente o cliente a chegar 30 min antes, com documento com foto.</div>`}
+      </div>`;
+    }).join('') : '<div class="empty">Nenhuma audiência futura nos seus casos.</div>';
   },
 
   async ppfin(page) {

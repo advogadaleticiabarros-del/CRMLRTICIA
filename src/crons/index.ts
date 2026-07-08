@@ -101,6 +101,15 @@ export function startCronJobs() {
     } catch {}
   });
 
+  // ── diário 07:10 (Brasília): audiências de casos de PARCERIA a 7 e 3 dias ──
+  // Sino no CRM + e-mail ao parceiro com dados e orientações completas.
+  cron.schedule('10 7 * * *', async () => {
+    try {
+      const { sendPartnerHearingAlerts } = await import('../services/partnerHearingAlerts');
+      await sendPartnerHearingAlerts();
+    } catch {}
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── backup diário do banco: 02h (dump comprimido → MEGA) ──────────────────
   cron.schedule('0 2 * * *', async () => {
     try {
