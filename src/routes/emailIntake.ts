@@ -4,6 +4,7 @@ import { db } from '../config/database';
 import { env } from '../config/env';
 import { enqueueIntake, confirmIntake, ParsedIntake } from '../services/emailIntake';
 import { getInboxAuthUrl, getInboxStatus, updateInboxConfig, disconnectInbox, syncInboxNow, processAttachmentsForImport } from '../services/partnerInboxService';
+import { createProductionFolder } from '../services/DriveService';
 
 const router = Router();
 
@@ -77,6 +78,26 @@ router.post('/:id/confirm', async (req: Request, res: Response) => {
     // Anexos do e-mail (Gmail) → Google Drive, vinculados ao caso.
     let anexos = 0;
     try { anexos = await processAttachmentsForImport(Number(req.params.id), out.clientId, out.caseIds[0] ?? null, req.user!.id); } catch { /* Drive indisponível não trava a confirmação */ }
+
+    // Auto-criar pasta Drive individual por caso (igual ao fluxo manual de parceria)
+    if (out.caseIds.length > 0) {
+      try {
+        const [cases] = await db.query(
+          `SELECT c.id, c.title, c.legal_area, cl.name AS client_name
+             FROM cases c LEFT JOIN clients cl ON cl.id = c.client_id
+            WHERE c.id IN (${out.caseIds.map(() => '?').join(',')})`,
+          out.caseIds
+        ) as any;
+        for (const c of cases) {
+          createProductionFolder(req.user!.id, c.client_name || 'Cliente', c.legal_area || 'Geral', (c.title || '').substring(0, 50))
+            .then((result) => {
+              if (result) db.query('UPDATE cases SET drive_folder_url = ? WHERE id = ?', [result.folderUrl, c.id]).catch(() => {});
+            })
+            .catch(() => {});
+        }
+      } catch { /* silent — não bloqueia o retorno */ }
+    }
+
     res.json({ success: true, ...out, anexos });
   } catch (e: any) {
     res.status(400).json({ error: e.message });
