@@ -117,8 +117,11 @@ export async function startInstance(): Promise<void> {
   if (sock || state.connecting) return;
   state.connecting = true; state.lastError = null;
   try {
+    // Versão ATUAL do protocolo — sem isso o WhatsApp derruba a conexão antes do QR
+    const { version } = await baileys.fetchLatestBaileysVersion().catch(() => ({ version: undefined as any }));
     const { state: authState, saveCreds } = await useDBAuthState();
     sock = makeWASocket({
+      version,
       auth: authState,
       logger: pino({ level: 'silent' }),
       browser: ['CRM Juridico', 'Chrome', '120'],
