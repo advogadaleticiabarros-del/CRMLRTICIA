@@ -358,6 +358,21 @@ router.post('/:id/collaborators', async (req: Request, res: Response) => {
   res.status(201).json({ success: true });
 });
 
+// ── DELETE /api/cases/:id — apagar demanda (bloqueado se houver parcelas pagas)
+router.delete('/:id', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const [[{ paid }]] = await db.query(
+    "SELECT COUNT(*) AS paid FROM installments WHERE case_id = ? AND status = 'pago'", [id]
+  ) as any;
+  if (Number(paid) > 0) {
+    res.status(409).json({ error: 'Não é possível apagar um processo com parcelas pagas.' });
+    return;
+  }
+  const [r] = await db.query('DELETE FROM cases WHERE id = ?', [id]) as any;
+  if (!r.affectedRows) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+  res.json({ success: true, id: Number(id) });
+});
+
 // ── DELETE /api/cases/:id/collaborators/:userId ─────────────────────────────
 router.delete('/:id/collaborators/:userId', async (req: Request, res: Response) => {
   await db.query('DELETE FROM case_collaborators WHERE case_id = ? AND user_id = ?', [req.params.id, req.params.userId]);
