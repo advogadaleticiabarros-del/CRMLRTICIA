@@ -30,8 +30,10 @@ router.post('/integration/disconnect', async (_req: Request, res: Response) => {
 });
 
 router.post('/integration/sync', async (req: Request, res: Response) => {
-  try { res.json({ success: true, ...(await syncInboxNow(req.user!.id)) }); }
-  catch (e: any) { res.status(400).json({ error: e.message }); }
+  try {
+    const opts = req.body?.reset_sync ? { resetSync: true } : undefined;
+    res.json({ success: true, ...(await syncInboxNow(req.user!.id, opts)) });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
 
 // ── GET /api/email-intake — fila de importações (pendentes primeiro) ────────

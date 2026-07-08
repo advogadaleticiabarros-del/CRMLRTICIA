@@ -2983,7 +2983,7 @@ async function loadInboxPanel(onChange) {
   box.innerHTML = `<div class="card" style="margin-bottom:14px;padding:12px 14px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <div style="font-size:13px">📨 Gmail conectado: <strong>${esc(st.google_email || '—')}</strong> · remetente <code>${esc(st.sender_filter || '')}</code> · última busca: ${last} ${st.active ? '' : '<span style="color:var(--red)">(pausado)</span>'}</div>
-      <div style="display:flex;gap:6px"><button class="btn-gold btn-sm" id="inbox-sync">🔄 Buscar agora</button><button class="btn-sm" id="inbox-perm">🔑 Atualizar permissões</button><button class="btn-sm" id="inbox-disc">Desconectar</button></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-gold btn-sm" id="inbox-sync">🔄 Buscar agora</button><button class="btn-sm" id="inbox-sync-reset" title="Apaga o last_sync e rebusca desde o início do dia">↩ Rebuscar desde hoje</button><button class="btn-sm" id="inbox-perm">🔑 Atualizar permissões</button><button class="btn-sm" id="inbox-disc">Desconectar</button></div>
     </div></div>`;
   const permBtn = $('#inbox-perm');
   if (permBtn) permBtn.onclick = async () => {
@@ -2994,6 +2994,13 @@ async function loadInboxPanel(onChange) {
     const b = $('#inbox-sync'); b.disabled = true; b.textContent = 'Buscando...';
     try { const r = await api('/api/email-intake/integration/sync', { method: 'POST', body: '{}' }); toast(`Busca concluída · ${r.imported} novo(s)`); onChange(); }
     catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = '🔄 Buscar agora'; }
+  };
+  $('#inbox-sync-reset').onclick = async () => {
+    if (!confirm('Isso apaga o histórico de última busca e re-sincroniza desde o início de hoje.\nE-mails já importados serão ignorados automaticamente. Continuar?')) return;
+    const b = $('#inbox-sync-reset'); b.disabled = true; b.textContent = 'Rebuscando...';
+    try { const r = await api('/api/email-intake/integration/sync', { method: 'POST', body: JSON.stringify({ reset_sync: true }) }); toast(`Rebusca concluída · ${r.imported} novo(s)`); onChange(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { b.disabled = false; b.textContent = '↩ Rebuscar desde hoje'; }
   };
   $('#inbox-disc').onclick = async () => {
     if (!confirm('Desconectar o Gmail da parceria?')) return;

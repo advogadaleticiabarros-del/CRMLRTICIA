@@ -118,9 +118,16 @@ function walkParts(payload: any, texts: string[], atts: any[]): void {
 }
 
 /** Busca e-mails novos do remetente e enfileira na revisão. Retorna quantos entraram. */
-export async function syncInboxNow(actorId?: number | null): Promise<{ imported: number; skipped: number }> {
+export async function syncInboxNow(actorId?: number | null, opts?: { resetSync?: boolean }): Promise<{ imported: number; skipped: number }> {
   const row = await loadIntegration();
   if (!row || !row.refresh_token || !row.active) return { imported: 0, skipped: 0 };
+
+  // Se resetSync, apaga last_sync para que a busca comece do início do dia atual
+  if (opts?.resetSync) {
+    await db.query('UPDATE email_integration SET last_sync = NULL WHERE id = 1');
+    row.last_sync = null;
+  }
+
   const auth = await authedClient();
   const gmail = google.gmail({ version: 'v1', auth });
 
