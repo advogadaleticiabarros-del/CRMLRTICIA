@@ -127,6 +127,28 @@ export function sendCredentials(to: string, name: string, password: string): Pro
   });
 }
 
+/** Recibo de pagamento — enviado automaticamente ao confirmar a baixa. */
+export function sendReceipt(to: string, opts: {
+  name: string; valor: number; referencia: string; pagoEm: Date; numeroRecibo: string;
+}): Promise<SendResult> {
+  const valorFmt = `R$ ${Number(opts.valor).toFixed(2).replace('.', ',')}`;
+  const dataFmt = opts.pagoEm.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+  return sendEmail({
+    to, subject: `Recibo de pagamento — ${valorFmt} (${dataFmt})`,
+    html: layout('Recibo de pagamento', `
+      <p>Olá, ${opts.name || 'cliente'}. Confirmamos o recebimento do seu pagamento. Obrigada!</p>
+      <div style="background:#f4f6fa;border-radius:8px;padding:16px 18px;margin:14px 0;line-height:2">
+        <div style="font-size:12px;color:#93a0b5;text-transform:uppercase;letter-spacing:.5px">Recibo nº ${opts.numeroRecibo}</div>
+        <div><strong>Pagador(a):</strong> ${opts.name}</div>
+        <div><strong>Referente a:</strong> ${opts.referencia}</div>
+        <div><strong>Valor:</strong> <span style="font-size:18px;font-weight:700">${valorFmt}</span></div>
+        <div><strong>Data do pagamento:</strong> ${dataFmt}</div>
+        <div><strong>Recebedor:</strong> Advocacia Letícia Barros</div>
+      </div>
+      <p style="color:#93a0b5;font-size:13px">Guarde este e-mail — ele é o seu comprovante. Este recibo também fica registrado no seu portal.</p>`),
+  });
+}
+
 export function sendProposalLink(to: string, name: string, url: string, title: string): Promise<SendResult> {
   return sendEmail({
     to, subject: 'Sua proposta de honorários',

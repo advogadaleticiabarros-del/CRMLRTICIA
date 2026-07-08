@@ -101,6 +101,22 @@ export function startCronJobs() {
     } catch {}
   });
 
+  // ── diário 08:30 (Brasília): régua de cobrança por e-mail (D-3, D0, D+3, D+7)
+  cron.schedule('30 8 * * *', async () => {
+    try {
+      const { sendBillingReminders } = await import('../services/financeReminders');
+      await sendBillingReminders();
+    } catch {}
+  }, { timezone: 'America/Sao_Paulo' });
+
+  // ── a cada 6h: pagamentos "Já paguei" parados há 48h+ sem confirmação ─────
+  cron.schedule('0 */6 * * *', async () => {
+    try {
+      const { alertStuckPayments } = await import('../services/financeReminders');
+      await alertStuckPayments();
+    } catch {}
+  });
+
   // ── diário 07:15 (Brasília): prepara a fila de WhatsApp (cobrança/audiência)
   cron.schedule('15 7 * * *', async () => {
     try {

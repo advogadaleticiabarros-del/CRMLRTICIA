@@ -234,6 +234,27 @@ router.patch('/installments/:id/pay', async (req: Request, res: Response) => {
     [req.params.id]
   ) as any;
   if (!result.affectedRows) { res.status(404).json({ error: 'Parcela não encontrada' }); return; }
+
+  // Recibo automático por e-mail ao cliente (best-effort)
+  try {
+    const [[info]] = await db.query(
+      `SELECT i.valor, i.numero, cl.name, cl.email, pr.title AS proposta
+         FROM installments i
+         JOIN clients cl ON cl.id = i.client_id
+         LEFT JOIN propostas pr ON pr.id = i.proposta_id
+        WHERE i.id = ?`, [req.params.id]) as any;
+    if (info?.email && info.email.includes('@')) {
+      const { sendReceipt } = await import('../services/EmailService');
+      sendReceipt(info.email, {
+        name: info.name,
+        valor: Number(info.valor),
+        referencia: `${info.numero ? info.numero + 'ª parcela' : 'Parcela'}${info.proposta ? ` — ${info.proposta}` : ''}`,
+        pagoEm: new Date(),
+        numeroRecibo: `I${req.params.id}-${new Date().getFullYear()}`,
+      }).catch(() => {});
+    }
+  } catch { /* recibo é best-effort */ }
+
   res.json({ success: true, id: Number(req.params.id), status: 'pago' });
 });
 

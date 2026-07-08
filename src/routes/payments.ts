@@ -32,6 +32,27 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
     description: `Pagamento da parcela confirmado (R$ ${Number(p.amount).toFixed(2)})`,
     userId: req.user!.id,
   }).catch(() => {});
+
+  // Recibo automático por e-mail (best-effort)
+  try {
+    const [[info]] = await db.query(
+      `SELECT cl.name, cl.email, i.numero, pr.title AS proposta
+         FROM clients cl
+         JOIN installments i ON i.id = ?
+         LEFT JOIN propostas pr ON pr.id = i.proposta_id
+        WHERE cl.id = ?`, [p.installment_id, p.client_id]) as any;
+    if (info?.email && info.email.includes('@')) {
+      const { sendReceipt } = await import('../services/EmailService');
+      sendReceipt(info.email, {
+        name: info.name,
+        valor: Number(p.amount),
+        referencia: `${info.numero ? info.numero + 'ª parcela' : 'Parcela'}${info.proposta ? ` — ${info.proposta}` : ''}`,
+        pagoEm: new Date(),
+        numeroRecibo: `P${p.id}-${new Date().getFullYear()}`,
+      }).catch(() => {});
+    }
+  } catch { /* recibo é best-effort */ }
+
   res.json({ success: true });
 });
 
