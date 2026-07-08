@@ -27,19 +27,43 @@ router.post('/auto', (req: Request, res: Response) => {
   res.json(getStatus());
 });
 
-// ── GET /api/whatsapp-instance/chats — conversas (última mensagem de cada) ──
+// ── GET /api/whatsapp-instance/chats — conversas (última msg + etiquetas + não lidas)
 router.get('/chats', async (_req: Request, res: Response) => {
   const [rows] = await db.query(`
     SELECT w.phone,
            MAX(w.msg_time) AS last_time,
            SUBSTRING_INDEX(GROUP_CONCAT(w.body ORDER BY w.msg_time DESC, w.id DESC SEPARATOR '\\n§§'), '\\n§§', 1) AS last_body,
+           SUBSTRING_INDEX(GROUP_CONCAT(w.from_me ORDER BY w.msg_time DESC, w.id DESC), ',', 1) AS last_from_me,
            MAX(w.client_id) AS client_id,
-           MAX(cl.name) AS client_name
+           MAX(cl.name) AS client_name,
+           MAX(m.unread) AS unread,
+           MAX(m.labels) AS labels
       FROM whatsapp_messages w
       LEFT JOIN clients cl ON cl.id = w.client_id
+      LEFT JOIN whatsapp_chat_meta m ON m.phone = w.phone
      GROUP BY w.phone
-     ORDER BY last_time DESC LIMIT 60`) as any;
+     ORDER BY last_time DESC LIMIT 100`) as any;
   res.json(rows);
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/read — zera as não lidas ───────
+router.post('/chats/:phone/read', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  await db.query(
+    'INSERT INTO whatsapp_chat_meta (phone, unread) VALUES (?, 0) ON DUPLICATE KEY UPDATE unread = 0', [phone]);
+  res.json({ success: true });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/labels — etiquetas da conversa ─
+router.post('/chats/:phone/labels', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const labels = Array.isArray(req.body?.labels)
+    ? req.body.labels.map((l: any) => String(l).trim().slice(0, 30)).filter(Boolean).slice(0, 6)
+    : [];
+  await db.query(
+    'INSERT INTO whatsapp_chat_meta (phone, labels) VALUES (?, ?) ON DUPLICATE KEY UPDATE labels = VALUES(labels)',
+    [phone, JSON.stringify(labels)]);
+  res.json({ success: true, labels });
 });
 
 // ── GET /api/whatsapp-instance/chats/:phone — mensagens da conversa ─────────

@@ -1877,47 +1877,161 @@ const ROUTES = {
       }, 3000);
     };
 
-    // ── Aba CONVERSAS: caixa de entrada + resposta pela instância ──
+    // ── Aba CONVERSAS: experiência estilo WhatsApp Web dentro do CRM ──
     const tabConversas = async () => {
       const body = $('#wa-body');
-      const chats = await api('/api/whatsapp-instance/chats').catch(() => []);
-      if (!chats.length) {
-        body.innerHTML = '<div class="empty">Nenhuma conversa ainda. Com a instância conectada (aba Conexão), as mensagens recebidas e enviadas aparecem aqui.</div>';
-        return;
-      }
-      body.innerHTML = `<div style="display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:14px" id="wa-chat-grid">
-        <div class="card" style="max-height:65vh;overflow-y:auto" id="wa-chatlist"></div>
-        <div class="card" style="display:flex;flex-direction:column;max-height:65vh" id="wa-chatpane"><div class="empty">Escolha uma conversa ao lado</div></div>
+      const CORES = ['#e17076', '#7bc862', '#65aadd', '#a695e7', '#ee7aae', '#6ec9cb', '#faa774', '#54a3b8'];
+      const cor = (s) => CORES[[...String(s)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % CORES.length];
+      const iniciais = (n) => String(n || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+      const parseLabels = (l) => { try { const a = JSON.parse(l || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } };
+      const fmtHora = (d) => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      const fmtDia = (d) => {
+        const dt = new Date(d), hoje = new Date();
+        const ontem = new Date(hoje); ontem.setDate(hoje.getDate() - 1);
+        if (dt.toDateString() === hoje.toDateString()) return 'Hoje';
+        if (dt.toDateString() === ontem.toDateString()) return 'Ontem';
+        return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      };
+
+      let chats = [];
+      let ativo = null;         // { phone, name, client_id, labels }
+      let busca = '';
+      let filtro = '';          // etiqueta selecionada no filtro
+      let qtdMsgs = 0;          // p/ detectar novidade no polling
+
+      body.innerHTML = `<div class="wa-shell" id="wa-shell">
+        <div class="wa-side">
+          <div class="wa-search"><input id="waq" placeholder="Buscar conversa…" autocomplete="off"></div>
+          <div class="wa-filters" id="waf"></div>
+          <div class="wa-list" id="wal"></div>
+        </div>
+        <div class="wa-pane" id="wap"><div class="wa-empty">Escolha uma conversa ao lado 💬</div></div>
       </div>`;
-      if (window.innerWidth < 720) $('#wa-chat-grid').style.gridTemplateColumns = '1fr';
-      $('#wa-chatlist').innerHTML = chats.map((c) => `
-        <div class="mini-row" data-chat="${esc(c.phone)}" data-name="${esc(c.client_name || c.phone)}" style="padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border-soft)">
-          <span style="min-width:0"><strong>${esc(c.client_name || '+' + c.phone)}</strong><br><small style="color:var(--text-muted)">${esc(String(c.last_body || '').slice(0, 46))}</small></span>
-          <small style="color:var(--text-muted);white-space:nowrap">${fmtDate(c.last_time)}</small>
-        </div>`).join('');
-      const openChat = async (phone, name) => {
-        const pane = $('#wa-chatpane');
-        const msgs = await api('/api/whatsapp-instance/chats/' + phone).catch(() => []);
-        pane.innerHTML = `
-          <div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy-deep)">${esc(name)}</strong> <small style="color:var(--text-muted)">· +${esc(phone)}</small></div>
-          <div id="wa-msgs" style="flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px">
-            ${msgs.map((m) => `<div style="max-width:78%;padding:8px 12px;border-radius:12px;font-size:13.5px;line-height:1.45;${Number(m.from_me) ? 'align-self:flex-end;background:var(--gold-soft,#efe3c8);color:var(--navy)' : 'align-self:flex-start;background:var(--surface);border:1px solid var(--border)'}">
-              ${esc(m.body)}<div style="font-size:10.5px;color:var(--text-muted);margin-top:4px;text-align:right">${fmtDateTime(m.msg_time)}</div></div>`).join('') || '<div class="empty">Sem mensagens</div>'}
+
+      const todasEtiquetas = () => [...new Set(chats.flatMap((c) => parseLabels(c.labels)))];
+
+      const renderFiltros = () => {
+        const ets = todasEtiquetas();
+        $('#waf').innerHTML = [`<button class="wa-filter ${!filtro ? 'on' : ''}" data-f="">Todas</button>`,
+          ...ets.map((t) => `<button class="wa-filter ${filtro === t ? 'on' : ''}" data-f="${esc(t)}" style="${filtro === t ? `background:${cor(t)};border-color:${cor(t)}` : ''}">${esc(t)}</button>`)].join('');
+        $('#waf').querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { filtro = b.dataset.f; renderFiltros(); renderLista(); });
+      };
+
+      const renderLista = () => {
+        const q = busca.toLowerCase();
+        const vis = chats.filter((c) => {
+          if (q && !(String(c.client_name || '').toLowerCase().includes(q) || String(c.phone).includes(q))) return false;
+          if (filtro && !parseLabels(c.labels).includes(filtro)) return false;
+          return true;
+        });
+        $('#wal').innerHTML = vis.length ? vis.map((c) => {
+          const nome = c.client_name || '+' + c.phone;
+          const tags = parseLabels(c.labels);
+          return `<div class="wa-item ${ativo && ativo.phone === c.phone ? 'on' : ''}" data-chat="${esc(c.phone)}">
+            <div class="wa-ava" style="background:${cor(nome)}">${iniciais(nome)}</div>
+            <div class="wa-item-mid">
+              <div class="wa-item-name">${esc(nome)}</div>
+              <div class="wa-item-prev">${Number(c.last_from_me) ? '✓ ' : ''}${esc(String(c.last_body || '').slice(0, 52))}</div>
+              ${tags.length ? `<div class="wa-tags">${tags.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>` : ''}
+            </div>
+            <div class="wa-item-right">
+              <div class="wa-item-time">${fmtDia(c.last_time) === 'Hoje' ? fmtHora(c.last_time) : fmtDia(c.last_time)}</div>
+              ${Number(c.unread) ? `<span class="wa-unread">${c.unread}</span>` : ''}
+            </div>
+          </div>`;
+        }).join('') : '<div class="wa-empty">Nenhuma conversa encontrada</div>';
+        $('#wal').querySelectorAll('[data-chat]').forEach((r) => r.onclick = () => {
+          const c = chats.find((x) => x.phone === r.dataset.chat);
+          abrirChat(c);
+        });
+      };
+
+      const renderMsgs = (msgs) => {
+        let dia = '';
+        return msgs.map((m) => {
+          const d = fmtDia(m.msg_time);
+          const sep = d !== dia ? `<div class="wa-day">${d}</div>` : '';
+          dia = d;
+          return `${sep}<div class="wa-bub ${Number(m.from_me) ? 'out' : 'in'}">${esc(m.body)}<span class="wa-time">${fmtHora(m.msg_time)}</span></div>`;
+        }).join('') || '<div class="wa-empty">Sem mensagens</div>';
+      };
+
+      const abrirChat = async (c, manterInput) => {
+        ativo = { phone: c.phone, name: c.client_name || '+' + c.phone, client_id: c.client_id, labels: parseLabels(c.labels) };
+        $('#wa-shell').classList.add('chat-open');
+        const msgs = await api('/api/whatsapp-instance/chats/' + c.phone).catch(() => []);
+        qtdMsgs = msgs.length;
+        api(`/api/whatsapp-instance/chats/${c.phone}/read`, { method: 'POST', body: '{}' }).catch(() => {});
+        c.unread = 0;
+        const textoAtual = manterInput || '';
+        $('#wap').innerHTML = `
+          <div class="wa-head">
+            <button class="btn-ghost btn-sm" id="wa-back" style="display:none">←</button>
+            <div class="wa-ava" style="background:${cor(ativo.name)};width:36px;height:36px;flex:0 0 36px;font-size:13px">${iniciais(ativo.name)}</div>
+            <div style="flex:1;min-width:0">
+              <strong style="color:var(--navy-deep);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ativo.name)}</strong>
+              <small style="color:var(--text-muted)">+${esc(ativo.phone)}${ativo.client_id ? ' · cliente do escritório' : ''}</small>
+            </div>
+            <div class="wa-tags" id="wah-tags">${ativo.labels.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>
+            <button class="btn-sm" id="wa-label">🏷 Etiquetas</button>
           </div>
-          <form id="wa-reply" style="display:flex;gap:8px;padding:12px;border-top:1px solid var(--border)">
-            <input name="text" placeholder="Escreva sua resposta…" style="flex:1" autocomplete="off">
-            <button class="btn-gold btn-sm" type="submit">Enviar</button>
+          <div class="wa-msgs" id="wam">${renderMsgs(msgs)}</div>
+          <form class="wa-input" id="wa-reply">
+            <input name="text" placeholder="Digite uma mensagem" autocomplete="off" value="${esc(textoAtual)}">
+            <button class="wa-send" type="submit" title="Enviar">➤</button>
           </form>`;
-        const box = pane.querySelector('#wa-msgs'); box.scrollTop = box.scrollHeight;
-        pane.querySelector('#wa-reply').onsubmit = async (ev) => {
+        const box = $('#wam'); box.scrollTop = box.scrollHeight;
+        if (window.innerWidth < 760) { const bk = $('#wa-back'); bk.style.display = ''; bk.onclick = () => { ativo = null; $('#wa-shell').classList.remove('chat-open'); renderLista(); }; }
+        $('#wa-reply').onsubmit = async (ev) => {
           ev.preventDefault();
-          const inp = pane.querySelector('[name=text]');
+          const inp = $('#wa-reply [name=text]');
           const texto = inp.value.trim(); if (!texto) return;
-          try { await api(`/api/whatsapp-instance/chats/${phone}/send`, { method: 'POST', body: JSON.stringify({ text: texto }) }); inp.value = ''; openChat(phone, name); }
-          catch (e) { toast(e.message, 'error'); }
+          inp.value = '';
+          try { await api(`/api/whatsapp-instance/chats/${ativo.phone}/send`, { method: 'POST', body: JSON.stringify({ text: texto }) }); await atualizar(true); }
+          catch (e) { toast(e.message, 'error'); inp.value = texto; }
+        };
+        $('#wa-label').onclick = () => {
+          const existentes = todasEtiquetas();
+          const form = el(`<form class="form-grid">
+            <p class="sub">Marque as etiquetas desta conversa (ou crie uma nova):</p>
+            <div style="display:flex;flex-direction:column;gap:6px">
+              ${existentes.map((t) => `<label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" name="et" value="${esc(t)}" ${ativo.labels.includes(t) ? 'checked' : ''}> <span class="wa-tag" style="background:${cor(t)};font-size:11px">${esc(t)}</span></label>`).join('') || '<small style="color:var(--text-muted)">Nenhuma etiqueta criada ainda</small>'}
+            </div>
+            ${field('Nova etiqueta (opcional)', 'nova')}
+            <button type="submit" class="btn-primary">Salvar etiquetas</button>
+          </form>`);
+          form.onsubmit = async (ev) => {
+            ev.preventDefault();
+            const marcadas = [...form.querySelectorAll('[name=et]:checked')].map((x) => x.value);
+            const nova = form.querySelector('[name=nova]').value.trim();
+            if (nova) marcadas.push(nova);
+            try {
+              await api(`/api/whatsapp-instance/chats/${ativo.phone}/labels`, { method: 'POST', body: JSON.stringify({ labels: marcadas }) });
+              closeModal(); toast('Etiquetas salvas'); await atualizar(true);
+            } catch (e) { toast(e.message, 'error'); }
+          };
+          openModal('Etiquetas da conversa', form);
         };
       };
-      $('#wa-chatlist').querySelectorAll('[data-chat]').forEach((r) => r.onclick = () => openChat(r.dataset.chat, r.dataset.name));
+
+      // Atualização (polling suave a cada 6s — lista e conversa aberta)
+      const atualizar = async (forcarChat) => {
+        chats = await api('/api/whatsapp-instance/chats').catch(() => chats);
+        renderFiltros(); renderLista();
+        if (ativo) {
+          const c = chats.find((x) => x.phone === ativo.phone);
+          const msgs = await api('/api/whatsapp-instance/chats/' + ativo.phone).catch(() => null);
+          if (msgs && (forcarChat || msgs.length !== qtdMsgs)) {
+            const digitando = $('#wa-reply [name=text]')?.value || '';
+            await abrirChat(c || { phone: ativo.phone, client_name: ativo.name, client_id: ativo.client_id, labels: JSON.stringify(ativo.labels) }, digitando);
+          }
+        }
+      };
+
+      $('#waq').oninput = (e) => { busca = e.target.value; renderLista(); };
+      await atualizar(false);
+      if (!chats.length) $('#wal').innerHTML = '<div class="wa-empty">Nenhuma conversa ainda.<br>Com a instância conectada, tudo que chegar e sair aparece aqui.</div>';
+      chatTimer = setInterval(() => { if (tab === 'conversas') atualizar(false); else { clearInterval(chatTimer); chatTimer = null; } }, 6000);
     };
 
     // ── Aba FILA (comportamento original + envio direto quando conectado) ──

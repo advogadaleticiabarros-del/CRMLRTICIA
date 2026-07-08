@@ -104,11 +104,18 @@ async function storeMessage(msg: any): Promise<void> {
     if (!body) return;
     const phone = jid.split('@')[0];
     const clientId = await findClientByPhone(phone);
-    await db.query(
+    const [r] = await db.query(
       `INSERT IGNORE INTO whatsapp_messages (message_id, phone, client_id, from_me, body, msg_time)
        VALUES (?, ?, ?, ?, ?, FROM_UNIXTIME(?))`,
       [msg.key?.id || null, phone, clientId, msg.key?.fromMe ? 1 : 0, String(body).slice(0, 4000),
-       Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000)]);
+       Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000)]) as any;
+
+    // Mensagem recebida (nova) → soma no contador de não lidas da conversa
+    if (r.affectedRows > 0 && !msg.key?.fromMe) {
+      await db.query(
+        `INSERT INTO whatsapp_chat_meta (phone, unread) VALUES (?, 1)
+         ON DUPLICATE KEY UPDATE unread = unread + 1`, [phone]).catch(() => {});
+    }
   } catch { /* inbox é best-effort */ }
 }
 
