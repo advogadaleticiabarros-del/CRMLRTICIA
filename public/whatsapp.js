@@ -176,7 +176,10 @@ Object.assign(ROUTES, {
           const d = fmtDia(m.msg_time);
           const sep = d !== dia ? `<div class="wa-day">${d}</div>` : '';
           dia = d;
-          const anexo = m.media_id && m.media_url ? `<br><a href="${esc(m.media_url)}" target="_blank" rel="noopener" style="font-size:12px;font-weight:600">📎 Abrir anexo</a>` : '';
+          const ehAudio = m.media_mime && (String(m.media_mime).startsWith('audio/'));
+          const anexo = m.media_id && m.media_url
+            ? `<br><a href="${esc(m.media_url)}" target="_blank" rel="noopener" style="font-size:12px;font-weight:600">📎 Abrir anexo</a>${ehAudio && !String(m.body).includes('📝 Transcrição:') ? ` <button type="button" class="btn-sm" data-transcrever="${m.media_id}" style="font-size:11px;padding:2px 8px;margin-left:6px">Transcrever áudio</button>` : ''}`
+            : '';
           return `${sep}<div class="wa-bub ${Number(m.from_me) ? 'out' : 'in'}">${esc(m.body)}${anexo}<span class="wa-time">${fmtHora(m.msg_time)}</span></div>`;
         }).join('') || '<div class="wa-empty">Sem mensagens</div>';
       };
@@ -271,15 +274,87 @@ Object.assign(ROUTES, {
             </div>
             <div class="wa-tags" id="wah-tags">${ativo.labels.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>
             <button class="btn-sm" id="wa-label">🏷 Etiquetas</button>
+            <button class="btn-sm" id="wa-pdf" title="Gerar PDF da conversa (juntar ao processo)">🖨</button>
             <button class="btn-sm" id="wa-info" title="Ficha do contato">ℹ</button>
           </div>
           <div class="wa-msgs" id="wam">${renderMsgs(msgs)}</div>
           <form class="wa-input" id="wa-reply">
+            <button type="button" class="btn-sm" id="wa-modelos" title="Mensagens prontas" style="flex:0 0 auto;border-radius:20px">⚡</button>
             <input name="text" placeholder="Digite uma mensagem" autocomplete="off" value="${esc(textoAtual)}">
             <button class="wa-send" type="submit" title="Enviar">➤</button>
           </form>`;
         const box = $('#wam'); box.scrollTop = box.scrollHeight;
         if (window.innerWidth < 760) { const bk = $('#wa-back'); bk.style.display = ''; bk.onclick = () => { ativo = null; $('#wa-shell').classList.remove('chat-open'); renderLista(); }; }
+
+        // Transcrever áudio (Whisper) — a transcrição fica gravada na mensagem
+        box.querySelectorAll('[data-transcrever]').forEach((b) => b.onclick = async () => {
+          b.disabled = true; b.textContent = 'Transcrevendo…';
+          try {
+            await api(`/api/whatsapp-instance/media/${b.dataset.transcrever}/transcricao`, { method: 'POST', body: '{}' });
+            toast('Áudio transcrito ✓'); await atualizar(true);
+          } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Transcrever áudio'; }
+        });
+
+        // PDF da conversa — com papel timbrado, pronto para juntar ao processo
+        $('#wa-pdf').onclick = () => {
+          let dia = '';
+          const linhas = msgs.map((m) => {
+            const d = fmtDia(m.msg_time);
+            const sep = d !== dia ? `<div style="text-align:center;margin:14px 0 6px"><span style="font-size:11px;border:1px solid #ccc;border-radius:10px;padding:2px 10px;color:#555">${d}</span></div>` : '';
+            dia = d;
+            return `${sep}<div style="margin:6px 0;padding:8px 12px;border-radius:8px;max-width:75%;font-size:12.5px;line-height:1.5;border:1px solid #ddd;${Number(m.from_me) ? 'margin-left:auto;background:#eef7ea' : 'background:#fff'}">
+              <div style="font-size:10px;color:#888;margin-bottom:3px">${Number(m.from_me) ? 'Escritório' : esc(ativo.name)} · ${fmtHora(m.msg_time)}</div>
+              <div style="white-space:pre-wrap;word-break:break-word">${esc(m.body)}</div>
+              ${m.media_id ? '<div style="font-size:10.5px;color:#888;margin-top:3px">[anexo recebido — arquivado nos Documentos do cliente]</div>' : ''}
+            </div>`;
+          }).join('');
+          printBranded(
+            `Registro de conversa de WhatsApp — ${ativo.name}`,
+            `Contato +${ativo.phone} · ${msgs.length} mensagem(ns) · extraído do CRM em ${new Date().toLocaleString('pt-BR')}`,
+            linhas + '<p style="color:#777;font-size:11px;margin-top:16px">Registro gerado pelo sistema de gestão do escritório para fins de documentação e prova. Use "Imprimir → Salvar como PDF".</p>');
+        };
+
+        // Mensagens prontas (modelos jurídicos) — {{nome}} vira o primeiro nome
+        $('#wa-modelos').onclick = async () => {
+          const tpls = await api('/api/whatsapp-instance/templates').catch(() => []);
+          const primeiroNome = (ativo.name.startsWith('+') ? '' : ativo.name).split(' ')[0] || '';
+          const wrap = el(`<div>
+            <div style="display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow:auto">
+              ${tpls.map((t) => `<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+                <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
+                  <strong style="font-size:13px;color:var(--navy-deep)">${esc(t.title)}</strong>
+                  <span style="white-space:nowrap"><button class="btn-gold btn-sm" data-usar="${t.id}">Usar</button> <button class="btn-ghost btn-sm" data-apagar="${t.id}">×</button></span>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${esc(t.body.slice(0, 110))}…</div>
+              </div>`).join('') || '<div class="empty">Nenhum modelo ainda</div>'}
+            </div>
+            <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
+            <form id="tpl-novo" class="form-grid">
+              ${field('Título do novo modelo', 'title')}
+              ${field('Mensagem (use {{nome}} para o nome do cliente)', 'body', { type: 'textarea' })}
+              <button type="submit" class="btn-sm">+ Salvar novo modelo</button>
+            </form>
+          </div>`);
+          wrap.querySelectorAll('[data-usar]').forEach((b) => b.onclick = () => {
+            const t = tpls.find((x) => x.id == b.dataset.usar);
+            const inp = $('#wa-reply [name=text]');
+            inp.value = t.body.replace(/\{\{nome\}\}/g, primeiroNome || 'cliente');
+            closeModal(); inp.focus();
+          });
+          wrap.querySelectorAll('[data-apagar]').forEach((b) => b.onclick = async () => {
+            if (!confirm('Apagar este modelo?')) return;
+            await api('/api/whatsapp-instance/templates/' + b.dataset.apagar, { method: 'DELETE' }).catch(() => {});
+            closeModal(); $('#wa-modelos').click();
+          });
+          wrap.querySelector('#tpl-novo').onsubmit = async (ev) => {
+            ev.preventDefault();
+            const b2 = Object.fromEntries(new FormData(ev.target));
+            if (!b2.title || !b2.body) { toast('Preencha título e mensagem', 'error'); return; }
+            try { await api('/api/whatsapp-instance/templates', { method: 'POST', body: JSON.stringify(b2) }); toast('Modelo salvo'); closeModal(); $('#wa-modelos').click(); }
+            catch (e) { toast(e.message, 'error'); }
+          };
+          openModal('Mensagens prontas', wrap);
+        };
         // Painel de contexto: abre sozinho em telas largas; botão ℹ alterna
         $('#wa-info').onclick = () => { $('#wa-shell').classList.toggle('ctx-open'); if ($('#wa-shell').classList.contains('ctx-open')) renderContexto(); };
         if (window.innerWidth >= 1100 && !manterInput) { $('#wa-shell').classList.add('ctx-open'); renderContexto(); }
@@ -318,7 +393,9 @@ Object.assign(ROUTES, {
 
       // Atualização (polling suave a cada 6s — lista e conversa aberta)
       const atualizar = async (forcarChat) => {
-        chats = await api('/api/whatsapp-instance/chats').catch(() => chats);
+        // Busca com 3+ letras vale também para o CONTEÚDO das mensagens (servidor)
+        const q = busca.trim().length >= 3 ? `?q=${encodeURIComponent(busca.trim())}` : '';
+        chats = await api('/api/whatsapp-instance/chats' + q).catch(() => chats);
         renderFiltros(); renderLista();
         if (ativo) {
           const c = chats.find((x) => x.phone === ativo.phone);
@@ -330,7 +407,12 @@ Object.assign(ROUTES, {
         }
       };
 
-      $('#waq').oninput = (e) => { busca = e.target.value; renderLista(); };
+      let buscaTimer = null;
+      $('#waq').oninput = (e) => {
+        busca = e.target.value; renderLista();
+        clearTimeout(buscaTimer);
+        buscaTimer = setTimeout(() => atualizar(false), 400); // busca no conteúdo (servidor)
+      };
       await atualizar(false);
       if (!chats.length) $('#wal').innerHTML = '<div class="wa-empty">Nenhuma conversa ainda.<br>Com a instância conectada, tudo que chegar e sair aparece aqui.</div>';
       chatTimer = setInterval(() => { if (tab === 'conversas') atualizar(false); else { clearInterval(chatTimer); chatTimer = null; } }, 6000);

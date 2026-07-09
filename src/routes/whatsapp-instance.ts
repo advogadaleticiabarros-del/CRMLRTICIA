@@ -60,8 +60,66 @@ router.post('/auto', (req: Request, res: Response) => {
   res.json(getStatus());
 });
 
+// ── Mensagens prontas (modelos jurídicos com {{nome}}) ──────────────────────
+router.get('/templates', async (_req: Request, res: Response) => {
+  const [rows] = await db.query('SELECT id, title, body FROM whatsapp_templates ORDER BY title ASC') as any;
+  res.json(rows);
+});
+router.post('/templates', async (req: Request, res: Response) => {
+  const { title, body } = req.body || {};
+  if (!title || !body) { res.status(400).json({ error: 'Informe título e mensagem' }); return; }
+  const [r] = await db.query('INSERT INTO whatsapp_templates (title, body) VALUES (?, ?)',
+    [String(title).slice(0, 120), String(body).slice(0, 4000)]) as any;
+  res.status(201).json({ id: r.insertId });
+});
+router.delete('/templates/:id', async (req: Request, res: Response) => {
+  await db.query('DELETE FROM whatsapp_templates WHERE id = ?', [req.params.id]);
+  res.json({ success: true });
+});
+
+// ── POST /api/whatsapp-instance/media/:id/transcricao — áudio → texto (Whisper)
+// Usa o Whisper do Groq (grátis com a GROQ_API_KEY já usada na IA). A transcrição
+// fica gravada na própria mensagem — vira prova legível e entra na busca.
+router.post('/media/:id/transcricao', async (req: Request, res: Response) => {
+  const key = process.env.GROQ_API_KEY;
+  if (!key) { res.status(400).json({ error: 'Transcrição requer GROQ_API_KEY configurada' }); return; }
+  const [[m]] = await db.query('SELECT id, file_name, mime, data FROM whatsapp_media WHERE id = ?', [req.params.id]) as any;
+  if (!m) { res.status(404).json({ error: 'Áudio não encontrado' }); return; }
+  if (!String(m.mime).startsWith('audio/') && !String(m.mime).startsWith('video/')) {
+    res.status(400).json({ error: 'Este arquivo não é um áudio' }); return;
+  }
+  try {
+    const fd = new FormData();
+    fd.append('file', new Blob([m.data], { type: m.mime }), m.file_name || 'audio.ogg');
+    fd.append('model', 'whisper-large-v3');
+    fd.append('language', 'pt');
+    const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: fd as any,
+    });
+    const d: any = await r.json();
+    if (!r.ok) { res.status(400).json({ error: d?.error?.message || 'Falha na transcrição' }); return; }
+    const texto = String(d.text || '').trim();
+    if (!texto) { res.status(400).json({ error: 'Não foi possível entender o áudio' }); return; }
+    // Grava na mensagem (vira registro permanente e pesquisável)
+    await db.query(
+      "UPDATE whatsapp_messages SET body = CONCAT(body, '\n📝 Transcrição: ', ?) WHERE media_id = ? AND body NOT LIKE '%📝 Transcrição:%'",
+      [texto.slice(0, 3000), m.id]).catch(() => {});
+    res.json({ texto });
+  } catch (e: any) {
+    res.status(400).json({ error: e?.message || 'Falha na transcrição' });
+  }
+});
+
 // ── GET /api/whatsapp-instance/chats — conversas (última msg + etiquetas + não lidas)
-router.get('/chats', async (_req: Request, res: Response) => {
+// ?q= busca também DENTRO das mensagens (nome, telefone ou conteúdo/assunto)
+router.get('/chats', async (req: Request, res: Response) => {
+  const q = String((req.query as any).q || '').trim();
+  const like = `%${q}%`;
+  const whereQ = q
+    ? `WHERE (w.phone LIKE ?
+          OR w.client_id IN (SELECT id FROM clients WHERE name LIKE ?)
+          OR w.phone IN (SELECT DISTINCT phone FROM whatsapp_messages WHERE body LIKE ?))`
+    : '';
   const [rows] = await db.query(`
     SELECT w.phone,
            MAX(w.msg_time) AS last_time,
@@ -74,8 +132,9 @@ router.get('/chats', async (_req: Request, res: Response) => {
       FROM whatsapp_messages w
       LEFT JOIN clients cl ON cl.id = w.client_id
       LEFT JOIN whatsapp_chat_meta m ON m.phone = w.phone
+     ${whereQ}
      GROUP BY w.phone
-     ORDER BY last_time DESC LIMIT 100`) as any;
+     ORDER BY last_time DESC LIMIT 100`, q ? [like, like, like] : []) as any;
   res.json(rows);
 });
 
@@ -103,8 +162,9 @@ router.post('/chats/:phone/labels', async (req: Request, res: Response) => {
 router.get('/chats/:phone', async (req: Request, res: Response) => {
   const phone = String(req.params.phone).replace(/\D/g, '');
   const [rows] = await db.query(
-    `SELECT id, from_me, body, msg_time, media_id FROM whatsapp_messages
-      WHERE phone = ? ORDER BY msg_time ASC, id ASC LIMIT 300`, [phone]) as any;
+    `SELECT w.id, w.from_me, w.body, w.msg_time, w.media_id, wm.mime AS media_mime
+       FROM whatsapp_messages w LEFT JOIN whatsapp_media wm ON wm.id = w.media_id
+      WHERE w.phone = ? ORDER BY w.msg_time ASC, w.id ASC LIMIT 300`, [phone]) as any;
   for (const r of rows) if (r.media_id) r.media_url = signMediaUrl(`/api/whatsapp-instance/media/${r.media_id}`);
   res.json(rows);
 });
