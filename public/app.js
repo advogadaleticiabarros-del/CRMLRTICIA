@@ -1192,6 +1192,10 @@ const ROUTES = {
         <label>Nome do beneficiário<input id="os-pix-nome" placeholder="ex.: Leticia Barros Advocacia" /></label></div>
         <div class="form-row" style="margin-top:10px"><label>Cidade<input id="os-pix-cidade" placeholder="ex.: Vitória" /></label>
         <label>WhatsApp do escritório<input id="os-whats" placeholder="ex.: 5527999998888 (só números, com DDI)" /></label></div>
+        <div class="form-row" style="margin-top:10px"><label>Multa por atraso (%)<input id="os-multa" type="number" step="0.5" placeholder="ex.: 2" /></label>
+        <label>Juros ao mês (%)<input id="os-juros" type="number" step="0.5" placeholder="ex.: 1" /></label></div>
+        <div class="form-row" style="margin-top:10px"><label>Meta de faturamento mensal (R$)<input id="os-meta" type="number" step="100" placeholder="ex.: 20000" /></label><span></span></div>
+        <p class="sub" style="margin-top:6px;font-size:12px">Multa/juros atualizam o valor das parcelas vencidas no portal e no Pix. A meta aparece na Visão Geral do Financeiro.</p>
         <button class="btn-gold btn-sm" id="os-save" style="margin-top:12px">Salvar</button>
       </div>
       <div class="card" style="padding:20px;margin-bottom:20px">
@@ -1233,13 +1237,17 @@ const ROUTES = {
         const os = await api('/api/office-settings');
         $('#os-pix-key').value = os.pix_key || ''; $('#os-pix-nome').value = os.pix_nome || '';
         $('#os-pix-cidade').value = os.pix_cidade || ''; $('#os-whats').value = os.whatsapp || '';
+        $('#os-multa').value = os.multa_percent || ''; $('#os-juros').value = os.juros_mes_percent || '';
+        $('#os-meta').value = os.meta_faturamento_mes || '';
       } catch {}
     })();
     $('#os-save').onclick = async () => {
       try {
         await api('/api/office-settings', { method: 'PATCH', body: JSON.stringify({
           pix_key: $('#os-pix-key').value, pix_nome: $('#os-pix-nome').value,
-          pix_cidade: $('#os-pix-cidade').value, whatsapp: $('#os-whats').value }) });
+          pix_cidade: $('#os-pix-cidade').value, whatsapp: $('#os-whats').value,
+          multa_percent: $('#os-multa').value, juros_mes_percent: $('#os-juros').value,
+          meta_faturamento_mes: $('#os-meta').value }) });
         toast('Configurações do escritório salvas');
       } catch (e) { toast(e.message, 'error'); }
     };
@@ -1398,7 +1406,9 @@ const ROUTES = {
             <div><strong>${i.numero ? i.numero + 'ª parcela' : 'Parcela'}</strong>${i.proposta ? ` <small style="color:var(--text-muted)">· ${esc(i.proposta)}</small>` : ''}
               <div style="font-size:13px;color:var(--text-muted)">vence ${fmtDate(i.due_date)} ${Number(i.vencida) ? '<span class="badge vencido">vencida</span>' : ''}</div></div>
             <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-              <strong style="font-size:17px;color:var(--navy-deep)">${money(i.valor)}</strong>
+              ${i.valor_atualizado && Number(i.valor_atualizado) > Number(i.valor)
+                ? `<span style="text-align:right"><small style="color:var(--text-muted);text-decoration:line-through">${money(i.valor)}</small><br><strong style="font-size:17px;color:var(--red)">${money(i.valor_atualizado)}</strong><br><small style="color:var(--text-muted)">com multa e juros</small></span>`
+                : `<strong style="font-size:17px;color:var(--navy-deep)">${money(i.valor)}</strong>`}
               ${i.status === 'pago' ? '<span class="badge pago">paga</span>'
                 : i.status === 'em_processamento' ? '<span class="badge" style="background:var(--amber-bg);color:var(--amber)">em processamento</span>'
                 : i.status === 'cancelado' ? '<span class="badge cancelado">cancelada</span>'
@@ -1418,6 +1428,7 @@ const ROUTES = {
             <div style="font-size:13.5px"><strong>Como pagar:</strong> abra o aplicativo do seu banco, escolha <strong>Pix</strong> e aponte a câmera para o código abaixo — ou copie e cole o código.</div>
             <img src="${r.qr}" alt="QR Code Pix">
             ${r.beneficiario ? `<div style="text-align:center;font-size:12.5px;color:var(--text-muted)">Beneficiário: <strong>${esc(r.beneficiario)}</strong> · ${money(r.valor)}</div>` : ''}
+            ${r.atualizada ? `<div style="text-align:center;font-size:12px;color:var(--red);margin-top:4px">Valor atualizado com multa e juros (${r.dias_atraso} dia${r.dias_atraso > 1 ? 's' : ''} de atraso) — original ${money(r.valor_original)}</div>` : ''}
             <div class="pix-copy"><input readonly value="${esc(r.payload)}" id="pixv-${id}"><button class="btn-sm" type="button" data-copy-pix="${id}">Copiar</button></div>
             <div style="text-align:center;margin-top:14px">
               <button class="btn-primary" type="button" data-paguei="${id}" style="width:auto">Já paguei ✓</button>
@@ -3113,8 +3124,43 @@ async function dashProducao(c) {
 async function finVisaoGeral(c) {
   const s = await api('/api/financial/summary');
   const proj = await api('/api/dashboards/financeiro/projecao-mes');
+  const [cx, origem, os] = await Promise.all([
+    api('/api/financial/projecao').catch(() => null),
+    api('/api/financial/receita-origem').catch(() => null),
+    api('/api/office-settings').catch(() => ({})),
+  ]);
+  const meta = Number(os.meta_faturamento_mes) || 0;
+  const recebidoMes = Number(proj.entrada_realizado) || 0;
+  const pctMeta = meta ? Math.min(100, Math.round((recebidoMes / meta) * 100)) : 0;
+  const metaHtml = meta ? `
+    <div class="card" style="padding:16px 18px;margin:14px 0">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:baseline">
+        <strong style="color:var(--navy)">Meta do mês</strong>
+        <span style="font-size:13px">${money(recebidoMes)} de ${money(meta)} · <strong style="color:${pctMeta >= 100 ? 'var(--green)' : 'var(--navy-deep)'}">${pctMeta}%</strong>${pctMeta >= 100 ? ' 🎉' : ''}</span>
+      </div>
+      <div style="height:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-top:10px;overflow:hidden">
+        <div style="height:100%;width:${pctMeta}%;background:${pctMeta >= 100 ? 'var(--green)' : 'var(--gold)'};transition:width .4s"></div>
+      </div>
+    </div>` : '';
+  const cxHtml = cx ? `
+    <h3 style="color:var(--navy);margin:20px 0 8px">Fluxo projetado — próximos 90 dias</h3>
+    <div class="kpi-grid">
+      ${kpi('Saldo 0–30 dias', money(cx.d30.saldo), 'money')}
+      ${kpi('Saldo 31–60 dias', money(cx.d60.saldo), 'money')}
+      ${kpi('Saldo 61–90 dias', money(cx.d90.saldo), 'money')}
+      ${kpi('Acumulado 90 dias', money(cx.acumulado.d90), 'money')}
+    </div>
+    <p class="sub" style="font-size:12px;margin-top:4px">Entradas previstas (parcelas + receitas) menos saídas previstas (despesas + repasses), por janela.</p>` : '';
+  const origemHtml = origem && (origem.por_area.length || origem.por_parceiro.length) ? `
+    <h3 style="color:var(--navy);margin:20px 0 8px">Receita recebida no mês — por origem</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px">
+      <div class="card" style="padding:14px 18px"><strong style="font-size:13px;color:var(--navy)">Por área</strong>
+        ${origem.por_area.map((a) => `<div class="mini-row"><span>${esc(AREA_LABELS[a.area] || a.area)}</span><strong>${money(a.total)}</strong></div>`).join('') || '<div class="empty" style="padding:10px">Nada recebido ainda</div>'}</div>
+      <div class="card" style="padding:14px 18px"><strong style="font-size:13px;color:var(--navy)">Por parceria (recebido · repassado)</strong>
+        ${origem.por_parceiro.map((p) => `<div class="mini-row"><span>${esc(p.parceiro)}</span><span><strong>${money(p.recebido)}</strong> <small style="color:var(--text-muted)">· ${money(p.repassado)}</small></span></div>`).join('') || '<div class="empty" style="padding:10px">Sem parcerias no mês</div>'}</div>
+    </div>` : '';
   c.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-fin">+ Lançamento</button></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0"><button class="btn-ghost" id="fin-dre">Relatório do contador (mês)</button><button class="btn-gold" id="new-fin">+ Lançamento</button></div>
     <h3 style="color:var(--navy);margin:16px 0 8px">Resumo Geral</h3>
     <div class="kpi-grid">
       ${kpi('Receita prevista', money(s.receita_prevista), 'money')}
@@ -3134,7 +3180,10 @@ async function finVisaoGeral(c) {
       ${kpi('Saldo realizado', money(proj.saldo_realizado), 'money', proj.saldo_realizado > 0 ? 'var(--green)' : 'var(--red)')}
       ${kpi('Saldo previsto', money(proj.saldo_previsto), 'money', proj.saldo_previsto > 0 ? 'var(--green)' : 'var(--red)')}
     </div>
-    <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Lançamentos</strong></div><div id="fin-table"></div></div>
+    ${metaHtml}
+    ${cxHtml}
+    ${origemHtml}
+    <div class="card" style="margin:20px 0"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Lançamentos</strong></div><div id="fin-table"></div></div>
     <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Parcelas a receber</strong></div><div id="inst-table"></div></div>`;
   const loadFin = async () => {
     const r = await api('/api/financial');
@@ -3165,6 +3214,35 @@ async function finVisaoGeral(c) {
     });
   };
   $('#new-fin').onclick = () => financialForm(() => finVisaoGeral(c));
+
+  // Relatório do contador — DRE simplificada do mês (imprimir → salvar como PDF)
+  $('#fin-dre').onclick = async () => {
+    const mes = prompt('Mês do fechamento (AAAA-MM):', new Date().toISOString().slice(0, 7));
+    if (!mes) return;
+    try {
+      const d = await api('/api/financial/dre?month=' + encodeURIComponent(mes.trim()));
+      const linha = (t, v, forte) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${t}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;${forte ? 'font-weight:700' : ''}">${money(v)}</td></tr>`;
+      printBranded(`Fechamento financeiro — ${d.month}`, 'Demonstrativo simplificado (regime de caixa)', `
+        <h3 style="margin:14px 0 4px">Receitas recebidas</h3>
+        <table style="width:100%;border-collapse:collapse">
+          ${linha('Parcelas de contratos', d.receitas.parcelas_contratos)}
+          ${linha('Entradas de parceria', d.receitas.entradas_parceria)}
+          ${linha('Demais receitas', d.receitas.demais_receitas)}
+          ${linha('Total de receitas', d.receita_total, 1)}
+        </table>
+        <h3 style="margin:16px 0 4px">Despesas pagas</h3>
+        <table style="width:100%;border-collapse:collapse">
+          ${d.despesas.map((x) => linha(esc(x.categoria), x.total)).join('') || linha('—', 0)}
+          ${linha('Total de despesas', d.despesa_total, 1)}
+        </table>
+        <h3 style="margin:16px 0 4px">Repasses a parceiros</h3>
+        <table style="width:100%;border-collapse:collapse">${linha('Repasses pagos no mês', d.repasses_pagos, 1)}</table>
+        <div style="margin-top:18px;padding:12px 14px;border:2px solid #0d1b2e;border-radius:8px;display:flex;justify-content:space-between;font-size:16px">
+          <strong>RESULTADO DO MÊS</strong><strong style="color:${d.resultado >= 0 ? '#1c7a3d' : '#c0392b'}">${money(d.resultado)}</strong>
+        </div>
+        <p style="color:#777;font-size:12px;margin-top:12px">Regime de caixa (o que efetivamente entrou e saiu no mês). Use "Imprimir → Salvar como PDF" para enviar ao contador.</p>`);
+    } catch (e) { toast(e.message, 'error'); }
+  };
   await loadFin(); await loadInst();
 }
 
@@ -3344,8 +3422,47 @@ async function finRepasses(c) {
 
 async function finInadimplencia(c) {
   c.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="recalc-inad">Recalcular agora</button></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0"><button class="btn-ghost" id="renegociar-btn">Renegociar parcelas</button><button class="btn-gold" id="recalc-inad">Recalcular agora</button></div>
     <div class="card"><div id="inad-table"></div></div>`;
+
+  // Renegociação: parcelas em aberto de um cliente viram um novo parcelamento
+  $('#renegociar-btn').onclick = async () => {
+    const clients = await api('/api/clients?limit=100').catch(() => ({ data: [] }));
+    const form = el(`<form class="form-grid">
+      ${field('Cliente *', 'client_id', { options: [{ v: '', t: '— escolha —' }, ...clients.data.map((x) => ({ v: x.id, t: x.name }))] })}
+      <div id="ren-parcelas"><small style="color:var(--text-muted)">Escolha o cliente para listar as parcelas em aberto.</small></div>
+      <div class="form-row">${field('Nº de novas parcelas *', 'num_parcelas', { type: 'number', value: 3 })}${field('1ª parcela vence em *', 'primeira_data', { type: 'date' })}</div>
+      ${field('Valor total do acordo (R$) — vazio mantém a soma original', 'valor_total', { type: 'number' })}
+      <button type="submit" class="btn-primary">Fechar acordo</button>
+    </form>`);
+    const sel = form.querySelector('[name=client_id]');
+    sel.onchange = async () => {
+      const box = form.querySelector('#ren-parcelas');
+      if (!sel.value) { box.innerHTML = ''; return; }
+      box.innerHTML = '<div class="spinner"></div>';
+      const insts = await api(`/api/financial/installments?client_id=${sel.value}`).catch(() => []);
+      const abertas = (insts || []).filter((i) => ['pendente', 'vencido', 'em_processamento'].includes(i.status));
+      box.innerHTML = abertas.length ? `<strong style="font-size:12px;color:var(--navy)">Parcelas em aberto (marque as que entram no acordo)</strong>
+        ${abertas.map((i) => `<label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-top:6px">
+          <input type="checkbox" name="inst" value="${i.id}" checked style="width:auto">
+          ${i.numero ? i.numero + 'ª' : 'Parcela'} · ${money(i.valor)} · venc. ${fmtDate(i.due_date)} ${badge(i.status)}</label>`).join('')}`
+        : '<small style="color:var(--text-muted)">Este cliente não tem parcelas em aberto.</small>';
+    };
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const ids = [...form.querySelectorAll('[name=inst]:checked')].map((x) => Number(x.value));
+      const b = Object.fromEntries(new FormData(form));
+      if (!b.client_id || !ids.length) { toast('Escolha o cliente e ao menos uma parcela', 'error'); return; }
+      if (!confirm(`Cancelar ${ids.length} parcela(s) e criar ${b.num_parcelas} nova(s)? O acordo fica registrado na timeline.`)) return;
+      try {
+        const r = await api('/api/financial/renegociar', { method: 'POST', body: JSON.stringify({
+          client_id: b.client_id, installment_ids: ids, num_parcelas: b.num_parcelas,
+          primeira_data: b.primeira_data, valor_total: b.valor_total || null }) });
+        closeModal(); toast(`Acordo fechado: ${r.canceladas} parcela(s) → ${r.criadas}x (total ${money(r.total)})`); load();
+      } catch (e) { toast(e.message, 'error'); }
+    };
+    openModal('Renegociar parcelas', form);
+  };
   const load = async () => {
     const r = await api('/api/inadimplencias');
     $('#inad-table').innerHTML = r.data.length ? `

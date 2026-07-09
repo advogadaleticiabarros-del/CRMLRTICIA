@@ -227,6 +227,128 @@ router.get('/installments', async (req: Request, res: Response) => {
   res.json(rows);
 });
 
+// ── GET /api/financial/projecao — fluxo de caixa 30/60/90 dias ──────────────
+// Entradas previstas (parcelas + receitas pendentes) − saídas previstas
+// (despesas pendentes + repasses a pagar), por janela e acumulado.
+router.get('/projecao', async (_req: Request, res: Response) => {
+  const janela = async (de: number, ate: number) => {
+    const [[e]] = await db.query(`
+      SELECT COALESCE((SELECT SUM(valor) FROM installments
+               WHERE status IN ('pendente','em_processamento')
+                 AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0)
+           + COALESCE((SELECT SUM(valor) FROM financial_records
+               WHERE tipo='receita' AND status='pendente'
+                 AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0) AS entradas,
+             COALESCE((SELECT SUM(valor) FROM financial_records
+               WHERE tipo='despesa' AND status='pendente'
+                 AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0)
+           + COALESCE((SELECT SUM(valor) FROM repasses
+               WHERE status IN ('pendente','processando')
+                 AND data_vencimento BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0) AS saidas
+    `, [de, ate, de, ate, de, ate, de, ate]) as any;
+    return { entradas: Number(e.entradas), saidas: Number(e.saidas), saldo: Number(e.entradas) - Number(e.saidas) };
+  };
+  const [d30, d60, d90] = [await janela(0, 30), await janela(31, 60), await janela(61, 90)];
+  res.json({
+    d30, d60, d90,
+    acumulado: { d30: d30.saldo, d60: d30.saldo + d60.saldo, d90: d30.saldo + d60.saldo + d90.saldo },
+  });
+});
+
+// ── GET /api/financial/dre?month=YYYY-MM — fechamento do mês (contador) ─────
+router.get('/dre', async (req: Request, res: Response) => {
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : new Date().toISOString().slice(0, 7);
+  const [[rec]] = await db.query(`
+    SELECT
+      COALESCE((SELECT SUM(valor) FROM installments WHERE status='pago' AND DATE_FORMAT(paid_at,'%Y-%m') = ?),0) AS parcelas_contratos,
+      COALESCE((SELECT SUM(valor) FROM financial_records WHERE tipo='receita' AND status='pago'
+        AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ? AND description LIKE 'Entrada parceria%'),0) AS entradas_parceria,
+      COALESCE((SELECT SUM(valor) FROM financial_records WHERE tipo='receita' AND status='pago'
+        AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ? AND description NOT LIKE 'Entrada parceria%'),0) AS demais_receitas
+  `, [month, month, month]) as any;
+  const [despesas] = await db.query(`
+    SELECT COALESCE(cost_center, 'Sem categoria') AS categoria, SUM(valor) AS total
+      FROM financial_records
+     WHERE tipo='despesa' AND status='pago' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?
+     GROUP BY COALESCE(cost_center, 'Sem categoria') ORDER BY total DESC`, [month]) as any;
+  const [repasses] = await db.query(`
+    SELECT COALESCE(SUM(valor),0) AS total FROM repasses
+     WHERE status='repassado' AND DATE_FORMAT(data_repasse,'%Y-%m') = ?`, [month]) as any;
+
+  const receitas = {
+    parcelas_contratos: Number(rec.parcelas_contratos),
+    entradas_parceria: Number(rec.entradas_parceria),
+    demais_receitas: Number(rec.demais_receitas),
+  };
+  const receita_total = receitas.parcelas_contratos + receitas.entradas_parceria + receitas.demais_receitas;
+  const despesa_total = despesas.reduce((s: number, d: any) => s + Number(d.total), 0);
+  const repasses_pagos = Number(repasses[0]?.total || 0);
+  res.json({
+    month, receitas, receita_total, despesas, despesa_total, repasses_pagos,
+    resultado: receita_total - despesa_total - repasses_pagos,
+  });
+});
+
+// ── GET /api/financial/receita-origem?month — receita recebida por área/parceria
+router.get('/receita-origem', async (req: Request, res: Response) => {
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : new Date().toISOString().slice(0, 7);
+  const [porArea] = await db.query(`
+    SELECT COALESCE(c.legal_area, 'sem área') AS area, SUM(i.valor) AS total
+      FROM installments i LEFT JOIN cases c ON c.id = i.case_id
+     WHERE i.status='pago' AND DATE_FORMAT(i.paid_at,'%Y-%m') = ?
+     GROUP BY COALESCE(c.legal_area, 'sem área') ORDER BY total DESC`, [month]) as any;
+  const [porParceiro] = await db.query(`
+    SELECT p.name AS parceiro,
+           COALESCE(SUM(i.valor),0) AS recebido,
+           COALESCE((SELECT SUM(r.valor) FROM repasses r JOIN cases c2 ON c2.id = r.case_id
+              WHERE c2.partner_id = p.id AND r.status='repassado' AND DATE_FORMAT(r.data_repasse,'%Y-%m') = ?),0) AS repassado
+      FROM partners p
+      LEFT JOIN cases c ON c.partner_id = p.id
+      LEFT JOIN installments i ON i.case_id = c.id AND i.status='pago' AND DATE_FORMAT(i.paid_at,'%Y-%m') = ?
+     GROUP BY p.id, p.name HAVING recebido > 0 OR repassado > 0`, [month, month]) as any;
+  res.json({ month, por_area: porArea, por_parceiro: porParceiro });
+});
+
+// ── POST /api/financial/renegociar — parcela(s) vencida(s) → novo parcelamento
+router.post('/renegociar', async (req: Request, res: Response) => {
+  const { client_id, installment_ids, num_parcelas, primeira_data, valor_total } = req.body || {};
+  const ids: number[] = Array.isArray(installment_ids) ? installment_ids.map(Number).filter(Boolean) : [];
+  const n = Math.min(36, Math.max(1, parseInt(num_parcelas) || 0));
+  if (!client_id || !ids.length || !n || !primeira_data) {
+    res.status(400).json({ error: 'Informe cliente, parcelas, quantidade e primeira data' }); return;
+  }
+  const [olds] = await db.query(
+    `SELECT id, valor, case_id, proposta_id FROM installments
+      WHERE id IN (${ids.map(() => '?').join(',')}) AND client_id = ? AND status IN ('pendente','vencido','em_processamento')`,
+    [...ids, client_id]) as any;
+  if (!olds.length) { res.status(400).json({ error: 'Nenhuma parcela renegociável encontrada' }); return; }
+
+  const totalOriginal = olds.reduce((s: number, o: any) => s + Number(o.valor), 0);
+  const total = Number(valor_total) > 0 ? Math.round(Number(valor_total) * 100) / 100 : totalOriginal;
+  const base = Math.floor((total / n) * 100) / 100;
+  const resto = Math.round((total - base * n) * 100) / 100; // diferença de centavos vai na 1ª
+
+  // Cancela as antigas e cria as novas (acordo registrado na timeline)
+  await db.query(
+    `UPDATE installments SET status='cancelado' WHERE id IN (${olds.map(() => '?').join(',')})`,
+    olds.map((o: any) => o.id));
+  const ref = olds[0];
+  for (let i = 0; i < n; i++) {
+    const valor = i === 0 ? base + resto : base;
+    await db.query(
+      `INSERT INTO installments (client_id, proposta_id, case_id, numero, valor, due_date, status)
+       VALUES (?, ?, ?, ?, ?, ?, 'pendente')`,
+      [client_id, ref.proposta_id ?? null, ref.case_id ?? null, i + 1, valor, addMonthsStr(primeira_data, i)]);
+  }
+  const { logTimeline } = await import('../services/TimelineService');
+  await logTimeline({
+    clientId: Number(client_id), caseId: ref.case_id ?? null, eventType: 'financeiro',
+    description: `Renegociação: ${olds.length} parcela(s) (R$ ${totalOriginal.toFixed(2)}) viraram ${n}x de R$ ${base.toFixed(2)} a partir de ${primeira_data}${total !== totalOriginal ? ` · total acordado R$ ${total.toFixed(2)}` : ''}.`,
+    userId: req.user!.id,
+  }).catch(() => {});
+  res.status(201).json({ success: true, canceladas: olds.length, criadas: n, total });
+});
+
 // ── PATCH /api/financial/installments/:id/pay — dar baixa na parcela ────────
 router.patch('/installments/:id/pay', async (req: Request, res: Response) => {
   const [result] = await db.query(

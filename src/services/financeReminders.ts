@@ -72,6 +72,42 @@ export async function sendBillingReminders(): Promise<number> {
   return sent;
 }
 
+// ── Despesas/receitas RECORRENTES: gera a próxima ocorrência no vencimento ──
+// O lançamento-modelo tem recurrence_type + next_due_date; quando a data chega,
+// nasce um lançamento pendente e o modelo avança para o próximo ciclo.
+const RECUR_MONTHS: Record<string, number> = { mensal: 1, trimestral: 3, semestral: 6, anual: 12 };
+
+export async function generateRecurringRecords(): Promise<number> {
+  const [templates] = await db.query(`
+    SELECT id, user_id, client_id, case_id, tipo, description, valor, cost_center,
+           recurrence_type, next_due_date, pagador, banco, escopo
+      FROM financial_records
+     WHERE recurrence_type IS NOT NULL AND next_due_date IS NOT NULL AND next_due_date <= CURDATE()`) as any;
+
+  let created = 0;
+  for (const t of templates) {
+    let next = new Date(t.next_due_date);
+    const hoje = new Date();
+    let guard = 0;
+    // Recupera ciclos perdidos (ex.: servidor parado no dia) — no máx. 12 por vez
+    while (next <= hoje && guard++ < 12) {
+      const dueStr = next.toISOString().split('T')[0];
+      await db.query(
+        `INSERT INTO financial_records (user_id, client_id, case_id, tipo, description, valor, status, due_date, cost_center, pagador, banco, escopo)
+         VALUES (?, ?, ?, ?, ?, ?, 'pendente', ?, ?, ?, ?, ?)`,
+        [t.user_id, t.client_id, t.case_id, t.tipo, t.description, t.valor, dueStr,
+         t.cost_center, t.pagador, t.banco, t.escopo || 'empresa']);
+      created++;
+      next = new Date(next);
+      next.setMonth(next.getMonth() + (RECUR_MONTHS[t.recurrence_type] || 1));
+    }
+    await db.query('UPDATE financial_records SET next_due_date = ? WHERE id = ?',
+      [next.toISOString().split('T')[0], t.id]);
+  }
+  if (created) console.log(`🔁 Recorrentes: ${created} lançamento(s) gerados.`);
+  return created;
+}
+
 // ── Pagamentos "Já paguei" parados há 48h+ sem confirmação ──────────────────
 export async function alertStuckPayments(): Promise<number> {
   const [parados] = await db.query(`

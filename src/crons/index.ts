@@ -114,6 +114,18 @@ export function startCronJobs() {
     } catch {}
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── diário 00:40 (Brasília): gera despesas/receitas RECORRENTES do dia ─────
+  cron.schedule('40 0 * * *', async () => {
+    try {
+      const { generateRecurringRecords } = await import('../services/financeReminders');
+      await generateRecurringRecords();
+    } catch {}
+  }, { timezone: 'America/Sao_Paulo' });
+  // Também roda 30s após subir (não perde o ciclo se o deploy cair no horário)
+  setTimeout(() => {
+    import('../services/financeReminders').then((m) => m.generateRecurringRecords()).catch(() => {});
+  }, 30000);
+
   // ── a cada 6h: pagamentos "Já paguei" parados há 48h+ sem confirmação ─────
   cron.schedule('0 */6 * * *', async () => {
     try {

@@ -77,16 +77,38 @@ router.get('/cases/:id', async (req: Request, res: Response) => {
   res.json({ ...rows[0], movements, documents });
 });
 
+// Multa/juros configurados pelo escritório (Configurações). Vencida:
+// valor + multa% + juros% ao mês pro-rata (dias de atraso / 30).
+async function encargos(): Promise<{ multa: number; juros: number }> {
+  const [cfg] = await db.query(
+    "SELECT setting_key, setting_value FROM office_settings WHERE setting_key IN ('multa_percent','juros_mes_percent')") as any;
+  const map: Record<string, string> = {};
+  for (const r of cfg) map[r.setting_key] = r.setting_value || '';
+  return { multa: Number(map.multa_percent) || 0, juros: Number(map.juros_mes_percent) || 0 };
+}
+function valorAtualizado(valor: number, diasAtraso: number, e: { multa: number; juros: number }): number {
+  if (diasAtraso <= 0 || (!e.multa && !e.juros)) return valor;
+  const total = valor * (1 + e.multa / 100) + valor * (e.juros / 100) * (diasAtraso / 30);
+  return Math.round(total * 100) / 100;
+}
+
 // ── GET /api/portal/financial — meus valores a pagar ────────────────────────
 router.get('/financial', async (req: Request, res: Response) => {
   const [rows] = await db.query(
     `SELECT i.id, i.numero, i.valor, i.due_date, i.status, p.title AS proposta,
-            CASE WHEN i.status = 'pendente' AND i.due_date < CURDATE() THEN 1 ELSE 0 END AS vencida
+            CASE WHEN i.status = 'pendente' AND i.due_date < CURDATE() THEN 1 ELSE 0 END AS vencida,
+            GREATEST(DATEDIFF(CURDATE(), i.due_date), 0) AS dias_atraso
      FROM installments i
      LEFT JOIN propostas p ON p.id = i.proposta_id
      WHERE i.client_id = ? ORDER BY i.due_date ASC`,
     [(req as any).clientId]
   ) as any;
+  const e = await encargos();
+  for (const r of rows) {
+    if (Number(r.vencida) && r.status === 'pendente') {
+      r.valor_atualizado = valorAtualizado(Number(r.valor), Number(r.dias_atraso), e);
+    }
+  }
   res.json(rows);
 });
 
@@ -110,19 +132,27 @@ router.get('/contact', async (_req: Request, res: Response) => {
 router.get('/pix/:installmentId', async (req: Request, res: Response) => {
   const clientId = (req as any).clientId;
   const [[inst]] = await db.query(
-    "SELECT id, valor, numero FROM installments WHERE id = ? AND client_id = ? AND status IN ('pendente','vencido')",
+    `SELECT id, valor, numero, GREATEST(DATEDIFF(CURDATE(), due_date), 0) AS dias_atraso
+       FROM installments WHERE id = ? AND client_id = ? AND status IN ('pendente','vencido')`,
     [req.params.installmentId, clientId]) as any;
   if (!inst) { res.status(404).json({ error: 'Parcela não encontrada ou já paga' }); return; }
   const [cfg] = await db.query("SELECT setting_key, setting_value FROM office_settings WHERE setting_key IN ('pix_key','pix_nome','pix_cidade')") as any;
   const map: Record<string, string> = {};
   for (const r of cfg) map[r.setting_key] = r.setting_value || '';
   if (!map.pix_key) { res.status(400).json({ error: 'O escritório ainda não configurou a chave Pix' }); return; }
+  // Vencida cobra o VALOR ATUALIZADO (multa + juros configurados)
+  const e = await encargos();
+  const valorCobrar = valorAtualizado(Number(inst.valor), Number(inst.dias_atraso), e);
   const payload = buildPixPayload({
     key: map.pix_key, name: map.pix_nome || 'ADVOCACIA', city: map.pix_cidade || 'BRASIL',
-    amount: Number(inst.valor), txid: `PARC${inst.id}`,
+    amount: valorCobrar, txid: `PARC${inst.id}`,
   });
   const qr = await pixQrDataUri(payload);
-  res.json({ payload, qr, valor: Number(inst.valor), numero: inst.numero, beneficiario: map.pix_nome || '' });
+  res.json({
+    payload, qr, valor: valorCobrar, valor_original: Number(inst.valor),
+    atualizada: valorCobrar !== Number(inst.valor), dias_atraso: Number(inst.dias_atraso),
+    numero: inst.numero, beneficiario: map.pix_nome || '',
+  });
 });
 
 // ── POST /api/portal/installments/:id/pagar — cliente declara o pagamento ───
