@@ -127,10 +127,12 @@ async function storeMedia(msg: any, phone: string, clientId: number | null): Pro
 
     // Vira Documento do cliente automaticamente (Central de Documentos)
     if (clientId) {
+      const [[adm]] = await db.query(
+        "SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
       await db.query(
         `INSERT INTO documents (client_id, name, type, folder, file_url, status, created_by)
-         VALUES (?, ?, 'recebido', 'outros', ?, 'ativo', 1)`,
-        [clientId, `WhatsApp — ${fileName}`.slice(0, 255), `/api/whatsapp-instance/media/${mediaId}`]).catch(() => {});
+         VALUES (?, ?, 'recebido', 'outros', ?, 'ativo', ?)`,
+        [clientId, `WhatsApp — ${fileName}`.slice(0, 255), `/api/whatsapp-instance/media/${mediaId}`, adm?.id ?? 1]).catch(() => {});
     }
     return { mediaId, label: `${info.rotulo}: ${fileName}` };
   } catch { return null; }

@@ -173,6 +173,23 @@ export function startCronJobs() {
       const { runRestoreCheckAndNotify } = await import('../services/restoreService');
       await runRestoreCheckAndNotify();
     } catch {}
+    // Vigia do peso da mídia do WhatsApp no banco (entra no dump diário do MEGA):
+    // acima de 400 MB, avisa os admins para decidir a retenção.
+    try {
+      const [[m]] = await db.query('SELECT COALESCE(SUM(LENGTH(data)),0) AS bytes, COUNT(*) AS n FROM whatsapp_media') as any;
+      const mb = Math.round(Number(m.bytes) / 1048576);
+      console.log(`📦 Mídia do WhatsApp no banco: ${m.n} arquivo(s) · ${mb} MB`);
+      if (mb > 400) {
+        const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+        for (const a of admins) {
+          await db.query(
+            `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+             VALUES (?, ?, ?, 'midia_grande', 'sistema', NOW(), 'pendente')`,
+            [a.id, 'Mídia do WhatsApp ocupando muito espaço',
+             `Os arquivos recebidos pelo WhatsApp somam ${mb} MB no banco (${m.n} arquivos) e engordam o backup diário. Considere migrar os antigos para o Drive ou definir uma retenção.`]);
+        }
+      }
+    } catch {}
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── descoberta por OAB: diário 06h (varre tribunais e cadastra novos) ─────

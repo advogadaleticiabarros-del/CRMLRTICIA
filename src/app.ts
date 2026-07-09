@@ -59,7 +59,7 @@ import officeSettingsRoutes from './routes/office-settings';
 import paymentsRoutes from './routes/payments';
 import partnerPortalRoutes from './routes/partner-portal';
 import whatsappQueueRoutes from './routes/whatsapp-queue';
-import whatsappInstanceRoutes from './routes/whatsapp-instance';
+import whatsappInstanceRoutes, { mediaHandler } from './routes/whatsapp-instance';
 import { googleOAuthCallback } from './routes/google-callback';
 
 export function createApp() {
@@ -117,13 +117,9 @@ export function createApp() {
   app.use('/api/tasks',                 authenticate, requireStaff, taskRoutes);
   app.use('/api/financial',             authenticate, requireStaff, financialRoutes);
   app.use('/api/whatsapp-queue',        authenticate, requireStaff, whatsappQueueRoutes);
-  // Aceita token via ?t= (links de mídia abrem em nova aba, sem header Authorization)
-  app.use('/api/whatsapp-instance', (req: Request, _res: Response, next) => {
-    if (!req.headers.authorization && typeof req.query.t === 'string') {
-      req.headers.authorization = 'Bearer ' + req.query.t;
-    }
-    next();
-  }, authenticate, requireStaff, whatsappInstanceRoutes);
+  // Mídia do WhatsApp com link ASSINADO (HMAC, 24h) — sem assinatura, cai no login
+  app.get('/api/whatsapp-instance/media/:id', mediaHandler as any);
+  app.use('/api/whatsapp-instance',     authenticate, requireStaff, whatsappInstanceRoutes);
   app.use('/api/receitas',              authenticate, requireStaff, receitaRoutes);
   app.use('/api/parcelas',              authenticate, requireStaff, parcelaRoutes);
   app.use('/api/acordos',               authenticate, requireStaff, acordoRoutes);

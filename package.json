@@ -16,7 +16,6 @@
     "seed:partner-portal": "ts-node src/scripts/seed-partner-portal.ts",
     "seed:partner-portal:prod": "node dist/scripts/seed-partner-portal.js",
     "reconcile:partner-entries": "node dist/scripts/reconcilePartnerEntries.js",
-    "fix:aracelia": "ts-node src/scripts/fixAraceliaFolders.ts",
     "create:drive-folders": "ts-node src/scripts/createMissingDriveFolders.ts",
     "restore:test": "ts-node src/scripts/restoreTest.ts",
     "restore:test:prod": "node dist/scripts/restoreTest.js",

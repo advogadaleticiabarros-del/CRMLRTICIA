@@ -105,6 +105,11 @@ router.get('/', async (req: Request, res: Response) => {
        FROM documents d LEFT JOIN clients c ON c.id = d.client_id
       WHERE ${where.join(' AND ')} ORDER BY d.created_at DESC LIMIT 500`, params
   ) as any;
+  // Arquivos recebidos pelo WhatsApp: assina o link (HMAC 24h) para abrir em nova aba
+  try {
+    const { signMediaUrl } = await import('./whatsapp-instance');
+    for (const r of rows) if (r.file_url && String(r.file_url).startsWith('/api/whatsapp-instance/media/')) r.file_url = signMediaUrl(r.file_url);
+  } catch { /* opcional */ }
   res.json(rows);
 });
 

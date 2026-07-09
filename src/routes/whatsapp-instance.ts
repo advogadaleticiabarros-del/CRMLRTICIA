@@ -1,8 +1,41 @@
 import { Router, Request, Response } from 'express';
+import crypto from 'crypto';
 import { db } from '../config/database';
+import { env } from '../config/env';
 import { startInstance, disconnectInstance, sendText, getStatus, setAutoSend } from '../services/waInstance';
 
 const router = Router();
+
+// ── URLs de mídia ASSINADAS (HMAC) ───────────────────────────────────────────
+// Links de anexo abrem em nova aba (sem header Authorization). Em vez de expor
+// o token de sessão na URL (fica em logs), assinamos o link com HMAC curto e
+// validade de 24h — o link só serve para AQUELE arquivo.
+function mediaSig(id: string | number, exp: number): string {
+  return crypto.createHmac('sha256', env.JWT_SECRET).update(`media:${id}:${exp}`).digest('hex').slice(0, 32);
+}
+export function signMediaUrl(url: string): string {
+  const m = String(url || '').match(/^\/api\/whatsapp-instance\/media\/(\d+)/);
+  if (!m) return url;
+  const exp = Math.floor(Date.now() / 1000) + 24 * 3600;
+  return `/api/whatsapp-instance/media/${m[1]}?e=${exp}&s=${mediaSig(m[1], exp)}`;
+}
+
+/** Handler PÚBLICO da mídia (montado antes do authenticate no app.ts):
+ *  aceita a assinatura HMAC (?e=&s=) — sem ela, cai no fluxo autenticado normal. */
+export async function mediaHandler(req: Request, res: Response, next: () => void): Promise<void> {
+  const exp = Number(req.query.e);
+  const sig = String(req.query.s || '');
+  const okSig = exp && sig.length === 32 && exp > Math.floor(Date.now() / 1000)
+    && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mediaSig(req.params.id, exp)));
+  if (!okSig) { next(); return; } // sem assinatura válida → exige login (rota autenticada)
+  const [rows] = await db.query(
+    'SELECT file_name, mime, data FROM whatsapp_media WHERE id = ?', [req.params.id]) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Arquivo não encontrado' }); return; }
+  const f = rows[0];
+  res.setHeader('Content-Type', f.mime || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(f.file_name)}"`);
+  res.send(f.data);
+}
 
 // ── GET /api/whatsapp-instance/status — conexão + QR (quando aguardando) ────
 router.get('/status', (_req: Request, res: Response) => {
@@ -72,6 +105,7 @@ router.get('/chats/:phone', async (req: Request, res: Response) => {
   const [rows] = await db.query(
     `SELECT id, from_me, body, msg_time, media_id FROM whatsapp_messages
       WHERE phone = ? ORDER BY msg_time ASC, id ASC LIMIT 300`, [phone]) as any;
+  for (const r of rows) if (r.media_id) r.media_url = signMediaUrl(`/api/whatsapp-instance/media/${r.media_id}`);
   res.json(rows);
 });
 
