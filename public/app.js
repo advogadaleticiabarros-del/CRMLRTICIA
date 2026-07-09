@@ -4660,22 +4660,38 @@ async function caseDetail(id, onSave) {
 
   // Checklist de documentos por tipo de ação (tudo verde = pode iniciar a petição)
   const ckBox = form.querySelector('#case-checklist');
-  if (ckBox) api(`/api/cases/${id}/checklist`).then((ck) => {
-    if (!ck || !ck.itens.length) return;
-    const completo = ck.completos === ck.total;
-    ckBox.innerHTML = `
-      <div style="border:1px solid ${completo ? 'var(--green)' : 'var(--border)'};border-radius:var(--radius);padding:14px 16px;margin-top:6px">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-          <strong style="font-size:13px;color:var(--navy-deep)">Checklist — ${esc(ck.titulo)}</strong>
-          <span class="badge" style="${completo ? 'background:#e3f0e6;color:var(--green)' : ''}">${ck.completos}/${ck.total} ${completo ? '· pronto para a petição ✓' : ''}</span>
-        </div>
-        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 16px;margin-top:10px">
-          ${ck.itens.map((i) => `<div style="font-size:12.5px;display:flex;gap:7px;align-items:baseline">
-            <span style="color:${i.done ? 'var(--green)' : 'var(--text-muted)'}">${i.done ? '✓' : '□'}</span>
-            <span style="${i.done ? '' : 'color:var(--text-soft)'}">${esc(i.label)}</span></div>`).join('')}
-        </div>
-      </div>`;
-  }).catch(() => {});
+  if (ckBox) {
+    const renderChecklist = (ck) => {
+      if (!ck || !ck.itens.length) return;
+      const completo = ck.completos === ck.total;
+      ckBox.innerHTML = `
+        <div style="border:1px solid ${completo ? 'var(--green)' : 'var(--border)'};border-radius:var(--radius);padding:14px 16px;margin-top:6px">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+            <strong style="font-size:13px;color:var(--navy-deep)">Checklist — ${esc(ck.titulo)}</strong>
+            <span class="badge" style="${completo ? 'background:#e3f0e6;color:var(--green)' : ''}">${ck.completos}/${ck.total} ${completo ? '· pronto para a petição ✓' : ''}</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:4px 16px;margin-top:10px">
+            ${ck.itens.map((i, idx) => `<div style="font-size:12.5px;display:flex;gap:7px;align-items:baseline;cursor:pointer;user-select:none" class="ck-item" data-idx="${idx}" data-label="${esc(i.label)}" data-done="${i.done}" title="${i.doc ? 'Documento detectado: ' + i.doc : (i.manual ? 'Marcado manualmente' : 'Clique para marcar como recebido')}">
+              <span style="color:${i.done ? 'var(--green)' : 'var(--text-muted)'};min-width:12px">${i.done ? (i.manual ? '☑' : '✓') : '□'}</span>
+              <span style="${i.done ? (i.manual ? 'color:var(--navy)' : '') : 'color:var(--text-soft)'}">${esc(i.label)}</span></div>`).join('')}
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--text-muted)">Clique para marcar os documentos que já estão com você</div>
+        </div>`;
+      ckBox.querySelectorAll('.ck-item').forEach((el) => {
+        el.onclick = async () => {
+          const label = el.dataset.label;
+          const done = el.dataset.done === 'true';
+          if (el.dataset.doc) return; // detectado automaticamente — não altera
+          try {
+            await api(`/api/cases/${id}/checklist`, { method: 'PATCH', body: JSON.stringify({ label, checked: !done }) });
+            const updated = await api(`/api/cases/${id}/checklist`);
+            renderChecklist(updated);
+          } catch {}
+        };
+      });
+    };
+    api(`/api/cases/${id}/checklist`).then(renderChecklist).catch(() => {});
+  }
 
   const advBtn = form.querySelector('#adv-stage');
   if (advBtn) advBtn.onclick = async () => {

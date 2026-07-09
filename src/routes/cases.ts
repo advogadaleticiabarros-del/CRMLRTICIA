@@ -295,6 +295,15 @@ router.get('/:id/checklist', async (req: Request, res: Response) => {
   res.json(r);
 });
 
+// ── PATCH /api/cases/:id/checklist — marcar/desmarcar item manualmente ───────
+router.patch('/:id/checklist', async (req: Request, res: Response) => {
+  const { label, checked } = req.body;
+  if (!label || typeof checked !== 'boolean') { res.status(400).json({ error: 'label e checked são obrigatórios' }); return; }
+  const { toggleChecklistItem } = await import('../services/caseChecklists');
+  await toggleChecklistItem(Number(req.params.id), label, checked);
+  res.json({ success: true });
+});
+
 // ── GET /api/cases/:id — detalhe com movimentações e resumo ─────────────────
 router.get('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;

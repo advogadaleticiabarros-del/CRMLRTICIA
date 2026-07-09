@@ -70,12 +70,19 @@ const POR_TIPO: Record<string, { titulo: string; itens: ChecklistItem[] }> = {
   },
 };
 
-export async function buildCaseChecklist(caseId: number): Promise<{ titulo: string; itens: { label: string; done: boolean; doc: string | null }[]; completos: number; total: number } | null> {
-  const [[c]] = await db.query('SELECT id, client_id, legal_area FROM cases WHERE id = ?', [caseId]) as any;
+export async function buildCaseChecklist(caseId: number): Promise<{ titulo: string; itens: { label: string; done: boolean; manual: boolean; doc: string | null }[]; completos: number; total: number } | null> {
+  const [[c]] = await db.query('SELECT id, client_id, legal_area, checklist_checked FROM cases WHERE id = ?', [caseId]) as any;
   if (!c) return null;
 
   const tpl = POR_TIPO[c.legal_area] || { titulo: `Documentos (${c.legal_area || 'geral'})`, itens: [] };
   const itens = [...tpl.itens, ...BASE];
+
+  // Marcações manuais salvas pelo usuário
+  let manualChecked: string[] = [];
+  try {
+    const raw = typeof c.checklist_checked === 'string' ? JSON.parse(c.checklist_checked) : c.checklist_checked;
+    if (Array.isArray(raw)) manualChecked = raw;
+  } catch {}
 
   // Nomes de documentos do caso e do cliente (inclui os recebidos pelo WhatsApp)
   const [docs] = await db.query(
@@ -86,7 +93,8 @@ export async function buildCaseChecklist(caseId: number): Promise<{ titulo: stri
 
   const resultado = itens.map((item) => {
     const doc = nomes.find((n) => item.keys.some((k) => n.includes(k)));
-    return { label: item.label, done: !!doc, doc: doc || null };
+    const manual = manualChecked.includes(item.label);
+    return { label: item.label, done: !!doc || manual, manual, doc: doc || null };
   });
   return {
     titulo: tpl.titulo,
@@ -94,4 +102,20 @@ export async function buildCaseChecklist(caseId: number): Promise<{ titulo: stri
     completos: resultado.filter((i) => i.done).length,
     total: resultado.length,
   };
+}
+
+export async function toggleChecklistItem(caseId: number, label: string, checked: boolean): Promise<void> {
+  const [[c]] = await db.query('SELECT checklist_checked FROM cases WHERE id = ?', [caseId]) as any;
+  if (!c) return;
+  let current: string[] = [];
+  try {
+    const raw = typeof c.checklist_checked === 'string' ? JSON.parse(c.checklist_checked) : c.checklist_checked;
+    if (Array.isArray(raw)) current = raw;
+  } catch {}
+  if (checked) {
+    if (!current.includes(label)) current.push(label);
+  } else {
+    current = current.filter((l) => l !== label);
+  }
+  await db.query('UPDATE cases SET checklist_checked = ? WHERE id = ?', [JSON.stringify(current), caseId]);
 }
