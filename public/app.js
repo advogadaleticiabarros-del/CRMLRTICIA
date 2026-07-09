@@ -1582,6 +1582,7 @@ const ROUTES = {
               <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
                 <select class="kf-move" data-id="${r.id}" title="Mover etapa" style="flex:1">${STAGES.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}</select>
                 <button class="kf-edit" data-id="${r.id}" data-title="${esc2(r.title || '')}" title="Editar a demanda (título)" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✎</button>
+                <button class="kf-dup" data-id="${r.id}" title="Duplicar demanda" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">⧉</button>
                 <button class="kf-del" data-id="${r.id}" title="Apagar demanda" style="background:none;border:1px solid var(--red,#c0392b);color:var(--red,#c0392b);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✕</button>
               </div>
             </div>`).join('') || '<div class="kf-empty">solte um card aqui</div>'}</div>
@@ -1643,6 +1644,19 @@ const ROUTES = {
         };
       });
 
+      // Botão duplicar demanda
+      $('#prod-board').querySelectorAll('.kf-dup').forEach((btn) => {
+        btn.onclick = async (e) => {
+          e.stopPropagation();
+          if (!confirm('Duplicar esta demanda? Uma cópia será criada na mesma etapa.')) return;
+          try {
+            await api(`/api/cases/${btn.dataset.id}/duplicate`, { method: 'POST', body: '{}' });
+            toast('Demanda duplicada');
+            load();
+          } catch (err) { toast(err.message || 'Erro ao duplicar', 'error'); }
+        };
+      });
+
       // Botão apagar demanda
       $('#prod-board').querySelectorAll('.kf-del').forEach((btn) => {
         btn.onclick = async (e) => {
@@ -1660,7 +1674,7 @@ const ROUTES = {
       $('#prod-board').querySelectorAll('.kf-card').forEach((card) => {
         card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', JSON.stringify({ id: card.dataset.case, from: card.dataset.stage })); card.style.opacity = '0.45'; });
         card.addEventListener('dragend', () => { card.style.opacity = ''; });
-        card.onclick = (e) => { if (e.target.closest('.kf-move') || e.target.closest('.kf-del') || e.target.closest('.kf-edit')) return; caseDetail(card.dataset.case, load); };
+        card.onclick = (e) => { if (e.target.closest('.kf-move') || e.target.closest('.kf-del') || e.target.closest('.kf-edit') || e.target.closest('.kf-dup')) return; caseDetail(card.dataset.case, load); };
       });
       $('#prod-board').querySelectorAll('.kf-cards').forEach((zone) => {
         zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.outline = '2px dashed var(--gold)'; });

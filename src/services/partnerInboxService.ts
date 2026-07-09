@@ -104,17 +104,18 @@ function decodeB64(data?: string | null): string {
   if (!data) return '';
   try { return Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'); } catch { return ''; }
 }
-function walkParts(payload: any, texts: string[], atts: any[]): void {
+function walkParts(payload: any, texts: string[], atts: any[], seenIds = new Set<string>()): void {
   if (!payload) return;
   const parts = payload.parts || [];
-  if (payload.filename && payload.body?.attachmentId) {
+  if (payload.filename && payload.body?.attachmentId && !seenIds.has(payload.body.attachmentId)) {
+    seenIds.add(payload.body.attachmentId);
     atts.push({ filename: payload.filename, mimeType: payload.mimeType, attachmentId: payload.body.attachmentId });
   }
   if (payload.mimeType === 'text/plain' && payload.body?.data) texts.push(decodeB64(payload.body.data));
   else if (payload.mimeType === 'text/html' && payload.body?.data && !texts.length) {
     texts.push(decodeB64(payload.body.data).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
   }
-  for (const p of parts) walkParts(p, texts, atts);
+  for (const p of parts) walkParts(p, texts, atts, seenIds);
 }
 
 /** Busca e-mails novos do remetente e enfileira na revisão. Retorna quantos entraram. */

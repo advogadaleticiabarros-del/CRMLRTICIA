@@ -398,6 +398,27 @@ router.post('/:id/collaborators', async (req: Request, res: Response) => {
   res.status(201).json({ success: true });
 });
 
+// ── POST /api/cases/:id/duplicate — duplica o caso (sem parcelas/docs/movimentos)
+router.post('/:id/duplicate', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const [[orig]] = await db.query(
+    `SELECT client_id, title, legal_area, phase, status, production_stage,
+            partner_id, production_assignee, valor_causa, description, contract_type
+       FROM cases WHERE id = ?`, [id]
+  ) as any;
+  if (!orig) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+  const [r] = await db.query(
+    `INSERT INTO cases (user_id, client_id, title, legal_area, phase, status,
+      production_stage, production_started_at, partner_id, production_assignee,
+      valor_causa, description, contract_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)`,
+    [req.user!.id, orig.client_id, `${orig.title} (cópia)`, orig.legal_area,
+     orig.phase, orig.status, orig.production_stage, orig.partner_id,
+     orig.production_assignee, orig.valor_causa, orig.description, orig.contract_type]
+  ) as any;
+  res.status(201).json({ success: true, id: r.insertId });
+});
+
 // ── DELETE /api/cases/:id — apagar demanda (bloqueado se houver parcelas pagas)
 router.delete('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
