@@ -423,7 +423,8 @@ router.post('/:id/duplicate', async (req: Request, res: Response) => {
      VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?)`,
     [req.user!.id, orig.client_id, `${orig.title} (cópia)`, orig.legal_area,
      orig.phase, orig.status, orig.production_stage, orig.partner_id,
-     orig.production_assignee, orig.valor_causa, orig.description, orig.production_labels]
+     orig.production_assignee, orig.valor_causa, orig.description,
+     orig.production_labels != null ? JSON.stringify(orig.production_labels) : null]
   ) as any;
   res.status(201).json({ success: true, id: r.insertId });
 });
