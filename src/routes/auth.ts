@@ -82,6 +82,12 @@ router.post('/forgot', async (req: Request, res: Response) => {
   const email = String(req.body?.email || '').trim();
   const generic = { success: true, message: 'Se o e-mail estiver cadastrado, você receberá um link de redefinição em instantes.' };
   if (!email) { res.status(400).json({ error: 'Informe o e-mail' }); return; }
+
+  // Anti-abuso: máx. 3 pedidos por IP+e-mail a cada 15 min (evita bombardeio
+  // de e-mails na vítima e spam no sino dos admins).
+  const bloqueado = isBlocked(req);
+  if (bloqueado) { res.json(generic); return; } // resposta genérica, sem revelar o bloqueio
+  registerFail(req); // conta o pedido na mesma janela do rate limit do login
   try {
     const [rows] = await db.query('SELECT id, name FROM users WHERE email = ? AND active = 1', [email]) as any;
     const user = rows[0];
@@ -139,7 +145,8 @@ router.post('/reset', async (req: Request, res: Response) => {
 
   const hash = await bcrypt.hash(password, 10);
   await db.query('UPDATE users SET password = ? WHERE id = ?', [hash, pr.user_id]);
-  await db.query('UPDATE password_resets SET used_at = NOW() WHERE id = ?', [pr.id]);
+  // Invalida TODOS os links de redefinição pendentes deste usuário (não só o usado)
+  await db.query('UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL', [pr.user_id]);
   await db.query("UPDATE password_reset_requests SET status = 'resolvido', resolved_at = NOW() WHERE user_id = ? AND status = 'aberto'", [pr.user_id]).catch(() => {});
   res.json({ success: true, message: 'Senha redefinida! Entre com a nova senha.' });
 });
