@@ -267,18 +267,39 @@ export async function getOrCreateCaseFolderUrl(clientId: number, caseId: number)
 /**
  * Baixa os anexos de uma importação (source gmail) e sobe pro Drive, criando
  * um documento (file_url) por anexo, vinculado ao cliente/caso.
+ * Se attachments_json for nulo, rebusca o e-mail completo do Gmail como fallback.
  */
 export async function processAttachmentsForImport(importId: number, clientId: number, caseId: number | null, actorId: number): Promise<number> {
   const [[imp]] = await db.query('SELECT source, source_message_id, attachments_json FROM email_imports WHERE id = ?', [importId]) as any;
-  if (!imp || imp.source !== 'gmail' || !imp.source_message_id || !imp.attachments_json) return 0;
-  let atts: any[] = [];
-  try { atts = typeof imp.attachments_json === 'string' ? JSON.parse(imp.attachments_json) : imp.attachments_json; } catch {}
-  if (!Array.isArray(atts) || !atts.length) return 0;
+  if (!imp || imp.source !== 'gmail' || !imp.source_message_id) return 0;
 
   const auth = await authedClient();
   const gmail = google.gmail({ version: 'v1', auth });
   const drive = google.drive({ version: 'v3', auth });
-  // Pasta exclusiva do caso: Raiz → Cliente → Caso.
+
+  let atts: any[] = [];
+  if (imp.attachments_json) {
+    try { atts = typeof imp.attachments_json === 'string' ? JSON.parse(imp.attachments_json) : imp.attachments_json; } catch {}
+  }
+
+  // Fallback: se não tiver metadados de anexo, rebusca o e-mail inteiro no Gmail
+  if (!Array.isArray(atts) || !atts.length) {
+    try {
+      const msg = await gmail.users.messages.get({ userId: 'me', id: imp.source_message_id, format: 'full' });
+      const texts: string[] = [], freshAtts: any[] = [];
+      walkParts(msg.data.payload, texts, freshAtts);
+      atts = freshAtts;
+      if (atts.length) {
+        await db.query('UPDATE email_imports SET attachments_json = ? WHERE id = ?', [JSON.stringify(atts), importId]);
+      }
+    } catch (e) {
+      console.error('[processAttachmentsForImport] fallback gmail.get falhou:', e);
+      return 0;
+    }
+  }
+
+  if (!atts.length) return 0;
+
   const folderId = await ensureCaseFolder(auth, clientId, caseId);
 
   let n = 0;
@@ -298,7 +319,9 @@ export async function processAttachmentsForImport(importId: number, clientId: nu
         [clientId, caseId, a.filename, url, actorId]
       );
       n++;
-    } catch { /* um anexo com erro não trava os demais */ }
+    } catch (e) {
+      console.error('[processAttachmentsForImport] erro no anexo', a?.filename, e instanceof Error ? e.message : e);
+    }
   }
   return n;
 }

@@ -114,9 +114,9 @@ router.post('/reprocess-drive/:caseId', async (req: Request, res: Response) => {
   ) as any;
   if (!cs) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
 
-  // Busca o import Gmail mais recente confirmado para esse cliente
+  // Busca TODOS os imports Gmail confirmados para esse cliente
   const [imports] = await db.query(
-    "SELECT id FROM email_imports WHERE client_id = ? AND source = 'gmail' AND status = 'confirmado' ORDER BY created_at DESC LIMIT 1",
+    "SELECT id, source_message_id, attachments_json FROM email_imports WHERE client_id = ? AND source = 'gmail' AND status = 'confirmado' ORDER BY created_at DESC",
     [cs.client_id]
   ) as any;
 
@@ -129,14 +129,31 @@ router.post('/reprocess-drive/:caseId', async (req: Request, res: Response) => {
     }
   }
 
-  // 2. Baixa anexos do e-mail (se import Gmail encontrado)
+  // 2. Baixa anexos de todos os imports Gmail encontrados
   let anexos = 0;
-  if (imports.length > 0) {
-    try { anexos = await processAttachmentsForImport(imports[0].id, cs.client_id, caseId, req.user!.id); }
-    catch (e) { console.error('[reprocess-drive] anexos:', e); }
+  const avisos: string[] = [];
+  if (imports.length === 0) {
+    avisos.push('Nenhum import Gmail confirmado encontrado para este cliente');
+  } else {
+    for (const imp of imports) {
+      try {
+        const n = await processAttachmentsForImport(imp.id, cs.client_id, caseId, req.user!.id);
+        anexos += n;
+      } catch (e: any) {
+        const msg = e?.message || String(e);
+        console.error('[reprocess-drive] import', imp.id, msg);
+        avisos.push(`import ${imp.id}: ${msg}`);
+      }
+    }
   }
 
-  res.json({ success: true, anexos, folderUrl });
+  res.json({
+    success: true,
+    anexos,
+    folderUrl,
+    imports_encontrados: imports.length,
+    ...(avisos.length ? { avisos } : {}),
+  });
 });
 
 // ── POST /api/email-intake/:id/discard — descarta a importação ──────────────

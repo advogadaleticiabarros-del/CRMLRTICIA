@@ -4799,7 +4799,13 @@ async function caseDetail(id, onSave) {
         dreprocess.disabled = true; dreprocess.textContent = 'Baixando…';
         try {
           const r = await api(`/api/email-intake/reprocess-drive/${id}`, { method: 'POST', body: '{}' });
-          toast(`Drive sincronizado · ${r.anexos} anexo(s) baixado(s)`);
+          if (r.anexos > 0) {
+            toast(`Drive sincronizado · ${r.anexos} anexo(s) baixado(s)`);
+          } else if (r.imports_encontrados === 0) {
+            toast('Nenhum e-mail de parceria encontrado para este cliente', 'error');
+          } else {
+            toast('Pasta verificada — o e-mail não possui anexos identificáveis ou o download falhou (veja logs)', 'error');
+          }
           if (r.folderUrl) { panel.querySelector('#prod-drive').value = r.folderUrl; }
           loadProd();
         } catch (e) { toast(e.message || 'Erro ao sincronizar Drive', 'error'); }
