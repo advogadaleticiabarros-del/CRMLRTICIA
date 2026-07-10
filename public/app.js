@@ -1571,7 +1571,8 @@ const ROUTES = {
     };
     const labelsHtml = (r) => {
       let labs = []; try { labs = Array.isArray(r.production_labels) ? r.production_labels : (r.production_labels ? JSON.parse(r.production_labels) : []); } catch {}
-      return labs.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${labs.map((l) => `<span style="font-size:10px;background:var(--gold-soft,#efe3c8);color:var(--navy);padding:1px 6px;border-radius:10px">${esc2(l)}</span>`).join('')}</div>` : '';
+      // Etiquetas do lado de FORA do card (acima), todas as incluídas.
+      return labs.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin:0 2px 5px">${labs.map((l) => `<span style="font-size:10px;font-weight:600;background:var(--gold-soft,#efe3c8);color:var(--navy);padding:2px 8px;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.08)">${esc2(l)}</span>`).join('')}</div>` : '';
     };
     const load = async () => {
       const rows = await api('/api/cases/production-board').catch(() => []);
@@ -1585,18 +1586,20 @@ const ROUTES = {
         <div class="kf-col" data-stage="${k}">
           <div class="kf-head">${label} <span class="kf-count">${by[k].length}</span></div>
           <div class="kf-cards" data-stage="${k}">${by[k].map((r) => `
+            <div class="kf-card-wrap">
+              ${labelsHtml(r)}
             <div class="kf-card" draggable="true" data-case="${r.id}" data-stage="${r.production_stage}">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">${slaBadge(r)}${Number(r.pendencias) ? `<span style="font-size:11px;color:var(--red);font-weight:600">⚠ ${r.pendencias}</span>` : ''}</div>
               <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
               <small>${esc2(r.title) || r.case_number || 's/ número'}${r.legal_area ? ' · ' + r.legal_area : ''}</small>
               ${r.assignee_name ? `<small style="color:var(--text-muted)">resp.: ${esc2(r.assignee_name)}</small>` : ''}
-              ${labelsHtml(r)}
               <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
                 <select class="kf-move" data-id="${r.id}" title="Mover etapa" style="flex:1">${STAGES.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}</select>
                 <button class="kf-edit" data-id="${r.id}" data-title="${esc2(r.title || '')}" title="Editar a demanda (título)" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✎</button>
                 <button class="kf-dup" data-id="${r.id}" title="Duplicar demanda" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">⧉</button>
                 <button class="kf-del" data-id="${r.id}" title="Apagar demanda" style="background:none;border:1px solid var(--red,#c0392b);color:var(--red,#c0392b);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✕</button>
               </div>
+            </div>
             </div>`).join('') || '<div class="kf-empty">solte um card aqui</div>'}</div>
         </div>`).join('');
 
