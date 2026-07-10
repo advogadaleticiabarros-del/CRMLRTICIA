@@ -106,6 +106,42 @@ router.post('/:id/confirm', async (req: Request, res: Response) => {
   }
 });
 
+// ── POST /api/email-intake/reprocess-drive/:caseId — retroativo: baixa anexos + cria pasta
+router.post('/reprocess-drive/:caseId', async (req: Request, res: Response) => {
+  const caseId = Number(req.params.caseId);
+  const [[cs]] = await db.query(
+    'SELECT id, client_id, title, legal_area, drive_folder_url FROM cases WHERE id = ?', [caseId]
+  ) as any;
+  if (!cs) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
+
+  // Busca o import Gmail mais recente confirmado para esse cliente
+  const [imports] = await db.query(
+    "SELECT id FROM email_imports WHERE client_id = ? AND source = 'gmail' AND status = 'confirmado' ORDER BY created_at DESC LIMIT 1",
+    [cs.client_id]
+  ) as any;
+
+  let anexos = 0;
+  if (imports.length > 0) {
+    try { anexos = await processAttachmentsForImport(imports[0].id, cs.client_id, caseId, req.user!.id); }
+    catch (e) { console.error('[reprocess-drive] anexos:', e); }
+  }
+
+  // Cria pasta Drive se ainda não existe
+  let folderUrl = cs.drive_folder_url || null;
+  if (!folderUrl) {
+    try {
+      const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [cs.client_id]) as any;
+      const result = await createProductionFolder(req.user!.id, cl?.name || 'Cliente', cs.legal_area || 'Geral', (cs.title || '').substring(0, 50));
+      if (result) {
+        folderUrl = result.folderUrl;
+        await db.query('UPDATE cases SET drive_folder_url = ? WHERE id = ?', [folderUrl, caseId]);
+      }
+    } catch (e) { console.error('[reprocess-drive] pasta:', e); }
+  }
+
+  res.json({ success: true, anexos, folderUrl });
+});
+
 // ── POST /api/email-intake/:id/discard — descarta a importação ──────────────
 router.post('/:id/discard', async (req: Request, res: Response) => {
   const [r] = await db.query("UPDATE email_imports SET status = 'descartado' WHERE id = ?", [req.params.id]) as any;

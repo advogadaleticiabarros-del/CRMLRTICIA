@@ -4763,7 +4763,7 @@ async function caseDetail(id, onSave) {
           <div id="prod-pend">${pend.length ? pend.map((n) => `<div class="mini-row" style="padding:5px 0"><span>⚠ ${esc(n.text)}<br><small style="color:var(--text-muted)">${esc(n.author_name || '')} · ${fmtDate(n.created_at)}</small></span><button class="btn-sm" type="button" data-resolve="${n.id}">Resolver</button></div>`).join('') : '<small style="color:var(--green)">Sem pendências</small>'}</div>
           <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-newpend" placeholder="o que falta…" style="flex:1"><button class="btn-sm" type="button" id="prod-addpend">+ pendência</button></div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Pasta do Drive com os documentos deste caso — a IA lê, organiza e monta o checklist</small>
-          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap"><input id="prod-drive" placeholder="cole o link da pasta do Google Drive" value="${esc(p.drive_folder_url || '')}" style="flex:1;min-width:180px"><button class="btn-sm" type="button" id="prod-drive-save">Salvar</button><button class="btn-gold btn-sm" type="button" id="prod-analyze">${svgIcon('ia')}Analisar documentos</button></div>
+          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap"><input id="prod-drive" placeholder="cole o link da pasta do Google Drive" value="${esc(p.drive_folder_url || '')}" style="flex:1;min-width:180px"><button class="btn-sm" type="button" id="prod-drive-save">Salvar</button>${p.partner_id ? `<button class="btn-sm" type="button" id="prod-reprocess-drive" title="Baixar anexos do e-mail da parceria e criar pasta no Drive">📥 Baixar do e-mail</button>` : ''}<button class="btn-gold btn-sm" type="button" id="prod-analyze">${svgIcon('ia')}Analisar documentos</button></div>
           <div id="prod-analysis" style="margin-top:8px"></div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Recado ao cliente (aparece no portal, em linguagem simples)</small>
           <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-climsg" placeholder="ex.: Seu processo foi protocolado; agora aguardamos a resposta do INSS" value="${esc(p.client_message || '')}" style="flex:1"><button class="btn-sm" type="button" id="prod-climsg-save">Salvar</button></div></div>
@@ -4794,6 +4794,17 @@ async function caseDetail(id, onSave) {
         try { await api(`/api/documents/${b.dataset.vis}`, { method: 'PUT', body: JSON.stringify({ visible_to_client: on }) }); toast(on ? 'Documento liberado no portal do cliente' : 'Documento oculto do portal'); loadProd(); }
         catch (e) { toast(e.message, 'error'); }
       });
+      const dreprocess = panel.querySelector('#prod-reprocess-drive');
+      if (dreprocess) dreprocess.onclick = async () => {
+        dreprocess.disabled = true; dreprocess.textContent = 'Baixando…';
+        try {
+          const r = await api(`/api/email-intake/reprocess-drive/${id}`, { method: 'POST', body: '{}' });
+          toast(`Drive sincronizado · ${r.anexos} anexo(s) baixado(s)`);
+          if (r.folderUrl) { panel.querySelector('#prod-drive').value = r.folderUrl; }
+          loadProd();
+        } catch (e) { toast(e.message || 'Erro ao sincronizar Drive', 'error'); }
+        finally { dreprocess.disabled = false; dreprocess.textContent = '📥 Baixar do e-mail'; }
+      };
       const danalyze = panel.querySelector('#prod-analyze');
       if (danalyze) danalyze.onclick = async () => {
         const url = panel.querySelector('#prod-drive').value.trim();

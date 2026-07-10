@@ -185,7 +185,8 @@ router.get('/:id/production', async (req: Request, res: Response) => {
   res.json({
     production_stage: c.production_stage, production_started_at: c.production_started_at,
     production_labels: c.production_labels, production_assignee: c.production_assignee,
-    drive_folder_url: c.drive_folder_url || '',
+    drive_folder_url: c.drive_folder_url || '', partner_id: c.partner_id || null,
+    client_message: c.client_message || '',
     case_summary: lead?.case_summary || c.description || '',
     header, notes, journey,
   });
