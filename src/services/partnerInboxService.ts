@@ -120,6 +120,23 @@ function deriveFilename(payload: any, idx: number): string {
   return `anexo_${idx}.${ext}`;
 }
 
+/** Descreve cada parte da árvore MIME (diagnóstico) — 1 linha por parte, indentada por profundidade. */
+function describeParts(payload: any, out: string[], depth = 0): void {
+  if (!payload || out.length > 60) return;
+  const cd = headerVal(payload, 'content-disposition') || '';
+  const disp = (cd.split(';')[0] || '').trim();
+  out.push(
+    `${'  '.repeat(depth)}${payload.mimeType || '?'}` +
+    `${payload.filename ? ` file="${payload.filename}"` : ''}` +
+    `${disp ? ` disp=${disp}` : ''}` +
+    `${headerVal(payload, 'content-id') ? ' cid' : ''}` +
+    `${payload.body?.attachmentId ? ' [attId]' : ''}` +
+    `${payload.body?.data ? ' [data]' : ''}` +
+    `${payload.body?.size ? ` ${payload.body.size}b` : ''}`
+  );
+  for (const p of payload.parts || []) describeParts(p, out, depth + 1);
+}
+
 /**
  * Percorre a árvore MIME coletando TODAS as partes que são arquivo, incluindo
  * imagens INLINE (Content-Disposition: inline / Content-ID) que o Outlook embute
@@ -410,14 +427,14 @@ export async function processAttachmentsForImport(importId: number, clientId: nu
  */
 export async function downloadClientAttachmentsFromGmail(
   clientId: number, caseId: number | null, actorId: number
-): Promise<{ anexos: number; emails: number; query: string; assuntos: string[]; erro?: string }> {
+): Promise<{ anexos: number; emails: number; query: string; assuntos: string[]; encontrados: number; pulados: number; arvore?: string[]; erro?: string }> {
   const row = await loadIntegration();
   if (!row || !row.refresh_token) {
-    return { anexos: 0, emails: 0, query: '', assuntos: [], erro: 'Gmail da parceria não conectado' };
+    return { anexos: 0, emails: 0, query: '', assuntos: [], encontrados: 0, pulados: 0, erro: 'Gmail da parceria não conectado' };
   }
   const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
   const nome = String(cl?.name || '').trim();
-  if (!nome) return { anexos: 0, emails: 0, query: '', assuntos: [], erro: 'Cliente sem nome' };
+  if (!nome) return { anexos: 0, emails: 0, query: '', assuntos: [], encontrados: 0, pulados: 0, erro: 'Cliente sem nome' };
 
   const auth = await authedClient();
   const gmail = google.gmail({ version: 'v1', auth });
@@ -430,7 +447,7 @@ export async function downloadClientAttachmentsFromGmail(
   try {
     list = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 10 });
   } catch (e: any) {
-    return { anexos: 0, emails: 0, query, assuntos: [], erro: e?.message || 'Falha ao listar no Gmail' };
+    return { anexos: 0, emails: 0, query, assuntos: [], encontrados: 0, pulados: 0, erro: e?.message || 'Falha ao listar no Gmail' };
   }
 
   const msgs = list.data.messages || [];
@@ -441,11 +458,11 @@ export async function downloadClientAttachmentsFromGmail(
       for (const m of alt.data.messages || []) msgs.push(m);
     } catch {}
   }
-  if (!msgs.length) return { anexos: 0, emails: 0, query, assuntos: [] };
+  if (!msgs.length) return { anexos: 0, emails: 0, query, assuntos: [], encontrados: 0, pulados: 0 };
 
   const folderId = await ensureCaseFolder(auth, clientId, caseId);
   const jaBaixados = await existingAttachmentNames(auth, folderId, clientId, caseId);
-  let anexos = 0; const assuntos: string[] = [];
+  let anexos = 0, encontrados = 0, pulados = 0; const assuntos: string[] = []; const arvore: string[] = [];
 
   for (const m of msgs) {
     try {
@@ -455,9 +472,11 @@ export async function downloadClientAttachmentsFromGmail(
       assuntos.push(subject);
       const texts: string[] = []; const atts: any[] = [];
       walkParts(full.data.payload, texts, atts);
+      if (arvore.length < 40) describeParts(full.data.payload, arvore); // dump p/ diagnóstico
+      encontrados += atts.length;
       for (const a of atts) {
         try {
-          if (a.filename && jaBaixados.has(String(a.filename).trim().toLowerCase())) continue; // já existe, não duplica
+          if (a.filename && jaBaixados.has(String(a.filename).trim().toLowerCase())) { pulados++; continue; } // já existe
           let raw = a.data as string | undefined;
           if (!raw && a.attachmentId) {
             const data = await gmail.users.messages.attachments.get({ userId: 'me', messageId: m.id!, id: a.attachmentId });
@@ -486,5 +505,5 @@ export async function downloadClientAttachmentsFromGmail(
       console.error('[downloadClientAttachmentsFromGmail] msg', m.id, e instanceof Error ? e.message : e);
     }
   }
-  return { anexos, emails: msgs.length, query, assuntos };
+  return { anexos, emails: msgs.length, query, assuntos, encontrados, pulados, arvore };
 }

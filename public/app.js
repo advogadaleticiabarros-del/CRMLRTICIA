@@ -4799,15 +4799,19 @@ async function caseDetail(id, onSave) {
         dreprocess.disabled = true; dreprocess.textContent = 'Baixando…';
         try {
           const r = await api(`/api/email-intake/reprocess-drive/${id}`, { method: 'POST', body: '{}' });
+          const g = r.gmail;
           if (r.anexos > 0) {
             toast(`Drive sincronizado · ${r.anexos} anexo(s) baixado(s)`);
-          } else if (r.gmail && r.gmail.erro) {
-            toast(`Gmail: ${r.gmail.erro}`, 'error');
-          } else if (r.gmail && r.gmail.emails === 0) {
+          } else if (g && g.erro) {
+            toast(`Gmail: ${g.erro}`, 'error');
+          } else if (g && g.emails === 0) {
             toast('Nenhum e-mail do parceiro menciona este cliente (verifique o nome cadastrado)', 'error');
+          } else if (g && g.encontrados > 0 && g.pulados >= g.encontrados) {
+            toast(`Todos os ${g.encontrados} anexo(s) já estão no Drive — nada a baixar`);
           } else {
-            toast('E-mail localizado, mas sem anexos para baixar (veja logs)', 'error');
+            toast('E-mail localizado, mas sem anexos identificados', 'error');
           }
+          if (g && g.arvore && g.arvore.length) { console.log('[reprocess-drive] árvore MIME:\n' + g.arvore.join('\n')); console.log('[reprocess-drive] diag:', { encontrados: g.encontrados, pulados: g.pulados, assuntos: g.assuntos, query: g.query }); }
           if (r.folderUrl) { panel.querySelector('#prod-drive').value = r.folderUrl; }
           loadProd();
         } catch (e) { toast(e.message || 'Erro ao sincronizar Drive', 'error'); }
