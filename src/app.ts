@@ -46,6 +46,7 @@ import journeyRoutes from './routes/journey';
 import controladoriaRoutes from './routes/controladoria';
 import correspondenteRoutes from './routes/correspondente';
 import documentRoutes from './routes/documents';
+import pecaModelosRoutes from './routes/pecaModelos';
 import aiRoutes from './routes/ai';
 import automationRoutes from './routes/automation';
 import pushRoutes from './routes/push';
@@ -142,6 +143,7 @@ export function createApp() {
   app.use('/api/controladoria',         authenticate, requireStaff, controladoriaRoutes);
   app.use('/api/correspondente',        authenticate, requireStaff, correspondenteRoutes);
   app.use('/api/documents',             authenticate, requireStaff, documentRoutes);
+  app.use('/api/peca-modelos',          authenticate, requireStaff, pecaModelosRoutes);
   app.use('/api/ai',                    authenticate, requireStaff, aiRoutes);
   app.use('/api/dashboards/cockpit',    authenticate, requireStaff, cockpitDashboard);
   app.use('/api/dashboards/comercial',  authenticate, requireStaff, comercialDashboard);
