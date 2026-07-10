@@ -4800,23 +4800,23 @@ async function caseDetail(id, onSave) {
         try {
           const r = await api(`/api/email-intake/reprocess-drive/${id}`, { method: 'POST', body: '{}' });
           const g = r.gmail;
+          const falhas = g && g.cloudFalhos ? g.cloudFalhos.length : 0;
           if (r.anexos > 0) {
-            toast(`Drive sincronizado · ${r.anexos} anexo(s) baixado(s)`);
+            toast(`Drive sincronizado · ${r.anexos} arquivo(s) baixado(s)${falhas ? ` · ${falhas} link(s) de nuvem falharam` : ''}`);
           } else if (g && g.erro) {
             toast(`Gmail: ${g.erro}`, 'error');
           } else if (g && g.emails === 0) {
             toast('Nenhum e-mail do parceiro menciona este cliente (verifique o nome cadastrado)', 'error');
-          } else if (g && g.encontrados > 0 && g.pulados >= g.encontrados) {
-            toast(`Todos os ${g.encontrados} anexo(s) já estão no Drive — nada a baixar`);
+          } else if (falhas > 0) {
+            toast(`${falhas} arquivo(s) estão como link de nuvem e não puderam ser baixados`, 'error');
+          } else if (g && (g.encontrados > 0 || g.cloudLinks > 0) && g.pulados >= (g.encontrados + (g.cloudLinks || 0))) {
+            toast(`Todos os arquivos já estão no Drive — nada novo a baixar`);
           } else {
-            toast('E-mail localizado, mas sem anexos identificados', 'error');
+            toast('E-mail localizado, mas sem arquivos identificados', 'error');
           }
-          if (g && g.arvore && g.arvore.length) {
-            console.log('[reprocess-drive] árvore MIME:\n' + g.arvore.join('\n'));
-            console.log('[reprocess-drive] diag:', { encontrados: g.encontrados, pulados: g.pulados, assuntos: g.assuntos, query: g.query });
-            if (r.anexos === 0) {
-              alert(`Diagnóstico do e-mail (mande este print):\n\nAnexos encontrados: ${g.encontrados}\nJá existentes (pulados): ${g.pulados}\nE-mails: ${g.emails}\nBusca: ${g.query}\n\nEstrutura MIME:\n${g.arvore.join('\n')}`);
-            }
+          if (g) {
+            console.log('[reprocess-drive] diag:', { anexos: r.anexos, encontrados: g.encontrados, pulados: g.pulados, cloudLinks: g.cloudLinks, cloudFalhos: g.cloudFalhos, assuntos: g.assuntos, query: g.query });
+            if (g.arvore && g.arvore.length) console.log('[reprocess-drive] árvore MIME:\n' + g.arvore.join('\n'));
           }
           if (r.folderUrl) { panel.querySelector('#prod-drive').value = r.folderUrl; }
           loadProd();

@@ -174,6 +174,70 @@ function walkParts(payload: any, texts: string[], atts: any[], seenIds = new Set
   for (const p of parts) walkParts(p, texts, atts, seenIds);
 }
 
+/** Retorna o HTML BRUTO (com tags) do corpo — para extrair links de anexos de nuvem. */
+function extractHtmlBody(payload: any): string {
+  if (!payload) return '';
+  if (payload.mimeType === 'text/html' && payload.body?.data && !payload.filename) return decodeB64(payload.body.data);
+  for (const p of payload.parts || []) {
+    const h = extractHtmlBody(p);
+    if (h) return h;
+  }
+  return '';
+}
+
+/**
+ * Extrai links de arquivos hospedados em nuvem (OneDrive/SharePoint/Google Drive)
+ * colados no corpo do e-mail — o Outlook manda anexos grandes assim (ícone de
+ * nuvem no Gmail), e eles NÃO existem na árvore MIME.
+ */
+function extractCloudLinks(html: string): { url: string; filename: string }[] {
+  const out: { url: string; filename: string }[] = [];
+  const seen = new Set<string>();
+  const re = /<a\s[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html))) {
+    const url = m[1].replace(/&amp;/g, '&').trim();
+    if (!/1drv\.ms|onedrive\.live\.com|onedrive\.com|sharepoint\.com|drive\.google\.com|docs\.google\.com/i.test(url)) continue;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    const text = m[2].replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+    const fn = text.match(/[\w\-.() ]+\.(pdf|jpe?g|png|docx?|xlsx?|zip|heic)/i);
+    out.push({ url, filename: fn ? fn[0].trim() : '' });
+  }
+  return out;
+}
+
+/** Baixa um arquivo de um link de nuvem público, tentando estratégias por provedor. Retorna os bytes. */
+async function downloadCloudFile(url: string): Promise<{ buffer: Buffer; filename?: string; mimeType?: string } | null> {
+  const tries: string[] = [];
+  if (/1drv\.ms|onedrive\.live\.com|onedrive\.com/i.test(url)) {
+    const b64 = Buffer.from(url).toString('base64').replace(/=+$/, '').replace(/\//g, '_').replace(/\+/g, '-');
+    tries.push(`https://api.onedrive.com/v1.0/shares/u!${b64}/root/content`);
+  }
+  if (/sharepoint\.com/i.test(url)) tries.push(url + (url.includes('?') ? '&' : '?') + 'download=1');
+  if (/drive\.google\.com/i.test(url)) {
+    const idm = url.match(/[-\w]{25,}/);
+    if (idm) tries.push(`https://drive.google.com/uc?export=download&id=${idm[0]}`);
+  }
+  tries.push(url); // último recurso: segue redirects do link original
+  for (const t of tries) {
+    try {
+      const resp = await fetch(t, { redirect: 'follow' as any });
+      if (!resp.ok) continue;
+      const ct = resp.headers.get('content-type') || '';
+      if (/text\/html/i.test(ct)) continue; // veio uma página, não o arquivo
+      const buffer = Buffer.from(await resp.arrayBuffer());
+      if (buffer.length < 100) continue;
+      let filename: string | undefined;
+      const cd = resp.headers.get('content-disposition') || '';
+      const fm = cd.match(/filename\*=UTF-8''([^;]+)/i) || cd.match(/filename="?([^";]+)"?/i);
+      if (fm) { try { filename = decodeURIComponent(fm[1]); } catch { filename = fm[1]; } }
+      return { buffer, filename, mimeType: ct.split(';')[0] || undefined };
+    } catch { /* tenta a próxima estratégia */ }
+  }
+  return null;
+}
+
 /** Busca e-mails novos do remetente e enfileira na revisão. Retorna quantos entraram. */
 export async function syncInboxNow(actorId?: number | null, opts?: { resetSync?: boolean }): Promise<{ imported: number; skipped: number }> {
   const row = await loadIntegration();
@@ -427,7 +491,7 @@ export async function processAttachmentsForImport(importId: number, clientId: nu
  */
 export async function downloadClientAttachmentsFromGmail(
   clientId: number, caseId: number | null, actorId: number
-): Promise<{ anexos: number; emails: number; query: string; assuntos: string[]; encontrados: number; pulados: number; arvore?: string[]; erro?: string }> {
+): Promise<{ anexos: number; emails: number; query: string; assuntos: string[]; encontrados: number; pulados: number; arvore?: string[]; cloudLinks?: number; cloudFalhos?: string[]; erro?: string }> {
   const row = await loadIntegration();
   if (!row || !row.refresh_token) {
     return { anexos: 0, emails: 0, query: '', assuntos: [], encontrados: 0, pulados: 0, erro: 'Gmail da parceria não conectado' };
@@ -462,7 +526,7 @@ export async function downloadClientAttachmentsFromGmail(
 
   const folderId = await ensureCaseFolder(auth, clientId, caseId);
   const jaBaixados = await existingAttachmentNames(auth, folderId, clientId, caseId);
-  let anexos = 0, encontrados = 0, pulados = 0; const assuntos: string[] = []; const arvore: string[] = [];
+  let anexos = 0, encontrados = 0, pulados = 0, cloudLinks = 0; const assuntos: string[] = []; const arvore: string[] = []; const cloudFalhos: string[] = [];
 
   for (const m of msgs) {
     try {
@@ -501,9 +565,40 @@ export async function downloadClientAttachmentsFromGmail(
           console.error('[downloadClientAttachmentsFromGmail] anexo', a?.filename, e instanceof Error ? e.message : e);
         }
       }
+
+      // Anexos de NUVEM (OneDrive/SharePoint/Drive) colados no corpo — não estão na árvore MIME.
+      const html = extractHtmlBody(full.data.payload);
+      const links = extractCloudLinks(html);
+      for (const lk of links) {
+        cloudLinks++;
+        try {
+          const nomeGuess = (lk.filename || '').trim().toLowerCase();
+          if (nomeGuess && jaBaixados.has(nomeGuess)) { pulados++; continue; }
+          const dl = await downloadCloudFile(lk.url);
+          if (!dl) { cloudFalhos.push(lk.filename || lk.url); continue; }
+          const finalName = lk.filename || dl.filename || `anexo_nuvem_${anexos + 1}.bin`;
+          if (jaBaixados.has(finalName.trim().toLowerCase())) { pulados++; continue; }
+          const up = await drive.files.create({
+            requestBody: { name: finalName, parents: [folderId] },
+            media: { mimeType: dl.mimeType || 'application/octet-stream', body: Readable.from(dl.buffer) },
+            fields: 'id, webViewLink',
+          });
+          const url = up.data.webViewLink || `https://drive.google.com/file/d/${up.data.id}/view`;
+          await db.query(
+            `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, status, created_by)
+             VALUES (?, ?, ?, 'anexo', 'processos', ?, 'recebido', ?)`,
+            [clientId, caseId, finalName, url, actorId]
+          );
+          jaBaixados.add(finalName.trim().toLowerCase());
+          anexos++;
+        } catch (e) {
+          console.error('[downloadClientAttachmentsFromGmail] link nuvem', lk.url, e instanceof Error ? e.message : e);
+          cloudFalhos.push(lk.filename || lk.url);
+        }
+      }
     } catch (e) {
       console.error('[downloadClientAttachmentsFromGmail] msg', m.id, e instanceof Error ? e.message : e);
     }
   }
-  return { anexos, emails: msgs.length, query, assuntos, encontrados, pulados, arvore };
+  return { anexos, emails: msgs.length, query, assuntos, encontrados, pulados, arvore, cloudLinks, cloudFalhos };
 }
