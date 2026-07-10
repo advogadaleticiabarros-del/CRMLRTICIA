@@ -114,11 +114,33 @@ router.post('/reprocess-drive/:caseId', async (req: Request, res: Response) => {
   ) as any;
   if (!cs) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
 
-  // Busca TODOS os imports Gmail confirmados para esse cliente
-  const [imports] = await db.query(
-    "SELECT id, source_message_id, attachments_json FROM email_imports WHERE client_id = ? AND source = 'gmail' AND status = 'confirmado' ORDER BY created_at DESC",
+  // Busca imports com anexo do Gmail (source_message_id existe) ligados a este cliente.
+  // Não filtra por status/source rígido: casos antigos podem ter vínculo por partner
+  // ou o import pode não ter ficado com client_id gravado.
+  const [byClient] = await db.query(
+    "SELECT id, source_message_id, attachments_json FROM email_imports WHERE client_id = ? AND source_message_id IS NOT NULL ORDER BY created_at DESC",
     [cs.client_id]
   ) as any;
+
+  let imports = byClient;
+  const diag: any = { via: 'client_id', client_id: cs.client_id, byClient: byClient.length };
+
+  // Fallback: se nada por client_id, tenta casar pelo nome do cliente no assunto/from do e-mail
+  if (imports.length === 0) {
+    const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [cs.client_id]) as any;
+    if (cl?.name) {
+      const primeiroNome = String(cl.name).trim().split(/\s+/)[0];
+      const [byName] = await db.query(
+        "SELECT id, source_message_id, attachments_json FROM email_imports WHERE source_message_id IS NOT NULL AND (subject LIKE ? OR parsed_json LIKE ?) ORDER BY created_at DESC LIMIT 10",
+        [`%${cl.name}%`, `%${cl.name}%`]
+      ) as any;
+      imports = byName;
+      diag.via = 'nome_cliente';
+      diag.nome = cl.name;
+      diag.primeiroNome = primeiroNome;
+      diag.byName = byName.length;
+    }
+  }
 
   // 1. Cria/localiza pasta em "CRM Jurídico - Anexos → Cliente → Caso"
   let folderUrl = cs.drive_folder_url || null;
@@ -129,11 +151,11 @@ router.post('/reprocess-drive/:caseId', async (req: Request, res: Response) => {
     }
   }
 
-  // 2. Baixa anexos de todos os imports Gmail encontrados
+  // 2. Baixa anexos de todos os imports encontrados
   let anexos = 0;
   const avisos: string[] = [];
   if (imports.length === 0) {
-    avisos.push('Nenhum import Gmail confirmado encontrado para este cliente');
+    avisos.push('Nenhum e-mail com anexo vinculado a este cliente');
   } else {
     for (const imp of imports) {
       try {
@@ -152,6 +174,7 @@ router.post('/reprocess-drive/:caseId', async (req: Request, res: Response) => {
     anexos,
     folderUrl,
     imports_encontrados: imports.length,
+    diag,
     ...(avisos.length ? { avisos } : {}),
   });
 });
