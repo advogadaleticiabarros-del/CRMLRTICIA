@@ -304,6 +304,35 @@ export async function getOrCreateCaseFolderUrl(clientId: number, caseId: number)
 }
 
 /**
+ * Nomes de arquivo já baixados para este caso — no banco (documents) E na pasta
+ * do Drive. Usado para NÃO duplicar anexos quando "Baixar do e-mail" roda de novo.
+ * Retorna um Set de nomes em minúsculas (comparação case-insensitive).
+ */
+async function existingAttachmentNames(auth: any, folderId: string, clientId: number, caseId: number | null): Promise<Set<string>> {
+  const set = new Set<string>();
+  try {
+    const [docs] = await db.query(
+      'SELECT name FROM documents WHERE (case_id = ? OR (case_id IS NULL AND client_id = ?))',
+      [caseId, clientId]
+    ) as any;
+    for (const d of docs) if (d.name) set.add(String(d.name).trim().toLowerCase());
+  } catch {}
+  try {
+    const drive = google.drive({ version: 'v3', auth });
+    let pageToken: string | undefined;
+    do {
+      const r = await drive.files.list({
+        q: `'${folderId}' in parents and trashed=false`,
+        fields: 'nextPageToken, files(name)', pageSize: 100, pageToken,
+      });
+      for (const f of r.data.files || []) if (f.name) set.add(String(f.name).trim().toLowerCase());
+      pageToken = r.data.nextPageToken || undefined;
+    } while (pageToken);
+  } catch {}
+  return set;
+}
+
+/**
  * Baixa os anexos de uma importação (source gmail) e sobe pro Drive, criando
  * um documento (file_url) por anexo, vinculado ao cliente/caso.
  * Se attachments_json for nulo, rebusca o e-mail completo do Gmail como fallback.
@@ -340,10 +369,12 @@ export async function processAttachmentsForImport(importId: number, clientId: nu
   if (!atts.length) return 0;
 
   const folderId = await ensureCaseFolder(auth, clientId, caseId);
+  const jaBaixados = await existingAttachmentNames(auth, folderId, clientId, caseId);
 
   let n = 0;
   for (const a of atts) {
     try {
+      if (a.filename && jaBaixados.has(String(a.filename).trim().toLowerCase())) continue; // já existe, não duplica
       let raw = a.data as string | undefined;
       if (!raw && a.attachmentId) {
         const data = await gmail.users.messages.attachments.get({ userId: 'me', messageId: imp.source_message_id, id: a.attachmentId });
@@ -362,6 +393,7 @@ export async function processAttachmentsForImport(importId: number, clientId: nu
          VALUES (?, ?, ?, 'anexo', 'processos', ?, 'recebido', ?)`,
         [clientId, caseId, a.filename, url, actorId]
       );
+      if (a.filename) jaBaixados.add(String(a.filename).trim().toLowerCase());
       n++;
     } catch (e) {
       console.error('[processAttachmentsForImport] erro no anexo', a?.filename, e instanceof Error ? e.message : e);
@@ -412,6 +444,7 @@ export async function downloadClientAttachmentsFromGmail(
   if (!msgs.length) return { anexos: 0, emails: 0, query, assuntos: [] };
 
   const folderId = await ensureCaseFolder(auth, clientId, caseId);
+  const jaBaixados = await existingAttachmentNames(auth, folderId, clientId, caseId);
   let anexos = 0; const assuntos: string[] = [];
 
   for (const m of msgs) {
@@ -424,6 +457,7 @@ export async function downloadClientAttachmentsFromGmail(
       walkParts(full.data.payload, texts, atts);
       for (const a of atts) {
         try {
+          if (a.filename && jaBaixados.has(String(a.filename).trim().toLowerCase())) continue; // já existe, não duplica
           let raw = a.data as string | undefined;
           if (!raw && a.attachmentId) {
             const data = await gmail.users.messages.attachments.get({ userId: 'me', messageId: m.id!, id: a.attachmentId });
@@ -442,6 +476,7 @@ export async function downloadClientAttachmentsFromGmail(
              VALUES (?, ?, ?, 'anexo', 'processos', ?, 'recebido', ?)`,
             [clientId, caseId, a.filename, url, actorId]
           );
+          if (a.filename) jaBaixados.add(String(a.filename).trim().toLowerCase());
           anexos++;
         } catch (e) {
           console.error('[downloadClientAttachmentsFromGmail] anexo', a?.filename, e instanceof Error ? e.message : e);
