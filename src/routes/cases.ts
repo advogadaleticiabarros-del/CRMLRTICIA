@@ -60,7 +60,7 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/production-board', async (_req: Request, res: Response) => {
   const [rows] = await db.query(`
     SELECT c.id, c.case_number, c.title, c.legal_area, c.production_stage,
-           c.production_started_at, c.production_labels,
+           c.production_started_at, c.production_labels, c.production_obs,
            DATEDIFF(NOW(), c.production_started_at) AS sla_days,
            cl.name AS client_name,
            u.name  AS assignee_name,
@@ -186,7 +186,7 @@ router.get('/:id/production', async (req: Request, res: Response) => {
     production_stage: c.production_stage, production_started_at: c.production_started_at,
     production_labels: c.production_labels, production_assignee: c.production_assignee,
     drive_folder_url: c.drive_folder_url || '', partner_id: c.partner_id || null,
-    client_message: c.client_message || '',
+    client_message: c.client_message || '', production_obs: c.production_obs || '',
     case_summary: lead?.case_summary || c.description || '',
     header, notes, journey,
   });
@@ -219,11 +219,12 @@ router.post('/:id/peticao-inicial', async (req: Request, res: Response) => {
 // ── PATCH /api/cases/:id/production-meta — etiquetas e responsável ───────────
 router.patch('/:id/production-meta', async (req: Request, res: Response) => {
   try {
-    const { labels, assignee, drive_folder_url } = req.body;
+    const { labels, assignee, drive_folder_url, production_obs } = req.body;
     const sets: string[] = []; const params: any[] = [];
     if (labels !== undefined) { sets.push('production_labels = ?'); params.push(Array.isArray(labels) ? JSON.stringify(labels) : null); }
     if (assignee !== undefined) { sets.push('production_assignee = ?'); params.push(assignee || null); }
     if (drive_folder_url !== undefined) { sets.push('drive_folder_url = ?'); params.push(drive_folder_url ? String(drive_folder_url).trim() : null); }
+    if (production_obs !== undefined) { sets.push('production_obs = ?'); params.push(production_obs && String(production_obs).trim() ? String(production_obs).trim() : null); }
     if (!sets.length) { res.status(400).json({ error: 'Nada para atualizar' }); return; }
     params.push(req.params.id);
     await db.query(`UPDATE cases SET ${sets.join(', ')} WHERE id = ?`, params);

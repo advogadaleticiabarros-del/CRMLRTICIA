@@ -1593,9 +1593,11 @@ const ROUTES = {
               <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
               <small>${esc2(r.title) || r.case_number || 's/ número'}${r.legal_area ? ' · ' + r.legal_area : ''}</small>
               ${r.assignee_name ? `<small style="color:var(--text-muted)">resp.: ${esc2(r.assignee_name)}</small>` : ''}
+              ${r.production_obs ? `<div class="kf-obs" style="margin-top:5px;font-size:11px;color:var(--navy);background:#fff7e6;border-left:3px solid var(--gold,#c9a227);padding:4px 7px;border-radius:3px;white-space:pre-wrap">📝 ${esc2(r.production_obs)}</div>` : ''}
               <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
                 <select class="kf-move" data-id="${r.id}" title="Mover etapa" style="flex:1">${STAGES.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}</select>
                 <button class="kf-edit" data-id="${r.id}" data-title="${esc2(r.title || '')}" title="Editar a demanda (título)" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✎</button>
+                <button class="kf-obs-edit" data-id="${r.id}" data-obs="${esc2(r.production_obs || '')}" title="Observação do card" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">📝</button>
                 <button class="kf-dup" data-id="${r.id}" title="Duplicar demanda" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">⧉</button>
                 <button class="kf-del" data-id="${r.id}" title="Apagar demanda" style="background:none;border:1px solid var(--red,#c0392b);color:var(--red,#c0392b);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✕</button>
               </div>
@@ -1672,6 +1674,21 @@ const ROUTES = {
         };
       });
 
+      // Botão observação do card (nota fixa na face do card)
+      $('#prod-board').querySelectorAll('.kf-obs-edit').forEach((btn) => {
+        btn.onclick = async (e) => {
+          e.stopPropagation();
+          const atual = btn.dataset.obs || '';
+          const nova = prompt('Observação do card (deixe vazio para remover):', atual);
+          if (nova === null) return; // cancelou
+          try {
+            await api(`/api/cases/${btn.dataset.id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ production_obs: nova }) });
+            toast(nova.trim() ? 'Observação salva' : 'Observação removida');
+            load();
+          } catch (err) { toast(err.message || 'Erro ao salvar observação', 'error'); }
+        };
+      });
+
       // Botão apagar demanda
       $('#prod-board').querySelectorAll('.kf-del').forEach((btn) => {
         btn.onclick = async (e) => {
@@ -1689,7 +1706,7 @@ const ROUTES = {
       $('#prod-board').querySelectorAll('.kf-card').forEach((card) => {
         card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', JSON.stringify({ id: card.dataset.case, from: card.dataset.stage })); card.style.opacity = '0.45'; });
         card.addEventListener('dragend', () => { card.style.opacity = ''; });
-        card.onclick = (e) => { if (e.target.closest('.kf-move') || e.target.closest('.kf-del') || e.target.closest('.kf-edit') || e.target.closest('.kf-dup')) return; caseDetail(card.dataset.case, load); };
+        card.onclick = (e) => { if (e.target.closest('.kf-move') || e.target.closest('.kf-del') || e.target.closest('.kf-edit') || e.target.closest('.kf-dup') || e.target.closest('.kf-obs-edit')) return; caseDetail(card.dataset.case, load); };
       });
       $('#prod-board').querySelectorAll('.kf-cards').forEach((zone) => {
         zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.outline = '2px dashed var(--gold)'; });
@@ -4765,6 +4782,8 @@ async function caseDetail(id, onSave) {
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Pendências (falta algo?)</small>
           <div id="prod-pend">${pend.length ? pend.map((n) => `<div class="mini-row" style="padding:5px 0"><span>⚠ ${esc(n.text)}<br><small style="color:var(--text-muted)">${esc(n.author_name || '')} · ${fmtDate(n.created_at)}</small></span><button class="btn-sm" type="button" data-resolve="${n.id}">Resolver</button></div>`).join('') : '<small style="color:var(--green)">Sem pendências</small>'}</div>
           <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-newpend" placeholder="o que falta…" style="flex:1"><button class="btn-sm" type="button" id="prod-addpend">+ pendência</button></div></div>
+        <div style="margin-top:10px"><small style="color:var(--text-muted)">📝 Observação do card (aparece na face do card no quadro)</small>
+          <div style="display:flex;gap:6px;margin-top:4px"><textarea id="prod-obs" placeholder="ex.: cliente pediu urgência · aguardar laudo Dr. X" style="flex:1;min-height:46px;resize:vertical">${esc(p.production_obs || '')}</textarea><button class="btn-sm" type="button" id="prod-obs-save" style="align-self:flex-start">Salvar</button></div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Pasta do Drive com os documentos deste caso — a IA lê, organiza e monta o checklist</small>
           <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap"><input id="prod-drive" placeholder="cole o link da pasta do Google Drive" value="${esc(p.drive_folder_url || '')}" style="flex:1;min-width:180px"><button class="btn-sm" type="button" id="prod-drive-save">Salvar</button>${p.partner_id ? `<button class="btn-sm" type="button" id="prod-reprocess-drive" title="Baixar anexos do e-mail da parceria e criar pasta no Drive">📥 Baixar do e-mail</button>` : ''}<button class="btn-gold btn-sm" type="button" id="prod-analyze">${svgIcon('ia')}Analisar documentos</button></div>
           <div id="prod-analysis" style="margin-top:8px"></div></div>
@@ -4790,6 +4809,8 @@ async function caseDetail(id, onSave) {
       panel.querySelector('#prod-addnote').onclick = async () => { const v = panel.querySelector('#prod-note').value.trim(); if (!v) return; try { await api(`/api/cases/${id}/contexto`, { method: 'POST', body: JSON.stringify({ text: v }) }); toast('Atualização adicionada'); loadProd(); } catch (e) { toast(e.message, 'error'); } };
       const dsave = panel.querySelector('#prod-drive-save');
       if (dsave) dsave.onclick = async () => { try { await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ drive_folder_url: panel.querySelector('#prod-drive').value.trim() }) }); toast('Pasta do Drive salva — será lida ao gerar a petição'); } catch (e) { toast(e.message, 'error'); } };
+      const obsSave = panel.querySelector('#prod-obs-save');
+      if (obsSave) obsSave.onclick = async () => { try { await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ production_obs: panel.querySelector('#prod-obs').value }) }); toast('Observação salva — aparece na face do card'); } catch (e) { toast(e.message, 'error'); } };
       const cmsave = panel.querySelector('#prod-climsg-save');
       if (cmsave) cmsave.onclick = async () => { try { await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ client_message: panel.querySelector('#prod-climsg').value.trim() }) }); toast('Recado salvo — visível no portal do cliente'); } catch (e) { toast(e.message, 'error'); } };
       panel.querySelectorAll('[data-vis]').forEach((b) => b.onclick = async () => {
