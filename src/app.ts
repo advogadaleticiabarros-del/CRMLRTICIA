@@ -15,6 +15,7 @@ import monitoramentoDashboard from './routes/dashboards/monitoramento';
 import agendaDashboard from './routes/dashboards/agenda';
 import financeiroDashboard from './routes/dashboards/financeiro';
 import producaoDashboard from './routes/dashboards/producao';
+import parceriaMensalDashboard from './routes/dashboards/parceriaMensal';
 import calendarRoutes from './routes/calendar';
 import notificationRoutes from './routes/notifications';
 import authRoutes from './routes/auth';
@@ -150,6 +151,7 @@ export function createApp() {
   app.use('/api/dashboards/agenda',     authenticate, requireStaff, agendaDashboard);
   app.use('/api/dashboards/financeiro', authenticate, requireStaff, financeiroDashboard);
   app.use('/api/dashboards/producao',   authenticate, requireStaff, producaoDashboard);
+  app.use('/api/dashboards/parceria-mensal', authenticate, requireStaff, parceriaMensalDashboard);
   app.use('/api/calendar',              authenticate, requireStaff, calendarRoutes);
   app.use('/api/notifications',         authenticate, notificationRoutes);
 

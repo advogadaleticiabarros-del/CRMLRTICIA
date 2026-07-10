@@ -735,9 +735,10 @@ const ROUTES = {
         <button class="tab" data-tab="agenda">Agenda</button>
         <button class="tab" data-tab="financeiro">Financeiro</button>
         <button class="tab" data-tab="producao">Produção</button>
+        <button class="tab" data-tab="parceria">Parceria (protocolados)</button>
       </div>
       <div id="dash-content"></div>`;
-    const tabs = { cockpit: dashCockpit, comercial: dashComercial, monitoramento: dashMonitoramento, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao };
+    const tabs = { cockpit: dashCockpit, comercial: dashComercial, monitoramento: dashMonitoramento, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao, parceria: dashParceriaMensal };
     const show = async (name) => {
       document.querySelectorAll('#dash-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#dash-content'); c.innerHTML = '<div class="spinner"></div>';
@@ -3137,6 +3138,67 @@ async function dashProducao(c) {
     </div>
     ${chartCard('Produtividade por responsável (concluídas)', chartHBars((d.produtividade_por_responsavel || []).map((r) => ({ label: r.responsavel, value: r.concluidas }))))}
     ${miniList('Peças vencendo prazo', (d.pecas_vencendo_prazo || []).map((pc) => `<div class="mini-row"><span>${pc.title}<br><small>${pc.client_name || ''}</small></span>${badge(pc.status_label || 'atencao')}</div>`))}`;
+}
+
+// ── Dashboard: relatório mensal da parceria (protocolados) ───────────────────
+async function dashParceriaMensal(c) {
+  const d = await api('/api/dashboards/parceria-mensal');
+  const meses = d.meses || [];
+  const rows = d.rows || [];
+  if (!meses.length) { c.innerHTML = '<div class="empty">Nenhum caso de parceria protocolado ainda. Ao mover um card para “Protocolado”, ele passa a constar aqui.</div>'; return; }
+
+  const mesLabel = (m) => {
+    const [y, mm] = m.split('-');
+    const nomes = ['', 'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+    return `${nomes[Number(mm)] || mm}/${y}`;
+  };
+
+  c.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+      <div style="display:flex;gap:8px;align-items:center"><label style="font-size:13px;color:var(--text-muted)">Mês (por data de protocolo)</label>
+        <select id="pm-mes">${meses.map((m) => `<option value="${m.mes}">${mesLabel(m.mes)}</option>`).join('')}</select></div>
+      <button class="btn-sm" id="pm-csv" type="button">⬇ Exportar CSV do mês</button>
+    </div>
+    <div id="pm-kpis" class="kpi-grid"></div>
+    <div id="pm-tabela"></div>`;
+
+  const render = (mes) => {
+    const info = meses.find((m) => m.mes === mes) || { casos: 0, clientes: 0, valor_causa: 0, entrada: 0 };
+    const lista = rows.filter((r) => r.mes === mes);
+    $('#pm-kpis').innerHTML =
+      kpi('Casos protocolados', info.casos) +
+      kpi('Clientes', info.clientes) +
+      kpi('Valor da causa (soma)', money(info.valor_causa), 'money') +
+      kpi('Entrada lançada', money(info.entrada), 'money');
+    $('#pm-tabela').innerHTML = `
+      <table class="tbl" style="width:100%;margin-top:6px">
+        <thead><tr><th>Data</th><th>Cliente</th><th>Caso</th><th>Área</th><th>Nº processo</th><th>Parceiro</th><th style="text-align:right">Valor da causa</th></tr></thead>
+        <tbody>${lista.map((r) => `<tr>
+          <td>${fmtDate(r.protocoled_at)}</td>
+          <td><strong>${esc(r.client_name || '—')}</strong></td>
+          <td>${esc(r.title || '—')}</td>
+          <td>${esc(r.legal_area || '—')}</td>
+          <td>${esc(r.case_number || '—')}</td>
+          <td>${esc(r.partner_name || '—')}</td>
+          <td style="text-align:right">${r.valor_causa ? money(r.valor_causa) : '—'}</td>
+        </tr>`).join('') || '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">Nenhum caso neste mês</td></tr>'}</tbody>
+      </table>`;
+  };
+
+  const csv = (mes) => {
+    const lista = rows.filter((r) => r.mes === mes);
+    const head = ['Data', 'Cliente', 'Caso', 'Área', 'Nº processo', 'Parceiro', 'Valor da causa'];
+    const esc2 = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const linhas = lista.map((r) => [fmtDate(r.protocoled_at), r.client_name, r.title, r.legal_area, r.case_number, r.partner_name, r.valor_causa || ''].map(esc2).join(';'));
+    const blob = new Blob(['﻿' + [head.map(esc2).join(';'), ...linhas].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = `parceria-protocolados-${mes}.csv`; a.click(); URL.revokeObjectURL(a.href);
+  };
+
+  const sel = $('#pm-mes');
+  sel.onchange = () => render(sel.value);
+  $('#pm-csv').onclick = () => csv(sel.value);
+  render(meses[0].mes);
 }
 
 // ── Forms ──

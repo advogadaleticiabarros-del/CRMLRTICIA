@@ -504,6 +504,11 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     valorCausa !== undefined ? [stage, finalCaseNumber, valorCausa, id] : [stage, finalCaseNumber, id]
   );
 
+  // Data do protocolo (âncora do relatório mensal): grava na 1ª vez que protocola.
+  if (stage === 'protocolado' && c.production_stage !== 'protocolado') {
+    await db.query('UPDATE cases SET protocoled_at = COALESCE(protocoled_at, NOW()) WHERE id = ?', [id]);
+  }
+
   try {
     await logTimeline({
       clientId: c.client_id, caseId: Number(id), eventType: `etapa_${stage}`,
