@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../config/database';
 import { env } from '../config/env';
 import { enqueueIntake, confirmIntake, ParsedIntake } from '../services/emailIntake';
-import { getInboxAuthUrl, getInboxStatus, updateInboxConfig, disconnectInbox, syncInboxNow, processAttachmentsForImport, getOrCreateCaseFolderUrl } from '../services/partnerInboxService';
+import { getInboxAuthUrl, getInboxStatus, updateInboxConfig, disconnectInbox, syncInboxNow, processAttachmentsForImport, getOrCreateCaseFolderUrl, downloadClientAttachmentsFromGmail } from '../services/partnerInboxService';
 import { createProductionFolder } from '../services/DriveService';
 
 const router = Router();
@@ -114,34 +114,6 @@ router.post('/reprocess-drive/:caseId', async (req: Request, res: Response) => {
   ) as any;
   if (!cs) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
 
-  // Busca imports com anexo do Gmail (source_message_id existe) ligados a este cliente.
-  // Não filtra por status/source rígido: casos antigos podem ter vínculo por partner
-  // ou o import pode não ter ficado com client_id gravado.
-  const [byClient] = await db.query(
-    "SELECT id, source_message_id, attachments_json FROM email_imports WHERE client_id = ? AND source_message_id IS NOT NULL ORDER BY created_at DESC",
-    [cs.client_id]
-  ) as any;
-
-  let imports = byClient;
-  const diag: any = { via: 'client_id', client_id: cs.client_id, byClient: byClient.length };
-
-  // Fallback: se nada por client_id, tenta casar pelo nome do cliente no assunto/from do e-mail
-  if (imports.length === 0) {
-    const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [cs.client_id]) as any;
-    if (cl?.name) {
-      const primeiroNome = String(cl.name).trim().split(/\s+/)[0];
-      const [byName] = await db.query(
-        "SELECT id, source_message_id, attachments_json FROM email_imports WHERE source_message_id IS NOT NULL AND (subject LIKE ? OR parsed_json LIKE ?) ORDER BY created_at DESC LIMIT 10",
-        [`%${cl.name}%`, `%${cl.name}%`]
-      ) as any;
-      imports = byName;
-      diag.via = 'nome_cliente';
-      diag.nome = cl.name;
-      diag.primeiroNome = primeiroNome;
-      diag.byName = byName.length;
-    }
-  }
-
   // 1. Cria/localiza pasta em "CRM Jurídico - Anexos → Cliente → Caso"
   let folderUrl = cs.drive_folder_url || null;
   if (!folderUrl) {
@@ -151,21 +123,30 @@ router.post('/reprocess-drive/:caseId', async (req: Request, res: Response) => {
     }
   }
 
-  // 2. Baixa anexos de todos os imports encontrados
+  // 2. Caminho A — imports já registrados na fila (com metadados de anexo).
   let anexos = 0;
   const avisos: string[] = [];
-  if (imports.length === 0) {
-    avisos.push('Nenhum e-mail com anexo vinculado a este cliente');
-  } else {
-    for (const imp of imports) {
-      try {
-        const n = await processAttachmentsForImport(imp.id, cs.client_id, caseId, req.user!.id);
-        anexos += n;
-      } catch (e: any) {
-        const msg = e?.message || String(e);
-        console.error('[reprocess-drive] import', imp.id, msg);
-        avisos.push(`import ${imp.id}: ${msg}`);
-      }
+  const [imports] = await db.query(
+    "SELECT id, source_message_id, attachments_json FROM email_imports WHERE client_id = ? AND source_message_id IS NOT NULL ORDER BY created_at DESC",
+    [cs.client_id]
+  ) as any;
+  for (const imp of imports) {
+    try {
+      anexos += await processAttachmentsForImport(imp.id, cs.client_id, caseId, req.user!.id);
+    } catch (e: any) {
+      avisos.push(`import ${imp.id}: ${e?.message || String(e)}`);
+    }
+  }
+
+  // 3. Caminho B — se nada foi baixado, busca DIRETO no Gmail pelo nome do cliente.
+  //    Cobre casos confirmados quando o OAuth estava expirado (sem import na fila).
+  let gmail: any = null;
+  if (anexos === 0) {
+    try {
+      gmail = await downloadClientAttachmentsFromGmail(cs.client_id, caseId, req.user!.id);
+      anexos += gmail.anexos;
+    } catch (e: any) {
+      avisos.push(`gmail: ${e?.message || String(e)}`);
     }
   }
 
@@ -174,7 +155,7 @@ router.post('/reprocess-drive/:caseId', async (req: Request, res: Response) => {
     anexos,
     folderUrl,
     imports_encontrados: imports.length,
-    diag,
+    ...(gmail ? { gmail } : {}),
     ...(avisos.length ? { avisos } : {}),
   });
 });

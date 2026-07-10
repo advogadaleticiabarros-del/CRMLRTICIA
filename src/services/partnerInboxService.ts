@@ -325,3 +325,82 @@ export async function processAttachmentsForImport(importId: number, clientId: nu
   }
   return n;
 }
+
+/**
+ * Busca DIRETO no Gmail (sem depender de email_imports) os e-mails do parceiro
+ * que mencionam o cliente e baixa os anexos pro Drive. Usado no botão retroativo
+ * "Baixar do e-mail" para casos confirmados quando o OAuth estava expirado, ou
+ * cujo vínculo com o import se perdeu. Retorna diagnóstico detalhado.
+ */
+export async function downloadClientAttachmentsFromGmail(
+  clientId: number, caseId: number | null, actorId: number
+): Promise<{ anexos: number; emails: number; query: string; assuntos: string[]; erro?: string }> {
+  const row = await loadIntegration();
+  if (!row || !row.refresh_token) {
+    return { anexos: 0, emails: 0, query: '', assuntos: [], erro: 'Gmail da parceria não conectado' };
+  }
+  const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
+  const nome = String(cl?.name || '').trim();
+  if (!nome) return { anexos: 0, emails: 0, query: '', assuntos: [], erro: 'Cliente sem nome' };
+
+  const auth = await authedClient();
+  const gmail = google.gmail({ version: 'v1', auth });
+  const drive = google.drive({ version: 'v3', auth });
+
+  // Gmail full-text: e-mails do parceiro que mencionam o nome do cliente, com anexo.
+  const sender = row.sender_filter ? `from:${row.sender_filter} ` : '';
+  const query = `${sender}"${nome}" has:attachment`;
+  let list;
+  try {
+    list = await gmail.users.messages.list({ userId: 'me', q: query, maxResults: 10 });
+  } catch (e: any) {
+    return { anexos: 0, emails: 0, query, assuntos: [], erro: e?.message || 'Falha ao listar no Gmail' };
+  }
+
+  const msgs = list.data.messages || [];
+  if (!msgs.length) {
+    // Fallback: sem "has:attachment" (alguns e-mails encaminhados escondem o flag)
+    try {
+      const alt = await gmail.users.messages.list({ userId: 'me', q: `${sender}"${nome}"`, maxResults: 10 });
+      for (const m of alt.data.messages || []) msgs.push(m);
+    } catch {}
+  }
+  if (!msgs.length) return { anexos: 0, emails: 0, query, assuntos: [] };
+
+  const folderId = await ensureCaseFolder(auth, clientId, caseId);
+  let anexos = 0; const assuntos: string[] = [];
+
+  for (const m of msgs) {
+    try {
+      const full = await gmail.users.messages.get({ userId: 'me', id: m.id!, format: 'full' });
+      const headers = full.data.payload?.headers || [];
+      const subject = headers.find((h) => h.name?.toLowerCase() === 'subject')?.value || '(sem assunto)';
+      assuntos.push(subject);
+      const texts: string[] = []; const atts: any[] = [];
+      walkParts(full.data.payload, texts, atts);
+      for (const a of atts) {
+        try {
+          const data = await gmail.users.messages.attachments.get({ userId: 'me', messageId: m.id!, id: a.attachmentId });
+          const buf = Buffer.from((data.data.data || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+          const up = await drive.files.create({
+            requestBody: { name: a.filename, parents: [folderId] },
+            media: { mimeType: a.mimeType || 'application/octet-stream', body: Readable.from(buf) },
+            fields: 'id, webViewLink',
+          });
+          const url = up.data.webViewLink || `https://drive.google.com/file/d/${up.data.id}/view`;
+          await db.query(
+            `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, status, created_by)
+             VALUES (?, ?, ?, 'anexo', 'processos', ?, 'recebido', ?)`,
+            [clientId, caseId, a.filename, url, actorId]
+          );
+          anexos++;
+        } catch (e) {
+          console.error('[downloadClientAttachmentsFromGmail] anexo', a?.filename, e instanceof Error ? e.message : e);
+        }
+      }
+    } catch (e) {
+      console.error('[downloadClientAttachmentsFromGmail] msg', m.id, e instanceof Error ? e.message : e);
+    }
+  }
+  return { anexos, emails: msgs.length, query, assuntos };
+}

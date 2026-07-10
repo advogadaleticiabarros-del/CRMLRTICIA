@@ -4801,10 +4801,12 @@ async function caseDetail(id, onSave) {
           const r = await api(`/api/email-intake/reprocess-drive/${id}`, { method: 'POST', body: '{}' });
           if (r.anexos > 0) {
             toast(`Drive sincronizado · ${r.anexos} anexo(s) baixado(s)`);
-          } else if (r.imports_encontrados === 0) {
-            toast('Nenhum e-mail de parceria encontrado para este cliente', 'error');
+          } else if (r.gmail && r.gmail.erro) {
+            toast(`Gmail: ${r.gmail.erro}`, 'error');
+          } else if (r.gmail && r.gmail.emails === 0) {
+            toast('Nenhum e-mail do parceiro menciona este cliente (verifique o nome cadastrado)', 'error');
           } else {
-            toast('Pasta verificada — o e-mail não possui anexos identificáveis ou o download falhou (veja logs)', 'error');
+            toast('E-mail localizado, mas sem anexos para baixar (veja logs)', 'error');
           }
           if (r.folderUrl) { panel.querySelector('#prod-drive').value = r.folderUrl; }
           loadProd();
