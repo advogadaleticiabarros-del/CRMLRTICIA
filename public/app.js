@@ -4811,7 +4811,13 @@ async function caseDetail(id, onSave) {
           } else {
             toast('E-mail localizado, mas sem anexos identificados', 'error');
           }
-          if (g && g.arvore && g.arvore.length) { console.log('[reprocess-drive] árvore MIME:\n' + g.arvore.join('\n')); console.log('[reprocess-drive] diag:', { encontrados: g.encontrados, pulados: g.pulados, assuntos: g.assuntos, query: g.query }); }
+          if (g && g.arvore && g.arvore.length) {
+            console.log('[reprocess-drive] árvore MIME:\n' + g.arvore.join('\n'));
+            console.log('[reprocess-drive] diag:', { encontrados: g.encontrados, pulados: g.pulados, assuntos: g.assuntos, query: g.query });
+            if (r.anexos === 0) {
+              alert(`Diagnóstico do e-mail (mande este print):\n\nAnexos encontrados: ${g.encontrados}\nJá existentes (pulados): ${g.pulados}\nE-mails: ${g.emails}\nBusca: ${g.query}\n\nEstrutura MIME:\n${g.arvore.join('\n')}`);
+            }
+          }
           if (r.folderUrl) { panel.querySelector('#prod-drive').value = r.folderUrl; }
           loadProd();
         } catch (e) { toast(e.message || 'Erro ao sincronizar Drive', 'error'); }
