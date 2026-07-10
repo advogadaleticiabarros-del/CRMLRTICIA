@@ -104,15 +104,54 @@ function decodeB64(data?: string | null): string {
   if (!data) return '';
   try { return Buffer.from(data.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8'); } catch { return ''; }
 }
+/** Extrai o valor de um header MIME da parte (case-insensitive). */
+function headerVal(payload: any, name: string): string | null {
+  const h = (payload?.headers || []).find((x: any) => x.name?.toLowerCase() === name.toLowerCase());
+  return h?.value || null;
+}
+/** Deriva um nome de arquivo a partir de Content-Disposition/Content-Type quando payload.filename vem vazio. */
+function deriveFilename(payload: any, idx: number): string {
+  if (payload.filename) return payload.filename;
+  const cd = headerVal(payload, 'content-disposition') || '';
+  const ct = headerVal(payload, 'content-type') || '';
+  const m = cd.match(/filename\*?=(?:"([^"]+)"|([^;]+))/i) || ct.match(/name\*?=(?:"([^"]+)"|([^;]+))/i);
+  if (m) return (m[1] || m[2] || '').trim();
+  const ext = (payload.mimeType || '').split('/')[1] || 'bin';
+  return `anexo_${idx}.${ext}`;
+}
+
+/**
+ * Percorre a árvore MIME coletando TODAS as partes que são arquivo, incluindo
+ * imagens INLINE (Content-Disposition: inline / Content-ID) que o Outlook embute
+ * no corpo — que apareciam com o ícone de nuvem e antes eram ignoradas.
+ * Cada anexo vem com attachmentId (baixar via API) OU data (bytes inline).
+ */
 function walkParts(payload: any, texts: string[], atts: any[], seenIds = new Set<string>()): void {
   if (!payload) return;
   const parts = payload.parts || [];
-  if (payload.filename && payload.body?.attachmentId && !seenIds.has(payload.body.attachmentId)) {
-    seenIds.add(payload.body.attachmentId);
-    atts.push({ filename: payload.filename, mimeType: payload.mimeType, attachmentId: payload.body.attachmentId });
+  const mime = payload.mimeType || '';
+  const isContainer = mime.startsWith('multipart/');
+  const isBodyText = (mime === 'text/plain' || mime === 'text/html') && !payload.filename && !headerVal(payload, 'content-id');
+
+  // Qualquer parte não-container e não-corpo com conteúdo (attachmentId ou data) é um arquivo.
+  if (!isContainer && !isBodyText) {
+    const attachmentId: string | undefined = payload.body?.attachmentId || undefined;
+    const inlineData: string | undefined = !attachmentId ? (payload.body?.data || undefined) : undefined;
+    if (attachmentId || inlineData) {
+      const key = attachmentId || `inline:${payload.partId || atts.length}`;
+      if (!seenIds.has(key)) {
+        seenIds.add(key);
+        atts.push({
+          filename: deriveFilename(payload, atts.length + 1),
+          mimeType: mime || 'application/octet-stream',
+          attachmentId, data: inlineData,
+        });
+      }
+    }
   }
-  if (payload.mimeType === 'text/plain' && payload.body?.data) texts.push(decodeB64(payload.body.data));
-  else if (payload.mimeType === 'text/html' && payload.body?.data && !texts.length) {
+
+  if (mime === 'text/plain' && payload.body?.data && !payload.filename) texts.push(decodeB64(payload.body.data));
+  else if (mime === 'text/html' && payload.body?.data && !texts.length && !payload.filename) {
     texts.push(decodeB64(payload.body.data).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
   }
   for (const p of parts) walkParts(p, texts, atts, seenIds);
@@ -305,8 +344,13 @@ export async function processAttachmentsForImport(importId: number, clientId: nu
   let n = 0;
   for (const a of atts) {
     try {
-      const data = await gmail.users.messages.attachments.get({ userId: 'me', messageId: imp.source_message_id, id: a.attachmentId });
-      const buf = Buffer.from((data.data.data || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+      let raw = a.data as string | undefined;
+      if (!raw && a.attachmentId) {
+        const data = await gmail.users.messages.attachments.get({ userId: 'me', messageId: imp.source_message_id, id: a.attachmentId });
+        raw = data.data.data || '';
+      }
+      if (!raw) continue;
+      const buf = Buffer.from(raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
       const up = await drive.files.create({
         requestBody: { name: a.filename, parents: [folderId] },
         media: { mimeType: a.mimeType || 'application/octet-stream', body: Readable.from(buf) },
@@ -380,8 +424,13 @@ export async function downloadClientAttachmentsFromGmail(
       walkParts(full.data.payload, texts, atts);
       for (const a of atts) {
         try {
-          const data = await gmail.users.messages.attachments.get({ userId: 'me', messageId: m.id!, id: a.attachmentId });
-          const buf = Buffer.from((data.data.data || '').replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+          let raw = a.data as string | undefined;
+          if (!raw && a.attachmentId) {
+            const data = await gmail.users.messages.attachments.get({ userId: 'me', messageId: m.id!, id: a.attachmentId });
+            raw = data.data.data || '';
+          }
+          if (!raw) continue;
+          const buf = Buffer.from(raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
           const up = await drive.files.create({
             requestBody: { name: a.filename, parents: [folderId] },
             media: { mimeType: a.mimeType || 'application/octet-stream', body: Readable.from(buf) },
