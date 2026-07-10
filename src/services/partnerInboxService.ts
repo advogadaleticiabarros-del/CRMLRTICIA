@@ -250,6 +250,20 @@ async function ensureCaseFolder(auth: any, clientId: number, caseId: number | nu
   return ensureSubfolder(auth, clientFolder, caseName);
 }
 
+/** Cria (ou localiza) a pasta do caso dentro de "CRM Jurídico - Anexos" e retorna o webViewLink. */
+export async function getOrCreateCaseFolderUrl(clientId: number, caseId: number): Promise<string | null> {
+  try {
+    const auth = await authedClient();
+    const folderId = await ensureCaseFolder(auth, clientId, caseId);
+    const drive = google.drive({ version: 'v3', auth });
+    const meta = await drive.files.get({ fileId: folderId, fields: 'webViewLink' });
+    return meta.data.webViewLink || `https://drive.google.com/drive/folders/${folderId}`;
+  } catch (e) {
+    console.error('[getOrCreateCaseFolderUrl]', e);
+    return null;
+  }
+}
+
 /**
  * Baixa os anexos de uma importação (source gmail) e sobe pro Drive, criando
  * um documento (file_url) por anexo, vinculado ao cliente/caso.

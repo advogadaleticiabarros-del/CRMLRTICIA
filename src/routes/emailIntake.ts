@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../config/database';
 import { env } from '../config/env';
 import { enqueueIntake, confirmIntake, ParsedIntake } from '../services/emailIntake';
-import { getInboxAuthUrl, getInboxStatus, updateInboxConfig, disconnectInbox, syncInboxNow, processAttachmentsForImport } from '../services/partnerInboxService';
+import { getInboxAuthUrl, getInboxStatus, updateInboxConfig, disconnectInbox, syncInboxNow, processAttachmentsForImport, getOrCreateCaseFolderUrl } from '../services/partnerInboxService';
 import { createProductionFolder } from '../services/DriveService';
 
 const router = Router();
@@ -120,23 +120,20 @@ router.post('/reprocess-drive/:caseId', async (req: Request, res: Response) => {
     [cs.client_id]
   ) as any;
 
+  // 1. Cria/localiza pasta em "CRM Jurídico - Anexos → Cliente → Caso"
+  let folderUrl = cs.drive_folder_url || null;
+  if (!folderUrl) {
+    folderUrl = await getOrCreateCaseFolderUrl(cs.client_id, caseId);
+    if (folderUrl) {
+      await db.query('UPDATE cases SET drive_folder_url = ? WHERE id = ?', [folderUrl, caseId]);
+    }
+  }
+
+  // 2. Baixa anexos do e-mail (se import Gmail encontrado)
   let anexos = 0;
   if (imports.length > 0) {
     try { anexos = await processAttachmentsForImport(imports[0].id, cs.client_id, caseId, req.user!.id); }
     catch (e) { console.error('[reprocess-drive] anexos:', e); }
-  }
-
-  // Cria pasta Drive se ainda não existe
-  let folderUrl = cs.drive_folder_url || null;
-  if (!folderUrl) {
-    try {
-      const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [cs.client_id]) as any;
-      const result = await createProductionFolder(req.user!.id, cl?.name || 'Cliente', cs.legal_area || 'Geral', (cs.title || '').substring(0, 50));
-      if (result) {
-        folderUrl = result.folderUrl;
-        await db.query('UPDATE cases SET drive_folder_url = ? WHERE id = ?', [folderUrl, caseId]);
-      }
-    } catch (e) { console.error('[reprocess-drive] pasta:', e); }
   }
 
   res.json({ success: true, anexos, folderUrl });
