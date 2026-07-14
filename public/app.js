@@ -3212,15 +3212,37 @@ async function dashFinanceiro(c) {
 }
 
 async function dashProducao(c) {
+  // Mede a ESTEIRA REAL (cases.production_stage). Antes lia a tabela legal_pieces,
+  // onde nada é inserido — por isso mostrava zero mesmo com a esteira cheia.
   const d = await api('/api/dashboards/producao');
-  const p = d.pecas_por_status || {};
+  const k = d.kpis || {};
+  const etapas = d.por_etapa || [];
+  const parados = d.parados || [];
+
   c.innerHTML = `
     <div class="kpi-grid">
-      ${kpi('Rascunho', p.rascunho)}${kpi('Em produção', p.producao)}${kpi('Em revisão', p.revisao)}
-      ${kpi('Finalizadas', p.finalizado)}${kpi('Protocoladas', p.protocolado)}
+      ${kpi('Em produção', k.em_producao)}
+      ${kpi(`Atrasados (>${k.sla_dias}d)`, k.atrasados, k.atrasados ? 'red' : '')}
+      ${kpi('Pendências abertas', k.pendencias, k.pendencias ? 'amber' : '')}
+      ${kpi('Protocolados no mês', k.protocolados_mes)}
+      ${kpi('Concluídos', k.concluidos)}
     </div>
-    ${chartCard('Produtividade por responsável (concluídas)', chartHBars((d.produtividade_por_responsavel || []).map((r) => ({ label: r.responsavel, value: r.concluidas }))))}
-    ${miniList('Peças vencendo prazo', (d.pecas_vencendo_prazo || []).map((pc) => `<div class="mini-row"><span>${pc.title}<br><small>${pc.client_name || ''}</small></span>${badge(pc.status_label || 'atencao')}</div>`))}`;
+    ${chartCard('Casos por etapa da esteira', chartHBars(etapas.map((e) => ({ label: e.etapa, value: e.total }))))}
+    ${chartCard('Produtividade — protocolados por responsável (90 dias)',
+      (d.produtividade || []).length
+        ? chartHBars(d.produtividade.map((r) => ({ label: r.responsavel, value: Number(r.protocolados) })))
+        : '<div class="empty">Nenhum caso protocolado nos últimos 90 dias.</div>')}
+    ${miniList(`Parados há mais tempo (é aqui que a produção trava)`, parados.length
+      ? parados.map((p) => `<div class="mini-row" style="cursor:pointer" data-caso="${p.id}">
+          <span><strong>${esc(p.client_name || 'sem cliente')}</strong> — ${esc(p.title || '')}
+            <br><small style="color:var(--text-muted)">${esc(p.production_stage || '')}${Number(p.pendencias) ? ` · ⚠ ${p.pendencias} pendência(s)` : ''}</small></span>
+          <strong style="color:${Number(p.dias) > k.sla_dias ? 'var(--red)' : 'var(--text-muted)'}">${p.dias}d</strong>
+        </div>`)
+      : ['<div class="mini-row"><span>Nenhum caso parado na esteira.</span></div>'])}`;
+
+  c.querySelectorAll('[data-caso]').forEach((el) => {
+    el.onclick = () => caseDetail(el.dataset.caso, () => dashProducao(c));
+  });
 }
 
 // ── Dashboard: relatório mensal da parceria (protocolados) ───────────────────
