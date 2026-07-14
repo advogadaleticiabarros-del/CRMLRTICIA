@@ -4,15 +4,18 @@ import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
 import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
 import { getEscritorio } from '../services/escritorio';
+import { ensurePartnerLawyersColumn } from '../services/propostaSchema';
 
 const router = Router();
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
 
 // ── GET /api/public/proposta/:token — proposta para o cliente (sem login) ────
 router.get('/proposta/:token', async (req: Request, res: Response) => {
+  const hasPartnerColumn = await ensurePartnerLawyersColumn();
+  const partnerSelect = hasPartnerColumn ? 'p.partner_lawyers' : 'NULL AS partner_lawyers';
   const [rows] = await db.query(
     `SELECT p.title, p.contact_name, p.legal_area, p.tipo_causa, p.description, p.valor,
-            p.validade, p.observacoes, p.honorarios, p.dependentes, p.partner_lawyers, p.status, p.aceito_em, p.created_at,
+            p.validade, p.observacoes, p.honorarios, p.dependentes, ${partnerSelect}, p.status, p.aceito_em, p.created_at,
             u.name AS advogada_nome
        FROM propostas p
        LEFT JOIN users u ON u.id = p.user_id

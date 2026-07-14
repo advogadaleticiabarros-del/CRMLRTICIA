@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
 import { sendProposalLink, isEmailConfigured } from '../services/EmailService';
+import { ensurePartnerLawyersColumn } from '../services/propostaSchema';
 
 const router = Router();
 
@@ -77,18 +78,22 @@ router.post('/', async (req: Request, res: Response) => {
   const finalTitle = (title && String(title).trim()) || `Proposta — ${contact_name || tipo_causa || 'cliente'}`;
 
   const publicToken = crypto.randomUUID();
+  const hasPartnerColumn = await ensurePartnerLawyersColumn();
+  const partnerColumnSql = hasPartnerColumn ? ', partner_lawyers' : '';
+  const partnerValueSql = hasPartnerColumn ? ', ?' : '';
+  const partnerParams = hasPartnerColumn ? [partner_lawyers ?? null] : [];
   const [result] = await db.query(
     `INSERT INTO propostas
        (user_id, client_id, case_id, lead_id, title, valor, status, validade, description,
-        legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes, partner_lawyers, public_token)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes${partnerColumnSql}, public_token)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${partnerValueSql}, ?)`,
     [
       req.user!.id, client_id ?? null, case_id ?? null, lead_id ?? null,
       finalTitle, Number(valor) || 0, STATUSES.includes(status) ? status : 'rascunho',
       validade || null, description ?? null,
       legal_area ?? null, tipo_causa ?? null, contact_name ?? null, cpf ?? null, phone ?? null, email ?? null,
       dependentes ? JSON.stringify(dependentes) : null, honorarios ? JSON.stringify(honorarios) : null, observacoes ?? null,
-      partner_lawyers ?? null,
+      ...partnerParams,
       publicToken,
     ]
   ) as any;
@@ -129,7 +134,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('phone', req.body.phone);
   setIf('email', req.body.email);
   setIf('observacoes', req.body.observacoes);
-  setIf('partner_lawyers', req.body.partner_lawyers);
+  if (await ensurePartnerLawyersColumn()) setIf('partner_lawyers', req.body.partner_lawyers);
   if (req.body.dependentes !== undefined) { fields.push('dependentes = ?'); params.push(req.body.dependentes ? JSON.stringify(req.body.dependentes) : null); }
   if (req.body.honorarios !== undefined) { fields.push('honorarios = ?'); params.push(req.body.honorarios ? JSON.stringify(req.body.honorarios) : null); }
 
