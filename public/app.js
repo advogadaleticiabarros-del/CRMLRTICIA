@@ -335,6 +335,21 @@ const ICONS = {
   dot: '<circle cx="12" cy="12" r="3.5"/>',
   chat: '<path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.5 0-2.9-.36-4.1-1L3 20l1.05-5.2A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/>',
 };
+// Ícones acrescentados no expurgo de emoji: emoji como ícone de interface é o
+// delator nº 1 de "feito por IA" — e ainda muda de desenho a cada sistema
+// operacional. O traço aqui é o mesmo do resto do conjunto (Lucide, 24×24).
+Object.assign(ICONS, {
+  shield:   '<path d="M12 3.5 5 6.2v5.1c0 4.3 2.9 8.2 7 9.2 4.1-1 7-4.9 7-9.2V6.2z"/><path d="M9.6 12.2l1.7 1.7 3.3-3.4"/>',
+  key:      '<circle cx="8" cy="12" r="3.2"/><path d="M11.2 12H21M18 12v3M15 12v2"/>',
+  mail:     '<rect x="3" y="5.5" width="18" height="13" rx="2"/><path d="m3.6 6.8 8.4 6 8.4-6"/>',
+  refresh:  '<path d="M20 12a8 8 0 1 1-2.6-5.9"/><path d="M20 4v4h-4"/>',
+  download: '<path d="M12 4v10"/><path d="m8 10.5 4 4 4-4"/><path d="M4.5 17.5v1a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2v-1"/>',
+  broom:    '<path d="M13.5 4.5 9 9"/><path d="M11 7.5 16.5 13"/><path d="M9 9.5 5.5 13a3 3 0 0 0-.6 3.3L6 19h8l1.1-2.7a3 3 0 0 0-.6-3.3z"/><path d="M8 19v-4M11 19v-4"/>',
+  note:     '<path d="M6 3.5h9l4 4V19a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 19V5A1.5 1.5 0 0 1 6.5 3.5z"/><path d="M15 3.5V8h4"/><path d="M8.5 12.5h7M8.5 16h4.5"/>',
+  printer:  '<path d="M7 8V4h10v4"/><rect x="4" y="8" width="16" height="8" rx="1.5"/><path d="M7 14h10v5H7z"/>',
+  building: '<rect x="5" y="3.5" width="14" height="17" rx="1.5"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h6v5.5H9z"/>',
+});
+
 function svgIcon(name, extra) {
   const p = ICONS[name] || ICONS.dot;
   return `<svg class="ic${extra ? ' ' + extra : ''}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
@@ -863,7 +878,7 @@ const ROUTES = {
         <tbody>${r.data.map((p) => `<tr>
           <td><strong>${p.title}</strong></td><td>${p.client_name || '—'}</td>
           <td>${money(p.valor)}</td><td>${badge(p.status)}</td><td>${fmtDate(p.validade)}</td>
-          <td style="white-space:nowrap"><button class="btn-sm" data-edit-prop="${p.id}">✏️ Editar</button> <button class="btn-sm" data-prop="${p.id}">Abrir</button></td></tr>`).join('')}</tbody></table>
+          <td style="white-space:nowrap"><button class="btn-sm" data-edit-prop="${p.id}">${svgIcon('edit')} Editar</button> <button class="btn-sm" data-prop="${p.id}">Abrir</button></td></tr>`).join('')}</tbody></table>
         <div class="list-foot"><span>${r.total} proposta(s) · página ${r.page} de ${pages}</span>${pagerHtml(r.page, pages)}</div>`
         : '<div class="empty">Nenhuma proposta ainda</div>';
       document.querySelectorAll('[data-edit-prop]').forEach((b) => b.onclick = async () => {
@@ -1008,8 +1023,8 @@ const ROUTES = {
                 ${full.length > 110 ? `<br><button class="btn-sm" data-full-dd="${d.id}" style="margin-top:6px">${svgIcon('file')}Ver na íntegra</button>` : ''}
                 ${d.ai_summary ? `<div style="margin-top:8px;padding:8px 10px;border-left:3px solid var(--gold);background:var(--surface);font-size:12px;line-height:1.5"><strong>🧑‍🎓 Estagiário IA:</strong><br>${esc(d.ai_summary.slice(0, 400))}${d.ai_summary.length > 400 ? '…' : ''}</div>` : ''}
                 ${d.ai_draft_id
-                  ? `<button class="btn-sm" data-draft-dd="${d.ai_draft_id}" style="margin-top:6px">${svgIcon('edit')}Ver minuta</button> <button class="btn-sm" data-gen-dd="${d.id}" style="margin-top:6px">🧑‍🎓 Refazer com IA</button>`
-                  : `<button class="btn-gold btn-sm" data-gen-dd="${d.id}" style="margin-top:6px">🧑‍🎓 Gerar minuta (IA)</button>`}</td>
+                  ? `<button class="btn-sm" data-draft-dd="${d.ai_draft_id}" style="margin-top:6px">${svgIcon('edit')}Ver minuta</button> <button class="btn-sm" data-gen-dd="${d.id}" style="margin-top:6px">${svgIcon('ia')} Refazer com IA</button>`
+                  : `<button class="btn-gold btn-sm" data-gen-dd="${d.id}" style="margin-top:6px">${svgIcon('ia')} Gerar minuta (IA)</button>`}</td>
             <td>${d.process_number || '—'}</td>
             <td>${d.suggested_type || '—'} · ${d.suggested_days || '?'} dias</td>
             <td style="white-space:nowrap"><button class="btn-gold btn-sm" data-conf-dd="${d.id}">Confirmar</button> <button class="btn-sm" data-disc-dd="${d.id}">Descartar</button></td></tr>`; }).join('')}</tbody></table>
@@ -1177,7 +1192,7 @@ const ROUTES = {
 
       <div class="card" style="padding:20px;margin-bottom:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-          <div><h3 style="color:var(--navy);margin-bottom:2px">🔐 Proteção de dados (LGPD)</h3>
+          <div><h3 style="color:var(--navy);margin-bottom:2px">${svgIcon('shield','ic-title')}Proteção de dados (LGPD)</h3>
             <p class="sub" style="margin:0">Tokens do Google e backups cifrados · dados sem finalidade são expurgados</p></div>
           <button class="btn-sm" id="sec-reload">Atualizar</button>
         </div>
@@ -1186,7 +1201,7 @@ const ROUTES = {
 
       <div class="card" style="padding:20px;margin-bottom:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
-          <div><h3 style="color:var(--navy);margin-bottom:2px">⏰ Saúde das rotinas automáticas</h3>
+          <div><h3 style="color:var(--navy);margin-bottom:2px">${svgIcon('clock','ic-title')}Saúde das rotinas automáticas</h3>
             <p class="sub" style="margin:0">Prazos, backup, financeiro e sincronizações — descubra a falha antes de sentir o sintoma</p></div>
           <button class="btn-sm" id="job-reload">Atualizar</button>
         </div>
@@ -1347,7 +1362,7 @@ const ROUTES = {
           ${linha('Backup enviado ao MEGA', s.backup.sera_cifrado ? 'cifrado' : 'EM CLARO', s.backup.sera_cifrado)}
           ${(s.alertas || []).map((a) => `<div style="margin-top:10px;font-size:12.5px;background:#fff4e5;border-left:3px solid var(--gold,#c9a227);padding:8px 10px;border-radius:4px">${esc(a)}</div>`).join('')}
           <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
-            <button class="btn-sm" id="lgpd-preview">🧹 Ver o que o expurgo apagaria</button>
+            <button class="btn-sm" id="lgpd-preview">${svgIcon('broom')} Ver o que o expurgo apagaria</button>
           </div>
           <div id="lgpd-box" style="margin-top:10px"></div>`;
 
@@ -1681,7 +1696,7 @@ const ROUTES = {
               <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
                 <select class="kf-move" data-id="${r.id}" title="Mover etapa" style="flex:1">${STAGES.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}</select>
                 <button class="kf-edit" data-id="${r.id}" data-title="${esc2(r.title || '')}" title="Editar a demanda (título)" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✎</button>
-                <button class="kf-obs-edit" data-id="${r.id}" data-obs="${esc2(r.production_obs || '')}" title="Observação do card" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">📝</button>
+                <button class="kf-obs-edit" data-id="${r.id}" data-obs="${esc2(r.production_obs || '')}" title="Observação do card" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">${svgIcon('note')}</button>
                 <button class="kf-dup" data-id="${r.id}" title="Duplicar demanda" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">⧉</button>
                 <button class="kf-del" data-id="${r.id}" title="Apagar demanda" style="background:none;border:1px solid var(--red,#c0392b);color:var(--red,#c0392b);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✕</button>
               </div>
@@ -1810,7 +1825,7 @@ const ROUTES = {
     const partners = await api('/api/partners').catch(() => []);
     page.innerHTML = `
       <div class="page-header"><div><h2>Parcerias</h2><p class="sub">Casos indicados por parceiros · registro próprio, entram na esteira de produção</p></div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-ghost" id="import-email">📧 Importar do e-mail</button><button class="btn-ghost" id="new-partner">+ Novo parceiro</button><button class="btn-gold" id="new-parc-case">+ Novo caso de parceria</button></div></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-ghost" id="import-email">${svgIcon('mail')} Importar do e-mail</button><button class="btn-ghost" id="new-partner">+ Novo parceiro</button><button class="btn-gold" id="new-parc-case">+ Novo caso de parceria</button></div></div>
       <div id="parc-inbox"></div>
       <div id="parc-import-queue"></div>
       <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px"><label>Parceiro</label>
@@ -2454,8 +2469,8 @@ async function renderCorrespondente(page) {
     <div id="corr-kpis" class="kpi-grid"></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
       <div class="tabs" id="corr-tabs">
-        <button class="tab active" data-tab="historico">📊 Histórico</button>
-        <button class="tab" data-tab="agenda">📅 Audiências da Agenda</button>
+        <button class="tab active" data-tab="historico">${svgIcon('chart')} Histórico</button>
+        <button class="tab" data-tab="agenda">${svgIcon('calendar')} Audiências da Agenda</button>
       </div>
       <button class="btn-subtle" id="new-corr-btn" title="Lançar nova audiência">+ Audiência</button>
     </div>
@@ -2474,7 +2489,7 @@ async function renderCorrespondente(page) {
     const c = $('#corr-content');
     c.innerHTML = `
       <div class="form-section" style="margin-bottom:16px">
-        <div class="section-header">🔍 Filtro de Status</div>
+        <div class="section-header">${svgIcon('search', 'ic-inline')} Filtro de Status</div>
         <select id="corr-filter" style="width:100%;max-width:300px">
           <option value="">Todas</option>
           <option value="agendada">Agendadas</option>
@@ -2521,13 +2536,13 @@ async function renderCorrespondente(page) {
     const pend = await api('/api/correspondente/agenda-pendencias').catch(() => []);
     c.innerHTML = pend.length ? `
       <div class="form-section" style="border:1px solid var(--gold)">
-        <div class="section-header">📅 Eventos do Google Calendar</div>
+        <div class="section-header">${svgIcon('calendar', 'ic-inline')} Eventos do Google Calendar</div>
         <p class="sub" style="margin-bottom:12px">Clique em "É correspondente" para registrar como audiência, ou "É do cliente" para vincular à ficha.</p>
         ${pend.map((e) => `<div class="mini-row" style="background:var(--surface-2);padding:12px;border-radius:8px;margin-bottom:8px">
           <span><strong>${e.title}</strong><br><small style="color:var(--text-muted)">${fmtDateTime(e.start_datetime)} ${e.location ? '· ' + e.location : ''}</small></span>
           <span style="white-space:nowrap;display:flex;gap:6px">
             <button class="btn-sm" data-pend-corr="${e.id}" data-dt="${e.start_datetime}">✓ Correspondente</button>
-            <button class="btn-sm" data-pend-cli="${e.id}">👤 Cliente</button></span></div>`).join('')}
+            <button class="btn-sm" data-pend-cli="${e.id}">${svgIcon('users')} Cliente</button></span></div>`).join('')}
       </div>` : '<div class="empty">Nenhuma audiência da agenda para classificar</div>';
 
     document.querySelectorAll('[data-pend-corr]').forEach((b) => b.onclick = () => {
@@ -2636,18 +2651,18 @@ async function correspondenteFormHtml(prefill = {}) {
   );
   return `<form class="form-grid form-pro-max" id="corresp-form">
     <div class="form-section">
-      <div class="section-header">📅 Quando</div>
+      <div class="section-header">${svgIcon('calendar', 'ic-inline')} Quando</div>
       <div class="form-row">${field('Data e hora *', 'hearing_datetime', { type: 'datetime-local', value: prefill.hearing_datetime || '' })}${field('Atuação', 'role', { options: [{ v: 'advogado', t: '👨‍⚖️ Advogado' }, { v: 'preposto', t: '📋 Preposto' }] })}</div>
     </div>
 
     <div class="form-section">
-      <div class="section-header">⚖️ Processo</div>
+      <div class="section-header">${svgIcon('scale', 'ic-inline')} Processo</div>
       <div class="form-row">${field('Número do processo', 'process_number')}${field('Comarca', 'comarca')}</div>
       <div class="form-row">${field('Vara', 'vara')}${field('Fórum / link', 'location')}</div>
     </div>
 
     <div class="form-section">
-      <div class="section-header">🤝 Quem pagou</div>
+      <div class="section-header">${svgIcon('users', 'ic-inline')} Quem pagou</div>
       ${solicitantes.length ? field('Repetir solicitante já usado', 'sol_pick', { options: solOpts }) : ''}
       ${field('Escritório/advogado contratante', 'requesting_office')}
       <div class="form-row">${field('Pagador (empresa ou pessoa) *', 'payer_name', { style: 'grid-column: 1 / -1;' })}${field('Tipo', 'payer_type', { options: [{ v: 'PJ', t: 'PJ' }, { v: 'PF', t: 'PF' }] })}</div>
@@ -2655,7 +2670,7 @@ async function correspondenteFormHtml(prefill = {}) {
     </div>
 
     <div class="form-section">
-      <div class="section-header">💰 Pagamento</div>
+      <div class="section-header">${svgIcon('banknote', 'ic-inline')} Pagamento</div>
       <div class="form-row">${field('Valor da audiência *', 'value', { type: 'number' })}${field('Vencimento', 'due_date', { type: 'date' })}</div>
       ${field('Observações', 'notes', { type: 'textarea' })}
     </div>
@@ -2734,7 +2749,7 @@ async function loadInboxPanel(onChange) {
   box.innerHTML = `<div class="card" style="margin-bottom:14px;padding:12px 14px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <div style="font-size:13px">📨 Gmail conectado: <strong>${esc(st.google_email || '—')}</strong> · remetente <code>${esc(st.sender_filter || '')}</code> · última busca: ${last} ${st.active ? '' : '<span style="color:var(--red)">(pausado)</span>'}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-gold btn-sm" id="inbox-sync">🔄 Buscar agora</button><button class="btn-sm" id="inbox-sync-reset" title="Apaga o last_sync e rebusca desde o início do dia">↩ Rebuscar desde hoje</button><button class="btn-sm" id="inbox-perm">🔑 Atualizar permissões</button><button class="btn-sm" id="inbox-disc">Desconectar</button></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-gold btn-sm" id="inbox-sync">${svgIcon('refresh')} Buscar agora</button><button class="btn-sm" id="inbox-sync-reset" title="Apaga o last_sync e rebusca desde o início do dia">${svgIcon('refresh')} Rebuscar desde hoje</button><button class="btn-sm" id="inbox-perm">${svgIcon('key')} Atualizar permissões</button><button class="btn-sm" id="inbox-disc">Desconectar</button></div>
     </div></div>`;
   const permBtn = $('#inbox-perm');
   if (permBtn) permBtn.onclick = async () => {
@@ -3262,7 +3277,7 @@ async function dashParceriaMensal(c) {
     <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px">
       <div style="display:flex;gap:8px;align-items:center"><label style="font-size:13px;color:var(--text-muted)">Mês (por data de protocolo)</label>
         <select id="pm-mes">${meses.map((m) => `<option value="${m.mes}">${mesLabel(m.mes)}</option>`).join('')}</select></div>
-      <button class="btn-sm" id="pm-csv" type="button">⬇ Exportar CSV do mês</button>
+      <button class="btn-sm" id="pm-csv" type="button">${svgIcon('download')} Exportar CSV do mês</button>
     </div>
     <div id="pm-kpis" class="kpi-grid"></div>
     <div id="pm-tabela"></div>`;
@@ -3358,7 +3373,7 @@ async function finVisaoGeral(c) {
       ${kpi('Saldo realizado', money(s.saldo_realizado), 'money')}
       ${kpi('Inadimplência', money(s.inadimplencia), 'money')}
     </div>
-    <h3 style="color:var(--navy);margin:20px 0 8px">📊 Projeção do Mês (${proj.mes})</h3>
+    <h3 style="color:var(--navy);margin:20px 0 8px">${svgIcon('chart','ic-title')}Projeção do Mês (${proj.mes})</h3>
     <div class="kpi-grid">
       ${kpi('✅ Entradas recebidas', money(proj.entrada_realizado), 'money', proj.entrada_realizado > 0 ? 'var(--green)' : '')}
       ${kpi('📍 A receber', money(proj.entrada_previsto), 'money', proj.entrada_previsto > 0 ? 'var(--orange)' : '')}
@@ -3468,12 +3483,12 @@ async function finAcordos(c) {
 async function finReceitas(c) {
   c.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-      <div><h3 style="color:var(--navy);margin:0">💰 Receitas & Parcelas</h3></div>
-      <div style="display:flex;gap:8px"><button class="btn-gold btn-sm" id="new-receita">+ Nova receita</button><button class="btn-sm" id="print-receitas">🖨️ Imprimir</button><button class="btn-sm" id="export-receitas">📊 Exportar CSV</button></div>
+      <div><h3 style="color:var(--navy);margin:0">${svgIcon('banknote','ic-title')}Receitas & Parcelas</h3></div>
+      <div style="display:flex;gap:8px"><button class="btn-gold btn-sm" id="new-receita">+ Nova receita</button><button class="btn-sm" id="print-receitas">${svgIcon('printer')} Imprimir</button><button class="btn-sm" id="export-receitas">${svgIcon('chart')} Exportar CSV</button></div>
     </div>
 
     <div class="form-section" style="margin-bottom:16px">
-      <div class="section-header">🔍 Filtros</div>
+      <div class="section-header">${svgIcon('search', 'ic-inline')} Filtros</div>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
         <label>Status
           <select id="rec-filter-status"><option value="">Todos</option><option value="pendente">Pendente</option><option value="recebido">Recebido</option><option value="vencido">Vencido</option></select>
@@ -3762,7 +3777,7 @@ async function finContasPagar(c) {
         entradas.map((r) => {
           const due = (r.due_date || '').split('T')[0];
           const st = r.status === 'realizado' ? '<span class="badge ativo">recebido</span>' : '<span class="badge">previsto</span>';
-          const escChip = r.escopo === 'pessoal' ? '<span class="chip-escopo pessoal">👤 Pessoal</span>' : '<span class="chip-escopo empresa">🏢 Empresa</span>';
+          const escChip = r.escopo === 'pessoal' ? '<span class="chip-escopo pessoal">' + svgIcon('users', 'ic-inline') + 'Pessoal</span>' : '<span class="chip-escopo empresa">' + svgIcon('building', 'ic-inline') + 'Empresa</span>';
           return `<tr><td>${esc(r.description)} ${escChip}<br><small style="color:var(--text-muted)">${ENTRADA_PT[r.category] || r.category}</small></td>
             <td>${due ? fmtDate(due) : '—'}</td><td>${money(r.amount)}</td><td>${st}</td>
             <td style="white-space:nowrap;text-align:right">
@@ -3802,7 +3817,7 @@ async function finContasPagar(c) {
           const st = r.status === 'realizado' ? '<span class="badge ativo">pago</span>'
             : isVenc ? '<span class="badge vencido">vencido</span>' : '<span class="badge">em aberto</span>';
           const rec = r.installment_total > 1 ? ` <small style="color:var(--text-muted)">(${r.installment_no}/${r.installment_total})</small>` : '';
-          const escChip = r.escopo === 'pessoal' ? '<span class="chip-escopo pessoal">👤 Pessoal</span>' : '<span class="chip-escopo empresa">🏢 Empresa</span>';
+          const escChip = r.escopo === 'pessoal' ? '<span class="chip-escopo pessoal">' + svgIcon('users', 'ic-inline') + 'Pessoal</span>' : '<span class="chip-escopo empresa">' + svgIcon('building', 'ic-inline') + 'Empresa</span>';
           const quem = [r.pagador, r.banco].filter(Boolean).join(' · ');
           return `<tr class="${r.escopo === 'pessoal' ? 'row-pessoal' : ''}">
             <td>${r.description}${rec} ${escChip}${quem ? `<br><small style="color:var(--text-muted)">💳 ${esc(quem)}</small>` : ''}</td>
@@ -4542,7 +4557,7 @@ async function propostaDetail(id, onSave) {
     ${parcelasHtml}
     ${isAceita ? '' : `
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn-sm" id="edit-prop">✏️ Editar proposta</button>
+        <button class="btn-sm" id="edit-prop">${svgIcon('edit')} Editar proposta</button>
         <button class="btn-sm" data-st="enviada">Marcar enviada</button>
         <button class="btn-sm" data-st="em_negociacao">Em negociação</button>
         <button class="btn-sm" data-st="recusada">Recusar</button>
@@ -4951,14 +4966,14 @@ async function caseDetail(id, onSave) {
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Pendências (falta algo?)</small>
           <div id="prod-pend">${pend.length ? pend.map((n) => `<div class="mini-row" style="padding:5px 0"><span>⚠ ${esc(n.text)}<br><small style="color:var(--text-muted)">${esc(n.author_name || '')} · ${fmtDate(n.created_at)}</small></span><button class="btn-sm" type="button" data-resolve="${n.id}">Resolver</button></div>`).join('') : '<small style="color:var(--green)">Sem pendências</small>'}</div>
           <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-newpend" placeholder="o que falta…" style="flex:1"><button class="btn-sm" type="button" id="prod-addpend">+ pendência</button></div></div>
-        <div style="margin-top:10px"><small style="color:var(--text-muted)">📝 Observação do card (aparece na face do card no quadro)</small>
+        <div style="margin-top:10px"><small style="color:var(--text-muted)">${svgIcon('note', 'ic-inline')}Observação do card (aparece na face do card no quadro)</small>
           <div style="display:flex;gap:6px;margin-top:4px"><textarea id="prod-obs" placeholder="ex.: cliente pediu urgência · aguardar laudo Dr. X" style="flex:1;min-height:46px;resize:vertical">${esc(p.production_obs || '')}</textarea><button class="btn-sm" type="button" id="prod-obs-save" style="align-self:flex-start">Salvar</button></div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Pasta do Drive com os documentos deste caso — a IA lê, organiza e monta o checklist</small>
-          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap"><input id="prod-drive" placeholder="cole o link da pasta do Google Drive" value="${esc(p.drive_folder_url || '')}" style="flex:1;min-width:180px"><button class="btn-sm" type="button" id="prod-drive-save">Salvar</button>${p.partner_id ? `<button class="btn-sm" type="button" id="prod-reprocess-drive" title="Baixar anexos do e-mail da parceria e criar pasta no Drive">📥 Baixar do e-mail</button>` : ''}<button class="btn-gold btn-sm" type="button" id="prod-analyze">${svgIcon('ia')}Analisar documentos</button></div>
+          <div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap"><input id="prod-drive" placeholder="cole o link da pasta do Google Drive" value="${esc(p.drive_folder_url || '')}" style="flex:1;min-width:180px"><button class="btn-sm" type="button" id="prod-drive-save">Salvar</button>${p.partner_id ? `<button class="btn-sm" type="button" id="prod-reprocess-drive" title="Baixar anexos do e-mail da parceria e criar pasta no Drive">${svgIcon('download')} Baixar do e-mail</button>` : ''}<button class="btn-gold btn-sm" type="button" id="prod-analyze">${svgIcon('ia')}Analisar documentos</button></div>
           <div id="prod-analysis" style="margin-top:8px"></div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Recado ao cliente (aparece no portal, em linguagem simples)</small>
           <div style="display:flex;gap:6px;margin-top:4px"><input id="prod-climsg" placeholder="ex.: Seu processo foi protocolado; agora aguardamos a resposta do INSS" value="${esc(p.client_message || '')}" style="flex:1"><button class="btn-sm" type="button" id="prod-climsg-save">Salvar</button></div></div>
-        <div style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center"><small style="color:var(--text-muted)">📄 Documentos do caso (peças, minutas, anexos)</small><button class="btn-sm btn-gold" type="button" id="prod-gen-peticao">🔄 Gerar nova versão da petição (IA)</button></div>
+        <div style="margin-top:10px"><div style="display:flex;justify-content:space-between;align-items:center"><small style="color:var(--text-muted)">${svgIcon('file', 'ic-inline')}Documentos do caso (peças, minutas, anexos)</small><button class="btn-sm btn-gold" type="button" id="prod-gen-peticao">${svgIcon('refresh')} Gerar nova versão da petição (IA)</button></div>
           <div id="prod-docs">${docsHtml}</div></div>
         <div style="margin-top:10px"><small style="color:var(--text-muted)">Histórico e atualizações do caso (do lead à produção)</small>
           <div style="max-height:240px;overflow:auto">${histHtml}</div>

@@ -752,6 +752,14 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
 .ic-t { width: 17px; height: 17px; margin-right: 8px; vertical-align: -3px; color: var(--gold); }
 /* Ícone minúsculo dentro de etiquetas/badges */
 .ic-xs { width: 11px; height: 11px; vertical-align: -1px; }
+/* Ícone à esquerda de um título h2/h3 — acento dourado da marca */
+.ic-title { width: 18px; height: 18px; margin-right: 9px; vertical-align: -3px; color: var(--gold); }
+/* Ícone inline em rótulos (small/span/label) — herda a cor do texto, discreto */
+.ic-inline { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; opacity: .82; }
+/* Ícone à esquerda de um título h2/h3 — mesmo acento dourado da marca */
+.ic-title { width: 18px; height: 18px; margin-right: 9px; vertical-align: -3px; color: var(--gold); }
+/* Ícone inline em rótulos (small/span) — herda a cor do texto, discreto */
+.ic-inline { width: 14px; height: 14px; margin-right: 5px; vertical-align: -2px; opacity: .8; }
 /* Botão de copiar (só ícone) */
 .btn-copy .ic { width: 14px; height: 14px; color: var(--text-soft); vertical-align: middle; }
 .btn-copy:hover .ic { color: var(--gold); }
