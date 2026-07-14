@@ -588,7 +588,24 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
           }).catch(() => {});
         }
       }
-    } catch { /* entrada é best-effort — não trava o protocolo */ }
+    } catch (e: any) {
+      // Não trava o protocolo — MAS não pode calar: se a entrada não for lançada,
+      // o escritório deixa de faturar (R$100/R$130) e ninguém fica sabendo.
+      const msg = e?.message || String(e);
+      console.error(`❌ [entrada-parceria] FALHOU no caso ${id} (cliente ${c.client_id}):`, msg);
+      try {
+        const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+        for (const a of admins) {
+          await db.query(
+            `INSERT INTO notifications (user_id, client_id, case_id, title, message, notification_type, channel, scheduled_at, status)
+             VALUES (?, ?, ?, ?, ?, 'entrada_falhou', 'sistema', NOW(), 'pendente')`,
+            [a.id, c.client_id, Number(id),
+             '🚨 Entrada da parceria NÃO foi lançada',
+             `O processo ${finalCaseNumber || id} foi protocolado, mas o lançamento da ENTRADA da parceria falhou: ${msg}\n\nLance manualmente no Financeiro para não perder o faturamento.`]
+          );
+        }
+      } catch { /* avisar é best-effort */ }
+    }
 
     // Aviso de PROTOCOLO ao parceiro (sino + e-mail), com nº e valor da causa
     try {

@@ -8,82 +8,92 @@ import { runMonitoringJob, runDiscoveryJob } from '../services/monitoringService
 import { runBackup } from '../services/backupService';
 import { sendMorningBriefings } from '../services/morningBriefingService';
 import { captureDailyMetrics } from '../services/metricsSnapshotService';
+import { runJob } from './runner';
 
+/**
+ * Rotinas automáticas do CRM.
+ *
+ * Todas passam pelo `runJob`: a falha NÃO derruba o servidor (comportamento
+ * mantido), mas agora aparece no log, fica registrada em `job_runs` e avisa os
+ * admins no sino. Antes usávamos `catch {}` — o erro sumia em silêncio.
+ *
+ * `critica: true` = prazos, backup e financeiro (falha aqui gera dano real).
+ */
 export function startCronJobs() {
   // ── WhatsApp: reconecta a instância no boot se já houver sessão salva ─────
   setTimeout(() => {
-    import('../services/waInstance').then((m) => m.startIfSession()).catch(() => {});
+    runJob('whatsapp:reconectar', async () => {
+      const m = await import('../services/waInstance');
+      await m.startIfSession();
+    });
   }, 8000);
 
   // ── Resumo matinal por e-mail às 07:00 (horário de Brasília) ──────────────
-  cron.schedule('0 7 * * *', async () => {
-    try { await sendMorningBriefings(); } catch {}
+  cron.schedule('0 7 * * *', () => {
+    runJob('briefing:matinal', () => sendMorningBriefings());
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── Retrato diário das métricas (sparklines) às 23:00 (Brasília) ──────────
-  cron.schedule('0 23 * * *', async () => {
-    try { await captureDailyMetrics(); } catch {}
+  cron.schedule('0 23 * * *', () => {
+    runJob('metricas:retrato-diario', () => captureDailyMetrics());
   }, { timezone: 'America/Sao_Paulo' });
   // Garante o ponto de hoje logo após subir o servidor (não espera até 23h)
-  setTimeout(() => { captureDailyMetrics().catch(() => {}); }, 12000);
+  setTimeout(() => { runJob('metricas:retrato-boot', () => captureDailyMetrics(), { silencioso: true }); }, 12000);
 
-  // ── a cada 5 min: atualiza contadores de prazos ──────────────────────────
-  cron.schedule('*/5 * * * *', async () => {
-    try {
-      await deadlineCounterService.updateAllCounters();
-    } catch {}
+  // ── a cada 5 min: atualiza contadores de prazos ── CRÍTICO ────────────────
+  cron.schedule('*/5 * * * *', () => {
+    runJob('prazos:contadores', () => deadlineCounterService.updateAllCounters(),
+      { critica: true, silencioso: true });
   });
 
-  // ── a cada 5 min: despacha notificações pendentes ────────────────────────
-  cron.schedule('*/5 * * * *', async () => {
-    try {
+  // ── a cada 5 min: despacha notificações pendentes ── CRÍTICO ──────────────
+  cron.schedule('*/5 * * * *', () => {
+    runJob('notificacoes:despachar', async () => {
       const pending = await notificationService.getPending();
-      for (const n of pending) {
-        await notificationService.dispatch(n);
-      }
-    } catch {}
+      for (const n of pending) await notificationService.dispatch(n);
+      return { despachadas: pending.length };
+    }, { critica: true, silencioso: true });
   });
 
-  // ── a cada hora: gera alertas de prazos próximos ─────────────────────────
-  cron.schedule('0 * * * *', async () => {
-    try {
-      await generateDeadlineAlerts();
-    } catch {}
+  // ── a cada hora: gera alertas de prazos próximos ── CRÍTICO ───────────────
+  cron.schedule('0 * * * *', () => {
+    runJob('prazos:alertas', () => generateDeadlineAlerts(), { critica: true });
   });
 
-  // ── a cada 15 min: alerta reuniões e audiências próximas ─────────────────
-  cron.schedule('*/15 * * * *', async () => {
-    try {
-      await alertUpcomingEvents();
-    } catch {}
+  // ── a cada 15 min: alerta reuniões e audiências próximas ── CRÍTICO ───────
+  cron.schedule('*/15 * * * *', () => {
+    runJob('agenda:eventos-proximos', () => alertUpcomingEvents(),
+      { critica: true, silencioso: true });
   });
 
   // ── a cada 10 min: sincroniza Google Calendar ─────────────────────────────
-  cron.schedule('*/10 * * * *', async () => {
-    try {
+  cron.schedule('*/10 * * * *', () => {
+    runJob('agenda:sync-incremental', async () => {
       const [users] = await db.query(
         'SELECT DISTINCT user_id FROM google_accounts WHERE sync_enabled = 1'
       ) as any;
+      const falhas: string[] = [];
       for (const u of users) {
-        // Isola cada usuário: falha em um não impede a sync dos demais.
-        try { await calendarSyncService.fullSync(u.user_id); } catch {}
+        // Isola cada usuário: falha em um não impede a sync dos demais — mas registra.
+        try { await calendarSyncService.fullSync(u.user_id); }
+        catch (e: any) { falhas.push(`user ${u.user_id}: ${e?.message || e}`); }
       }
-    } catch {}
+      if (falhas.length) throw new Error(`${falhas.length} conta(s) falharam · ${falhas.join(' | ')}`);
+      return { contas: users.length };
+    }, { silencioso: true });
   });
 
   // ── a cada 10 min: busca e-mails novos do parceiro (Infinity) no Gmail ────
-  cron.schedule('*/10 * * * *', async () => {
-    try {
+  cron.schedule('*/10 * * * *', () => {
+    runJob('parceria:sync-gmail', async () => {
       const { syncInboxNow } = await import('../services/partnerInboxService');
-      await syncInboxNow(null);
-    } catch {}
+      return await syncInboxNow(null);
+    }, { silencioso: true });
   });
 
   // ── sincronização completa diária às 06:00 (Brasília) ─────────────────────
-  // Reconcilia nos dois sentidos: puxa o que mudou direto no app do Google
-  // para o CRM e envia ao Google o que foi criado/alterado no CRM.
-  cron.schedule('0 6 * * *', async () => {
-    try {
+  cron.schedule('0 6 * * *', () => {
+    runJob('agenda:sync-completa', async () => {
       const [users] = await db.query(
         'SELECT DISTINCT user_id FROM google_accounts WHERE sync_enabled = 1'
       ) as any;
@@ -93,104 +103,101 @@ export function startCronJobs() {
         fromG += r.fromGoogle.created + r.fromGoogle.updated;
         toG   += r.toGoogle.created + r.toGoogle.updated;
       }
-      console.log(`📅 Sync diária da agenda (06h): ${users.length} conta(s) · Google→CRM ${fromG} · CRM→Google ${toG}`);
-    } catch (e: any) {
-      console.error('❌ Falha na sync diária da agenda:', e.message);
-    }
+      return { contas: users.length, googleParaCrm: fromG, crmParaGoogle: toG };
+    });
   }, { timezone: 'America/Sao_Paulo' });
 
-  // ── diário 7h: prazos e cobranças vencidas ────────────────────────────────
-  cron.schedule('0 7 * * *', async () => {
-    try {
-      await alertOverdueItems();
-    } catch {}
+  // ── diário 7h: prazos e cobranças vencidas ── CRÍTICO ─────────────────────
+  cron.schedule('0 7 * * *', () => {
+    runJob('financeiro:vencidos', () => alertOverdueItems(), { critica: true });
   });
 
-  // ── diário 08:30 (Brasília): régua de cobrança por e-mail (D-3, D0, D+3, D+7)
-  cron.schedule('30 8 * * *', async () => {
-    try {
+  // ── diário 08:30: régua de cobrança por e-mail (D-3, D0, D+3, D+7) ── CRÍTICO
+  cron.schedule('30 8 * * *', () => {
+    runJob('financeiro:regua-cobranca', async () => {
       const { sendBillingReminders } = await import('../services/financeReminders');
-      await sendBillingReminders();
-    } catch {}
+      return await sendBillingReminders();
+    }, { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
-  // ── diário 00:40 (Brasília): gera despesas/receitas RECORRENTES do dia ─────
-  cron.schedule('40 0 * * *', async () => {
-    try {
+  // ── diário 00:40: gera despesas/receitas RECORRENTES do dia ── CRÍTICO ────
+  cron.schedule('40 0 * * *', () => {
+    runJob('financeiro:recorrentes', async () => {
       const { generateRecurringRecords } = await import('../services/financeReminders');
-      await generateRecurringRecords();
-    } catch {}
+      return await generateRecurringRecords();
+    }, { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
   // Também roda 30s após subir (não perde o ciclo se o deploy cair no horário)
   setTimeout(() => {
-    import('../services/financeReminders').then((m) => m.generateRecurringRecords()).catch(() => {});
+    runJob('financeiro:recorrentes-boot', async () => {
+      const m = await import('../services/financeReminders');
+      return await m.generateRecurringRecords();
+    }, { critica: true, silencioso: true });
   }, 30000);
 
   // ── a cada 6h: pagamentos "Já paguei" parados há 48h+ sem confirmação ─────
-  cron.schedule('0 */6 * * *', async () => {
-    try {
+  cron.schedule('0 */6 * * *', () => {
+    runJob('financeiro:pagamentos-parados', async () => {
       const { alertStuckPayments } = await import('../services/financeReminders');
-      await alertStuckPayments();
-    } catch {}
+      return await alertStuckPayments();
+    }, { critica: true });
   });
 
-  // ── diário 07:15 (Brasília): prepara a fila de WhatsApp (cobrança/audiência)
-  cron.schedule('15 7 * * *', async () => {
-    try {
+  // ── diário 07:15: prepara a fila de WhatsApp (cobrança/audiência) ─────────
+  cron.schedule('15 7 * * *', () => {
+    runJob('whatsapp:fila', async () => {
       const { generateWhatsappQueue } = await import('../services/whatsappQueue');
-      await generateWhatsappQueue();
-    } catch {}
+      return await generateWhatsappQueue();
+    });
   }, { timezone: 'America/Sao_Paulo' });
 
-  // ── diário 09:00 (Brasília): conversas sem resposta do cliente há 7 dias ──
-  cron.schedule('0 9 * * *', async () => {
-    try {
+  // ── diário 09:00: conversas sem resposta do cliente há 7 dias ─────────────
+  cron.schedule('0 9 * * *', () => {
+    runJob('whatsapp:conversas-paradas', async () => {
       const { alertSilentChats } = await import('../services/whatsappQueue');
-      await alertSilentChats();
-    } catch {}
+      return await alertSilentChats();
+    });
   }, { timezone: 'America/Sao_Paulo' });
 
-  // ── segunda 08:00 (Brasília): resumo semanal por e-mail aos parceiros ──────
-  cron.schedule('0 8 * * 1', async () => {
-    try {
+  // ── segunda 08:00: resumo semanal por e-mail aos parceiros ────────────────
+  cron.schedule('0 8 * * 1', () => {
+    runJob('parceria:resumo-semanal', async () => {
       const { sendPartnerWeeklyDigests } = await import('../services/partnerWeeklyDigest');
-      await sendPartnerWeeklyDigests();
-    } catch {}
+      return await sendPartnerWeeklyDigests();
+    });
   }, { timezone: 'America/Sao_Paulo' });
 
-  // ── diário 07:10 (Brasília): audiências de casos de PARCERIA a 7 e 3 dias ──
-  // Sino no CRM + e-mail ao parceiro com dados e orientações completas.
-  cron.schedule('10 7 * * *', async () => {
-    try {
+  // ── diário 07:10: audiências de casos de PARCERIA a 7 e 3 dias ── CRÍTICO ─
+  cron.schedule('10 7 * * *', () => {
+    runJob('parceria:alerta-audiencias', async () => {
       const { sendPartnerHearingAlerts } = await import('../services/partnerHearingAlerts');
-      await sendPartnerHearingAlerts();
-    } catch {}
+      return await sendPartnerHearingAlerts();
+    }, { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
-  // ── backup diário do banco: 02h (dump comprimido → MEGA) ──────────────────
-  cron.schedule('0 2 * * *', async () => {
-    try {
+  // ── backup diário do banco: 02h (dump comprimido → MEGA) ── CRÍTICO ───────
+  cron.schedule('0 2 * * *', () => {
+    runJob('backup:diario', async () => {
       const r = await runBackup();
-      if (r.ok) console.log(`✅ Backup enviado ao MEGA: ${r.file} (${r.sizeKB} KB)`);
-      else console.warn(`⚠️ Backup não realizado: ${r.message}`);
-    } catch (e: any) {
-      console.error('❌ Falha no backup diário:', e.message);
-    }
+      if (!r.ok) throw new Error(`Backup não realizado: ${r.message}`);
+      return { arquivo: r.file, kb: r.sizeKB };
+    }, { critica: true });
   });
 
   // ── dia 1 do mês, 03h30: PROVA REAL do backup (restaura num banco temporário)
-  // Falhou → alerta os admins no sino. Backup que não restaura não é backup.
-  cron.schedule('30 3 1 * *', async () => {
-    try {
+  // Backup que não restaura não é backup — por isso é CRÍTICO e não pode calar.
+  cron.schedule('30 3 1 * *', () => {
+    runJob('backup:prova-de-restauracao', async () => {
       const { runRestoreCheckAndNotify } = await import('../services/restoreService');
-      await runRestoreCheckAndNotify();
-    } catch {}
-    // Vigia do peso da mídia do WhatsApp no banco (entra no dump diário do MEGA):
-    // acima de 400 MB, avisa os admins para decidir a retenção.
-    try {
-      const [[m]] = await db.query('SELECT COALESCE(SUM(LENGTH(data)),0) AS bytes, COUNT(*) AS n FROM whatsapp_media') as any;
+      return await runRestoreCheckAndNotify();
+    }, { critica: true });
+
+    // Vigia do peso da mídia do WhatsApp no banco (entra no dump diário do MEGA)
+    runJob('whatsapp:peso-midia', async () => {
+      const [[m]] = await db.query(
+        'SELECT COALESCE(SUM(LENGTH(data)),0) AS bytes, COUNT(*) AS n FROM whatsapp_media'
+      ) as any;
       const mb = Math.round(Number(m.bytes) / 1048576);
-      console.log(`📦 Mídia do WhatsApp no banco: ${m.n} arquivo(s) · ${mb} MB`);
       if (mb > 400) {
         const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
         for (const a of admins) {
@@ -201,34 +208,32 @@ export function startCronJobs() {
              `Os arquivos recebidos pelo WhatsApp somam ${mb} MB no banco (${m.n} arquivos) e engordam o backup diário. Considere migrar os antigos para o Drive ou definir uma retenção.`]);
         }
       }
-    } catch {}
+      return { arquivos: m.n, mb };
+    });
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── descoberta por OAB: diário 06h (varre tribunais e cadastra novos) ─────
-  cron.schedule('0 6 * * *', async () => {
-    try {
-      await runDiscoveryJob();
-    } catch {}
+  cron.schedule('0 6 * * *', () => {
+    runJob('monitoramento:descoberta-oab', () => runDiscoveryJob());
   });
 
-  // ── monitoramento processual: 08h e 16h (DataJud/provider ativo) ──────────
-  cron.schedule('0 8,16 * * *', async () => {
-    try {
-      await runMonitoringJob();
-    } catch {}
+  // ── monitoramento processual: 08h e 16h ── CRÍTICO (movimentação perdida) ─
+  cron.schedule('0 8,16 * * *', () => {
+    runJob('monitoramento:processos', () => runMonitoringJob(), { critica: true });
   });
 
-  // ── a cada hora: proposta em análise há 7+ dias → perdida (inativa) ────────
-  cron.schedule('30 * * * *', async () => {
-    try {
-      await db.query(`
+  // ── a cada hora: proposta em análise há 7+ dias → perdida (inativa) ───────
+  cron.schedule('30 * * * *', () => {
+    runJob('comercial:propostas-expiradas', async () => {
+      const [r] = await db.query(`
         UPDATE leads
         SET status = 'perdida', analise_since = NULL
         WHERE status = 'proposta_em_analise'
           AND analise_since IS NOT NULL
           AND analise_since < (NOW() - INTERVAL 7 DAY)
-      `);
-    } catch {}
+      `) as any;
+      return { expiradas: r.affectedRows };
+    }, { silencioso: true });
   });
 }
 
@@ -282,6 +287,7 @@ async function generateDeadlineAlerts() {
       });
     }
   }
+  return { alertas: deadlines.length };
 }
 
 async function alertUpcomingEvents() {
@@ -330,6 +336,7 @@ async function alertUpcomingEvents() {
       }
     }
   }
+  return { eventos: events.length };
 }
 
 async function alertOverdueItems() {
@@ -356,4 +363,5 @@ async function alertOverdueItems() {
       });
     }
   }
+  return { vencidas: cobrancas.length };
 }
