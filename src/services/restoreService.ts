@@ -2,6 +2,7 @@ import zlib from 'zlib';
 import mysql from 'mysql2/promise';
 import { env } from '../config/env';
 import { db } from '../config/database';
+import { decryptBuffer, isEncryptedBuffer } from '../utils/crypto';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { Storage } = require('megajs');
@@ -44,10 +45,20 @@ export async function verifyLatestBackup(): Promise<RestoreReport> {
 
     const latest = backups[0];
 
-    // 2. Baixa e descomprime
-    const gz: Buffer = await latest.downloadBuffer();
+    // 2. Baixa, DECIFRA (se preciso) e descomprime.
+    //    A detecção é pelo CONTEÚDO (assinatura no início do arquivo), não pelo
+    //    nome — assim os backups antigos, gravados em claro, continuam restaurando.
+    const bruto: Buffer = await latest.downloadBuffer();
+    const cifrado = isEncryptedBuffer(bruto);
+    let gz: Buffer;
+    try {
+      gz = decryptBuffer(bruto);
+    } catch (e: any) {
+      return { ok: false, file: latest.name, message: `Backup cifrado e não foi possível decifrar: ${e?.message}. A ENCRYPTION_KEY mudou?` };
+    }
     const sql = zlib.gunzipSync(gz).toString('utf8');
     if (!sql.includes('CREATE TABLE')) return { ok: false, file: latest.name, message: 'Dump sem CREATE TABLE — arquivo corrompido?' };
+    console.log(`   Backup ${cifrado ? 'CIFRADO' : 'em claro (antigo)'}: ${latest.name}`);
 
     // 3. Restaura num banco temporário isolado
     conn = await mysql.createConnection({

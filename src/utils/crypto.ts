@@ -98,6 +98,49 @@ export function decrypt(valor: string | null | undefined): string | null {
   }
 }
 
+// ── Arquivos binários (backup) ──────────────────────────────────────────────
+// O dump do banco contém TUDO: CPF, laudos médicos, conversas do WhatsApp.
+// Ele sobe para o MEGA — e quem tiver as credenciais do MEGA baixaria o dump em
+// claro. Cifrar o arquivo antes do upload faz o backup vazado virar lixo.
+//
+// Formato: [ CRMENC1\0 (8B) | iv (12B) | tag (16B) | cifra ]
+const MAGIC = Buffer.from('CRMENC1\0', 'utf8');
+
+/** O buffer está cifrado por nós? */
+export function isEncryptedBuffer(buf: Buffer): boolean {
+  return Buffer.isBuffer(buf) && buf.length > MAGIC.length && buf.subarray(0, MAGIC.length).equals(MAGIC);
+}
+
+/** Cifra um arquivo/buffer. Sem chave, devolve o original (não trava o backup). */
+export function encryptBuffer(buf: Buffer): Buffer {
+  const k = chave();
+  if (!k) {
+    console.warn('⚠️  [crypto] Backup será enviado SEM cifragem (sem chave definida).');
+    return buf;
+  }
+  if (isEncryptedBuffer(buf)) return buf;
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', k, iv);
+  const cifra = Buffer.concat([c.update(buf), c.final()]);
+  return Buffer.concat([MAGIC, iv, c.getAuthTag(), cifra]);
+}
+
+/**
+ * Decifra um arquivo/buffer. Se NÃO estiver cifrado (backups antigos, feitos
+ * antes desta mudança), devolve o buffer intacto — a restauração segue funcionando.
+ */
+export function decryptBuffer(buf: Buffer): Buffer {
+  if (!isEncryptedBuffer(buf)) return buf; // backup antigo, em claro
+  const k = chave();
+  if (!k) throw new Error('Backup cifrado, mas ENCRYPTION_KEY não está definida — impossível restaurar.');
+  const iv = buf.subarray(MAGIC.length, MAGIC.length + 12);
+  const tag = buf.subarray(MAGIC.length + 12, MAGIC.length + 28);
+  const cifra = buf.subarray(MAGIC.length + 28);
+  const d = crypto.createDecipheriv('aes-256-gcm', k, iv);
+  d.setAuthTag(tag);
+  return Buffer.concat([d.update(cifra), d.final()]);
+}
+
 /** Cifra os campos indicados de um objeto (para INSERT/UPDATE). */
 export function encryptFields<T extends Record<string, any>>(obj: T, campos: (keyof T)[]): T {
   const out: any = { ...obj };

@@ -4,6 +4,7 @@ import path from 'path';
 import zlib from 'zlib';
 import mysqldump from 'mysqldump';
 import { env } from '../config/env';
+import { encryptBuffer } from '../utils/crypto';
 
 // megajs publica os tipos só via "exports"; sob moduleResolution "node" o TS não
 // os resolve, então carregamos via require (tipado como any) para evitar TS7016.
@@ -34,7 +35,10 @@ export async function runBackup(): Promise<BackupResult> {
   const { storage, folder } = session;
 
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19); // 2026-06-22T18-30-00
-  const filename = `${PREFIX}${stamp}.sql.gz`;
+  const cifrado = !!(process.env.ENCRYPTION_KEY || process.env.JWT_SECRET);
+  // .enc no nome deixa explícito que o arquivo está cifrado (a restauração
+  // detecta pelo conteúdo, não pelo nome — o sufixo é só para o humano).
+  const filename = `${PREFIX}${stamp}.sql.gz${cifrado ? '.enc' : ''}`;
   const tmpPath = path.join(os.tmpdir(), `${PREFIX}${stamp}.sql`); // dump em SQL puro
 
   try {
@@ -47,9 +51,12 @@ export async function runBackup(): Promise<BackupResult> {
       },
       dumpToFile: tmpPath,
     });
-    const buffer = zlib.gzipSync(fs.readFileSync(tmpPath));
 
-    // 2. Upload para o MEGA
+    // 2. LGPD: cifra o dump ANTES de sair daqui. O arquivo carrega CPF, laudos
+    //    médicos e conversas — quem tiver as credenciais do MEGA não pode lê-lo.
+    const buffer = encryptBuffer(zlib.gzipSync(fs.readFileSync(tmpPath)));
+
+    // 3. Upload para o MEGA
     await folder.upload({ name: filename, size: buffer.length }, buffer).complete;
 
     // 3. Rotação — mantém só os RETENTION mais recentes (nome tem ISO date → ordena lexicograficamente)
@@ -61,6 +68,7 @@ export async function runBackup(): Promise<BackupResult> {
 
     return { ok: true, file: filename, sizeKB: Math.round(buffer.length / 1024) };
   } finally {
+    // O .sql temporário está em CLARO no disco — apagar sempre, mesmo se falhar.
     try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
     try { await storage.close(); } catch { /* ignore */ }
   }
