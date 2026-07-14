@@ -39,7 +39,7 @@ async function bootstrap() {
     const { runMigrations, avisarFalhaMigration } = await import('./config/migrations');
     const m = await runMigrations();
     if (m.aplicadas.length) console.log(`🗄️  ${m.aplicadas.length} migration(s) aplicada(s): ${m.aplicadas.join(', ')}`);
-    else console.log(`🗄️  Banco em dia (${m.jaAplicadas} migrations aplicadas).`);
+    else if (!m.falha) console.log(`🗄️  Banco em dia (${m.jaAplicadas} migrations aplicadas).`);
     if (m.falha) {
       console.error(
         `🚨 MIGRATION FALHOU: ${m.falha.arquivo}\n` +

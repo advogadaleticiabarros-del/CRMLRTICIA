@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS peca_modelos (
   tipo          VARCHAR(60)  NULL,
   rito          VARCHAR(120) NULL,
   tribunal      VARCHAR(60)  NULL,
-  teses         TEXT         NULL,                -- separadas por ';'
+  teses         TEXT         NULL,                -- lista separada por ponto-e-virgula
   fundamentos   TEXT         NULL,
   conteudo      LONGTEXT     NULL,                -- texto completo da peça (extraído do .docx)
   fonte         VARCHAR(30)  NOT NULL DEFAULT 'obsidian',
