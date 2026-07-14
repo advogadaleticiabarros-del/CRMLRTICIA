@@ -69,11 +69,11 @@ router.get('/', async (req: Request, res: Response) => {
         LEFT JOIN legal_processes lp ON lp.id = d.process_id
         LEFT JOIN clients c  ON c.id  = d.client_id
         LEFT JOIN clients cp ON cp.id = lp.client_id
-       -- ANTES: `AND (lp.user_id = ? OR lp.id IS NULL)`. A tabela legal_processes
-       -- NÃO TEM a coluna user_id → o MySQL lançava erro, o safe() engolia e esta
-       -- seção ficava SEMPRE VAZIA. Intimação nova nunca aparecia no Cockpit —
-       -- risco direto de PRAZO PERDIDO. Os processos são do escritório, não de um
-       -- usuário: não há o que filtrar por user_id.
+       -- ANTES havia um filtro por lp.user_id. A tabela legal_processes NAO TEM
+       -- a coluna user_id: o MySQL lancava erro, o safe() engolia e esta secao
+       -- ficava SEMPRE VAZIA. Intimacao nova nunca aparecia no Cockpit — risco
+       -- direto de PRAZO PERDIDO. Os processos sao do escritorio, nao de um
+       -- usuario: nao ha o que filtrar.
        WHERE d.status = 'a_confirmar'
        ORDER BY d.start_date DESC LIMIT 10`) as any;
     return rows;

@@ -25,7 +25,9 @@ function lerSchema() {
   const files = fs.readdirSync(migDir).filter((f) => f.endsWith('.sql')).sort();
 
   for (const f of files) {
+    // `\r` sai primeiro: com CRLF, o `.` da regex não casa com \r e o strip falha.
     const sql = fs.readFileSync(path.join(migDir, f), 'utf8')
+      .replace(/\r/g, '')
       .split('\n').map((l) => l.replace(/--.*$/, '')).join('\n'); // tira comentários
 
     // CREATE TABLE [IF NOT EXISTS] nome ( ... )
@@ -138,7 +140,19 @@ test('nenhum dashboard filtra por uma coluna que NÃO existe na tabela', () => {
     const src = fs.readFileSync(path.join(dashDir, f), 'utf8');
 
     // pega blocos de SQL (template literals com FROM)
-    for (const bloco of src.match(/`[^`]*\bFROM\b[^`]*`/gi) || []) {
+    for (const bruto of src.match(/`[^`]*\bFROM\b[^`]*`/gi) || []) {
+      // ⚠️ Remove os comentários SQL ANTES de analisar. Sem isto, um comentário
+      // que explica um bug antigo ("antes filtrava por lp.user_id") era lido como
+      // se o bug ainda existisse — a ferramenta acusava o próprio conserto.
+      //
+      // O `\r` PRECISA sair antes: os arquivos usam CRLF, e em JS o `.` de uma
+      // regex NÃO casa com `\r`. Sem isso, `/--.*$/` nunca alcança o fim da linha
+      // e o comentário passa batido — o strip falhava em silêncio.
+      const bloco = bruto
+        .replace(/\r/g, '')
+        .split('\n')
+        .map((l) => l.replace(/--.*$/, ''))
+        .join('\n');
       // mapeia alias -> tabela  (FROM cases c / JOIN clients cl ON ...)
       const alias = new Map();
       for (const m of bloco.matchAll(/\b(?:FROM|JOIN)\s+(\w+)\s+(?:AS\s+)?(\w+)\b/gi)) {
