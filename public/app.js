@@ -2750,7 +2750,35 @@ async function loadInboxPanel(onChange) {
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <div style="font-size:13px">📨 Gmail conectado: <strong>${esc(st.google_email || '—')}</strong> · remetente <code>${esc(st.sender_filter || '')}</code> · última busca: ${last} ${st.active ? '' : '<span style="color:var(--red)">(pausado)</span>'}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-gold btn-sm" id="inbox-sync">${svgIcon('refresh')} Buscar agora</button><button class="btn-sm" id="inbox-sync-reset" title="Apaga o last_sync e rebusca desde o início do dia">${svgIcon('refresh')} Rebuscar desde hoje</button><button class="btn-sm" id="inbox-sync-old" title="Recupera e-mails antigos do parceiro (últimos 30 dias)">${svgIcon('download')} Buscar e-mails antigos (30 dias)</button><button class="btn-sm" id="inbox-perm">${svgIcon('key')} Atualizar permissões</button><button class="btn-sm" id="inbox-disc">Desconectar</button></div>
+      <div style="display:flex;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap">
+        <input id="inbox-diag-term" placeholder="não achou? digite o nome do cliente (ex.: Ilma)" style="flex:1;min-width:200px;font-size:13px">
+        <button class="btn-sm" id="inbox-diag">${svgIcon('search')} Diagnosticar</button>
+      </div>
+      <div id="inbox-diag-out" style="margin-top:8px"></div>
     </div></div>`;
+  const diagBtn = $('#inbox-diag');
+  if (diagBtn) diagBtn.onclick = async () => {
+    const term = $('#inbox-diag-term').value.trim();
+    if (!term) return;
+    const out = $('#inbox-diag-out'); out.innerHTML = '<div class="spinner"></div>';
+    try {
+      const d = await api('/api/email-intake/integration/diagnose', { method: 'POST', body: JSON.stringify({ term }) });
+      const linhas = (d.encontrados || []).map((e) => `
+        <div class="mini-row" style="padding:6px 0">
+          <span><strong>${esc(e.de)}</strong><br><small style="color:var(--text-muted)">${esc(e.assunto)} · ${esc(e.data)}</small></span>
+          <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${e.bate_filtro ? 'var(--green,#1e8e5a)' : 'var(--red,#c0392b)'};color:#fff">${e.bate_filtro ? 'bate o filtro' : 'NÃO bate'}</span>
+        </div>`).join('');
+      out.innerHTML = `
+        <div class="card" style="padding:12px 14px;font-size:13px">
+          <div>Conta conectada: <code>${esc(d.conta_conectada)}</code> · filtro de remetente: <code>${esc(d.filtro_remetente || '(vazio)')}</code></div>
+          ${d.encontrados.length ? linhas
+            : '<div class="empty" style="margin-top:6px">Nenhum e-mail com esse termo na conta conectada. Talvez esteja em OUTRA conta do Gmail.</div>'}
+          ${d.encontrados.length && !d.encontrados.some((e) => e.bate_filtro)
+            ? '<div style="margin-top:8px;background:#fff4e5;border-left:3px solid var(--gold,#c9a227);padding:8px 10px;border-radius:4px">O e-mail existe, mas o remetente <strong>não bate</strong> com o filtro. Ajuste o remetente do parceiro para o endereço mostrado acima, e busque de novo.</div>'
+            : ''}
+        </div>`;
+    } catch (e) { out.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  };
   const permBtn = $('#inbox-perm');
   if (permBtn) permBtn.onclick = async () => {
     try { const { url } = await api('/api/email-intake/integration/auth-url'); window.location.href = url; }

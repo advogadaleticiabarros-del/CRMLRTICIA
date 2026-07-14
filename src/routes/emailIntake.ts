@@ -29,6 +29,16 @@ router.post('/integration/disconnect', async (_req: Request, res: Response) => {
   res.json({ success: true });
 });
 
+// ── POST /integration/diagnose — por que um e-mail não entrou na fila ────────
+router.post('/integration/diagnose', async (req: Request, res: Response) => {
+  try {
+    const term = String(req.body?.term || '').trim();
+    if (!term) { res.status(400).json({ error: 'Informe o termo (ex.: nome do cliente)' }); return; }
+    const { diagnoseSearch } = await import('../services/partnerInboxService');
+    res.json(await diagnoseSearch(term));
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
 router.post('/integration/sync', async (req: Request, res: Response) => {
   try {
     // since_days: busca retroativa (recupera e-mails antigos do parceiro).

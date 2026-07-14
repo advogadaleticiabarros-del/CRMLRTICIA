@@ -80,6 +80,41 @@ export async function getInboxStatus(): Promise<any> {
     active: !!row.active, last_sync: row.last_sync };
 }
 
+/**
+ * DIAGNÓSTICO: busca na conta conectada por um termo (ex.: nome do cliente),
+ * SEM o filtro de remetente, e mostra de QUEM cada e-mail veio e QUANDO.
+ * Serve para descobrir por que um e-mail não entrou na fila — quase sempre o
+ * remetente é diferente do sender_filter, ou o e-mail está em outra conta.
+ */
+export async function diagnoseSearch(term: string): Promise<{
+  conta_conectada: string; filtro_remetente: string;
+  encontrados: { de: string; assunto: string; data: string; bate_filtro: boolean }[];
+}> {
+  const row = await loadIntegration();
+  const conta = row?.google_email || '(nenhuma)';
+  const filtro = (row?.sender_filter || '').toLowerCase();
+  if (!row || !row.refresh_token) return { conta_conectada: conta, filtro_remetente: filtro, encontrados: [] };
+
+  const auth = await authedClient();
+  const gmail = google.gmail({ version: 'v1', auth });
+  const list = await gmail.users.messages.list({ userId: 'me', q: `"${term}"`, maxResults: 10 });
+
+  const encontrados: any[] = [];
+  for (const m of list.data.messages || []) {
+    try {
+      const full = await gmail.users.messages.get({ userId: 'me', id: m.id!, format: 'metadata', metadataHeaders: ['From', 'Subject', 'Date'] });
+      const h = full.data.payload?.headers || [];
+      const val = (n: string) => h.find((x) => x.name?.toLowerCase() === n)?.value || '';
+      const de = val('from');
+      encontrados.push({
+        de, assunto: val('subject'), data: val('date'),
+        bate_filtro: !!filtro && de.toLowerCase().includes(filtro),
+      });
+    } catch { /* ignora um e-mail com erro */ }
+  }
+  return { conta_conectada: conta, filtro_remetente: filtro, encontrados };
+}
+
 export async function updateInboxConfig(opts: { sender_filter?: string; active?: boolean }): Promise<void> {
   const fields: string[] = []; const params: any[] = [];
   if (opts.sender_filter !== undefined) { fields.push('sender_filter = ?'); params.push(opts.sender_filter); }
