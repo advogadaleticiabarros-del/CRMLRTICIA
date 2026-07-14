@@ -3,345 +3,820 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Proposta de Honorários — Letícia Barros</title>
+  <title>Proposta de Honorários | Dra. Letícia Barros</title>
   <link rel="icon" type="image/png" href="/logo.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --espresso: #211C18; --panel: #2C2520; --panel-2: #1d1814; --line: #3c3329;
-      --gold: #C9A962; --gold-2: #B8943F; --gold-soft: #D4BC7D;
-      --cream: #FAF6F0; --muted: #B0A48E; --muted-2: #8a8070;
+      --ink: #211c18;
+      --text: #34291f;
+      --muted: #7b6f60;
+      --soft: #f8f2e8;
+      --paper: #fffdf8;
+      --line: #eadfc9;
+      --gold: #bf9340;
+      --gold-2: #d8b86f;
+      --gold-3: #f1dfae;
+      --green: #2f8f63;
+      --danger: #b94a40;
+      --shadow: 0 28px 80px rgba(73, 52, 18, .13);
+      --radius: 18px;
     }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
     body {
-      font-family: 'Inter', system-ui, sans-serif; color: var(--cream); line-height: 1.6; padding: 22px 18px 48px;
-      background:
-        radial-gradient(1100px 520px at 50% -8%, rgba(201,169,98,.16), transparent 60%),
-        radial-gradient(800px 600px at 100% 100%, rgba(184,148,63,.08), transparent 55%),
-        var(--espresso);
       min-height: 100vh;
-    }
-    .wrap { max-width: 720px; margin: 0 auto; }
-
-    /* Entradas animadas (stagger) */
-    @keyframes rise { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
-    @keyframes glow { 0%,100% { box-shadow: 0 0 0 1px rgba(201,169,98,.18), 0 18px 40px -24px rgba(0,0,0,.7); } 50% { box-shadow: 0 0 0 1px rgba(201,169,98,.35), 0 18px 44px -22px rgba(0,0,0,.7); } }
-    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-    @keyframes pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.08); } 100% { transform: scale(1); opacity: 1; } }
-    .anim { opacity: 0; animation: rise .7s cubic-bezier(.16,.8,.3,1) forwards; }
-
-    .brand { text-align: center; padding: 14px 0 4px; }
-    .seal-ring { width: 78px; height: 78px; border-radius: 50%; margin: 0 auto;
-      display: flex; align-items: center; justify-content: center;
-      border: 1px solid rgba(201,169,98,.5); box-shadow: 0 0 0 6px rgba(201,169,98,.05), inset 0 0 0 1px rgba(201,169,98,.18); }
-    .brand img { width: 52px; height: 52px; filter: drop-shadow(0 4px 12px rgba(0,0,0,.5)); }
-    .brand h1 { font-family: 'Cormorant Garamond', serif; font-weight: 700; font-size: 33px; color: var(--gold); margin-top: 12px; letter-spacing: .5px; }
-    .brand small { color: var(--gold-2); letter-spacing: 4px; text-transform: uppercase; font-size: 10.5px; }
-    .divider { width: 54px; height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent); margin: 14px auto 4px; }
-    .ttl { font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 600; color: var(--cream); text-align: center; letter-spacing: .3px; }
-    .ttl em { font-style: italic; color: var(--gold-soft); }
-    .ttl-sub { text-align: center; color: var(--muted); font-size: 11px; letter-spacing: 2.5px; text-transform: uppercase; margin-top: 6px; margin-bottom: 4px; }
-
-    .card {
-      background: linear-gradient(180deg, var(--panel), #271f1a);
-      border: 1px solid var(--line); border-radius: 18px; padding: 22px 24px;
-      margin-top: 16px; box-shadow: 0 18px 40px -28px rgba(0,0,0,.8);
-    }
-    /* Cabeçalho de seção com algarismo romano (vernáculo dos contratos) */
-    .sec-head { display: flex; align-items: baseline; gap: 13px; margin-bottom: 16px; padding-bottom: 11px; border-bottom: 1px solid rgba(201,169,98,.14); }
-    .sec-head .rn { font-family: 'Cormorant Garamond', serif; font-size: 26px; line-height: 1; color: var(--gold-2); font-weight: 600; min-width: 24px; text-align: center; }
-    .eyebrow { display: block; font-size: 9.5px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold-2); margin-bottom: 3px; }
-    .card h2 { font-family: 'Cormorant Garamond', serif; font-size: 21px; color: var(--gold); font-weight: 600; letter-spacing: .3px; line-height: 1.05; }
-
-    /* Lacre — assinatura visual antes do aceite */
-    .seal { display: flex; align-items: center; gap: 14px; margin: 26px 4px 4px; color: var(--gold-2); }
-    .seal .ln { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(201,169,98,.5)); }
-    .seal .ln.r { background: linear-gradient(90deg, rgba(201,169,98,.5), transparent); }
-    .seal .mk { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--gold-2); }
-
-    .line { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid rgba(60,51,41,.7); font-size: 14px; }
-    .line:last-child { border-bottom: none; }
-    .line span { color: var(--muted); }
-    .line strong { color: var(--cream); text-align: right; font-weight: 600; }
-
-    .hon { background: var(--panel-2); border-radius: 14px; padding: 4px 16px; border: 1px solid rgba(201,169,98,.14); }
-    .hon .line.total { border-top: 1px solid rgba(201,169,98,.25); margin-top: 4px; padding-top: 12px; }
-    .hon .line.total span { color: var(--gold-soft); font-weight: 600; font-size: 15px; }
-    .hon .line.total strong {
-      color: transparent; font-size: 22px; font-family: 'Cormorant Garamond', serif; font-weight: 700;
-      background: linear-gradient(90deg, var(--gold-2), var(--gold-soft), var(--gold-2)); background-size: 200% auto;
-      -webkit-background-clip: text; background-clip: text; animation: shimmer 5s linear infinite;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 5%, rgba(216, 184, 111, .38), transparent 28%),
+        radial-gradient(circle at 90% 0%, rgba(191, 147, 64, .18), transparent 30%),
+        linear-gradient(180deg, #fffaf0 0%, #f4eadb 46%, #efe1ce 100%);
+      line-height: 1.6;
+      padding-bottom: 112px;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
     }
 
-    .desc { font-size: 14.5px; color: #E8E0D2; white-space: pre-wrap; line-height: 1.75; }
-
-    /* Cláusulas — seção ampla, sem rolagem, bem disposta */
-    .card.clauses-card { padding: 26px 24px; }
-    .clauses-intro { color: var(--muted); font-size: 12.5px; letter-spacing: .2px; margin-bottom: 16px; line-height: 1.6; }
-    .clauses-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 18px; }
-    .clause { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; background: var(--panel-2);
-      border: 1px solid rgba(201,169,98,.12); border-radius: 12px; transition: border-color .25s, transform .25s; }
-    .clause:hover { border-color: rgba(201,169,98,.4); transform: translateY(-1px); }
-    .cnum { flex-shrink: 0; width: 26px; height: 26px; border-radius: 50%; background: linear-gradient(135deg, var(--gold-soft), var(--gold-2));
-      color: #231E1A; font-weight: 700; font-size: 13px; display: flex; align-items: center; justify-content: center; }
-    .clause .ctxt { font-size: 12.5px; line-height: 1.6; color: #E2D9C9; }
-    .clause .ctxt strong { display: block; color: var(--gold-soft); font-size: 12px; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 3px; }
-    @media (max-width: 560px) { .clauses-grid { grid-template-columns: 1fr; } }
-
-    .agree { display: flex; align-items: flex-start; gap: 12px; margin-top: 16px; cursor: pointer; font-size: 14px; color: var(--cream);
-      padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; transition: border-color .25s, background .25s; }
-    .agree:hover { border-color: rgba(201,169,98,.5); }
-    .agree.on { border-color: var(--gold); background: rgba(201,169,98,.08); }
-    .agree input { width: 22px; height: 22px; flex-shrink: 0; accent-color: var(--gold); margin-top: 1px; cursor: pointer; }
-
-    button { font-family: inherit; cursor: pointer; border: none; border-radius: 14px; font-weight: 600; }
-    .btn-accept {
-      width: 100%; margin-top: 18px; padding: 17px; font-size: 16px; letter-spacing: .3px; color: #231E1A;
-      background: linear-gradient(135deg, var(--gold-soft), var(--gold-2)); position: relative; overflow: hidden;
-      box-shadow: 0 14px 30px -14px rgba(201,169,98,.6); transition: transform .2s, box-shadow .2s, opacity .2s;
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(191, 147, 64, .055) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(191, 147, 64, .055) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,.8), rgba(0,0,0,.08));
     }
-    .btn-accept:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 20px 38px -14px rgba(201,169,98,.7); }
-    .btn-accept:active:not(:disabled) { transform: translateY(0); }
-    .btn-accept:disabled { opacity: .45; cursor: not-allowed; filter: grayscale(.3); }
 
-    .accepted { text-align: center; padding: 26px 18px; margin-top: 18px; border-radius: 16px;
-      background: linear-gradient(180deg, rgba(143,185,138,.14), rgba(143,185,138,.05)); border: 1px solid rgba(143,185,138,.4); }
-    .accepted .ck { width: 56px; height: 56px; border-radius: 50%; background: #8FB98A; color: #1d2a1b; display: flex; align-items: center;
-      justify-content: center; font-size: 30px; margin: 0 auto 12px; animation: pop .5s cubic-bezier(.2,1.2,.3,1) both; }
-    .accepted strong { color: #c7e0c2; font-size: 17px; }
-    .accepted p { color: var(--muted); font-size: 13.5px; margin-top: 6px; }
+    button, input { font: inherit; }
+    button { border: 0; cursor: pointer; }
 
-    .btn-ghost { width: 100%; margin-top: 12px; padding: 13px; font-size: 13.5px; color: var(--gold-soft);
-      background: transparent; border: 1px solid rgba(201,169,98,.4); border-radius: 12px; transition: background .2s, border-color .2s; }
-    .btn-ghost:hover { background: rgba(201,169,98,.08); border-color: var(--gold); }
-    .legal { color: var(--muted-2); font-size: 11.5px; margin-top: 22px; text-align: center; line-height: 1.6; }
-    .state { text-align: center; padding: 60px 16px; color: var(--muted); }
-    .spin { width: 34px; height: 34px; border: 3px solid rgba(201,169,98,.25); border-top-color: var(--gold); border-radius: 50%; margin: 0 auto 14px; animation: spin 1s linear infinite; }
+    .shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; position: relative; z-index: 1; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 20px;
+      padding: 22px 0;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; }
+    .brand-mark {
+      width: 50px;
+      height: 50px;
+      border-radius: 16px;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 253, 248, .76);
+      border: 1px solid rgba(191, 147, 64, .28);
+      box-shadow: 0 12px 30px rgba(84, 56, 17, .10);
+      backdrop-filter: blur(14px);
+    }
+    .brand-mark img { width: 35px; height: 35px; object-fit: contain; }
+    .brand-name {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: clamp(24px, 3vw, 34px);
+      color: var(--ink);
+      font-weight: 700;
+      line-height: .95;
+      letter-spacing: .2px;
+    }
+    .brand-sub {
+      margin-top: 3px;
+      color: var(--gold);
+      font-size: 10px;
+      letter-spacing: 2.8px;
+      text-transform: uppercase;
+      font-weight: 800;
+    }
+    .proposal-meta { text-align: right; color: var(--muted); font-size: 12px; display: grid; gap: 2px; }
+    .proposal-meta strong { color: var(--ink); }
+
+    .hero {
+      min-height: 590px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.08fr) minmax(340px, .92fr);
+      gap: 28px;
+      align-items: stretch;
+    }
+    .hero-panel, .lawyer-panel, .card, .decision-panel, .accepted {
+      border: 1px solid rgba(191, 147, 64, .2);
+      background: rgba(255, 253, 248, .78);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(18px);
+      border-radius: var(--radius);
+    }
+    .hero-panel {
+      padding: clamp(34px, 6vw, 66px);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-panel::before {
+      content: "";
+      position: absolute;
+      width: 420px;
+      height: 420px;
+      right: -170px;
+      top: -160px;
+      background: radial-gradient(circle, rgba(216, 184, 111, .36), transparent 66%);
+      animation: floatGlow 9s ease-in-out infinite;
+    }
+    .hero-panel::after {
+      content: "";
+      position: absolute;
+      inset: 22px;
+      border: 1px solid rgba(191, 147, 64, .12);
+      border-radius: 14px;
+      pointer-events: none;
+    }
+    .eyebrow {
+      color: var(--gold);
+      font-size: 11px;
+      letter-spacing: 3.5px;
+      text-transform: uppercase;
+      font-weight: 800;
+      position: relative;
+      z-index: 1;
+    }
+    h1 {
+      position: relative;
+      z-index: 1;
+      margin-top: 20px;
+      max-width: 720px;
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: clamp(48px, 8vw, 86px);
+      line-height: .88;
+      letter-spacing: -.8px;
+      color: var(--ink);
+      font-weight: 700;
+    }
+    h1 em { color: var(--gold); font-style: italic; font-weight: 600; }
+    .hero-copy {
+      position: relative;
+      z-index: 1;
+      margin-top: 24px;
+      max-width: 650px;
+      color: #5d5144;
+      font-size: clamp(16px, 2vw, 20px);
+      line-height: 1.75;
+    }
+    .hero-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 10px; margin-top: 34px; }
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 38px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, .58);
+      border: 1px solid rgba(191, 147, 64, .22);
+      color: #5a4630;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: linear-gradient(135deg, var(--gold-2), var(--gold)); }
+
+    .lawyer-panel { padding: 26px; display: flex; flex-direction: column; justify-content: space-between; gap: 22px; }
+    .profile-card {
+      min-height: 260px;
+      border-radius: 16px;
+      background:
+        linear-gradient(140deg, rgba(33, 28, 24, .92), rgba(58, 45, 32, .9)),
+        radial-gradient(circle at 70% 10%, rgba(216, 184, 111, .34), transparent 46%);
+      color: #fff7e7;
+      padding: 28px;
+      position: relative;
+      overflow: hidden;
+    }
+    .profile-card::after {
+      content: "LB";
+      position: absolute;
+      right: -8px;
+      bottom: -35px;
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 150px;
+      line-height: 1;
+      color: rgba(255, 255, 255, .045);
+      font-weight: 700;
+    }
+    .profile-card h2 {
+      font-family: "Cormorant Garamond", Georgia, serif;
+      font-size: 44px;
+      line-height: .92;
+      font-weight: 700;
+      max-width: 300px;
+    }
+    .profile-card p { margin-top: 14px; color: #e7d8bd; font-size: 14px; max-width: 330px; }
+    .oab { margin-top: 24px; color: var(--gold-3); font-size: 11px; letter-spacing: 2.8px; text-transform: uppercase; font-weight: 800; }
+    .partnership-note {
+      position: relative;
+      z-index: 1;
+      margin-top: 18px;
+      max-width: 360px;
+      padding: 13px 14px;
+      border-radius: 14px;
+      background: rgba(255, 248, 232, .09);
+      border: 1px solid rgba(241, 223, 174, .22);
+    }
+    .partnership-note span {
+      display: block;
+      color: var(--gold-3);
+      font-size: 10px;
+      line-height: 1;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      font-weight: 800;
+      margin-bottom: 6px;
+    }
+    .partnership-note strong {
+      display: block;
+      color: #fffaf0;
+      font-size: 14px;
+      line-height: 1.45;
+      font-weight: 700;
+    }
+    .decision-panel { padding: 22px; box-shadow: none; background: rgba(255, 255, 255, .55); }
+    .decision-panel h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 2.2px; color: var(--gold); margin-bottom: 14px; }
+    .metric { display: flex; justify-content: space-between; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+    .metric:last-child { border-bottom: 0; }
+    .metric span { color: var(--muted); }
+    .metric strong { text-align: right; color: var(--ink); }
+    .investment {
+      margin-top: 18px;
+      border-radius: 16px;
+      padding: 18px;
+      background: linear-gradient(135deg, #fff8e8, #ffffff);
+      border: 1px solid rgba(191, 147, 64, .24);
+    }
+    .investment span { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 2px; font-weight: 800; }
+    .investment strong { display: block; margin-top: 4px; color: var(--gold); font-family: "Cormorant Garamond", Georgia, serif; font-size: 42px; line-height: 1; }
+
+    .content-grid { display: block; margin-top: 28px; }
+    .main-stack { display: grid; gap: 24px; }
+    .card { padding: clamp(24px, 4vw, 38px); background: rgba(255,253,248,.84); }
+    .section-head { display: flex; align-items: baseline; gap: 13px; margin-bottom: 18px; }
+    .section-number { font-family: "Cormorant Garamond", Georgia, serif; color: var(--gold); font-size: 34px; font-weight: 700; line-height: 1; }
+    .section-head small { display: block; color: var(--gold); font-size: 11px; letter-spacing: 2.6px; text-transform: uppercase; font-weight: 800; margin-bottom: 3px; }
+    .section-head h2 { font-family: "Cormorant Garamond", Georgia, serif; color: var(--ink); font-size: clamp(30px, 4vw, 42px); line-height: 1; }
+    .case-description { color: #4f453a; font-size: 16px; line-height: 1.86; white-space: pre-wrap; }
+
+    .strategy-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .strategy-item, .clause, .step {
+      border-radius: 16px;
+      padding: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,248,232,.55));
+      border: 1px solid rgba(191, 147, 64, .18);
+      transition: transform .24s ease, box-shadow .24s ease, border-color .24s ease;
+    }
+    .strategy-item:hover, .clause:hover { transform: translateY(-3px); border-color: rgba(191,147,64,.38); box-shadow: 0 20px 40px rgba(97, 69, 24, .09); }
+    .token {
+      width: 34px;
+      height: 34px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: linear-gradient(135deg, var(--gold-2), var(--gold));
+      font-weight: 800;
+      margin-bottom: 14px;
+      box-shadow: 0 10px 18px rgba(191, 147, 64, .20);
+    }
+    .strategy-item b, .step b { display: block; color: var(--ink); font-size: 14px; margin-bottom: 6px; }
+    .strategy-item p, .step p, .clause p { color: #665a4d; font-size: 13px; line-height: 1.65; }
+
+    .fee-lines { display: grid; gap: 2px; }
+    .fee-line { display: flex; justify-content: space-between; gap: 18px; padding: 13px 0; border-bottom: 1px solid var(--line); }
+    .fee-line span { color: var(--muted); }
+    .fee-line strong { color: var(--ink); text-align: right; }
+    .fee-line.total { margin-top: 5px; padding-top: 18px; border-top: 1px solid rgba(191,147,64,.28); border-bottom: 0; }
+    .fee-line.total span { color: var(--gold); font-weight: 800; }
+    .fee-line.total strong { color: var(--gold); font-family: "Cormorant Garamond", Georgia, serif; font-size: 32px; line-height: 1; }
+    .plan-intro { margin-bottom: 16px; color: #665a4d; font-size: 13.5px; line-height: 1.7; }
+    .plan-summary { display: grid; grid-template-columns: 1fr; gap: 12px; margin-bottom: 0; }
+    .plan-kpi { border: 1px solid rgba(191,147,64,.18); background: rgba(255,255,255,.62); border-radius: 16px; padding: 16px; min-height: auto; }
+    .plan-kpi span { display: block; color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1.6px; font-weight: 800; margin-bottom: 5px; }
+    .plan-kpi strong { color: var(--ink); font-size: 18px; line-height: 1.25; }
+    .plan-kpi.gold strong { color: var(--gold); font-family: "Cormorant Garamond", Georgia, serif; font-size: clamp(32px, 5vw, 46px); line-height: .95; }
+    .payment-plan { border: 1px solid rgba(191,147,64,.2); border-radius: 16px; overflow: hidden; background: rgba(255,255,255,.62); }
+    .plan-row { display: grid; grid-template-columns: 1.1fr 1fr 1.7fr 1fr; gap: 18px; align-items: center; padding: 16px 20px; border-bottom: 1px solid rgba(191,147,64,.14); }
+    .plan-row:last-child { border-bottom: 0; }
+    .plan-row.head { background: #fff7e3; color: var(--gold); font-size: 10.5px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 800; }
+    .plan-row:not(.head) { color: #51463a; font-size: 14.5px; }
+    .plan-row b { color: var(--ink); }
+    .plan-row .amount { text-align: right; color: var(--ink); font-weight: 800; font-size: 15px; }
+    .plan-row.entry { background: rgba(216,184,111,.08); }
+    .plan-note { margin-top: 14px; color: var(--muted); font-size: 12.5px; line-height: 1.6; }
+    .investment-section { background: linear-gradient(135deg, rgba(255,253,248,.96), rgba(255,247,228,.86)); border-color: rgba(191,147,64,.28); }
+    .investment-section .section-head { margin-bottom: 22px; }
+    .investment-layout { display: grid; grid-template-columns: minmax(230px, .34fr) minmax(0, .66fr); gap: 22px; align-items: start; }
+    .investment-summary-panel { border-radius: 18px; padding: 18px; background: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,248,232,.62)); border: 1px solid rgba(191,147,64,.18); }
+    .investment-summary-panel .plan-intro { margin-bottom: 16px; }
+    .investment-schedule-panel { min-width: 0; }
+
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+    .step { display: grid; grid-template-columns: auto 1fr; gap: 13px; align-items: start; min-height: 132px; }
+    .step .token { margin: 0; }
+
+    .clauses { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+    .clause { display: flex; gap: 12px; align-items: flex-start; }
+    .clause-num { width: 29px; height: 29px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; color: var(--gold); background: #fff7e3; border: 1px solid rgba(191,147,64,.24); font-size: 12px; font-weight: 800; }
+    .clause strong { display: block; color: var(--ink); font-size: 12px; letter-spacing: .8px; text-transform: uppercase; margin-bottom: 5px; }
+
+    .agree { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: flex-start; margin-top: 22px; padding: 15px 16px; border-radius: 14px; border: 1px solid rgba(191,147,64,.34); background: rgba(255,248,232,.58); cursor: pointer; color: #5d5144; font-size: 14px; transition: border-color .18s ease, background .18s ease, box-shadow .18s ease; }
+    .agree:hover { border-color: rgba(191,147,64,.58); background: rgba(255,246,222,.82); box-shadow: 0 10px 28px rgba(191,147,64,.08); }
+    .agree input { width: 20px; height: 20px; accent-color: var(--gold); flex: 0 0 auto; margin-top: 2px; }
+    .agree-text { display: grid; gap: 3px; }
+    .agree-kicker { color: var(--gold); font-size: 10px; text-transform: uppercase; letter-spacing: 1.5px; font-weight: 800; }
+    .agree-main { color: var(--ink); font-size: 14.5px; font-weight: 700; line-height: 1.35; }
+    .agree-sub { color: #70675c; font-size: 12.5px; line-height: 1.5; }
+    .agree.on { border-color: var(--gold); background: #fff7e3; box-shadow: 0 10px 28px rgba(191,147,64,.10); }
+
+    .accept-strip { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; padding: 14px 0; background: rgba(255, 253, 248, .82); border-top: 1px solid rgba(191,147,64,.22); backdrop-filter: blur(18px) saturate(160%); box-shadow: 0 -18px 55px rgba(81, 58, 20, .10); }
+    .accept-inner { width: min(1180px, calc(100% - 32px)); margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; align-items: center; }
+    .accept-copy strong { display: block; color: var(--ink); font-size: 14px; }
+    .accept-copy span { color: var(--muted); font-size: 12px; }
+    .btn-accept, .btn-secondary { min-height: 48px; padding: 0 20px; border-radius: 14px; font-weight: 800; white-space: nowrap; transition: transform .2s ease, box-shadow .2s ease, opacity .2s ease; }
+    .btn-accept { color: #fff; background: linear-gradient(135deg, #d8b86f, #b8862f); box-shadow: 0 16px 34px rgba(184, 134, 47, .28); }
+    .btn-secondary { color: var(--gold); background: #fff; border: 1px solid rgba(191,147,64,.28); }
+    .btn-accept:hover:not(:disabled), .btn-secondary:hover { transform: translateY(-2px); }
+    .btn-accept:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+    .accepted { padding: 24px; border-color: rgba(47,143,99,.24); background: linear-gradient(180deg, rgba(241,250,244,.92), rgba(255,253,248,.86)); }
+    .accepted-icon { width: 50px; height: 50px; border-radius: 16px; display: grid; place-items: center; color: #fff; background: var(--green); font-size: 28px; font-weight: 900; margin-bottom: 14px; }
+    .accepted strong { color: #1d5f3f; font-size: 19px; }
+    .accepted p { color: #596b5e; margin-top: 8px; font-size: 14px; }
+
+    .state { min-height: 60vh; display: grid; place-items: center; color: var(--muted); text-align: center; }
+    .state-box { padding: 30px; border-radius: 18px; border: 1px solid rgba(191,147,64,.2); background: rgba(255,253,248,.76); box-shadow: var(--shadow); }
+    .spin { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(191,147,64,.18); border-top-color: var(--gold); margin: 0 auto 14px; animation: spin 1s linear infinite; }
+    .footer-note { max-width: 760px; margin: 30px auto 0; text-align: center; color: var(--muted); font-size: 11.5px; line-height: 1.7; }
+
+    .contact-links { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin: 14px auto 0; color: var(--muted); font-size: 12px; }
+    .contact-link { display: inline-flex; align-items: center; gap: 7px; min-height: 32px; padding: 0 11px; border-radius: 999px; color: #6d604f; text-decoration: none; background: rgba(255,253,248,.46); border: 1px solid rgba(191,147,64,.18); transition: color .18s ease, border-color .18s ease, background .18s ease, transform .18s ease; }
+    .contact-link:hover { color: var(--gold); border-color: rgba(191,147,64,.38); background: rgba(255,248,232,.78); transform: translateY(-1px); }
+    .contact-link svg { width: 15px; height: 15px; stroke: currentColor; }
+
+    .print-document { display: none; }
+    .hide { display: none !important; }
+
+    [data-reveal] { opacity: 0; transform: translateY(18px); animation: reveal .75s cubic-bezier(.16,.8,.3,1) forwards; animation-delay: var(--delay, 0s); }
+    @keyframes reveal { to { opacity: 1; transform: none; } }
+    @keyframes floatGlow { 0%,100% { transform: translate3d(0,0,0) scale(1); } 50% { transform: translate3d(-22px,24px,0) scale(1.08); } }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 960px) {
+      body { padding-bottom: 158px; }
+      .proposal-meta { display: none; }
+      .hero, .content-grid { grid-template-columns: 1fr; }
+      .strategy-grid, .clauses, .plan-summary, .investment-layout, .steps { grid-template-columns: 1fr; }
+      .plan-row { grid-template-columns: 1fr 1fr; gap: 6px 12px; padding: 14px; }
+      .plan-row.head { display: none; }
+      .plan-row .amount { text-align: left; font-size: 16px; }
+      .accept-inner { grid-template-columns: 1fr; }
+      .btn-accept, .btn-secondary { width: 100%; }
+      .hero { min-height: auto; }
+    }
+    @media (max-width: 560px) {
+      .shell { width: min(100% - 22px, 1180px); }
+      .topbar { align-items: flex-start; }
+      .brand-mark { width: 46px; height: 46px; }
+      .hero-panel, .lawyer-panel, .card { border-radius: 16px; }
+      .hero-panel { padding: 30px 24px; }
+      h1 { font-size: 48px; }
+    }
+    @media print {
+      @page { size: A4; margin: 14mm; }
+      * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      body { background: #fff; color: #211c18; padding: 0; font-size: 11.5px; line-height: 1.45; }
+      body::before, .topbar, .accept-strip, .footer-note, .contact-links, .hero, .content-grid { display: none !important; }
+      .shell { width: 100%; }
+      #content { display: block; min-height: auto; }
+      .print-document { display: block; color: #211c18; font-family: Inter, Arial, sans-serif; }
+      .print-head { display: grid; grid-template-columns: 1fr auto; gap: 18px; align-items: start; padding-bottom: 14px; border-bottom: 1px solid #d9c79f; }
+      .print-brand { display: flex; gap: 11px; align-items: center; }
+      .print-logo { width: 42px; height: 42px; object-fit: contain; }
+      .print-name { font-family: "Cormorant Garamond", Georgia, serif; font-size: 24px; line-height: 1; font-weight: 700; }
+      .print-sub { margin-top: 3px; color: #9c742d; font-size: 8.5px; letter-spacing: 1.8px; text-transform: uppercase; font-weight: 800; }
+      .print-title { text-align: right; }
+      .print-title strong { display: block; font-family: "Cormorant Garamond", Georgia, serif; font-size: 25px; line-height: 1; }
+      .print-title span { display: block; margin-top: 5px; color: #766a5b; font-size: 10px; }
+      .print-box { margin-top: 13px; padding: 12px 14px; border: 1px solid #eadfc9; border-radius: 10px; background: #fffdf8; break-inside: avoid; }
+      .print-box h2 { margin: 0 0 8px; font-family: "Cormorant Garamond", Georgia, serif; font-size: 20px; line-height: 1; color: #211c18; }
+      .print-meta { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 18px; }
+      .print-field span { display: block; color: #9c742d; font-size: 8px; letter-spacing: 1.4px; text-transform: uppercase; font-weight: 800; }
+      .print-field strong { display: block; margin-top: 2px; color: #211c18; font-size: 11.5px; }
+      .print-text { color: #41372f; white-space: pre-wrap; }
+      .print-list { display: grid; gap: 7px; margin: 0; padding: 0; list-style: none; }
+      .print-list li { display: grid; grid-template-columns: 22px 1fr; gap: 8px; align-items: start; }
+      .print-list b { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #fff7e3; color: #b8862f; border: 1px solid #eadfc9; font-size: 10px; }
+      .print-list strong { display: block; font-size: 11.5px; color: #211c18; }
+      .print-list p { margin: 2px 0 0; color: #5f5347; }
+      .print-table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 9px; }
+      .print-table th { text-align: left; padding: 8px; background: #fff7e3; color: #9c742d; font-size: 8px; text-transform: uppercase; letter-spacing: 1.1px; }
+      .print-table td { padding: 8px; border-bottom: 1px solid #eadfc9; color: #40362e; vertical-align: top; }
+      .print-table td:last-child, .print-table th:last-child { text-align: right; font-weight: 800; color: #211c18; }
+      .print-total { display: flex; justify-content: space-between; gap: 16px; align-items: baseline; margin-top: 10px; padding-top: 10px; border-top: 1px solid #d9c79f; }
+      .print-total span { color: #9c742d; font-size: 9px; text-transform: uppercase; letter-spacing: 1.4px; font-weight: 800; }
+      .print-total strong { font-family: "Cormorant Garamond", Georgia, serif; color: #b8862f; font-size: 25px; line-height: 1; }
+      .print-terms { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+      .print-term { padding: 9px; border: 1px solid #eadfc9; border-radius: 9px; background: #fffaf0; }
+      .print-term strong { display: block; color: #211c18; font-size: 10px; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
+      .print-term p { margin: 0; color: #5f5347; }
+      .print-foot { margin-top: 13px; display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: end; color: #75695c; font-size: 10px; }
+      .print-sign { min-width: 210px; padding-top: 26px; border-top: 1px solid #d9c79f; text-align: center; color: #211c18; }
+    }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="brand anim">
-      <div class="seal-ring"><img src="/logo.png" alt="" onerror="this.parentElement.style.display='none'" /></div>
-      <h1>Letícia Barros</h1>
-      <small>Advocacia &amp; Consultoria</small>
-      <div class="divider"></div>
+  <main class="shell">
+    <header class="topbar" aria-label="Cabeçalho da proposta">
+      <div class="brand">
+        <div class="brand-mark"><img src="/logo.png" alt="Dra. Letícia Barros" onerror="this.style.display='none'" /></div>
+        <div>
+          <div class="brand-name">Dra. Letícia Barros</div>
+          <div class="brand-sub">Advocacia estratégica</div>
+        </div>
+      </div>
+      <div class="proposal-meta" id="proposal-meta"></div>
+    </header>
+
+    <section id="content" class="state">
+      <div class="state-box"><div class="spin"></div>Preparando sua proposta...</div>
+    </section>
+
+    <p class="footer-note">Documento eletrônico elaborado pela Advocacia Letícia Barros. O aceite registra a concordância comercial; a contratação é formalizada pelos documentos próprios do escritório.</p>
+    <div class="contact-links" aria-label="Canais digitais da Advocacia Let?cia Barros">
+      <a class="contact-link" href="https://www.advogadaleticiabarros.com.br" target="_blank" rel="noopener noreferrer">www.advogadaleticiabarros.com.br</a>
+      <a class="contact-link" href="https://www.instagram.com/adv.leticiabarros2" target="_blank" rel="noopener noreferrer" aria-label="Instagram da Advocacia Let?cia Barros">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"></rect><circle cx="12" cy="12" r="4"></circle><circle cx="17.5" cy="6.5" r="1"></circle></svg>
+        @adv.leticiabarros2
+      </a>
     </div>
-    <div id="content"><div class="state"><div class="spin"></div>Carregando sua proposta…</div></div>
-    <p class="legal">Documento gerado eletronicamente · Advocacia Letícia Barros<br>Em caso de dúvidas, fale com o escritório.</p>
+  </main>
+
+  <div class="accept-strip hide" id="accept-strip" aria-live="polite">
+    <div class="accept-inner">
+      <div class="accept-copy">
+        <strong>Pronta para iniciar sua representação?</strong>
+        <span id="accept-hint">Confira os pontos principais e confirme o aceite da proposta.</span>
+      </div>
+      <button class="btn-secondary" id="print-btn" type="button">Baixar / imprimir</button>
+      <button class="btn-accept" id="accept-btn" type="button" disabled>Aceitar proposta</button>
+    </div>
   </div>
 
   <script>
     const token = new URLSearchParams(location.search).get('t');
-    const money = (v) => (Number(v) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-    const fmtDate = (s) => { if (!s) return '—'; const d = new Date(String(s).slice(0,10) + 'T00:00:00'); return isNaN(d) ? '—' : d.toLocaleDateString('pt-BR'); };
-    const AREA_PT = { trabalhista:'Trabalhista', gestante:'Gestante/Maternidade', familia:'Família', civel:'Cível', previdenciario:'Previdenciário', consumidor:'Consumidor', outro:'Outro' };
-    const esc = (s) => String(s || '').replace(/[&<>]/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;' }[c]));
+    const content = document.getElementById('content');
+    const meta = document.getElementById('proposal-meta');
+    const acceptStrip = document.getElementById('accept-strip');
+    const acceptBtn = document.getElementById('accept-btn');
+    const printBtn = document.getElementById('print-btn');
+    const acceptHint = document.getElementById('accept-hint');
 
-    // Formata as observações/cláusulas: intro + itens numerados em grid (sem rolagem)
+    const AREA_PT = { trabalhista: 'Trabalhista', gestante: 'Gestante e maternidade', familia: 'Família', civel: 'Cível', previdenciario: 'Previdenciário', consumidor: 'Consumidor', outro: 'Jurídico' };
+    const STRATEGIES = {
+      trabalhista: [['Diagnóstico do vínculo', 'Análise de contrato, pagamentos, jornada, verbas e documentos para mapear direitos exigíveis.'], ['Estratégia de cobrança', 'Definição da melhor via: negociação, notificação, reclamação trabalhista ou composição.'], ['Condução do processo', 'Acompanhamento técnico das manifestações, audiências, acordos e cumprimento da decisão.']],
+      gestante: [['Proteção imediata', 'Avaliação da estabilidade, datas, provas e medidas urgentes para preservar seus direitos.'], ['Atuação objetiva', 'Medidas extrajudiciais ou judiciais para reintegração, indenização ou regularização.'], ['Acompanhamento próximo', 'Orientação clara em cada etapa, com foco em segurança e previsibilidade.']],
+      familia: [['Escuta e organização', 'Levantamento dos fatos, documentos e objetivos familiares com discrição e cuidado.'], ['Caminho jurídico', 'Definição da estratégia mais adequada para buscar uma solução segura e sustentável.'], ['Comunicação clara', 'Acompanhamento dos próximos passos para que você entenda decisões, prazos e riscos.']],
+      previdenciario: [['Análise previdenciária', 'Conferência de documentos, CNIS, requisitos, vínculos e pontos que podem afetar o benefício.'], ['Pedido bem instruído', 'Preparação do requerimento administrativo e das provas necessárias para reduzir exigências.'], ['Plano de continuidade', 'Acompanhamento do INSS e avaliação de medida judicial em caso de indeferimento indevido.']],
+      consumidor: [['Mapeamento da falha', 'Análise dos fatos, provas, danos e responsabilidade da empresa ou instituição envolvida.'], ['Busca de reparação', 'Atuação para cancelamento, revisão, indenização, obrigação de fazer ou solução negociada.'], ['Proteção prática', 'Condução das tratativas e do processo com orientação sobre riscos e alternativas.']],
+      civel: [['Leitura do cenário', 'Análise dos fatos, documentos, provas, riscos e viabilidade jurídica da demanda.'], ['Plano de atuação', 'Definição das medidas extrajudiciais ou judiciais mais adequadas ao objetivo pretendido.'], ['Execução técnica', 'Condução do caso e comunicação sobre os movimentos importantes.']],
+      outro: [['Entendimento do caso', 'Transformação dos fatos e documentos em uma estratégia jurídica clara.'], ['Atuação personalizada', 'Definição das medidas necessárias conforme a natureza da demanda.'], ['Acompanhamento contínuo', 'Orientação ao longo das principais etapas do atendimento.']]
+    };
+    const DEFAULT_CLAUSES = [['Validade', 'A proposta permanece válida até a data indicada, salvo nova negociação entre as partes.'], ['Formalização', 'Após o aceite, o escritório preparará contrato, procuração e demais documentos necessários para assinatura.'], ['Despesas externas', 'Custas, taxas, certidões, perícias, deslocamentos e despesas de terceiros não estão incluídos, salvo previsão expressa.'], ['Sigilo profissional', 'Informações e documentos serão tratados com confidencialidade e usados apenas para a execução dos serviços.']];
+
+    const money = (value) => (Number(value) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const safe = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+    const normalize = (value) => String(value || '').trim();
+    const fmtDate = (value) => { if (!value) return ''; const date = new Date(String(value).slice(0, 10) + 'T00:00:00'); return Number.isNaN(date.getTime()) ? '' : date.toLocaleDateString('pt-BR'); };
+    const parseLocalDate = (value) => { if (!value) return null; const date = new Date(String(value).slice(0, 10) + 'T00:00:00'); return Number.isNaN(date.getTime()) ? null : date; };
+    const addMonths = (date, months) => { const next = new Date(date); const originalDay = next.getDate(); next.setMonth(next.getMonth() + months); if (next.getDate() < originalDay) next.setDate(0); return next; };
+    const monthLabel = (date) => date ? date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }) : 'A definir';
+    const parseJson = (value, fallback = {}) => { if (!value) return fallback; if (typeof value === 'object') return value; try { return JSON.parse(value); } catch { return fallback; } };
+    const partnerText = (proposal) => {
+      const raw = proposal.partner_lawyers || proposal.parceria_com || proposal.advogados_parceiros || proposal.advogado_parceiro || proposal.partner_names || proposal.partner_name || proposal.co_counsel || '';
+      return Array.isArray(raw) ? raw.map(normalize).filter(Boolean).join(', ') : normalize(raw);
+    };
+
+    function paymentData(proposal) {
+      const honorarios = parseJson(proposal.honorarios, {});
+      const parcelamento = honorarios?.parcelamento || null;
+      const total = Number(parcelamento?.total || proposal.valor || 0);
+      return { parcelamento, total };
+    }
+
+    function feeHtml(proposal) {
+      const { parcelamento, total } = paymentData(proposal);
+      const today = new Date();
+
+      if (!parcelamento || !Number(parcelamento.total)) {
+        const due = parseLocalDate(proposal.validade) || today;
+        return `
+          <div class="investment-layout">
+            <div class="investment-summary-panel">
+              <p class="plan-intro">Planejamento financeiro da contrata&ccedil;&atilde;o, com o valor previsto para formalizar a atua&ccedil;&atilde;o jur&iacute;dica.</p>
+              <div class="plan-summary">
+                <div class="plan-kpi gold"><span>Total contratado</span><strong>${money(total)}</strong></div>
+                <div class="plan-kpi"><span>Formato</span><strong>Pagamento &uacute;nico</strong></div>
+                <div class="plan-kpi"><span>Refer&ecirc;ncia</span><strong>${fmtDate(due) || 'A definir'}</strong></div>
+              </div>
+            </div>
+            <div class="investment-schedule-panel">
+              <div class="payment-plan">
+                <div class="plan-row head"><span>M&ecirc;s</span><span>Vencimento</span><span>Descri&ccedil;&atilde;o</span><span>Valor</span></div>
+                <div class="plan-row"><span>${safe(monthLabel(due))}</span><b>${fmtDate(due) || 'A definir'}</b><span>Honor&aacute;rios profissionais</span><span class="amount">${money(total)}</span></div>
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      const entrada = Number(parcelamento.entrada) || 0;
+      const parcelas = Math.max(1, Number(parcelamento.parcelas) || 1);
+      const valorParcela = Number(parcelamento.valor_parcela) || 0;
+      const ultima = Number(parcelamento.ultima_parcela) || valorParcela;
+      const totalContrato = Number(parcelamento.total) || total;
+      const saldoParcelado = Math.max(0, totalContrato - entrada);
+      const entradaDate = parseLocalDate(parcelamento.entrada_data) || today;
+      const firstDue = parseLocalDate(parcelamento.primeiro_vencimento) || addMonths(entradaDate, entrada > 0 ? 1 : 0);
+      const rows = [];
+
+      if (entrada > 0) {
+        rows.push({ cls: 'entry', month: monthLabel(entradaDate), due: fmtDate(entradaDate), label: 'Entrada na formaliza\u00e7\u00e3o', amount: entrada });
+      }
+
+      for (let i = 0; i < parcelas; i += 1) {
+        const due = addMonths(firstDue, i);
+        rows.push({
+          cls: '',
+          month: monthLabel(due),
+          due: fmtDate(due),
+          label: `${i + 1}\u00aa parcela mensal`,
+          amount: i === parcelas - 1 ? ultima : valorParcela
+        });
+      }
+
+      return `
+        <div class="investment-layout">
+          <div class="investment-summary-panel">
+            <p class="plan-intro">Planejamento dos honor&aacute;rios contratados, com os vencimentos previstos m&ecirc;s a m&ecirc;s para facilitar sua organiza&ccedil;&atilde;o financeira.</p>
+            <div class="plan-summary">
+              <div class="plan-kpi gold"><span>Total contratado</span><strong>${money(totalContrato)}</strong></div>
+              <div class="plan-kpi"><span>Entrada</span><strong>${entrada > 0 ? money(entrada) : 'Sem entrada'}</strong></div>
+              <div class="plan-kpi"><span>Saldo parcelado</span><strong>${parcelas}x &middot; ${money(saldoParcelado)}</strong></div>
+            </div>
+          </div>
+          <div class="investment-schedule-panel">
+            <div class="payment-plan">
+              <div class="plan-row head"><span>M&ecirc;s</span><span>Vencimento</span><span>Obriga&ccedil;&atilde;o</span><span>Valor</span></div>
+              ${rows.map((row) => `<div class="plan-row ${row.cls}"><span>${safe(row.month)}</span><b>${safe(row.due)}</b><span>${safe(row.label)}</span><span class="amount">${money(row.amount)}</span></div>`).join('')}
+            </div>
+            <p class="plan-note">Os vencimentos podem ser ajustados no contrato se houver negocia&ccedil;&atilde;o espec&iacute;fica aprovada pelo escrit&oacute;rio.</p>
+          </div>
+        </div>
+      `;
+    }
+
+    function clausesFromText(text) {
+      const raw = normalize(text);
+      if (!raw) return DEFAULT_CLAUSES;
+      const blocks = raw.split(/\n\s*\n/).map((item) => item.trim()).filter(Boolean);
+      if (!blocks.length) return DEFAULT_CLAUSES;
+      return blocks.map((block) => {
+        const numbered = block.match(/^\d+\.\s*([\s\S]+)$/);
+        const cleaned = numbered ? numbered[1].trim() : block;
+        const colon = cleaned.indexOf(':');
+        return colon > 0 && colon < 70 ? [cleaned.slice(0, colon).trim(), cleaned.slice(colon + 1).trim()] : ['Condição', cleaned];
+      });
+    }
+
+    function strategyHtml(proposal) {
+      const items = STRATEGIES[proposal.legal_area || 'outro'] || STRATEGIES.outro;
+      return items.map(([title, body], index) => `<article class="strategy-item"><span class="token">${index + 1}</span><b>${safe(title)}</b><p>${safe(body)}</p></article>`).join('');
+    }
     function clausesHtml(text) {
-      const blocks = String(text || '').split(/\n\s*\n/).map((s) => s.trim()).filter(Boolean);
-      let intro = '';
-      const items = [];
-      for (const b of blocks) {
-        const m = b.match(/^(\d+)\.\s*([\s\S]*)$/);
-        if (m) {
-          const rest = m[2];
-          const ci = rest.indexOf(':');
-          const title = ci > 0 && ci < 60 ? rest.slice(0, ci) : '';
-          const body = ci > 0 && ci < 60 ? rest.slice(ci + 1).trim() : rest;
-          items.push(`<div class="clause"><span class="cnum">${m[1]}</span><div class="ctxt">${title ? `<strong>${esc(title)}</strong>` : ''}${esc(body)}</div></div>`);
-        } else { intro += (intro ? ' ' : '') + b; }
-      }
-      return `${intro ? `<p class="clauses-intro">${esc(intro)}</p>` : ''}<div class="clauses-grid">${items.join('')}</div>`;
+      return clausesFromText(text).slice(0, 8).map(([title, body], index) => `<article class="clause"><span class="clause-num">${index + 1}</span><div><strong>${safe(title)}</strong><p>${safe(body)}</p></div></article>`).join('');
+    }
+    function acceptedHtml() {
+      return `<section class="accepted" id="accepted"><div class="accepted-icon">✓</div><strong>Proposta aceita com sucesso.</strong><p>Seu aceite foi registrado. O escritório seguirá com a preparação dos documentos de contratação e assinatura.</p></section>`;
     }
 
-    function honHtml(h, valorFallback) {
-      const pc = h && h.parcelamento;
-      if (!pc || !pc.total) return `<div class="hon"><div class="line total"><span>Honorário total</span><strong>${money(valorFallback)}</strong></div></div>`;
-      const qtd = Number(pc.parcelas) || 1;
-      const ult = (qtd > 1 && pc.ultima_parcela && pc.ultima_parcela !== pc.valor_parcela) ? ` (última de ${money(pc.ultima_parcela)})` : '';
-      return `<div class="hon">
-        ${pc.entrada ? `<div class="line"><span>Entrada${pc.entrada_data ? ' · ' + fmtDate(pc.entrada_data) : ''}</span><strong>${money(pc.entrada)}</strong></div>` : ''}
-        <div class="line"><span>Parcelas</span><strong>${qtd}× de ${money(pc.valor_parcela)}${ult}</strong></div>
-        ${pc.primeiro_vencimento ? `<div class="line"><span>1º vencimento</span><strong>${fmtDate(pc.primeiro_vencimento)} · mensais</strong></div>` : ''}
-        <div class="line total"><span>Honorário total</span><strong>${money(pc.total)}</strong></div>
-      </div>`;
+    function printFeeRows(proposal) {
+      const { parcelamento, total } = paymentData(proposal);
+      const today = new Date();
+      if (!parcelamento || !Number(parcelamento.total)) {
+        const due = parseLocalDate(proposal.validade) || today;
+        return {
+          total,
+          rows: [{ month: monthLabel(due), due: fmtDate(due) || 'A definir', label: 'Honor\u00e1rios profissionais', amount: total }]
+        };
+      }
+
+      const entrada = Number(parcelamento.entrada) || 0;
+      const parcelas = Math.max(1, Number(parcelamento.parcelas) || 1);
+      const valorParcela = Number(parcelamento.valor_parcela) || 0;
+      const ultima = Number(parcelamento.ultima_parcela) || valorParcela;
+      const totalContrato = Number(parcelamento.total) || total;
+      const entradaDate = parseLocalDate(parcelamento.entrada_data) || today;
+      const firstDue = parseLocalDate(parcelamento.primeiro_vencimento) || addMonths(entradaDate, entrada > 0 ? 1 : 0);
+      const rows = [];
+      if (entrada > 0) rows.push({ month: monthLabel(entradaDate), due: fmtDate(entradaDate), label: 'Entrada na formaliza\u00e7\u00e3o', amount: entrada });
+      for (let i = 0; i < parcelas; i += 1) {
+        const due = addMonths(firstDue, i);
+        rows.push({ month: monthLabel(due), due: fmtDate(due), label: `${i + 1}\u00aa parcela mensal`, amount: i === parcelas - 1 ? ultima : valorParcela });
+      }
+      return { total: totalContrato, rows };
     }
 
-    // ── Geração do PDF da proposta (versão clara, papel timbrado) ──────────────
-    function clausesPrint(text) {
-      const blocks = String(text || '').split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean);
-      let intro = ''; const items = [];
-      for (const b of blocks) {
-        const m = b.match(/^(\d+)\.\s*([\s\S]*)$/);
-        if (m) { const rest = m[2]; const ci = rest.indexOf(':'); const title = ci > 0 && ci < 60 ? rest.slice(0, ci) : ''; const body = ci > 0 && ci < 60 ? rest.slice(ci + 1).trim() : rest;
-          items.push(`<div class="pclause"><span class="pcnum">${m[1]}</span><div>${title ? `<strong>${esc(title)}</strong>` : ''}${esc(body)}</div></div>`);
-        } else intro += (intro ? ' ' : '') + b;
+    function printDocumentHtml(proposal, data) {
+      const strategy = (STRATEGIES[proposal.legal_area || 'outro'] || STRATEGIES.outro).slice(0, 3);
+      const clauses = clausesFromText(proposal.observacoes).slice(0, 4);
+      const fees = printFeeRows(proposal);
+      return `
+        <section class="print-document" aria-label="Documento da proposta para impressao">
+          <header class="print-head">
+            <div class="print-brand">
+              <img class="print-logo" src="/logo.png" alt="" onerror="this.style.display='none'" />
+              <div><div class="print-name">Dra. Let&iacute;cia Barros</div><div class="print-sub">Advocacia estrat&eacute;gica &middot; OAB/ES 39.948</div></div>
+            </div>
+            <div class="print-title"><strong>Proposta de Honor&aacute;rios</strong><span>${data.created ? `Emitida em ${safe(data.created)}` : 'Documento eletr&ocirc;nico'}</span></div>
+          </header>
+
+          <section class="print-box">
+            <h2>Dados essenciais</h2>
+            <div class="print-meta">
+              <div class="print-field"><span>Cliente</span><strong>${safe(proposal.contact_name || 'Cliente')}</strong></div>
+              <div class="print-field"><span>&Aacute;rea</span><strong>${safe(data.area)}</strong></div>
+              ${proposal.tipo_causa ? `<div class="print-field"><span>Demanda</span><strong>${safe(proposal.tipo_causa)}</strong></div>` : ''}
+              ${data.validade ? `<div class="print-field"><span>Validade</span><strong>${safe(data.validade)}</strong></div>` : ''}
+              ${data.partners ? `<div class="print-field"><span>Parceria</span><strong>Em parceria com ${safe(data.partners)}</strong></div>` : ''}
+            </div>
+          </section>
+
+          <section class="print-box">
+            <h2>Descri&ccedil;&atilde;o do caso</h2>
+            <div class="print-text">${safe(data.description)}</div>
+          </section>
+
+          <section class="print-box">
+            <h2>Atua&ccedil;&atilde;o proposta</h2>
+            <ul class="print-list">${strategy.map(([title, body], index) => `<li><b>${index + 1}</b><div><strong>${safe(title)}</strong><p>${safe(body)}</p></div></li>`).join('')}</ul>
+          </section>
+
+          <section class="print-box">
+            <h2>Honor&aacute;rios e planejamento</h2>
+            <table class="print-table"><thead><tr><th>M&ecirc;s</th><th>Vencimento</th><th>Obriga&ccedil;&atilde;o</th><th>Valor</th></tr></thead><tbody>${fees.rows.map((row) => `<tr><td>${safe(row.month)}</td><td>${safe(row.due || 'A definir')}</td><td>${safe(row.label)}</td><td>${money(row.amount)}</td></tr>`).join('')}</tbody></table>
+            <div class="print-total"><span>Total contratado</span><strong>${money(fees.total)}</strong></div>
+          </section>
+
+          <section class="print-box">
+            <h2>Termos essenciais</h2>
+            <div class="print-terms">${clauses.map(([title, body]) => `<article class="print-term"><strong>${safe(title)}</strong><p>${safe(body)}</p></article>`).join('')}</div>
+          </section>
+
+          <footer class="print-foot">
+            <div>www.advogadaleticiabarros.com.br &middot; @adv.leticiabarros2<br />O aceite eletr&ocirc;nico desta proposta confirma a concord&acirc;ncia comercial; a contrata&ccedil;&atilde;o ser&aacute; formalizada pelos documentos pr&oacute;prios do escrit&oacute;rio.</div>
+            <div class="print-sign">Dra. Let&iacute;cia Barros<br />OAB/ES 39.948</div>
+          </footer>
+        </section>`;
+    }
+
+    function render(proposal) {
+      const accepted = Boolean(proposal.aceito_em);
+      const area = AREA_PT[proposal.legal_area] || proposal.legal_area || 'Jurídico';
+      const validade = fmtDate(proposal.validade);
+      const created = fmtDate(proposal.created_at);
+      const description = normalize(proposal.description) || 'A descrição do caso será alinhada diretamente com o escritório antes do início das providências.';
+      const { total } = paymentData(proposal);
+      const partners = partnerText(proposal);
+
+      document.title = `Proposta de Honorários | ${proposal.contact_name || 'Cliente'}`;
+      meta.innerHTML = `${created ? `<span>Emitida em <strong>${created}</strong></span>` : ''}${validade ? `<span>Válida até <strong>${validade}</strong></span>` : ''}`;
+      content.className = '';
+      content.innerHTML = `
+        <section class="hero">
+          <div class="hero-panel" data-reveal style="--delay:.02s">
+            <div>
+              <p class="eyebrow">Proposta de honorários</p>
+              <h1>Estratégia jurídica com <em>clareza</em>, técnica e presença.</h1>
+              <p class="hero-copy">Uma proposta objetiva para você entender o que será feito, como o escritório conduzirá o caso e qual investimento formaliza o início da atuação.</p>
+            </div>
+            <div class="hero-actions">
+              <span class="pill">${safe(area)}</span>
+              ${proposal.tipo_causa ? `<span class="pill">${safe(proposal.tipo_causa)}</span>` : ''}
+              ${partners ? `<span class="pill">Em parceria com ${safe(partners)}</span>` : ''}
+              ${validade ? `<span class="pill">Validade: ${safe(validade)}</span>` : ''}
+            </div>
+          </div>
+          <aside class="lawyer-panel" data-reveal style="--delay:.12s">
+            <div class="profile-card">
+              <p class="eyebrow">Sua advogada</p>
+              <h2>Dra. Letícia Barros</h2>
+              <p>Atuação jurídica estratégica, comunicação acessível e acompanhamento próximo para transformar uma situação difícil em um plano de ação claro.</p>
+              <div class="oab">OAB/ES 39.948</div>
+              ${partners ? `<div class="partnership-note"><span>Em parceria com</span><strong>${safe(partners)}</strong></div>` : ''}
+            </div>
+            <div class="decision-panel">
+              <h3>Dados da proposta</h3>
+              <div class="metric"><span>Cliente</span><strong>${safe(proposal.contact_name || 'Cliente')}</strong></div>
+              <div class="metric"><span>Área</span><strong>${safe(area)}</strong></div>
+              ${proposal.tipo_causa ? `<div class="metric"><span>Demanda</span><strong>${safe(proposal.tipo_causa)}</strong></div>` : ''}
+              ${partners ? `<div class="metric"><span>Parceria</span><strong>${safe(partners)}</strong></div>` : ''}
+              <div class="investment"><span>Investimento jurídico</span><strong>${money(total)}</strong></div>
+            </div>
+          </aside>
+        </section>
+
+        <section class="content-grid">
+          <div class="main-stack">
+            <article class="card" data-reveal style="--delay:.16s">
+              <div class="section-head"><span class="section-number">01</span><div><small>O caso</small><h2>Descrição do caso</h2></div></div>
+              <div class="case-description">${safe(description)}</div>
+            </article>
+            <article class="card" data-reveal style="--delay:.20s">
+              <div class="section-head"><span class="section-number">02</span><div><small>Estratégia</small><h2>O que será feito</h2></div></div>
+              <div class="strategy-grid">${strategyHtml(proposal)}</div>
+            </article>
+            <article class="card investment-section" data-reveal style="--delay:.24s">
+              <div class="section-head"><span class="section-number">03</span><div><small>Honor&aacute;rios</small><h2>Planejamento de investimento</h2></div></div>
+              ${feeHtml(proposal)}
+            </article>
+            <article class="card" data-reveal style="--delay:.28s">
+              <div class="section-head"><span class="section-number">04</span><div><small>Condi&ccedil;&otilde;es</small><h2>Termos essenciais</h2></div></div>
+              <div class="clauses">${clausesHtml(proposal.observacoes)}</div>
+              ${accepted ? '' : `<label class="agree" id="agree-box"><input type="checkbox" id="agree" /><span class="agree-text"><span class="agree-kicker">Confirma&ccedil;&atilde;o para avan&ccedil;ar</span><span class="agree-main">Li e estou de acordo com esta proposta.</span><span class="agree-sub">Ao marcar, o bot&atilde;o de aceite no rodap&eacute; ser&aacute; liberado.</span></span></label>`}
+            </article>
+            <article class="card" data-reveal style="--delay:.32s">
+              <div class="section-head"><span class="section-number">05</span><div><small>Pr&oacute;ximos passos</small><h2>Como seguimos</h2></div></div>
+              <div class="steps">
+                <div class="step"><span class="token">1</span><div><b>Aceite</b><p>Voc&ecirc; confirma a proposta por este link e libera a prepara&ccedil;&atilde;o dos documentos.</p></div></div>
+                <div class="step"><span class="token">2</span><div><b>Formaliza&ccedil;&atilde;o</b><p>O escrit&oacute;rio prepara contrato, procura&ccedil;&atilde;o e documentos de assinatura.</p></div></div>
+                <div class="step"><span class="token">3</span><div><b>In&iacute;cio da atua&ccedil;&atilde;o</b><p>Com tudo assinado, as provid&ecirc;ncias jur&iacute;dicas s&atilde;o iniciadas.</p></div></div>
+              </div>
+            </article>
+            ${accepted ? acceptedHtml() : ''}
+          </div>
+        </section>
+        ${printDocumentHtml(proposal, { area, validade, created, description, partners })}`;
+
+      printBtn.onclick = () => window.print();
+      acceptStrip.classList.remove('hide');
+
+      if (accepted) {
+        acceptBtn.textContent = 'Proposta aceita';
+        acceptBtn.disabled = true;
+        acceptHint.textContent = 'Seu aceite já foi registrado pelo escritório.';
+        return;
       }
-      return `${intro ? `<p class="pintro">${esc(intro)}</p>` : ''}<div class="pgrid">${items.join('')}</div>`;
-    }
-    function propostaPdfHtml(p) {
-      const pc = (p.honorarios || {}).parcelamento;
-      const logo = location.origin + '/logo.png';
-      let hon = '';
-      if (pc && pc.total) {
-        if (pc.entrada) hon += `<div class="pline"><span>Entrada${pc.entrada_data ? ' · ' + fmtDate(pc.entrada_data) : ''}</span><b>${money(pc.entrada)}</b></div>`;
-        hon += `<div class="pline"><span>Parcelas</span><b>${Number(pc.parcelas) || 1}× de ${money(pc.valor_parcela)}</b></div>`;
-        if (pc.primeiro_vencimento) hon += `<div class="pline"><span>1º vencimento</span><b>${fmtDate(pc.primeiro_vencimento)} · mensais</b></div>`;
-        hon += `<div class="pline ptot"><span>Honorário total</span><b>${money(pc.total)}</b></div>`;
-      } else { hon = `<div class="pline ptot"><span>Honorário total</span><b>${money(p.valor)}</b></div>`; }
-      let s = 0; const R = ['I', 'II', 'III', 'IV', 'V'];
-      const head = (e, t) => `<div class="psh"><span class="prn">${R[s++]}</span><div><span class="peb">${e}</span><h2>${t}</h2></div></div>`;
-      return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Proposta de Honorários</title>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
-        <style>
-          @page { margin: 1.4cm 1.6cm; }
-          * { box-sizing: border-box; } body { font-family: 'Inter', sans-serif; color: #2b241d; font-size: 11.5pt; margin: 0; }
-          @media screen { body { background: #ece7dd; } .sheet { background: #fff; max-width: 21cm; margin: 16px auto; padding: 1.4cm 1.6cm; box-shadow: 0 2px 16px rgba(0,0,0,.15); } }
-          table.sheet { width: 100%; border-collapse: collapse; } thead td, tfoot td, tbody td { padding: 0; }
-          .ph { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #B8943F; padding-bottom: 8px; margin-bottom: 16px; }
-          .ph .bd { display: flex; align-items: center; gap: 10px; } .ph img { height: 1.3cm; }
-          .ph .name { font-family: 'Cormorant Garamond', serif; font-size: 21pt; font-weight: 700; color: #2b2b2b; line-height: 1; }
-          .ph .sub { font-size: 7pt; letter-spacing: 3px; text-transform: uppercase; color: #B8943F; }
-          .ph .oab { font-size: 9pt; color: #666; }
-          .title { text-align: center; font-family: 'Cormorant Garamond', serif; font-size: 23pt; color: #2b241d; margin: 4px 0 0; }
-          .title em { font-style: italic; color: #B8943F; }
-          .subtitle { text-align: center; font-size: 8pt; letter-spacing: 2.5px; text-transform: uppercase; color: #9a8f7d; margin-bottom: 14px; }
-          .psh { display: flex; align-items: baseline; gap: 10px; border-bottom: 1px solid #e6dcc9; padding-bottom: 6px; margin: 16px 0 10px; }
-          .psh .prn { font-family: 'Cormorant Garamond', serif; font-size: 18pt; color: #B8943F; min-width: 20px; }
-          .psh .peb { display: block; font-size: 7pt; letter-spacing: 2.5px; text-transform: uppercase; color: #B8943F; }
-          .psh h2 { font-family: 'Cormorant Garamond', serif; font-size: 15pt; color: #2b241d; }
-          .pline { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px solid #efe7d8; font-size: 11pt; } .pline span { color: #8a8070; } .pline b { color: #2b241d; }
-          .pcard { background: #faf6ef; border: 1px solid #ecdfc7; border-radius: 8px; padding: 2px 14px; }
-          .ptot { border-bottom: none; border-top: 1px solid #e3d4b6; margin-top: 2px; padding-top: 10px; } .ptot span { font-weight: 600; color: #6a5a3a; } .ptot b { font-family: 'Cormorant Garamond', serif; font-size: 17pt; color: #B8943F; }
-          .pintro { font-size: 9pt; color: #8a8070; margin-bottom: 10px; }
-          .pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; }
-          .pclause { display: flex; gap: 9px; border: 1px solid #ecdfc7; border-radius: 8px; padding: 8px 10px; font-size: 9.5pt; line-height: 1.5; page-break-inside: avoid; }
-          .pclause .pcnum { flex-shrink: 0; width: 20px; height: 20px; border-radius: 50%; background: #B8943F; color: #fff; font-weight: 700; font-size: 10pt; display: flex; align-items: center; justify-content: center; }
-          .pclause strong { display: block; color: #8a6d2f; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .4px; }
-          .desc { white-space: pre-wrap; font-size: 11pt; line-height: 1.7; }
-          .pf { border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8pt; color: #777; }
-          .foot-sp { height: 1.1cm; }
-          @media print { .no-print { display: none; } }
-        </style></head><body>
-        <table class="sheet">
-          <thead><tr><td>
-            <div class="ph"><div class="bd"><img src="${logo}" onerror="this.style.display='none'"><div><div class="name">LETÍCIA BARROS</div><div class="sub">Advocacia &amp; Consultoria</div></div></div><div class="oab">OAB Nº 39.948 - ES</div></div>
-          </td></tr></thead>
-          <tfoot><tr><td><div class="foot-sp"></div></td></tr></tfoot>
-          <tbody><tr><td>
-            <p class="title">Proposta de <em>Honorários</em></p>
-            <p class="subtitle">Preparada com cuidado para o seu caso</p>
-            ${head('A parte', 'Cliente')}
-            <div class="pline"><span>Nome</span><b>${esc(p.contact_name)}</b></div>
-            <div class="pline"><span>Área</span><b>${esc(AREA_PT[p.legal_area] || p.legal_area || '—')}</b></div>
-            <div class="pline"><span>Tipo de causa</span><b>${esc(p.tipo_causa || '—')}</b></div>
-            ${head('Valores e pagamento', 'Honorários')}
-            <div class="pcard">${hon}</div>
-            ${p.observacoes ? `${head('Termos do acordo', 'Condições e cláusulas')}${clausesPrint(p.observacoes)}` : ''}
-            ${p.description ? `${head('O caso', 'Resumo')}<div class="desc">${esc(p.description)}</div>` : ''}
-            ${p.validade ? `<p style="text-align:center;color:#9a8f7d;font-size:9pt;margin-top:14px">Validade desta proposta: ${fmtDate(p.validade)}</p>` : ''}
-          </td></tr></tbody>
-        </table>
-        <div class="pf" style="max-width:21cm;margin:0 auto">(27) 99515-1402 | (44) 99101-1402 · advogadaleticia.barros@gmail.com · @adv.leticiabarros2</div>
-        <div class="no-print" style="text-align:center;margin:18px 0"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
-        </body></html>`;
-    }
-    function baixarPdf() {
-      const w = window.open('', '_blank'); if (!w) { alert('Permita pop-ups para baixar o PDF.'); return; }
-      w.document.write(propostaPdfHtml(window._p)); w.document.close(); setTimeout(() => w.focus(), 400);
+
+      const agree = document.getElementById('agree');
+      const agreeBox = document.getElementById('agree-box');
+      const refresh = () => {
+        const ok = Boolean(agree && agree.checked);
+        acceptBtn.disabled = !ok;
+        agreeBox?.classList.toggle('on', ok);
+      };
+      agree?.addEventListener('change', refresh);
+      refresh();
+
+      acceptBtn.onclick = async () => {
+        if (acceptBtn.disabled) return;
+        acceptBtn.disabled = true;
+        acceptBtn.textContent = 'Registrando aceite...';
+        try {
+          const response = await fetch('/api/public/proposta/' + encodeURIComponent(token) + '/aceitar', { method: 'POST' });
+          if (!response.ok) throw new Error('accept_failed');
+          acceptBtn.textContent = 'Proposta aceita';
+          acceptHint.textContent = 'Aceite registrado. O escritório dará continuidade à formalização.';
+          document.querySelector('.main-stack').insertAdjacentHTML('beforeend', acceptedHtml());
+          document.getElementById('accepted')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } catch {
+          acceptBtn.disabled = false;
+          acceptBtn.textContent = 'Aceitar proposta';
+          alert('Não foi possível registrar o aceite agora. Tente novamente em alguns instantes.');
+        }
+      };
     }
 
     async function load() {
-      const root = document.getElementById('content');
-      if (!token) { root.innerHTML = '<div class="state">Link inválido.</div>'; return; }
-      let p;
-      try { const r = await fetch('/api/public/proposta/' + encodeURIComponent(token)); if (!r.ok) throw 0; p = await r.json(); window._p = p; }
-      catch { root.innerHTML = '<div class="state">Proposta não encontrada ou link expirado.</div>'; return; }
-
-      const h = p.honorarios || {};
-      const aceito = !!p.aceito_em;
-      let d = 0; const delay = () => `style="animation-delay:${(d++ * .12).toFixed(2)}s"`;
-      const R = ['I', 'II', 'III', 'IV', 'V']; let s = 0;
-      const head = (eyebrow, titulo) => `<div class="sec-head"><span class="rn">${R[s++]}</span><div><span class="eyebrow">${eyebrow}</span><h2>${titulo}</h2></div></div>`;
-
-      root.innerHTML = `
-        <p class="ttl anim" ${delay()}>Proposta de <em>Honorários</em></p>
-        <p class="ttl-sub anim" ${delay()}>Preparada com cuidado para o seu caso</p>
-
-        <div class="card anim" ${delay()}>
-          ${head('A parte', 'Cliente')}
-          <div class="line"><span>Nome</span><strong>${esc(p.contact_name)}</strong></div>
-          <div class="line"><span>Área</span><strong>${esc(AREA_PT[p.legal_area] || p.legal_area || '—')}</strong></div>
-          <div class="line"><span>Tipo de causa</span><strong>${esc(p.tipo_causa || '—')}</strong></div>
-        </div>
-
-        <div class="card anim" ${delay()}>
-          ${head('Valores e pagamento', 'Honorários')}
-          ${honHtml(h, p.valor)}
-        </div>
-
-        ${p.observacoes ? `
-        <div class="card clauses-card anim" ${delay()}>
-          ${head('Termos do acordo', 'Condições e cláusulas')}
-          ${clausesHtml(p.observacoes)}
-          <label class="agree" id="agree-box">
-            <input type="checkbox" id="agree" ${aceito ? 'checked disabled' : ''}>
-            <span>Li e concordo com as condições e cláusulas acima.</span>
-          </label>
-        </div>` : ''}
-
-        ${p.description ? `
-        <div class="card anim" ${delay()}>
-          ${head('O caso', 'Resumo')}
-          <div class="desc">${esc(p.description)}</div>
-        </div>` : ''}
-
-        ${p.validade ? `<p class="legal">Validade desta proposta: ${fmtDate(p.validade)}</p>` : ''}
-        <div class="seal anim" ${delay()}><span class="ln"></span><span class="mk">Aceite</span><span class="ln r"></span></div>
-        <div class="anim" ${delay()} id="accept-area"></div>
-        <button class="btn-ghost anim" ${delay()} id="dl-pdf">Baixar proposta em PDF</button>`;
-      document.getElementById('dl-pdf').onclick = baixarPdf;
-      if (new URLSearchParams(location.search).has('pdf')) setTimeout(baixarPdf, 500);
-
-      const area = document.getElementById('accept-area');
-      const hasClauses = !!p.observacoes;
-      const agree = document.getElementById('agree');
-      const agreeBox = document.getElementById('agree-box');
-
-      const showAccepted = () => { area.innerHTML = `
-        <div class="accepted">
-          <div class="ck">✓</div>
-          <strong>Proposta aceita. Muito obrigada!</strong>
-          <p>Seu contrato de prestação de serviços, a procuração e a declaração de hipossuficiência já estão sendo preparados. O escritório entrará em contato para a assinatura.</p>
-        </div>`; };
-
-      if (aceito) { showAccepted(); return; }
-
-      area.innerHTML = `<button class="btn-accept" id="accept" disabled>Aceitar proposta</button>`;
-      const btn = document.getElementById('accept');
-      const refresh = () => {
-        const ok = !hasClauses || (agree && agree.checked);
-        btn.disabled = !ok;
-        if (agreeBox) agreeBox.classList.toggle('on', !!(agree && agree.checked));
-      };
-      if (agree) agree.onchange = refresh;
-      refresh();
-
-      btn.onclick = async () => {
-        if (btn.disabled) return;
-        btn.disabled = true; btn.textContent = 'Registrando seu aceite…';
-        try {
-          const r = await fetch('/api/public/proposta/' + encodeURIComponent(token) + '/aceitar', { method: 'POST' });
-          if (!r.ok) throw 0;
-          showAccepted();
-          area.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        } catch { btn.disabled = false; btn.textContent = 'Aceitar proposta'; alert('Não foi possível registrar agora. Tente novamente.'); }
-      };
+      if (window.__DEMO_PROPOSAL__) { render(window.__DEMO_PROPOSAL__); return; }
+      if (!token) { content.innerHTML = '<div class="state-box">Link inválido. Solicite um novo link ao escritório.</div>'; return; }
+      try {
+        const response = await fetch('/api/public/proposta/' + encodeURIComponent(token));
+        if (!response.ok) throw new Error('not_found');
+        render(await response.json());
+      } catch {
+        content.innerHTML = '<div class="state-box">Proposta não encontrada ou link expirado. Solicite um novo link ao escritório.</div>';
+      }
     }
     load();
   </script>

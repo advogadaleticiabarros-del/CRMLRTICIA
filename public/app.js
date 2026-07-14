@@ -4221,6 +4221,7 @@ async function propostaForm(onSave, lead = null, existing = null) {
     <div class="form-row">${field('CPF', 'cpf', { value: existing?.cpf || lead?.cpf_cnpj || '' })}${field('Telefone / WhatsApp', 'phone', { value: existing?.phone || lead?.phone || '' })}</div>
     ${field('E-mail', 'email', { type: 'email', value: existing?.email || lead?.email || '' })}
     ${field('Vincular a cliente existente (opcional)', 'client_id', { options: [{ v: '', t: '—' }].concat(clients.data.map((c) => ({ v: c.id, t: c.name }))) })}
+    ${field('Em parceria com (opcional)', 'partner_lawyers', { value: existing?.partner_lawyers || '', placeholder: 'Ex.: Dra. Ana Paula Ribeiro, OAB/ES 12.345' })}
 
     ${sec('Causa')}
     <div class="form-row">${field('Área de atuação', 'legal_area', { value: existing?.legal_area || lead?.legal_area || 'outro', options: AREAS })}
@@ -4389,6 +4390,7 @@ async function propostaForm(onSave, lead = null, existing = null) {
     }
     const body = {
       contact_name: fd.contact_name, cpf: fd.cpf, phone: fd.phone, email: fd.email,
+      partner_lawyers: String(fd.partner_lawyers || '').trim() || null,
       client_id: fd.client_id || undefined, lead_id: lead?.id,
       legal_area: fd.legal_area, tipo_causa: fd.tipo_causa, description: fd.description,
       validade: fd.validade || undefined, observacoes: fd.observacoes,

@@ -12,7 +12,7 @@ const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 
 router.get('/proposta/:token', async (req: Request, res: Response) => {
   const [rows] = await db.query(
     `SELECT p.title, p.contact_name, p.legal_area, p.tipo_causa, p.description, p.valor,
-            p.validade, p.observacoes, p.honorarios, p.dependentes, p.status, p.aceito_em, p.created_at,
+            p.validade, p.observacoes, p.honorarios, p.dependentes, p.partner_lawyers, p.status, p.aceito_em, p.created_at,
             u.name AS advogada_nome
        FROM propostas p
        LEFT JOIN users u ON u.id = p.user_id

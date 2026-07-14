@@ -71,7 +71,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 // ── POST /api/propostas — criar ─────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
   const { client_id, case_id, lead_id, title, valor, validade, description, status,
-          legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes } = req.body;
+          legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes, partner_lawyers } = req.body;
 
   if (!client_id && !lead_id) { res.status(400).json({ error: 'Informe o cliente ou o lead' }); return; }
   const finalTitle = (title && String(title).trim()) || `Proposta — ${contact_name || tipo_causa || 'cliente'}`;
@@ -80,14 +80,15 @@ router.post('/', async (req: Request, res: Response) => {
   const [result] = await db.query(
     `INSERT INTO propostas
        (user_id, client_id, case_id, lead_id, title, valor, status, validade, description,
-        legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes, public_token)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes, partner_lawyers, public_token)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       req.user!.id, client_id ?? null, case_id ?? null, lead_id ?? null,
       finalTitle, Number(valor) || 0, STATUSES.includes(status) ? status : 'rascunho',
       validade || null, description ?? null,
       legal_area ?? null, tipo_causa ?? null, contact_name ?? null, cpf ?? null, phone ?? null, email ?? null,
       dependentes ? JSON.stringify(dependentes) : null, honorarios ? JSON.stringify(honorarios) : null, observacoes ?? null,
+      partner_lawyers ?? null,
       publicToken,
     ]
   ) as any;
@@ -128,6 +129,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('phone', req.body.phone);
   setIf('email', req.body.email);
   setIf('observacoes', req.body.observacoes);
+  setIf('partner_lawyers', req.body.partner_lawyers);
   if (req.body.dependentes !== undefined) { fields.push('dependentes = ?'); params.push(req.body.dependentes ? JSON.stringify(req.body.dependentes) : null); }
   if (req.body.honorarios !== undefined) { fields.push('honorarios = ?'); params.push(req.body.honorarios ? JSON.stringify(req.body.honorarios) : null); }
 
