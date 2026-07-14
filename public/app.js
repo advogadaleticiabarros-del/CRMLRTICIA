@@ -1174,6 +1174,25 @@ const ROUTES = {
       <div class="page-header"><div><h2>Configurações</h2><p class="sub">Usuários e conta</p></div>
         <button class="btn-gold" id="new-user">+ Novo usuário</button></div>
       <div class="card" style="margin-bottom:20px"><div id="users-table"></div></div>
+
+      <div class="card" style="padding:20px;margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div><h3 style="color:var(--navy);margin-bottom:2px">🔐 Proteção de dados (LGPD)</h3>
+            <p class="sub" style="margin:0">Tokens do Google e backups cifrados · dados sem finalidade são expurgados</p></div>
+          <button class="btn-sm" id="sec-reload">Atualizar</button>
+        </div>
+        <div id="sec-status" style="margin-top:14px"><div class="spinner"></div></div>
+      </div>
+
+      <div class="card" style="padding:20px;margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div><h3 style="color:var(--navy);margin-bottom:2px">⏰ Saúde das rotinas automáticas</h3>
+            <p class="sub" style="margin:0">Prazos, backup, financeiro e sincronizações — descubra a falha antes de sentir o sintoma</p></div>
+          <button class="btn-sm" id="job-reload">Atualizar</button>
+        </div>
+        <div id="job-health" style="margin-top:14px"><div class="spinner"></div></div>
+      </div>
+
       <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:12px">Minha conta</h3>
         <button class="btn-sm" id="change-pwd">Trocar minha senha</button>
@@ -1311,6 +1330,70 @@ const ROUTES = {
     };
     $('#new-user').onclick = () => userForm(load);
     $('#change-pwd').onclick = () => changePasswordForm();
+
+    // ── Proteção de dados (LGPD): prova verificável, sem precisar de DevTools ──
+    const loadSeguranca = async () => {
+      const box = $('#sec-status'); if (!box) return;
+      try {
+        const s = await api('/api/security/status');
+        const pill = (ok, txt) => `<span style="display:inline-block;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:12px;background:${ok ? 'var(--green,#1e8e5a)' : 'var(--red,#c0392b)'};color:#fff">${txt}</span>`;
+        const linha = (rot, val, ok) => `<div class="mini-row" style="padding:7px 0"><span>${rot}</span>${pill(ok, val)}</div>`;
+        box.innerHTML = `
+          <div style="margin-bottom:10px">${s.protegido
+            ? pill(true, '✓ PROTEGIDO')
+            : pill(false, '⚠ AÇÃO NECESSÁRIA')}</div>
+          ${linha('Chave de cifragem', s.chave.origem, s.chave.configurada)}
+          ${linha('Tokens do Google/WhatsApp em texto puro', `${s.tokens_oauth.em_claro} em claro · ${s.tokens_oauth.cifrados} cifrados`, s.tokens_oauth.ok)}
+          ${linha('Backup enviado ao MEGA', s.backup.sera_cifrado ? 'cifrado' : 'EM CLARO', s.backup.sera_cifrado)}
+          ${(s.alertas || []).map((a) => `<div style="margin-top:10px;font-size:12.5px;background:#fff4e5;border-left:3px solid var(--gold,#c9a227);padding:8px 10px;border-radius:4px">${esc(a)}</div>`).join('')}
+          <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn-sm" id="lgpd-preview">🧹 Ver o que o expurgo apagaria</button>
+          </div>
+          <div id="lgpd-box" style="margin-top:10px"></div>`;
+
+        $('#lgpd-preview').onclick = async () => {
+          const b = $('#lgpd-box'); b.innerHTML = '<div class="spinner"></div>';
+          try {
+            const r = await api('/api/retention/preview'); // SIMULA — não apaga nada
+            b.innerHTML = `
+              <div class="sub" style="font-size:12px;margin-bottom:6px">Simulação — <strong>nada foi apagado</strong>. Nunca toca em processo, procuração, contrato, documento ou financeiro.</div>
+              <table class="tbl" style="width:100%"><thead><tr><th>O quê</th><th>Ação</th><th style="text-align:right">Linhas</th></tr></thead>
+              <tbody>${r.itens.map((i) => `<tr title="${esc(i.porque)}">
+                <td>${esc(i.tabela)}<br><small style="color:var(--text-muted)">${esc(i.criterio)}</small></td>
+                <td>${i.acao === 'anonimizado' ? '🎭 anonimiza' : '🗑️ apaga'}</td>
+                <td style="text-align:right"><strong>${i.linhas}</strong></td></tr>`).join('')}</tbody></table>
+              <div class="sub" style="font-size:12px;margin-top:6px">Total: <strong>${r.total}</strong> linha(s). Roda sozinho todo dia 1º, às 4h.</div>`;
+          } catch (e) { b.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+        };
+      } catch (e) {
+        box.innerHTML = `<div class="empty">${esc(e.message || 'Erro ao ler o estado de segurança')}</div>`;
+      }
+    };
+    $('#sec-reload').onclick = loadSeguranca;
+    loadSeguranca();
+
+    // ── Saúde das rotinas automáticas ────────────────────────────────────────
+    const loadJobs = async () => {
+      const box = $('#job-health'); if (!box) return;
+      try {
+        const j = await api('/api/job-health');
+        if (!j.total) { box.innerHTML = '<div class="empty">Nenhuma rotina executou ainda. Após o próximo ciclo, o histórico aparece aqui.</div>'; return; }
+        box.innerHTML = `
+          <div style="margin-bottom:10px;font-size:13px">${j.saudavel
+            ? '<span style="color:var(--green,#1e8e5a);font-weight:600">✓ Todas as rotinas rodaram sem erro</span>'
+            : `<span style="color:var(--red,#c0392b);font-weight:600">⚠ ${j.com_erro} rotina(s) com erro</span>`}</div>
+          <table class="tbl" style="width:100%"><thead><tr><th>Rotina</th><th>Última</th><th>Estado</th><th style="text-align:right">Falhas 24h</th></tr></thead>
+          <tbody>${j.rotinas.map((r) => `<tr>
+            <td>${esc(r.job)}${r.status === 'erro' && r.message ? `<br><small style="color:var(--red,#c0392b)">${esc(String(r.message).slice(0, 90))}</small>` : ''}</td>
+            <td><small>${fmtDate(r.ran_at)}</small></td>
+            <td>${r.status === 'ok' ? '<span style="color:var(--green,#1e8e5a)">✓ ok</span>' : '<span style="color:var(--red,#c0392b)">✗ erro</span>'}</td>
+            <td style="text-align:right">${Number(r.falhas_24h) ? `<strong style="color:var(--red,#c0392b)">${r.falhas_24h}</strong>` : '0'}</td></tr>`).join('')}</tbody></table>`;
+      } catch (e) {
+        box.innerHTML = `<div class="empty">${esc(e.message || 'Erro ao ler a saúde das rotinas')}</div>`;
+      }
+    };
+    $('#job-reload').onclick = loadJobs;
+    loadJobs();
     $('#run-backup').onclick = async () => {
       const btn = $('#run-backup'); btn.disabled = true; btn.textContent = 'Fazendo backup…';
       try {
