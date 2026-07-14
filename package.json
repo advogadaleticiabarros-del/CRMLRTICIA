@@ -19,7 +19,7 @@
     "create:drive-folders": "ts-node src/scripts/createMissingDriveFolders.ts",
     "restore:test": "ts-node src/scripts/restoreTest.ts",
     "restore:test:prod": "node dist/scripts/restoreTest.js",
-    "deploy:start": "npm run migrate && npm run seed:admin:prod && npm run seed:partner-portal:prod && npm run reconcile:partner-entries && npm start",
+    "deploy:start": "npm start",
     "test": "node --test \"tests/**/*.test.mjs\""
   },
   "engines": {
