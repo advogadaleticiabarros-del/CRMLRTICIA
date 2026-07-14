@@ -48,6 +48,7 @@ import correspondenteRoutes from './routes/correspondente';
 import documentRoutes from './routes/documents';
 import pecaModelosRoutes from './routes/pecaModelos';
 import jobHealthRoutes from './routes/jobHealth';
+import retentionRoutes from './routes/retention';
 import aiRoutes from './routes/ai';
 import automationRoutes from './routes/automation';
 import pushRoutes from './routes/push';
@@ -146,6 +147,7 @@ export function createApp() {
   app.use('/api/documents',             authenticate, requireStaff, documentRoutes);
   app.use('/api/peca-modelos',          authenticate, requireStaff, pecaModelosRoutes);
   app.use('/api/job-health',            authenticate, requireStaff, jobHealthRoutes);
+  app.use('/api/retention',             authenticate, requireAdmin, retentionRoutes);
   app.use('/api/ai',                    authenticate, requireStaff, aiRoutes);
   app.use('/api/dashboards/cockpit',    authenticate, requireStaff, cockpitDashboard);
   app.use('/api/dashboards/comercial',  authenticate, requireStaff, comercialDashboard);

@@ -222,6 +222,17 @@ export function startCronJobs() {
     runJob('monitoramento:processos', () => runMonitoringJob(), { critica: true });
   });
 
+  // ── LGPD: expurgo mensal (dia 1, 04h) — elimina dado pessoal sem finalidade.
+  // Cirúrgico: NÃO toca em processo, procuração, contrato, documento nem
+  // financeiro (dever de guarda / podem ser prova). Ver retentionService.
+  cron.schedule('0 4 1 * *', () => {
+    runJob('lgpd:expurgo-mensal', async () => {
+      const { runRetention } = await import('../services/retentionService');
+      const r = await runRetention(false);
+      return { linhas: r.total, politicas: r.itens.filter((i) => i.linhas > 0).length };
+    }, { critica: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── a cada hora: proposta em análise há 7+ dias → perdida (inativa) ───────
   cron.schedule('30 * * * *', () => {
     runJob('comercial:propostas-expiradas', async () => {
