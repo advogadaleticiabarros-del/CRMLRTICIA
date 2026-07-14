@@ -180,7 +180,8 @@ Object.assign(ROUTES, {
           const anexo = m.media_id && m.media_url
             ? `<br><a href="${esc(m.media_url)}" target="_blank" rel="noopener" style="font-size:12px;font-weight:600">📎 Abrir anexo</a>${ehAudio && !String(m.body).includes('📝 Transcrição:') ? ` <button type="button" class="btn-sm" data-transcrever="${m.media_id}" style="font-size:11px;padding:2px 8px;margin-left:6px">Transcrever áudio</button>` : ''}`
             : '';
-          return `${sep}<div class="wa-bub ${Number(m.from_me) ? 'out' : 'in'}">${esc(m.body)}${anexo}<span class="wa-time">${fmtHora(m.msg_time)}</span></div>`;
+          const autor = Number(m.from_me) && m.sent_by ? `<div style="font-size:9.5px;color:rgba(0,0,0,.45);margin-bottom:2px">${esc(m.sent_by)}</div>` : '';
+          return `${sep}<div class="wa-bub ${Number(m.from_me) ? 'out' : 'in'}">${autor}${esc(m.body)}${anexo}<span class="wa-time">${fmtHora(m.msg_time)}</span></div>`;
         }).join('') || '<div class="wa-empty">Sem mensagens</div>';
       };
 
@@ -207,6 +208,13 @@ Object.assign(ROUTES, {
           html += bloco('Contato', `<small style="color:var(--text-muted)">Número não cadastrado.</small><div style="margin-top:8px"><button class="btn-gold btn-sm" id="wa-mklead">+ Cadastrar como lead</button></div>`);
         }
         html += bloco('Última resposta do contato', cx.ultima_resposta ? `<small>${fmtDateTime(cx.ultima_resposta)}</small>` : '<small style="color:var(--text-muted)">nunca respondeu</small>');
+        html += bloco('Converter conversa em…', `
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <button class="btn-sm" data-conv="tarefa">+ Tarefa</button>
+            <button class="btn-sm" data-conv="prazo" ${(cx.cases || []).length ? '' : 'disabled title="Precisa de um processo"'}>+ Prazo</button>
+            <button class="btn-sm" data-conv="compromisso">+ Compromisso</button>
+            <button class="btn-sm" data-conv="anotacao" ${cx.client ? '' : 'disabled title="Precisa ser cliente"'}>+ Anotação</button>
+          </div>`);
         html += `<div style="padding:12px 14px"><button class="btn-sm" id="wa-resumo" style="width:100%">✨ Resumir conversa com IA</button></div>`;
         box.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:13px;color:var(--navy)">Ficha do contato</strong><button class="btn-sm" id="wa-ctx-close">✕</button></div>` + html;
         box.querySelector('#wa-ctx-close').onclick = () => $('#wa-shell').classList.remove('ctx-open');
@@ -241,6 +249,65 @@ Object.assign(ROUTES, {
           };
           openModal('Novo lead a partir da conversa', form);
         };
+
+        // Converter a conversa em tarefa / prazo / compromisso / anotação
+        box.querySelectorAll('[data-conv]').forEach((bt) => bt.onclick = () => {
+          const tipo = bt.dataset.conv;
+          const nomeRef = `WhatsApp — ${ativo.name}`;
+          if (tipo === 'tarefa') {
+            const form = el(`<form class="form-grid">
+              ${field('Título *', 'title', { value: nomeRef })}
+              <div class="form-row">${field('Vence em', 'due_date', { type: 'date' })}${field('Prioridade', 'priority', { options: [['media','Média'],['alta','Alta'],['baixa','Baixa']].map(([v, t]) => ({ v, t })) })}</div>
+              ${field('Detalhes', 'description', { type: 'textarea' })}
+              <button type="submit" class="btn-primary">Criar tarefa</button></form>`);
+            form.onsubmit = async (ev) => {
+              ev.preventDefault();
+              const b = Object.fromEntries(new FormData(form));
+              try { await api('/api/tasks', { method: 'POST', body: JSON.stringify({ ...b, client_id: cx.client?.id || null }) }); closeModal(); toast('Tarefa criada — veja em Prazos & Tarefas'); }
+              catch (e) { toast(e.message, 'error'); }
+            };
+            openModal('Nova tarefa desta conversa', form);
+          } else if (tipo === 'prazo') {
+            const form = el(`<form class="form-grid">
+              ${field('Processo *', 'case_id', { options: (cx.cases || []).map((k) => ({ v: k.id, t: `${k.title || ''}${k.case_number ? ' · ' + k.case_number : ''}` })) })}
+              ${field('Descrição do prazo *', 'description', { value: `Prazo combinado no WhatsApp com ${ativo.name}` })}
+              ${field('Data-limite *', 'deadline_date', { type: 'date' })}
+              <button type="submit" class="btn-primary">Criar prazo</button></form>`);
+            form.onsubmit = async (ev) => {
+              ev.preventDefault();
+              const b = Object.fromEntries(new FormData(form));
+              try { await api('/api/deadlines', { method: 'POST', body: JSON.stringify(b) }); closeModal(); toast('Prazo criado — os alertas automáticos já valem para ele'); }
+              catch (e) { toast(e.message, 'error'); }
+            };
+            openModal('Novo prazo desta conversa', form);
+          } else if (tipo === 'compromisso') {
+            const form = el(`<form class="form-grid">
+              ${field('Título *', 'title', { value: `Reunião — ${ativo.name}` })}
+              <div class="form-row">${field('Início *', 'start_datetime', { type: 'datetime-local' })}${field('Fim *', 'end_datetime', { type: 'datetime-local' })}</div>
+              ${field('Tipo', 'event_type', { options: [['reuniao','Reunião'],['audiencia','Audiência'],['compromisso','Compromisso']].map(([v, t]) => ({ v, t })) })}
+              ${field('Local ou link', 'location')}
+              <button type="submit" class="btn-primary">Agendar</button></form>`);
+            form.onsubmit = async (ev) => {
+              ev.preventDefault();
+              const b = Object.fromEntries(new FormData(form));
+              if (!b.start_datetime || !b.end_datetime) { toast('Informe início e fim', 'error'); return; }
+              try { await api('/api/calendar/events', { method: 'POST', body: JSON.stringify({ ...b, client_id: cx.client?.id || null }) }); closeModal(); toast('Compromisso na agenda (sincroniza com o Google)'); }
+              catch (e) { toast(e.message, 'error'); }
+            };
+            openModal('Novo compromisso desta conversa', form);
+          } else if (tipo === 'anotacao') {
+            const form = el(`<form class="form-grid">
+              ${field('Anotação para a timeline do cliente *', 'texto', { type: 'textarea' })}
+              <button type="submit" class="btn-primary">Registrar anotação</button></form>`);
+            form.onsubmit = async (ev) => {
+              ev.preventDefault();
+              const b = Object.fromEntries(new FormData(form));
+              try { await api(`/api/whatsapp-instance/chats/${ativo.phone}/anotacao`, { method: 'POST', body: JSON.stringify(b) }); closeModal(); toast('Anotação registrada na jornada do cliente'); }
+              catch (e) { toast(e.message, 'error'); }
+            };
+            openModal('Anotação desta conversa', form);
+          }
+        });
 
         const rs = box.querySelector('#wa-resumo');
         if (rs) rs.onclick = async () => {

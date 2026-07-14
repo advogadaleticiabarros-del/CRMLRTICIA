@@ -162,7 +162,7 @@ router.post('/chats/:phone/labels', async (req: Request, res: Response) => {
 router.get('/chats/:phone', async (req: Request, res: Response) => {
   const phone = String(req.params.phone).replace(/\D/g, '');
   const [rows] = await db.query(
-    `SELECT w.id, w.from_me, w.body, w.msg_time, w.media_id, wm.mime AS media_mime
+    `SELECT w.id, w.from_me, w.body, w.msg_time, w.media_id, w.sent_by, wm.mime AS media_mime
        FROM whatsapp_messages w LEFT JOIN whatsapp_media wm ON wm.id = w.media_id
       WHERE w.phone = ? ORDER BY w.msg_time ASC, w.id ASC LIMIT 300`, [phone]) as any;
   for (const r of rows) if (r.media_id) r.media_url = signMediaUrl(`/api/whatsapp-instance/media/${r.media_id}`);
@@ -234,9 +234,28 @@ router.get('/chats/:phone/context', async (req: Request, res: Response) => {
 router.post('/chats/:phone/send', async (req: Request, res: Response) => {
   const text = String(req.body?.text || '').trim();
   if (!text) { res.status(400).json({ error: 'Escreva a mensagem' }); return; }
-  const ok = await sendText(req.params.phone, text);
+  const ok = await sendText(req.params.phone, text, req.user!.name);
   if (!ok) { res.status(400).json({ error: 'Instância desconectada — conecte na aba Conexão' }); return; }
   res.json({ success: true });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/anotacao — anotação na timeline ─
+router.post('/chats/:phone/anotacao', async (req: Request, res: Response) => {
+  const texto = String(req.body?.texto || '').trim();
+  if (!texto) { res.status(400).json({ error: 'Escreva a anotação' }); return; }
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const tail = phone.slice(-8);
+  const [cli] = await db.query(
+    `SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''),'(',''),')',''),'-',''),' ','') LIKE ? LIMIT 1`,
+    [`%${tail}`]) as any;
+  if (!cli.length) { res.status(400).json({ error: 'Este contato ainda não é um cliente cadastrado' }); return; }
+  const { logTimeline } = await import('../services/TimelineService');
+  await logTimeline({
+    clientId: cli[0].id, eventType: 'whatsapp',
+    description: `Anotação do atendimento (WhatsApp): ${texto}`,
+    userId: req.user!.id,
+  });
+  res.status(201).json({ success: true });
 });
 
 // ── Helpers de IA (leem a conversa) ─────────────────────────────────────────

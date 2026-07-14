@@ -236,16 +236,16 @@ export async function startIfSession(): Promise<void> {
 }
 
 // ── Envio ────────────────────────────────────────────────────────────────────
-export async function sendText(phone: string, text: string): Promise<boolean> {
+export async function sendText(phone: string, text: string, sentBy?: string): Promise<boolean> {
   if (!sock || !state.connected) return false;
   const digits = String(phone).replace(/\D/g, '');
   if (digits.length < 12) return false;
   try {
     await sock.sendMessage(`${digits}@s.whatsapp.net`, { text });
     await db.query(
-      `INSERT INTO whatsapp_messages (phone, client_id, from_me, body, msg_time)
-       VALUES (?, ?, 1, ?, NOW())`,
-      [digits, await findClientByPhone(digits), String(text).slice(0, 4000)]).catch(() => {});
+      `INSERT INTO whatsapp_messages (phone, client_id, from_me, body, msg_time, sent_by)
+       VALUES (?, ?, 1, ?, NOW(), ?)`,
+      [digits, await findClientByPhone(digits), String(text).slice(0, 4000), sentBy || null]).catch(() => {});
     return true;
   } catch { return false; }
 }
@@ -268,7 +268,7 @@ function scheduleAutoSend(): void {
           const [rows] = await db.query(
             "SELECT id, phone, message FROM whatsapp_queue WHERE status = 'pendente' ORDER BY created_at ASC LIMIT 1") as any;
           if (rows.length) {
-            const ok = await sendText(rows[0].phone, rows[0].message);
+            const ok = await sendText(rows[0].phone, rows[0].message, 'Envio automático');
             if (ok) {
               await db.query(
                 "UPDATE whatsapp_queue SET status = 'enviada', sent_at = NOW(), sent_via = 'instancia' WHERE id = ?",
