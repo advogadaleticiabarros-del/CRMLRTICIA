@@ -32,7 +32,27 @@ async function bootstrap() {
     }
   }
 
-  // 2. LGPD: cifra os tokens de OAuth que ainda estiverem em texto puro.
+  // 2. Migrations pendentes. Uma falha NÃO derruba o CRM (antes, `migrate && start`
+  //    deixava o sistema fora do ar por um SQL ruim — e a "solução" foi parar de
+  //    migrar, o que fez a tabela job_runs simplesmente não existir em produção).
+  try {
+    const { runMigrations, avisarFalhaMigration } = await import('./config/migrations');
+    const m = await runMigrations();
+    if (m.aplicadas.length) console.log(`🗄️  ${m.aplicadas.length} migration(s) aplicada(s): ${m.aplicadas.join(', ')}`);
+    else console.log(`🗄️  Banco em dia (${m.jaAplicadas} migrations aplicadas).`);
+    if (m.falha) {
+      console.error(
+        `🚨 MIGRATION FALHOU: ${m.falha.arquivo}\n` +
+        '    O CRM vai subir mesmo assim, mas o banco está INCOMPLETO.\n' +
+        '    Telas novas podem dar "tabela não existe". Corrija o SQL e refaça o deploy.'
+      );
+      await avisarFalhaMigration(m.falha.arquivo, m.falha.erro);
+    }
+  } catch (e: any) {
+    console.error('❌ Erro ao rodar as migrations (o CRM sobe mesmo assim):', e?.message);
+  }
+
+  // 3. LGPD: cifra os tokens de OAuth que ainda estiverem em texto puro.
   //    Idempotente e barato. Roda aqui para não exigir script manual contra o
   //    banco de produção. Falhar aqui NÃO pode impedir o CRM de subir.
   try {
@@ -55,18 +75,18 @@ async function bootstrap() {
     console.error('❌ [LGPD] Falha ao cifrar tokens em repouso (o CRM sobe mesmo assim):', e?.message);
   }
 
-  // 3. Sobe o servidor HTTP
+  // 4. Sobe o servidor HTTP
   const app = createApp();
   const server = app.listen(env.PORT, () => {
     console.log(`🚀 CRM Jurídico rodando em http://localhost:${env.PORT}`);
     console.log(`   Ambiente: ${env.NODE_ENV}`);
   });
 
-  // 4. Inicia as rotinas automáticas (prazos, notificações, sync)
+  // 5. Inicia as rotinas automáticas (prazos, notificações, sync)
   startCronJobs();
   console.log('⏰ Cron jobs iniciados');
 
-  // 5. Shutdown gracioso
+  // 6. Shutdown gracioso
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} recebido — encerrando...`);
     server.close(async () => {
