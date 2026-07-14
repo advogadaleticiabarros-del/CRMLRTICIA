@@ -32,18 +32,34 @@ async function bootstrap() {
     }
   }
 
-  // 2. Sobe o servidor HTTP
+  // 2. LGPD: cifra os tokens de OAuth que ainda estiverem em texto puro.
+  //    Idempotente e barato. Roda aqui para não exigir script manual contra o
+  //    banco de produção. Falhar aqui NÃO pode impedir o CRM de subir.
+  try {
+    const { cifrarTokensEmRepouso } = await import('./services/tokenEncryption');
+    const r = await cifrarTokensEmRepouso();
+    if (r.cifrados > 0) {
+      console.log(`🔐 LGPD: ${r.cifrados} token(s) de OAuth cifrado(s) em repouso.`);
+    } else if (r.jaCifrados > 0) {
+      console.log(`🔐 LGPD: tokens já cifrados (${r.jaCifrados} campo(s)).`);
+    }
+    if (r.erros.length) console.warn('⚠️  [LGPD] Tabelas não verificadas:', r.erros.join(' | '));
+  } catch (e: any) {
+    console.error('❌ [LGPD] Falha ao cifrar tokens em repouso (o CRM sobe mesmo assim):', e?.message);
+  }
+
+  // 3. Sobe o servidor HTTP
   const app = createApp();
   const server = app.listen(env.PORT, () => {
     console.log(`🚀 CRM Jurídico rodando em http://localhost:${env.PORT}`);
     console.log(`   Ambiente: ${env.NODE_ENV}`);
   });
 
-  // 3. Inicia as rotinas automáticas (prazos, notificações, sync)
+  // 4. Inicia as rotinas automáticas (prazos, notificações, sync)
   startCronJobs();
   console.log('⏰ Cron jobs iniciados');
 
-  // 4. Shutdown gracioso
+  // 5. Shutdown gracioso
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} recebido — encerrando...`);
     server.close(async () => {
