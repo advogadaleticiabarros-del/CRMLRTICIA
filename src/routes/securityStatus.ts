@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
-import { isEncrypted } from '../utils/crypto';
+import { isEncrypted, podeDecifrar } from '../utils/crypto';
 
 const router = Router();
 
@@ -26,28 +26,35 @@ router.get('/status', async (_req: Request, res: Response) => {
     const temFallback = !temChavePropria && !!process.env.JWT_SECRET;
 
     const tokens: any[] = [];
-    let emClaroTotal = 0, cifradosTotal = 0;
+    let emClaroTotal = 0, cifradosTotal = 0, ilegiveisTotal = 0;
 
     for (const a of ALVOS) {
       try {
         const [rows] = await db.query(`SELECT ${a.campos.join(', ')} FROM ${a.tabela}`) as any;
-        let cifrados = 0, emClaro = 0;
+        let cifrados = 0, emClaro = 0, ilegiveis = 0;
         for (const r of rows) {
           for (const c of a.campos) {
             const v = r[c];
             if (v == null || v === '') continue;
-            if (isEncrypted(v)) cifrados++; else emClaro++;
+            if (!isEncrypted(v)) { emClaro++; continue; }
+            // Ter a marca de "cifrado" não basta: precisa ABRIR com a chave atual.
+            // Se a chave foi trocada, o token vira lixo e o Gmail/Drive param.
+            if (podeDecifrar(String(v))) cifrados++; else ilegiveis++;
           }
         }
-        cifradosTotal += cifrados; emClaroTotal += emClaro;
-        tokens.push({ origem: a.rotulo, tabela: a.tabela, cifrados, em_claro: emClaro, ok: emClaro === 0 });
+        cifradosTotal += cifrados; emClaroTotal += emClaro; ilegiveisTotal += ilegiveis;
+        tokens.push({
+          origem: a.rotulo, tabela: a.tabela,
+          cifrados, em_claro: emClaro, ilegiveis,
+          ok: emClaro === 0 && ilegiveis === 0,
+        });
       } catch (e: any) {
         tokens.push({ origem: a.rotulo, tabela: a.tabela, erro: e?.message });
       }
     }
 
     const chaveOk = temChavePropria;
-    const tokensOk = emClaroTotal === 0;
+    const tokensOk = emClaroTotal === 0 && ilegiveisTotal === 0;
 
     const alertas: string[] = [];
     if (!temChavePropria && temFallback) {
@@ -66,6 +73,14 @@ router.get('/status', async (_req: Request, res: Response) => {
         'reinicie o serviço no Railway (ou aguarde o próximo deploy).'
       );
     }
+    if (ilegiveisTotal > 0) {
+      alertas.push(
+        `🚨 ${ilegiveisTotal} token(s) estão cifrados mas NÃO ABREM com a chave atual — ` +
+        'a ENCRYPTION_KEY foi trocada. Gmail, Drive e Agenda vão falhar. ' +
+        'Reinicie o serviço: o sistema tenta migrar da chave antiga sozinho. ' +
+        'Se persistir, reconecte as contas em Integrações.'
+      );
+    }
 
     res.json({
       protegido: chaveOk && tokensOk,
@@ -76,6 +91,7 @@ router.get('/status', async (_req: Request, res: Response) => {
       tokens_oauth: {
         cifrados: cifradosTotal,
         em_claro: emClaroTotal,
+        ilegiveis: ilegiveisTotal,   // cifrados, mas a chave atual não abre
         ok: tokensOk,
         detalhe: tokens,
       },

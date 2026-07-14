@@ -58,6 +58,42 @@ function chave(): Buffer | null {
   return null;
 }
 
+/**
+ * Chave LEGADA — a derivada do JWT_SECRET, usada antes de existir ENCRYPTION_KEY.
+ *
+ * Por que isto existe: quem rodou o sistema antes de definir a ENCRYPTION_KEY teve
+ * os tokens cifrados com esta chave. Ao definir a chave própria depois, os tokens
+ * antigos ficariam ILEGÍVEIS (quebrando Gmail, Drive e Agenda). Guardamos a chave
+ * antiga para conseguir RE-CIFRAR sozinhos, sem obrigar a reconectar as contas.
+ */
+export function chaveLegada(): Buffer | null {
+  const jwt = process.env.JWT_SECRET;
+  if (!jwt) return null;
+  return crypto.createHash('sha256').update('crm-enc:' + jwt).digest();
+}
+
+/** Decifra usando uma chave específica. Devolve null se não conseguir. */
+export function decryptComChave(valor: string, k: Buffer): string | null {
+  if (!isEncrypted(valor)) return valor;
+  try {
+    const [, , ivB64, tagB64, cifraB64] = String(valor).split(':');
+    const d = crypto.createDecipheriv('aes-256-gcm', k, Buffer.from(ivB64, 'base64'));
+    d.setAuthTag(Buffer.from(tagB64, 'base64'));
+    return Buffer.concat([d.update(Buffer.from(cifraB64, 'base64')), d.final()]).toString('utf8');
+  } catch { return null; }
+}
+
+/** A chave em uso agora (para testar se um valor ainda é legível). */
+export function chaveAtual(): Buffer | null { return chave(); }
+
+/** O valor cifrado ainda pode ser LIDO com a chave atual? (não basta ter a marca) */
+export function podeDecifrar(valor: string | null | undefined): boolean {
+  if (!valor || !isEncrypted(valor)) return true; // texto puro é sempre legível
+  const k = chave();
+  if (!k) return false;
+  return decryptComChave(String(valor), k) !== null;
+}
+
 /** Já está cifrado? */
 export function isEncrypted(v: unknown): boolean {
   return typeof v === 'string' && v.startsWith(PREFIXO);

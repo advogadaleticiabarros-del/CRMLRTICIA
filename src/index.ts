@@ -38,10 +38,17 @@ async function bootstrap() {
   try {
     const { cifrarTokensEmRepouso } = await import('./services/tokenEncryption');
     const r = await cifrarTokensEmRepouso();
-    if (r.cifrados > 0) {
-      console.log(`🔐 LGPD: ${r.cifrados} token(s) de OAuth cifrado(s) em repouso.`);
-    } else if (r.jaCifrados > 0) {
-      console.log(`🔐 LGPD: tokens já cifrados (${r.jaCifrados} campo(s)).`);
+    if (r.cifrados > 0)   console.log(`🔐 LGPD: ${r.cifrados} token(s) cifrado(s) em repouso.`);
+    if (r.recifrados > 0) console.log(`🔑 LGPD: ${r.recifrados} token(s) MIGRADO(S) da chave antiga para a ENCRYPTION_KEY. Gmail/Drive/Agenda seguem funcionando.`);
+    if (r.cifrados === 0 && r.recifrados === 0 && r.jaCifrados > 0) {
+      console.log(`🔐 LGPD: tokens cifrados e legíveis (${r.jaCifrados} campo(s)).`);
+    }
+    if (r.ilegiveis > 0) {
+      console.error(
+        `🚨 [LGPD] ${r.ilegiveis} token(s) NÃO abrem com nenhuma chave conhecida.\n` +
+        '    A ENCRYPTION_KEY foi trocada sem migração. É preciso RECONECTAR as contas ' +
+        '(Gmail da parceria, Google Agenda) em Configurações/Integrações.'
+      );
     }
     if (r.erros.length) console.warn('⚠️  [LGPD] Tabelas não verificadas:', r.erros.join(' | '));
   } catch (e: any) {

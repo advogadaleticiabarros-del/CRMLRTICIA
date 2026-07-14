@@ -1,8 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
 
 // Chave de teste (não é a de produção)
 process.env.ENCRYPTION_KEY = 'a'.repeat(64);
+process.env.JWT_SECRET = 'jwt-secret-de-teste-antigo';
 
 const { encrypt, decrypt, isEncrypted } = await import('../dist/utils/crypto.js');
 
@@ -85,4 +88,41 @@ test('backup adulterado é rejeitado (não restaura lixo por cima do banco)', ()
   const enc = encryptBuffer(zlib.gzipSync(DUMP));
   enc[enc.length - 1] ^= 0xff; // vira 1 bit
   assert.throws(() => decryptBuffer(enc), 'deve lançar, não devolver dados corrompidos');
+});
+
+// ── TROCA DE CHAVE: o cenário real que quebrou o CRM em produção ────────────
+// O sistema rodou primeiro SEM ENCRYPTION_KEY (chave derivada do JWT_SECRET) e
+// cifrou os tokens. Depois a ENCRYPTION_KEY foi definida — e os tokens, cifrados
+// com a chave antiga, ficariam ILEGÍVEIS: Gmail, Drive e Agenda parariam.
+const { podeDecifrar, chaveLegada, decryptComChave } = await import('../dist/utils/crypto.js');
+
+test('token cifrado com a CHAVE ANTIGA é detectado como ilegível (não passa batido)', () => {
+  // Simula: cifra com a chave derivada do JWT_SECRET
+  const legada = chaveLegada();
+  assert.ok(legada, 'deve haver chave legada quando existe JWT_SECRET');
+
+  // Recria o formato enc:v1 usando a chave legada
+  const cryptoNode = require('node:crypto');
+  const iv = cryptoNode.randomBytes(12);
+  const c = cryptoNode.createCipheriv('aes-256-gcm', legada, iv);
+  const cifra = Buffer.concat([c.update(TOKEN, 'utf8'), c.final()]);
+  const comChaveAntiga = 'enc:v1:' + iv.toString('base64') + ':' + c.getAuthTag().toString('base64') + ':' + cifra.toString('base64');
+
+  // Tem a MARCA de cifrado...
+  assert.ok(isEncrypted(comChaveAntiga));
+  // ...mas NÃO abre com a chave atual. Era exatamente isto que meu painel não via.
+  assert.equal(podeDecifrar(comChaveAntiga), false, 'precisa acusar que não abre');
+  assert.equal(decrypt(comChaveAntiga), null);
+
+  // E o auto-reparo consegue abrir com a chave antiga → dá para re-cifrar.
+  assert.equal(decryptComChave(comChaveAntiga, legada), TOKEN,
+    'a chave legada precisa abrir — é assim que o boot migra sem reconectar as contas');
+});
+
+test('token cifrado com a chave ATUAL é legível (podeDecifrar = true)', () => {
+  assert.equal(podeDecifrar(encrypt(TOKEN)), true);
+});
+
+test('texto puro é sempre "legível" (não é erro de chave)', () => {
+  assert.equal(podeDecifrar(TOKEN), true);
 });
