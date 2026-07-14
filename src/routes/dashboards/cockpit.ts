@@ -69,8 +69,13 @@ router.get('/', async (req: Request, res: Response) => {
         LEFT JOIN legal_processes lp ON lp.id = d.process_id
         LEFT JOIN clients c  ON c.id  = d.client_id
         LEFT JOIN clients cp ON cp.id = lp.client_id
-       WHERE d.status = 'a_confirmar' AND (lp.user_id = ? OR lp.id IS NULL)
-       ORDER BY d.start_date DESC LIMIT 10`, [userId]) as any;
+       -- ANTES: `AND (lp.user_id = ? OR lp.id IS NULL)`. A tabela legal_processes
+       -- NÃO TEM a coluna user_id → o MySQL lançava erro, o safe() engolia e esta
+       -- seção ficava SEMPRE VAZIA. Intimação nova nunca aparecia no Cockpit —
+       -- risco direto de PRAZO PERDIDO. Os processos são do escritório, não de um
+       -- usuário: não há o que filtrar por user_id.
+       WHERE d.status = 'a_confirmar'
+       ORDER BY d.start_date DESC LIMIT 10`) as any;
     return rows;
   }, [] as any[]);
 
@@ -80,8 +85,10 @@ router.get('/', async (req: Request, res: Response) => {
       SELECT ma.id, ma.title, ma.detected_keyword, lp.process_number
         FROM movement_alerts ma
         LEFT JOIN legal_processes lp ON lp.id = ma.process_id
-       WHERE ma.status = 'aberto' AND (lp.user_id = ? OR lp.id IS NULL)
-       ORDER BY ma.created_at DESC LIMIT 10`, [userId]) as any;
+       -- Mesmo bug: legal_processes não tem user_id. A salvaguarda do DataJud
+       -- (movimentação sem intimação) ficava sempre vazia.
+       WHERE ma.status = 'aberto'
+       ORDER BY ma.created_at DESC LIMIT 10`) as any;
     return rows;
   }, [] as any[]);
 

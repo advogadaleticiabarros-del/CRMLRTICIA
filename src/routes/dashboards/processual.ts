@@ -69,10 +69,13 @@ router.get('/', async (req: Request, res: Response) => {
       LIMIT 10
     `, [userId]) as any;
 
-    const [[pecas]] = await db.query(
-      "SELECT COUNT(*) AS pendentes FROM legal_pieces WHERE user_id = ? AND status NOT IN ('protocolado','cancelado')",
-      [userId]
-    ) as any;
+    // ANTES: contava `legal_pieces`, tabela MORTA — nenhum código insere nela.
+    // O KPI "peças pendentes" mostrava ZERO para sempre, mesmo com a esteira cheia.
+    // A produção real vive em cases.production_stage.
+    const [[pecas]] = await db.query(`
+      SELECT COUNT(*) AS pendentes FROM cases
+       WHERE production_stage IN ('separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')
+    `) as any;
 
     res.json({
       totais,
