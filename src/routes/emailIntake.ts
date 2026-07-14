@@ -31,7 +31,10 @@ router.post('/integration/disconnect', async (_req: Request, res: Response) => {
 
 router.post('/integration/sync', async (req: Request, res: Response) => {
   try {
-    const opts = req.body?.reset_sync ? { resetSync: true } : undefined;
+    // since_days: busca retroativa (recupera e-mails antigos do parceiro).
+    // Limitado a 90 dias para não varrer o histórico inteiro.
+    const sinceDays = req.body?.since_days ? Math.min(90, Math.max(1, Number(req.body.since_days))) : undefined;
+    const opts = sinceDays ? { sinceDays } : (req.body?.reset_sync ? { resetSync: true } : undefined);
     res.json({ success: true, ...(await syncInboxNow(req.user!.id, opts)) });
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });

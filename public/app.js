@@ -2749,7 +2749,7 @@ async function loadInboxPanel(onChange) {
   box.innerHTML = `<div class="card" style="margin-bottom:14px;padding:12px 14px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <div style="font-size:13px">📨 Gmail conectado: <strong>${esc(st.google_email || '—')}</strong> · remetente <code>${esc(st.sender_filter || '')}</code> · última busca: ${last} ${st.active ? '' : '<span style="color:var(--red)">(pausado)</span>'}</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-gold btn-sm" id="inbox-sync">${svgIcon('refresh')} Buscar agora</button><button class="btn-sm" id="inbox-sync-reset" title="Apaga o last_sync e rebusca desde o início do dia">${svgIcon('refresh')} Rebuscar desde hoje</button><button class="btn-sm" id="inbox-perm">${svgIcon('key')} Atualizar permissões</button><button class="btn-sm" id="inbox-disc">Desconectar</button></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-gold btn-sm" id="inbox-sync">${svgIcon('refresh')} Buscar agora</button><button class="btn-sm" id="inbox-sync-reset" title="Apaga o last_sync e rebusca desde o início do dia">${svgIcon('refresh')} Rebuscar desde hoje</button><button class="btn-sm" id="inbox-sync-old" title="Recupera e-mails antigos do parceiro (últimos 30 dias)">${svgIcon('download')} Buscar e-mails antigos (30 dias)</button><button class="btn-sm" id="inbox-perm">${svgIcon('key')} Atualizar permissões</button><button class="btn-sm" id="inbox-disc">Desconectar</button></div>
     </div></div>`;
   const permBtn = $('#inbox-perm');
   if (permBtn) permBtn.onclick = async () => {
@@ -2766,7 +2766,18 @@ async function loadInboxPanel(onChange) {
     const b = $('#inbox-sync-reset'); b.disabled = true; b.textContent = 'Rebuscando...';
     try { const r = await api('/api/email-intake/integration/sync', { method: 'POST', body: JSON.stringify({ reset_sync: true }) }); toast(`Rebusca concluída · ${r.imported} novo(s)`); onChange(); }
     catch (e) { toast(e.message, 'error'); }
-    finally { b.disabled = false; b.textContent = '↩ Rebuscar desde hoje'; }
+    finally { b.disabled = false; b.textContent = 'Rebuscar desde hoje'; }
+  };
+  const oldBtn = $('#inbox-sync-old');
+  if (oldBtn) oldBtn.onclick = async () => {
+    if (!confirm('Buscar e-mails do parceiro dos ÚLTIMOS 30 DIAS?\nÚtil para recuperar casos antigos que não entraram na fila (ex.: chegados no início do mês).\nOs já importados são ignorados. Continuar?')) return;
+    oldBtn.disabled = true; oldBtn.textContent = 'Buscando 30 dias...';
+    try {
+      const r = await api('/api/email-intake/integration/sync', { method: 'POST', body: JSON.stringify({ since_days: 30 }) });
+      toast(`Busca retroativa concluída · ${r.imported} novo(s) na fila`);
+      onChange();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { oldBtn.disabled = false; oldBtn.textContent = 'Buscar e-mails antigos (30 dias)'; }
   };
   $('#inbox-disc').onclick = async () => {
     if (!confirm('Desconectar o Gmail da parceria?')) return;

@@ -242,7 +242,10 @@ async function downloadCloudFile(url: string): Promise<{ buffer: Buffer; filenam
 }
 
 /** Busca e-mails novos do remetente e enfileira na revisão. Retorna quantos entraram. */
-export async function syncInboxNow(actorId?: number | null, opts?: { resetSync?: boolean }): Promise<{ imported: number; skipped: number }> {
+export async function syncInboxNow(
+  actorId?: number | null,
+  opts?: { resetSync?: boolean; sinceDays?: number }
+): Promise<{ imported: number; skipped: number }> {
   const row = await loadIntegration();
   if (!row || !row.refresh_token || !row.active) return { imported: 0, skipped: 0 };
 
@@ -255,14 +258,20 @@ export async function syncInboxNow(actorId?: number | null, opts?: { resetSync?:
   const auth = await authedClient();
   const gmail = google.gmail({ version: 'v1', auth });
 
-  // Ponto de partida: a partir do último sync; na PRIMEIRA vez, a partir de
-  // HOJE (00:00 de Brasília) — não puxa histórico antigo.
-  const sinceSec = row.last_sync
-    ? Math.floor(new Date(row.last_sync).getTime() / 1000)
-    : startOfTodayBrazilSec();
+  // Ponto de partida:
+  //  - sinceDays: força a busca a voltar N dias (para recuperar e-mails ANTIGOS
+  //    que o parceiro mandou antes do último sync — ex.: caso chegado dia 01/07).
+  //  - senão: a partir do último sync; na primeira vez, do início de HOJE.
+  const sinceSec = opts?.sinceDays
+    ? Math.floor(Date.now() / 1000) - opts.sinceDays * 86400
+    : (row.last_sync
+        ? Math.floor(new Date(row.last_sync).getTime() / 1000)
+        : startOfTodayBrazilSec());
   const q = `from:${row.sender_filter} after:${sinceSec}`;
   let imported = 0, skipped = 0;
-  const list = await gmail.users.messages.list({ userId: 'me', q, maxResults: 25 });
+  // Busca antiga pode trazer mais mensagens — amplia o teto quando é retroativa.
+  const maxResults = opts?.sinceDays ? 100 : 25;
+  const list = await gmail.users.messages.list({ userId: 'me', q, maxResults });
   for (const m of list.data.messages || []) {
     const [[exists]] = await db.query('SELECT id FROM email_imports WHERE source_message_id = ?', [m.id]) as any;
     if (exists) { skipped++; continue; }
