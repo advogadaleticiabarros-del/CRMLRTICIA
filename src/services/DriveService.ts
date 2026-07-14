@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { decrypt } from '../utils/crypto';
 import { db } from '../config/database';
 import { env } from '../config/env';
 
@@ -80,7 +81,7 @@ async function getUserDriveAuth(userId: number): Promise<any | null> {
     ) as any;
     if (rows.length && rows[0].refresh_token) {
       const client = buildOAuth2Client();
-      client.setCredentials({ access_token: rows[0].access_token, refresh_token: rows[0].refresh_token });
+      client.setCredentials({ access_token: decrypt(rows[0].access_token), refresh_token: decrypt(rows[0].refresh_token) });
       return client;
     }
   } catch (err) {
@@ -94,7 +95,7 @@ async function getUserDriveAuth(userId: number): Promise<any | null> {
     ) as any;
     if (row?.refresh_token) {
       const client = buildOAuth2Client();
-      client.setCredentials({ access_token: row.access_token, refresh_token: row.refresh_token });
+      client.setCredentials({ access_token: decrypt(row.access_token), refresh_token: decrypt(row.refresh_token) });
       return client;
     }
   } catch (err) {

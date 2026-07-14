@@ -2,6 +2,7 @@ import { google } from 'googleapis';
 import { Readable } from 'stream';
 import { db } from '../config/database';
 import { env } from '../config/env';
+import { encrypt, decryptFields } from '../utils/crypto';
 import { enqueueIntake } from './emailIntake';
 
 /**
@@ -42,14 +43,16 @@ export async function saveInboxTokens(code: string): Promise<void> {
      VALUES (1, ?, ?, ?, ?, 1)
      ON DUPLICATE KEY UPDATE google_email = VALUES(google_email), access_token = VALUES(access_token),
        refresh_token = COALESCE(VALUES(refresh_token), refresh_token), token_expiry = VALUES(token_expiry), active = 1`,
-    [email, tokens.access_token || null, tokens.refresh_token || null,
+    // LGPD: tokens cifrados em repouso — dão acesso ao Gmail/Drive com dados de clientes.
+    [email, encrypt(tokens.access_token || null), encrypt(tokens.refresh_token || null),
      tokens.expiry_date ? new Date(tokens.expiry_date) : null]
   );
 }
 
+/** Único ponto de leitura da integração — decifra os tokens aqui. */
 async function loadIntegration(): Promise<any> {
   const [[row]] = await db.query('SELECT * FROM email_integration WHERE id = 1') as any;
-  return row || null;
+  return decryptFields(row || null, ['access_token', 'refresh_token']);
 }
 
 /** Cliente OAuth autenticado com os tokens salvos (auto-refresh persistido). */
@@ -64,7 +67,7 @@ async function authedClient(): Promise<any> {
   client.on('tokens', async (t) => {
     if (t.access_token) {
       await db.query('UPDATE email_integration SET access_token = ?, token_expiry = ? WHERE id = 1',
-        [t.access_token, t.expiry_date ? new Date(t.expiry_date) : null]);
+        [encrypt(t.access_token), t.expiry_date ? new Date(t.expiry_date) : null]);
     }
   });
   return client;

@@ -10,6 +10,13 @@ const envSchema = z.object({
 
   JWT_SECRET: z.string().min(16, 'JWT_SECRET deve ter pelo menos 16 caracteres'),
 
+  // LGPD — cifra dados sensíveis em repouso (tokens de OAuth do Gmail/Drive/Agenda).
+  // Gere com: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+  // ⚠️ NUNCA perca esta chave: sem ela, os tokens cifrados não podem ser lidos
+  // (basta reconectar as contas Google, mas dá trabalho).
+  // Se ausente, o sistema deriva do JWT_SECRET e avisa no log.
+  ENCRYPTION_KEY: z.string().optional(),
+
   // MySQL — DB_HOST/DB_PORT podem vir do Railway. Defaults para dev local.
   DB_HOST: z.string().default('localhost'),
   DB_PORT: z.coerce.number().default(3306),

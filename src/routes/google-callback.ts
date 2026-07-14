@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../config/database';
 import { env } from '../config/env';
+import { encrypt } from '../utils/crypto';
 import { googleCalendarService } from '../services/GoogleCalendarService';
 import { calendarSyncService } from '../services/CalendarSyncService';
 
@@ -61,7 +62,8 @@ export async function googleOAuthCallback(req: Request, res: Response): Promise<
          refresh_token = VALUES(refresh_token),
          token_expiry = VALUES(token_expiry),
          sync_enabled = 1`,
-      [userId, data.email, tokens.access_token, tokens.refresh_token, tokens.token_expiry]
+      // LGPD: tokens cifrados em repouso (dao acesso a Agenda/Drive do escritorio)
+      [userId, data.email, encrypt(tokens.access_token), encrypt(tokens.refresh_token), tokens.token_expiry]
     );
 
     // Ao (re)conectar, destrava eventos que ficaram em erro: com o token novo,

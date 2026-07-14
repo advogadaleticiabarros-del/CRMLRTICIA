@@ -1,4 +1,5 @@
 import { google, calendar_v3 } from 'googleapis';
+import { encrypt, decrypt } from '../utils/crypto';
 import { db } from '../config/database';
 
 interface GoogleTokens {
@@ -98,7 +99,7 @@ export class GoogleCalendarService {
       if (newTokens.access_token) {
         await db.query(
           'UPDATE google_accounts SET access_token = ?, token_expiry = ? WHERE user_id = ?',
-          [newTokens.access_token, new Date(newTokens.expiry_date ?? Date.now() + 3600_000), userId]
+          [encrypt(newTokens.access_token), new Date(newTokens.expiry_date ?? Date.now() + 3600_000), userId]
         );
       }
     });
