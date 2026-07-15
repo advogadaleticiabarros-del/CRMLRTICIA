@@ -5412,10 +5412,12 @@ async function datDemandas(c) {
   const load = async () => {
     const rows = await api('/api/dative/cases');
     $('#dcase-table').innerHTML = rows.length ? `
-      <table><thead><tr><th>Comarca</th><th>Assistido</th><th>Área</th><th>Nomeação</th><th>Estimado</th><th>Status</th><th></th></tr></thead>
+      <table><thead><tr><th>Comarca</th><th>Assistido</th><th>Assunto</th><th>Área</th><th>Nomeação</th><th>Estimado</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.map((d) => `<tr>
         <td><strong>${d.comarca}</strong><br><small style="color:var(--text-muted)">${d.process_number || ''}</small></td>
-        <td>${d.assisted_name || '—'}</td><td>${d.area}</td><td>${fmtDate(d.nomeacao_date)}</td>
+        <td>${d.assisted_name || '—'}</td>
+        <td>${d.assunto ? `<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">${esc(d.assunto)}</span>` : '<small style="color:var(--text-muted)">—</small>'}</td>
+        <td><small style="color:var(--text-muted)">${esc(d.area)}</small></td><td>${fmtDate(d.nomeacao_date)}</td>
         <td>${money(d.estimated_value)}</td><td>${badge(d.status)}</td>
         <td><button class="btn-sm" data-dcase="${d.id}">Abrir</button></td></tr>`).join('')}</tbody></table>`
       : '<div class="empty">Nenhuma demanda dativa</div>';
@@ -5480,6 +5482,7 @@ async function dativeCaseForm(onSave) {
     ${field('Comarca *', 'comarca')}
     <div class="form-row">${field('Nº do processo', 'process_number')}${field('Vara', 'vara')}</div>
     <div class="form-row">${field('Área', 'area', { options: DATIVE_AREAS })}${field('Data da nomeação', 'nomeacao_date', { type: 'date' })}</div>
+    ${field('Assunto (aparece como etiqueta)', 'assunto', { placeholder: 'ex.: tráfico de drogas, divórcio litigioso, furto' })}
     ${field('Valor estimado (R$)', 'estimated_value', { type: 'number' })}
     <button type="submit" class="btn-primary">Cadastrar demanda</button>
   </form>`);
@@ -5505,6 +5508,9 @@ async function dativeCaseDetail(id, onSave) {
   const form = el(`<div class="form-grid">
     <div><strong style="font-size:18px">${d.comarca}</strong><br><small style="color:var(--text-muted)">${d.process_number || ''} · ${d.assisted_name || ''}</small></div>
     <div>${badge(d.area)} ${badge(d.status)} · estimado ${money(d.estimated_value)}</div>
+    ${field('Assunto (etiqueta)', 'assunto', { value: d.assunto || '', placeholder: 'ex.: tráfico de drogas, divórcio litigioso, furto' })}
+    <button class="btn-sm" id="upd-assunto">Salvar assunto</button>
+    <hr style="border:none;border-top:1px solid var(--border)">
     ${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['paga','Paga']].map(([v,t])=>({v,t})) })}
     <button class="btn-sm" id="upd-status">Atualizar status</button>
     <hr style="border:none;border-top:1px solid var(--border)">
@@ -5514,6 +5520,10 @@ async function dativeCaseDetail(id, onSave) {
   form.querySelector('#upd-status').onclick = async () => {
     try { await api('/api/dative/cases/' + id, { method: 'PUT', body: JSON.stringify({ status: form.querySelector('[name=status]').value }) });
       closeModal(); toast('Status atualizado'); onSave(); } catch (e) { toast(e.message, 'error'); }
+  };
+  form.querySelector('#upd-assunto').onclick = async () => {
+    try { await api('/api/dative/cases/' + id, { method: 'PUT', body: JSON.stringify({ assunto: form.querySelector('[name=assunto]').value }) });
+      closeModal(); toast('Assunto salvo'); onSave(); } catch (e) { toast(e.message, 'error'); }
   };
   openModal('Demanda dativa', form);
 }

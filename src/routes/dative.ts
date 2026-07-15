@@ -63,7 +63,7 @@ router.get('/cases', async (req: Request, res: Response) => {
   if (status && CASE_STATUS.includes(status)) { where.push('status = ?'); params.push(status); }
 
   const [rows] = await db.query(
-    `SELECT id, process_number, comarca, vara, assisted_name, area, nomeacao_date, estimated_value, status
+    `SELECT id, process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, status
      FROM dative_cases WHERE ${where.join(' AND ')} ORDER BY nomeacao_date DESC, created_at DESC`,
     params
   ) as any;
@@ -86,7 +86,7 @@ router.get('/cases/:id', async (req: Request, res: Response) => {
 });
 
 router.post('/cases', async (req: Request, res: Response) => {
-  const { process_number, comarca, vara, assisted_name, area, nomeacao_date, estimated_value, notes,
+  const { process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, notes,
           client_id, client_cpf, client_phone, client_email } = req.body;
   if (!comarca || !String(comarca).trim()) { res.status(400).json({ error: 'A comarca é obrigatória' }); return; }
   if (!client_id && !(assisted_name && String(assisted_name).trim())) {
@@ -112,10 +112,11 @@ router.post('/cases', async (req: Request, res: Response) => {
   }
 
   const [result] = await db.query(
-    `INSERT INTO dative_cases (user_id, client_id, process_number, comarca, vara, assisted_name, area, nomeacao_date, estimated_value, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO dative_cases (user_id, client_id, process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [req.user!.id, clientId, process_number ?? null, comarca.trim(), vara ?? null, assisted_name ?? null,
-     AREAS.includes(area) ? area : 'outro', nomeacao_date || null, Number(estimated_value) || 0, notes ?? null]
+     AREAS.includes(area) ? area : 'outro', (assunto && String(assunto).trim()) ? String(assunto).trim() : null,
+     nomeacao_date || null, Number(estimated_value) || 0, notes ?? null]
   ) as any;
   const [rows] = await db.query('SELECT * FROM dative_cases WHERE id = ?', [result.insertId]) as any;
   res.status(201).json(rows[0]);
@@ -136,6 +137,7 @@ router.put('/cases/:id', async (req: Request, res: Response) => {
   setIf('vara', req.body.vara);
   setIf('assisted_name', req.body.assisted_name);
   setIf('area', req.body.area, AREAS.includes(req.body.area));
+  setIf('assunto', req.body.assunto !== undefined ? (String(req.body.assunto).trim() || null) : undefined);
   setIf('nomeacao_date', req.body.nomeacao_date);
   setIf('estimated_value', req.body.estimated_value !== undefined ? Number(req.body.estimated_value) : undefined);
   setIf('status', req.body.status, CASE_STATUS.includes(req.body.status));
