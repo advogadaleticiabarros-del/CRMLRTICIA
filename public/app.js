@@ -5419,9 +5419,10 @@ async function datDemandas(c) {
         <td>${d.assunto ? `<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">${esc(d.assunto)}</span>` : '<small style="color:var(--text-muted)">—</small>'}</td>
         <td><small style="color:var(--text-muted)">${esc(d.area)}</small></td><td>${fmtDate(d.nomeacao_date)}</td>
         <td>${money(d.estimated_value)}</td><td>${badge(d.status)}</td>
-        <td><button class="btn-sm" data-dcase="${d.id}">Abrir</button></td></tr>`).join('')}</tbody></table>`
+        <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-sm" data-dcase="${d.id}">Abrir</button><button class="btn-sm" data-edit-dcase="${d.id}">Editar</button></div></td></tr>`).join('')}</tbody></table>`
       : '<div class="empty">Nenhuma demanda dativa</div>';
     document.querySelectorAll('[data-dcase]').forEach((b) => b.onclick = () => dativeCaseDetail(b.dataset.dcase, load));
+    document.querySelectorAll('[data-edit-dcase]').forEach((b) => b.onclick = async () => dativeCaseEditForm(load, await api('/api/dative/cases/' + b.dataset.editDcase)));
   };
   $('#new-dcase').onclick = () => dativeCaseForm(load);
   await load();
@@ -5436,11 +5437,15 @@ async function datAudiencias(c) {
       <tbody>${rows.map((h) => `<tr>
         <td>${fmtDate(h.hearing_date)}</td><td>${h.comarca || '—'}</td><td>${h.type || '—'}</td>
         <td>${h.assisted_name || '—'}</td><td>${money(h.act_value)}</td><td>${badge(h.status)}</td>
-        <td>${h.status === 'agendada' ? `<button class="btn-sm" data-realiz="${h.id}">Marcar realizada</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+        <td><div style="display:flex;gap:6px;flex-wrap:wrap">${h.status === 'agendada' ? `<button class="btn-sm" data-realiz="${h.id}">Marcar realizada</button>` : ''}<button class="btn-sm" data-edit-dhear="${h.id}">Editar</button></div></td></tr>`).join('')}</tbody></table>`
       : '<div class="empty">Nenhuma audiência</div>';
     document.querySelectorAll('[data-realiz]').forEach((b) => b.onclick = async () => {
       try { await api(`/api/dative/hearings/${b.dataset.realiz}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'realizada' }) });
         toast('Audiência realizada'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+    document.querySelectorAll('[data-edit-dhear]').forEach((b) => {
+      const item = rows.find((h) => String(h.id) === String(b.dataset.editDhear));
+      b.onclick = () => dativeHearingEditForm(load, item);
     });
   };
   $('#new-dhear').onclick = () => dativeHearingForm(load);
@@ -5456,16 +5461,30 @@ async function datRecebimentos(c) {
       <tbody>${rows.map((p) => `<tr>
         <td>${p.reference || '—'}</td><td>${p.comarca || '—'}</td><td>${money(p.value)}</td>
         <td>${fmtDate(p.received_date || p.expected_date)}</td><td>${badge(p.status)}</td>
-        <td>${p.status === 'previsto' ? `<button class="btn-sm" data-receive="${p.id}">Dar baixa</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+        <td><div style="display:flex;gap:6px;flex-wrap:wrap">${p.status === 'previsto' ? `<button class="btn-sm" data-receive="${p.id}">Dar baixa</button>` : ''}<button class="btn-sm" data-edit-dpay="${p.id}">Editar</button></div></td></tr>`).join('')}</tbody></table>`
       : '<div class="empty">Nenhum recebimento</div>';
     document.querySelectorAll('[data-receive]').forEach((b) => b.onclick = async () => {
       try { await api(`/api/dative/payments/${b.dataset.receive}/receive`, { method: 'PATCH' }); toast('Recebimento confirmado'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+    document.querySelectorAll('[data-edit-dpay]').forEach((b) => {
+      const item = rows.find((p) => String(p.id) === String(b.dataset.editDpay));
+      b.onclick = () => dativePaymentEditForm(load, item);
     });
   };
   $('#new-dpay').onclick = () => dativePaymentForm(load);
   await load();
 }
 
+function datDateInputValue(value) {
+  return value ? String(value).slice(0, 10) : '';
+}
+function datDateTimeInputValue(value) {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return String(value).slice(0, 16);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 async function dativeCaseForm(onSave) {
   const clients = await api('/api/clients?limit=100');
   const form = el(`<form class="form-grid">
@@ -5512,11 +5531,12 @@ async function dativeCaseDetail(id, onSave) {
     <button class="btn-sm" id="upd-assunto">Salvar assunto</button>
     <hr style="border:none;border-top:1px solid var(--border)">
     ${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['paga','Paga']].map(([v,t])=>({v,t})) })}
-    <button class="btn-sm" id="upd-status">Atualizar status</button>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-sm" id="edit-dcase">Editar dados</button><button class="btn-sm" id="upd-status">Atualizar status</button></div>
     <hr style="border:none;border-top:1px solid var(--border)">
     <strong style="font-size:13px">Audiências</strong>
     <div>${hearings}</div>
   </div>`);
+  form.querySelector('#edit-dcase').onclick = () => { closeModal(); dativeCaseEditForm(onSave, d); };
   form.querySelector('#upd-status').onclick = async () => {
     try { await api('/api/dative/cases/' + id, { method: 'PUT', body: JSON.stringify({ status: form.querySelector('[name=status]').value }) });
       closeModal(); toast('Status atualizado'); onSave(); } catch (e) { toast(e.message, 'error'); }
@@ -5564,6 +5584,64 @@ async function dativePaymentForm(onSave) {
   openModal('Registrar recebimento do Estado', form);
 }
 
+async function dativeCaseEditForm(onSave, d) {
+  const form = el(`<form class="form-grid">
+    <strong style="color:var(--navy);font-size:13px">Editar demanda dativa</strong>
+    ${field('Nome do assistido *', 'assisted_name', { value: d?.assisted_name || '' })}
+    ${field('Comarca *', 'comarca', { value: d?.comarca || '' })}
+    <div class="form-row">${field('N&ordm; do processo', 'process_number', { value: d?.process_number || '' })}${field('Vara', 'vara', { value: d?.vara || '' })}</div>
+    <div class="form-row">${field('&Aacute;rea', 'area', { value: d?.area || 'outro', options: DATIVE_AREAS })}${field('Data da nomea&ccedil;&atilde;o', 'nomeacao_date', { type: 'date', value: datDateInputValue(d?.nomeacao_date) })}</div>
+    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d?.estimated_value ?? '' })}${field('Status', 'status', { value: d?.status || 'nomeada', options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Conclu&iacute;da'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
+    ${field('Observa&ccedil;&otilde;es', 'notes', { type: 'textarea', value: d?.notes || '' })}
+    <button type="submit" class="btn-primary">Salvar altera&ccedil;&otilde;es</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('/api/dative/cases/' + d.id, { method: 'PUT', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast('Demanda atualizada'); onSave(); } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Editar demanda dativa', form);
+}
+
+async function dativeHearingEditForm(onSave, h) {
+  if (!h) return;
+  const cases = await api('/api/dative/cases');
+  const form = el(`<form class="form-grid">
+    ${field('Demanda *', 'dative_case_id', { value: h?.dative_case_id || '', options: cases.map((c) => ({ v: c.id, t: `${c.comarca} &mdash; ${c.assisted_name || c.process_number || c.id}` })) })}
+    <div class="form-row">${field('Data/hora *', 'hearing_date', { type: 'datetime-local', value: datDateTimeInputValue(h?.hearing_date) })}${field('Tipo', 'type', { value: h?.type || '' })}</div>
+    <div class="form-row">${field('Comarca', 'comarca', { value: h?.comarca || '' })}${field('Valor do ato (R$)', 'act_value', { type: 'number', value: h?.act_value ?? '' })}</div>
+    ${field('Status', 'status', { value: h?.status || 'agendada', options: [['agendada','Agendada'],['realizada','Realizada'],['adiada','Adiada'],['cancelada','Cancelada']].map(([v,t])=>({v,t})) })}
+    ${field('Observa&ccedil;&otilde;es', 'notes', { type: 'textarea', value: h?.notes || '' })}
+    <button type="submit" class="btn-primary">Salvar altera&ccedil;&otilde;es</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('/api/dative/hearings/' + h.id, { method: 'PUT', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast('Audi&ecirc;ncia atualizada'); onSave(); } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Editar audi&ecirc;ncia', form);
+}
+
+async function dativePaymentEditForm(onSave, p) {
+  if (!p) return;
+  const cases = await api('/api/dative/cases');
+  const form = el(`<form class="form-grid">
+    ${field('Refer&ecirc;ncia (ex: lote mar&ccedil;o/2026)', 'reference', { value: p?.reference || '' })}
+    ${field('Demanda (opcional)', 'dative_case_id', { value: p?.dative_case_id || '', options: [{ v: '', t: '&mdash; geral &mdash;' }, ...cases.map((c) => ({ v: c.id, t: `${c.comarca}${c.assisted_name ? ' &mdash; ' + c.assisted_name : ''}` }))] })}
+    <div class="form-row">${field('Valor (R$) *', 'value', { type: 'number', value: p?.value ?? '' })}${field('Data prevista', 'expected_date', { type: 'date', value: datDateInputValue(p?.expected_date) })}</div>
+    <div class="form-row">${field('Data de recebimento', 'received_date', { type: 'date', value: datDateInputValue(p?.received_date) })}${field('Status', 'status', { value: p?.status || 'previsto', options: [['previsto','Previsto'],['recebido','Recebido']].map(([v,t])=>({v,t})) })}</div>
+    ${field('Observa&ccedil;&otilde;es', 'notes', { type: 'textarea', value: p?.notes || '' })}
+    <button type="submit" class="btn-primary">Salvar altera&ccedil;&otilde;es</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    if (!body.dative_case_id) body.dative_case_id = null;
+    try { await api('/api/dative/payments/' + p.id, { method: 'PUT', body: JSON.stringify(body) });
+      closeModal(); toast('Recebimento atualizado'); onSave(); } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Editar recebimento do Estado', form);
+}
 const CONTRACT_STATUS = [['rascunho','Rascunho'],['em_producao','Em produção'],['finalizado','Finalizado'],['assinado','Assinado']].map(([v,t])=>({v,t}));
 
 async function contractForm(onSave) {
