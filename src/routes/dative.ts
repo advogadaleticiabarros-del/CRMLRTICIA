@@ -229,6 +229,27 @@ router.patch('/hearings/:id/status', async (req: Request, res: Response) => {
   res.json({ success: true, status });
 });
 
+// Edita uma audiência já lançada — o valor do ato pode vir a mais ou a menos
+// do que o estimado, e datas/tipo podem precisar de correção.
+router.put('/hearings/:id', async (req: Request, res: Response) => {
+  const [existing] = await db.query('SELECT id FROM dative_hearings WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!existing.length) { res.status(404).json({ error: 'Audiência não encontrada' }); return; }
+
+  const fields: string[] = []; const params: any[] = [];
+  const setIf = (col: string, val: any, valid = true) => { if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val); } };
+  setIf('hearing_date', req.body.hearing_date);
+  setIf('comarca', req.body.comarca);
+  setIf('type', req.body.type);
+  setIf('act_value', req.body.act_value !== undefined ? Number(req.body.act_value) : undefined);
+  setIf('status', req.body.status, HEARING_STATUS.includes(req.body.status));
+
+  if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido' }); return; }
+  params.push(req.params.id);
+  await db.query(`UPDATE dative_hearings SET ${fields.join(', ')} WHERE id = ?`, params);
+  const [rows] = await db.query('SELECT * FROM dative_hearings WHERE id = ?', [req.params.id]) as any;
+  res.json(rows[0]);
+});
+
 // ── RECEBIMENTOS DO ESTADO ──────────────────────────────────────────────────
 router.get('/payments', async (req: Request, res: Response) => {
   const [rows] = await db.query(
@@ -293,6 +314,26 @@ router.patch('/payments/:id/receive', async (req: Request, res: Response) => {
   ) as any;
   if (!result.affectedRows) { res.status(404).json({ error: 'Recebimento não encontrado' }); return; }
   res.json({ success: true });
+});
+
+// Edita um recebimento já lançado (valor/datas/status).
+router.put('/payments/:id', async (req: Request, res: Response) => {
+  const [existing] = await db.query('SELECT id FROM dative_payments WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!existing.length) { res.status(404).json({ error: 'Recebimento não encontrado' }); return; }
+
+  const fields: string[] = []; const params: any[] = [];
+  const setIf = (col: string, val: any, valid = true) => { if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val); } };
+  setIf('reference', req.body.reference);
+  setIf('value', req.body.value !== undefined ? Number(req.body.value) : undefined);
+  setIf('expected_date', req.body.expected_date);
+  setIf('received_date', req.body.received_date);
+  setIf('status', req.body.status, PAY_STATUS.includes(req.body.status));
+
+  if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido' }); return; }
+  params.push(req.params.id);
+  await db.query(`UPDATE dative_payments SET ${fields.join(', ')} WHERE id = ?`, params);
+  const [rows] = await db.query('SELECT * FROM dative_payments WHERE id = ?', [req.params.id]) as any;
+  res.json(rows[0]);
 });
 
 export default router;

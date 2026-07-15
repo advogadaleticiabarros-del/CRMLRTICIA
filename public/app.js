@@ -5523,29 +5523,59 @@ async function dativeCaseForm(onSave) {
 
 async function dativeCaseDetail(id, onSave) {
   const d = await api('/api/dative/cases/' + id);
-  const hearings = (d.hearings || []).map((h) => `<div class="mini-row" style="padding:6px 0"><span>${fmtDate(h.hearing_date)} · ${h.type || ''} <small>${h.comarca || ''}</small></span><span>${money(h.act_value)} ${badge(h.status)}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem audiências</small>';
+  // Audiências: clicáveis para editar (o valor do ato pode vir a mais ou a menos).
+  const hearings = (d.hearings || []).map((h) => `<div class="mini-row" data-hedit="${h.id}" style="padding:6px 0;cursor:pointer" title="Clique para editar"><span>${fmtDate(h.hearing_date)} · ${esc(h.type || '')} <small>${esc(h.comarca || '')}</small></span><span><strong>${money(h.act_value)}</strong> ${badge(h.status)} ${svgIcon('edit', 'ic-xs')}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem audiências</small>';
+
+  const dinput = d.nomeacao_date ? String(d.nomeacao_date).slice(0, 10) : '';
   const form = el(`<div class="form-grid">
-    <div><strong style="font-size:18px">${d.comarca}</strong><br><small style="color:var(--text-muted)">${d.process_number || ''} · ${d.assisted_name || ''}</small></div>
-    <div>${badge(d.area)} ${badge(d.status)} · estimado ${money(d.estimated_value)}</div>
+    <strong style="color:var(--navy);font-size:13px">Dados da demanda — edite o que precisar</strong>
+    ${field('Comarca *', 'comarca', { value: d.comarca || '' })}
+    <div class="form-row">${field('Nº do processo', 'process_number', { value: d.process_number || '' })}${field('Vara', 'vara', { value: d.vara || '' })}</div>
+    ${field('Assistido', 'assisted_name', { value: d.assisted_name || '' })}
+    <div class="form-row">${field('Área', 'area', { value: d.area, options: DATIVE_AREAS })}${field('Data da nomeação', 'nomeacao_date', { type: 'date', value: dinput })}</div>
     ${field('Assunto (etiqueta)', 'assunto', { value: d.assunto || '', placeholder: 'ex.: tráfico de drogas, divórcio litigioso, furto' })}
-    <button class="btn-sm" id="upd-assunto">Salvar assunto</button>
+    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d.estimated_value ?? 0 })}${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
+    ${field('Observações', 'notes', { value: d.notes || '', type: 'textarea' })}
+    <button class="btn-primary" id="dat-save">Salvar alterações</button>
     <hr style="border:none;border-top:1px solid var(--border)">
-    ${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['paga','Paga']].map(([v,t])=>({v,t})) })}
-    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-sm" id="edit-dcase">Editar dados</button><button class="btn-sm" id="upd-status">Atualizar status</button></div>
-    <hr style="border:none;border-top:1px solid var(--border)">
-    <strong style="font-size:13px">Audiências</strong>
+    <strong style="font-size:13px">Audiências (clique para editar o valor/data)</strong>
     <div>${hearings}</div>
   </div>`);
-  form.querySelector('#edit-dcase').onclick = () => { closeModal(); dativeCaseEditForm(onSave, d); };
-  form.querySelector('#upd-status').onclick = async () => {
-    try { await api('/api/dative/cases/' + id, { method: 'PUT', body: JSON.stringify({ status: form.querySelector('[name=status]').value }) });
-      closeModal(); toast('Status atualizado'); onSave(); } catch (e) { toast(e.message, 'error'); }
+
+  form.querySelector('#dat-save').onclick = async () => {
+    const g = (n) => form.querySelector(`[name=${n}]`)?.value;
+    const body = {
+      comarca: g('comarca'), process_number: g('process_number'), vara: g('vara'),
+      assisted_name: g('assisted_name'), area: g('area'), nomeacao_date: g('nomeacao_date') || null,
+      assunto: g('assunto'), estimated_value: g('estimated_value'), status: g('status'), notes: g('notes'),
+    };
+    try { await api('/api/dative/cases/' + id, { method: 'PUT', body: JSON.stringify(body) });
+      closeModal(); toast('Demanda atualizada'); onSave(); } catch (e) { toast(e.message, 'error'); }
   };
-  form.querySelector('#upd-assunto').onclick = async () => {
-    try { await api('/api/dative/cases/' + id, { method: 'PUT', body: JSON.stringify({ assunto: form.querySelector('[name=assunto]').value }) });
-      closeModal(); toast('Assunto salvo'); onSave(); } catch (e) { toast(e.message, 'error'); }
-  };
+  form.querySelectorAll('[data-hedit]').forEach((row) => {
+    row.onclick = () => {
+      const h = (d.hearings || []).find((x) => String(x.id) === row.dataset.hedit);
+      if (h) dativeHearingEditForm(h, () => dativeCaseDetail(id, onSave));
+    };
+  });
   openModal('Demanda dativa', form);
+}
+
+// Edita uma audiência já lançada — valor, data, tipo, status.
+async function dativeHearingEditForm(h, onSave) {
+  const dt = h.hearing_date ? String(h.hearing_date).replace(' ', 'T').slice(0, 16) : '';
+  const form = el(`<form class="form-grid">
+    <div class="form-row">${field('Data/hora', 'hearing_date', { type: 'datetime-local', value: dt })}${field('Tipo', 'type', { value: h.type || '' })}</div>
+    <div class="form-row">${field('Comarca', 'comarca', { value: h.comarca || '' })}${field('Valor do ato (R$)', 'act_value', { type: 'number', value: h.act_value ?? 0 })}</div>
+    ${field('Status', 'status', { value: h.status, options: [['agendada','Agendada'],['realizada','Realizada'],['adiada','Adiada'],['cancelada','Cancelada']].map(([v,t])=>({v,t})) })}
+    <button type="submit" class="btn-primary">Salvar audiência</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try { await api('/api/dative/hearings/' + h.id, { method: 'PUT', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      closeModal(); toast('Audiência atualizada'); onSave(); } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Editar audiência', form);
 }
 
 async function dativeHearingForm(onSave) {
