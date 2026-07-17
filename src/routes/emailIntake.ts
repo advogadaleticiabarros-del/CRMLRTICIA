@@ -39,6 +39,16 @@ router.post('/integration/diagnose', async (req: Request, res: Response) => {
   } catch (e: any) { res.status(400).json({ error: e.message }); }
 });
 
+// ── POST /integration/import-message — importa um e-mail pelo id (ignora filtro)
+router.post('/integration/import-message', async (req: Request, res: Response) => {
+  try {
+    const messageId = String(req.body?.message_id || '').trim();
+    if (!messageId) { res.status(400).json({ error: 'message_id é obrigatório' }); return; }
+    const { importMessageById } = await import('../services/partnerInboxService');
+    res.json(await importMessageById(messageId, req.user!.id));
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
 router.post('/integration/sync', async (req: Request, res: Response) => {
   try {
     // since_days: busca retroativa (recupera e-mails antigos do parceiro).

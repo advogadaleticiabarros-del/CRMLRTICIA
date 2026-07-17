@@ -2764,9 +2764,14 @@ async function loadInboxPanel(onChange) {
     try {
       const d = await api('/api/email-intake/integration/diagnose', { method: 'POST', body: JSON.stringify({ term }) });
       const linhas = (d.encontrados || []).map((e) => `
-        <div class="mini-row" style="padding:6px 0">
+        <div class="mini-row" style="padding:6px 0;align-items:center">
           <span><strong>${esc(e.de)}</strong><br><small style="color:var(--text-muted)">${esc(e.assunto)} · ${esc(e.data)}</small></span>
-          <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${e.bate_filtro ? 'var(--green,#1e8e5a)' : 'var(--red,#c0392b)'};color:#fff">${e.bate_filtro ? 'bate o filtro' : 'NÃO bate'}</span>
+          <span style="display:flex;gap:6px;align-items:center">
+            <span style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:${e.bate_filtro ? 'var(--green,#1e8e5a)' : 'var(--red,#c0392b)'};color:#fff">${e.bate_filtro ? 'bate o filtro' : 'NÃO bate'}</span>
+            ${e.ja_importado
+              ? '<span style="font-size:11px;color:var(--text-muted)">já na fila</span>'
+              : `<button class="btn-sm btn-gold" data-import-msg="${e.id}">Importar</button>`}
+          </span>
         </div>`).join('');
       out.innerHTML = `
         <div class="card" style="padding:12px 14px;font-size:13px">
@@ -2774,9 +2779,19 @@ async function loadInboxPanel(onChange) {
           ${d.encontrados.length ? linhas
             : '<div class="empty" style="margin-top:6px">Nenhum e-mail com esse termo na conta conectada. Talvez esteja em OUTRA conta do Gmail.</div>'}
           ${d.encontrados.length && !d.encontrados.some((e) => e.bate_filtro)
-            ? '<div style="margin-top:8px;background:#fff4e5;border-left:3px solid var(--gold,#c9a227);padding:8px 10px;border-radius:4px">O e-mail existe, mas o remetente <strong>não bate</strong> com o filtro. Ajuste o remetente do parceiro para o endereço mostrado acima, e busque de novo.</div>'
+            ? '<div style="margin-top:8px;background:#fff4e5;border-left:3px solid var(--gold,#c9a227);padding:8px 10px;border-radius:4px">O e-mail existe, mas o remetente <strong>não bate</strong> com o filtro. Clique em <strong>Importar</strong> para trazê-lo mesmo assim — depois confirme na fila para criar o caso.</div>'
             : ''}
         </div>`;
+      out.querySelectorAll('[data-import-msg]').forEach((b) => {
+        b.onclick = async () => {
+          b.disabled = true; b.textContent = 'Importando...';
+          try {
+            const r = await api('/api/email-intake/integration/import-message', { method: 'POST', body: JSON.stringify({ message_id: b.dataset.importMsg }) });
+            toast(r.ja_importado ? 'Esse e-mail já estava na fila' : 'E-mail importado! Confira na fila abaixo e confirme.');
+            onChange();
+          } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Importar'; }
+        };
+      });
     } catch (e) { out.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
   };
   const permBtn = $('#inbox-perm');

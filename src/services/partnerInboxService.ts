@@ -88,7 +88,7 @@ export async function getInboxStatus(): Promise<any> {
  */
 export async function diagnoseSearch(term: string): Promise<{
   conta_conectada: string; filtro_remetente: string;
-  encontrados: { de: string; assunto: string; data: string; bate_filtro: boolean }[];
+  encontrados: { id: string; de: string; assunto: string; data: string; bate_filtro: boolean; ja_importado: boolean }[];
 }> {
   const row = await loadIntegration();
   const conta = row?.google_email || '(nenhuma)';
@@ -106,13 +106,44 @@ export async function diagnoseSearch(term: string): Promise<{
       const h = full.data.payload?.headers || [];
       const val = (n: string) => h.find((x) => x.name?.toLowerCase() === n)?.value || '';
       const de = val('from');
+      const [[ja]] = await db.query('SELECT id FROM email_imports WHERE source_message_id = ?', [m.id]) as any;
       encontrados.push({
-        de, assunto: val('subject'), data: val('date'),
+        id: m.id, de, assunto: val('subject'), data: val('date'),
         bate_filtro: !!filtro && de.toLowerCase().includes(filtro),
+        ja_importado: !!ja,
       });
     } catch { /* ignora um e-mail com erro */ }
   }
   return { conta_conectada: conta, filtro_remetente: filtro, encontrados };
+}
+
+/**
+ * Importa um e-mail ESPECÍFICO pelo id da mensagem, ignorando o filtro de
+ * remetente. Resolve o caso do parceiro cujo endereço técnico não bate com o
+ * sender_filter (ex.: envelope do Outlook diferente) — o e-mail existe mas nunca
+ * entra na fila. Idempotente: se já foi importado, não duplica.
+ */
+export async function importMessageById(messageId: string, actorId?: number | null): Promise<{ imported: boolean; ja_importado?: boolean; subject?: string }> {
+  const row = await loadIntegration();
+  if (!row || !row.refresh_token) throw new Error('Gmail da parceria não conectado');
+
+  const [[ja]] = await db.query('SELECT id FROM email_imports WHERE source_message_id = ?', [messageId]) as any;
+  if (ja) return { imported: false, ja_importado: true };
+
+  const auth = await authedClient();
+  const gmail = google.gmail({ version: 'v1', auth });
+  const full = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' });
+  const headers = full.data.payload?.headers || [];
+  const subject = headers.find((h) => h.name?.toLowerCase() === 'subject')?.value || null;
+  const from = headers.find((h) => h.name?.toLowerCase() === 'from')?.value || row.sender_filter;
+  const texts: string[] = []; const atts: any[] = [];
+  walkParts(full.data.payload, texts, atts);
+  const body = texts.join('\n').trim() || full.data.snippet || '';
+  await enqueueIntake({
+    rawText: body, source: 'gmail', sourceMessageId: messageId, fromEmail: from, subject,
+    attachments: atts, createdBy: actorId || null,
+  });
+  return { imported: true, subject: subject || undefined };
 }
 
 export async function updateInboxConfig(opts: { sender_filter?: string; active?: boolean }): Promise<void> {
