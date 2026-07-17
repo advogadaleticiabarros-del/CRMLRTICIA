@@ -86,7 +86,7 @@ router.post('/:id/cases', async (req: Request, res: Response) => {
     const [cr] = await db.query(
       `INSERT INTO cases (user_id, client_id, partner_id, title, case_number, legal_area, status,
                           production_stage, production_started_at, production_labels, description)
-       VALUES (?, ?, ?, ?, ?, ?, 'ativo', 'separacao_documentos', NOW(), ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, 'ativo', 'em_analise', NOW(), ?, ?)`,
       [req.user!.id, clientId, partner.id, title, proc.process_number || null, area, labels, b.case_summary || null]
     ) as any;
     caseIds.push(cr.insertId);

@@ -17,14 +17,16 @@ const router = Router();
 const SLA_DIAS = 10; // meta: 10 dias do início da produção até o protocolo
 
 const ETAPAS: Record<string, string> = {
+  em_analise:           'Em análise',
   separacao_documentos: 'Separação de docs',
   criacao_inicial:      'Criação inicial',
   revisao_inicial:      'Revisão inicial',
   aguardando_protocolo: 'Aguardando protocolo',
   protocolado:          'Protocolado',
   concluido:            'Concluído',
+  recusado:             'Recusado',
 };
-const ATIVAS = ['separacao_documentos', 'criacao_inicial', 'revisao_inicial', 'aguardando_protocolo'];
+const ATIVAS = ['em_analise', 'separacao_documentos', 'criacao_inicial', 'revisao_inicial', 'aguardando_protocolo'];
 
 router.get('/', async (_req: Request, res: Response) => {
   try {

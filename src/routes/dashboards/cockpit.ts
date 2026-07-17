@@ -123,7 +123,7 @@ router.get('/', async (req: Request, res: Response) => {
   const producao = await safe(async () => {
     const [[ap]] = await db.query(`
       SELECT COUNT(*) AS total FROM cases
-       WHERE production_stage IN ('separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')`) as any;
+       WHERE production_stage IN ('em_analise','separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')`) as any;
     const [[pm]] = await db.query(`
       SELECT COUNT(DISTINCT case_id) AS total FROM client_timeline
        WHERE event_type = 'etapa_protocolado'

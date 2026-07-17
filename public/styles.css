@@ -336,6 +336,8 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .kf-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); border-color: var(--gold); }
 .kf-card strong { font-size: 12.5px; color: var(--text); }
 .kf-card small { font-size: 11px; color: var(--text-soft); }
+.kf-card-locked { cursor: default; border-color: var(--red, #c0392b); background: #fffaf9; }
+.kf-card-locked:hover { transform: none; border-color: var(--red, #c0392b); }
 .kf-move { margin-top: 7px; font-size: 11px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-soft); }
 .kf-sug { margin-top: 6px; font-size: 10.5px; color: var(--gold-2, #B8943F); background: rgba(201,169,98,.1); border: 1px solid rgba(201,169,98,.3); border-radius: 7px; padding: 5px 7px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .kf-sug strong { color: var(--gold-2, #B8943F); }

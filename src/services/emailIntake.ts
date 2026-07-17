@@ -178,7 +178,7 @@ export async function confirmIntake(id: number, actorId: number, override?: Pars
     const desc = [c.descricao, c.banco ? `Banco: ${c.banco}` : null, c.tipo ? `Tipo: ${c.tipo}` : null].filter(Boolean).join(' · ') || null;
     const [cr] = await db.query(
       `INSERT INTO cases (user_id, client_id, partner_id, title, legal_area, status, production_stage, production_started_at, production_labels, description)
-       VALUES (?, ?, ?, ?, ?, 'ativo', 'separacao_documentos', NOW(), ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, 'ativo', 'em_analise', NOW(), ?, ?)`,
       [actorId, clientId, partner?.id || null, title, c.area, labels, desc]
     ) as any;
     caseIds.push(cr.insertId);

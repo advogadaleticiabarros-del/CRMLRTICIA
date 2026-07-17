@@ -74,7 +74,7 @@ router.get('/', async (req: Request, res: Response) => {
     // A produção real vive em cases.production_stage.
     const [[pecas]] = await db.query(`
       SELECT COUNT(*) AS pendentes FROM cases
-       WHERE production_stage IN ('separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')
+       WHERE production_stage IN ('em_analise','separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')
     `) as any;
 
     res.json({

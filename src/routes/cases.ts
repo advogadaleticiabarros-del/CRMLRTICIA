@@ -13,11 +13,11 @@ const router = Router();
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
 const PHASES = ['inicial', 'instrucao', 'sentenca', 'recurso', 'execucao', 'encerrado'];
 const STATUSES = ['ativo', 'suspenso', 'encerrado'];
-const PROD_STAGES = ['separacao_documentos', 'criacao_inicial', 'revisao_inicial', 'aguardando_protocolo', 'protocolado', 'concluido'];
+const PROD_STAGES = ['em_analise', 'separacao_documentos', 'criacao_inicial', 'revisao_inicial', 'aguardando_protocolo', 'protocolado', 'concluido'];
 const STAGE_LABELS: Record<string, string> = {
-  separacao_documentos: 'Separação de documentos', criacao_inicial: 'Criação inicial',
+  em_analise: 'Em análise', separacao_documentos: 'Separação de documentos', criacao_inicial: 'Criação inicial',
   revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguardando protocolo',
-  protocolado: 'Protocolado', concluido: 'Concluído',
+  protocolado: 'Protocolado', concluido: 'Concluído', recusado: 'Recusado',
 };
 
 // ── GET /api/cases — lista com filtros e paginação ──────────────────────────
@@ -61,6 +61,7 @@ router.get('/production-board', async (_req: Request, res: Response) => {
   const [rows] = await db.query(`
     SELECT c.id, c.case_number, c.title, c.legal_area, c.production_stage,
            c.production_started_at, c.production_labels, c.production_obs,
+           c.rejection_reason, c.rejection_notes, c.rejected_at, c.stage_before_rejection,
            DATEDIFF(NOW(), c.production_started_at) AS sla_days,
            cl.name AS client_name,
            u.name  AS assignee_name,
@@ -485,6 +486,12 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   if (!rows.length) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
   const c = rows[0];
 
+  // TRAVA: caso recusado só sai dessa etapa revertendo a recusa (POST /:id/reject/revert)
+  if (c.production_stage === 'recusado') {
+    res.status(400).json({ error: 'Este caso está recusado. Reverta a recusa para poder movê-lo.' });
+    return;
+  }
+
   // TRAVA: só vai para "protocolado" com o número do processo
   if (stage === 'protocolado' && !(case_number && String(case_number).trim()) && !c.case_number) {
     res.status(400).json({ error: 'Para protocolar, informe o número do processo/protocolo.' });
@@ -684,6 +691,82 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Erro no production-stage:', err?.message || err);
     res.status(500).json({ error: err?.message || 'Erro ao mover a etapa de produção' });
+  }
+});
+
+// ── POST /api/cases/:id/reject — recusa o caso após análise (motivo obrigatório) ─
+// Trava a etapa em "recusado"; só sai revertendo (POST /:id/reject/revert).
+router.post('/:id/reject', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const reason = String(req.body?.reason || '').trim();
+    const notes = req.body?.notes ? String(req.body.notes).trim() : null;
+    if (!reason) { res.status(400).json({ error: 'Informe o motivo da recusa.' }); return; }
+
+    const [rows] = await db.query('SELECT * FROM cases WHERE id = ?', [id]) as any;
+    if (!rows.length) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+    const c = rows[0];
+    if (c.production_stage === 'recusado') { res.status(400).json({ error: 'Este caso já está recusado.' }); return; }
+
+    const stageBefore = c.production_stage || 'em_analise';
+    await db.query(
+      `UPDATE cases SET production_stage = 'recusado', stage_before_rejection = ?,
+              rejection_reason = ?, rejection_notes = ?, rejected_at = NOW(), rejected_by = ?
+        WHERE id = ?`,
+      [stageBefore, reason, notes, req.user!.id, id]
+    );
+
+    try {
+      await logTimeline({
+        clientId: c.client_id, caseId: Number(id), eventType: 'caso_recusado',
+        description: `Caso RECUSADO. Motivo: ${reason}${notes ? ` — Obs.: ${notes}` : ''}`,
+        userId: req.user!.id,
+      });
+    } catch { /* timeline não crítica */ }
+
+    try {
+      await db.query(
+        `INSERT INTO production_notes (case_id, user_id, author_name, kind, text)
+         VALUES (?, ?, ?, 'atualizacao', ?)`,
+        [id, req.user!.id, req.user!.name,
+         `Caso recusado (vinha de: ${STAGE_LABELS[stageBefore] || stageBefore}). Motivo: ${reason}${notes ? ` — Obs.: ${notes}` : ''}`]
+      );
+    } catch { /* tabela pode não existir antes da migration 044 */ }
+
+    res.json({ success: true, production_stage: 'recusado' });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Erro ao recusar o caso' });
+  }
+});
+
+// ── POST /api/cases/:id/reject/revert — reverte a recusa (volta pra etapa anterior) ─
+router.post('/:id/reject/revert', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const [rows] = await db.query('SELECT * FROM cases WHERE id = ?', [id]) as any;
+    if (!rows.length) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+    const c = rows[0];
+    if (c.production_stage !== 'recusado') { res.status(400).json({ error: 'Este caso não está recusado.' }); return; }
+
+    const back = c.stage_before_rejection || 'em_analise';
+    await db.query(
+      `UPDATE cases SET production_stage = ?, stage_before_rejection = NULL,
+              rejection_reason = NULL, rejection_notes = NULL, rejected_at = NULL, rejected_by = NULL
+        WHERE id = ?`,
+      [back, id]
+    );
+
+    try {
+      await logTimeline({
+        clientId: c.client_id, caseId: Number(id), eventType: 'recusa_revertida',
+        description: `Recusa revertida — caso voltou para: ${STAGE_LABELS[back] || back}.`,
+        userId: req.user!.id,
+      });
+    } catch { /* timeline não crítica */ }
+
+    res.json({ success: true, production_stage: back });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Erro ao reverter a recusa' });
   }
 });
 

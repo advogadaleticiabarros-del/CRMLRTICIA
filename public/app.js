@@ -1655,7 +1655,8 @@ const ROUTES = {
   },
 
   async producao(page) {
-    const STAGES = [['separacao_documentos', 'Separação de docs'], ['criacao_inicial', 'Criação inicial'], ['revisao_inicial', 'Revisão inicial'], ['aguardando_protocolo', 'Aguardando protocolo'], ['protocolado', 'Protocolado'], ['concluido', 'Concluído']];
+    const STAGES = [['em_analise', 'Em análise'], ['separacao_documentos', 'Separação de docs'], ['criacao_inicial', 'Criação inicial'], ['revisao_inicial', 'Revisão inicial'], ['aguardando_protocolo', 'Aguardando protocolo'], ['protocolado', 'Protocolado'], ['concluido', 'Concluído'], ['recusado', 'Recusado']];
+    const MOVABLE = STAGES.filter(([k]) => k !== 'recusado');
     const SLAMAX = 10;
     page.innerHTML = `
       <div class="page-header"><div><h2>Produção</h2><p class="sub">Esteira das peças · SLA ${SLAMAX} dias (produção total) · clique no card para abrir</p></div></div>
@@ -1675,16 +1676,29 @@ const ROUTES = {
     };
     const load = async () => {
       const rows = await api('/api/cases/production-board').catch(() => []);
-      const ativos = rows.filter((r) => !['protocolado', 'concluido'].includes(r.production_stage));
+      const ativos = rows.filter((r) => !['protocolado', 'concluido', 'recusado'].includes(r.production_stage));
       const atrasados = ativos.filter((r) => Number(r.sla_days) > SLAMAX).length;
       const pend = rows.reduce((a, r) => a + Number(r.pendencias || 0), 0);
-      $('#prod-kpis').innerHTML = kpi('Em produção', ativos.length) + kpi(`Atrasados (>${SLAMAX}d)`, atrasados, atrasados ? 'red' : '') + kpi('Pendências', pend, pend ? 'amber' : '') + kpi('Total na esteira', rows.length);
+      const recusados = rows.filter((r) => r.production_stage === 'recusado').length;
+      $('#prod-kpis').innerHTML = kpi('Em produção', ativos.length) + kpi(`Atrasados (>${SLAMAX}d)`, atrasados, atrasados ? 'red' : '') + kpi('Pendências', pend, pend ? 'amber' : '') + kpi('Recusados', recusados, recusados ? 'red' : '') + kpi('Total na esteira', rows.length);
       const by = {}; STAGES.forEach(([k]) => by[k] = []);
       rows.forEach((r) => { (by[r.production_stage] || (by[r.production_stage] = [])).push(r); });
       $('#prod-board').innerHTML = STAGES.map(([k, label]) => `
         <div class="kf-col" data-stage="${k}">
           <div class="kf-head">${label} <span class="kf-count">${by[k].length}</span></div>
-          <div class="kf-cards" data-stage="${k}">${by[k].map((r) => `
+          <div class="kf-cards" data-stage="${k}">${by[k].map((r) => k === 'recusado' ? `
+            <div class="kf-card-wrap">
+              ${labelsHtml(r)}
+            <div class="kf-card kf-card-locked" data-case="${r.id}" data-stage="${r.production_stage}">
+              <span style="font-size:11px;font-weight:700;color:var(--red,#c0392b)">🚫 Recusado${r.rejected_at ? ' · ' + fmtDate(r.rejected_at) : ''}</span>
+              <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
+              <small>${esc2(r.title) || r.case_number || 's/ número'}${r.legal_area ? ' · ' + r.legal_area : ''}</small>
+              <div class="kf-obs" style="margin-top:5px;font-size:11px;color:var(--navy);background:#fdeceb;border-left:3px solid var(--red,#c0392b);padding:4px 7px;border-radius:3px;white-space:pre-wrap"><strong>Motivo:</strong> ${esc2(r.rejection_reason || '—')}${r.rejection_notes ? `<br><strong>Obs.:</strong> ${esc2(r.rejection_notes)}` : ''}</div>
+              <div style="display:flex;gap:4px;align-items:center;margin-top:6px">
+                <button class="kf-revert btn-sm" data-id="${r.id}" style="flex:1">↩ Reverter recusa</button>
+              </div>
+            </div>
+            </div>` : `
             <div class="kf-card-wrap">
               ${labelsHtml(r)}
             <div class="kf-card" draggable="true" data-case="${r.id}" data-stage="${r.production_stage}">
@@ -1694,7 +1708,7 @@ const ROUTES = {
               ${r.assignee_name ? `<small style="color:var(--text-muted)">resp.: ${esc2(r.assignee_name)}</small>` : ''}
               ${r.production_obs ? `<div class="kf-obs" style="margin-top:5px;font-size:11px;color:var(--navy);background:#fff7e6;border-left:3px solid var(--gold,#c9a227);padding:4px 7px;border-radius:3px;white-space:pre-wrap">📝 ${esc2(r.production_obs)}</div>` : ''}
               <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
-                <select class="kf-move" data-id="${r.id}" title="Mover etapa" style="flex:1">${STAGES.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}</select>
+                <select class="kf-move" data-id="${r.id}" title="Mover etapa" style="flex:1">${MOVABLE.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}<option value="recusado">🚫 Recusar…</option></select>
                 <button class="kf-edit" data-id="${r.id}" data-title="${esc2(r.title || '')}" title="Editar a demanda (título)" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✎</button>
                 <button class="kf-obs-edit" data-id="${r.id}" data-obs="${esc2(r.production_obs || '')}" title="Observação do card" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">${svgIcon('note')}</button>
                 <button class="kf-dup" data-id="${r.id}" title="Duplicar demanda" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">⧉</button>
@@ -1704,9 +1718,32 @@ const ROUTES = {
             </div>`).join('') || '<div class="kf-empty">solte um card aqui</div>'}</div>
         </div>`).join('');
 
+      // Modal de recusa: motivo obrigatório + observações opcionais. Trava o card.
+      const openRejectModal = (caseId) => {
+        const form = el(`<form class="form-grid">
+          <p style="font-size:13px;color:var(--text-muted)">O caso vai para a coluna <strong>Recusado</strong> e fica travado — só volta usando "Reverter recusa".</p>
+          <label>Motivo da recusa *<textarea name="reason" rows="3" required placeholder="Por que este caso está sendo recusado?"></textarea></label>
+          <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Detalhes adicionais…"></textarea></label>
+          <button type="submit" class="btn-primary" style="background:var(--red,#c0392b);border-color:var(--red,#c0392b)">🚫 Recusar caso</button>
+        </form>`);
+        form.onsubmit = async (e) => {
+          e.preventDefault();
+          const reason = form.querySelector('[name=reason]').value.trim();
+          const notes = form.querySelector('[name=notes]').value.trim();
+          if (!reason) { toast('Informe o motivo da recusa', 'error'); return; }
+          const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Recusando…';
+          try {
+            await api(`/api/cases/${caseId}/reject`, { method: 'POST', body: JSON.stringify({ reason, notes }) });
+            closeModal(); toast('Caso recusado'); load();
+          } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = '🚫 Recusar caso'; }
+        };
+        openModal('Recusar caso', form);
+      };
+
       // Move uma etapa (para frente ou para trás) e registra cada movimento.
       const moveStage = async (caseId, stage, fromStage) => {
         if (!caseId || !stage || stage === fromStage) { load(); return; }
+        if (stage === 'recusado') { openRejectModal(caseId); return; }
         try {
           const extra = {};
           if (stage === 'protocolado') {
@@ -1744,6 +1781,18 @@ const ROUTES = {
       // Seletor (alternativa ao arrastar — e funciona no celular)
       $('#prod-board').querySelectorAll('.kf-move').forEach((el2) => el2.onclick = (e) => e.stopPropagation());
       $('#prod-board').querySelectorAll('.kf-move').forEach((sel) => sel.onchange = () => moveStage(sel.dataset.id, sel.value, undefined));
+
+      // Botão reverter recusa (único jeito de sair da coluna "Recusado")
+      $('#prod-board').querySelectorAll('.kf-revert').forEach((btn) => {
+        btn.onclick = async (e) => {
+          e.stopPropagation();
+          if (!confirm('Reverter a recusa? O caso volta para a etapa em que estava antes.')) return;
+          try {
+            await api(`/api/cases/${btn.dataset.id}/reject/revert`, { method: 'POST', body: '{}' });
+            toast('Recusa revertida'); load();
+          } catch (err) { toast(err.message || 'Erro ao reverter a recusa', 'error'); }
+        };
+      });
 
       // Botão editar a demanda (título) — ex.: "empréstimo pessoal" → "empréstimo consignado"
       $('#prod-board').querySelectorAll('.kf-edit').forEach((btn) => {
@@ -1821,7 +1870,7 @@ const ROUTES = {
   },
 
   async parcerias(page) {
-    const STAGE_PT = { separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguardando protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
+    const STAGE_PT = { em_analise: 'Em análise', separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguardando protocolo', protocolado: 'Protocolado', concluido: 'Concluído', recusado: 'Recusado' };
     const partners = await api('/api/partners').catch(() => []);
     page.innerHTML = `
       <div class="page-header"><div><h2>Parcerias</h2><p class="sub">Casos indicados por parceiros · registro próprio, entram na esteira de produção</p></div>
@@ -4692,7 +4741,7 @@ async function caseForm(onSave) {
   openModal('Novo processo', form);
 }
 
-const FICHA_STAGE = { separacao_documentos: 'Separação de documentos', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguardando protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
+const FICHA_STAGE = { em_analise: 'Em análise', separacao_documentos: 'Separação de documentos', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguardando protocolo', protocolado: 'Protocolado', concluido: 'Concluído', recusado: 'Recusado' };
 
 function buildFichaHtml(f) {
   const c = f.case || {}, cl = f.client || {};
@@ -4789,7 +4838,7 @@ async function fichaCliente(id, onSave) {
 // Conteúdo da "gaveta" expansível de um caso de parceria (usa a ficha consolidada).
 function parcDrawerHtml(f, partnerName) {
   const c = f.case || {};
-  const STAGE_PT = { separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguardando protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
+  const STAGE_PT = { em_analise: 'Em análise', separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguardando protocolo', protocolado: 'Protocolado', concluido: 'Concluído', recusado: 'Recusado' };
   const insts = (f.installments || []).map((i) => `<div class="mini-row"><span>${i.numero ? i.numero + 'ª' : 'Parcela'} · venc. ${fmtDate(i.due_date)}</span><span><strong>${money(i.valor)}</strong> ${badge(i.status)}</span></div>`).join('');
   const recs = (f.receitas || []).map((r) => `<div class="mini-row"><span>${esc(r.description || r.tipo || '—')}</span><span><strong>${money(r.valor)}</strong> ${badge(r.status)}</span></div>`).join('');
   const fin = (insts + recs) || '<small style="color:var(--text-muted)">Sem lançamentos</small>';
@@ -4821,9 +4870,17 @@ async function caseDetail(id, onSave) {
     `<div style="padding:10px 0;border-bottom:1px solid var(--border)">
       <small style="color:var(--text-muted)">${fmtDate(m.movement_date || m.created_at)}</small>
       <div>${m.description}</div></div>`).join('') || '<p class="empty">Sem movimentações</p>';
-  const PROD_STAGES = [['separacao_documentos','Separação de documentos'],['criacao_inicial','Criação inicial'],['revisao_inicial','Revisão inicial'],['aguardando_protocolo','Aguardando protocolo'],['protocolado','Protocolado'],['concluido','Concluído']];
+  const PROD_STAGES = [['em_analise','Em análise'],['separacao_documentos','Separação de documentos'],['criacao_inicial','Criação inicial'],['revisao_inicial','Revisão inicial'],['aguardando_protocolo','Aguardando protocolo'],['protocolado','Protocolado'],['concluido','Concluído']];
   let prodHtml = '';
-  if (c.production_stage) {
+  if (c.production_stage === 'recusado') {
+    prodHtml = `<hr style="border:none;border-top:1px solid var(--border)">
+      <div style="border:1px solid var(--red,#c0392b);background:#fdeceb;border-radius:var(--radius);padding:14px 16px">
+        <strong style="color:var(--red,#c0392b)">🚫 Caso recusado${c.rejected_at ? ' · ' + fmtDate(c.rejected_at) : ''}</strong>
+        <div style="margin-top:8px;font-size:13px"><strong>Motivo:</strong> ${esc(c.rejection_reason || '—')}</div>
+        ${c.rejection_notes ? `<div style="margin-top:4px;font-size:13px"><strong>Obs.:</strong> ${esc(c.rejection_notes)}</div>` : ''}
+        <button class="btn-sm" id="revert-rejection" style="margin-top:10px">↩ Reverter recusa</button>
+      </div>`;
+  } else if (c.production_stage) {
     const idx = PROD_STAGES.findIndex(([v]) => v === c.production_stage);
     const steps = PROD_STAGES.map(([v,t],i) => {
       const state = i < idx ? 'done' : i === idx ? 'cur' : 'todo';
@@ -4833,7 +4890,10 @@ async function caseDetail(id, onSave) {
     prodHtml = `<hr style="border:none;border-top:1px solid var(--border)">
       <div style="display:flex;justify-content:space-between;align-items:center"><strong style="font-size:13px;color:var(--navy-deep)">Esteira de produção</strong><small style="color:var(--text-muted)">Etapa ${idx + 1} de ${PROD_STAGES.length}</small></div>
       <div class="prod-stepper">${steps}</div>
-      ${next ? `<button class="btn-gold btn-advance" id="adv-stage" data-next="${next[0]}">Avançar para “${next[1]}” →</button>` : '<div style="text-align:center;padding:10px;color:var(--green);font-weight:600">✓ Esteira concluída</div>'}`;
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        ${next ? `<button class="btn-gold btn-advance" id="adv-stage" data-next="${next[0]}">Avançar para “${next[1]}” →</button>` : '<div style="text-align:center;padding:10px;color:var(--green);font-weight:600;flex:1">✓ Esteira concluída</div>'}
+        <button class="btn-sm" id="reject-case" style="color:var(--red,#c0392b);border-color:var(--red,#c0392b)">🚫 Recusar caso</button>
+      </div>`;
   }
   const form = el(`<div class="form-grid">
     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
@@ -4967,6 +5027,37 @@ async function caseDetail(id, onSave) {
       closeModal(); toast('Etapa avançada'); onSave();
       if (r.credentials) showClientCredentials(r.credentials, r.case_number);
     } catch (e) { toast(e.message, 'error'); }
+  };
+
+  const rejectBtn = form.querySelector('#reject-case');
+  if (rejectBtn) rejectBtn.onclick = () => {
+    const rf = el(`<form class="form-grid">
+      <p style="font-size:13px;color:var(--text-muted)">O caso vai para a coluna <strong>Recusado</strong> e fica travado — só volta usando "Reverter recusa".</p>
+      <label>Motivo da recusa *<textarea name="reason" rows="3" required placeholder="Por que este caso está sendo recusado?"></textarea></label>
+      <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Detalhes adicionais…"></textarea></label>
+      <button type="submit" class="btn-primary" style="background:var(--red,#c0392b);border-color:var(--red,#c0392b)">🚫 Recusar caso</button>
+    </form>`);
+    rf.onsubmit = async (e) => {
+      e.preventDefault();
+      const reason = rf.querySelector('[name=reason]').value.trim();
+      const notes = rf.querySelector('[name=notes]').value.trim();
+      if (!reason) { toast('Informe o motivo da recusa', 'error'); return; }
+      const btn = rf.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Recusando…';
+      try {
+        await api(`/api/cases/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason, notes }) });
+        closeModal(); toast('Caso recusado'); onSave();
+      } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = '🚫 Recusar caso'; }
+    };
+    openModal('Recusar caso', rf);
+  };
+
+  const revertBtn = form.querySelector('#revert-rejection');
+  if (revertBtn) revertBtn.onclick = async () => {
+    if (!confirm('Reverter a recusa? O caso volta para a etapa em que estava antes.')) return;
+    try {
+      await api(`/api/cases/${id}/reject/revert`, { method: 'POST', body: '{}' });
+      toast('Recusa revertida'); closeModal(); onSave();
+    } catch (err) { toast(err.message || 'Erro ao reverter a recusa', 'error'); }
   };
 
   form.querySelector('#upd-phase').onclick = async () => {
