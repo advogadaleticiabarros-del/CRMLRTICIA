@@ -26,9 +26,10 @@ router.get('/me', async (req: Request, res: Response) => {
     SELECT
       (SELECT COUNT(*) FROM cases WHERE partner_id = ?) AS casos,
       (SELECT COUNT(*) FROM cases WHERE partner_id = ? AND status = 'ativo') AS casos_ativos,
+      (SELECT COUNT(*) FROM cases WHERE partner_id = ? AND production_stage = 'recusado') AS casos_recusados,
       (SELECT COALESCE(SUM(r.valor),0) FROM repasses r JOIN cases c ON c.id = r.case_id WHERE c.partner_id = ? AND r.status IN ('pendente','processando')) AS repasse_a_receber,
       (SELECT COALESCE(SUM(r.valor),0) FROM repasses r JOIN cases c ON c.id = r.case_id WHERE c.partner_id = ? AND r.status = 'repassado') AS repasse_recebido
-  `, [partnerId, partnerId, partnerId, partnerId]) as any;
+  `, [partnerId, partnerId, partnerId, partnerId, partnerId]) as any;
   res.json({ ...(p || {}), resumo });
 });
 
@@ -41,7 +42,19 @@ router.get('/cases', async (req: Request, res: Response) => {
            (SELECT COALESCE(SUM(valor),0) FROM installments i WHERE i.case_id = c.id) AS valor_processo,
            (SELECT COALESCE(SUM(valor),0) FROM repasses r WHERE r.case_id = c.id) AS repasse_parceiro
       FROM cases c LEFT JOIN clients cl ON cl.id = c.client_id
-     WHERE c.partner_id = ? ORDER BY c.created_at DESC`, [(req as any).partnerId]) as any;
+     WHERE c.partner_id = ? AND c.production_stage != 'recusado' ORDER BY c.created_at DESC`, [(req as any).partnerId]) as any;
+  res.json(rows);
+});
+
+// ── GET /api/partner-portal/rejected — casos recusados (seção separada) ─────
+router.get('/rejected', async (req: Request, res: Response) => {
+  const [rows] = await db.query(`
+    SELECT c.id, c.case_number, c.title, c.legal_area,
+           c.rejection_reason, c.rejection_notes, c.rejected_at,
+           cl.name AS client_name
+      FROM cases c LEFT JOIN clients cl ON cl.id = c.client_id
+     WHERE c.partner_id = ? AND c.production_stage = 'recusado'
+     ORDER BY c.rejected_at DESC`, [(req as any).partnerId]) as any;
   res.json(rows);
 });
 

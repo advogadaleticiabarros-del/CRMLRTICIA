@@ -15,9 +15,13 @@ Object.assign(ROUTES, {
         ${kpi('Casos ativos', me.resumo.casos_ativos)}
         ${kpi('Repasse a receber', money(me.resumo.repasse_a_receber), 'money')}
         ${kpi('Repasse recebido', money(me.resumo.repasse_recebido), 'money')}
+        <button class="kpi" id="pp-recusados-kpi" type="button" style="cursor:pointer;text-align:left;border:1px solid var(--border);background:var(--surface)">
+          <div class="label">Recusados</div><div class="value" style="color:${me.resumo.casos_recusados ? 'var(--red)' : ''}">${me.resumo.casos_recusados || 0}</div>
+        </button>
       </div>
       <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Taxas de entrada</strong><small style="color:var(--text-muted);margin-left:8px">o que devo ao escritório</small></div><div id="pp-entradas"><div class="spinner"></div></div></div>
       <div id="pp-cases"></div>`;
+    $('#pp-recusados-kpi').onclick = () => partnerRejectedCases();
     $('#pp-cases').innerHTML = cases.length ? cases.map((c) => {
       const atras = !['protocolado', 'concluido'].includes(c.production_stage) && Number(c.sla_days) > 10;
       return `<div class="card" style="padding:18px;margin-bottom:14px;margin-top:14px">
@@ -198,6 +202,24 @@ Object.assign(ROUTES, {
       : '<div class="empty" style="padding:16px">Nenhuma taxa lançada ainda</div>';
   },
 });
+
+// Seção separada: casos recusados (dia da recusa + motivo já registrado)
+async function partnerRejectedCases() {
+  const rows = await api('/api/partner-portal/rejected').catch(() => []);
+  const wrap = el(`<div>
+    <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px">Casos indicados por você que foram analisados e recusados, com o motivo registrado pelo escritório.</p>
+    <div id="pp-rej-list">${rows.length ? rows.map((c) => `
+      <div class="card" style="padding:14px 18px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
+          <span style="min-width:0"><strong style="color:var(--navy-deep)">${esc(c.client_name || '—')}</strong>${c.title ? ` <span style="color:var(--text-muted);font-size:13px">· ${esc(c.title)}</span>` : ''}</span>
+          <small style="color:var(--text-muted)">recusado em ${fmtDate(c.rejected_at)}</small>
+        </div>
+        <div style="margin-top:8px;font-size:13.5px"><strong>Motivo:</strong> ${esc(c.rejection_reason || '—')}</div>
+        ${c.rejection_notes ? `<div style="margin-top:4px;font-size:13.5px"><strong>Obs.:</strong> ${esc(c.rejection_notes)}</div>` : ''}
+      </div>`).join('') : '<div class="empty">Nenhum caso recusado até agora.</div>'}</div>
+  </div>`);
+  openModal('Casos recusados', wrap);
+}
 
 // Detalhe do caso para o PARCEIRO — ficha SEM contato do cliente + movimentações + financeiro
 async function partnerCaseDetail(id) {
