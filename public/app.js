@@ -1693,7 +1693,7 @@ const ROUTES = {
               <span style="font-size:11px;font-weight:700;color:var(--red,#c0392b)">🚫 Recusado${r.rejected_at ? ' · ' + fmtDate(r.rejected_at) : ''}</span>
               <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
               <small>${esc2(r.title) || r.case_number || 's/ número'}${r.legal_area ? ' · ' + r.legal_area : ''}</small>
-              <div class="kf-obs" style="margin-top:5px;font-size:11px;color:var(--navy);background:#fdeceb;border-left:3px solid var(--red,#c0392b);padding:4px 7px;border-radius:3px;white-space:pre-wrap"><strong>Motivo:</strong> ${esc2(r.rejection_reason || '—')}${r.rejection_notes ? `<br><strong>Obs.:</strong> ${esc2(r.rejection_notes)}` : ''}</div>
+              <small style="color:var(--text-muted)">clique no card para ver o motivo</small>
               <div style="display:flex;gap:4px;align-items:center;margin-top:6px">
                 <button class="kf-revert btn-sm" data-id="${r.id}" style="flex:1">↩ Reverter recusa</button>
               </div>
