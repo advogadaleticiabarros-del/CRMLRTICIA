@@ -1161,20 +1161,19 @@ const ROUTES = {
 
   async financeiro(page) {
     page.innerHTML = `
-      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Visão geral, acordos, receitas, repasses e inadimplência</p></div></div>
+      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Todas as frentes num só lugar: clientes, parcerias, dativas e correspondente</p></div></div>
       <div class="tabs" id="fin-tabs">
         <button class="tab active" data-tab="geral">Visão geral</button>
-        <button class="tab" data-tab="acordos">Acordos</button>
-        <button class="tab" data-tab="receitas">Receitas & Parcelas</button>
+        <button class="tab" data-tab="receitas">A Receber</button>
         <button class="tab" data-tab="pagar">Contas a Pagar</button>
         <button class="tab" data-tab="repasses">Repasses</button>
+        <button class="tab" data-tab="acordos">Acordos</button>
         <button class="tab" data-tab="inadimplencia">Inadimplência</button>
         <button class="tab" data-tab="fluxo">Fluxo de Caixa</button>
-        <button class="tab" data-tab="pagamentos">Pagamentos a confirmar</button>
         <button class="tab" data-tab="auditoria">Auditoria</button>
       </div>
       <div id="fin-content"></div>`;
-    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, pagar: finContasPagar, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa, pagamentos: finPagamentos, auditoria: finAuditoria };
+    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, pagar: finContasPagar, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa, auditoria: finAuditoria };
     const show = async (name) => {
       document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#fin-content'); c.innerHTML = '<div class="spinner"></div>';
@@ -3604,111 +3603,109 @@ async function finAcordos(c) {
   await load();
 }
 
+// A RECEBER — unificado: lançamentos, parcelas (propostas e contratos),
+// dativas e correspondente numa lista só, com baixa direto na linha.
 async function finReceitas(c) {
+  const FONTE_PT = { lancamento: 'Lançamento', parcela: 'Parcela (proposta)', contrato: 'Parcela (contrato)', dativo: 'Dativo', correspondente: 'Correspondente' };
   c.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
-      <div><h3 style="color:var(--navy);margin:0">${svgIcon('banknote','ic-title')}Receitas & Parcelas</h3></div>
-      <div style="display:flex;gap:8px"><button class="btn-gold btn-sm" id="new-receita">+ Nova receita</button><button class="btn-sm" id="print-receitas">${svgIcon('printer')} Imprimir</button><button class="btn-sm" id="export-receitas">${svgIcon('chart')} Exportar CSV</button></div>
+      <div><h3 style="color:var(--navy);margin:0">${svgIcon('banknote','ic-title')}A Receber — todas as frentes</h3></div>
+      <button class="btn-gold btn-sm" id="new-receita">+ Nova receita</button>
     </div>
-
+    <div id="rec-confirmar"></div>
+    <div class="kpi-grid" id="rec-kpis" style="margin-bottom:16px"></div>
     <div class="form-section" style="margin-bottom:16px">
-      <div class="section-header">${svgIcon('search', 'ic-inline')} Filtros</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px">
-        <label>Status
-          <select id="rec-filter-status"><option value="">Todos</option><option value="pendente">Pendente</option><option value="recebido">Recebido</option><option value="vencido">Vencido</option></select>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
+        <label>Situação
+          <select id="rec-f-status"><option value="aberto">A receber</option><option value="vencido">Vencidos</option><option value="recebido">Recebidos</option><option value="">Tudo</option></select>
         </label>
-        <label>Tipo
-          <select id="rec-filter-tipo"><option value="">Todos</option><option value="receita">Receita</option><option value="parcela">Parcela</option><option value="audiencia">Audiência</option></select>
+        <label>Origem
+          <select id="rec-f-fonte"><option value="">Todas</option>${Object.entries(FONTE_PT).map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>
         </label>
-        <label>Cliente
-          <select id="rec-filter-cliente"><option value="">Todos</option><option id="rec-clients" disabled>Carregando...</option></select>
+        <label>Buscar
+          <input type="text" id="rec-f-busca" placeholder="cliente ou descrição" />
         </label>
-        <label>Data de
-          <input type="date" id="rec-filter-date-from" />
-        </label>
-        <label>até
-          <input type="date" id="rec-filter-date-to" />
-        </label>
+        <label>De<input type="date" id="rec-f-de" /></label>
+        <label>Até<input type="date" id="rec-f-ate" /></label>
       </div>
     </div>
+    <div class="card"><div id="rec-lista"><div class="spinner"></div></div></div>`;
 
-    <div class="kpi-grid" id="rec-kpis" style="margin-bottom:16px"></div>
-
-    <div class="card"><div id="receita-consolidada"></div></div>`;
-
-  const loadClients = async () => {
-    const clients = await api('/api/clients?limit=200').catch(() => ({ data: [] }));
-    const sel = $('#rec-filter-cliente');
-    sel.innerHTML = '<option value="">Todos</option>' + clients.data.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  // Pagamentos que o CLIENTE declarou no portal — confirmar ou recusar aqui mesmo.
+  const loadConfirmar = async () => {
+    const rows = await api('/api/payments?status=em_processamento').catch(() => []);
+    const box = $('#rec-confirmar');
+    if (!rows.length) { box.innerHTML = ''; return; }
+    box.innerHTML = `<div class="card" style="margin-bottom:14px;border-left:3px solid var(--gold,#b08d57)">
+      <div style="padding:10px 14px;font-weight:600">Clientes informaram pagamento — confira e dê a baixa (${rows.length})</div>
+      <table><thead><tr><th>Cliente</th><th>Parcela</th><th>Valor</th><th>Informado em</th><th></th></tr></thead>
+      <tbody>${rows.map((p) => `<tr>
+        <td><strong>${esc(p.client_name)}</strong></td>
+        <td>${p.numero ? p.numero + 'ª' : '—'}${p.proposta ? ` <small style="color:var(--text-muted)">· ${esc(p.proposta)}</small>` : ''}</td>
+        <td><strong>${money(p.amount)}</strong></td><td>${fmtDate(p.created_at)}</td>
+        <td style="white-space:nowrap"><button class="btn-gold btn-sm" data-pay-ok="${p.id}">Confirmar</button> <button class="btn-sm" data-pay-no="${p.id}">Recusar</button></td></tr>`).join('')}</tbody></table></div>`;
+    box.querySelectorAll('[data-pay-ok]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/payments/${b.dataset.payOk}/confirmar`, { method: 'POST', body: '{}' }); toast('Baixa confirmada'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
+    box.querySelectorAll('[data-pay-no]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/payments/${b.dataset.payNo}/recusar`, { method: 'POST', body: '{}' }); toast('Pagamento recusado — voltou a pendente'); load(); } catch (e) { toast(e.message, 'error'); }
+    });
   };
 
-  const loadKpis = async () => {
-    const r = await api('/api/receitas').catch(() => ({ data: [] }));
-    const inst = await api('/api/financial/installments').catch(() => []);
-    const aud = await api('/api/correspondente').catch(() => []);
-    const totalVal = r.data.reduce((a, x) => a + (x.valor || 0), 0) + inst.reduce((a, x) => a + (x.valor || 0), 0) + aud.reduce((a, x) => a + (x.value || 0), 0);
-    const recebido = r.data.filter((x) => x.status === 'recebido').reduce((a, x) => a + (x.valor || 0), 0) + aud.filter((x) => x.status === 'paga').reduce((a, x) => a + (x.value || 0), 0);
-    const aReceber = totalVal - recebido;
-    const vencido = r.data.filter((x) => x.status === 'vencido').reduce((a, x) => a + (x.valor || 0), 0);
-    $('#rec-kpis').innerHTML = kpi('💰 Total programado', money(totalVal), 'money') + kpi('✅ Já recebido', money(recebido), 'money', 'var(--green)') + kpi('📍 A receber', money(aReceber), 'money', 'var(--orange)') + kpi('⚠️ Vencido', money(vencido), 'money', 'var(--red)');
+  let dados = { kpis: {}, rows: [] };
+  const render = () => {
+    const st = $('#rec-f-status').value;
+    const fonte = $('#rec-f-fonte').value;
+    const busca = $('#rec-f-busca').value.trim().toLowerCase();
+    const de = $('#rec-f-de').value, ate = $('#rec-f-ate').value;
+    let all = dados.rows;
+    if (st === 'aberto') all = all.filter((x) => !x.recebido);
+    else if (st === 'vencido') all = all.filter((x) => x.vencido);
+    else if (st === 'recebido') all = all.filter((x) => x.recebido);
+    if (fonte) all = all.filter((x) => x.fonte === fonte);
+    if (busca) all = all.filter((x) => (x.cliente || '').toLowerCase().includes(busca) || (x.descricao || '').toLowerCase().includes(busca));
+    if (de) all = all.filter((x) => x.vencimento && String(x.vencimento).slice(0, 10) >= de);
+    if (ate) all = all.filter((x) => x.vencimento && String(x.vencimento).slice(0, 10) <= ate);
+    $('#rec-lista').innerHTML = all.length ? `
+      <table><thead><tr><th>Origem</th><th>Descrição</th><th>Cliente</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
+      <tbody>${all.map((x) => `<tr>
+        <td><span style="font-size:11px;font-weight:700;color:var(--gold)">${FONTE_PT[x.fonte] || x.fonte}</span></td>
+        <td><strong>${esc(x.descricao || '—')}</strong></td>
+        <td>${esc(x.cliente || '—')}</td>
+        <td><strong>${money(x.valor)}</strong></td>
+        <td>${fmtDate(x.vencimento)}</td>
+        <td>${x.recebido ? `<span class="badge pago">recebido${x.pago_em ? ' ' + fmtDate(x.pago_em) : ''}</span>` : x.vencido ? '<span class="badge vencido">vencido</span>' : '<span class="badge">a receber</span>'}</td>
+        <td>${x.recebido ? '' : `<button class="btn-sm btn-gold" data-rec="${x.fonte}:${x.id}">Receber</button>`}</td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nada com esses filtros</div>';
+    $('#rec-lista').querySelectorAll('[data-rec]').forEach((b) => b.onclick = async () => {
+      const [fonte2, id] = b.dataset.rec.split(':');
+      b.disabled = true; b.textContent = '...';
+      try {
+        if (fonte2 === 'lancamento') await api(`/api/financial/${id}/pay`, { method: 'PATCH' });
+        else if (fonte2 === 'parcela') await api(`/api/financial/installments/${id}/pay`, { method: 'PATCH' });
+        else if (fonte2 === 'contrato') await api(`/api/parcelas/${id}/pagar`, { method: 'POST', body: '{}' });
+        else if (fonte2 === 'dativo') await api(`/api/dative/payments/${id}/receive`, { method: 'PATCH' });
+        else if (fonte2 === 'correspondente') await api(`/api/correspondente/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'paga' }) });
+        toast('Recebimento registrado'); load();
+      } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Receber'; }
+    });
   };
 
   const load = async () => {
-    const r = await api('/api/receitas').catch(() => ({ data: [] }));
-    const inst = await api('/api/financial/installments').catch(() => []);
-    const aud = await api('/api/correspondente').catch(() => []);
-
-    const status = $('#rec-filter-status').value;
-    const tipo = $('#rec-filter-tipo').value;
-    const cliente = $('#rec-filter-cliente').value;
-    const dateFrom = $('#rec-filter-date-from').value;
-    const dateTo = $('#rec-filter-date-to').value;
-
-    let receitas = r.data.map((x) => ({ ...x, tipo_: 'receita', descricao: x.descricao, cliente: x.client_name, valor: x.valor, vencimento: x.data_vencimento, status: x.status }));
-    let parcelas = inst.map((x) => ({ ...x, tipo_: 'parcela', descricao: `${x.numero}ª parcela — ${x.proposta_title || ''}`, cliente: x.client_name, valor: x.valor, vencimento: x.due_date, status: x.status === 'pago' ? 'recebido' : 'pendente' }));
-    let audiencias = aud.map((x) => ({ ...x, tipo_: 'audiencia', descricao: `Audiência — ${x.payer_name} (${x.process_number || '—'})`, cliente: '—', valor: x.value, vencimento: x.due_date, status: x.status === 'paga' ? 'recebido' : 'pendente' }));
-
-    let all = [...receitas, ...parcelas, ...audiencias];
-    if (status) all = all.filter((x) => x.status === status || (status === 'vencido' && new Date(x.vencimento) < new Date()));
-    if (tipo) all = all.filter((x) => x.tipo_ === tipo);
-    if (cliente) all = all.filter((x) => x.cliente_id === Number(cliente) || (x.client_id === Number(cliente)));
-    if (dateFrom) all = all.filter((x) => new Date(x.vencimento) >= new Date(dateFrom));
-    if (dateTo) all = all.filter((x) => new Date(x.vencimento) <= new Date(dateTo));
-
-    const html = all.length ? `
-      <table><thead><tr><th>Tipo</th><th>Descrição</th><th>Cliente</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
-      <tbody>${all.map((x) => `<tr>
-        <td><span style="font-weight:700;color:var(--gold)">${x.tipo_ === 'receita' ? '📄' : x.tipo_ === 'parcela' ? '📊' : '🎤'} ${x.tipo_.toUpperCase()}</span></td>
-        <td><strong>${esc(x.descricao)}</strong></td>
-        <td>${esc(x.cliente || '—')}</td>
-        <td>${money(x.valor)}</td>
-        <td>${fmtDate(x.vencimento)}</td>
-        <td>${badge(x.status)}</td>
-        <td><button class="btn-sm" data-pay-all="${x.id}-${x.tipo_}">Receber</button></td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nenhum registro com esses filtros</div>';
-    $('#receita-consolidada').innerHTML = html;
-
-    document.querySelectorAll('[data-pay-all]').forEach((b) => b.onclick = async () => {
-      const [id, tp] = b.dataset.payAll.split('-');
-      try {
-        if (tp === 'receita') await api(`/api/receitas/${id}/pay`, { method: 'PATCH' });
-        else if (tp === 'parcela') await api(`/api/financial/installments/${id}/pay`, { method: 'PATCH' });
-        toast('Recebimento registrado'); load();
-      } catch (e) { toast(e.message, 'error'); }
-    });
-
-    await loadKpis();
+    dados = await api('/api/financial/a-receber').catch(() => ({ kpis: {}, rows: [] }));
+    const k = dados.kpis || {};
+    $('#rec-kpis').innerHTML =
+      kpi('Total programado', money(k.programado), 'money') +
+      kpi('Já recebido', money(k.recebido), 'money') +
+      kpi('A receber', money(k.a_receber), 'money') +
+      kpi('Vencido', money(k.vencido), 'money');
+    render();
+    loadConfirmar();
   };
 
-  $('#rec-filter-status').onchange = load;
-  $('#rec-filter-tipo').onchange = load;
-  $('#rec-filter-cliente').onchange = load;
-  $('#rec-filter-date-from').onchange = load;
-  $('#rec-filter-date-to').onchange = load;
-  $('#print-receitas').onclick = () => window.print();
-  $('#export-receitas').onclick = async () => { toast('Exportar em desenvolvimento'); };
-  $('#new-receita').onclick = () => receitaForm(load);
-
-  await loadClients();
+  ['rec-f-status', 'rec-f-fonte', 'rec-f-de', 'rec-f-ate'].forEach((id) => { $('#' + id).onchange = render; });
+  $('#rec-f-busca').oninput = render;
+  $('#new-receita').onclick = () => financialForm(load);
   await load();
 }
 

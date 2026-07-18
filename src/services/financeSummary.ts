@@ -52,11 +52,12 @@ export async function getFinanceSummary() {
       COALESCE(SUM(CASE WHEN status IN ('pendente','vencido') AND due_date < CURDATE() THEN valor END),0) AS venc
     FROM installments`);
 
+  // parcelas: status = aberto | pago | atrasado | parcial (não 'pendente')
   const parcelas = await one(`
     SELECT
-      COALESCE(SUM(CASE WHEN status='pendente' THEN valor_final END),0) AS prev,
+      COALESCE(SUM(CASE WHEN status IN ('aberto','atrasado','parcial') THEN valor_final END),0) AS prev,
       COALESCE(SUM(CASE WHEN status='pago' THEN valor_final END),0) AS realz,
-      COALESCE(SUM(CASE WHEN status='pendente' AND data_vencimento < CURDATE() THEN valor_final END),0) AS venc
+      COALESCE(SUM(CASE WHEN status IN ('aberto','atrasado','parcial') AND data_vencimento < CURDATE() THEN valor_final END),0) AS venc
     FROM parcelas`).catch(() => ({ prev: 0, realz: 0, venc: 0 }));
 
   const dativo = await one(`
