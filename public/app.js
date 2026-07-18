@@ -3464,9 +3464,27 @@ async function finVisaoGeral(c) {
       <div class="card" style="padding:14px 18px"><strong style="font-size:13px;color:var(--navy)">Por parceria (recebido · repassado)</strong>
         ${origem.por_parceiro.map((p) => `<div class="mini-row"><span>${esc(p.parceiro)}</span><span><strong>${money(p.recebido)}</strong> <small style="color:var(--text-muted)">· ${money(p.repassado)}</small></span></div>`).join('') || '<div class="empty" style="padding:10px">Sem parcerias no mês</div>'}</div>
     </div>` : '';
+  const origemPanel = (s.por_origem && s.por_origem.length) ? `
+    <h3 style="color:var(--navy);margin:20px 0 8px">Minhas frentes de trabalho — a receber · recebido</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px">
+      ${s.por_origem.map((o) => `
+        <div class="card" style="padding:14px 18px">
+          <strong style="font-size:13px;color:var(--navy)">${esc(o.label)}</strong>
+          <div class="mini-row" style="margin-top:8px"><span>A receber</span><strong>${money(o.previsto)}</strong></div>
+          <div class="mini-row"><span>Recebido</span><strong style="color:var(--green)">${money(o.realizado)}</strong></div>
+          ${Number(o.vencido) > 0 ? `<div class="mini-row"><span>Vencido</span><strong style="color:var(--red)">${money(o.vencido)}</strong></div>` : ''}
+        </div>`).join('')}
+      ${s.saidas ? `
+        <div class="card" style="padding:14px 18px">
+          <strong style="font-size:13px;color:var(--navy)">Saídas (despesas + repasses)</strong>
+          <div class="mini-row" style="margin-top:8px"><span>A pagar</span><strong>${money(Number(s.saidas.despesas.previsto) + Number(s.saidas.repasses.previsto))}</strong></div>
+          <div class="mini-row"><span>Pago</span><strong style="color:var(--red)">${money(Number(s.saidas.despesas.realizado) + Number(s.saidas.repasses.realizado))}</strong></div>
+          <div class="mini-row"><span><small>· repasses a parceiros</small></span><small>${money(s.saidas.repasses.previsto)} · ${money(s.saidas.repasses.realizado)}</small></div>
+        </div>` : ''}
+    </div>` : '';
   c.innerHTML = `
     <div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0"><button class="btn-ghost" id="fin-dre">Relatório do contador (mês)</button><button class="btn-gold" id="new-fin">+ Lançamento</button></div>
-    <h3 style="color:var(--navy);margin:16px 0 8px">Resumo Geral</h3>
+    <h3 style="color:var(--navy);margin:16px 0 8px">Resumo Geral <small style="font-weight:400;color:var(--text-muted);font-size:12px">· consolida clientes, parcerias, dativas e correspondente</small></h3>
     <div class="kpi-grid">
       ${kpi('Receita prevista', money(s.receita_prevista), 'money')}
       ${kpi('Receita realizada', money(s.receita_realizada), 'money')}
@@ -3476,6 +3494,7 @@ async function finVisaoGeral(c) {
       ${kpi('Saldo realizado', money(s.saldo_realizado), 'money')}
       ${kpi('Inadimplência', money(s.inadimplencia), 'money')}
     </div>
+    ${origemPanel}
     <h3 style="color:var(--navy);margin:20px 0 8px">${svgIcon('chart','ic-title')}Projeção do Mês (${proj.mes})</h3>
     <div class="kpi-grid">
       ${kpi('✅ Entradas recebidas', money(proj.entrada_realizado), 'money', proj.entrada_realizado > 0 ? 'var(--green)' : '')}
@@ -3532,7 +3551,9 @@ async function finVisaoGeral(c) {
         <table style="width:100%;border-collapse:collapse">
           ${linha('Parcelas de contratos', d.receitas.parcelas_contratos)}
           ${linha('Entradas de parceria', d.receitas.entradas_parceria)}
-          ${linha('Demais receitas', d.receitas.demais_receitas)}
+          ${linha('Dativo (Estado)', d.receitas.dativo || 0)}
+          ${linha('Correspondente jurídico', d.receitas.correspondente || 0)}
+          ${linha('Demais receitas (êxito, sucumbência, avulsas)', d.receitas.demais_receitas)}
           ${linha('Total de receitas', d.receita_total, 1)}
         </table>
         <h3 style="margin:16px 0 4px">Despesas pagas</h3>

@@ -53,33 +53,13 @@ router.get('/opcoes', async (req: Request, res: Response) => {
   res.json({ pagadores: pag.map((r: any) => r.pagador), bancos: ban.map((r: any) => r.banco) });
 });
 
-// ── GET /api/financial/summary — KPIs rápidos ───────────────────────────────
-router.get('/summary', async (req: Request, res: Response) => {
-  const userId = req.user!.id;
-  const [[fr]] = await db.query(`
-    SELECT
-      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pendente' THEN valor END),0) AS receita_prevista,
-      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pago'     THEN valor END),0) AS receita_realizada,
-      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pendente' THEN valor END),0) AS despesa_prevista,
-      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pago'     THEN valor END),0) AS despesa_paga
-    FROM financial_records WHERE user_id = ?`, [userId]) as any;
-
-  const [[inst]] = await db.query(`
-    SELECT
-      COALESCE(SUM(CASE WHEN i.status='pendente' THEN i.valor END),0) AS parcelas_a_receber,
-      COALESCE(SUM(CASE WHEN i.status='pago'     THEN i.valor END),0) AS parcelas_recebidas,
-      COALESCE(SUM(CASE WHEN i.status='pendente' AND i.due_date < CURDATE() THEN i.valor END),0) AS parcelas_vencidas
-    FROM installments i`, []) as any;
-
-  res.json({
-    receita_prevista: Number(fr.receita_prevista) + Number(inst.parcelas_a_receber),
-    receita_realizada: Number(fr.receita_realizada) + Number(inst.parcelas_recebidas),
-    despesa_prevista: fr.despesa_prevista,
-    despesa_paga: fr.despesa_paga,
-    saldo_previsto: (Number(fr.receita_prevista) + Number(inst.parcelas_a_receber)) - Number(fr.despesa_prevista),
-    saldo_realizado: (Number(fr.receita_realizada) + Number(inst.parcelas_recebidas)) - Number(fr.despesa_paga),
-    inadimplencia: inst.parcelas_vencidas,
-  });
+// ── GET /api/financial/summary — KPIs consolidados de TODAS as frentes ───────
+// Clientes próprios + parcerias (entrada/êxito/sucumbência) + dativas +
+// correspondente, e saídas = despesas + repasses. Sem filtro por usuário —
+// o financeiro do escritório é um só.
+router.get('/summary', async (_req: Request, res: Response) => {
+  const { getFinanceSummary } = await import('../services/financeSummary');
+  res.json(await getFinanceSummary());
 });
 
 // ── GET /api/financial/inteligencia — projeção de caixa, DRE e inadimplência ──
@@ -228,8 +208,8 @@ router.get('/installments', async (req: Request, res: Response) => {
 });
 
 // ── GET /api/financial/projecao — fluxo de caixa 30/60/90 dias ──────────────
-// Entradas previstas (parcelas + receitas pendentes) − saídas previstas
-// (despesas pendentes + repasses a pagar), por janela e acumulado.
+// Entradas previstas (parcelas + receitas + dativas + correspondente) − saídas
+// previstas (despesas pendentes + repasses a pagar), por janela e acumulado.
 router.get('/projecao', async (_req: Request, res: Response) => {
   const janela = async (de: number, ate: number) => {
     const [[e]] = await db.query(`
@@ -238,6 +218,12 @@ router.get('/projecao', async (_req: Request, res: Response) => {
                  AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0)
            + COALESCE((SELECT SUM(valor) FROM financial_records
                WHERE tipo='receita' AND status='pendente'
+                 AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0)
+           + COALESCE((SELECT SUM(value) FROM dative_payments
+               WHERE status='previsto'
+                 AND expected_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0)
+           + COALESCE((SELECT SUM(value) FROM correspondent_hearings
+               WHERE status IN ('agendada','realizada','faturada')
                  AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0) AS entradas,
              COALESCE((SELECT SUM(valor) FROM financial_records
                WHERE tipo='despesa' AND status='pendente'
@@ -245,7 +231,7 @@ router.get('/projecao', async (_req: Request, res: Response) => {
            + COALESCE((SELECT SUM(valor) FROM repasses
                WHERE status IN ('pendente','processando')
                  AND data_vencimento BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0) AS saidas
-    `, [de, ate, de, ate, de, ate, de, ate]) as any;
+    `, [de, ate, de, ate, de, ate, de, ate, de, ate, de, ate]) as any;
     return { entradas: Number(e.entradas), saidas: Number(e.saidas), saldo: Number(e.entradas) - Number(e.saidas) };
   };
   const [d30, d60, d90] = [await janela(0, 30), await janela(31, 60), await janela(61, 90)];
@@ -264,8 +250,12 @@ router.get('/dre', async (req: Request, res: Response) => {
       COALESCE((SELECT SUM(valor) FROM financial_records WHERE tipo='receita' AND status='pago'
         AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ? AND description LIKE 'Entrada parceria%'),0) AS entradas_parceria,
       COALESCE((SELECT SUM(valor) FROM financial_records WHERE tipo='receita' AND status='pago'
-        AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ? AND description NOT LIKE 'Entrada parceria%'),0) AS demais_receitas
-  `, [month, month, month]) as any;
+        AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ? AND description NOT LIKE 'Entrada parceria%'),0) AS demais_receitas,
+      COALESCE((SELECT SUM(value) FROM dative_payments WHERE status='recebido'
+        AND DATE_FORMAT(received_date,'%Y-%m') = ?),0) AS dativo,
+      COALESCE((SELECT SUM(value) FROM correspondent_hearings WHERE status='paga'
+        AND DATE_FORMAT(paid_at,'%Y-%m') = ?),0) AS correspondente
+  `, [month, month, month, month, month]) as any;
   const [despesas] = await db.query(`
     SELECT COALESCE(cost_center, 'Sem categoria') AS categoria, SUM(valor) AS total
       FROM financial_records
@@ -278,9 +268,11 @@ router.get('/dre', async (req: Request, res: Response) => {
   const receitas = {
     parcelas_contratos: Number(rec.parcelas_contratos),
     entradas_parceria: Number(rec.entradas_parceria),
+    dativo: Number(rec.dativo),
+    correspondente: Number(rec.correspondente),
     demais_receitas: Number(rec.demais_receitas),
   };
-  const receita_total = receitas.parcelas_contratos + receitas.entradas_parceria + receitas.demais_receitas;
+  const receita_total = receitas.parcelas_contratos + receitas.entradas_parceria + receitas.dativo + receitas.correspondente + receitas.demais_receitas;
   const despesa_total = despesas.reduce((s: number, d: any) => s + Number(d.total), 0);
   const repasses_pagos = Number(repasses[0]?.total || 0);
   res.json({

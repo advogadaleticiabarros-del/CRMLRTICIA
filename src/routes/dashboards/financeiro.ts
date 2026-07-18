@@ -4,51 +4,24 @@ import { db } from '../../config/database';
 const router = Router();
 
 // GET /api/dashboards/financeiro/projecao-mes — Resumo do mês atual (entradas/saídas, realizado/previsto)
-router.get('/projecao-mes', async (req: Request, res: Response) => {
+// ANTES ESTAVA INCOMPLETO: só financial_records + correspondente, filtrados por
+// user_id. Agora delega ao cashflowService, que consolida TODAS as fontes
+// (dativas, correspondente, parcelas, contratos, repasses, acordos, manuais).
+router.get('/projecao-mes', async (_req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
     const now = new Date();
     const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const inicioMes = `${mesAtual}-01`;
-    const fimMes = new Date(now.getFullYear(), now.getMonth() + 1, 1);
-    const fimMesStr = fimMes.toISOString().split('T')[0];
-
-    // Resumo do mês: realizado e previsto (entrada/saída) — financial_records
-    const [[resumo]] = await db.query(`
-      SELECT
-        COALESCE(SUM(CASE WHEN tipo = 'receita' AND status = 'pago' AND DATE_FORMAT(paid_at, '%Y-%m') = ? THEN valor ELSE 0 END), 0) AS entrada_realizado,
-        COALESCE(SUM(CASE WHEN tipo = 'receita' AND status IN ('pendente','pago') AND due_date BETWEEN ? AND ? THEN valor ELSE 0 END), 0) AS entrada_previsto,
-        COALESCE(SUM(CASE WHEN tipo = 'despesa' AND status = 'pago' AND DATE_FORMAT(paid_at, '%Y-%m') = ? THEN valor ELSE 0 END), 0) AS saida_realizado,
-        COALESCE(SUM(CASE WHEN tipo = 'despesa' AND status IN ('pendente','pago') AND due_date BETWEEN ? AND ? THEN valor ELSE 0 END), 0) AS saida_previsto
-      FROM financial_records
-      WHERE user_id = ?
-    `, [mesAtual, inicioMes, fimMesStr, mesAtual, inicioMes, fimMesStr, userId]) as any;
-
-    // Audiências de correspondente: já recebidas (paga) e a receber (realizada/faturada/agendada)
-    const [[audiencias]] = await db.query(`
-      SELECT
-        COALESCE(SUM(CASE WHEN status = 'paga' AND DATE_FORMAT(paid_at, '%Y-%m') = ? THEN value ELSE 0 END), 0) AS aud_recebido,
-        COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date BETWEEN ? AND ? THEN value ELSE 0 END), 0) AS aud_previsto
-      FROM correspondent_hearings
-      WHERE user_id = ?
-    `, [mesAtual, inicioMes, fimMesStr, userId]) as any;
-
-    const entrada_realizado = Number(resumo.entrada_realizado) + Number(audiencias.aud_recebido);
-    const entrada_previsto = Number(resumo.entrada_previsto) + Number(audiencias.aud_previsto);
-    const saida_realizado = resumo.saida_realizado;
-    const saida_previsto = resumo.saida_previsto;
-
-    const saldo_realizado = entrada_realizado - saida_realizado;
-    const saldo_previsto = entrada_previsto - saida_previsto;
-
+    const { getMonthlyCashflow } = await import('../../services/cashflowService');
+    const cx = await getMonthlyCashflow(mesAtual, 1);
+    const m = cx.meses[0];
     res.json({
       mes: mesAtual,
-      entrada_realizado: Math.round(entrada_realizado * 100) / 100,
-      entrada_previsto: Math.round(entrada_previsto * 100) / 100,
-      saida_realizado: Math.round(saida_realizado * 100) / 100,
-      saida_previsto: Math.round(saida_previsto * 100) / 100,
-      saldo_realizado: Math.round(saldo_realizado * 100) / 100,
-      saldo_previsto: Math.round(saldo_previsto * 100) / 100,
+      entrada_realizado: m.entrada_realizado,
+      entrada_previsto: m.entrada_previsto,
+      saida_realizado: m.saida_realizado,
+      saida_previsto: m.saida_previsto,
+      saldo_realizado: m.saldo_realizado,
+      saldo_previsto: m.saldo_previsto,
     });
   } catch (err) {
     res.status(500).json({ error: 'Erro ao carregar projeção do mês' });

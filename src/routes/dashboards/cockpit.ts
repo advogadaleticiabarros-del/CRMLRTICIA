@@ -14,7 +14,10 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
 router.get('/', async (req: Request, res: Response) => {
   const userId = (req as any).user.id;
 
-  // Financeiro — a receber (hoje/7d), a pagar (7d), inadimplência (vencido)
+  // Financeiro — a receber (hoje/7d), a pagar (7d), inadimplência (vencido).
+  // CONSOLIDADO: clientes + parcerias + dativas + correspondente + repasses.
+  // Sem filtro por user_id — o caixa do escritório é um só (o filtro escondia
+  // lançamentos criados por outros usuários, o mesmo bug dos outros dashboards).
   const financeiro = await safe(async () => {
     const [[fr]] = await db.query(`
       SELECT
@@ -22,24 +25,34 @@ router.get('/', async (req: Request, res: Response) => {
         COALESCE(SUM(CASE WHEN tipo='receita' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS receber_7d,
         COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS pagar_7d,
         COALESCE(SUM(CASE WHEN tipo='receita' AND status='vencido' THEN valor END),0) AS vencido
-      FROM financial_records WHERE user_id = ?`, [userId]) as any;
+      FROM financial_records`) as any;
     const [[inst]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status='pendente' AND due_date <= CURDATE() THEN valor END),0) AS receber_hoje,
         COALESCE(SUM(CASE WHEN status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS receber_7d,
         COALESCE(SUM(CASE WHEN status='pendente' AND due_date < CURDATE() THEN valor END),0) AS vencido
-      FROM installments WHERE user_id = ?`, [userId]) as any;
+      FROM installments`) as any;
     const [[aud]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date <= CURDATE() THEN value END),0) AS receber_hoje,
         COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN value END),0) AS receber_7d,
         COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date < CURDATE() THEN value END),0) AS vencido
-      FROM correspondent_hearings WHERE user_id = ?`, [userId]) as any;
+      FROM correspondent_hearings`) as any;
+    const [[dat]] = await db.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status='previsto' AND expected_date <= CURDATE() THEN value END),0) AS receber_hoje,
+        COALESCE(SUM(CASE WHEN status='previsto' AND expected_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN value END),0) AS receber_7d,
+        COALESCE(SUM(CASE WHEN status='previsto' AND expected_date < CURDATE() THEN value END),0) AS vencido
+      FROM dative_payments`) as any;
+    const [[rep]] = await db.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status IN ('pendente','processando') AND data_vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS pagar_7d
+      FROM repasses`) as any;
     return {
-      receber_hoje: Number(fr.receber_hoje) + Number(inst.receber_hoje) + Number(aud.receber_hoje),
-      receber_7d:   Number(fr.receber_7d)   + Number(inst.receber_7d)   + Number(aud.receber_7d),
-      pagar_7d:     Number(fr.pagar_7d),
-      vencido:      Number(fr.vencido)      + Number(inst.vencido)      + Number(aud.vencido),
+      receber_hoje: Number(fr.receber_hoje) + Number(inst.receber_hoje) + Number(aud.receber_hoje) + Number(dat.receber_hoje),
+      receber_7d:   Number(fr.receber_7d)   + Number(inst.receber_7d)   + Number(aud.receber_7d)   + Number(dat.receber_7d),
+      pagar_7d:     Number(fr.pagar_7d)     + Number(rep.pagar_7d),
+      vencido:      Number(fr.vencido)      + Number(inst.vencido)      + Number(aud.vencido)      + Number(dat.vencido),
     };
   }, { receber_hoje: 0, receber_7d: 0, pagar_7d: 0, vencido: 0 });
 
