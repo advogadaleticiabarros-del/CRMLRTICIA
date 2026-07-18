@@ -85,6 +85,7 @@ async function login(e) {
       method: 'POST',
       body: JSON.stringify({ email: $('#login-email').value, password: $('#login-password').value }),
     });
+    if (data.requires_2fa) { pedirCodigo2FA(data.tmp); return; }
     TOKEN = data.token; USER = data.user;
     localStorage.setItem('crm_token', TOKEN);
     localStorage.setItem('crm_user', JSON.stringify(USER));
@@ -92,6 +93,28 @@ async function login(e) {
   } catch (err) {
     $('#login-error').textContent = err.message;
   }
+}
+
+// 2ª etapa do login: código do aplicativo autenticador (2FA)
+function pedirCodigo2FA(tmp) {
+  const form = el(`<form class="form-grid" style="max-width:320px">
+    <p style="font-size:13.5px;color:var(--text-muted)">Senha correta. Agora digite o código de 6 dígitos do seu aplicativo autenticador.</p>
+    <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000"
+      style="font-size:24px;letter-spacing:8px;text-align:center" required autofocus />
+    <div id="tfa-err" style="color:var(--red);font-size:13px"></div>
+    <button type="submit" class="btn-primary">Entrar</button>
+  </form>`);
+  form.onsubmit = async (ev) => {
+    ev.preventDefault();
+    try {
+      const data = await api('/api/auth/login/2fa', { method: 'POST', body: JSON.stringify({ tmp, code: form.querySelector('[name=code]').value }) });
+      TOKEN = data.token; USER = data.user;
+      localStorage.setItem('crm_token', TOKEN);
+      localStorage.setItem('crm_user', JSON.stringify(USER));
+      closeModal(); showApp();
+    } catch (err) { form.querySelector('#tfa-err').textContent = err.message; }
+  };
+  openModal('Verificação em duas etapas', form);
 }
 function logout() {
   TOKEN = null; USER = null;
@@ -1209,7 +1232,11 @@ const ROUTES = {
 
       <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:12px">Minha conta</h3>
-        <button class="btn-sm" id="change-pwd">Trocar minha senha</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn-sm" id="change-pwd">Trocar minha senha</button>
+          <button class="btn-sm" id="tfa-btn">…</button>
+          <span id="tfa-status" style="font-size:12.5px;color:var(--text-muted)"></span>
+        </div>
       </div>
       <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:6px">Aparência</h3>
@@ -1344,6 +1371,52 @@ const ROUTES = {
     };
     $('#new-user').onclick = () => userForm(load);
     $('#change-pwd').onclick = () => changePasswordForm();
+
+    // ── 2FA (verificação em duas etapas) ──
+    const tfaRefresh = async () => {
+      const st = await api('/api/me/2fa').catch(() => ({ enabled: false }));
+      $('#tfa-btn').textContent = st.enabled ? 'Desativar verificação em 2 etapas' : 'Ativar verificação em 2 etapas';
+      $('#tfa-status').innerHTML = st.enabled
+        ? '<span style="color:var(--green);font-weight:600">✓ 2FA ativo</span> — o login pede o código do aplicativo'
+        : 'Proteja seu login com o Google Authenticator (ou similar)';
+      $('#tfa-btn').onclick = st.enabled ? tfaDisable : tfaSetup;
+    };
+    const tfaSetup = async () => {
+      try {
+        const s = await api('/api/me/2fa/setup', { method: 'POST', body: '{}' });
+        const form = el(`<form class="form-grid" style="max-width:360px">
+          <p style="font-size:13px;color:var(--text-muted)">1. Abra o <strong>Google Authenticator</strong> (ou Authy/Microsoft Authenticator) e escaneie o QR abaixo.<br>2. Digite o código de 6 dígitos para confirmar.</p>
+          <div style="text-align:center"><img src="${s.qr}" alt="QR do 2FA" style="border:1px solid var(--border);border-radius:8px" /></div>
+          <p style="font-size:11.5px;color:var(--text-muted);text-align:center">Sem câmera? Cadastre manualmente a chave:<br><code style="user-select:all">${s.secret}</code></p>
+          <input type="text" name="code" inputmode="numeric" maxlength="6" placeholder="000000" style="font-size:22px;letter-spacing:7px;text-align:center" required />
+          <button type="submit" class="btn-primary">Confirmar e ativar</button>
+        </form>`);
+        form.onsubmit = async (ev) => {
+          ev.preventDefault();
+          try {
+            await api('/api/me/2fa/enable', { method: 'POST', body: JSON.stringify({ code: form.querySelector('[name=code]').value }) });
+            closeModal(); toast('2FA ativado — o próximo login pedirá o código'); tfaRefresh();
+          } catch (e2) { toast(e2.message, 'error'); }
+        };
+        openModal('Ativar verificação em 2 etapas', form);
+      } catch (e2) { toast(e2.message, 'error'); }
+    };
+    const tfaDisable = () => {
+      const form = el(`<form class="form-grid" style="max-width:320px">
+        <p style="font-size:13px;color:var(--text-muted)">Para desativar, confirme com um código atual do aplicativo autenticador.</p>
+        <input type="text" name="code" inputmode="numeric" maxlength="6" placeholder="000000" style="font-size:22px;letter-spacing:7px;text-align:center" required />
+        <button type="submit" class="btn-primary" style="background:var(--red,#c0392b);border-color:var(--red,#c0392b)">Desativar 2FA</button>
+      </form>`);
+      form.onsubmit = async (ev) => {
+        ev.preventDefault();
+        try {
+          await api('/api/me/2fa/disable', { method: 'POST', body: JSON.stringify({ code: form.querySelector('[name=code]').value }) });
+          closeModal(); toast('2FA desativado'); tfaRefresh();
+        } catch (e2) { toast(e2.message, 'error'); }
+      };
+      openModal('Desativar verificação em 2 etapas', form);
+    };
+    tfaRefresh();
 
     // ── Proteção de dados (LGPD): prova verificável, sem precisar de DevTools ──
     const loadSeguranca = async () => {

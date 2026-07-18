@@ -1,6 +1,10 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
+import { verifySync as totpVerify } from 'otplib';
 import { db } from '../config/database';
+import { env } from '../config/env';
+import { decrypt } from '../utils/crypto';
 import { signToken, authenticate, authorize, AuthPayload } from '../middleware/auth';
 
 const router = Router();
@@ -45,7 +49,7 @@ router.post('/login', async (req: Request, res: Response) => {
   }
 
   const [rows] = await db.query(
-    'SELECT id, name, email, password, role, active FROM users WHERE email = ?',
+    'SELECT id, name, email, password, role, active, totp_enabled FROM users WHERE email = ?',
     [email]
   ) as any;
 
@@ -64,6 +68,14 @@ router.post('/login', async (req: Request, res: Response) => {
   }
   loginAttempts.delete(loginKey(req));
 
+  // 2FA ligado → senha certa ainda não entra: devolve um passe temporário (5 min)
+  // e o front pede o código do aplicativo autenticador.
+  if (user.totp_enabled) {
+    const tmp = jwt.sign({ id: user.id, purpose: '2fa' }, env.JWT_SECRET, { expiresIn: '5m' });
+    res.json({ requires_2fa: true, tmp });
+    return;
+  }
+
   const payload: AuthPayload = {
     id: user.id,
     email: user.email,
@@ -71,6 +83,39 @@ router.post('/login', async (req: Request, res: Response) => {
     role: user.role,
   };
 
+  res.json({ token: signToken(payload), user: payload });
+});
+
+// ── POST /api/auth/login/2fa — 2ª etapa: código do autenticador ─────────────
+router.post('/login/2fa', async (req: Request, res: Response) => {
+  const { tmp, code } = req.body || {};
+  if (!tmp || !code) { res.status(400).json({ error: 'Informe o código do autenticador' }); return; }
+
+  const bloqueado = isBlocked(req);
+  if (bloqueado) { res.status(429).json({ error: `Muitas tentativas. Aguarde ${bloqueado} minuto(s).` }); return; }
+
+  let decoded: any;
+  try { decoded = jwt.verify(String(tmp), env.JWT_SECRET); } catch { decoded = null; }
+  if (!decoded || decoded.purpose !== '2fa') {
+    res.status(401).json({ error: 'Sessão de verificação expirada — faça login novamente' });
+    return;
+  }
+
+  const [[user]] = await db.query(
+    'SELECT id, name, email, role, active, totp_secret, totp_enabled FROM users WHERE id = ?',
+    [decoded.id]
+  ) as any;
+  if (!user || !user.active || !user.totp_enabled) { res.status(401).json({ error: 'Credenciais inválidas' }); return; }
+
+  const secret = decrypt(user.totp_secret);
+  if (!secret || !totpVerify({ token: String(code).replace(/\s/g, ''), secret }).valid) {
+    registerFail(req);
+    res.status(401).json({ error: 'Código incorreto — confira o aplicativo autenticador' });
+    return;
+  }
+  loginAttempts.delete(loginKey(req));
+
+  const payload: AuthPayload = { id: user.id, email: user.email, name: user.name, role: user.role };
   res.json({ token: signToken(payload), user: payload });
 });
 

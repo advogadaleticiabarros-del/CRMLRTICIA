@@ -1,7 +1,51 @@
 import { Router, Request, Response } from 'express';
+import { generateSecret, generateURI, verifySync as totpVerify } from 'otplib';
+import QRCode from 'qrcode';
 import { db } from '../config/database';
+import { encrypt, decrypt } from '../utils/crypto';
 
 const router = Router();
+
+// ── 2FA (TOTP) — ativar/desativar o segundo fator do MEU login ──────────────
+router.get('/2fa', async (req: Request, res: Response) => {
+  const [[u]] = await db.query('SELECT totp_enabled FROM users WHERE id = ?', [req.user!.id]) as any;
+  res.json({ enabled: !!u?.totp_enabled });
+});
+
+// Gera o segredo e o QR — só ativa depois de confirmar um código válido.
+router.post('/2fa/setup', async (req: Request, res: Response) => {
+  const secret = generateSecret();
+  await db.query('UPDATE users SET totp_secret = ?, totp_enabled = 0 WHERE id = ?', [encrypt(secret), req.user!.id]);
+  const otpauth = generateURI({ issuer: 'CRM Letícia Barros', label: req.user!.email, secret });
+  const qr = await QRCode.toDataURL(otpauth, { width: 220, margin: 1 });
+  res.json({ qr, secret }); // o secret em texto permite cadastro manual no app
+});
+
+router.post('/2fa/enable', async (req: Request, res: Response) => {
+  const code = String(req.body?.code || '').replace(/\s/g, '');
+  const [[u]] = await db.query('SELECT totp_secret FROM users WHERE id = ?', [req.user!.id]) as any;
+  const secret = decrypt(u?.totp_secret);
+  if (!secret) { res.status(400).json({ error: 'Gere o QR primeiro (setup)' }); return; }
+  if (!totpVerify({ token: code, secret }).valid) {
+    res.status(400).json({ error: 'Código incorreto — confira o aplicativo e tente de novo' });
+    return;
+  }
+  await db.query('UPDATE users SET totp_enabled = 1 WHERE id = ?', [req.user!.id]);
+  res.json({ success: true });
+});
+
+router.post('/2fa/disable', async (req: Request, res: Response) => {
+  const code = String(req.body?.code || '').replace(/\s/g, '');
+  const [[u]] = await db.query('SELECT totp_secret, totp_enabled FROM users WHERE id = ?', [req.user!.id]) as any;
+  if (!u?.totp_enabled) { res.json({ success: true }); return; }
+  const secret = decrypt(u.totp_secret);
+  if (!secret || !totpVerify({ token: code, secret }).valid) {
+    res.status(400).json({ error: 'Para desativar, informe um código válido do aplicativo' });
+    return;
+  }
+  await db.query('UPDATE users SET totp_enabled = 0, totp_secret = NULL WHERE id = ?', [req.user!.id]);
+  res.json({ success: true });
+});
 
 // ── GET /api/me/cases — processos atribuídos a mim ──────────────────────────
 router.get('/cases', async (req: Request, res: Response) => {
