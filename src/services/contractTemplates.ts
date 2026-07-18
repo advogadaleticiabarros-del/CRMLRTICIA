@@ -69,8 +69,34 @@ function qualificacao(p: ReturnType<typeof f>): string {
 }
 
 /** Texto da forma de pagamento a partir do parcelamento da proposta (entrada + parcelas). */
-export function formaPagamentoTexto(parc: any): string {
-  if (!parc || !Number(parc.total)) return '';
+// Meios de pagamento aceitos (escolhidos no formulário da proposta) → texto
+// que entra na proposta e no contrato.
+export const MEIOS_PAGAMENTO_PT: Record<string, string> = {
+  pix: 'Pix',
+  cartao: 'cartão de crédito',
+  boleto: 'boleto bancário',
+  transferencia: 'transferência bancária (TED)',
+  dinheiro: 'dinheiro',
+  desconto_exito: 'desconto direto do valor recebido ao final da ação (êxito/RPV/alvará)',
+  link_pagamento: 'link de pagamento',
+};
+
+export function meiosPagamentoTexto(honorarios: any): string {
+  const meios: string[] = Array.isArray(honorarios?.meios) ? honorarios.meios : [];
+  if (!meios.length) return '';
+  const nomes = meios.map((m) => {
+    let nome = MEIOS_PAGAMENTO_PT[m] || m;
+    if (m === 'cartao' && Number(honorarios?.meios_detalhe?.cartao_parcelas) > 1) {
+      nome += ` em até ${honorarios.meios_detalhe.cartao_parcelas}x`;
+    }
+    return nome;
+  });
+  const lista = nomes.length > 1 ? `${nomes.slice(0, -1).join(', ')} ou ${nomes[nomes.length - 1]}` : nomes[0];
+  return `pagamento por meio de ${lista}`;
+}
+
+export function formaPagamentoTexto(parc: any, honorarios?: any): string {
+  if (!parc || !Number(parc.total)) return meiosPagamentoTexto(honorarios);
   const money = (v: number) => `R$ ${(Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   const dt = (s: string) => (s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '');
   const entrada = Number(parc.entrada) || 0;
@@ -85,6 +111,8 @@ export function formaPagamentoTexto(parc: any): string {
     if (parc.primeiro_vencimento) p += `, com primeiro vencimento em ${dt(parc.primeiro_vencimento)}`;
     partes.push(p);
   }
+  const meios = meiosPagamentoTexto(honorarios);
+  if (meios) partes.push(meios);
   return partes.join(', e ');
 }
 
@@ -343,7 +371,7 @@ export function montarClausulaValores(opts: { honorarios?: any; value?: number; 
 
   // 1) Honorários contratuais (entrada/fixo/parcelamento)
   if (parc && Number(parc.total) > 0) {
-    const fp = formaPagamentoTexto(parc);
+    const fp = formaPagamentoTexto(parc, h);
     segs.push(`o valor de ${money(parc.total)}, a título de honorários contratuais${fp ? `, ${fp}` : ''}`);
   } else if (opts.value && Number(opts.value) > 0) {
     const fp = opts.formaPagamento && opts.formaPagamento.trim() ? `, ${opts.formaPagamento.trim()}` : '';

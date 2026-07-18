@@ -56,6 +56,8 @@ router.get('/', async (req: Request, res: Response) => {
   const search = (req.query.search as string)?.trim();
   const status = req.query.status as string;
   const tipo   = req.query.tipo as string;
+  const from   = req.query.from as string;
+  const to     = req.query.to as string;
   const page   = Math.max(1, parseInt(req.query.page as string) || 1);
   const limit  = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 20));
   const offset = (page - 1) * limit;
@@ -70,6 +72,8 @@ router.get('/', async (req: Request, res: Response) => {
   }
   if (status && STATUSES.includes(status)) { where.push('status = ?'); params.push(status); }
   if (tipo && TIPOS.includes(tipo))        { where.push('tipo = ?');   params.push(tipo); }
+  if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) { where.push('created_at >= ?'); params.push(from); }
+  if (to && /^\d{4}-\d{2}-\d{2}$/.test(to))     { where.push('created_at < DATE_ADD(?, INTERVAL 1 DAY)'); params.push(to); }
 
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 

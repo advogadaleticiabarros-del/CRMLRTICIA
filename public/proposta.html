@@ -511,11 +511,24 @@
       const honorarios = parseJson(proposal.honorarios, {});
       const parcelamento = honorarios?.parcelamento || null;
       const total = Number(parcelamento?.total || proposal.valor || 0);
-      return { parcelamento, total };
+      return { parcelamento, total, honorarios };
+    }
+
+    // Meios de pagamento aceitos (escolhidos na produção da proposta)
+    const MEIOS_PT = { pix: 'Pix', cartao: 'Cartão de crédito', boleto: 'Boleto bancário', transferencia: 'Transferência (TED)', dinheiro: 'Dinheiro', desconto_exito: 'Desconto do êxito/RPV ao final', link_pagamento: 'Link de pagamento' };
+    function meiosHtml(honorarios) {
+      const meios = Array.isArray(honorarios?.meios) ? honorarios.meios : [];
+      if (!meios.length) return '';
+      const items = meios.map((m) => {
+        let t = MEIOS_PT[m] || m;
+        if (m === 'cartao' && Number(honorarios?.meios_detalhe?.cartao_parcelas) > 1) t += ` em até ${honorarios.meios_detalhe.cartao_parcelas}x`;
+        return `<span class="plan-kpi" style="text-align:center"><strong>${safe(t)}</strong></span>`;
+      }).join('');
+      return `<p class="plan-note" style="margin-top:14px"><b>Meios de pagamento aceitos:</b></p><div class="plan-summary">${items}</div>`;
     }
 
     function feeHtml(proposal) {
-      const { parcelamento, total } = paymentData(proposal);
+      const { parcelamento, total, honorarios } = paymentData(proposal);
       const today = new Date();
 
       if (!parcelamento || !Number(parcelamento.total)) {
@@ -535,6 +548,7 @@
                 <div class="plan-row head"><span>M&ecirc;s</span><span>Vencimento</span><span>Descri&ccedil;&atilde;o</span><span>Valor</span></div>
                 <div class="plan-row"><span>${safe(monthLabel(due))}</span><b>${fmtDate(due) || 'A definir'}</b><span>Honor&aacute;rios profissionais</span><span class="amount">${money(total)}</span></div>
               </div>
+              ${meiosHtml(honorarios)}
             </div>
           </div>
         `;
@@ -580,6 +594,7 @@
               <div class="plan-row head"><span>M&ecirc;s</span><span>Vencimento</span><span>Obriga&ccedil;&atilde;o</span><span>Valor</span></div>
               ${rows.map((row) => `<div class="plan-row ${row.cls}"><span>${safe(row.month)}</span><b>${safe(row.due)}</b><span>${safe(row.label)}</span><span class="amount">${money(row.amount)}</span></div>`).join('')}
             </div>
+            ${meiosHtml(honorarios)}
             <p class="plan-note">Os vencimentos podem ser ajustados no contrato se houver negocia&ccedil;&atilde;o espec&iacute;fica aprovada pelo escrit&oacute;rio.</p>
           </div>
         </div>

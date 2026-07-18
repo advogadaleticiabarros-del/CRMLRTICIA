@@ -793,6 +793,7 @@ const ROUTES = {
       <div class="toolbar">
         <input id="cli-search" placeholder="Buscar por nome, CPF/CNPJ ou e-mail…" />
         <select id="cli-status"><option value="">Todos status</option><option value="ativo">Ativo</option><option value="inativo">Inativo</option><option value="prospecto">Prospecto</option></select>
+        <input type="date" id="cli-from" title="Cadastrados de" /><input type="date" id="cli-to" title="até" />
         <span class="spacer"></span>
         <button class="btn-ghost" id="cli-export">${svgIcon('docs')}Exportar CSV</button>
       </div>
@@ -804,6 +805,8 @@ const ROUTES = {
       q.set('page', String(cliPage));
       if ($('#cli-search').value) q.set('search', $('#cli-search').value);
       if ($('#cli-status').value) q.set('status', $('#cli-status').value);
+      if ($('#cli-from').value) q.set('from', $('#cli-from').value);
+      if ($('#cli-to').value) q.set('to', $('#cli-to').value);
       const r = await api('/api/clients?' + q);
       const pages = r.pages || 1;
       $('#cli-table').innerHTML = r.data.length ? `
@@ -824,10 +827,13 @@ const ROUTES = {
     $('#new-client').onclick = () => clientForm(null, load);
     $('#cli-search').oninput = debounce(reload, 350);
     $('#cli-status').onchange = reload;
+    $('#cli-from').onchange = reload; $('#cli-to').onchange = reload;
     $('#cli-export').onclick = async () => {
       const params = {};
       if ($('#cli-search').value) params.search = $('#cli-search').value;
       if ($('#cli-status').value) params.status = $('#cli-status').value;
+      if ($('#cli-from').value) params.from = $('#cli-from').value;
+      if ($('#cli-to').value) params.to = $('#cli-to').value;
       toast('Gerando CSV…');
       const rows = await fetchAllPages('/api/clients', params);
       downloadCsv('clientes.csv', [
@@ -937,6 +943,7 @@ const ROUTES = {
       <div class="toolbar">
         <input id="case-search" placeholder="Buscar por título ou número…" />
         <select id="case-status"><option value="">Todos status</option><option value="ativo">Ativo</option><option value="suspenso">Suspenso</option><option value="encerrado">Encerrado</option></select>
+        <input type="date" id="case-from" title="Criados de" /><input type="date" id="case-to" title="até" />
         <span class="spacer"></span>
         <button class="btn-ghost" id="case-export">${svgIcon('docs')}Exportar CSV</button>
       </div>
@@ -947,6 +954,8 @@ const ROUTES = {
       q.set('limit', '20'); q.set('page', String(casePage));
       if ($('#case-search').value) q.set('search', $('#case-search').value);
       if ($('#case-status').value) q.set('status', $('#case-status').value);
+      if ($('#case-from').value) q.set('from', $('#case-from').value);
+      if ($('#case-to').value) q.set('to', $('#case-to').value);
       const r = await api('/api/cases?' + q);
       const pages = r.pages || 1;
       $('#case-table').innerHTML = r.data.length ? `
@@ -966,10 +975,13 @@ const ROUTES = {
     $('#new-case').onclick = () => caseForm(load);
     $('#case-search').oninput = debounce(reload, 350);
     $('#case-status').onchange = reload;
+    $('#case-from').onchange = reload; $('#case-to').onchange = reload;
     $('#case-export').onclick = async () => {
       const params = {};
       if ($('#case-search').value) params.search = $('#case-search').value;
       if ($('#case-status').value) params.status = $('#case-status').value;
+      if ($('#case-from').value) params.from = $('#case-from').value;
+      if ($('#case-to').value) params.to = $('#case-to').value;
       toast('Gerando CSV…');
       const rows = await fetchAllPages('/api/cases', params);
       downloadCsv('processos.csv', [
@@ -987,8 +999,10 @@ const ROUTES = {
         <div style="display:flex;gap:8px"><button class="btn-gold" id="new-deadline">+ Prazo</button>
         <button class="btn-gold" id="new-task">+ Tarefa</button></div></div>
       <div id="dd-card"></div>
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn-sm" id="prazos-export">Exportar CSV</button></div>
       <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Prazos processuais</strong></div><div id="dl-table"></div></div>
       <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">${svgIcon('check', 'ic-t')}Tarefas</strong></div><div id="task-table"></div></div>`;
+    $('#prazos-export').onclick = () => exportTableCSV(page, 'prazos-tarefas');
 
     const countdown = (days, label) => {
       if (label === 'vencido') return `<span class="badge vencido">vencido</span>`;
@@ -2672,9 +2686,20 @@ async function renderCorrespondente(page) {
       </div>
       <div class="card"><div id="corr-table"></div></div>`;
 
+    let corrPeriodo = { de: '', ate: '' };
+    tableTools(page.querySelector('.card:last-child'), {
+      onPeriod: (de, ate) => { corrPeriodo = { de, ate }; loadHistorico(); },
+      findTable: () => page.querySelector('#corr-table table'), filename: 'correspondente',
+    });
     const loadHistorico = async () => {
       const q = $('#corr-filter').value ? '?status=' + $('#corr-filter').value : '';
-      const rows = await api('/api/correspondente' + q);
+      let rows = await api('/api/correspondente' + q);
+      rows = rows.filter((r) => {
+        const d = r.hearing_datetime ? String(r.hearing_datetime).slice(0, 10) : '';
+        if (corrPeriodo.de && (!d || d < corrPeriodo.de)) return false;
+        if (corrPeriodo.ate && (!d || d > corrPeriodo.ate)) return false;
+        return true;
+      });
       $('#corr-table').innerHTML = rows.length ? `
         <table><thead><tr><th>Data/hora</th><th>Atuação</th><th>Processo</th><th>Pagador</th><th>Valor</th><th>Status</th><th></th></tr></thead>
         <tbody>${rows.map((h) => {
@@ -3180,6 +3205,53 @@ async function partnerForm(id, onSave) {
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal(id ? 'Editar parceiro' : 'Novo parceiro', form);
+}
+
+// ── Ferramentas universais de tabela: exportar CSV + filtro por período ──────
+// exportTableCSV: exporta QUALQUER tabela renderizada (o que está na tela).
+function exportTableCSV(tableEl, filename = 'exportacao') {
+  if (!tableEl) { toast('Nada para exportar', 'error'); return; }
+  // Aceita uma tabela OU um contêiner com várias (une com linha em branco)
+  const tabelas = tableEl.tagName === 'TABLE' ? [tableEl] : [...tableEl.querySelectorAll('table')];
+  if (!tabelas.length) { toast('Nada para exportar', 'error'); return; }
+  const linhas = [];
+  tabelas.forEach((tb, i) => {
+    if (i > 0) linhas.push('');
+    [...tb.querySelectorAll('tr')].forEach((tr) => {
+      linhas.push([...tr.querySelectorAll('th,td')].map((td) => {
+        const t = td.innerText.replace(/\s+/g, ' ').trim();
+        return `"${t.replace(/"/g, '""')}"`;
+      }).join(';'));
+    });
+  });
+  if (!linhas.length) { toast('Nada para exportar', 'error'); return; }
+  // BOM para o Excel abrir acentos certos; ; como separador (padrão BR)
+  const blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast('CSV exportado');
+}
+// tableTools: barra padrão "De · Até · Limpar · Exportar CSV" para qualquer lista.
+// getRows(de, ate) recarrega a lista com o período; findTable() acha a tabela p/ exportar.
+function tableTools(container, { onPeriod, findTable, filename = 'exportacao' }) {
+  const bar = el(`<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:10px">
+    <label style="font-size:12px;color:var(--text-muted)">De<input type="date" data-tt-de style="display:block" /></label>
+    <label style="font-size:12px;color:var(--text-muted)">Até<input type="date" data-tt-ate style="display:block" /></label>
+    <button type="button" class="btn-sm" data-tt-limpar>Limpar</button>
+    <span style="flex:1"></span>
+    <button type="button" class="btn-sm" data-tt-csv>Exportar CSV</button>
+  </div>`);
+  const de = bar.querySelector('[data-tt-de]');
+  const ate = bar.querySelector('[data-tt-ate]');
+  if (onPeriod) { de.onchange = () => onPeriod(de.value, ate.value); ate.onchange = () => onPeriod(de.value, ate.value); }
+  else { de.parentElement.style.display = 'none'; ate.parentElement.style.display = 'none'; bar.querySelector('[data-tt-limpar]').style.display = 'none'; }
+  bar.querySelector('[data-tt-limpar]').onclick = () => { de.value = ''; ate.value = ''; onPeriod && onPeriod('', ''); };
+  bar.querySelector('[data-tt-csv]').onclick = () => exportTableCSV(findTable ? findTable() : container.querySelector('table'), filename);
+  container.prepend(bar);
+  return bar;
 }
 
 function kpi(label, value, cls = '') {
@@ -3698,6 +3770,7 @@ async function finAcordos(c) {
   c.innerHTML = `
     <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-acordo">+ Novo acordo</button></div>
     <div class="card"><div id="acordo-table"></div></div>`;
+  tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#acordo-table table'), filename: 'acordos' });
   const load = async () => {
     const r = await api('/api/acordos');
     $('#acordo-table').innerHTML = r.data.length ? `
@@ -3753,6 +3826,7 @@ async function finReceitas(c) {
       </div>
     </div>
     <div class="card"><div id="rec-lista"><div class="spinner"></div></div></div>`;
+  tableTools(c.querySelector('.card:last-child'), { findTable: () => c.querySelector('#rec-lista table'), filename: 'a-receber' });
 
   // Pagamentos que o CLIENTE declarou no portal — confirmar ou recusar aqui mesmo.
   const loadConfirmar = async () => {
@@ -3897,6 +3971,7 @@ async function finRepasses(c) {
   c.innerHTML = `
     <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-repasse">+ Novo repasse</button></div>
     <div class="card"><div id="repasse-table"></div></div>`;
+  tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#repasse-table table'), filename: 'repasses' });
   const load = async () => {
     const r = await api('/api/repasses');
     $('#repasse-table').innerHTML = r.data.length ? `
@@ -3931,6 +4006,7 @@ async function finInadimplencia(c) {
   c.innerHTML = `
     <div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0"><button class="btn-ghost" id="renegociar-btn">Renegociar parcelas</button><button class="btn-gold" id="recalc-inad">Recalcular agora</button></div>
     <div class="card"><div id="inad-table"></div></div>`;
+  tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#inad-table table'), filename: 'inadimplencia' });
 
   // Renegociação: parcelas em aberto de um cliente viram um novo parcelamento
   $('#renegociar-btn').onclick = async () => {
@@ -4032,6 +4108,7 @@ async function finContasPagar(c) {
       <button class="btn-gold" id="cp-new">+ Conta a pagar</button>
     </div>
     <div id="cp-kpis" class="kpi-grid"></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn-sm" id="cp-export">Exportar CSV</button></div>
     <div id="cp-groups"></div>
     <div id="cp-entradas-section" style="margin-top:20px;display:none">
       <div class="card">
@@ -4166,6 +4243,7 @@ async function finContasPagar(c) {
   });
   $('#cp-new').onclick = () => contaPagarForm(load, $('#cp-month').value, scope === 'pessoal' ? 'pessoal' : 'empresa');
   $('#cp-new-entrada').onclick = () => cashflowForm(load, 'entrada');
+  $('#cp-export').onclick = () => exportTableCSV($('#cp-groups'), `contas-a-pagar-${$('#cp-month').value}`);
   await load();
 }
 
@@ -4716,7 +4794,9 @@ async function propostaForm(onSave, lead = null, existing = null) {
     ${sec('Causa')}
     <div class="form-row">${field('Área de atuação', 'legal_area', { value: existing?.legal_area || lead?.legal_area || 'outro', options: AREAS })}
       <label>Tipo de causa<input name="tipo_causa" value="${esc(existing?.tipo_causa || '')}" list="tipos-causa-dl" placeholder="Comece a digitar…" autocomplete="off"><datalist id="tipos-causa-dl">${TIPOS_CAUSA.map((t) => `<option value="${t}">`).join('')}</datalist></label></div>
-    ${field('Breve descrição do caso', 'description', { type: 'textarea', value: existing?.description || lead?.case_summary || '' })}
+    <label>Introdução do caso <small style="color:var(--text-muted)">— abre a proposta e vai para o contrato</small>
+      <textarea name="description" rows="5">${esc(existing?.description || lead?.case_summary || '')}</textarea></label>
+    <button type="button" class="btn-sm" id="gerar-intro" style="align-self:flex-start;margin-top:-6px">Gerar introdução a partir do resumo</button>
 
     ${sec('Dependentes')}
     <p class="sub" style="margin-top:-6px">Informe os dependentes (importante em BPC/LOAS e Família — guarda/pensão).</p>
@@ -4740,12 +4820,52 @@ async function propostaForm(onSave, lead = null, existing = null) {
     <div class="hon-presets">${HON_PRESETS.map((p, i) => `<button type="button" class="btn-sm" data-preset="${i}">${p[0]}</button>`).join('')}</div>
     <div class="hon-grid">${honRows}</div>
 
+    ${sec('Meios de pagamento aceitos')}
+    <p class="sub" style="margin-top:-6px">O que for marcado aparece na proposta e na cláusula de pagamento do contrato.</p>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:6px 14px">
+      ${[['pix','Pix'],['cartao','Cartão de crédito'],['boleto','Boleto bancário'],['transferencia','Transferência (TED)'],['dinheiro','Dinheiro'],['desconto_exito','Desconto do êxito/RPV ao final'],['link_pagamento','Link de pagamento']]
+        .map(([v, t]) => `<label style="display:flex;gap:8px;align-items:center;font-size:13.5px;cursor:pointer"><input type="checkbox" data-meio="${v}" style="width:auto"> ${t}</label>`).join('')}
+    </div>
+    <div id="meio-cartao-extra" style="display:none;max-width:220px">${field('Cartão em até (x)', 'cartao_parcelas', { type: 'number', value: 12 })}</div>
+
     ${sec('Validade & Observações')}
     ${field('Validade da proposta', 'validade', { type: 'date', value: existing?.validade || '' })}
     ${field('Observações e cláusulas (OAB)', 'observacoes', { type: 'textarea', value: existing?.observacoes || OBSERVACOES_PROPOSTA })}
 
     <button type="submit" class="btn-primary">${existing ? 'Salvar alterações' : 'Criar proposta'}</button>
   </form>`);
+
+  // Introdução do caso — rascunho profissional a partir do que já foi preenchido
+  form.querySelector('#gerar-intro').onclick = () => {
+    const nome = (form.querySelector('[name=contact_name]').value || '').trim().split(' ')[0];
+    const tipo = (form.querySelector('[name=tipo_causa]').value || '').trim();
+    const areaSel = form.querySelector('[name=legal_area]');
+    const areaTxt = areaSel.options[areaSel.selectedIndex]?.text || '';
+    const resumo = (lead?.case_summary || existing?.description || form.querySelector('[name=description]').value || '').trim();
+    const partes = [
+      `Prezado(a) ${nome || 'cliente'},`,
+      `Após a análise do seu relato${tipo ? ` sobre ${tipo.toLowerCase()}` : ''}${areaTxt && areaTxt !== 'Outro' ? ` na área ${areaTxt.toLowerCase()}` : ''}, apresentamos a presente proposta de atuação.`,
+      resumo ? `Em resumo: ${resumo}` : '',
+      `Nosso trabalho compreende a análise completa da documentação, a elaboração das medidas cabíveis e o acompanhamento do caso até a sua conclusão, com você informado(a) em cada etapa.`,
+    ].filter(Boolean);
+    form.querySelector('[name=description]').value = partes.join('\n\n');
+    toast('Introdução gerada — revise e ajuste como quiser');
+  };
+
+  // Meios de pagamento — cartão revela o nº de parcelas
+  const syncMeios = () => {
+    const cartao = form.querySelector('[data-meio="cartao"]');
+    form.querySelector('#meio-cartao-extra').style.display = cartao.checked ? 'block' : 'none';
+  };
+  form.querySelectorAll('[data-meio]').forEach((cb) => cb.onchange = syncMeios);
+  if (existing?.honorarios) {
+    try {
+      const h0 = typeof existing.honorarios === 'string' ? JSON.parse(existing.honorarios) : existing.honorarios;
+      (h0.meios || []).forEach((m) => { const cb = form.querySelector(`[data-meio="${m}"]`); if (cb) cb.checked = true; });
+      if (h0.meios_detalhe?.cartao_parcelas) form.querySelector('[name=cartao_parcelas]').value = h0.meios_detalhe.cartao_parcelas;
+    } catch {}
+  }
+  syncMeios();
 
   // Dependentes (repeater)
   const depList = form.querySelector('#dep-list');
@@ -4859,6 +4979,11 @@ async function propostaForm(onSave, lead = null, existing = null) {
         if (m.extra) honorarios.values[m.extra] = form.querySelector(`[data-hon-extra="${m.extra}"]`).value;
       }
     });
+    // Meios de pagamento aceitos → proposta + cláusula do contrato
+    honorarios.meios = [...form.querySelectorAll('[data-meio]:checked')].map((cb) => cb.dataset.meio);
+    if (honorarios.meios.includes('cartao')) {
+      honorarios.meios_detalhe = { cartao_parcelas: Number(fd.cartao_parcelas) || 12 };
+    }
     let valor;
     if (apenasEx.checked) {
       // Apenas êxito: sem valor fixo, sem entrada, sem parcelas.
@@ -5808,8 +5933,19 @@ async function datProjecao(c) {
 
 async function datDemandas(c) {
   c.innerHTML = `<div class="toolbar"><button class="btn-gold" id="new-dcase">+ Nova demanda</button></div><div class="card"><div id="dcase-table"></div></div>`;
+  let periodo = { de: '', ate: '' };
+  tableTools(c.querySelector('.card'), {
+    onPeriod: (de, ate) => { periodo = { de, ate }; load(); },
+    findTable: () => c.querySelector('#dcase-table table'), filename: 'dativo-demandas',
+  });
+  const filtraPeriodo = (rows, col) => rows.filter((r) => {
+    const d = r[col] ? String(r[col]).slice(0, 10) : '';
+    if (periodo.de && (!d || d < periodo.de)) return false;
+    if (periodo.ate && (!d || d > periodo.ate)) return false;
+    return true;
+  });
   const load = async () => {
-    const rows = await api('/api/dative/cases');
+    const rows = filtraPeriodo(await api('/api/dative/cases'), 'nomeacao_date');
     $('#dcase-table').innerHTML = rows.length ? `
       <table><thead><tr><th>Comarca</th><th>Assistido</th><th>Assunto</th><th>Área</th><th>Nomeação</th><th>Estimado</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.map((d) => `<tr>
@@ -5829,8 +5965,19 @@ async function datDemandas(c) {
 
 async function datAudiencias(c) {
   c.innerHTML = `<div class="toolbar"><button class="btn-gold" id="new-dhear">+ Nova audiência</button></div><div class="card"><div id="dhear-table"></div></div>`;
+  let periodo = { de: '', ate: '' };
+  tableTools(c.querySelector('.card'), {
+    onPeriod: (de, ate) => { periodo = { de, ate }; load(); },
+    findTable: () => c.querySelector('#dhear-table table'), filename: 'dativo-audiencias',
+  });
   const load = async () => {
-    const rows = await api('/api/dative/hearings');
+    let rows = await api('/api/dative/hearings');
+    rows = rows.filter((r) => {
+      const d = r.hearing_date ? String(r.hearing_date).slice(0, 10) : '';
+      if (periodo.de && (!d || d < periodo.de)) return false;
+      if (periodo.ate && (!d || d > periodo.ate)) return false;
+      return true;
+    });
     $('#dhear-table').innerHTML = rows.length ? `
       <table><thead><tr><th>Data</th><th>Comarca</th><th>Tipo</th><th>Assistido</th><th>Valor ato</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.map((h) => `<tr>
@@ -5853,8 +6000,19 @@ async function datAudiencias(c) {
 
 async function datRecebimentos(c) {
   c.innerHTML = `<div class="toolbar"><button class="btn-gold" id="new-dpay">+ Registrar recebimento</button></div><div class="card"><div id="dpay-table"></div></div>`;
+  let periodo = { de: '', ate: '' };
+  tableTools(c.querySelector('.card'), {
+    onPeriod: (de, ate) => { periodo = { de, ate }; load(); },
+    findTable: () => c.querySelector('#dpay-table table'), filename: 'dativo-recebimentos',
+  });
   const load = async () => {
-    const rows = await api('/api/dative/payments');
+    let rows = await api('/api/dative/payments');
+    rows = rows.filter((r) => {
+      const d = String(r.received_date || r.expected_date || '').slice(0, 10);
+      if (periodo.de && (!d || d < periodo.de)) return false;
+      if (periodo.ate && (!d || d > periodo.ate)) return false;
+      return true;
+    });
     $('#dpay-table').innerHTML = rows.length ? `
       <table><thead><tr><th>Referência</th><th>Comarca</th><th>Valor</th><th>Previsto/Recebido</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.map((p) => `<tr>

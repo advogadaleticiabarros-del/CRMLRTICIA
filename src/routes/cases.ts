@@ -42,6 +42,9 @@ router.get('/', async (req: Request, res: Response) => {
   if (status && STATUSES.includes(status)) { where.push('c.status = ?'); params.push(status); }
   if (area && AREAS.includes(area))         { where.push('c.legal_area = ?'); params.push(area); }
   if (clientId) { where.push('c.client_id = ?'); params.push(clientId); }
+  const from = req.query.from as string, to = req.query.to as string;
+  if (from && /^\d{4}-\d{2}-\d{2}$/.test(from)) { where.push('c.created_at >= ?'); params.push(from); }
+  if (to && /^\d{4}-\d{2}-\d{2}$/.test(to))     { where.push('c.created_at < DATE_ADD(?, INTERVAL 1 DAY)'); params.push(to); }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
   const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM cases c ${whereSql}`, params) as any;

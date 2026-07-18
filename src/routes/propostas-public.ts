@@ -45,7 +45,7 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
     honorarios = typeof p.honorarios === 'string' ? JSON.parse(p.honorarios) : p.honorarios;
     if (honorarios?.parcelamento && Number(honorarios.parcelamento.total) > 0) parcelamento = honorarios.parcelamento;
   } catch {}
-  const formaPagamento = formaPagamentoTexto(parcelamento);
+  const formaPagamento = formaPagamentoTexto(parcelamento, honorarios);
   const valorContrato = parcelamento ? Number(parcelamento.total) : (Number(p.valor) || undefined);
 
   // Dados completos já cadastrados no lead (nome, CPF, RG, estado civil, profissão, endereço)
