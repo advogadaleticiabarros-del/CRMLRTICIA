@@ -6,6 +6,51 @@ const router = Router();
 const TIPOS = ['PF', 'PJ'];
 const STATUSES = ['ativo', 'inativo', 'prospecto'];
 
+// ── GET /api/clients/conflito — checagem de conflito de interesses ──────────
+// Antes de cadastrar alguém, procura o nome/CPF em: clientes, leads, títulos e
+// descrições de casos (partes contrárias costumam aparecer ali) e assistidos
+// de demandas dativas. Aviso, não trava — a decisão é da advogada.
+router.get('/conflito', async (req: Request, res: Response) => {
+  const nome = String(req.query.nome || '').trim();
+  const cpf = String(req.query.cpf || '').replace(/\D/g, '');
+  if (nome.length < 4 && cpf.length < 11) { res.json({ achados: [] }); return; }
+
+  const achados: { tipo: string; nome: string; detalhe: string }[] = [];
+  const like = `%${nome}%`;
+
+  if (nome.length >= 4 || cpf.length >= 11) {
+    const [cli] = await db.query(
+      `SELECT id, name, cpf_cnpj, status FROM clients
+        WHERE ${nome.length >= 4 ? 'name LIKE ?' : '1=0'} ${cpf.length >= 11 ? "OR REPLACE(REPLACE(REPLACE(COALESCE(cpf_cnpj,''),'.',''),'-',''),'/','') = ?" : ''}
+        LIMIT 10`,
+      [...(nome.length >= 4 ? [like] : []), ...(cpf.length >= 11 ? [cpf] : [])]
+    ) as any;
+    for (const r of cli) achados.push({ tipo: 'cliente', nome: r.name, detalhe: `já é cliente (${r.status})${r.cpf_cnpj ? ' · ' + r.cpf_cnpj : ''}` });
+
+    const [lds] = await db.query(
+      `SELECT id, name, stage FROM leads WHERE ${nome.length >= 4 ? 'name LIKE ?' : '1=0'} LIMIT 10`,
+      nome.length >= 4 ? [like] : []
+    ).catch(() => [[]]) as any;
+    for (const r of lds) achados.push({ tipo: 'lead', nome: r.name, detalhe: `lead no funil (${r.stage || '—'})` });
+  }
+
+  if (nome.length >= 4) {
+    const [cs] = await db.query(
+      `SELECT c.id, c.title, cl.name AS client_name FROM cases c
+        LEFT JOIN clients cl ON cl.id = c.client_id
+        WHERE c.title LIKE ? OR c.description LIKE ? LIMIT 10`, [like, like]
+    ) as any;
+    for (const r of cs) achados.push({ tipo: 'caso', nome: r.title, detalhe: `citado em caso de ${r.client_name || 'cliente'} — possível parte contrária` });
+
+    const [dat] = await db.query(
+      `SELECT id, assisted_name, comarca FROM dative_cases WHERE assisted_name LIKE ? LIMIT 10`, [like]
+    ).catch(() => [[]]) as any;
+    for (const r of dat) achados.push({ tipo: 'dativo', nome: r.assisted_name, detalhe: `assistido em demanda dativa (${r.comarca})` });
+  }
+
+  res.json({ achados });
+});
+
 // ── GET /api/clients — lista com busca e paginação ──────────────────────────
 router.get('/', async (req: Request, res: Response) => {
   const search = (req.query.search as string)?.trim();

@@ -4372,6 +4372,35 @@ function field(label, name, opts = {}) {
 }
 const AREAS = [['outro','Outro'],['trabalhista','Trabalhista'],['gestante','Gestante/Maternidade'],['familia','Família'],['civel','Cível'],['previdenciario','Previdenciário'],['consumidor','Consumidor']].map(([v,t])=>({v,t}));
 
+// Checagem de CONFLITO DE INTERESSES: procura o nome/CPF digitado entre
+// clientes, leads, casos (parte contrária citada) e dativas. Aviso, não trava.
+function attachConflictCheck(form, { skip = false } = {}) {
+  if (skip) return;
+  const nameInput = form.querySelector('[name=name]');
+  const cpfInput = form.querySelector('[name=cpf_cnpj]');
+  if (!nameInput) return;
+  const box = el('<div style="display:none;border:1px solid var(--amber,#b8860b);background:#fff7e6;border-radius:8px;padding:10px 12px;font-size:12.5px"></div>');
+  nameInput.closest('label').insertAdjacentElement('afterend', box);
+  let timer = null;
+  const check = () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const nome = nameInput.value.trim();
+      const cpf = (cpfInput?.value || '').trim();
+      if (nome.length < 4 && cpf.length < 11) { box.style.display = 'none'; return; }
+      try {
+        const r = await api(`/api/clients/conflito?nome=${encodeURIComponent(nome)}&cpf=${encodeURIComponent(cpf)}`);
+        if (!r.achados.length) { box.style.display = 'none'; return; }
+        box.style.display = '';
+        box.innerHTML = `<strong style="color:var(--amber,#b8860b)">⚠ Possível conflito de interesses — confira antes de aceitar:</strong>
+          ${r.achados.slice(0, 6).map((a) => `<div style="margin-top:4px"><strong>${esc(a.nome)}</strong> <small style="color:var(--text-muted)">· ${esc(a.detalhe)}</small></div>`).join('')}`;
+      } catch { box.style.display = 'none'; }
+    }, 450);
+  };
+  nameInput.addEventListener('input', check);
+  if (cpfInput) cpfInput.addEventListener('input', check);
+}
+
 async function clientForm(id, onSave) {
   let c = { name: '', tipo: 'PF', cpf_cnpj: '', email: '', phone: '', address: '', status: 'ativo' };
   if (id) c = await api('/api/clients/' + id);
@@ -4386,6 +4415,7 @@ async function clientForm(id, onSave) {
     ${field('Status', 'status', { value: c.status, options: [{v:'ativo',t:'Ativo'},{v:'inativo',t:'Inativo'},{v:'prospecto',t:'Prospecto'}] })}
     <button type="submit" class="btn-primary">${id ? 'Salvar' : 'Cadastrar'}</button>
   </form>`);
+  attachConflictCheck(form, { skip: !!id });
   form.onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form));
@@ -4419,6 +4449,7 @@ async function leadForm(onSave) {
     ${field('Próximo follow-up', 'next_followup', { type: 'date' })}
     <button type="submit" class="btn-primary">Cadastrar lead</button>
   </form>`);
+  attachConflictCheck(form);
   form.onsubmit = async (e) => {
     e.preventDefault();
     try {
