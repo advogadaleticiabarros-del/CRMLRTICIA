@@ -82,7 +82,57 @@ function weatherTip(w: Weather | null): string {
   return tips.join(' ');
 }
 
-function buildHtml(name: string, weather: Weather | null, agenda: any): string {
+/**
+ * COPILOTO: pulso do negócio — o que precisa da atenção da advogada HOJE,
+ * além da agenda: leads esfriando, dinheiro vencendo, esteira travada,
+ * e-mails de parceria esperando revisão. Uma consulta por bloco, global.
+ */
+export async function getPulsoNegocio() {
+  const one = async (sql: string) => { const [[r]] = await db.query(sql) as any; return r; };
+
+  const leads = await one(`
+    SELECT COUNT(*) AS n FROM leads
+     WHERE status IN ('triagem','atendimento_inicial')
+       AND updated_at < DATE_SUB(NOW(), INTERVAL 48 HOUR)`).catch(() => ({ n: 0 }));
+
+  const fin = await one(`
+    SELECT
+      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='receita' AND status='pendente' AND due_date <= CURDATE())
+      + (SELECT COALESCE(SUM(valor),0) FROM installments WHERE status='pendente' AND due_date <= CURDATE())
+      + (SELECT COALESCE(SUM(value),0) FROM dative_payments WHERE status='previsto' AND expected_date <= CURDATE()) AS vence_hoje,
+      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='despesa' AND status='pendente' AND due_date <= CURDATE())
+      + (SELECT COALESCE(SUM(valor),0) FROM repasses WHERE status IN ('pendente','processando') AND data_vencimento <= CURDATE()) AS pagar_hoje`)
+    .catch(() => ({ vence_hoje: 0, pagar_hoje: 0 }));
+
+  const esteira = await one(`
+    SELECT COUNT(*) AS n FROM cases
+     WHERE production_stage IN ('em_analise','separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')
+       AND DATEDIFF(NOW(), production_started_at) > 10`).catch(() => ({ n: 0 }));
+
+  const emails = await one(`SELECT COUNT(*) AS n FROM email_imports WHERE status = 'pendente'`).catch(() => ({ n: 0 }));
+
+  return {
+    leads_frios: Number(leads.n) || 0,
+    receber_vencido_hoje: Math.round((Number(fin.vence_hoje) || 0) * 100) / 100,
+    pagar_vencido_hoje: Math.round((Number(fin.pagar_hoje) || 0) * 100) / 100,
+    casos_atrasados: Number(esteira.n) || 0,
+    emails_parceria_pendentes: Number(emails.n) || 0,
+  };
+}
+
+function pulsoHtml(p: any): string {
+  const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const itens: string[] = [];
+  if (p.leads_frios) itens.push(`<li>🔥 <strong>${p.leads_frios} lead(s) sem resposta há mais de 48h</strong> — responder rápido converte mais.</li>`);
+  if (p.receber_vencido_hoje > 0) itens.push(`<li>💰 <strong>${money(p.receber_vencido_hoje)}</strong> a receber vencendo até hoje — cobre no A Receber.</li>`);
+  if (p.pagar_vencido_hoje > 0) itens.push(`<li>📤 <strong>${money(p.pagar_vencido_hoje)}</strong> a pagar até hoje (despesas + repasses).</li>`);
+  if (p.casos_atrasados) itens.push(`<li>⏱ <strong>${p.casos_atrasados} caso(s) estourando o SLA de 10 dias</strong> na esteira de produção.</li>`);
+  if (p.emails_parceria_pendentes) itens.push(`<li>📥 <strong>${p.emails_parceria_pendentes} e-mail(s) da parceria</strong> aguardando revisão na fila.</li>`);
+  if (!itens.length) return `<p style="color:#2f8f63;font-size:14px">✅ Nenhuma pendência urgente — o escritório está em dia!</p>`;
+  return `<ul style="line-height:1.9;padding-left:18px;margin:8px 0">${itens.join('')}</ul>`;
+}
+
+function buildHtml(name: string, weather: Weather | null, agenda: any, pulso: any): string {
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
   const tipoLabel: Record<string, string> = { reuniao: '🤝 Reunião', audiencia: '⚖️ Audiência', compromisso: '📌 Compromisso', prazo: '⏰ Prazo', tarefa: '✓ Tarefa' };
 
@@ -114,6 +164,8 @@ function buildHtml(name: string, weather: Weather | null, agenda: any): string {
       </div>
       <h3 style="color:${BRAND};font-size:16px;margin:18px 0 6px">📅 Seu dia hoje</h3>
       ${corpo}
+      <h3 style="color:${BRAND};font-size:16px;margin:18px 0 6px">📊 Pulso do escritório</h3>
+      ${pulsoHtml(pulso)}
       <p style="margin-top:22px"><a href="https://crm.advogadaleticiabarros.com.br" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:bold">Abrir o CRM</a></p>
     </div>
     <p style="text-align:center;color:#93a0b5;font-size:11px;margin-top:14px">Resumo matinal automático — Advocacia Letícia Barros</p>
@@ -123,6 +175,7 @@ function buildHtml(name: string, weather: Weather | null, agenda: any): string {
 /** Envia o resumo matinal para os usuários admin/advogado ativos com e-mail. */
 export async function sendMorningBriefings(): Promise<{ sent: number; failed: number }> {
   const weather = await getWeather();
+  const pulso = await getPulsoNegocio();
   const [users] = await db.query(
     "SELECT id, name, email FROM users WHERE active = 1 AND role IN ('admin','advogado') AND email IS NOT NULL AND email <> ''"
   ) as any;
@@ -137,9 +190,25 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
     const r = await sendEmail({
       to: u.email,
       subject: `☀️ Bom dia! Sua agenda de hoje`,
-      html: buildHtml(firstName, weather, agenda),
+      html: buildHtml(firstName, weather, agenda, pulso),
     });
     if (r.ok) sent++; else failed++;
+
+    // COPILOTO no sino: versão curta do pulso, só com o que exige ação.
+    const linhas: string[] = [];
+    const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    if (pulso.leads_frios) linhas.push(`${pulso.leads_frios} lead(s) sem resposta há 48h+`);
+    if (pulso.receber_vencido_hoje > 0) linhas.push(`${money(pulso.receber_vencido_hoje)} a receber vencido/vencendo hoje`);
+    if (pulso.pagar_vencido_hoje > 0) linhas.push(`${money(pulso.pagar_vencido_hoje)} a pagar até hoje`);
+    if (pulso.casos_atrasados) linhas.push(`${pulso.casos_atrasados} caso(s) estourando o SLA`);
+    if (pulso.emails_parceria_pendentes) linhas.push(`${pulso.emails_parceria_pendentes} e-mail(s) de parceria na fila`);
+    if (linhas.length) {
+      await db.query(
+        `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+         VALUES (?, ?, ?, 'copiloto_diario', 'sistema', NOW(), 'pendente')`,
+        [u.id, 'Copiloto — atenção hoje', linhas.join(' · ')]
+      ).catch(() => {});
+    }
   }
   return { sent, failed };
 }

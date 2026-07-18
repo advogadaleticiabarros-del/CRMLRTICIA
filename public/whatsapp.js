@@ -85,7 +85,7 @@ Object.assign(ROUTES, {
         if (on) on.onclick = async () => { on.disabled = true; on.textContent = 'Gerando QR…'; await api('/api/whatsapp-instance/connect', { method: 'POST', body: '{}' }).catch(() => {}); };
         const off = body.querySelector('#wac-off');
         if (off) off.onclick = async () => {
-          if (!confirm('Desconectar a instância? Será preciso escanear o QR de novo.')) return;
+          if (!(await uiConfirm('Desconectar a instância? Será preciso escanear o QR de novo.'))) return;
           await api('/api/whatsapp-instance/disconnect', { method: 'POST', body: '{}' }).catch(() => {});
         };
         const auto = body.querySelector('#wac-auto');
@@ -409,7 +409,7 @@ Object.assign(ROUTES, {
             closeModal(); inp.focus();
           });
           wrap.querySelectorAll('[data-apagar]').forEach((b) => b.onclick = async () => {
-            if (!confirm('Apagar este modelo?')) return;
+            if (!(await uiConfirm('Apagar este modelo?'))) return;
             await api('/api/whatsapp-instance/templates/' + b.dataset.apagar, { method: 'DELETE' }).catch(() => {});
             closeModal(); $('#wa-modelos').click();
           });

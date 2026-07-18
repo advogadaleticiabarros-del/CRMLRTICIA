@@ -69,6 +69,45 @@ function openModal(title, bodyEl, opts) {
   setTimeout(() => { const f = $('#modal-body').querySelector('input, select, textarea, button'); if (f) f.focus(); }, 30);
 }
 function closeModal() { $('#modal').classList.add('hidden'); }
+
+// ── Diálogos próprios (substituem confirm/prompt do navegador) ───────────────
+// Overlay independente do #modal: empilha por cima de modais abertos sem
+// destruí-los. Retornam Promise — usar com await.
+function uiDialog({ mensagem, input = null, valorInicial = '', okLabel = 'Confirmar', danger = false }) {
+  return new Promise((resolve) => {
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(11,23,41,.45);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)';
+    ov.innerHTML = `
+      <div style="background:var(--surface,#fff);border-radius:14px;box-shadow:0 24px 60px rgba(0,0,0,.25);max-width:420px;width:100%;padding:22px 24px;animation:rise .18s ease">
+        <div style="font-size:14.5px;color:var(--text,#222);white-space:pre-wrap;line-height:1.55">${mensagem}</div>
+        ${input !== null ? `<input id="uid-input" style="width:100%;margin-top:14px;padding:10px 12px;border:1px solid var(--border,#ddd);border-radius:8px;font:inherit" placeholder="${esc(input)}" value="${esc(valorInicial)}" />` : ''}
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:18px">
+          <button id="uid-cancel" class="btn-sm" style="padding:9px 16px">Cancelar</button>
+          <button id="uid-ok" class="btn-sm ${danger ? '' : 'btn-gold'}" style="padding:9px 16px;${danger ? 'background:var(--red,#c0392b);border-color:var(--red,#c0392b);color:#fff' : ''}">${okLabel}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const inp = ov.querySelector('#uid-input');
+    if (inp) { inp.focus(); inp.select(); }
+    const fechar = (valor) => { ov.remove(); document.removeEventListener('keydown', onKey); resolve(valor); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.stopPropagation(); fechar(input !== null ? null : false); }
+      if (e.key === 'Enter' && inp) { e.preventDefault(); fechar(inp.value); }
+    };
+    document.addEventListener('keydown', onKey, true);
+    ov.querySelector('#uid-cancel').onclick = () => fechar(input !== null ? null : false);
+    ov.querySelector('#uid-ok').onclick = () => fechar(input !== null ? inp.value : true);
+    ov.onclick = (e) => { if (e.target === ov) fechar(input !== null ? null : false); };
+  });
+}
+// Mesmo contrato do confirm/prompt nativos, mas bonitos e com await.
+function uiConfirm(mensagem) {
+  const danger = /apagar|excluir|permanente|recusar|desconectar|cancelar/i.test(mensagem);
+  return uiDialog({ mensagem: esc(mensagem), okLabel: danger ? 'Sim, continuar' : 'Confirmar', danger });
+}
+function uiPrompt(mensagem, valorInicial = '') {
+  return uiDialog({ mensagem: esc(mensagem), input: '', valorInicial: valorInicial ?? '', okLabel: 'OK' });
+}
 // Esc fecha o modal aberto (ou a gaveta no mobile)
 document.addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
@@ -1376,7 +1415,7 @@ const ROUTES = {
         toast('Usuário atualizado'); load();
       });
       document.querySelectorAll('[data-reset]').forEach((b) => b.onclick = async () => {
-        if (!confirm(`Gerar uma nova senha para ${b.dataset.name}? A senha atual deixará de funcionar.`)) return;
+        if (!await uiConfirm(`Gerar uma nova senha para ${b.dataset.name}? A senha atual deixará de funcionar.`)) return;
         try {
           const r = await api('/api/users/' + b.dataset.reset + '/reset-password', { method: 'POST', body: '{}' });
           openModal('Nova senha gerada', el(`<div>
@@ -1733,7 +1772,7 @@ const ROUTES = {
       if (sugeridos.length) {
         allBtn.style.display = ''; allBtn.textContent = `Aplicar ${sugeridos.length} sugestão(ões)`;
         allBtn.onclick = async () => {
-          if (!confirm(`Aplicar a fase sugerida em ${sugeridos.length} processo(s)?`)) return;
+          if (!await uiConfirm(`Aplicar a fase sugerida em ${sugeridos.length} processo(s)?`)) return;
           allBtn.disabled = true; allBtn.textContent = 'Aplicando…';
           for (const r of sugeridos) { try { await api(`/api/processes/${r.id}/phase`, { method: 'PATCH', body: JSON.stringify({ phase: r.suggested_phase }) }); } catch {} }
           toast('Sugestões aplicadas'); allBtn.disabled = false; load();
@@ -1852,10 +1891,10 @@ const ROUTES = {
         try {
           const extra = {};
           if (stage === 'protocolado') {
-            const num = prompt('Número do processo/protocolo para protocolar:');
+            const num = await uiPrompt('Número do processo/protocolo para protocolar:');
             if (!num) { load(); return; }
             extra.case_number = num;
-            const vc = prompt('Valor da causa (R$) — não definitivo, apenas registro do protocolado (deixe vazio para pular):');
+            const vc = await uiPrompt('Valor da causa (R$) — não definitivo, apenas registro do protocolado (deixe vazio para pular):');
             if (vc && vc.trim()) extra.valor_causa = vc.trim();
           }
           if (stage === 'criacao_inicial') toast('Gerando petição inicial com IA…');
@@ -1891,7 +1930,7 @@ const ROUTES = {
       $('#prod-board').querySelectorAll('.kf-revert').forEach((btn) => {
         btn.onclick = async (e) => {
           e.stopPropagation();
-          if (!confirm('Reverter a recusa? O caso volta para a etapa em que estava antes.')) return;
+          if (!await uiConfirm('Reverter a recusa? O caso volta para a etapa em que estava antes.')) return;
           try {
             await api(`/api/cases/${btn.dataset.id}/reject/revert`, { method: 'POST', body: '{}' });
             toast('Recusa revertida'); load();
@@ -1903,7 +1942,7 @@ const ROUTES = {
       $('#prod-board').querySelectorAll('.kf-edit').forEach((btn) => {
         btn.onclick = async (e) => {
           e.stopPropagation();
-          const novo = prompt('Editar a demanda (título do caso):', btn.dataset.title || '');
+          const novo = await uiPrompt('Editar a demanda (título do caso):', btn.dataset.title || '');
           if (novo === null) return;
           if (!novo.trim()) { toast('O título não pode ficar vazio', 'error'); return; }
           try {
@@ -1918,7 +1957,7 @@ const ROUTES = {
       $('#prod-board').querySelectorAll('.kf-dup').forEach((btn) => {
         btn.onclick = async (e) => {
           e.stopPropagation();
-          if (!confirm('Duplicar esta demanda? Uma cópia será criada na mesma etapa.')) return;
+          if (!await uiConfirm('Duplicar esta demanda? Uma cópia será criada na mesma etapa.')) return;
           try {
             await api(`/api/cases/${btn.dataset.id}/duplicate`, { method: 'POST', body: '{}' });
             toast('Demanda duplicada');
@@ -1932,7 +1971,7 @@ const ROUTES = {
         btn.onclick = async (e) => {
           e.stopPropagation();
           const atual = btn.dataset.obs || '';
-          const nova = prompt('Observação do card (deixe vazio para remover):', atual);
+          const nova = await uiPrompt('Observação do card (deixe vazio para remover):', atual);
           if (nova === null) return; // cancelou
           try {
             await api(`/api/cases/${btn.dataset.id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ production_obs: nova }) });
@@ -1946,7 +1985,7 @@ const ROUTES = {
       $('#prod-board').querySelectorAll('.kf-del').forEach((btn) => {
         btn.onclick = async (e) => {
           e.stopPropagation();
-          if (!confirm('Apagar esta demanda permanentemente?\nEsta ação não pode ser desfeita.')) return;
+          if (!await uiConfirm('Apagar esta demanda permanentemente?\nEsta ação não pode ser desfeita.')) return;
           try {
             await api(`/api/cases/${btn.dataset.id}`, { method: 'DELETE' });
             toast('Demanda apagada');
@@ -2113,7 +2152,7 @@ const ROUTES = {
     };
     $('#new-proc').onclick = () => processForm(load);
     $('#to-esteira').onclick = async () => {
-      if (!confirm('Trazer para a esteira (Processos) os processos monitorados que já têm cliente vinculado? Cria um caso em andamento para cada um, sem duplicar.')) return;
+      if (!await uiConfirm('Trazer para a esteira (Processos) os processos monitorados que já têm cliente vinculado? Cria um caso em andamento para cada um, sem duplicar.')) return;
       const btn = $('#to-esteira'); btn.disabled = true; btn.textContent = 'Trazendo…';
       try {
         const r = await api('/api/processes/importar-esteira', { method: 'POST', body: '{}' });
@@ -3001,7 +3040,7 @@ async function loadInboxPanel(onChange) {
     catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Buscar agora'; }
   };
   $('#inbox-sync-reset').onclick = async () => {
-    if (!confirm('Isso apaga o histórico de última busca e re-sincroniza desde o início de hoje.\nE-mails já importados serão ignorados automaticamente. Continuar?')) return;
+    if (!await uiConfirm('Isso apaga o histórico de última busca e re-sincroniza desde o início de hoje.\nE-mails já importados serão ignorados automaticamente. Continuar?')) return;
     const b = $('#inbox-sync-reset'); b.disabled = true; b.textContent = 'Rebuscando...';
     try { const r = await api('/api/email-intake/integration/sync', { method: 'POST', body: JSON.stringify({ reset_sync: true }) }); toast(`Rebusca concluída · ${r.imported} novo(s)`); onChange(); }
     catch (e) { toast(e.message, 'error'); }
@@ -3009,7 +3048,7 @@ async function loadInboxPanel(onChange) {
   };
   const oldBtn = $('#inbox-sync-old');
   if (oldBtn) oldBtn.onclick = async () => {
-    if (!confirm('Buscar e-mails do parceiro dos ÚLTIMOS 30 DIAS?\nÚtil para recuperar casos antigos que não entraram na fila (ex.: chegados no início do mês).\nOs já importados são ignorados. Continuar?')) return;
+    if (!await uiConfirm('Buscar e-mails do parceiro dos ÚLTIMOS 30 DIAS?\nÚtil para recuperar casos antigos que não entraram na fila (ex.: chegados no início do mês).\nOs já importados são ignorados. Continuar?')) return;
     oldBtn.disabled = true; oldBtn.textContent = 'Buscando 30 dias...';
     try {
       const r = await api('/api/email-intake/integration/sync', { method: 'POST', body: JSON.stringify({ since_days: 30 }) });
@@ -3019,7 +3058,7 @@ async function loadInboxPanel(onChange) {
     finally { oldBtn.disabled = false; oldBtn.textContent = 'Buscar e-mails antigos (30 dias)'; }
   };
   $('#inbox-disc').onclick = async () => {
-    if (!confirm('Desconectar o Gmail da parceria?')) return;
+    if (!await uiConfirm('Desconectar o Gmail da parceria?')) return;
     try { await api('/api/email-intake/integration/disconnect', { method: 'POST', body: '{}' }); toast('Desconectado'); onChange(); }
     catch (e) { toast(e.message, 'error'); }
   };
@@ -3049,7 +3088,7 @@ async function loadImportQueue(partners, onChange) {
     if (r) reviewImportForm(r, partners, onChange);
   });
   box.querySelectorAll('[data-discard]').forEach((b) => b.onclick = async () => {
-    if (!confirm('Descartar esta importação?')) return;
+    if (!await uiConfirm('Descartar esta importação?')) return;
     try { await api(`/api/email-intake/${b.dataset.discard}/discard`, { method: 'POST', body: '{}' }); toast('Descartado'); onChange(); }
     catch (e) { toast(e.message, 'error'); }
   });
@@ -3735,7 +3774,7 @@ async function finVisaoGeral(c) {
 
   // Relatório do contador — DRE simplificada do mês (imprimir → salvar como PDF)
   $('#fin-dre').onclick = async () => {
-    const mes = prompt('Mês do fechamento (AAAA-MM):', new Date().toISOString().slice(0, 7));
+    const mes = await uiPrompt('Mês do fechamento (AAAA-MM):', new Date().toISOString().slice(0, 7));
     if (!mes) return;
     try {
       const d = await api('/api/financial/dre?month=' + encodeURIComponent(mes.trim()));
@@ -3885,7 +3924,7 @@ async function finReceitas(c) {
         else if (fonte2 === 'contrato') await api(`/api/parcelas/${id}/pagar`, { method: 'POST', body: '{}' });
         else if (fonte2 === 'dativo') await api(`/api/dative/payments/${id}/receive`, { method: 'PATCH' });
         else if (fonte2 === 'dativo_caso') {
-          const v = prompt('Valor recebido do Estado (deixe vazio para usar o estimado):');
+          const v = await uiPrompt('Valor recebido do Estado (deixe vazio para usar o estimado):');
           if (v === null) { b.disabled = false; b.textContent = 'Receber'; return; }
           await api(`/api/dative/cases/${id}/receber`, { method: 'PATCH', body: JSON.stringify(v && v.trim() ? { valor: v.trim().replace(',', '.') } : {}) });
         }
@@ -3987,7 +4026,7 @@ async function finRepasses(c) {
       }).join('')}</tbody></table>`
       : '<div class="empty">Nenhum repasse cadastrado</div>';
     document.querySelectorAll('[data-rep-pay]').forEach((b) => b.onclick = async () => {
-      const comp = prompt('Link do comprovante (Drive/banco) — o parceiro vê no portal. Deixe vazio para pular:');
+      const comp = await uiPrompt('Link do comprovante (Drive/banco) — o parceiro vê no portal. Deixe vazio para pular:');
       if (comp === null) return;
       try {
         await api(`/api/repasses/${b.dataset.repPay}/repassar`, { method: 'POST', body: JSON.stringify(comp && comp.trim() ? { comprovante_url: comp.trim() } : {}) });
@@ -4036,7 +4075,7 @@ async function finInadimplencia(c) {
       const ids = [...form.querySelectorAll('[name=inst]:checked')].map((x) => Number(x.value));
       const b = Object.fromEntries(new FormData(form));
       if (!b.client_id || !ids.length) { toast('Escolha o cliente e ao menos uma parcela', 'error'); return; }
-      if (!confirm(`Cancelar ${ids.length} parcela(s) e criar ${b.num_parcelas} nova(s)? O acordo fica registrado na timeline.`)) return;
+      if (!await uiConfirm(`Cancelar ${ids.length} parcela(s) e criar ${b.num_parcelas} nova(s)? O acordo fica registrado na timeline.`)) return;
       try {
         const r = await api('/api/financial/renegociar', { method: 'POST', body: JSON.stringify({
           client_id: b.client_id, installment_ids: ids, num_parcelas: b.num_parcelas,
@@ -4170,11 +4209,11 @@ async function finContasPagar(c) {
         try { await api(`/api/cashflow/${b.dataset.payEnt}/pay`, { method: 'PATCH', body: '{}' }); toast('Marcado como recebido'); load(); } catch (e) { toast(e.message, 'error'); }
       });
       $('#cp-entradas-list').querySelectorAll('[data-reopen-ent]').forEach((b) => b.onclick = async () => {
-        if (!confirm('Reabrir esta entrada?')) return;
+        if (!await uiConfirm('Reabrir esta entrada?')) return;
         try { await api(`/api/cashflow/${b.dataset.reopenEnt}/reopen`, { method: 'PATCH', body: '{}' }); toast('Entrada reaberta'); load(); } catch (e) { toast(e.message, 'error'); }
       });
       $('#cp-entradas-list').querySelectorAll('[data-del-ent]').forEach((b) => b.onclick = async () => {
-        if (!confirm('Excluir esta entrada?')) return;
+        if (!await uiConfirm('Excluir esta entrada?')) return;
         try { await api(`/api/cashflow/${b.dataset.delEnt}`, { method: 'DELETE' }); toast('Entrada excluída'); load(); } catch (e) { toast(e.message, 'error'); }
       });
     } else {
@@ -4218,17 +4257,17 @@ async function finContasPagar(c) {
       catch (e) { toast(e.message, 'error'); }
     });
     $('#cp-groups').querySelectorAll('[data-reopen]').forEach((b) => b.onclick = async () => {
-      if (!confirm('Desfazer o pagamento e reabrir esta conta?')) return;
+      if (!await uiConfirm('Desfazer o pagamento e reabrir esta conta?')) return;
       try { await api(`/api/cashflow/${b.dataset.reopen}/reopen`, { method: 'PATCH', body: '{}' }); toast('Conta reaberta'); load(); }
       catch (e) { toast(e.message, 'error'); }
     });
     $('#cp-groups').querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => {
       const tot = Number(b.dataset.tot) || 1; const grp = b.dataset.grp;
       let url, msg;
-      if (tot > 1 && grp && confirm(`Conta recorrente (${tot}x). OK = excluir a série inteira; Cancelar = excluir só esta parcela.`)) {
+      if (tot > 1 && grp && await uiConfirm(`Conta recorrente (${tot}x). OK = excluir a série inteira; Cancelar = excluir só esta parcela.`)) {
         url = `/api/cashflow/group/${grp}`; msg = 'Série excluída';
       } else {
-        if (!confirm('Excluir esta conta?')) return;
+        if (!await uiConfirm('Excluir esta conta?')) return;
         url = `/api/cashflow/${b.dataset.del}`; msg = 'Conta excluída';
       }
       try { await api(url, { method: 'DELETE' }); toast(msg); load(); } catch (e) { toast(e.message, 'error'); }
@@ -4692,7 +4731,7 @@ async function leadDetail(id, onSave) {
   };
   form.querySelector('#gen-prop').onclick = () => { closeModal(); propostaForm(onSave, l); };
   form.querySelector('#del-lead').onclick = async () => {
-    if (!confirm(`Excluir o lead "${l.name || ''}"? Esta ação não pode ser desfeita.`)) return;
+    if (!await uiConfirm(`Excluir o lead "${l.name || ''}"? Esta ação não pode ser desfeita.`)) return;
     try { await api('/api/leads/' + id, { method: 'DELETE' }); closeModal(); toast('Lead excluído'); onSave(); }
     catch (e) { toast(e.message, 'error'); }
   };
@@ -5086,7 +5125,7 @@ async function propostaDetail(id, onSave) {
       form.querySelector('#prop-pdf').onclick = () => window.open(link + '&pdf=1', '_blank');
       form.querySelector('#prop-email').onclick = async () => {
         let to = (p.email || '').trim();
-        if (!to) to = (prompt('E-mail do cliente para enviar a proposta:') || '').trim();
+        if (!to) to = (await uiPrompt('E-mail do cliente para enviar a proposta:') || '').trim();
         if (!to) return;
         try { const r = await api(`/api/propostas/${id}/send-email`, { method: 'POST', body: JSON.stringify({ email: to }) });
           toast('Proposta enviada para ' + r.to); }
@@ -5408,10 +5447,10 @@ async function caseDetail(id, onSave) {
     const next = advBtn.dataset.next;
     const body = { stage: next };
     if (next === 'protocolado') {
-      const num = prompt('Número do processo/protocolo (obrigatório para protocolar):');
+      const num = await uiPrompt('Número do processo/protocolo (obrigatório para protocolar):');
       if (!num || !num.trim()) { toast('Número do processo é obrigatório', 'error'); return; }
       body.case_number = num.trim();
-      const vc = prompt('Valor da causa (R$) — não definitivo, apenas registro do protocolado (deixe vazio para pular):');
+      const vc = await uiPrompt('Valor da causa (R$) — não definitivo, apenas registro do protocolado (deixe vazio para pular):');
       if (vc && vc.trim()) body.valor_causa = vc.trim();
     }
     try {
@@ -5445,7 +5484,7 @@ async function caseDetail(id, onSave) {
 
   const revertBtn = form.querySelector('#revert-rejection');
   if (revertBtn) revertBtn.onclick = async () => {
-    if (!confirm('Reverter a recusa? O caso volta para a etapa em que estava antes.')) return;
+    if (!await uiConfirm('Reverter a recusa? O caso volta para a etapa em que estava antes.')) return;
     try {
       await api(`/api/cases/${id}/reject/revert`, { method: 'POST', body: '{}' });
       toast('Recusa revertida'); closeModal(); onSave();
@@ -5701,7 +5740,7 @@ async function eventDetail(item, onSave) {
   </div>`);
 
   if (isEvent) body.querySelector('#evt-del').onclick = async () => {
-    if (!confirm('Excluir este evento? Ele também sai do Google Agenda.')) return;
+    if (!await uiConfirm('Excluir este evento? Ele também sai do Google Agenda.')) return;
     try { await api(`/api/calendar/events/${item.id}`, { method: 'DELETE' }); closeModal(); toast('Evento excluído'); onSave && onSave(); }
     catch (e) { toast(e.message, 'error'); }
   };
@@ -6361,7 +6400,7 @@ async function contractEditor(id, onSave) {
   wrap.querySelector('#gerar-menor').onclick = async () => {
     const g = (n) => wrap.querySelector(`[name=${n}]`)?.value || '';
     if (!g('menor_nome')) { toast('Informe o nome do menor', 'error'); return; }
-    if (!confirm('Gerar o CONTRATO no modelo de representação de menor? O texto do contrato será substituído.')) return;
+    if (!await uiConfirm('Gerar o CONTRATO no modelo de representação de menor? O texto do contrato será substituído.')) return;
     try {
       await api(`/api/contracts/${id}/gerar-menor`, { method: 'POST', body: JSON.stringify({
         menor_nome: g('menor_nome'), menor_nascimento: g('menor_nascimento'), menor_cpf: g('menor_cpf'),
@@ -6424,7 +6463,7 @@ async function contractEditor(id, onSave) {
   wrap.querySelector('#apply-complete').onclick = () => { clearTimeout(pushTimer); pushComplement(false); };
 
   wrap.querySelector('#reprocess-ct').onclick = async () => {
-    if (!confirm('Regenerar os 3 documentos com o modelo atual e os dados do cadastro? O texto atual será substituído.')) return;
+    if (!await uiConfirm('Regenerar os 3 documentos com o modelo atual e os dados do cadastro? O texto atual será substituído.')) return;
     try { await api(`/api/contracts/${id}/reprocessar`, { method: 'POST', body: '{}' }); closeModal(); toast('Documentos regenerados'); onSave && onSave(); contractEditor(id, onSave); }
     catch (e) { toast(e.message, 'error'); }
   };
@@ -6461,7 +6500,7 @@ async function contractEditor(id, onSave) {
   };
   const zapSigned = wrap.querySelector('#zap-signed');
   if (zapSigned) zapSigned.onclick = async () => {
-    if (!confirm('Confirmar que o cliente já assinou no ZapSign? Isso cria o processo na esteira e gera os honorários no financeiro.')) return;
+    if (!await uiConfirm('Confirmar que o cliente já assinou no ZapSign? Isso cria o processo na esteira e gera os honorários no financeiro.')) return;
     try {
       const link = wrap.querySelector('#zap-link').value.trim();
       const r = await saveDocs({ status: 'assinado', zapsign_link: link || undefined });
@@ -6804,7 +6843,7 @@ if (eyeBtn) eyeBtn.onclick = () => {
 
 const forgotBtn = $('#forgot-link');
 if (forgotBtn) forgotBtn.onclick = async () => {
-  const email = ($('#login-email').value || '').trim() || prompt('Digite seu e-mail para recuperar a senha:');
+  const email = ($('#login-email').value || '').trim() || await uiPrompt('Digite seu e-mail para recuperar a senha:');
   if (!email) return;
   try {
     const r = await api('/api/auth/forgot', { method: 'POST', body: JSON.stringify({ email }) });
