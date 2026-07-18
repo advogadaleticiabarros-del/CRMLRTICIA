@@ -76,6 +76,27 @@ router.get('/production-board', async (_req: Request, res: Response) => {
   res.json(rows);
 });
 
+// ── GET /api/cases/sem-procuracao — casos ativos sem procuração registrada ───
+// Procuração pode estar: (a) no GED do caso/cliente (nome ou tipo contém
+// "procura"), ou (b) no contrato de origem (procuracao_content gerada).
+router.get('/sem-procuracao', async (_req: Request, res: Response) => {
+  const [rows] = await db.query(`
+    SELECT c.id, c.title, c.case_number, c.production_stage, cl.name AS client_name
+      FROM cases c
+      LEFT JOIN clients cl ON cl.id = c.client_id
+     WHERE c.status = 'ativo'
+       AND (c.production_stage IS NULL OR c.production_stage NOT IN ('concluido','recusado'))
+       AND NOT EXISTS (
+         SELECT 1 FROM documents d
+          WHERE (d.case_id = c.id OR (d.case_id IS NULL AND d.client_id = c.client_id))
+            AND (LOWER(d.name) LIKE '%procura%' OR LOWER(COALESCE(d.type,'')) LIKE '%procura%'))
+       AND NOT EXISTS (
+         SELECT 1 FROM contracts ct
+          WHERE ct.id = c.origin_contract_id AND ct.procuracao_content IS NOT NULL)
+     ORDER BY c.created_at DESC LIMIT 100`) as any;
+  res.json(rows);
+});
+
 // ── GET /api/cases/:id/ficha — ficha completa do processo (tudo consolidado) ─
 router.get('/:id/ficha', async (req: Request, res: Response) => {
   const { id } = req.params;

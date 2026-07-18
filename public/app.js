@@ -1733,7 +1733,23 @@ const ROUTES = {
     page.innerHTML = `
       <div class="page-header"><div><h2>Produção</h2><p class="sub">Esteira das peças · SLA ${SLAMAX} dias (produção total) · clique no card para abrir</p></div></div>
       <div id="prod-kpis" class="kpi-grid"></div>
+      <div id="prod-procuracao"></div>
       <div id="prod-board" class="kanban-fases"></div>`;
+    // Alerta: casos ativos sem procuração no GED nem no contrato de origem
+    api('/api/cases/sem-procuracao').then((sp) => {
+      if (!sp.length) return;
+      const box = $('#prod-procuracao');
+      if (!box) return;
+      box.innerHTML = `<div style="border:1px solid var(--amber,#b8860b);background:#fff7e6;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+        <span>⚠ <strong>${sp.length} caso(s) ativo(s) sem procuração</strong> registrada no GED nem no contrato</span>
+        <button class="btn-sm" id="ver-sem-proc">Ver lista</button></div>`;
+      $('#ver-sem-proc').onclick = () => {
+        openModal('Casos sem procuração', el(`<div>
+          <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Sem procuração não se protocola. Anexe o documento no GED do caso (o nome do arquivo deve conter "procuração") ou gere pelo contrato.</p>
+          ${sp.map((x) => `<div class="mini-row" style="padding:7px 0"><span><strong>${esc(x.client_name || '—')}</strong><br><small style="color:var(--text-muted)">${esc(x.title || x.case_number || '')}</small></span><span class="badge">${esc(x.production_stage || '—')}</span></div>`).join('')}
+        </div>`));
+      };
+    }).catch(() => {});
     const esc2 = (s) => String(s || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
     const slaBadge = (r) => {
       if (['protocolado', 'concluido'].includes(r.production_stage)) return `<span style="font-size:11px;font-weight:600;color:var(--green)">✓ concluído</span>`;
