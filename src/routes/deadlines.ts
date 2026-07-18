@@ -17,6 +17,20 @@ const STATUS_LABEL_SQL = `
     ELSE 'normal'
   END`;
 
+// ── GET /api/deadlines/calcular — vencimento em dias úteis (CPC 219/224) ─────
+// ?inicio=YYYY-MM-DD (publicação/intimação) &dias=15 &uteis=1 &suspensao=1
+router.get('/calcular', async (req: Request, res: Response) => {
+  const inicio = String(req.query.inicio || '');
+  const dias = Math.min(365, Math.max(1, parseInt(req.query.dias as string) || 15));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio)) { res.status(400).json({ error: 'Informe a data de início (YYYY-MM-DD)' }); return; }
+  const { contarPrazo } = await import('../utils/prazoUtil');
+  const out = contarPrazo(inicio, dias, {
+    uteis: req.query.uteis !== '0',
+    suspensaoFimAno: req.query.suspensao !== '0',
+  });
+  res.json({ inicio, dias, ...out, aviso: 'Sugestão de cálculo — confira feriados locais/portarias do tribunal.' });
+});
+
 // ── GET /api/deadlines — lista com contagem regressiva ──────────────────────
 router.get('/', async (req: Request, res: Response) => {
   const status  = req.query.status as string;

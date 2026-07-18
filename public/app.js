@@ -5304,9 +5304,35 @@ async function deadlineForm(onSave) {
   const form = el(`<form class="form-grid">
     ${field('Processo *', 'case_id', { options: cases.data.map((c) => ({ v: c.id, t: c.title })) })}
     ${field('Descrição do prazo *', 'description')}
+    <div class="form-section" style="margin:2px 0">
+      <div class="section-header">Calculadora de prazo (dias úteis — CPC)</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;align-items:end">
+        <label>Publicação/intimação<input type="date" id="calc-inicio" /></label>
+        <label>Dias<input type="number" id="calc-dias" value="15" min="1" max="365" /></label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;padding-bottom:8px"><input type="checkbox" id="calc-uteis" checked style="width:auto" /> dias úteis</label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:12.5px;padding-bottom:8px" title="CPC art. 220 — desligue para prazos trabalhistas"><input type="checkbox" id="calc-susp" checked style="width:auto" /> suspende 20/12–20/01</label>
+      </div>
+      <div id="calc-out" style="font-size:13px;margin-top:8px;color:var(--text-muted)">Preencha a data da publicação para calcular o vencimento.</div>
+    </div>
     <div class="form-row">${field('Vencimento *', 'deadline_date', { type: 'datetime-local' })}${field('Prioridade', 'priority', { options: PRIORITIES, value: 'alta' })}</div>
     <button type="submit" class="btn-primary">Criar prazo</button>
   </form>`);
+  const calc = async () => {
+    const inicio = form.querySelector('#calc-inicio').value;
+    if (!inicio) return;
+    const dias = form.querySelector('#calc-dias').value || 15;
+    const uteis = form.querySelector('#calc-uteis').checked ? 1 : 0;
+    const susp = form.querySelector('#calc-susp').checked ? 1 : 0;
+    try {
+      const r = await api(`/api/deadlines/calcular?inicio=${inicio}&dias=${dias}&uteis=${uteis}&suspensao=${susp}`);
+      form.querySelector('[name=deadline_date]').value = `${r.vencimento}T23:59`;
+      form.querySelector('#calc-out').innerHTML =
+        `Vencimento: <strong style="color:var(--navy-deep)">${fmtDate(r.vencimento)}</strong>` +
+        (r.dias_pulados ? ` <small>(${r.dias_pulados} dia(s) não útil(eis) pulado(s))</small>` : '') +
+        `<br><small style="color:var(--amber,#b8860b)">⚠ ${r.aviso}</small>`;
+    } catch (e) { form.querySelector('#calc-out').textContent = e.message; }
+  };
+  ['#calc-inicio', '#calc-dias', '#calc-uteis', '#calc-susp'].forEach((s) => { form.querySelector(s).onchange = calc; });
   form.onsubmit = async (e) => {
     e.preventDefault();
     try {
