@@ -3726,7 +3726,7 @@ async function finAcordos(c) {
 // A RECEBER — unificado: lançamentos, parcelas (propostas e contratos),
 // dativas e correspondente numa lista só, com baixa direto na linha.
 async function finReceitas(c) {
-  const FONTE_PT = { lancamento: 'Lançamento', parcela: 'Parcela (proposta)', contrato: 'Parcela (contrato)', dativo: 'Dativo', correspondente: 'Correspondente', exito: 'Êxito (RPV/alvará)' };
+  const FONTE_PT = { lancamento: 'Lançamento', parcela: 'Parcela (proposta)', contrato: 'Parcela (contrato)', dativo: 'Dativo', dativo_caso: 'Dativo (nomeação)', correspondente: 'Correspondente', exito: 'Êxito (RPV/alvará)' };
   c.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <div><h3 style="color:var(--navy);margin:0">${svgIcon('banknote','ic-title')}A Receber — todas as frentes</h3></div>
@@ -3807,6 +3807,11 @@ async function finReceitas(c) {
         else if (fonte2 === 'parcela') await api(`/api/financial/installments/${id}/pay`, { method: 'PATCH' });
         else if (fonte2 === 'contrato') await api(`/api/parcelas/${id}/pagar`, { method: 'POST', body: '{}' });
         else if (fonte2 === 'dativo') await api(`/api/dative/payments/${id}/receive`, { method: 'PATCH' });
+        else if (fonte2 === 'dativo_caso') {
+          const v = prompt('Valor recebido do Estado (deixe vazio para usar o estimado):');
+          if (v === null) { b.disabled = false; b.textContent = 'Receber'; return; }
+          await api(`/api/dative/cases/${id}/receber`, { method: 'PATCH', body: JSON.stringify(v && v.trim() ? { valor: v.trim().replace(',', '.') } : {}) });
+        }
         else if (fonte2 === 'correspondente') await api(`/api/correspondente/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'paga' }) });
         else if (fonte2 === 'exito') await api(`/api/awards/${id}/receber`, { method: 'PATCH' });
         toast('Recebimento registrado'); load();

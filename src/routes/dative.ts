@@ -251,6 +251,26 @@ router.put('/hearings/:id', async (req: Request, res: Response) => {
 });
 
 // ── RECEBIMENTOS DO ESTADO ──────────────────────────────────────────────────
+// ── PATCH /api/dative/cases/:id/receber — o Estado pagou a nomeação ─────────
+// Cria o recebimento (hoje, valor informado ou o estimado) e marca a demanda
+// como paga — usado pela baixa direta no A Receber do Financeiro.
+router.patch('/cases/:id/receber', async (req: Request, res: Response) => {
+  const [[c]] = await db.query(
+    'SELECT id, estimated_value, status FROM dative_cases WHERE id = ? AND user_id = ?',
+    [req.params.id, req.user!.id]
+  ) as any;
+  if (!c) { res.status(404).json({ error: 'Demanda não encontrada' }); return; }
+  const valor = Number(req.body?.valor) > 0 ? Number(req.body.valor) : Number(c.estimated_value) || 0;
+  if (valor <= 0) { res.status(400).json({ error: 'Informe o valor recebido' }); return; }
+  await db.query(
+    `INSERT INTO dative_payments (user_id, dative_case_id, reference, value, received_date, status)
+     VALUES (?, ?, 'Pagamento da nomeação', ?, CURDATE(), 'recebido')`,
+    [req.user!.id, c.id, valor]
+  );
+  await db.query("UPDATE dative_cases SET status = 'paga' WHERE id = ?", [c.id]);
+  res.json({ success: true, valor });
+});
+
 router.get('/payments', async (req: Request, res: Response) => {
   const [rows] = await db.query(
     `SELECT p.id, p.dative_case_id, p.reference, p.value, p.expected_date, p.received_date, p.status, p.notes, dc.comarca

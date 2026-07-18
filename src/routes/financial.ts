@@ -257,6 +257,19 @@ async function montarAReceber(): Promise<any[]> {
     cliente: 'Estado (dativo)', valor: N(r.value), vencimento: r.expected_date, recebido: r.status === 'recebido', pago_em: r.received_date,
   });
 
+  // Nomeações dativas sem recebimento lançado — o estimado é o "a receber".
+  const [datCasos] = await db.query(`
+    SELECT dc.id, dc.assisted_name, dc.comarca, dc.process_number, dc.estimated_value
+      FROM dative_cases dc
+     WHERE dc.status <> 'paga' AND dc.estimated_value > 0
+       AND NOT EXISTS (SELECT 1 FROM dative_payments dp WHERE dp.dative_case_id = dc.id)
+     ORDER BY dc.nomeacao_date DESC LIMIT 300`) as any;
+  for (const r of datCasos) rows.push({
+    fonte: 'dativo_caso', id: r.id,
+    descricao: `Nomeação — ${r.assisted_name || 'assistido'} (${r.comarca}${r.process_number ? ' · ' + r.process_number : ''})`,
+    cliente: 'Estado (dativo)', valor: N(r.estimated_value), vencimento: null, recebido: false, pago_em: null,
+  });
+
   const [corr] = await db.query(`
     SELECT id, payer_name, process_number, value, due_date, paid_at, status
       FROM correspondent_hearings WHERE status IN ('agendada','realizada','faturada','paga')

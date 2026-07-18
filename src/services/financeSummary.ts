@@ -60,12 +60,21 @@ export async function getFinanceSummary() {
       COALESCE(SUM(CASE WHEN status IN ('aberto','atrasado','parcial') AND data_vencimento < CURDATE() THEN valor_final END),0) AS venc
     FROM parcelas`).catch(() => ({ prev: 0, realz: 0, venc: 0 }));
 
+  // Dativo: recebimentos lançados + o ESTIMADO das nomeações ainda sem
+  // recebimento vinculado (o Estado paga meses depois; o estimado é o
+  // "a receber" real da advogada dativa).
   const dativo = await one(`
     SELECT
       COALESCE(SUM(CASE WHEN status='previsto' THEN value END),0) AS prev,
       COALESCE(SUM(CASE WHEN status='recebido' THEN value END),0) AS realz,
       COALESCE(SUM(CASE WHEN status='previsto' AND expected_date < CURDATE() THEN value END),0) AS venc
     FROM dative_payments`);
+  const dativoCasos = await one(`
+    SELECT COALESCE(SUM(estimated_value),0) AS prev
+      FROM dative_cases dc
+     WHERE dc.status <> 'paga'
+       AND NOT EXISTS (SELECT 1 FROM dative_payments dp WHERE dp.dative_case_id = dc.id)`);
+  dativo.prev = N(dativo.prev) + N(dativoCasos.prev);
 
   const corresp = await one(`
     SELECT
