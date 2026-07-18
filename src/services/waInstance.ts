@@ -164,8 +164,50 @@ async function storeMessage(msg: any): Promise<void> {
       await db.query(
         `INSERT INTO whatsapp_chat_meta (phone, unread) VALUES (?, 1)
          ON DUPLICATE KEY UPDATE unread = unread + 1`, [phone]).catch(() => {});
+
+      // CAPTAÇÃO AUTOMÁTICA: número que não é cliente nem lead vira LEAD
+      // sozinho (origem WhatsApp), com a 1ª mensagem no resumo e aviso no sino.
+      if (!clientId) {
+        try { await autoLeadFromWhatsapp(phone, msg.pushName || null, String(body).slice(0, 500)); }
+        catch { /* captação é best-effort */ }
+      }
     }
   } catch { /* inbox é best-effort */ }
+}
+
+// Cria o lead automaticamente na 1ª mensagem de um número desconhecido.
+// Idempotente: se já existe lead com esse telefone (qualquer formato), não duplica.
+async function autoLeadFromWhatsapp(phone: string, pushName: string | null, primeiraMsg: string): Promise<void> {
+  const digits = phone.replace(/\D/g, '');
+  const semDDI = digits.startsWith('55') ? digits.slice(2) : digits;
+  const [[jaLead]] = await db.query(
+    `SELECT id FROM leads WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''),'(',''),')',''),'-',''),' ','') LIKE ? LIMIT 1`,
+    [`%${semDDI}%`]
+  ) as any;
+  if (jaLead) return;
+
+  const [[admin]] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
+  if (!admin) return;
+
+  const nome = (pushName && pushName.trim()) || `WhatsApp +${digits}`;
+  const [ins] = await db.query(
+    `INSERT INTO leads (user_id, name, phone, source, status, case_summary)
+     VALUES (?, ?, ?, 'whatsapp', 'triagem', ?)`,
+    [admin.id, nome, digits, `Lead criado automaticamente pela 1ª mensagem no WhatsApp:\n"${primeiraMsg}"`]
+  ) as any;
+
+  // Sino dos admins: novo lead chegou sozinho — responder rápido converte mais.
+  try {
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+    for (const a of admins) {
+      await db.query(
+        `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+         VALUES (?, ?, ?, 'lead_whatsapp', 'sistema', NOW(), 'pendente')`,
+        [a.id, 'Novo lead pelo WhatsApp',
+         `${nome} mandou mensagem e virou lead automaticamente (nº ${ins.insertId}). Primeira mensagem: "${primeiraMsg.slice(0, 160)}"`]
+      );
+    }
+  } catch { /* aviso é best-effort */ }
 }
 
 // ── Conexão ──────────────────────────────────────────────────────────────────

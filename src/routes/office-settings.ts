@@ -4,7 +4,7 @@ import { db } from '../config/database';
 const router = Router();
 
 // Chaves conhecidas — usadas no portal do cliente (Pix e contato).
-const KEYS = ['pix_key', 'pix_nome', 'pix_cidade', 'whatsapp', 'multa_percent', 'juros_mes_percent', 'meta_faturamento_mes'];
+const KEYS = ['pix_key', 'pix_nome', 'pix_cidade', 'whatsapp', 'multa_percent', 'juros_mes_percent', 'meta_faturamento_mes', 'google_review_url'];
 
 // ── GET /api/office-settings — config do escritório (Pix, WhatsApp) ─────────
 router.get('/', async (_req: Request, res: Response) => {

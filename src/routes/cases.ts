@@ -692,6 +692,27 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     });
   }
 
+  // Ao CONCLUIR: agradece o cliente no WhatsApp e pede a avaliação no Google
+  // (fila — envio em 1 clique). Casos de parceria ficam de fora (o contato é
+  // do parceiro). Fecha o ciclo: cliente satisfeito vira reputação e novos leads.
+  if (stage === 'concluido' && c.client_id && !c.partner_id && c.production_stage !== 'concluido') {
+    try {
+      const { enqueueWhatsapp } = await import('../services/whatsappQueue');
+      const [[cw]] = await db.query('SELECT name, phone FROM clients WHERE id = ?', [c.client_id]) as any;
+      if (cw?.phone) {
+        const [[rev]] = await db.query(
+          "SELECT setting_value FROM office_settings WHERE setting_key = 'google_review_url'"
+        ).catch(() => [[null]]) as any;
+        const linkAvaliacao = rev?.setting_value ? `\n\nSe puder, deixe sua avaliação — ajuda muito o nosso trabalho: ${rev.setting_value}` : '';
+        await enqueueWhatsapp({
+          clientId: c.client_id, name: cw.name, phone: cw.phone,
+          message: `Olá, ${String(cw.name || '').split(' ')[0]}! Seu caso foi concluído. Foi uma honra cuidar dele com você — obrigada pela confiança!${linkAvaliacao} — Advocacia Letícia Barros`,
+          context: 'conclusao', refKey: `concl_${id}`,
+        });
+      }
+    } catch { /* fila é best-effort */ }
+  }
+
   // Ao mover para "CRIAÇÃO INICIAL": gera a petição inicial com a IA, lendo o
   // relato + os DOCUMENTOS anexados (Drive) do caso. Só na entrada na etapa.
   let peticao: { ok: boolean; docId?: number; message?: string } | null = null;
@@ -753,6 +774,31 @@ router.post('/:id/reject', async (req: Request, res: Response) => {
          `Caso recusado (vinha de: ${STAGE_LABELS[stageBefore] || stageBefore}). Motivo: ${reason}${notes ? ` — Obs.: ${notes}` : ''}`]
       );
     } catch { /* tabela pode não existir antes da migration 044 */ }
+
+    // Caso de PARCERIA recusado → o parceiro fica sabendo na hora (sino + e-mail),
+    // com o motivo — em vez de descobrir sozinho na seção Recusados do portal.
+    if (c.partner_id) {
+      try {
+        const { notifyPartnerUsers } = await import('../services/partnerNotify');
+        const [[cli]] = await db.query('SELECT name FROM clients WHERE id = ?', [c.client_id]) as any;
+        notifyPartnerUsers(c.partner_id, {
+          title: `Caso recusado após análise — ${cli?.name || 'cliente'}`,
+          message: `${cli?.name || ''} · ${c.title || ''} — recusado. Motivo: ${reason}`,
+          caseId: Number(id), notificationType: 'parceria_recusa',
+          emailSubject: `Caso recusado após análise — ${cli?.name || 'cliente'}`,
+          emailHtmlBody: `
+            <p>Após análise, o caso abaixo foi <strong>recusado</strong>:</p>
+            <div style="background:#f4f6fa;border-radius:8px;padding:14px 16px;margin:14px 0;line-height:1.8">
+              <div><strong>Cliente:</strong> ${cli?.name || '—'}</div>
+              <div><strong>Caso:</strong> ${c.title || '—'}</div>
+              <div><strong>Motivo:</strong> ${reason}</div>
+              ${notes ? `<div><strong>Observações:</strong> ${notes}</div>` : ''}
+            </div>
+            <p>Os detalhes ficam registrados na seção <strong>Recusados</strong> do seu portal.
+               Qualquer dúvida, fale com o escritório.</p>`,
+        }).catch(() => {});
+      } catch { /* aviso é best-effort */ }
+    }
 
     res.json({ success: true, production_stage: 'recusado' });
   } catch (err: any) {

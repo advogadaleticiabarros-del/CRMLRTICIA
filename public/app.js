@@ -1255,7 +1255,9 @@ const ROUTES = {
         <label>WhatsApp do escritório<input id="os-whats" placeholder="ex.: 5527999998888 (só números, com DDI)" /></label></div>
         <div class="form-row" style="margin-top:10px"><label>Multa por atraso (%)<input id="os-multa" type="number" step="0.5" placeholder="ex.: 2" /></label>
         <label>Juros ao mês (%)<input id="os-juros" type="number" step="0.5" placeholder="ex.: 1" /></label></div>
-        <div class="form-row" style="margin-top:10px"><label>Meta de faturamento mensal (R$)<input id="os-meta" type="number" step="100" placeholder="ex.: 20000" /></label><span></span></div>
+        <div class="form-row" style="margin-top:10px"><label>Meta de faturamento mensal (R$)<input id="os-meta" type="number" step="100" placeholder="ex.: 20000" /></label>
+        <label>Link de avaliação no Google<input id="os-review" placeholder="https://g.page/r/..." /></label></div>
+        <p class="sub" style="margin-top:6px;font-size:12px">Com o link preenchido, ao concluir um caso o cliente recebe (na fila do WhatsApp) o agradecimento com o convite para avaliar o escritório.</p>
         <p class="sub" style="margin-top:6px;font-size:12px">Multa/juros atualizam o valor das parcelas vencidas no portal e no Pix. A meta aparece na Visão Geral do Financeiro.</p>
         <button class="btn-gold btn-sm" id="os-save" style="margin-top:12px">Salvar</button>
       </div>
@@ -1300,6 +1302,7 @@ const ROUTES = {
         $('#os-pix-cidade').value = os.pix_cidade || ''; $('#os-whats').value = os.whatsapp || '';
         $('#os-multa').value = os.multa_percent || ''; $('#os-juros').value = os.juros_mes_percent || '';
         $('#os-meta').value = os.meta_faturamento_mes || '';
+        $('#os-review').value = os.google_review_url || '';
       } catch {}
     })();
     $('#os-save').onclick = async () => {
@@ -1308,7 +1311,7 @@ const ROUTES = {
           pix_key: $('#os-pix-key').value, pix_nome: $('#os-pix-nome').value,
           pix_cidade: $('#os-pix-cidade').value, whatsapp: $('#os-whats').value,
           multa_percent: $('#os-multa').value, juros_mes_percent: $('#os-juros').value,
-          meta_faturamento_mes: $('#os-meta').value }) });
+          meta_faturamento_mes: $('#os-meta').value, google_review_url: $('#os-review').value }) });
         toast('Configurações do escritório salvas');
       } catch (e) { toast(e.message, 'error'); }
     };

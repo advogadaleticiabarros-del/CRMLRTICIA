@@ -35,6 +35,7 @@ import inadimplenciaRoutes from './routes/inadimplencias';
 import auditoriaFinanceiraRoutes from './routes/auditoria-financeira';
 import cashflowRoutes from './routes/cashflow';
 import awardsRoutes from './routes/awards';
+import leadPublicRoutes from './routes/lead-public';
 import userRoutes from './routes/users';
 import portalRoutes from './routes/portal';
 import meRoutes from './routes/me';
@@ -100,6 +101,7 @@ export function createApp() {
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
+  app.use('/api/public', leadPublicRoutes);     // formulário do site/blog → lead no funil
 
   // ── Portal do Cliente (papel 'cliente' — escopo isolado por client_id) ────
   app.use('/api/portal',                authenticate, portalRoutes);
