@@ -1778,7 +1778,7 @@ const ROUTES = {
             <div class="kf-card-wrap">
               ${labelsHtml(r)}
             <div class="kf-card kf-card-locked" data-case="${r.id}" data-stage="${r.production_stage}">
-              <span style="font-size:11px;font-weight:700;color:var(--red,#c0392b)">🚫 Recusado${r.rejected_at ? ' · ' + fmtDate(r.rejected_at) : ''}</span>
+              <span style="font-size:11px;font-weight:700;color:var(--red,#c0392b)">Recusado${r.rejected_at ? ' · ' + fmtDate(r.rejected_at) : ''}</span>
               <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
               <small>${esc2(r.title) || r.case_number || 's/ número'}${r.legal_area ? ' · ' + r.legal_area : ''}</small>
               <small style="color:var(--text-muted)">clique no card para ver o motivo</small>
@@ -1794,9 +1794,9 @@ const ROUTES = {
               <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
               <small>${esc2(r.title) || r.case_number || 's/ número'}${r.legal_area ? ' · ' + r.legal_area : ''}</small>
               ${r.assignee_name ? `<small style="color:var(--text-muted)">resp.: ${esc2(r.assignee_name)}</small>` : ''}
-              ${r.production_obs ? `<div class="kf-obs" style="margin-top:5px;font-size:11px;color:var(--navy);background:#fff7e6;border-left:3px solid var(--gold,#c9a227);padding:4px 7px;border-radius:3px;white-space:pre-wrap">📝 ${esc2(r.production_obs)}</div>` : ''}
+              ${r.production_obs ? `<div class="kf-obs" style="margin-top:5px;font-size:11px;color:var(--navy);background:#fff7e6;border-left:3px solid var(--gold,#c9a227);padding:4px 7px;border-radius:3px;white-space:pre-wrap">${esc2(r.production_obs)}</div>` : ''}
               <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
-                <select class="kf-move" data-id="${r.id}" title="Mover etapa" style="flex:1">${MOVABLE.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}<option value="recusado">🚫 Recusar…</option></select>
+                <select class="kf-move" data-id="${r.id}" title="Mover etapa" style="flex:1">${MOVABLE.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}<option value="recusado">Recusar…</option></select>
                 <button class="kf-edit" data-id="${r.id}" data-title="${esc2(r.title || '')}" title="Editar a demanda (título)" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✎</button>
                 <button class="kf-obs-edit" data-id="${r.id}" data-obs="${esc2(r.production_obs || '')}" title="Observação do card" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">${svgIcon('note')}</button>
                 <button class="kf-dup" data-id="${r.id}" title="Duplicar demanda" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">⧉</button>
@@ -1812,7 +1812,7 @@ const ROUTES = {
           <p style="font-size:13px;color:var(--text-muted)">O caso vai para a coluna <strong>Recusado</strong> e fica travado — só volta usando "Reverter recusa".</p>
           <label>Motivo da recusa *<textarea name="reason" rows="3" required placeholder="Por que este caso está sendo recusado?"></textarea></label>
           <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Detalhes adicionais…"></textarea></label>
-          <button type="submit" class="btn-primary" style="background:var(--red,#c0392b);border-color:var(--red,#c0392b)">🚫 Recusar caso</button>
+          <button type="submit" class="btn-primary" style="background:var(--red,#c0392b);border-color:var(--red,#c0392b)">Recusar caso</button>
         </form>`);
         form.onsubmit = async (e) => {
           e.preventDefault();
@@ -1823,7 +1823,7 @@ const ROUTES = {
           try {
             await api(`/api/cases/${caseId}/reject`, { method: 'POST', body: JSON.stringify({ reason, notes }) });
             closeModal(); toast('Caso recusado'); load();
-          } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = '🚫 Recusar caso'; }
+          } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Recusar caso'; }
         };
         openModal('Recusar caso', form);
       };
@@ -1858,7 +1858,7 @@ const ROUTES = {
         } catch (e) {
           // NOVO: Tratamento de erro 400 — pendências abertas
           if (e.status === 400 && e.pendencias && Array.isArray(e.pendencias)) {
-            toast(`❌ Resolva as pendências abaixo antes de continuar:\n\n${e.pendencias.join('\n')}`, 'error');
+            toast(`Resolva as pendências abaixo antes de continuar:\n\n${e.pendencias.join('\n')}`, 'error');
             return; // NÃO carrega; fica na tela atual
           }
           toast(e.message, 'error');
@@ -2208,7 +2208,7 @@ async function renderIA(page) {
   page.innerHTML = `
     <div class="page-header"><div><h2>IA Jurídica</h2><p class="sub">${cfg.auto ? 'Geração automática ativa' : 'Assistente — gera o prompt pronto para colar no ChatGPT/Claude'}</p></div>
       <button class="btn-gold" id="new-ia">+ Nova geração</button></div>
-    ${cfg.auto ? '' : '<p class="sub" style="margin-bottom:14px">💡 Sem custo de API: o sistema monta o texto pronto, você cola na IA que já assina (ChatGPT/Claude) e traz a resposta de volta. Para gerar automático, adicione uma chave grátis (Gemini/Groq) nas variáveis.</p>'}
+    ${cfg.auto ? '' : '<p class="sub" style="margin-bottom:14px">Sem custo de API: o sistema monta o texto pronto, você cola na IA que já assina (ChatGPT/Claude) e traz a resposta de volta. Para gerar automático, adicione uma chave grátis (Gemini/Groq) nas variáveis.</p>'}
     <div class="card"><div id="ia-table"></div></div>`;
   const load = async () => {
     const rows = await api('/api/ai');
@@ -2820,7 +2820,7 @@ async function correspondenteFormHtml(prefill = {}) {
   return `<form class="form-grid form-pro-max" id="corresp-form">
     <div class="form-section">
       <div class="section-header">${svgIcon('calendar', 'ic-inline')} Quando</div>
-      <div class="form-row">${field('Data e hora *', 'hearing_datetime', { type: 'datetime-local', value: prefill.hearing_datetime || '' })}${field('Atuação', 'role', { options: [{ v: 'advogado', t: '👨‍⚖️ Advogado' }, { v: 'preposto', t: '📋 Preposto' }] })}</div>
+      <div class="form-row">${field('Data e hora *', 'hearing_datetime', { type: 'datetime-local', value: prefill.hearing_datetime || '' })}${field('Atuação', 'role', { options: [{ v: 'advogado', t: 'Advogado' }, { v: 'preposto', t: 'Preposto' }] })}</div>
     </div>
 
     <div class="form-section">
@@ -2970,7 +2970,7 @@ async function loadInboxPanel(onChange) {
   $('#inbox-sync').onclick = async () => {
     const b = $('#inbox-sync'); b.disabled = true; b.textContent = 'Buscando...';
     try { const r = await api('/api/email-intake/integration/sync', { method: 'POST', body: '{}' }); toast(`Busca concluída · ${r.imported} novo(s)`); onChange(); }
-    catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = '🔄 Buscar agora'; }
+    catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Buscar agora'; }
   };
   $('#inbox-sync-reset').onclick = async () => {
     if (!confirm('Isso apaga o histórico de última busca e re-sincroniza desde o início de hoje.\nE-mails já importados serão ignorados automaticamente. Continuar?')) return;
@@ -3004,7 +3004,7 @@ async function loadImportQueue(partners, onChange) {
   const rows = await api('/api/email-intake?status=pendente').catch(() => []);
   if (!rows.length) { box.innerHTML = ''; return; }
   box.innerHTML = `<div class="card" style="margin-bottom:14px;border-left:3px solid var(--gold,#b08d57)">
-    <div style="padding:10px 14px;font-weight:600">📥 Importados do e-mail — aguardando revisão (${rows.length})</div>
+    <div style="padding:10px 14px;font-weight:600">Importados do e-mail — aguardando revisão (${rows.length})</div>
     <table><thead><tr><th>Cliente</th><th>Casos</th><th>Origem</th><th></th></tr></thead><tbody>
     ${rows.map((r) => {
       const p = r.parsed || {};
@@ -3560,7 +3560,7 @@ async function finVisaoGeral(c) {
     <div class="card" style="padding:16px 18px;margin:14px 0">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:baseline">
         <strong style="color:var(--navy)">Meta do mês</strong>
-        <span style="font-size:13px">${money(recebidoMes)} de ${money(meta)} · <strong style="color:${pctMeta >= 100 ? 'var(--green)' : 'var(--navy-deep)'}">${pctMeta}%</strong>${pctMeta >= 100 ? ' 🎉' : ''}</span>
+        <span style="font-size:13px">${money(recebidoMes)} de ${money(meta)} · <strong style="color:${pctMeta >= 100 ? 'var(--green)' : 'var(--navy-deep)'}">${pctMeta}%</strong>${pctMeta >= 100 ? '' : ''}</span>
       </div>
       <div style="height:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-top:10px;overflow:hidden">
         <div style="height:100%;width:${pctMeta}%;background:${pctMeta >= 100 ? 'var(--green)' : 'var(--gold)'};transition:width .4s"></div>
@@ -3616,10 +3616,10 @@ async function finVisaoGeral(c) {
     ${origemPanel}
     <h3 style="color:var(--navy);margin:20px 0 8px">${svgIcon('chart','ic-title')}Projeção do Mês (${proj.mes})</h3>
     <div class="kpi-grid">
-      ${kpi('✅ Entradas recebidas', money(proj.entrada_realizado), 'money', proj.entrada_realizado > 0 ? 'var(--green)' : '')}
-      ${kpi('📍 A receber', money(proj.entrada_previsto), 'money', proj.entrada_previsto > 0 ? 'var(--orange)' : '')}
-      ${kpi('💰 Saídas pagas', money(proj.saida_realizado), 'money', 'var(--red)')}
-      ${kpi('⏳ A pagar', money(proj.saida_previsto), 'money', 'var(--orange)')}
+      ${kpi('Entradas recebidas', money(proj.entrada_realizado), 'money', proj.entrada_realizado > 0 ? 'var(--green)' : '')}
+      ${kpi('A receber', money(proj.entrada_previsto), 'money', proj.entrada_previsto > 0 ? 'var(--orange)' : '')}
+      ${kpi('Saídas pagas', money(proj.saida_realizado), 'money', 'var(--red)')}
+      ${kpi('A pagar', money(proj.saida_previsto), 'money', 'var(--orange)')}
       ${kpi('Saldo realizado', money(proj.saldo_realizado), 'money', proj.saldo_realizado > 0 ? 'var(--green)' : 'var(--red)')}
       ${kpi('Saldo previsto', money(proj.saldo_previsto), 'money', proj.saldo_previsto > 0 ? 'var(--green)' : 'var(--red)')}
     </div>
@@ -5139,7 +5139,7 @@ async function caseDetail(id, onSave) {
   if (c.production_stage === 'recusado') {
     prodHtml = `<hr style="border:none;border-top:1px solid var(--border)">
       <div style="border:1px solid var(--red,#c0392b);background:#fdeceb;border-radius:var(--radius);padding:14px 16px">
-        <strong style="color:var(--red,#c0392b)">🚫 Caso recusado${c.rejected_at ? ' · ' + fmtDate(c.rejected_at) : ''}</strong>
+        <strong style="color:var(--red,#c0392b)">Caso recusado${c.rejected_at ? ' · ' + fmtDate(c.rejected_at) : ''}</strong>
         <div style="margin-top:8px;font-size:13px"><strong>Motivo:</strong> ${esc(c.rejection_reason || '—')}</div>
         ${c.rejection_notes ? `<div style="margin-top:4px;font-size:13px"><strong>Obs.:</strong> ${esc(c.rejection_notes)}</div>` : ''}
         <button class="btn-sm" id="revert-rejection" style="margin-top:10px">↩ Reverter recusa</button>
@@ -5156,7 +5156,7 @@ async function caseDetail(id, onSave) {
       <div class="prod-stepper">${steps}</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
         ${next ? `<button class="btn-gold btn-advance" id="adv-stage" data-next="${next[0]}">Avançar para “${next[1]}” →</button>` : '<div style="text-align:center;padding:10px;color:var(--green);font-weight:600;flex:1">✓ Esteira concluída</div>'}
-        <button class="btn-sm" id="reject-case" style="color:var(--red,#c0392b);border-color:var(--red,#c0392b)">🚫 Recusar caso</button>
+        <button class="btn-sm" id="reject-case" style="color:var(--red,#c0392b);border-color:var(--red,#c0392b)">Recusar caso</button>
       </div>`;
   }
   const form = el(`<div class="form-grid">
@@ -5299,7 +5299,7 @@ async function caseDetail(id, onSave) {
       <p style="font-size:13px;color:var(--text-muted)">O caso vai para a coluna <strong>Recusado</strong> e fica travado — só volta usando "Reverter recusa".</p>
       <label>Motivo da recusa *<textarea name="reason" rows="3" required placeholder="Por que este caso está sendo recusado?"></textarea></label>
       <label>Observações (opcional)<textarea name="notes" rows="3" placeholder="Detalhes adicionais…"></textarea></label>
-      <button type="submit" class="btn-primary" style="background:var(--red,#c0392b);border-color:var(--red,#c0392b)">🚫 Recusar caso</button>
+      <button type="submit" class="btn-primary" style="background:var(--red,#c0392b);border-color:var(--red,#c0392b)">Recusar caso</button>
     </form>`);
     rf.onsubmit = async (e) => {
       e.preventDefault();
@@ -5310,7 +5310,7 @@ async function caseDetail(id, onSave) {
       try {
         await api(`/api/cases/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason, notes }) });
         closeModal(); toast('Caso recusado'); onSave();
-      } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = '🚫 Recusar caso'; }
+      } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Recusar caso'; }
     };
     openModal('Recusar caso', rf);
   };
@@ -5360,7 +5360,7 @@ async function caseDetail(id, onSave) {
       const histHtml = histItems.length ? histItems.map((h) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="font-size:10px;background:#eef2f8;padding:1px 6px;border-radius:8px">${esc(h.tag)}</span> <span style="font-size:13px">${esc(h.text)}</span><br><small style="color:var(--text-muted)">${esc(h.who || '')} · ${fmtDate(h.when)}</small></div>`).join('') : '<small style="color:var(--text-muted)">Sem registros</small>';
       // Documentos vinculados a este caso (petições, minutas, anexos…).
       const docs = (await api('/api/documents?client_id=' + (c.client_id || '')).catch(() => [])).filter((d) => d.case_id == id);
-      const docsHtml = docs.length ? docs.map((d) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:13px">📄 ${esc(d.name)}<br><small style="color:var(--text-muted)">${esc(d.type || 'documento')} · ${esc(d.status || '')} · ${fmtDate(d.created_at)}</small></span><span style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn-sm" type="button" data-vis="${d.id}" data-on="${Number(d.visible_to_client) ? 1 : 0}" title="Mostrar/ocultar no portal do cliente" ${Number(d.visible_to_client) ? 'style="border-color:var(--green);color:var(--green)"' : ''}>${Number(d.visible_to_client) ? 'Visível ao cliente ✓' : 'Liberar p/ cliente'}</button><button class="btn-gold btn-sm" type="button" data-doc="${d.id}">Abrir</button></span></div>`).join('') : '<small style="color:var(--text-muted)">Nenhum documento vinculado a este caso ainda.</small>';
+      const docsHtml = docs.length ? docs.map((d) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:13px">${esc(d.name)}<br><small style="color:var(--text-muted)">${esc(d.type || 'documento')} · ${esc(d.status || '')} · ${fmtDate(d.created_at)}</small></span><span style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn-sm" type="button" data-vis="${d.id}" data-on="${Number(d.visible_to_client) ? 1 : 0}" title="Mostrar/ocultar no portal do cliente" ${Number(d.visible_to_client) ? 'style="border-color:var(--green);color:var(--green)"' : ''}>${Number(d.visible_to_client) ? 'Visível ao cliente ✓' : 'Liberar p/ cliente'}</button><button class="btn-gold btn-sm" type="button" data-doc="${d.id}">Abrir</button></span></div>`).join('') : '<small style="color:var(--text-muted)">Nenhum documento vinculado a este caso ainda.</small>';
       panel.innerHTML = `
         <hr style="border:none;border-top:1px solid var(--border)">
         <strong style="font-size:13px;color:var(--navy)">Produção — acompanhamento</strong>
@@ -5438,7 +5438,7 @@ async function caseDetail(id, onSave) {
           if (r.folderUrl) { panel.querySelector('#prod-drive').value = r.folderUrl; }
           loadProd();
         } catch (e) { toast(e.message || 'Erro ao sincronizar Drive', 'error'); }
-        finally { dreprocess.disabled = false; dreprocess.textContent = '📥 Baixar do e-mail'; }
+        finally { dreprocess.disabled = false; dreprocess.textContent = 'Baixar do e-mail'; }
       };
       const danalyze = panel.querySelector('#prod-analyze');
       if (danalyze) danalyze.onclick = async () => {
@@ -5465,7 +5465,7 @@ async function caseDetail(id, onSave) {
       if (genBtn) genBtn.onclick = async () => {
         genBtn.disabled = true; genBtn.textContent = 'Gerando com IA…';
         try { const r = await api(`/api/cases/${id}/peticao-inicial`, { method: 'POST', body: '{}' }); toast(`✓ Petição v${r.version || ''} gerada`); loadProd(); }
-        catch (e) { toast(e.message, 'error'); genBtn.disabled = false; genBtn.textContent = '🔄 Gerar nova versão da petição (IA)'; }
+        catch (e) { toast(e.message, 'error'); genBtn.disabled = false; genBtn.textContent = 'Gerar nova versão da petição (IA)'; }
       };
       panel.querySelectorAll('[data-doc]').forEach((b) => b.onclick = async () => {
         try {
