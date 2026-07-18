@@ -3606,11 +3606,11 @@ async function finAcordos(c) {
 // A RECEBER — unificado: lançamentos, parcelas (propostas e contratos),
 // dativas e correspondente numa lista só, com baixa direto na linha.
 async function finReceitas(c) {
-  const FONTE_PT = { lancamento: 'Lançamento', parcela: 'Parcela (proposta)', contrato: 'Parcela (contrato)', dativo: 'Dativo', correspondente: 'Correspondente' };
+  const FONTE_PT = { lancamento: 'Lançamento', parcela: 'Parcela (proposta)', contrato: 'Parcela (contrato)', dativo: 'Dativo', correspondente: 'Correspondente', exito: 'Êxito (RPV/alvará)' };
   c.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <div><h3 style="color:var(--navy);margin:0">${svgIcon('banknote','ic-title')}A Receber — todas as frentes</h3></div>
-      <button class="btn-gold btn-sm" id="new-receita">+ Nova receita</button>
+      <div style="display:flex;gap:8px"><button class="btn-ghost btn-sm" id="new-award">+ RPV / Alvará / Acordo</button><button class="btn-gold btn-sm" id="new-receita">+ Nova receita</button></div>
     </div>
     <div id="rec-confirmar"></div>
     <div class="kpi-grid" id="rec-kpis" style="margin-bottom:16px"></div>
@@ -3675,7 +3675,9 @@ async function finReceitas(c) {
         <td><strong>${money(x.valor)}</strong></td>
         <td>${fmtDate(x.vencimento)}</td>
         <td>${x.recebido ? `<span class="badge pago">recebido${x.pago_em ? ' ' + fmtDate(x.pago_em) : ''}</span>` : x.vencido ? '<span class="badge vencido">vencido</span>' : '<span class="badge">a receber</span>'}</td>
-        <td>${x.recebido ? '' : `<button class="btn-sm btn-gold" data-rec="${x.fonte}:${x.id}">Receber</button>`}</td></tr>`).join('')}</tbody></table>`
+        <td style="white-space:nowrap">${x.recebido
+          ? `<button class="btn-sm" data-recibo="${x.fonte}:${x.id}" title="Emitir recibo em PDF">Recibo</button>`
+          : `<button class="btn-sm btn-gold" data-rec="${x.fonte}:${x.id}">Receber</button>`}</td></tr>`).join('')}</tbody></table>`
       : '<div class="empty">Nada com esses filtros</div>';
     $('#rec-lista').querySelectorAll('[data-rec]').forEach((b) => b.onclick = async () => {
       const [fonte2, id] = b.dataset.rec.split(':');
@@ -3686,9 +3688,62 @@ async function finReceitas(c) {
         else if (fonte2 === 'contrato') await api(`/api/parcelas/${id}/pagar`, { method: 'POST', body: '{}' });
         else if (fonte2 === 'dativo') await api(`/api/dative/payments/${id}/receive`, { method: 'PATCH' });
         else if (fonte2 === 'correspondente') await api(`/api/correspondente/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'paga' }) });
+        else if (fonte2 === 'exito') await api(`/api/awards/${id}/receber`, { method: 'PATCH' });
         toast('Recebimento registrado'); load();
       } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Receber'; }
     });
+    // Recibo de honorários — janela de impressão com papel timbrado (salvar como PDF)
+    $('#rec-lista').querySelectorAll('[data-recibo]').forEach((b) => b.onclick = () => {
+      const [fonte2, id] = b.dataset.recibo.split(':');
+      const x = dados.rows.find((r) => r.fonte === fonte2 && String(r.id) === id);
+      if (!x) return;
+      const extenso = money(x.valor);
+      printBranded('RECIBO DE HONORÁRIOS', `Nº ${new Date().getFullYear()}-${fonte2}-${id}`, `
+        <p style="font-size:15px;line-height:2;margin-top:18px">
+          Recebi ${x.cliente && x.cliente !== '—' ? `de <strong>${esc(x.cliente)}</strong>` : ''} a importância de
+          <strong>${extenso}</strong>, referente a <strong>${esc(x.descricao || 'honorários advocatícios')}</strong>${x.pago_em ? `, paga em <strong>${fmtDate(x.pago_em)}</strong>` : ''}.
+        </p>
+        <p style="font-size:14px;margin-top:10px">Para clareza, firmo o presente recibo, dando plena e total quitação do valor acima.</p>
+        <p style="margin-top:48px;text-align:center">
+          _______________________________________<br>
+          <strong>Letícia Barros</strong><br>
+          Advocacia &amp; Consultoria
+        </p>
+        <p style="color:#777;font-size:12px;margin-top:24px">Documento gerado pelo sistema em ${fmtDate(new Date())}. Use "Imprimir → Salvar como PDF" para enviar ao cliente.</p>`);
+    });
+  };
+
+  // Formulário de RPV / precatório / alvará / acordo (êxito de caso próprio)
+  const awardForm = async () => {
+    const clients = await api('/api/clients?limit=200').catch(() => ({ data: [] }));
+    const form = el(`<form class="form-grid">
+      <p style="font-size:13px;color:var(--text-muted)">Registre o que foi ganho e ainda vai cair na conta (RPV, precatório, alvará ou acordo). O valor do escritório entra no "A Receber" e no fluxo de caixa.</p>
+      ${field('Tipo', 'kind', { options: [['rpv','RPV'],['precatorio','Precatório'],['alvara','Alvará judicial'],['acordo','Acordo'],['outro','Outro']].map(([v,t])=>({v,t})) })}
+      ${field('Cliente', 'client_id', { options: [{ v: '', t: '— selecione —' }].concat(clients.data.map((cl) => ({ v: cl.id, t: cl.name }))) })}
+      <label>Caso (opcional)<select name="case_id"><option value="">—</option></select></label>
+      ${field('Descrição (ex.: RPV honorários — INSS)', 'descricao')}
+      <div class="form-row">${field('Valor bruto (R$)', 'valor_bruto', { type: 'number', step: '0.01' })}${field('Valor do escritório (R$) *', 'valor_escritorio', { type: 'number', step: '0.01' })}</div>
+      <div class="form-row">${field('Data de expedição', 'data_expedicao', { type: 'date' })}${field('Previsão de pagamento', 'previsao_pagamento', { type: 'date' })}</div>
+      <label>Observações<textarea name="notes" rows="2"></textarea></label>
+      <button type="submit" class="btn-primary">Registrar</button>
+    </form>`);
+    const caseSel = form.querySelector('[name=case_id]');
+    form.querySelector('[name=client_id]').onchange = async (e) => {
+      caseSel.innerHTML = '<option value="">—</option>';
+      if (!e.target.value) return;
+      const r = await api(`/api/cases?client_id=${e.target.value}&limit=50`).catch(() => ({ data: [] }));
+      caseSel.innerHTML += r.data.map((cs) => `<option value="${cs.id}">${esc(cs.title || cs.case_number || 'caso ' + cs.id)}</option>`).join('');
+    };
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const body = Object.fromEntries(new FormData(form));
+      const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Registrando…';
+      try {
+        await api('/api/awards', { method: 'POST', body: JSON.stringify(body) });
+        closeModal(); toast('Registrado — está no A Receber'); load();
+      } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Registrar'; }
+    };
+    openModal('Registrar RPV / precatório / alvará / acordo', form);
   };
 
   const load = async () => {
@@ -3706,6 +3761,7 @@ async function finReceitas(c) {
   ['rec-f-status', 'rec-f-fonte', 'rec-f-de', 'rec-f-ate'].forEach((id) => { $('#' + id).onchange = render; });
   $('#rec-f-busca').oninput = render;
   $('#new-receita').onclick = () => financialForm(load);
+  $('#new-award').onclick = () => awardForm();
   await load();
 }
 

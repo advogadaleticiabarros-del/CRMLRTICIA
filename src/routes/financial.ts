@@ -269,6 +269,22 @@ router.get('/a-receber', async (_req: Request, res: Response) => {
     cliente: r.payer_name || '—', valor: N(r.value), vencimento: r.due_date, recebido: r.status === 'paga', pago_em: r.paid_at,
   });
 
+  const KIND_PT: Record<string, string> = { rpv: 'RPV', precatorio: 'Precatório', alvara: 'Alvará', acordo: 'Acordo', outro: 'Êxito' };
+  const [aw] = await db.query(`
+    SELECT a.id, a.kind, a.descricao, a.valor_escritorio, a.previsao_pagamento, a.data_recebimento, a.status,
+           cl.name AS client_name, c.case_number
+      FROM case_awards a
+      LEFT JOIN clients cl ON cl.id = a.client_id
+      LEFT JOIN cases c ON c.id = a.case_id
+     WHERE a.status IN ('aguardando','recebido')
+     ORDER BY COALESCE(a.previsao_pagamento, a.data_recebimento) DESC LIMIT 300`).catch(() => [[]]) as any;
+  for (const r of aw) rows.push({
+    fonte: 'exito', id: r.id,
+    descricao: `${KIND_PT[r.kind] || r.kind}${r.descricao ? ' — ' + r.descricao : ''}${r.case_number ? ' (proc. ' + r.case_number + ')' : ''}`,
+    cliente: r.client_name || '—', valor: N(r.valor_escritorio), vencimento: r.previsao_pagamento,
+    recebido: r.status === 'recebido', pago_em: r.data_recebimento,
+  });
+
   for (const r of rows) {
     r.vencido = !r.recebido && r.vencimento && String(r.vencimento).slice(0, 10) < hoje;
   }

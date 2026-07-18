@@ -74,6 +74,14 @@ export async function getFinanceSummary() {
       COALESCE(SUM(CASE WHEN status IN ('realizada','faturada') AND due_date < CURDATE() THEN value END),0) AS venc
     FROM correspondent_hearings`);
 
+  // Êxitos de casos próprios (RPV/precatório/alvará/acordo) — valor do escritório.
+  const awards = await one(`
+    SELECT
+      COALESCE(SUM(CASE WHEN status='aguardando' THEN valor_escritorio END),0) AS prev,
+      COALESCE(SUM(CASE WHEN status='recebido' THEN valor_escritorio END),0) AS realz,
+      COALESCE(SUM(CASE WHEN status='aguardando' AND previsao_pagamento < CURDATE() THEN valor_escritorio END),0) AS venc
+    FROM case_awards`).catch(() => ({ prev: 0, realz: 0, venc: 0 }));
+
   // ── SAÍDAS ─────────────────────────────────────────────────────────────────
   const desp = await one(`
     SELECT
@@ -92,6 +100,7 @@ export async function getFinanceSummary() {
     { origem: 'parcerias',      label: 'Parcerias (entrada/êxito/sucumb.)', previsto: N(recFR.parc_prev), realizado: N(recFR.parc_real), vencido: N(recFR.parc_venc) },
     { origem: 'dativo',         label: 'Dativo (Estado)',           previsto: N(dativo.prev),  realizado: N(dativo.realz),  vencido: N(dativo.venc) },
     { origem: 'correspondente', label: 'Correspondente jurídico',   previsto: N(corresp.prev), realizado: N(corresp.realz), vencido: N(corresp.venc) },
+    { origem: 'exitos',         label: 'Êxitos (RPV/precatório/alvará)', previsto: N(awards.prev), realizado: N(awards.realz), vencido: N(awards.venc) },
   ].map((o) => ({ ...o, previsto: round2(o.previsto), realizado: round2(o.realizado), vencido: round2(o.vencido) }));
 
   const receita_prevista = round2(origens.reduce((s, o) => s + o.previsto, 0));
