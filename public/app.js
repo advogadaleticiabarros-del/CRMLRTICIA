@@ -2167,9 +2167,10 @@ const ROUTES = {
         <button class="tab" data-tab="processos">Rentabilidade · Processos</button>
         <button class="tab" data-tab="centro">Centro de Custo</button>
         <button class="tab" data-tab="provisao">Provisionamento</button>
+        <button class="tab" data-tab="equipe">Produtividade · Equipe</button>
       </div>
       <div id="ctrl-content"></div>`;
-    const tabs = { clientes: ctrlClientes, processos: ctrlProcessos, centro: ctrlCentroCusto, provisao: ctrlProvisao };
+    const tabs = { clientes: ctrlClientes, processos: ctrlProcessos, centro: ctrlCentroCusto, provisao: ctrlProvisao, equipe: ctrlEquipe };
     const show = async (name) => {
       document.querySelectorAll('#ctrl-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#ctrl-content'); c.innerHTML = '<div class="spinner"></div>';
@@ -2528,6 +2529,36 @@ async function ctrlCentroCusto(c) {
       <td style="color:var(--red)">${money(r.despesa)}</td>
       <td><strong style="color:${r.saldo >= 0 ? 'var(--green)' : 'var(--red)'}">${money(r.saldo)}</strong></td></tr>`).join('')}</tbody></table></div>`
     : '<div class="empty">Defina um "centro de custo" nos lançamentos para ver aqui</div>';
+}
+
+// Produtividade da equipe — o que cada pessoa fez no mês + gargalos da esteira
+async function ctrlEquipe(c) {
+  const mesAtual = new Date().toISOString().slice(0, 7);
+  c.innerHTML = `
+    <div style="display:flex;gap:10px;align-items:end;margin-bottom:14px;flex-wrap:wrap">
+      <label style="font-size:13px">Mês<input type="month" id="eq-mes" value="${mesAtual}" /></label>
+    </div>
+    <div id="eq-out"><div class="spinner"></div></div>`;
+  const load = async () => {
+    const r = await api(`/api/controladoria/produtividade?month=${$('#eq-mes').value || mesAtual}`);
+    const users = r.usuarios || [];
+    $('#eq-out').innerHTML = `
+      ${users.length ? `<div class="card"><div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Por pessoa — ${r.month}</strong></div>
+        <table><thead><tr><th>Usuário</th><th>Atividades registradas</th><th>Movimentos na esteira</th><th>Protocolos</th><th>Prazos cumpridos</th><th>Notas/pendências</th></tr></thead>
+        <tbody>${users.map((x) => `<tr>
+          <td><strong>${esc(x.usuario)}</strong></td>
+          <td>${x.eventos_jornada}</td><td>${x.movimentos_esteira}</td>
+          <td>${x.protocolos ? `<strong style="color:var(--green)">${x.protocolos}</strong>` : 0}</td>
+          <td>${x.prazos_cumpridos}</td><td>${x.notas_producao}</td></tr>`).join('')}</tbody></table></div>`
+      : '<div class="empty">Nenhuma atividade registrada neste mês</div>'}
+      ${(r.gargalos || []).length ? `<div class="card" style="margin-top:14px"><div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Gargalos da esteira (agora)</strong></div>
+        <table><thead><tr><th>Etapa</th><th>Casos parados</th><th>Mais antigo</th></tr></thead>
+        <tbody>${r.gargalos.map((g) => `<tr>
+          <td>${esc(g.etapa)}</td><td>${g.casos}</td>
+          <td style="color:${Number(g.mais_antigo_dias) > 10 ? 'var(--red)' : 'var(--text)'}">${g.mais_antigo_dias} dia(s)</td></tr>`).join('')}</tbody></table></div>` : ''}`;
+  };
+  $('#eq-mes').onchange = load;
+  await load();
 }
 
 async function ctrlProvisao(c) {

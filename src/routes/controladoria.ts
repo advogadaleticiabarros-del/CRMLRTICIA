@@ -7,6 +7,60 @@ const router = Router();
 const TYPES = ['ganho', 'perda'];
 const LIKELIHOODS = ['provavel', 'possivel', 'remoto'];
 
+// ── Produtividade da equipe (mês) ───────────────────────────────────────────
+// Cruza o que já é registrado automaticamente: movimentos na esteira
+// (production_notes), eventos da jornada (journey_log) e prazos cumpridos.
+router.get('/produtividade', async (req: Request, res: Response) => {
+  const month = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : new Date().toISOString().slice(0, 7);
+
+  const porUsuario: Record<string, any> = {};
+  const u = (nome: string) => {
+    const k = nome || '—';
+    if (!porUsuario[k]) porUsuario[k] = { usuario: k, movimentos_esteira: 0, protocolos: 0, prazos_cumpridos: 0, eventos_jornada: 0, notas_producao: 0 };
+    return porUsuario[k];
+  };
+
+  const [movs] = await db.query(`
+    SELECT author_name, COUNT(*) AS n,
+           SUM(CASE WHEN text LIKE '%→ Protocolado%' THEN 1 ELSE 0 END) AS protocolos
+      FROM production_notes
+     WHERE kind = 'atualizacao' AND text LIKE 'Movido na esteira%' AND DATE_FORMAT(created_at, '%Y-%m') = ?
+     GROUP BY author_name`, [month]).catch(() => [[]]) as any;
+  for (const r of movs) { const x = u(r.author_name); x.movimentos_esteira = Number(r.n); x.protocolos = Number(r.protocolos); }
+
+  const [notas] = await db.query(`
+    SELECT author_name, COUNT(*) AS n FROM production_notes
+     WHERE kind IN ('observacao','pendencia') AND DATE_FORMAT(created_at, '%Y-%m') = ?
+     GROUP BY author_name`, [month]).catch(() => [[]]) as any;
+  for (const r of notas) u(r.author_name).notas_producao = Number(r.n);
+
+  const [jl] = await db.query(`
+    SELECT actor_name, COUNT(*) AS n FROM journey_log
+     WHERE actor_name IS NOT NULL AND DATE_FORMAT(created_at, '%Y-%m') = ?
+     GROUP BY actor_name`, [month]).catch(() => [[]]) as any;
+  for (const r of jl) u(r.actor_name).eventos_jornada = Number(r.n);
+
+  const [prazos] = await db.query(`
+    SELECT us.name AS author_name, COUNT(*) AS n
+      FROM deadlines d JOIN users us ON us.id = d.user_id
+     WHERE d.status = 'cumprido' AND DATE_FORMAT(d.updated_at, '%Y-%m') = ?
+     GROUP BY us.name`, [month]).catch(() => [[]]) as any;
+  for (const r of prazos) u(r.author_name).prazos_cumpridos = Number(r.n);
+
+  // Etapas com casos parados (contexto do gargalo, não por pessoa)
+  const [gargalos] = await db.query(`
+    SELECT production_stage AS etapa, COUNT(*) AS casos, MAX(DATEDIFF(NOW(), production_started_at)) AS mais_antigo_dias
+      FROM cases
+     WHERE production_stage IN ('em_analise','separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')
+     GROUP BY production_stage`).catch(() => [[]]) as any;
+
+  res.json({
+    month,
+    usuarios: Object.values(porUsuario).sort((a: any, b: any) => b.eventos_jornada - a.eventos_jornada),
+    gargalos,
+  });
+});
+
 // ── Rentabilidade ───────────────────────────────────────────────────────────
 router.get('/rentabilidade/clientes', async (_req: Request, res: Response) => {
   res.json(await rentabilidadeClientes());
