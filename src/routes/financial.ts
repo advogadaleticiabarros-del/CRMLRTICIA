@@ -207,11 +207,8 @@ router.get('/installments', async (req: Request, res: Response) => {
   res.json(rows);
 });
 
-// ── GET /api/financial/a-receber — TUDO a receber, de todas as frentes ───────
-// Uma lista só: lançamentos, parcelas de propostas, parcelas de contratos,
-// dativas e correspondente. Cada linha diz de onde veio (fonte) para o front
-// chamar o endpoint certo de recebimento. Valores sempre numéricos.
-router.get('/a-receber', async (_req: Request, res: Response) => {
+// Monta a lista unificada do "A Receber" (usada também pela conciliação OFX).
+async function montarAReceber(): Promise<any[]> {
   const rows: any[] = [];
   const N = (x: any) => Number(x) || 0;
   const hoje = new Date().toISOString().split('T')[0];
@@ -289,7 +286,15 @@ router.get('/a-receber', async (_req: Request, res: Response) => {
     r.vencido = !r.recebido && r.vencimento && String(r.vencimento).slice(0, 10) < hoje;
   }
   rows.sort((a, b) => String(b.vencimento || '').localeCompare(String(a.vencimento || '')));
+  return rows;
+}
 
+// ── GET /api/financial/a-receber — TUDO a receber, de todas as frentes ───────
+// Uma lista só: lançamentos, parcelas de propostas, parcelas de contratos,
+// dativas, correspondente e êxitos. Cada linha diz de onde veio (fonte) para
+// o front chamar o endpoint certo de recebimento. Valores sempre numéricos.
+router.get('/a-receber', async (_req: Request, res: Response) => {
+  const rows = await montarAReceber();
   const kpis = {
     programado: rows.reduce((s, r) => s + r.valor, 0),
     recebido: rows.filter((r) => r.recebido).reduce((s, r) => s + r.valor, 0),
@@ -300,6 +305,60 @@ router.get('/a-receber', async (_req: Request, res: Response) => {
   res.json({
     kpis: { programado: round2(kpis.programado), recebido: round2(kpis.recebido), a_receber: round2(kpis.a_receber), vencido: round2(kpis.vencido) },
     rows,
+  });
+});
+
+// ── POST /api/financial/conciliar — conciliação bancária via extrato OFX ─────
+// Recebe o texto do arquivo OFX do banco e cruza os CRÉDITOS com o A Receber:
+// - "conferido": valor bate com item já marcado como recebido (±3 dias)
+// - "sugestao": valor bate com item PENDENTE (provável baixa esquecida)
+// - "sem_correspondencia": entrou no banco mas o CRM não conhece
+// Nada é gravado — é uma conferência; a baixa continua manual no A Receber.
+router.post('/conciliar', async (req: Request, res: Response) => {
+  const ofx = String(req.body?.ofx || '');
+  if (!ofx.includes('<STMTTRN>')) { res.status(400).json({ error: 'Arquivo OFX inválido — exporte o extrato no formato OFX no site do banco' }); return; }
+
+  const parseData = (s: string) => `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+  const tag = (bloco: string, t: string) => {
+    const m = bloco.match(new RegExp(`<${t}>([^<\\r\\n]+)`, 'i'));
+    return m ? m[1].trim() : '';
+  };
+  const trans: { data: string; valor: number; memo: string; fitid: string; tipo: 'credito' | 'debito' }[] = [];
+  for (const m of ofx.matchAll(/<STMTTRN>([\s\S]*?)<\/STMTTRN>/gi)) {
+    const b = m[1];
+    const valor = Number(tag(b, 'TRNAMT').replace(',', '.')) || 0;
+    if (!valor) continue;
+    trans.push({
+      data: parseData(tag(b, 'DTPOSTED')), valor: Math.abs(Math.round(valor * 100) / 100),
+      memo: tag(b, 'MEMO') || tag(b, 'NAME') || '—', fitid: tag(b, 'FITID'),
+      tipo: valor > 0 ? 'credito' : 'debito',
+    });
+  }
+
+  const rows = await montarAReceber();
+  const diffDias = (a: string, b: string) => Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86400000);
+  const usados = new Set<string>();
+
+  const resultado = trans.filter((t) => t.tipo === 'credito').map((t) => {
+    // 1º tenta um recebido com mesmo valor perto da data do crédito
+    const conferido = rows.find((r) => r.recebido && !usados.has(`${r.fonte}:${r.id}`) &&
+      Math.abs(r.valor - t.valor) < 0.01 && r.pago_em && diffDias(String(r.pago_em).slice(0, 10), t.data) <= 3);
+    if (conferido) { usados.add(`${conferido.fonte}:${conferido.id}`); return { ...t, situacao: 'conferido', item: conferido }; }
+    // 2º tenta um PENDENTE com mesmo valor (baixa provavelmente esquecida)
+    const sugestao = rows.find((r) => !r.recebido && !usados.has(`${r.fonte}:${r.id}`) &&
+      Math.abs(r.valor - t.valor) < 0.01 && (!r.vencimento || diffDias(String(r.vencimento).slice(0, 10), t.data) <= 15));
+    if (sugestao) { usados.add(`${sugestao.fonte}:${sugestao.id}`); return { ...t, situacao: 'sugestao', item: sugestao }; }
+    return { ...t, situacao: 'sem_correspondencia', item: null };
+  });
+
+  res.json({
+    creditos: resultado,
+    debitos_ignorados: trans.filter((t) => t.tipo === 'debito').length,
+    resumo: {
+      conferidos: resultado.filter((r) => r.situacao === 'conferido').length,
+      sugestoes: resultado.filter((r) => r.situacao === 'sugestao').length,
+      sem_correspondencia: resultado.filter((r) => r.situacao === 'sem_correspondencia').length,
+    },
   });
 });
 

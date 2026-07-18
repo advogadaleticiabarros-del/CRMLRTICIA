@@ -4192,8 +4192,42 @@ async function finFluxoCaixa(c) {
       <button class="btn-gold" id="cf-new">+ Lançamento no fluxo</button>
     </div>
     <div id="cf-kpis" class="kpi-grid"></div>
+    <div class="card" style="margin-bottom:20px">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+        <div><strong style="color:var(--navy)">Conciliação bancária</strong><small style="color:var(--text-muted);margin-left:8px">confira se o que está "recebido" bateu na conta</small></div>
+        <label class="btn-sm" style="cursor:pointer">Importar extrato OFX<input type="file" id="ofx-file" accept=".ofx,.OFX,text/plain" style="display:none" /></label>
+      </div>
+      <div id="ofx-out" style="padding:12px 16px;font-size:13px;color:var(--text-muted)">Exporte o extrato em formato <strong>OFX</strong> no site/app do banco e importe aqui. Nada é alterado — é só conferência.</div>
+    </div>
     <div class="card" style="margin-bottom:20px;overflow-x:auto"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Projeção mensal (previsto / realizado)</strong></div><div id="cf-table"></div></div>
     <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Por categoria</strong></div><div id="cf-cats"></div></div>`;
+
+  // Conciliação OFX — cruza créditos do extrato com o A Receber
+  $('#ofx-file').onchange = async (ev) => {
+    const f = ev.target.files[0];
+    if (!f) return;
+    $('#ofx-out').innerHTML = '<div class="spinner"></div>';
+    try {
+      const texto = await f.text();
+      const r = await api('/api/financial/conciliar', { method: 'POST', body: JSON.stringify({ ofx: texto }) });
+      const chip = (sit) => sit === 'conferido' ? '<span class="badge pago">conferido ✓</span>'
+        : sit === 'sugestao' ? '<span class="badge" style="background:#fff3d6;color:#8a6d1a">falta dar baixa</span>'
+        : '<span class="badge vencido">não identificado</span>';
+      $('#ofx-out').innerHTML = `
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px">
+          <span>✓ Conferidos: <strong style="color:var(--green)">${r.resumo.conferidos}</strong></span>
+          <span>⚠ Falta dar baixa: <strong style="color:var(--amber,#b8860b)">${r.resumo.sugestoes}</strong></span>
+          <span>? Não identificados: <strong style="color:var(--red)">${r.resumo.sem_correspondencia}</strong></span>
+          <span style="color:var(--text-muted)"><small>${r.debitos_ignorados} débito(s) ignorado(s)</small></span>
+        </div>
+        ${r.creditos.length ? `<table><thead><tr><th>Data</th><th>Valor</th><th>Descrição no banco</th><th>Situação</th><th>Correspondência no CRM</th></tr></thead>
+        <tbody>${r.creditos.map((t) => `<tr>
+          <td>${fmtDate(t.data)}</td><td><strong>${money(t.valor)}</strong></td>
+          <td><small>${esc(t.memo)}</small></td><td>${chip(t.situacao)}</td>
+          <td><small>${t.item ? `${esc(t.item.descricao || '')} · ${esc(t.item.cliente || '')}${t.situacao === 'sugestao' ? ' — <strong>dê a baixa no A Receber</strong>' : ''}` : '—'}</small></td></tr>`).join('')}</tbody></table>` : '<div class="empty">Nenhum crédito no extrato</div>'}`;
+    } catch (e) { $('#ofx-out').innerHTML = `<span style="color:var(--red)">${esc(e.message)}</span>`; }
+    ev.target.value = '';
+  };
 
   const load = async () => {
     const months = $('#cf-months').value;
