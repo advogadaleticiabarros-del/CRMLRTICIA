@@ -108,6 +108,33 @@ async function gatherContext(caseId: number): Promise<{ prompt: string; clientId
   const endereco = cl?.address || (lead ? [lead.street, lead.number, lead.neighborhood, lead.city && (lead.city + '/' + (lead.state || '')), lead.cep].filter(Boolean).join(', ') : '');
   const relato = lead?.case_summary || cs?.description || '';
 
+  // ── CÉREBRO: modelo do COFRE do escritório que melhor casa com o caso ──────
+  // Busca por área + palavras do título/relato. O modelo entra no prompt como
+  // referência de estrutura, teses e fundamentos — a peça sai com a cara do
+  // escritório, não genérica.
+  let modeloTxt = '';
+  try {
+    const termos = `${cs?.title || ''} ${relato}`.toLowerCase();
+    const [modelos] = await db.query(
+      `SELECT titulo, assunto, teses, fundamentos, conteudo FROM peca_modelos
+        WHERE area = ? OR area IS NULL ORDER BY (area = ?) DESC, id ASC LIMIT 20`,
+      [cs?.legal_area || '', cs?.legal_area || '']
+    ) as any;
+    // Pontua por palavras do assunto/título do modelo presentes no caso
+    let melhor: any = null; let melhorPts = 0;
+    for (const m of modelos) {
+      const chaves = `${m.assunto || ''} ${m.titulo || ''}`.toLowerCase()
+        .split(/[^a-zà-ú0-9]+/).filter((w: string) => w.length > 4);
+      const pts = chaves.reduce((s: number, w: string) => s + (termos.includes(w) ? 1 : 0), 0);
+      if (pts > melhorPts) { melhorPts = pts; melhor = m; }
+    }
+    if (!melhor && modelos.length) melhor = modelos[0]; // fallback: 1º da área
+    if (melhor) {
+      modeloTxt = `\n\nMODELO DO ESCRITÓRIO (referência de estrutura, teses e estilo — ADAPTE aos fatos deste caso; NUNCA copie dados do modelo):
+Título: ${melhor.titulo}${melhor.assunto ? `\nAssunto: ${melhor.assunto}` : ''}${melhor.teses ? `\nTeses da casa: ${melhor.teses}` : ''}${melhor.fundamentos ? `\nFundamentos usados: ${melhor.fundamentos}` : ''}${melhor.conteudo ? `\nTrecho do modelo:\n${String(melhor.conteudo).slice(0, 9000)}` : ''}`;
+    }
+  } catch { /* cofre vazio ou indisponível — segue sem modelo */ }
+
   const prompt = `Você é advogado(a) brasileiro(a), redator(a) de peças, minucioso(a). Redija uma PETIÇÃO INICIAL completa e profissional, pronta para revisão final, com base EXCLUSIVAMENTE no relato e nos documentos abaixo.
 
 REGRAS ANTI-INVENÇÃO (OBRIGATÓRIAS — descumprir é falha grave):
@@ -133,7 +160,7 @@ RELATO DO CASO:
 ${relato || '[Sem relato cadastrado — extrair dos documentos]'}
 
 DOCUMENTOS DO CASO (conteúdo extraído):
-${docsTxt || '[Nenhum documento com conteúdo extraído]'}`;
+${docsTxt || '[Nenhum documento com conteúdo extraído]'}${modeloTxt}`;
 
   return { prompt, clientId, clientName: cl?.name || lead?.name || 'Cliente' };
 }

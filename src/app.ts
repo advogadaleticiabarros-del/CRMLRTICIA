@@ -14,6 +14,7 @@ import processualDashboard from './routes/dashboards/processual';
 import monitoramentoDashboard from './routes/dashboards/monitoramento';
 import agendaDashboard from './routes/dashboards/agenda';
 import financeiroDashboard from './routes/dashboards/financeiro';
+import relatorioMensalDashboard from './routes/dashboards/relatorioMensal';
 import producaoDashboard from './routes/dashboards/producao';
 import parceriaMensalDashboard from './routes/dashboards/parceriaMensal';
 import calendarRoutes from './routes/calendar';
@@ -156,6 +157,7 @@ export function createApp() {
   app.use('/api/security',              authenticate, requireAdmin, securityStatusRoutes);
   app.use('/api/ai',                    authenticate, requireStaff, aiRoutes);
   app.use('/api/dashboards/cockpit',    authenticate, requireStaff, cockpitDashboard);
+  app.use('/api/dashboards/relatorio-mensal', authenticate, requireStaff, relatorioMensalDashboard);
   app.use('/api/dashboards/comercial',  authenticate, requireStaff, comercialDashboard);
   app.use('/api/dashboards/cliente',    authenticate, requireStaff, clienteDashboard);
   app.use('/api/dashboards/processual', authenticate, requireStaff, processualDashboard);

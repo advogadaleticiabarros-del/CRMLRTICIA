@@ -2614,14 +2614,18 @@ async function ctrlEquipe(c) {
   const load = async () => {
     const r = await api(`/api/controladoria/produtividade?month=${$('#eq-mes').value || mesAtual}`);
     const users = r.usuarios || [];
+    const medalha = (i) => i === 0 ? '<span title="1º lugar" style="font-size:15px">🥇</span>' : i === 1 ? '<span title="2º lugar" style="font-size:15px">🥈</span>' : i === 2 ? '<span title="3º lugar" style="font-size:15px">🥉</span>' : '';
+    const maxPts = users.length ? Math.max(...users.map((x) => x.pontos), 1) : 1;
     $('#eq-out').innerHTML = `
-      ${users.length ? `<div class="card"><div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Por pessoa — ${r.month}</strong></div>
-        <table><thead><tr><th>Usuário</th><th>Atividades registradas</th><th>Movimentos na esteira</th><th>Protocolos</th><th>Prazos cumpridos</th><th>Notas/pendências</th></tr></thead>
-        <tbody>${users.map((x) => `<tr>
-          <td><strong>${esc(x.usuario)}</strong></td>
-          <td>${x.eventos_jornada}</td><td>${x.movimentos_esteira}</td>
+      ${users.length ? `<div class="card"><div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><strong style="color:var(--navy)">Ranking do mês — ${r.month}</strong><small style="color:var(--text-muted)">protocolo ${r.pontuacao?.protocolo || 25} pts · prazo cumprido ${r.pontuacao?.prazo_cumprido || 15} · movimento ${r.pontuacao?.movimento || 5} · nota ${r.pontuacao?.nota || 3} · atividade ${r.pontuacao?.evento || 1}</small></div>
+        <table><thead><tr><th>#</th><th>Usuário</th><th>Pontos</th><th>Protocolos</th><th>Prazos cumpridos</th><th>Movimentos</th><th>Notas</th><th>Atividades</th></tr></thead>
+        <tbody>${users.map((x, i) => `<tr>
+          <td>${i + 1}º ${medalha(i)}</td>
+          <td><strong>${esc(x.usuario)}</strong>
+            <div style="height:5px;background:var(--surface-2,#eee);border-radius:3px;margin-top:4px;max-width:160px"><div style="height:100%;width:${Math.round((x.pontos / maxPts) * 100)}%;background:var(--gold);border-radius:3px"></div></div></td>
+          <td><strong style="color:var(--navy-deep);font-size:15px">${x.pontos}</strong></td>
           <td>${x.protocolos ? `<strong style="color:var(--green)">${x.protocolos}</strong>` : 0}</td>
-          <td>${x.prazos_cumpridos}</td><td>${x.notas_producao}</td></tr>`).join('')}</tbody></table></div>`
+          <td>${x.prazos_cumpridos}</td><td>${x.movimentos_esteira}</td><td>${x.notas_producao}</td><td>${x.eventos_jornada}</td></tr>`).join('')}</tbody></table></div>`
       : '<div class="empty">Nenhuma atividade registrada neste mês</div>'}
       ${(r.gargalos || []).length ? `<div class="card" style="margin-top:14px"><div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Gargalos da esteira (agora)</strong></div>
         <table><thead><tr><th>Etapa</th><th>Casos parados</th><th>Mais antigo</th></tr></thead>
@@ -3716,7 +3720,7 @@ async function finVisaoGeral(c) {
         </div>` : ''}
     </div>` : '';
   c.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0"><button class="btn-ghost" id="fin-dre">Relatório do contador (mês)</button><button class="btn-gold" id="new-fin">+ Lançamento</button></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0;flex-wrap:wrap"><button class="btn-ghost" id="fin-executivo">Relatório executivo (mês)</button><button class="btn-ghost" id="fin-dre">Relatório do contador (mês)</button><button class="btn-gold" id="new-fin">+ Lançamento</button></div>
     <h3 style="color:var(--navy);margin:16px 0 8px">Resumo Geral <small style="font-weight:400;color:var(--text-muted);font-size:12px">· consolida clientes, parcerias, dativas e correspondente</small></h3>
     <div class="kpi-grid">
       ${kpi('Receita prevista', money(s.receita_prevista), 'money')}
@@ -3771,6 +3775,55 @@ async function finVisaoGeral(c) {
     });
   };
   $('#new-fin').onclick = () => financialForm(() => finVisaoGeral(c));
+
+  // Relatório EXECUTIVO — o escritório inteiro num documento (imprimir → PDF)
+  $('#fin-executivo').onclick = async () => {
+    const mes = await uiPrompt('Mês do relatório (AAAA-MM):', new Date().toISOString().slice(0, 7));
+    if (!mes) return;
+    try {
+      const d = await api('/api/dashboards/relatorio-mensal?month=' + encodeURIComponent(mes.trim()));
+      const linha = (t, v, forte) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${t}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;${forte ? 'font-weight:700' : ''}">${typeof v === 'number' && String(t).indexOf('%') === -1 ? money(v) : v}</td></tr>`;
+      const num = (t, v) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${t}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee">${v}</td></tr>`;
+      printBranded(`Relatório Executivo — ${d.month}`, 'Visão consolidada do escritório (regime de caixa)', `
+        <h3 style="margin:14px 0 4px">Receita recebida por frente</h3>
+        <table style="width:100%;border-collapse:collapse">
+          ${linha('Clientes & contratos', d.receitas.clientes)}
+          ${linha('Parcerias (entrada/êxito/sucumbência)', d.receitas.parcerias)}
+          ${linha('Dativo (Estado)', d.receitas.dativo)}
+          ${linha('Correspondente jurídico', d.receitas.correspondente)}
+          ${linha('Êxitos (RPV/precatório/alvará)', d.receitas.exitos)}
+          ${linha('RECEITA TOTAL', d.receita_total, 1)}
+        </table>
+        <h3 style="margin:16px 0 4px">Saídas pagas</h3>
+        <table style="width:100%;border-collapse:collapse">
+          ${linha('Despesas', d.saidas.despesas)}
+          ${linha('Repasses a parceiros', d.saidas.repasses)}
+          ${linha('TOTAL DE SAÍDAS', d.saidas.total, 1)}
+        </table>
+        <div style="margin-top:14px;padding:12px 14px;border:2px solid #0d1b2e;border-radius:8px;display:flex;justify-content:space-between;font-size:16px">
+          <strong>RESULTADO DO MÊS</strong><strong style="color:${d.resultado >= 0 ? '#1c7a3d' : '#c0392b'}">${money(d.resultado)}</strong>
+        </div>
+        <h3 style="margin:16px 0 4px">Funil comercial</h3>
+        <table style="width:100%;border-collapse:collapse">
+          ${num('Leads novos', d.funil.leads_novos)}
+          ${num('Contratos fechados', d.funil.leads_fechados)}
+          ${num('Conversão', d.funil.conversao_pct + '%')}
+          ${num('Propostas criadas · aceitas', d.funil.propostas_criadas + ' · ' + d.funil.propostas_aceitas)}
+        </table>
+        <h3 style="margin:16px 0 4px">Produção</h3>
+        <table style="width:100%;border-collapse:collapse">
+          ${num('Processos protocolados no mês', d.producao.protocolados)}
+          ${num('Casos que entraram na esteira', d.producao.entraram_esteira)}
+          ${num('Casos recusados após análise', d.producao.recusados)}
+        </table>
+        <h3 style="margin:16px 0 4px">Situação em ${fmtDate(new Date())}</h3>
+        <table style="width:100%;border-collapse:collapse">
+          ${linha('Inadimplência acumulada', d.situacao_atual.inadimplencia)}
+          ${num('Casos na esteira agora', d.situacao_atual.casos_na_esteira)}
+        </table>
+        <p style="color:#777;font-size:12px;margin-top:12px">Gerado automaticamente pelo CRM. Use "Imprimir → Salvar como PDF" para arquivar.</p>`);
+    } catch (e) { toast(e.message, 'error'); }
+  };
 
   // Relatório do contador — DRE simplificada do mês (imprimir → salvar como PDF)
   $('#fin-dre').onclick = async () => {

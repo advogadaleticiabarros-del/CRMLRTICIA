@@ -33,6 +33,24 @@ export function startCronJobs() {
     runJob('briefing:matinal', () => sendMorningBriefings());
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── Dia 1º às 08:00: avisa que o relatório executivo do mês fechou ────────
+  cron.schedule('0 8 1 * *', () => {
+    runJob('relatorio:mensal-aviso', async () => {
+      const mesFechado = new Date(); mesFechado.setDate(0); // último dia do mês anterior
+      const ym = `${mesFechado.getFullYear()}-${String(mesFechado.getMonth() + 1).padStart(2, '0')}`;
+      const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+      for (const a of admins) {
+        await db.query(
+          `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+           VALUES (?, ?, ?, 'relatorio_mensal', 'sistema', NOW(), 'pendente')`,
+          [a.id, `Relatório executivo de ${ym} fechado`,
+           `O mês fechou! Abra Financeiro → Visão Geral → "Relatório executivo (mês)" e informe ${ym} para gerar o PDF consolidado do escritório.`]
+        );
+      }
+      return { avisados: admins.length, mes: ym };
+    });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── Retrato diário das métricas (sparklines) às 23:00 (Brasília) ──────────
   cron.schedule('0 23 * * *', () => {
     runJob('metricas:retrato-diario', () => captureDailyMetrics());

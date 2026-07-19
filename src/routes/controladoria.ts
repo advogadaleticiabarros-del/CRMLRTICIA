@@ -54,9 +54,23 @@ router.get('/produtividade', async (req: Request, res: Response) => {
      WHERE production_stage IN ('em_analise','separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')
      GROUP BY production_stage`).catch(() => [[]]) as any;
 
+  // ── GAMIFICAÇÃO: pontos por atividade (estilo taskscore) ──────────────────
+  // Protocolo vale mais (é a entrega final); prazo cumprido protege o
+  // escritório; movimento na esteira e notas mantêm o fluxo vivo.
+  const PONTOS = { protocolo: 25, prazo_cumprido: 15, movimento: 5, nota: 3, evento: 1 };
+  const usuarios = Object.values(porUsuario).map((u: any) => ({
+    ...u,
+    pontos: u.protocolos * PONTOS.protocolo
+          + u.prazos_cumpridos * PONTOS.prazo_cumprido
+          + (u.movimentos_esteira - u.protocolos) * PONTOS.movimento
+          + u.notas_producao * PONTOS.nota
+          + Math.min(u.eventos_jornada, 200) * PONTOS.evento,
+  })).sort((a: any, b: any) => b.pontos - a.pontos);
+
   res.json({
     month,
-    usuarios: Object.values(porUsuario).sort((a: any, b: any) => b.eventos_jornada - a.eventos_jornada),
+    usuarios,
+    pontuacao: PONTOS,
     gargalos,
   });
 });
