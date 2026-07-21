@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logFinancialAudit } from '../services/FinancialAuditService';
+import { logTimeline } from '../services/TimelineService';
 import { syncAgreementFinanceLaunches, montarCronogramaAcordo } from '../services/agreementFinance';
 
 const router = Router();
@@ -98,7 +99,16 @@ router.post('/', async (req: Request, res: Response) => {
     reason: `Acordo criado: ${opposing_party} — R$ ${totalValue}`, ipAddress: req.ip,
   });
 
-  const { lancados } = await syncAgreementFinanceLaunches(result.insertId, req.user!.id).catch(() => ({ lancados: 0 }));
+  const { lancados } = await syncAgreementFinanceLaunches(result.insertId, req.user!.id).catch((e) => { console.error('❌ [acordo-financeiro] falha ao lançar honorários (create):', e?.message || e); return { lancados: 0 }; });
+
+  // Centraliza no histórico do cliente: o acordo e o que foi lançado no financeiro.
+  await logTimeline({
+    clientId: client_id, caseId: case_id ?? null, eventType: 'acordo',
+    description: `Acordo registrado com ${opposing_party.trim()} — R$ ${totalValue.toFixed(2)}` +
+      (honValue > 0 ? ` · honorários contratuais R$ ${honValue.toFixed(2)}` : '') +
+      (lancados > 0 ? ` (${lancados} lançamento(s) no financeiro)` : ''),
+    userId: req.user!.id,
+  }).catch(() => {});
 
   const [rows] = await db.query('SELECT * FROM agreements WHERE id = ?', [result.insertId]) as any;
   res.status(201).json({ ...rows[0], lancamentos_financeiros: lancados });
@@ -146,10 +156,18 @@ router.put('/:id', async (req: Request, res: Response) => {
 
   // Re-sincroniza o financeiro: refaz só os lançamentos PENDENTES deste acordo
   // (o que já foi recebido/pago fica intacto).
-  const { lancados } = await syncAgreementFinanceLaunches(Number(id), req.user!.id).catch(() => ({ lancados: 0 }));
+  const { lancados } = await syncAgreementFinanceLaunches(Number(id), req.user!.id).catch((e) => { console.error('❌ [acordo-financeiro] falha ao lançar honorários (update):', e?.message || e); return { lancados: 0 }; });
 
   const [rows] = await db.query('SELECT * FROM agreements WHERE id = ?', [id]) as any;
-  res.json({ ...rows[0], lancamentos_financeiros: lancados });
+  const atual = rows[0];
+  await logTimeline({
+    clientId: atual.client_id, caseId: atual.case_id ?? null, eventType: 'acordo_atualizado',
+    description: `Acordo atualizado — ${atual.opposing_party} — R$ ${Number(atual.total_agreement_value).toFixed(2)}` +
+      (lancados > 0 ? ` (${lancados} lançamento(s) refeito(s) no financeiro)` : ''),
+    userId: req.user!.id,
+  }).catch(() => {});
+
+  res.json({ ...atual, lancamentos_financeiros: lancados });
 });
 
 // Helper de transição de status
@@ -176,6 +194,11 @@ async function transition(req: Request, res: Response, newStatus: string, action
     userId: req.user!.id, userName: req.user!.name, clientId: prev.client_id, agreementId: Number(id),
     oldStatus: prev.status, newStatus, reason: `${label}. ${notes || ''}`.trim(), ipAddress: req.ip,
   });
+  await logTimeline({
+    clientId: prev.client_id, caseId: prev.case_id ?? null, eventType: 'acordo_status',
+    description: `${label} — ${prev.opposing_party}${notes ? `. ${notes}` : ''}`,
+    userId: req.user!.id,
+  }).catch(() => {});
   const [rows] = await db.query('SELECT * FROM agreements WHERE id = ?', [id]) as any;
   res.json(rows[0]);
 }

@@ -2,6 +2,17 @@ import { db } from '../config/database';
 
 const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
+// O driver do MySQL devolve colunas DATE como objetos Date, não como texto.
+// Sem essa normalização, `dateObj + 'T00:00:00'` vira concatenação de string
+// (o JS chama .toString() no Date), gera uma data inválida e o addMonthsStr
+// lança RangeError — que ficava engolido pelo catch() da rota, "lançando"
+// silenciosamente 0 registros.
+function toDateStr(v: unknown): string | null {
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString().split('T')[0];
+  return String(v).slice(0, 10);
+}
+
 function addMonthsStr(dateStr: string, months: number): string {
   const d = new Date(dateStr + 'T00:00:00');
   d.setMonth(d.getMonth() + months);
@@ -16,21 +27,23 @@ export interface Tranche { label: string; valor: number; data: string }
  * propostas (a diferença de centavos vai para a última parcela).
  */
 export function montarCronogramaAcordo(a: {
-  total_agreement_value: number; entrada_value?: number; entrada_date?: string | null;
-  installments_count: number; first_due_date: string;
+  total_agreement_value: number; entrada_value?: number; entrada_date?: string | Date | null;
+  installments_count: number; first_due_date: string | Date;
 }): Tranche[] {
   const total = Number(a.total_agreement_value) || 0;
   const entrada = Number(a.entrada_value) || 0;
+  const entradaData = toDateStr(a.entrada_date);
+  const primeiroVenc = toDateStr(a.first_due_date);
   const tranches: Tranche[] = [];
-  if (entrada > 0 && a.entrada_date) tranches.push({ label: 'Entrada', valor: round2(entrada), data: a.entrada_date });
+  if (entrada > 0 && entradaData) tranches.push({ label: 'Entrada', valor: round2(entrada), data: entradaData });
 
   const restante = Math.max(0, total - entrada);
   const n = Math.max(0, Math.floor(a.installments_count) || 0);
-  if (restante > 0 && n > 0 && a.first_due_date) {
+  if (restante > 0 && n > 0 && primeiroVenc) {
     const base = Math.floor((restante / n) * 100) / 100;
     for (let i = 0; i < n; i++) {
       const valor = i === n - 1 ? round2(restante - base * (n - 1)) : base;
-      tranches.push({ label: `${i + 1}ª parcela`, valor, data: addMonthsStr(a.first_due_date, i) });
+      tranches.push({ label: `${i + 1}ª parcela`, valor, data: addMonthsStr(primeiroVenc, i) });
     }
   }
   return tranches;
