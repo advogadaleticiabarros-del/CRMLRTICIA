@@ -3866,19 +3866,24 @@ async function finAcordos(c) {
   const load = async () => {
     const r = await api('/api/acordos');
     $('#acordo-table').innerHTML = r.data.length ? `
-      <table><thead><tr><th>Parte contrária</th><th>Cliente</th><th>Valor</th><th>Honorário</th><th>Status</th><th></th></tr></thead>
+      <table><thead><tr><th>Parte contrária</th><th>Cliente</th><th>Acordo</th><th>Honorários</th><th>Sucumbência</th><th>Status</th><th></th></tr></thead>
       <tbody>${r.data.map((a) => {
-        const acoes = [];
+        const acoes = [`<button class="btn-sm" data-acd-edit="${a.id}">Editar</button>`];
         if (a.status === 'Proposto') acoes.push(`<button class="btn-sm" data-acd-sign="${a.id}">Assinar</button>`);
         if (['Aceito','Homologado','Em pagamento'].includes(a.status)) acoes.push(`<button class="btn-sm" data-acd-close="${a.id}">Encerrar</button>`);
         if (!['Quitado','Descumprido'].includes(a.status)) acoes.push(`<button class="btn-sm" data-acd-cancel="${a.id}">Cancelar</button>`);
         return `<tr>
           <td><strong>${a.opposing_party}</strong>${a.process_number ? `<br><small style="color:var(--text-muted)">${a.process_number}</small>` : ''}</td>
-          <td>${a.client_name || '—'}</td><td>${money(a.total_agreement_value)}</td>
+          <td>${a.client_name || '—'}</td>
+          <td>${money(a.total_agreement_value)}${Number(a.entrada_value) ? `<br><small style="color:var(--text-muted)">entrada ${money(a.entrada_value)} + ${a.installments_count}x</small>` : ''}</td>
           <td>${money(a.honorarium_value)} <small>(${a.honorarium_percentage}%)</small></td>
+          <td>${Number(a.sucumbencia_value) ? money(a.sucumbencia_value) : '—'}</td>
           <td>${badge(a.status)}</td><td style="white-space:nowrap">${acoes.join(' ')}</td></tr>`;
       }).join('')}</tbody></table>`
       : '<div class="empty">Nenhum acordo cadastrado</div>';
+    document.querySelectorAll('[data-acd-edit]').forEach((b) => b.onclick = async () => {
+      try { acordoForm(load, await api(`/api/acordos/${b.dataset.acdEdit}`)); } catch (e) { toast(e.message, 'error'); }
+    });
     const act = (sel, path, msg) => document.querySelectorAll(sel).forEach((b) => b.onclick = async () => {
       const id = b.dataset.acdSign || b.dataset.acdClose || b.dataset.acdCancel;
       try { await api(`/api/acordos/${id}/${path}`, { method: 'POST', body: '{}' }); toast(msg); load(); } catch (e) { toast(e.message, 'error'); }
@@ -4511,26 +4516,87 @@ async function cashflowForm(onSave, preType) {
 }
 
 // ── Formulários financeiros ──
-async function acordoForm(onSave) {
+async function acordoForm(onSave, existing = null) {
   const clients = await api('/api/clients?limit=100');
+  const e0 = existing || {};
   const form = el(`<form class="form-grid">
-    ${field('Cliente *', 'client_id', { options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}
-    ${field('Parte contrária *', 'opposing_party')}
-    ${field('Nº do processo', 'process_number')}
-    ${field('Valor do acordo *', 'total_agreement_value', { type: 'number' })}
-    ${field('Nº de parcelas', 'installments_count', { type: 'number', value: 1 })}
-    ${field('1º vencimento *', 'first_due_date', { type: 'date' })}
-    ${field('Honorário (%)', 'honorarium_percentage', { type: 'number', value: 30 })}
-    ${field('Observações', 'notes', { type: 'textarea' })}
-    <button type="submit" class="btn-primary">Criar acordo</button>
+    ${field('Cliente *', 'client_id', { value: e0.client_id || '', options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}
+    <label>Processo (opcional)<select name="case_id"><option value="">—</option></select></label>
+    ${field('Parte contrária *', 'opposing_party', { value: e0.opposing_party || '' })}
+    ${field('Nº do processo', 'process_number', { value: e0.process_number || '' })}
+
+    <div class="prop-sec">Valor do acordo — entrada + parcelamento</div>
+    ${field('Valor total do acordo (R$) *', 'total_agreement_value', { type: 'number', value: e0.total_agreement_value || '' })}
+    <div class="form-row">${field('Entrada (R$)', 'entrada_value', { type: 'number', value: e0.entrada_value || '' })}${field('Data da entrada', 'entrada_date', { type: 'date', value: datDateInputValue(e0.entrada_date) })}</div>
+    <div class="form-row">${field('Nº de parcelas (restante)', 'installments_count', { type: 'number', value: e0.installments_count || 1 })}${field('1º vencimento das parcelas *', 'first_due_date', { type: 'date', value: datDateInputValue(e0.first_due_date) })}</div>
+    <div id="acd-preview" class="parc-preview"></div>
+
+    <div class="prop-sec">Seus honorários (o que entra no Financeiro)</div>
+    <div class="form-row">${field('Honorários contratuais (%)', 'honorarium_percentage', { type: 'number', value: e0.honorarium_percentage ?? 30 })}${field('Honorários contratuais (R$)', 'honorarium_value', { type: 'number', value: e0.honorarium_value || '' })}</div>
+    <p class="sub" style="margin-top:-6px">Lançado proporcionalmente na entrada e em cada parcela, com a data de cada uma.</p>
+    <div class="form-row">${field('Honorários sucumbenciais (R$)', 'sucumbencia_value', { type: 'number', value: e0.sucumbencia_value || '' })}${field('Previsão de recebimento', 'sucumbencia_due_date', { type: 'date', value: datDateInputValue(e0.sucumbencia_due_date) })}</div>
+    <p class="sub" style="margin-top:-6px">Pertencem exclusivamente à advogada (art. 23, Lei 8.906/94) — lançamento único no Financeiro.</p>
+
+    ${field('Forma de recebimento', 'receiving_method', { value: e0.receiving_method || 'Acordo' })}
+    ${field('Observações', 'notes', { type: 'textarea', value: e0.notes || '' })}
+    <button type="submit" class="btn-primary">${existing ? 'Salvar alterações' : 'Criar acordo'}</button>
   </form>`);
+
+  // Processo do cliente (opcional) — carrega ao trocar o cliente
+  const caseSel = form.querySelector('[name=case_id]');
+  const loadCases = async (clientId) => {
+    caseSel.innerHTML = '<option value="">—</option>';
+    if (!clientId) return;
+    const r = await api(`/api/cases?client_id=${clientId}&limit=50`).catch(() => ({ data: [] }));
+    caseSel.innerHTML += r.data.map((cs) => `<option value="${cs.id}" ${e0.case_id == cs.id ? 'selected' : ''}>${esc(cs.title || cs.case_number || 'caso ' + cs.id)}</option>`).join('');
+  };
+  form.querySelector('[name=client_id]').onchange = (ev) => loadCases(ev.target.value);
+  if (e0.client_id) loadCases(e0.client_id);
+
+  // Prévia ao vivo: entrada + parcelas (mesma lógica das propostas)
+  const renderPreview = () => {
+    const total = Number(form.querySelector('[name=total_agreement_value]').value) || 0;
+    const entrada = Number(form.querySelector('[name=entrada_value]').value) || 0;
+    const qtd = Math.max(1, parseInt(form.querySelector('[name=installments_count]').value) || 1);
+    const restante = Math.max(0, total - entrada);
+    const base = Math.floor((restante / qtd) * 100) / 100;
+    const ultima = Math.round((restante - base * (qtd - 1)) * 100) / 100;
+    const box = form.querySelector('#acd-preview');
+    if (!total) { box.innerHTML = ''; return; }
+    box.innerHTML = `
+      <div class="parc-line"><span>Entrada</span><strong>${money(entrada)}</strong></div>
+      <div class="parc-line"><span>Restante a parcelar</span><strong>${money(restante)}</strong></div>
+      <div class="parc-line"><span>Parcelas</span><strong>${qtd}× de ${money(base)}${ultima !== base ? ` (última de ${money(ultima)})` : ''}</strong></div>
+      <div class="parc-line total"><span>Total do acordo</span><strong>${money(total)}</strong></div>`;
+  };
+  ['total_agreement_value', 'entrada_value', 'installments_count'].forEach((n) => { form.querySelector(`[name=${n}]`).oninput = renderPreview; });
+  renderPreview();
+
+  // Honorário % ↔ R$ (recalcula o valor quando o % muda, se o R$ não foi digitado à mão)
+  let honTouched = !!e0.honorarium_value;
+  form.querySelector('[name=honorarium_value]').oninput = () => { honTouched = true; };
+  form.querySelector('[name=honorarium_percentage]').oninput = () => {
+    if (honTouched) return;
+    const total = Number(form.querySelector('[name=total_agreement_value]').value) || 0;
+    const pct = Number(form.querySelector('[name=honorarium_percentage]').value) || 0;
+    form.querySelector('[name=honorarium_value]').value = total ? (Math.round(total * pct) / 100).toFixed(2) : '';
+  };
+
   form.onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form));
-    try { await api('/api/acordos', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast('Acordo criado'); onSave(); }
-    catch (err) { toast(err.message, 'error'); }
+    if (!body.case_id) delete body.case_id;
+    const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Salvando…';
+    try {
+      const r = existing
+        ? await api(`/api/acordos/${existing.id}`, { method: 'PUT', body: JSON.stringify(body) })
+        : await api('/api/acordos', { method: 'POST', body: JSON.stringify(body) });
+      closeModal();
+      toast(`${existing ? 'Acordo atualizado' : 'Acordo criado'}${r.lancamentos_financeiros ? ` · ${r.lancamentos_financeiros} lançamento(s) no financeiro` : ''}`);
+      onSave();
+    } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = existing ? 'Salvar alterações' : 'Criar acordo'; }
   };
-  openModal('Novo acordo', form);
+  openModal(existing ? 'Editar acordo' : 'Novo acordo', form);
 }
 
 async function receitaForm(onSave) {

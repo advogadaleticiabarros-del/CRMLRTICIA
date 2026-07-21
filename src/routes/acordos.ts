@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logFinancialAudit } from '../services/FinancialAuditService';
+import { syncAgreementFinanceLaunches, montarCronogramaAcordo } from '../services/agreementFinance';
 
 const router = Router();
 
@@ -54,12 +55,20 @@ router.get('/:id', async (req: Request, res: Response) => {
   res.json(rows[0]);
 });
 
+// ── GET /api/acordos/:id/cronograma — prévia da entrada + parcelas ─────────
+router.get('/:id/cronograma', async (req: Request, res: Response) => {
+  const [[a]] = await db.query('SELECT * FROM agreements WHERE id = ?', [req.params.id]) as any;
+  if (!a) { res.status(404).json({ error: 'Acordo não encontrado' }); return; }
+  res.json({ tranches: montarCronogramaAcordo(a) });
+});
+
 // ── POST /api/acordos — criar ───────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
   const {
     client_id, case_id, process_number, opposing_party,
-    total_agreement_value, installments_count, first_due_date,
-    honorarium_percentage, honorarium_value, receiving_method, notes,
+    total_agreement_value, entrada_value, entrada_date, installments_count, first_due_date,
+    honorarium_percentage, honorarium_value, sucumbencia_value, sucumbencia_due_date,
+    receiving_method, notes,
   } = req.body;
 
   if (!client_id) { res.status(400).json({ error: 'client_id é obrigatório' }); return; }
@@ -72,11 +81,13 @@ router.post('/', async (req: Request, res: Response) => {
 
   const [result] = await db.query(
     `INSERT INTO agreements
-       (client_id, case_id, process_number, opposing_party, total_agreement_value, installments_count,
-        first_due_date, honorarium_percentage, honorarium_value, receiving_method, status, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Proposto', ?)`,
+       (client_id, case_id, process_number, opposing_party, total_agreement_value, entrada_value, entrada_date,
+        installments_count, first_due_date, honorarium_percentage, honorarium_value,
+        sucumbencia_value, sucumbencia_due_date, receiving_method, status, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Proposto', ?)`,
     [client_id, case_id ?? null, process_number ?? null, opposing_party.trim(), totalValue,
-     Number(installments_count) || 1, first_due_date, honPct, honValue,
+     round2(entrada_value), entrada_date || null, Number(installments_count) || 1, first_due_date, honPct, honValue,
+     round2(sucumbencia_value), sucumbencia_due_date || null,
      receiving_method || 'Acordo', notes ?? null]
   ) as any;
 
@@ -87,8 +98,10 @@ router.post('/', async (req: Request, res: Response) => {
     reason: `Acordo criado: ${opposing_party} — R$ ${totalValue}`, ipAddress: req.ip,
   });
 
+  const { lancados } = await syncAgreementFinanceLaunches(result.insertId, req.user!.id).catch(() => ({ lancados: 0 }));
+
   const [rows] = await db.query('SELECT * FROM agreements WHERE id = ?', [result.insertId]) as any;
-  res.status(201).json(rows[0]);
+  res.status(201).json({ ...rows[0], lancamentos_financeiros: lancados });
 });
 
 // ── PUT /api/acordos/:id — atualizar ────────────────────────────────────────
@@ -103,13 +116,19 @@ router.put('/:id', async (req: Request, res: Response) => {
   const setIf = (col: string, val: any, valid = true) => {
     if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val); }
   };
+  setIf('client_id', req.body.client_id !== undefined ? Number(req.body.client_id) : undefined);
+  setIf('case_id', req.body.case_id !== undefined ? (req.body.case_id || null) : undefined);
   setIf('opposing_party', req.body.opposing_party?.trim?.());
   setIf('process_number', req.body.process_number);
   setIf('total_agreement_value', req.body.total_agreement_value !== undefined ? Number(req.body.total_agreement_value) : undefined);
+  setIf('entrada_value', req.body.entrada_value !== undefined ? round2(req.body.entrada_value) : undefined);
+  setIf('entrada_date', req.body.entrada_date !== undefined ? (req.body.entrada_date || null) : undefined);
   setIf('installments_count', req.body.installments_count !== undefined ? Number(req.body.installments_count) : undefined);
   setIf('first_due_date', req.body.first_due_date);
   setIf('honorarium_percentage', req.body.honorarium_percentage !== undefined ? Number(req.body.honorarium_percentage) : undefined);
   setIf('honorarium_value', req.body.honorarium_value !== undefined ? Number(req.body.honorarium_value) : undefined);
+  setIf('sucumbencia_value', req.body.sucumbencia_value !== undefined ? round2(req.body.sucumbencia_value) : undefined);
+  setIf('sucumbencia_due_date', req.body.sucumbencia_due_date !== undefined ? (req.body.sucumbencia_due_date || null) : undefined);
   setIf('receiving_method', req.body.receiving_method);
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
   setIf('notes', req.body.notes);
@@ -125,8 +144,12 @@ router.put('/:id', async (req: Request, res: Response) => {
     reason: 'Acordo atualizado via API', ipAddress: req.ip,
   });
 
+  // Re-sincroniza o financeiro: refaz só os lançamentos PENDENTES deste acordo
+  // (o que já foi recebido/pago fica intacto).
+  const { lancados } = await syncAgreementFinanceLaunches(Number(id), req.user!.id).catch(() => ({ lancados: 0 }));
+
   const [rows] = await db.query('SELECT * FROM agreements WHERE id = ?', [id]) as any;
-  res.json(rows[0]);
+  res.json({ ...rows[0], lancamentos_financeiros: lancados });
 });
 
 // Helper de transição de status
@@ -141,6 +164,13 @@ async function transition(req: Request, res: Response, newStatus: string, action
     'UPDATE agreements SET status = ?, notes = COALESCE(?, notes) WHERE id = ?',
     [newStatus, notes ?? null, id]
   );
+
+  // Descumprido: a parte contrária não vai mais pagar — cancela o que ainda
+  // estava pendente no financeiro (o que já foi recebido permanece).
+  if (newStatus === 'Descumprido') {
+    await db.query("UPDATE financial_records SET status = 'cancelado' WHERE agreement_id = ? AND status = 'pendente'", [id]).catch(() => {});
+  }
+
   await logFinancialAudit({
     entityType: 'Agreement', entityId: Number(id), action,
     userId: req.user!.id, userName: req.user!.name, clientId: prev.client_id, agreementId: Number(id),
