@@ -53,6 +53,30 @@ function procNumHtml(num) {
   return `<span style="font-weight:700;color:var(--gold);font-size:14px;letter-spacing:.3px">${esc(num)}</span><button type="button" class="btn-copy" data-copy="${esc(num)}" title="Copiar número do processo" style="margin-left:6px;background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:3px 6px;line-height:0">${svgIcon('clipboard')}</button>`;
 }
 const money = (v) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+// Interpreta valor em R$ digitado à mão no padrão brasileiro. "1.554" tem 3
+// dígitos após o ponto — não é decimal de centavo (seria "1.55") — então é
+// separador de milhar: 1554. "9555.50" (2 dígitos) já é decimal e fica como
+// está. Evita o erro clássico do <input type="number">, que lê "." como
+// separador decimal (1.554 virava 1,554 reais).
+function parseMoneyBR(v) {
+  let s = String(v ?? '').trim();
+  if (!s) return 0;
+  const neg = s.trim().startsWith('-');
+  s = s.replace(/[^\d,.]/g, '');
+  if (s.includes(',')) {
+    s = s.replace(/\./g, '').replace(',', '.');
+  } else {
+    const dots = (s.match(/\./g) || []).length;
+    if (dots > 1) s = s.replace(/\./g, '');
+    else if (dots === 1 && s.split('.')[1].length !== 2) s = s.replace('.', '');
+  }
+  const n = parseFloat(s);
+  return (neg ? -1 : 1) * (isNaN(n) ? 0 : n);
+}
+// Campo de dinheiro em texto (não usa type="number" — ver parseMoneyBR acima).
+function moneyField(label, name, value) {
+  return `<label>${label}<input type="text" inputmode="decimal" name="${name}" placeholder="0,00" value="${value !== undefined && value !== null && value !== '' ? value : ''}"></label>`;
+}
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 const badge = (txt) => `<span class="badge ${txt}">${(txt || '').replace(/_/g, ' ')}</span>`;
 function toast(msg, type = 'success') {
@@ -4526,15 +4550,16 @@ async function acordoForm(onSave, existing = null) {
     ${field('Nº do processo', 'process_number', { value: e0.process_number || '' })}
 
     <div class="prop-sec">Valor do acordo — entrada + parcelamento</div>
-    ${field('Valor total do acordo (R$) *', 'total_agreement_value', { type: 'number', value: e0.total_agreement_value || '' })}
-    <div class="form-row">${field('Entrada (R$)', 'entrada_value', { type: 'number', value: e0.entrada_value || '' })}${field('Data da entrada', 'entrada_date', { type: 'date', value: datDateInputValue(e0.entrada_date) })}</div>
+    <p class="sub" style="margin-top:-6px">Digite os reais sem separador de milhar (ex.: 9555 ou 9555,00) para evitar confusão.</p>
+    ${moneyField('Valor total do acordo (R$) *', 'total_agreement_value', e0.total_agreement_value)}
+    <div class="form-row">${moneyField('Entrada (R$)', 'entrada_value', e0.entrada_value)}${field('Data da entrada', 'entrada_date', { type: 'date', value: datDateInputValue(e0.entrada_date) })}</div>
     <div class="form-row">${field('Nº de parcelas (restante)', 'installments_count', { type: 'number', value: e0.installments_count || 1 })}${field('1º vencimento das parcelas *', 'first_due_date', { type: 'date', value: datDateInputValue(e0.first_due_date) })}</div>
     <div id="acd-preview" class="parc-preview"></div>
 
     <div class="prop-sec">Seus honorários (o que entra no Financeiro)</div>
-    <div class="form-row">${field('Honorários contratuais (%)', 'honorarium_percentage', { type: 'number', value: e0.honorarium_percentage ?? 30 })}${field('Honorários contratuais (R$)', 'honorarium_value', { type: 'number', value: e0.honorarium_value || '' })}</div>
+    <div class="form-row">${field('Honorários contratuais (%)', 'honorarium_percentage', { type: 'number', value: e0.honorarium_percentage ?? 30 })}${moneyField('Honorários contratuais (R$)', 'honorarium_value', e0.honorarium_value)}</div>
     <p class="sub" style="margin-top:-6px">Lançado proporcionalmente na entrada e em cada parcela, com a data de cada uma.</p>
-    <div class="form-row">${field('Honorários sucumbenciais (R$)', 'sucumbencia_value', { type: 'number', value: e0.sucumbencia_value || '' })}${field('Previsão de recebimento', 'sucumbencia_due_date', { type: 'date', value: datDateInputValue(e0.sucumbencia_due_date) })}</div>
+    <div class="form-row">${moneyField('Honorários sucumbenciais (R$)', 'sucumbencia_value', e0.sucumbencia_value)}${field('Previsão de recebimento', 'sucumbencia_due_date', { type: 'date', value: datDateInputValue(e0.sucumbencia_due_date) })}</div>
     <p class="sub" style="margin-top:-6px">Pertencem exclusivamente à advogada (art. 23, Lei 8.906/94) — lançamento único no Financeiro.</p>
 
     ${field('Forma de recebimento', 'receiving_method', { value: e0.receiving_method || 'Acordo' })}
@@ -4555,8 +4580,8 @@ async function acordoForm(onSave, existing = null) {
 
   // Prévia ao vivo: entrada + parcelas (mesma lógica das propostas)
   const renderPreview = () => {
-    const total = Number(form.querySelector('[name=total_agreement_value]').value) || 0;
-    const entrada = Number(form.querySelector('[name=entrada_value]').value) || 0;
+    const total = parseMoneyBR(form.querySelector('[name=total_agreement_value]').value);
+    const entrada = parseMoneyBR(form.querySelector('[name=entrada_value]').value);
     const qtd = Math.max(1, parseInt(form.querySelector('[name=installments_count]').value) || 1);
     const restante = Math.max(0, total - entrada);
     const base = Math.floor((restante / qtd) * 100) / 100;
@@ -4577,14 +4602,15 @@ async function acordoForm(onSave, existing = null) {
   form.querySelector('[name=honorarium_value]').oninput = () => { honTouched = true; };
   form.querySelector('[name=honorarium_percentage]').oninput = () => {
     if (honTouched) return;
-    const total = Number(form.querySelector('[name=total_agreement_value]').value) || 0;
+    const total = parseMoneyBR(form.querySelector('[name=total_agreement_value]').value);
     const pct = Number(form.querySelector('[name=honorarium_percentage]').value) || 0;
-    form.querySelector('[name=honorarium_value]').value = total ? (Math.round(total * pct) / 100).toFixed(2) : '';
+    form.querySelector('[name=honorarium_value]').value = total ? (Math.round(total * pct) / 100).toFixed(2).replace('.', ',') : '';
   };
 
   form.onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form));
+    ['total_agreement_value', 'entrada_value', 'honorarium_value', 'sucumbencia_value'].forEach((n) => { body[n] = parseMoneyBR(body[n]); });
     if (!body.case_id) delete body.case_id;
     const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Salvando…';
     try {
