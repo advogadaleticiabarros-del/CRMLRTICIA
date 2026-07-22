@@ -23,11 +23,14 @@ router.get('/', async (req: Request, res: Response) => {
   const rec = await getReceitasRecebidasNoMes(month);
 
   // ── Saídas pagas no mês ────────────────────────────────────────────────────
+  // financial_records tipo='despesa' fica vazia em produção — as despesas reais
+  // (tela "Contas a Pagar") vivem em cashflow_entries (type='saida').
   const sai = await one(`
     SELECT
-      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='despesa' AND status='pago' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas,
+      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='despesa' AND status='pago' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_fr,
+      (SELECT COALESCE(SUM(amount),0) FROM cashflow_entries WHERE type='saida' AND status='realizado' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_cf,
       (SELECT COALESCE(SUM(valor),0) FROM repasses WHERE status='repassado' AND DATE_FORMAT(data_repasse,'%Y-%m') = ?) AS repasses
-  `, [month, month]);
+  `, [month, month, month]);
 
   // ── Funil comercial do mês ─────────────────────────────────────────────────
   const funil = await one(`
@@ -60,12 +63,13 @@ router.get('/', async (req: Request, res: Response) => {
     exitos: rec.exitos,
   };
   const receita_total = rec.total;
-  const saida_total = r2(N(sai.despesas) + N(sai.repasses));
+  const despesasTotal = r2(N(sai.despesas_fr) + N(sai.despesas_cf));
+  const saida_total = r2(despesasTotal + N(sai.repasses));
 
   res.json({
     month,
     receitas, receita_total,
-    saidas: { despesas: r2(N(sai.despesas)), repasses: r2(N(sai.repasses)), total: saida_total },
+    saidas: { despesas: despesasTotal, repasses: r2(N(sai.repasses)), total: saida_total },
     resultado: r2(receita_total - saida_total),
     funil: {
       leads_novos: N(funil.leads_novos), leads_fechados: N(funil.leads_fechados),

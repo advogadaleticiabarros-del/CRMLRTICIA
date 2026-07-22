@@ -99,12 +99,80 @@ export async function getJanelaFluxoCaixa(deDias: number, ateDias: number): Prom
       COALESCE((SELECT SUM(valor) FROM financial_records
                WHERE tipo='despesa' AND status='pendente'
                  AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0)
+    + COALESCE((SELECT SUM(amount) FROM cashflow_entries
+               WHERE type='saida' AND status='previsto'
+                 AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0)
     + COALESCE((SELECT SUM(valor) FROM repasses
                WHERE status IN ('pendente','processando')
                  AND data_vencimento BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0) AS saidas
-  `, [deDias, ateDias, deDias, ateDias, deDias, ateDias, deDias, ateDias, deDias, ateDias, deDias, ateDias, deDias, ateDias]) as any;
+  `, [deDias, ateDias, deDias, ateDias, deDias, ateDias, deDias, ateDias, deDias, ateDias, deDias, ateDias, deDias, ateDias, deDias, ateDias, deDias, ateDias]) as any;
   const entradas = N(e.entradas), saidas = N(e.saidas);
   return { entradas: round2(entradas), saidas: round2(saidas), saldo: round2(entradas - saidas) };
+}
+
+export interface DespesasMes {
+  pagas: number; a_pagar: number; vencidas: number;
+  repasses_pagos: number; repasses_a_pagar: number;
+  por_categoria: { categoria: string; total: number }[];
+}
+
+/**
+ * Despesas do escritório — GRANDE lacuna encontrada na auditoria: a tela
+ * "Contas a Pagar" grava em `cashflow_entries` (type='saida'), não em
+ * `financial_records` (que só tem uns poucos lançamentos avulsos, quase
+ * sempre vazia). Nenhum relatório olhava para `cashflow_entries` — por isso
+ * "despesas pagas" e "a pagar" apareciam sempre zerados.
+ */
+export async function getDespesasDoMes(month: string): Promise<DespesasMes> {
+  const one = async (sql: string, params: any[] = []) => { const [[r]] = await db.query(sql, params) as any; return r; };
+
+  const frPagas = await one(`SELECT COALESCE(SUM(valor),0) AS v FROM financial_records WHERE tipo='despesa' AND status='pago' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?`, [month]);
+  const cfPagas = await one(`SELECT COALESCE(SUM(amount),0) AS v FROM cashflow_entries WHERE type='saida' AND status='realizado' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?`, [month]);
+  const repassesPagos = await one(`SELECT COALESCE(SUM(valor),0) AS v FROM repasses WHERE status='repassado' AND DATE_FORMAT(data_repasse,'%Y-%m') = ?`, [month]);
+
+  const frAPagar = await one(`SELECT COALESCE(SUM(valor),0) AS v FROM financial_records WHERE tipo='despesa' AND status='pendente' AND DATE_FORMAT(due_date,'%Y-%m') = ?`, [month]);
+  const cfAPagar = await one(`SELECT COALESCE(SUM(amount),0) AS v FROM cashflow_entries WHERE type='saida' AND status='previsto' AND DATE_FORMAT(due_date,'%Y-%m') = ?`, [month]);
+  const repassesAPagar = await one(`SELECT COALESCE(SUM(valor),0) AS v FROM repasses WHERE status IN ('pendente','processando') AND DATE_FORMAT(data_vencimento,'%Y-%m') = ?`, [month]);
+
+  const [porCat] = await db.query(`
+    SELECT categoria, SUM(total) AS total FROM (
+      SELECT COALESCE(cost_center,'Sem categoria') AS categoria, valor AS total
+        FROM financial_records WHERE tipo='despesa' AND status='pago' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?
+      UNION ALL
+      SELECT COALESCE(cost_center, category) AS categoria, amount AS total
+        FROM cashflow_entries WHERE type='saida' AND status='realizado' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?
+    ) t GROUP BY categoria ORDER BY total DESC`, [month, month]) as any;
+
+  const pagas = round2(N(frPagas.v) + N(cfPagas.v));
+  const a_pagar = round2(N(frAPagar.v) + N(cfAPagar.v));
+
+  const [[venc]] = await db.query(`
+    SELECT
+      COALESCE((SELECT SUM(valor) FROM financial_records WHERE tipo='despesa' AND status='pendente' AND due_date < CURDATE()),0)
+    + COALESCE((SELECT SUM(amount) FROM cashflow_entries WHERE type='saida' AND status='previsto' AND due_date < CURDATE()),0) AS v
+  `) as any;
+
+  return {
+    pagas, a_pagar, vencidas: round2(N(venc.v)),
+    repasses_pagos: round2(N(repassesPagos.v)), repasses_a_pagar: round2(N(repassesAPagar.v)),
+    por_categoria: porCat,
+  };
+}
+
+/** Tudo que está A RECEBER agora (não depende do mês — é a foto de hoje). */
+export async function getReceitasAReceberHoje(): Promise<number> {
+  const { getFinanceSummary } = await import('./financeSummary');
+  const s = await getFinanceSummary();
+  return s.receita_prevista;
+}
+
+/** Tudo que está A PAGAR agora (não depende do mês — foto de hoje). */
+export async function getDespesasAPagarHoje(): Promise<number> {
+  const one = async (sql: string) => { const [[r]] = await db.query(sql) as any; return N(r.v); };
+  const fr = await one(`SELECT COALESCE(SUM(valor),0) AS v FROM financial_records WHERE tipo='despesa' AND status='pendente'`);
+  const cf = await one(`SELECT COALESCE(SUM(amount),0) AS v FROM cashflow_entries WHERE type='saida' AND status='previsto'`);
+  const rep = await one(`SELECT COALESCE(SUM(valor),0) AS v FROM repasses WHERE status IN ('pendente','processando')`);
+  return round2(fr + cf + rep);
 }
 
 export interface Inadimplencia { ate_30: number; de_31_60: number; mais_60: number; total: number }

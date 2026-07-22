@@ -60,10 +60,16 @@ router.get('/', async (req: Request, res: Response) => {
       SELECT
         COALESCE(SUM(CASE WHEN status IN ('pendente','processando') AND data_vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS pagar_7d
       FROM repasses`) as any;
+    // cashflow_entries (type='saida') é onde a tela "Contas a Pagar" realmente
+    // grava — financial_records tipo='despesa' fica vazia em produção.
+    const [[cf]] = await db.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status='previsto' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN amount END),0) AS pagar_7d
+      FROM cashflow_entries WHERE type='saida'`) as any;
     return {
       receber_hoje: Number(fr.receber_hoje) + Number(inst.receber_hoje) + Number(aud.receber_hoje) + Number(dat.receber_hoje) + Number(parc.receber_hoje) + Number(aw.receber_hoje),
       receber_7d:   Number(fr.receber_7d)   + Number(inst.receber_7d)   + Number(aud.receber_7d)   + Number(dat.receber_7d)   + Number(parc.receber_7d)   + Number(aw.receber_7d),
-      pagar_7d:     Number(fr.pagar_7d)     + Number(rep.pagar_7d),
+      pagar_7d:     Number(fr.pagar_7d)     + Number(rep.pagar_7d)      + Number(cf.pagar_7d),
       vencido:      Number(fr.vencido)      + Number(inst.vencido)      + Number(aud.vencido)      + Number(dat.vencido)      + Number(parc.vencido)      + Number(aw.vencido),
     };
   }, { receber_hoje: 0, receber_7d: 0, pagar_7d: 0, vencido: 0 });

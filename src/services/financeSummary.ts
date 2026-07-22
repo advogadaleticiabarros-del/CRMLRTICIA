@@ -94,11 +94,20 @@ export async function getFinanceSummary() {
     FROM case_awards`).catch(() => ({ prev: 0, realz: 0, venc: 0 }));
 
   // ── SAÍDAS ─────────────────────────────────────────────────────────────────
-  const desp = await one(`
+  // financial_records (tipo='despesa') está VAZIA em produção — a tela "Contas
+  // a Pagar" grava em cashflow_entries (type='saida'). Sem essa união, despesa
+  // prevista/paga aparecia sempre zerada mesmo com dezenas de lançamentos reais.
+  const despFR = await one(`
     SELECT
       COALESCE(SUM(CASE WHEN status='pendente' THEN valor END),0) AS prev,
       COALESCE(SUM(CASE WHEN status='pago' THEN valor END),0) AS realz
     FROM financial_records WHERE tipo='despesa'`);
+  const despCF = await one(`
+    SELECT
+      COALESCE(SUM(CASE WHEN status='previsto' THEN amount END),0) AS prev,
+      COALESCE(SUM(CASE WHEN status='realizado' THEN amount END),0) AS realz
+    FROM cashflow_entries WHERE type='saida'`);
+  const desp = { prev: N(despFR.prev) + N(despCF.prev), realz: N(despFR.realz) + N(despCF.realz) };
 
   const repasses = await one(`
     SELECT

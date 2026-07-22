@@ -3881,9 +3881,15 @@ async function finVisaoGeral(c) {
         <h3 style="margin:16px 0 4px">Repasses a parceiros</h3>
         <table style="width:100%;border-collapse:collapse">${linha('Repasses pagos no mês', d.repasses_pagos, 1)}</table>
         <div style="margin-top:18px;padding:12px 14px;border:2px solid #0d1b2e;border-radius:8px;display:flex;justify-content:space-between;font-size:16px">
-          <strong>RESULTADO DO MÊS</strong><strong style="color:${d.resultado >= 0 ? '#1c7a3d' : '#c0392b'}">${money(d.resultado)}</strong>
+          <strong>RESULTADO DO MÊS (caixa)</strong><strong style="color:${d.resultado >= 0 ? '#1c7a3d' : '#c0392b'}">${money(d.resultado)}</strong>
         </div>
-        <p style="color:#777;font-size:12px;margin-top:12px">Regime de caixa (o que efetivamente entrou e saiu no mês). Use "Imprimir → Salvar como PDF" para enviar ao contador.</p>`);
+        <h3 style="margin:20px 0 4px">Pendências (foto de hoje)</h3>
+        <table style="width:100%;border-collapse:collapse">
+          ${linha('Total a receber', d.pendencias.a_receber)}
+          ${linha('Total a pagar (despesas + repasses)', d.pendencias.a_pagar)}
+        </table>
+        ${Number(d.despesas_vencidas) ? `<p style="color:#c0392b;font-size:12px;margin-top:6px"><strong>Atenção:</strong> ${money(d.despesas_vencidas)} em despesas vencidas e ainda não pagas.</p>` : ''}
+        <p style="color:#777;font-size:12px;margin-top:12px">Resultado do mês em regime de caixa (o que efetivamente entrou e saiu). Pendências são a posição de hoje, não do mês fechado. Use "Imprimir → Salvar como PDF" para enviar ao contador.</p>`);
     } catch (e) { toast(e.message, 'error'); }
   };
   await loadFin(); await loadInst();

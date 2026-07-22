@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
-import { getReceitasRecebidasNoMes, getReceitasRecebidasNoAno, getJanelaFluxoCaixa, getInadimplencia } from '../services/monthlyFinance';
+import { getReceitasRecebidasNoMes, getReceitasRecebidasNoAno, getJanelaFluxoCaixa, getInadimplencia, getDespesasDoMes, getReceitasAReceberHoje, getDespesasAPagarHoje } from '../services/monthlyFinance';
 
 const router = Router();
 
@@ -85,18 +85,28 @@ router.get('/inteligencia', async (_req: Request, res: Response) => {
     { dias: 30, ...d30 }, { dias: 60, ...d60 }, { dias: 90, ...d90 },
   ];
 
-  const [[despMes]] = await db.query(
+  // financial_records tipo='despesa' fica vazia em produção — soma junto
+  // cashflow_entries (type='saida'), a tabela real da tela "Contas a Pagar".
+  const despMesFR = await db.query(
     `SELECT COALESCE(SUM(valor),0) AS v FROM financial_records WHERE tipo='despesa' AND status='pago' AND DATE_FORMAT(paid_at,'%Y-%m') = ?`, [mesAtual]
-  ) as any;
-  const [[despAno]] = await db.query(
+  ).then(([[r]]: any) => N(r.v));
+  const despMesCF = await db.query(
+    `SELECT COALESCE(SUM(amount),0) AS v FROM cashflow_entries WHERE type='saida' AND status='realizado' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?`, [mesAtual]
+  ).then(([[r]]: any) => N(r.v));
+  const despAnoFR = await db.query(
     `SELECT COALESCE(SUM(valor),0) AS v FROM financial_records WHERE tipo='despesa' AND status='pago' AND YEAR(paid_at) = ?`, [hoje.getFullYear()]
-  ) as any;
+  ).then(([[r]]: any) => N(r.v));
+  const despAnoCF = await db.query(
+    `SELECT COALESCE(SUM(amount),0) AS v FROM cashflow_entries WHERE type='saida' AND status='realizado' AND YEAR(COALESCE(paid_at, due_date)) = ?`, [hoje.getFullYear()]
+  ).then(([[r]]: any) => N(r.v));
+  const despMes = despMesFR + despMesCF;
+  const despAno = despAnoFR + despAnoCF;
 
   const recMes = (await getReceitasRecebidasNoMes(mesAtual)).total;
   const recAno = await getReceitasRecebidasNoAno(hoje.getFullYear());
   const dre = {
-    mes: { receitas: recMes, despesas: round2(N(despMes.v)), resultado: round2(recMes - N(despMes.v)) },
-    ano: { receitas: recAno, despesas: round2(N(despAno.v)), resultado: round2(recAno - N(despAno.v)) },
+    mes: { receitas: recMes, despesas: round2(despMes), resultado: round2(recMes - despMes) },
+    ano: { receitas: recAno, despesas: round2(despAno), resultado: round2(recAno - despAno) },
   };
 
   const inadimplencia = await getInadimplencia();
@@ -382,18 +392,17 @@ router.get('/projecao', async (_req: Request, res: Response) => {
 // ficavam fora se o texto não batesse. Nunca somava a tabela `parcelas`
 // (contratos com parcelamento próprio) nem os êxitos de `case_awards`
 // (RPV/precatório/alvará). Agora usa a mesma fonte dos outros relatórios.
+//
+// SEGUNDA RODADA: as despesas pagas/pendentes SEMPRE apareciam zeradas porque
+// só olhava `financial_records` (tipo='despesa'), tabela vazia em produção —
+// a tela "Contas a Pagar" grava em `cashflow_entries` (type='saida'). Também
+// não existia nenhuma seção "a receber"/"a pagar" (o relatório era só caixa
+// realizado) — a usuária pediu explicitamente essa visibilidade.
 router.get('/dre', async (req: Request, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : new Date().toISOString().slice(0, 7);
   const rec = await getReceitasRecebidasNoMes(month);
-
-  const [despesas] = await db.query(`
-    SELECT COALESCE(cost_center, 'Sem categoria') AS categoria, SUM(valor) AS total
-      FROM financial_records
-     WHERE tipo='despesa' AND status='pago' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?
-     GROUP BY COALESCE(cost_center, 'Sem categoria') ORDER BY total DESC`, [month]) as any;
-  const [repasses] = await db.query(`
-    SELECT COALESCE(SUM(valor),0) AS total FROM repasses
-     WHERE status='repassado' AND DATE_FORMAT(data_repasse,'%Y-%m') = ?`, [month]) as any;
+  const desp = await getDespesasDoMes(month);
+  const [aReceberHoje, aPagarHoje] = await Promise.all([getReceitasAReceberHoje(), getDespesasAPagarHoje()]);
 
   // "Demais receitas" = avulsas de clientes (fora de parcelamento) + êxitos —
   // exatamente o que o rótulo do relatório promete ("êxito, sucumbência, avulsas").
@@ -405,11 +414,18 @@ router.get('/dre', async (req: Request, res: Response) => {
     demais_receitas: Math.round((rec.avulsas_clientes + rec.exitos) * 100) / 100,
   };
   const receita_total = rec.total;
-  const despesa_total = despesas.reduce((s: number, d: any) => s + Number(d.total), 0);
-  const repasses_pagos = Number(repasses[0]?.total || 0);
+  const despesas = desp.por_categoria.map((d) => ({ categoria: d.categoria, total: Number(d.total) }));
+  const despesa_total = desp.pagas;
+  const resultado = Math.round((receita_total - despesa_total - desp.repasses_pagos) * 100) / 100;
   res.json({
-    month, receitas, receita_total, despesas, despesa_total, repasses_pagos,
-    resultado: receita_total - despesa_total - repasses_pagos,
+    month, receitas, receita_total, despesas, despesa_total,
+    repasses_pagos: desp.repasses_pagos,
+    despesas_a_pagar_mes: desp.a_pagar, despesas_vencidas: desp.vencidas, repasses_a_pagar: desp.repasses_a_pagar,
+    resultado,
+    pendencias: {
+      a_receber: aReceberHoje,
+      a_pagar: aPagarHoje,
+    },
   });
 });
 
