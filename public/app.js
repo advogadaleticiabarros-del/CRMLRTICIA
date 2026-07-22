@@ -1010,6 +1010,8 @@ const ROUTES = {
         <span class="spacer"></span>
         <button class="btn-ghost" id="case-export">${svgIcon('docs')}Exportar CSV</button>
       </div>
+      <div id="case-kpis" class="kpi-grid"></div>
+      <p class="sub" style="margin:-14px 0 14px">Valor em causas abertas é o que está em disputa nos processos — não é receita nem previsão de honorários.</p>
       <div class="card"><div id="case-table"></div></div>`;
     let casePage = 1;
     const load = async () => {
@@ -1021,11 +1023,16 @@ const ROUTES = {
       if ($('#case-to').value) q.set('to', $('#case-to').value);
       const r = await api('/api/cases?' + q);
       const pages = r.pages || 1;
+      $('#case-kpis').innerHTML =
+        kpi('Processos (filtro atual)', r.total) +
+        kpi('Valor em causas abertas', money(r.valor_causa_total), 'money');
       $('#case-table').innerHTML = r.data.length ? `
-        <table><thead><tr><th>Processo</th><th>Cliente</th><th>Área</th><th>Fase</th><th>Status</th><th></th></tr></thead>
+        <table><thead><tr><th>Processo</th><th>Cliente</th><th>Área</th><th>Fase</th><th>Valor da causa</th><th>Status</th><th></th></tr></thead>
         <tbody>${r.data.map((c) => `<tr>
           <td><strong>${c.title}</strong><br><small style="color:var(--text-muted)">${c.case_number || 's/ número'}</small></td>
-          <td>${c.client_name || '—'}</td><td>${c.legal_area}</td><td>${badge(c.phase)}</td><td>${badge(c.status)}</td>
+          <td>${c.client_name || '—'}</td><td>${c.legal_area}</td><td>${badge(c.phase)}</td>
+          <td>${Number(c.valor_causa) ? money(c.valor_causa) : '<small style="color:var(--text-muted)">—</small>'}</td>
+          <td>${badge(c.status)}</td>
           <td><button class="btn-sm" data-case="${c.id}">Abrir</button></td></tr>`).join('')}</tbody></table>
         <div class="list-foot"><span>${r.total} processo(s) · página ${r.page} de ${pages}</span>${pagerHtml(r.page, pages)}</div>`
         : '<div class="empty">Nenhum processo ainda</div>';
@@ -1049,7 +1056,7 @@ const ROUTES = {
       const rows = await fetchAllPages('/api/cases', params);
       downloadCsv('processos.csv', [
         { label: 'Título', key: 'title' }, { label: 'Número', key: 'case_number' }, { label: 'Cliente', key: 'client_name' },
-        { label: 'Área', key: 'legal_area' }, { label: 'Fase', key: 'phase' }, { label: 'Status', key: 'status' },
+        { label: 'Área', key: 'legal_area' }, { label: 'Fase', key: 'phase' }, { label: 'Valor da causa', key: 'valor_causa' }, { label: 'Status', key: 'status' },
       ], rows);
       toast(`${rows.length} processo(s) exportado(s)`);
     };
@@ -5304,13 +5311,17 @@ async function caseForm(onSave) {
     ${field('Título *', 'title')}
     ${field('Número do processo', 'case_number')}
     <div class="form-row">${field('Área', 'legal_area', { options: AREAS })}${field('Fase', 'phase', { options: PHASES })}</div>
+    ${moneyField('Valor da causa (R$)', 'valor_causa', '')}
+    <p class="sub" style="margin-top:-6px">O que está em aberto na demanda — não é o que a advogada vai receber (isso são os honorários, à parte).</p>
     ${field('Descrição', 'description', { type: 'textarea' })}
     <button type="submit" class="btn-primary">Criar processo</button>
   </form>`);
   form.onsubmit = async (e) => {
     e.preventDefault();
+    const body = Object.fromEntries(new FormData(form));
+    body.valor_causa = parseMoneyBR(body.valor_causa);
     try {
-      await api('/api/cases', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      await api('/api/cases', { method: 'POST', body: JSON.stringify(body) });
       closeModal(); toast('Processo criado'); onSave();
     } catch (err) { toast(err.message, 'error'); }
   };
@@ -5476,7 +5487,9 @@ async function caseDetail(id, onSave) {
       <div style="min-width:0">
         <strong style="font-size:20px;color:var(--navy-deep);line-height:1.25;display:block">${c.title}</strong>
         <small style="color:var(--text-muted)">${c.client_name || ''} · ${c.case_number || 's/ número'}</small>
-        <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap">${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)} ${c.production_stage ? badge(c.production_stage) : ''} ${c.partner_name ? `<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">Parceria com ${esc(c.partner_name)}</span>` : ''}</div>
+        <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)} ${c.production_stage ? badge(c.production_stage) : ''} ${c.partner_name ? `<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">Parceria com ${esc(c.partner_name)}</span>` : ''}
+          <span style="font-size:12.5px;color:var(--text-muted)">Valor da causa: <strong id="vc-display" style="color:var(--navy-deep)">${Number(c.valor_causa) ? money(c.valor_causa) : '—'}</strong> <button type="button" id="vc-edit" class="btn-sm" style="padding:1px 7px;font-size:11px">editar</button></span>
+        </div>
       </div>
       <button class="btn-gold btn-sm" id="ficha-btn" type="button" style="white-space:nowrap;flex:0 0 auto">${svgIcon('clipboard')} Ficha completa</button>
     </div>
@@ -5639,6 +5652,15 @@ async function caseDetail(id, onSave) {
   form.querySelector('#upd-phase').onclick = async () => {
     try { await api('/api/cases/' + id, { method: 'PUT', body: JSON.stringify({ phase: form.querySelector('#case-phase').value }) });
       closeModal(); toast('Fase atualizada'); onSave(); } catch (e) { toast(e.message, 'error'); }
+  };
+  form.querySelector('#vc-edit').onclick = async () => {
+    const atual = Number(c.valor_causa) || '';
+    const novo = await uiPrompt('Valor da causa (R$) — o que está em aberto na demanda, não é o que você vai receber:', atual ? String(atual).replace('.', ',') : '');
+    if (novo === null) return;
+    try {
+      await api('/api/cases/' + id, { method: 'PUT', body: JSON.stringify({ valor_causa: parseMoneyBR(novo) }) });
+      toast('Valor da causa atualizado'); closeModal(); onSave();
+    } catch (e) { toast(e.message, 'error'); }
   };
   form.querySelector('#add-mov').onclick = async () => {
     const desc = form.querySelector('#mov-desc').value;

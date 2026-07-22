@@ -47,16 +47,18 @@ router.get('/', async (req: Request, res: Response) => {
   if (to && /^\d{4}-\d{2}-\d{2}$/.test(to))     { where.push('c.created_at < DATE_ADD(?, INTERVAL 1 DAY)'); params.push(to); }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
-  const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM cases c ${whereSql}`, params) as any;
+  const [[{ total, valor_causa_total }]] = await db.query(
+    `SELECT COUNT(*) AS total, COALESCE(SUM(c.valor_causa),0) AS valor_causa_total FROM cases c ${whereSql}`, params
+  ) as any;
 
   const [rows] = await db.query(
-    `SELECT c.id, c.case_number, c.title, c.legal_area, c.phase, c.status, c.production_stage, c.created_at, cl.name AS client_name
+    `SELECT c.id, c.case_number, c.title, c.legal_area, c.phase, c.status, c.production_stage, c.valor_causa, c.created_at, cl.name AS client_name
      FROM cases c LEFT JOIN clients cl ON cl.id = c.client_id
      ${whereSql} ORDER BY c.created_at DESC LIMIT ? OFFSET ?`,
     [...params, limit, offset]
   ) as any;
 
-  res.json({ data: rows, total, page, limit, pages: Math.ceil(total / limit) });
+  res.json({ data: rows, total, page, limit, pages: Math.ceil(total / limit), valor_causa_total: Number(valor_causa_total) || 0 });
 });
 
 // ── GET /api/cases/production-board — quadro Kanban da produção (com SLA) ────
@@ -356,19 +358,27 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 // ── POST /api/cases — criar ─────────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
-  const { client_id, case_number, title, legal_area, phase, status, description } = req.body;
+  const { client_id, case_number, title, legal_area, phase, status, description, valor_causa } = req.body;
   if (!client_id) { res.status(400).json({ error: 'client_id é obrigatório' }); return; }
   if (!title || !String(title).trim()) { res.status(400).json({ error: 'O título é obrigatório' }); return; }
 
+  // Valor da causa: o que está EM ABERTO na demanda (base do pedido/pretensão),
+  // não é o valor que a advogada vai receber — isso é dos honorários, à parte.
+  let valorCausa: number | null = null;
+  if (valor_causa !== undefined && valor_causa !== null && String(valor_causa).trim() !== '') {
+    const { parseValorBR } = await import('../utils/money');
+    valorCausa = parseValorBR(valor_causa);
+  }
+
   const [result] = await db.query(
-    `INSERT INTO cases (user_id, client_id, case_number, title, legal_area, phase, status, description)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO cases (user_id, client_id, case_number, title, legal_area, phase, status, description, valor_causa)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       req.user!.id, client_id, case_number ?? null, title.trim(),
       AREAS.includes(legal_area) ? legal_area : 'outro',
       PHASES.includes(phase) ? phase : 'inicial',
       STATUSES.includes(status) ? status : 'ativo',
-      description ?? null,
+      description ?? null, valorCausa,
     ]
   ) as any;
 
@@ -393,6 +403,11 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('phase', req.body.phase, PHASES.includes(req.body.phase));
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
   setIf('description', req.body.description);
+  if (req.body.valor_causa !== undefined) {
+    const { parseValorBR } = await import('../utils/money');
+    const v = String(req.body.valor_causa).trim();
+    setIf('valor_causa', v === '' ? null : parseValorBR(v));
+  }
 
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
   params.push(id);
