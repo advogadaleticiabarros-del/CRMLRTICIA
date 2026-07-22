@@ -44,15 +44,27 @@ router.get('/', async (req: Request, res: Response) => {
         COALESCE(SUM(CASE WHEN status='previsto' AND expected_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN value END),0) AS receber_7d,
         COALESCE(SUM(CASE WHEN status='previsto' AND expected_date < CURDATE() THEN value END),0) AS vencido
       FROM dative_payments`) as any;
+    const [[parc]] = await db.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status IN ('aberto','atrasado','parcial') AND data_vencimento <= CURDATE() THEN valor_final END),0) AS receber_hoje,
+        COALESCE(SUM(CASE WHEN status IN ('aberto','atrasado','parcial') AND data_vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor_final END),0) AS receber_7d,
+        COALESCE(SUM(CASE WHEN status IN ('aberto','atrasado','parcial') AND data_vencimento < CURDATE() THEN valor_final END),0) AS vencido
+      FROM parcelas`).catch(() => [{ receber_hoje: 0, receber_7d: 0, vencido: 0 }]) as any;
+    const [[aw]] = await db.query(`
+      SELECT
+        COALESCE(SUM(CASE WHEN status='aguardando' AND previsao_pagamento <= CURDATE() THEN valor_escritorio END),0) AS receber_hoje,
+        COALESCE(SUM(CASE WHEN status='aguardando' AND previsao_pagamento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor_escritorio END),0) AS receber_7d,
+        COALESCE(SUM(CASE WHEN status='aguardando' AND previsao_pagamento < CURDATE() THEN valor_escritorio END),0) AS vencido
+      FROM case_awards`).catch(() => [{ receber_hoje: 0, receber_7d: 0, vencido: 0 }]) as any;
     const [[rep]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status IN ('pendente','processando') AND data_vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS pagar_7d
       FROM repasses`) as any;
     return {
-      receber_hoje: Number(fr.receber_hoje) + Number(inst.receber_hoje) + Number(aud.receber_hoje) + Number(dat.receber_hoje),
-      receber_7d:   Number(fr.receber_7d)   + Number(inst.receber_7d)   + Number(aud.receber_7d)   + Number(dat.receber_7d),
+      receber_hoje: Number(fr.receber_hoje) + Number(inst.receber_hoje) + Number(aud.receber_hoje) + Number(dat.receber_hoje) + Number(parc.receber_hoje) + Number(aw.receber_hoje),
+      receber_7d:   Number(fr.receber_7d)   + Number(inst.receber_7d)   + Number(aud.receber_7d)   + Number(dat.receber_7d)   + Number(parc.receber_7d)   + Number(aw.receber_7d),
       pagar_7d:     Number(fr.pagar_7d)     + Number(rep.pagar_7d),
-      vencido:      Number(fr.vencido)      + Number(inst.vencido)      + Number(aud.vencido)      + Number(dat.vencido),
+      vencido:      Number(fr.vencido)      + Number(inst.vencido)      + Number(aud.vencido)      + Number(dat.vencido)      + Number(parc.vencido)      + Number(aw.vencido),
     };
   }, { receber_hoje: 0, receber_7d: 0, pagar_7d: 0, vencido: 0 });
 

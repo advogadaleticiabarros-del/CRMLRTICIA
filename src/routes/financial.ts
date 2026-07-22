@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
+import { getReceitasRecebidasNoMes, getReceitasRecebidasNoAno, getJanelaFluxoCaixa, getInadimplencia } from '../services/monthlyFinance';
 
 const router = Router();
 
@@ -15,6 +16,9 @@ function addMonthsStr(dateStr: string, months: number): string {
 }
 
 // ── GET /api/financial — lançamentos (receitas/despesas) ────────────────────
+// Sem filtro por usuário — o financeiro do escritório é um só (o filtro
+// escondia lançamentos criados por outros usuários e ainda impedia dar baixa
+// neles — ver o PATCH /:id/pay e o PUT /:id abaixo, mesmo problema).
 router.get('/', async (req: Request, res: Response) => {
   const tipo       = req.query.tipo as string;
   const status     = req.query.status as string;
@@ -23,8 +27,8 @@ router.get('/', async (req: Request, res: Response) => {
   const limit      = Math.min(100, Math.max(1, parseInt(req.query.limit as string) || 30));
   const offset     = (page - 1) * limit;
 
-  const where: string[] = ['fr.user_id = ?'];
-  const params: any[] = [req.user!.id];
+  const where: string[] = ['1=1'];
+  const params: any[] = [];
   if (tipo && TIPOS.includes(tipo))         { where.push('fr.tipo = ?'); params.push(tipo); }
   if (status && STATUSES.includes(status))  { where.push('fr.status = ?'); params.push(status); }
   if (costCenter) { where.push('fr.cost_center = ?'); params.push(costCenter); }
@@ -47,9 +51,9 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // ── GET /api/financial/opcoes — pagadoras e bancos já usados (sugestões) ─────
-router.get('/opcoes', async (req: Request, res: Response) => {
-  const [pag] = await db.query("SELECT DISTINCT pagador FROM financial_records WHERE user_id = ? AND pagador IS NOT NULL AND pagador <> '' ORDER BY pagador", [req.user!.id]) as any;
-  const [ban] = await db.query("SELECT DISTINCT banco FROM financial_records WHERE user_id = ? AND banco IS NOT NULL AND banco <> '' ORDER BY banco", [req.user!.id]) as any;
+router.get('/opcoes', async (_req: Request, res: Response) => {
+  const [pag] = await db.query("SELECT DISTINCT pagador FROM financial_records WHERE pagador IS NOT NULL AND pagador <> '' ORDER BY pagador") as any;
+  const [ban] = await db.query("SELECT DISTINCT banco FROM financial_records WHERE banco IS NOT NULL AND banco <> '' ORDER BY banco") as any;
   res.json({ pagadores: pag.map((r: any) => r.pagador), bancos: ban.map((r: any) => r.banco) });
 });
 
@@ -63,59 +67,39 @@ router.get('/summary', async (_req: Request, res: Response) => {
 });
 
 // ── GET /api/financial/inteligencia — projeção de caixa, DRE e inadimplência ──
-router.get('/inteligencia', async (req: Request, res: Response) => {
-  const userId = req.user!.id;
-
-  // Lançamentos avulsos (financial_records) — por usuário
-  const [[fr]] = await db.query(`
-    SELECT
-      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN valor END),0) AS ent_30,
-      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 60 DAY) THEN valor END),0) AS ent_60,
-      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY) THEN valor END),0) AS ent_90,
-      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN valor END),0) AS sai_30,
-      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 60 DAY) THEN valor END),0) AS sai_60,
-      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY) THEN valor END),0) AS sai_90,
-      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pago' AND paid_at >= DATE_FORMAT(CURDATE(),'%Y-%m-01') THEN valor END),0) AS rec_mes,
-      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pago' AND paid_at >= DATE_FORMAT(CURDATE(),'%Y-%m-01') THEN valor END),0) AS desp_mes,
-      COALESCE(SUM(CASE WHEN tipo='receita' AND status='pago' AND YEAR(paid_at)=YEAR(CURDATE()) THEN valor END),0) AS rec_ano,
-      COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pago' AND YEAR(paid_at)=YEAR(CURDATE()) THEN valor END),0) AS desp_ano,
-      COALESCE(SUM(CASE WHEN tipo='receita' AND status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 1 AND 30 THEN valor END),0) AS aging1,
-      COALESCE(SUM(CASE WHEN tipo='receita' AND status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 31 AND 60 THEN valor END),0) AS aging2,
-      COALESCE(SUM(CASE WHEN tipo='receita' AND status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) > 60 THEN valor END),0) AS aging3
-    FROM financial_records WHERE user_id = ?`, [userId]) as any;
-
-  // Parcelas (installments) — sempre receita; mesma base do /summary (global)
-  const [[inst]] = await db.query(`
-    SELECT
-      COALESCE(SUM(CASE WHEN status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 30 DAY) THEN valor END),0) AS ent_30,
-      COALESCE(SUM(CASE WHEN status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 60 DAY) THEN valor END),0) AS ent_60,
-      COALESCE(SUM(CASE WHEN status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY) THEN valor END),0) AS ent_90,
-      COALESCE(SUM(CASE WHEN status='pago' AND paid_at >= DATE_FORMAT(CURDATE(),'%Y-%m-01') THEN valor END),0) AS rec_mes,
-      COALESCE(SUM(CASE WHEN status='pago' AND YEAR(paid_at)=YEAR(CURDATE()) THEN valor END),0) AS rec_ano,
-      COALESCE(SUM(CASE WHEN status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 1 AND 30 THEN valor END),0) AS aging1,
-      COALESCE(SUM(CASE WHEN status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 31 AND 60 THEN valor END),0) AS aging2,
-      COALESCE(SUM(CASE WHEN status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) > 60 THEN valor END),0) AS aging3
-    FROM installments`, []) as any;
-
+// Alimenta o painel financeiro do Dashboard. Usa a MESMA fonte de verdade dos
+// outros relatórios (services/monthlyFinance) — antes tinha sua própria query
+// desatualizada: filtrava por usuário e nunca somava dativo, correspondente,
+// êxitos (case_awards) ou a tabela `parcelas`, então mostrava números bem
+// menores que a realidade.
+router.get('/inteligencia', async (_req: Request, res: Response) => {
   const N = (x: any) => Number(x) || 0;
-  const ent = (k: string) => N(fr[k]) + N(inst[k]);
-  const projecao = [30, 60, 90].map((dias) => {
-    const entradas = ent(`ent_${dias}`);
-    const saidas = N(fr[`sai_${dias}`]);
-    return { dias, entradas, saidas, saldo: entradas - saidas };
-  });
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const hoje = new Date();
+  const mesAtual = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
 
+  const [d30, d60, d90] = await Promise.all([
+    getJanelaFluxoCaixa(0, 30), getJanelaFluxoCaixa(31, 60), getJanelaFluxoCaixa(61, 90),
+  ]);
+  const projecao = [
+    { dias: 30, ...d30 }, { dias: 60, ...d60 }, { dias: 90, ...d90 },
+  ];
+
+  const [[despMes]] = await db.query(
+    `SELECT COALESCE(SUM(valor),0) AS v FROM financial_records WHERE tipo='despesa' AND status='pago' AND DATE_FORMAT(paid_at,'%Y-%m') = ?`, [mesAtual]
+  ) as any;
+  const [[despAno]] = await db.query(
+    `SELECT COALESCE(SUM(valor),0) AS v FROM financial_records WHERE tipo='despesa' AND status='pago' AND YEAR(paid_at) = ?`, [hoje.getFullYear()]
+  ) as any;
+
+  const recMes = (await getReceitasRecebidasNoMes(mesAtual)).total;
+  const recAno = await getReceitasRecebidasNoAno(hoje.getFullYear());
   const dre = {
-    mes: { receitas: ent('rec_mes'), despesas: N(fr.desp_mes), resultado: ent('rec_mes') - N(fr.desp_mes) },
-    ano: { receitas: ent('rec_ano'), despesas: N(fr.desp_ano), resultado: ent('rec_ano') - N(fr.desp_ano) },
+    mes: { receitas: recMes, despesas: round2(N(despMes.v)), resultado: round2(recMes - N(despMes.v)) },
+    ano: { receitas: recAno, despesas: round2(N(despAno.v)), resultado: round2(recAno - N(despAno.v)) },
   };
 
-  const inadimplencia = {
-    ate_30: N(fr.aging1) + N(inst.aging1),
-    de_31_60: N(fr.aging2) + N(inst.aging2),
-    mais_60: N(fr.aging3) + N(inst.aging3),
-  };
-  (inadimplencia as any).total = inadimplencia.ate_30 + inadimplencia.de_31_60 + inadimplencia.mais_60;
+  const inadimplencia = await getInadimplencia();
 
   res.json({ projecao, dre, inadimplencia });
 });
@@ -145,10 +129,13 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // ── PATCH /api/financial/:id/pay — dar baixa (pagar/receber) ────────────────
+// Sem filtro por usuário — dar baixa num lançamento que outra pessoa da
+// equipe registrou é normal (era o motivo do "não encontrado" ao tentar
+// baixar um lançamento de outro usuário, mesmo ele existindo).
 router.patch('/:id/pay', async (req: Request, res: Response) => {
   const [result] = await db.query(
-    "UPDATE financial_records SET status = 'pago', paid_at = NOW() WHERE id = ? AND user_id = ?",
-    [req.params.id, req.user!.id]
+    "UPDATE financial_records SET status = 'pago', paid_at = NOW() WHERE id = ?",
+    [req.params.id]
   ) as any;
   if (!result.affectedRows) { res.status(404).json({ error: 'Lançamento não encontrado' }); return; }
   res.json({ success: true, id: Number(req.params.id), status: 'pago' });
@@ -157,7 +144,7 @@ router.patch('/:id/pay', async (req: Request, res: Response) => {
 // ── PUT /api/financial/:id ──────────────────────────────────────────────────
 router.put('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
-  const [existing] = await db.query('SELECT id FROM financial_records WHERE id = ? AND user_id = ?', [id, req.user!.id]) as any;
+  const [existing] = await db.query('SELECT id FROM financial_records WHERE id = ?', [id]) as any;
   if (!existing.length) { res.status(404).json({ error: 'Lançamento não encontrado' }); return; }
 
   const fields: string[] = [];
@@ -376,33 +363,12 @@ router.post('/conciliar', async (req: Request, res: Response) => {
 });
 
 // ── GET /api/financial/projecao — fluxo de caixa 30/60/90 dias ──────────────
-// Entradas previstas (parcelas + receitas + dativas + correspondente) − saídas
-// previstas (despesas pendentes + repasses a pagar), por janela e acumulado.
+// Entradas previstas de TODAS as frentes (parcelas, avulsos, dativas,
+// correspondente, êxitos) − saídas previstas (despesas + repasses).
 router.get('/projecao', async (_req: Request, res: Response) => {
-  const janela = async (de: number, ate: number) => {
-    const [[e]] = await db.query(`
-      SELECT COALESCE((SELECT SUM(valor) FROM installments
-               WHERE status IN ('pendente','em_processamento')
-                 AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0)
-           + COALESCE((SELECT SUM(valor) FROM financial_records
-               WHERE tipo='receita' AND status='pendente'
-                 AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0)
-           + COALESCE((SELECT SUM(value) FROM dative_payments
-               WHERE status='previsto'
-                 AND expected_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0)
-           + COALESCE((SELECT SUM(value) FROM correspondent_hearings
-               WHERE status IN ('agendada','realizada','faturada')
-                 AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0) AS entradas,
-             COALESCE((SELECT SUM(valor) FROM financial_records
-               WHERE tipo='despesa' AND status='pendente'
-                 AND due_date BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0)
-           + COALESCE((SELECT SUM(valor) FROM repasses
-               WHERE status IN ('pendente','processando')
-                 AND data_vencimento BETWEEN DATE_ADD(CURDATE(), INTERVAL ? DAY) AND DATE_ADD(CURDATE(), INTERVAL ? DAY)),0) AS saidas
-    `, [de, ate, de, ate, de, ate, de, ate, de, ate, de, ate]) as any;
-    return { entradas: Number(e.entradas), saidas: Number(e.saidas), saldo: Number(e.entradas) - Number(e.saidas) };
-  };
-  const [d30, d60, d90] = [await janela(0, 30), await janela(31, 60), await janela(61, 90)];
+  const [d30, d60, d90] = await Promise.all([
+    getJanelaFluxoCaixa(0, 30), getJanelaFluxoCaixa(31, 60), getJanelaFluxoCaixa(61, 90),
+  ]);
   res.json({
     d30, d60, d90,
     acumulado: { d30: d30.saldo, d60: d30.saldo + d60.saldo, d90: d30.saldo + d60.saldo + d90.saldo },
@@ -410,20 +376,16 @@ router.get('/projecao', async (_req: Request, res: Response) => {
 });
 
 // ── GET /api/financial/dre?month=YYYY-MM — fechamento do mês (contador) ─────
+// ANTES ESTAVA INCOMPLETO: "entradas_parceria" caçava a receita por texto
+// (description LIKE 'Entrada parceria%'), então os honorários de ACORDO e de
+// ÊXITO das parcerias caíam sempre no balaio "demais receitas" — ou pior,
+// ficavam fora se o texto não batesse. Nunca somava a tabela `parcelas`
+// (contratos com parcelamento próprio) nem os êxitos de `case_awards`
+// (RPV/precatório/alvará). Agora usa a mesma fonte dos outros relatórios.
 router.get('/dre', async (req: Request, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : new Date().toISOString().slice(0, 7);
-  const [[rec]] = await db.query(`
-    SELECT
-      COALESCE((SELECT SUM(valor) FROM installments WHERE status='pago' AND DATE_FORMAT(paid_at,'%Y-%m') = ?),0) AS parcelas_contratos,
-      COALESCE((SELECT SUM(valor) FROM financial_records WHERE tipo='receita' AND status='pago'
-        AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ? AND description LIKE 'Entrada parceria%'),0) AS entradas_parceria,
-      COALESCE((SELECT SUM(valor) FROM financial_records WHERE tipo='receita' AND status='pago'
-        AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ? AND description NOT LIKE 'Entrada parceria%'),0) AS demais_receitas,
-      COALESCE((SELECT SUM(value) FROM dative_payments WHERE status='recebido'
-        AND DATE_FORMAT(received_date,'%Y-%m') = ?),0) AS dativo,
-      COALESCE((SELECT SUM(value) FROM correspondent_hearings WHERE status='paga'
-        AND DATE_FORMAT(paid_at,'%Y-%m') = ?),0) AS correspondente
-  `, [month, month, month, month, month]) as any;
+  const rec = await getReceitasRecebidasNoMes(month);
+
   const [despesas] = await db.query(`
     SELECT COALESCE(cost_center, 'Sem categoria') AS categoria, SUM(valor) AS total
       FROM financial_records
@@ -433,14 +395,16 @@ router.get('/dre', async (req: Request, res: Response) => {
     SELECT COALESCE(SUM(valor),0) AS total FROM repasses
      WHERE status='repassado' AND DATE_FORMAT(data_repasse,'%Y-%m') = ?`, [month]) as any;
 
+  // "Demais receitas" = avulsas de clientes (fora de parcelamento) + êxitos —
+  // exatamente o que o rótulo do relatório promete ("êxito, sucumbência, avulsas").
   const receitas = {
-    parcelas_contratos: Number(rec.parcelas_contratos),
-    entradas_parceria: Number(rec.entradas_parceria),
-    dativo: Number(rec.dativo),
-    correspondente: Number(rec.correspondente),
-    demais_receitas: Number(rec.demais_receitas),
+    parcelas_contratos: rec.parcelas_contratos,
+    entradas_parceria: rec.entradas_parceria,
+    dativo: rec.dativo,
+    correspondente: rec.correspondente,
+    demais_receitas: Math.round((rec.avulsas_clientes + rec.exitos) * 100) / 100,
   };
-  const receita_total = receitas.parcelas_contratos + receitas.entradas_parceria + receitas.dativo + receitas.correspondente + receitas.demais_receitas;
+  const receita_total = rec.total;
   const despesa_total = despesas.reduce((s: number, d: any) => s + Number(d.total), 0);
   const repasses_pagos = Number(repasses[0]?.total || 0);
   res.json({
@@ -450,22 +414,58 @@ router.get('/dre', async (req: Request, res: Response) => {
 });
 
 // ── GET /api/financial/receita-origem?month — receita recebida por área/parceria
+// ANTES ESTAVA INCOMPLETO: só olhava `installments` (parcelas de propostas).
+// Lançamentos avulsos, parcelas de contrato (`parcelas`) e êxitos
+// (`case_awards`) ficavam de fora — a área "sem área" ficava artificialmente
+// pequena e a real produção por área não aparecia.
 router.get('/receita-origem', async (req: Request, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : new Date().toISOString().slice(0, 7);
+
   const [porArea] = await db.query(`
-    SELECT COALESCE(c.legal_area, 'sem área') AS area, SUM(i.valor) AS total
-      FROM installments i LEFT JOIN cases c ON c.id = i.case_id
-     WHERE i.status='pago' AND DATE_FORMAT(i.paid_at,'%Y-%m') = ?
-     GROUP BY COALESCE(c.legal_area, 'sem área') ORDER BY total DESC`, [month]) as any;
+    SELECT area, SUM(valor) AS total FROM (
+      SELECT COALESCE(c.legal_area,'sem área') AS area, i.valor AS valor
+        FROM installments i LEFT JOIN cases c ON c.id = i.case_id
+       WHERE i.status='pago' AND DATE_FORMAT(i.paid_at,'%Y-%m') = ?
+      UNION ALL
+      SELECT COALESCE(c.legal_area,'sem área') AS area, pa.valor_final AS valor
+        FROM parcelas pa LEFT JOIN receitas re ON re.id = pa.receita_id LEFT JOIN cases c ON c.id = re.case_id
+       WHERE pa.status='pago' AND DATE_FORMAT(pa.data_pagamento,'%Y-%m') = ?
+      UNION ALL
+      SELECT COALESCE(c.legal_area,'sem área') AS area, fr.valor AS valor
+        FROM financial_records fr LEFT JOIN cases c ON c.id = fr.case_id
+       WHERE fr.tipo='receita' AND fr.status='pago' AND DATE_FORMAT(COALESCE(fr.paid_at, fr.due_date),'%Y-%m') = ?
+      UNION ALL
+      SELECT COALESCE(c.legal_area,'sem área') AS area, aw.valor_escritorio AS valor
+        FROM case_awards aw LEFT JOIN cases c ON c.id = aw.case_id
+       WHERE aw.status='recebido' AND DATE_FORMAT(aw.data_recebimento,'%Y-%m') = ?
+      UNION ALL
+      SELECT COALESCE(dc.area,'previdenciario') AS area, dp.value AS valor
+        FROM dative_payments dp LEFT JOIN dative_cases dc ON dc.id = dp.dative_case_id
+       WHERE dp.status='recebido' AND DATE_FORMAT(dp.received_date,'%Y-%m') = ?
+    ) tudo
+    GROUP BY area ORDER BY total DESC`, [month, month, month, month, month]) as any;
+
   const [porParceiro] = await db.query(`
-    SELECT p.name AS parceiro,
-           COALESCE(SUM(i.valor),0) AS recebido,
-           COALESCE((SELECT SUM(r.valor) FROM repasses r JOIN cases c2 ON c2.id = r.case_id
-              WHERE c2.partner_id = p.id AND r.status='repassado' AND DATE_FORMAT(r.data_repasse,'%Y-%m') = ?),0) AS repassado
-      FROM partners p
-      LEFT JOIN cases c ON c.partner_id = p.id
-      LEFT JOIN installments i ON i.case_id = c.id AND i.status='pago' AND DATE_FORMAT(i.paid_at,'%Y-%m') = ?
-     GROUP BY p.id, p.name HAVING recebido > 0 OR repassado > 0`, [month, month]) as any;
+    SELECT parceiro, SUM(recebido) AS recebido, MAX(repassado) AS repassado FROM (
+      SELECT p.id AS pid, p.name AS parceiro, i.valor AS recebido, 0 AS repassado
+        FROM partners p JOIN cases c ON c.partner_id = p.id JOIN installments i ON i.case_id = c.id
+       WHERE i.status='pago' AND DATE_FORMAT(i.paid_at,'%Y-%m') = ?
+      UNION ALL
+      SELECT p.id AS pid, p.name AS parceiro, fr.valor AS recebido, 0 AS repassado
+        FROM partners p JOIN cases c ON c.partner_id = p.id JOIN financial_records fr ON fr.case_id = c.id
+       WHERE fr.tipo='receita' AND fr.status='pago' AND DATE_FORMAT(COALESCE(fr.paid_at, fr.due_date),'%Y-%m') = ?
+      UNION ALL
+      SELECT p.id AS pid, p.name AS parceiro, aw.valor_escritorio AS recebido, 0 AS repassado
+        FROM partners p JOIN cases c ON c.partner_id = p.id JOIN case_awards aw ON aw.case_id = c.id
+       WHERE aw.status='recebido' AND DATE_FORMAT(aw.data_recebimento,'%Y-%m') = ?
+      UNION ALL
+      SELECT p.id AS pid, p.name AS parceiro, 0 AS recebido,
+             (SELECT COALESCE(SUM(r.valor),0) FROM repasses r JOIN cases c2 ON c2.id = r.case_id
+                WHERE c2.partner_id = p.id AND r.status='repassado' AND DATE_FORMAT(r.data_repasse,'%Y-%m') = ?) AS repassado
+        FROM partners p
+    ) tudo
+    GROUP BY pid, parceiro HAVING recebido > 0 OR repassado > 0 ORDER BY recebido DESC`, [month, month, month, month]) as any;
+
   res.json({ month, por_area: porArea, por_parceiro: porParceiro });
 });
 

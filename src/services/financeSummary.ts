@@ -31,16 +31,18 @@ export async function getFinanceSummary() {
   };
 
   // ── ENTRADAS por origem ────────────────────────────────────────────────────
-  // Parcerias = receitas ligadas a caso com partner_id (entrada, êxito, sucumbência).
-  // Clientes próprios = receitas avulsas sem parceiro + parcelas de propostas/contratos.
+  // Parcerias = receitas ligadas a caso com partner_id, OU (fallback p/
+  // lançamentos antigos sem case_id vinculado) descrição "Entrada parceria...".
+  // Clientes próprios = o restante (avulsas sem parceiro + parcelas de propostas/contratos).
+  const ehParceria = "(c.partner_id IS NOT NULL OR (fr.case_id IS NULL AND fr.description LIKE 'Entrada parceria%'))";
   const recFR = await one(`
     SELECT
-      COALESCE(SUM(CASE WHEN fr.status='pendente' AND (c.partner_id IS NULL) THEN fr.valor END),0) AS prop_prev,
-      COALESCE(SUM(CASE WHEN fr.status='pago'     AND (c.partner_id IS NULL) THEN fr.valor END),0) AS prop_real,
-      COALESCE(SUM(CASE WHEN fr.status IN ('pendente','vencido') AND fr.due_date < CURDATE() AND (c.partner_id IS NULL) THEN fr.valor END),0) AS prop_venc,
-      COALESCE(SUM(CASE WHEN fr.status='pendente' AND c.partner_id IS NOT NULL THEN fr.valor END),0) AS parc_prev,
-      COALESCE(SUM(CASE WHEN fr.status='pago'     AND c.partner_id IS NOT NULL THEN fr.valor END),0) AS parc_real,
-      COALESCE(SUM(CASE WHEN fr.status IN ('pendente','vencido') AND fr.due_date < CURDATE() AND c.partner_id IS NOT NULL THEN fr.valor END),0) AS parc_venc
+      COALESCE(SUM(CASE WHEN fr.status='pendente' AND NOT ${ehParceria} THEN fr.valor END),0) AS prop_prev,
+      COALESCE(SUM(CASE WHEN fr.status='pago'     AND NOT ${ehParceria} THEN fr.valor END),0) AS prop_real,
+      COALESCE(SUM(CASE WHEN fr.status IN ('pendente','vencido') AND fr.due_date < CURDATE() AND NOT ${ehParceria} THEN fr.valor END),0) AS prop_venc,
+      COALESCE(SUM(CASE WHEN fr.status='pendente' AND ${ehParceria} THEN fr.valor END),0) AS parc_prev,
+      COALESCE(SUM(CASE WHEN fr.status='pago'     AND ${ehParceria} THEN fr.valor END),0) AS parc_real,
+      COALESCE(SUM(CASE WHEN fr.status IN ('pendente','vencido') AND fr.due_date < CURDATE() AND ${ehParceria} THEN fr.valor END),0) AS parc_venc
     FROM financial_records fr
     LEFT JOIN cases c ON c.id = fr.case_id
     WHERE fr.tipo='receita'`);
