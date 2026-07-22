@@ -87,17 +87,19 @@ router.get('/inteligencia', async (_req: Request, res: Response) => {
 
   // financial_records tipo='despesa' fica vazia em produção — soma junto
   // cashflow_entries (type='saida'), a tabela real da tela "Contas a Pagar".
+  // escopo='empresa' obrigatório — cashflow_entries mistura despesa pessoal
+  // da família com despesa do escritório.
   const despMesFR = await db.query(
-    `SELECT COALESCE(SUM(valor),0) AS v FROM financial_records WHERE tipo='despesa' AND status='pago' AND DATE_FORMAT(paid_at,'%Y-%m') = ?`, [mesAtual]
+    `SELECT COALESCE(SUM(valor),0) AS v FROM financial_records WHERE tipo='despesa' AND status='pago' AND escopo='empresa' AND DATE_FORMAT(paid_at,'%Y-%m') = ?`, [mesAtual]
   ).then(([[r]]: any) => N(r.v));
   const despMesCF = await db.query(
-    `SELECT COALESCE(SUM(amount),0) AS v FROM cashflow_entries WHERE type='saida' AND status='realizado' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?`, [mesAtual]
+    `SELECT COALESCE(SUM(amount),0) AS v FROM cashflow_entries WHERE type='saida' AND status='realizado' AND escopo='empresa' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?`, [mesAtual]
   ).then(([[r]]: any) => N(r.v));
   const despAnoFR = await db.query(
-    `SELECT COALESCE(SUM(valor),0) AS v FROM financial_records WHERE tipo='despesa' AND status='pago' AND YEAR(paid_at) = ?`, [hoje.getFullYear()]
+    `SELECT COALESCE(SUM(valor),0) AS v FROM financial_records WHERE tipo='despesa' AND status='pago' AND escopo='empresa' AND YEAR(paid_at) = ?`, [hoje.getFullYear()]
   ).then(([[r]]: any) => N(r.v));
   const despAnoCF = await db.query(
-    `SELECT COALESCE(SUM(amount),0) AS v FROM cashflow_entries WHERE type='saida' AND status='realizado' AND YEAR(COALESCE(paid_at, due_date)) = ?`, [hoje.getFullYear()]
+    `SELECT COALESCE(SUM(amount),0) AS v FROM cashflow_entries WHERE type='saida' AND status='realizado' AND escopo='empresa' AND YEAR(COALESCE(paid_at, due_date)) = ?`, [hoje.getFullYear()]
   ).then(([[r]]: any) => N(r.v));
   const despMes = despMesFR + despMesCF;
   const despAno = despAnoFR + despAnoCF;

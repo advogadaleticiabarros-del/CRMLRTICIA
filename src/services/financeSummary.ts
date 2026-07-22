@@ -45,7 +45,7 @@ export async function getFinanceSummary() {
       COALESCE(SUM(CASE WHEN fr.status IN ('pendente','vencido') AND fr.due_date < CURDATE() AND ${ehParceria} THEN fr.valor END),0) AS parc_venc
     FROM financial_records fr
     LEFT JOIN cases c ON c.id = fr.case_id
-    WHERE fr.tipo='receita'`);
+    WHERE fr.tipo='receita' AND fr.escopo='empresa'`);
 
   const inst = await one(`
     SELECT
@@ -97,16 +97,19 @@ export async function getFinanceSummary() {
   // financial_records (tipo='despesa') está VAZIA em produção — a tela "Contas
   // a Pagar" grava em cashflow_entries (type='saida'). Sem essa união, despesa
   // prevista/paga aparecia sempre zerada mesmo com dezenas de lançamentos reais.
+  // escopo='empresa' é obrigatório: cashflow_entries mistura despesa do
+  // escritório com despesa PESSOAL da família (ex.: cartão de crédito
+  // pessoal) — sem o filtro, contas pessoais vazam pro financeiro do escritório.
   const despFR = await one(`
     SELECT
       COALESCE(SUM(CASE WHEN status='pendente' THEN valor END),0) AS prev,
       COALESCE(SUM(CASE WHEN status='pago' THEN valor END),0) AS realz
-    FROM financial_records WHERE tipo='despesa'`);
+    FROM financial_records WHERE tipo='despesa' AND escopo='empresa'`);
   const despCF = await one(`
     SELECT
       COALESCE(SUM(CASE WHEN status='previsto' THEN amount END),0) AS prev,
       COALESCE(SUM(CASE WHEN status='realizado' THEN amount END),0) AS realz
-    FROM cashflow_entries WHERE type='saida'`);
+    FROM cashflow_entries WHERE type='saida' AND escopo='empresa'`);
   const desp = { prev: N(despFR.prev) + N(despCF.prev), realz: N(despFR.realz) + N(despCF.realz) };
 
   const repasses = await one(`

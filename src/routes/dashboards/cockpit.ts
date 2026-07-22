@@ -25,7 +25,7 @@ router.get('/', async (req: Request, res: Response) => {
         COALESCE(SUM(CASE WHEN tipo='receita' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS receber_7d,
         COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS pagar_7d,
         COALESCE(SUM(CASE WHEN tipo='receita' AND status='vencido' THEN valor END),0) AS vencido
-      FROM financial_records`) as any;
+      FROM financial_records WHERE escopo='empresa'`) as any;
     const [[inst]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status='pendente' AND due_date <= CURDATE() THEN valor END),0) AS receber_hoje,
@@ -65,7 +65,7 @@ router.get('/', async (req: Request, res: Response) => {
     const [[cf]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status='previsto' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN amount END),0) AS pagar_7d
-      FROM cashflow_entries WHERE type='saida'`) as any;
+      FROM cashflow_entries WHERE type='saida' AND escopo='empresa'`) as any;
     return {
       receber_hoje: Number(fr.receber_hoje) + Number(inst.receber_hoje) + Number(aud.receber_hoje) + Number(dat.receber_hoje) + Number(parc.receber_hoje) + Number(aw.receber_hoje),
       receber_7d:   Number(fr.receber_7d)   + Number(inst.receber_7d)   + Number(aud.receber_7d)   + Number(dat.receber_7d)   + Number(parc.receber_7d)   + Number(aw.receber_7d),

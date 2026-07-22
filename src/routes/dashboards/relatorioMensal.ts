@@ -27,8 +27,8 @@ router.get('/', async (req: Request, res: Response) => {
   // (tela "Contas a Pagar") vivem em cashflow_entries (type='saida').
   const sai = await one(`
     SELECT
-      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='despesa' AND status='pago' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_fr,
-      (SELECT COALESCE(SUM(amount),0) FROM cashflow_entries WHERE type='saida' AND status='realizado' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_cf,
+      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='despesa' AND status='pago' AND escopo='empresa' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_fr,
+      (SELECT COALESCE(SUM(amount),0) FROM cashflow_entries WHERE type='saida' AND status='realizado' AND escopo='empresa' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_cf,
       (SELECT COALESCE(SUM(valor),0) FROM repasses WHERE status='repassado' AND DATE_FORMAT(data_repasse,'%Y-%m') = ?) AS repasses
   `, [month, month, month]);
 
