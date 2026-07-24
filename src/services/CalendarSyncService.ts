@@ -5,6 +5,7 @@ interface SyncResult {
   created: number;
   updated: number;
   errors: number;
+  lastError?: string;
 }
 
 export class CalendarSyncService {
@@ -14,8 +15,12 @@ export class CalendarSyncService {
     let events: any[];
     try {
       events = await googleCalendarService.listUpcomingEvents(userId, 100);
-    } catch {
+    } catch (e: any) {
+      // ANTES: erro totalmente engolido — o cron registrava "ok" a cada 10min
+      // mesmo com a sincronização 100% quebrada (foi o que aconteceu com o
+      // token cifrado não decifrado: ~10 dias de invalid_grant sem ninguém notar).
       result.errors++;
+      result.lastError = e?.message || String(e);
       return result;
     }
 

@@ -93,7 +93,12 @@ export function startCronJobs() {
       const falhas: string[] = [];
       for (const u of users) {
         // Isola cada usuário: falha em um não impede a sync dos demais — mas registra.
-        try { await calendarSyncService.fullSync(u.user_id); }
+        try {
+          const r = await calendarSyncService.fullSync(u.user_id);
+          // fullSync não lança em falha de autenticação (isolada por conta) — sem
+          // isso, o cron reportava "ok" com a sincronização de fato quebrada.
+          if (r.fromGoogle.errors) falhas.push(`user ${u.user_id} (google→crm): ${r.fromGoogle.lastError || 'erro desconhecido'}`);
+        }
         catch (e: any) { falhas.push(`user ${u.user_id}: ${e?.message || e}`); }
       }
       if (falhas.length) throw new Error(`${falhas.length} conta(s) falharam · ${falhas.join(' | ')}`);

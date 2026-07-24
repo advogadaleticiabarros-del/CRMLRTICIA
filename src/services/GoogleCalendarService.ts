@@ -88,9 +88,13 @@ export class GoogleCalendarService {
     if (!rows.length) throw new Error('Conta Google não conectada para este usuário');
 
     const account = rows[0];
+    // Os tokens são cifrados em repouso (LGPD) ao salvar — ver google-callback.ts
+    // e o handler 'tokens' abaixo. Faltava decifrar aqui na leitura: o Google
+    // recebia o texto cifrado como se fosse o token real, e toda chamada falhava
+    // com invalid_grant (o refresh_token "cifrado" não é um refresh_token válido).
     this.oauth2Client.setCredentials({
-      access_token: account.access_token,
-      refresh_token: account.refresh_token,
+      access_token: decrypt(account.access_token),
+      refresh_token: decrypt(account.refresh_token),
       expiry_date: new Date(account.token_expiry).getTime(),
     });
 
