@@ -95,12 +95,20 @@ export async function getPulsoNegocio() {
      WHERE status IN ('triagem','atendimento_inicial')
        AND updated_at < DATE_SUB(NOW(), INTERVAL 48 HOUR)`).catch(() => ({ n: 0 }));
 
+  // As mesmas fontes que faltavam nos outros relatórios (auditoria financeira
+  // do dia): parcelas de contrato, êxitos e correspondente do lado a receber;
+  // cashflow_entries (Contas a Pagar) do lado a pagar — filtrado por
+  // escopo='empresa' para não misturar despesa pessoal da família aqui também.
   const fin = await one(`
     SELECT
-      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='receita' AND status='pendente' AND due_date <= CURDATE())
+      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='receita' AND status='pendente' AND escopo='empresa' AND due_date <= CURDATE())
       + (SELECT COALESCE(SUM(valor),0) FROM installments WHERE status='pendente' AND due_date <= CURDATE())
-      + (SELECT COALESCE(SUM(value),0) FROM dative_payments WHERE status='previsto' AND expected_date <= CURDATE()) AS vence_hoje,
-      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='despesa' AND status='pendente' AND due_date <= CURDATE())
+      + (SELECT COALESCE(SUM(valor_final),0) FROM parcelas WHERE status IN ('aberto','atrasado','parcial') AND data_vencimento <= CURDATE())
+      + (SELECT COALESCE(SUM(value),0) FROM dative_payments WHERE status='previsto' AND expected_date <= CURDATE())
+      + (SELECT COALESCE(SUM(value),0) FROM correspondent_hearings WHERE status IN ('agendada','realizada','faturada') AND due_date <= CURDATE())
+      + (SELECT COALESCE(SUM(valor_escritorio),0) FROM case_awards WHERE status='aguardando' AND previsao_pagamento <= CURDATE()) AS vence_hoje,
+      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='despesa' AND status='pendente' AND escopo='empresa' AND due_date <= CURDATE())
+      + (SELECT COALESCE(SUM(amount),0) FROM cashflow_entries WHERE type='saida' AND status='previsto' AND escopo='empresa' AND due_date <= CURDATE())
       + (SELECT COALESCE(SUM(valor),0) FROM repasses WHERE status IN ('pendente','processando') AND data_vencimento <= CURDATE()) AS pagar_hoje`)
     .catch(() => ({ vence_hoje: 0, pagar_hoje: 0 }));
 
