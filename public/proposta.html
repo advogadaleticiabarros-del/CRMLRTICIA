@@ -507,11 +507,33 @@
       return Array.isArray(raw) ? raw.map(normalize).filter(Boolean).join(', ') : normalize(raw);
     };
 
+    // Itens da modalidade "Consulta + Causa" (êxito, ad exitum, consulta, honorário
+    // fixo/mensal/diligência) — ANTES eram lidos só internamente pelo contrato
+    // (montarClausulaValores no backend); esta página nunca olhava
+    // honorarios.values, só honorarios.parcelamento (usado na modalidade "Mensal +
+    // Extraordinários"). Por isso um acordo de êxito % + consulta em R$ aparecia
+    // sempre como R$ 0,00 aqui, mesmo preenchido certinho na Produção da Proposta.
+    function feeItems(honorarios) {
+      const m = Array.isArray(honorarios?.modalidades) ? honorarios.modalidades : [];
+      const v = honorarios?.values || {};
+      const items = [];
+      if (Number(v.entrada)) items.push({ label: 'Entrada', amount: Number(v.entrada), fixed: true });
+      if (Number(v.fixo)) items.push({ label: 'Honorário fixo', amount: Number(v.fixo), fixed: true });
+      if (m.includes('consulta') && Number(v.consulta)) items.push({ label: 'Honorários de consulta', amount: Number(v.consulta), fixed: true });
+      if (m.includes('mensal') && Number(v.mensal)) items.push({ label: 'Honorários mensais (advocacia de partido)', amount: Number(v.mensal), fixed: true });
+      if (m.includes('diligencia') && Number(v.diligencia)) items.push({ label: `Honorários por diligência${v.diligencia_desc ? ' — ' + v.diligencia_desc : ''}`, amount: Number(v.diligencia), fixed: true });
+      if (m.includes('exito') && Number(v.exito)) items.push({ label: 'Honorários de êxito, sobre o proveito econômico obtido', pct: Number(v.exito), fixed: false });
+      if (m.includes('ad_exitum') && Number(v.ad_exitum)) items.push({ label: 'Honorários ad exitum (quota litis), sobre o proveito econômico', pct: Number(v.ad_exitum), fixed: false });
+      return items;
+    }
+
     function paymentData(proposal) {
       const honorarios = parseJson(proposal.honorarios, {});
       const parcelamento = honorarios?.parcelamento || null;
-      const total = Number(parcelamento?.total || proposal.valor || 0);
-      return { parcelamento, total, honorarios };
+      const items = feeItems(honorarios);
+      const fixedTotal = items.filter((it) => it.fixed).reduce((sum, it) => sum + it.amount, 0);
+      const total = Number(parcelamento?.total || proposal.valor || fixedTotal || 0);
+      return { parcelamento, total, honorarios, items };
     }
 
     // Meios de pagamento aceitos (escolhidos na produção da proposta)
@@ -528,11 +550,14 @@
     }
 
     function feeHtml(proposal) {
-      const { parcelamento, total, honorarios } = paymentData(proposal);
+      const { parcelamento, total, honorarios, items } = paymentData(proposal);
       const today = new Date();
 
       if (!parcelamento || !Number(parcelamento.total)) {
         const due = parseLocalDate(proposal.validade) || today;
+        const rowsHtml = items.length
+          ? items.map((it) => `<div class="plan-row"><span>${safe(monthLabel(due))}</span><b>${it.fixed ? (fmtDate(due) || 'A definir') : 'Ao final do caso'}</b><span>${safe(it.label)}</span><span class="amount">${it.fixed ? money(it.amount) : `${it.pct}%`}</span></div>`).join('')
+          : `<div class="plan-row"><span>${safe(monthLabel(due))}</span><b>${fmtDate(due) || 'A definir'}</b><span>Honor&aacute;rios profissionais</span><span class="amount">${money(total)}</span></div>`;
         return `
           <div class="investment-layout">
             <div class="investment-summary-panel">
@@ -546,7 +571,7 @@
             <div class="investment-schedule-panel">
               <div class="payment-plan">
                 <div class="plan-row head"><span>M&ecirc;s</span><span>Vencimento</span><span>Descri&ccedil;&atilde;o</span><span>Valor</span></div>
-                <div class="plan-row"><span>${safe(monthLabel(due))}</span><b>${fmtDate(due) || 'A definir'}</b><span>Honor&aacute;rios profissionais</span><span class="amount">${money(total)}</span></div>
+                ${rowsHtml}
               </div>
               ${meiosHtml(honorarios)}
             </div>
@@ -626,14 +651,14 @@
     }
 
     function printFeeRows(proposal) {
-      const { parcelamento, total } = paymentData(proposal);
+      const { parcelamento, total, items } = paymentData(proposal);
       const today = new Date();
       if (!parcelamento || !Number(parcelamento.total)) {
         const due = parseLocalDate(proposal.validade) || today;
-        return {
-          total,
-          rows: [{ month: monthLabel(due), due: fmtDate(due) || 'A definir', label: 'Honor\u00e1rios profissionais', amount: total }]
-        };
+        const rows = items.length
+          ? items.map((it) => ({ month: monthLabel(due), due: it.fixed ? (fmtDate(due) || 'A definir') : 'Ao final do caso', label: it.label, amount: it.fixed ? it.amount : `${it.pct}%` }))
+          : [{ month: monthLabel(due), due: fmtDate(due) || 'A definir', label: 'Honor\u00e1rios profissionais', amount: total }];
+        return { total, rows };
       }
 
       const entrada = Number(parcelamento.entrada) || 0;
@@ -689,7 +714,7 @@
 
           <section class="print-box">
             <h2>Honor&aacute;rios e planejamento</h2>
-            <table class="print-table"><thead><tr><th>M&ecirc;s</th><th>Vencimento</th><th>Obriga&ccedil;&atilde;o</th><th>Valor</th></tr></thead><tbody>${fees.rows.map((row) => `<tr><td>${safe(row.month)}</td><td>${safe(row.due || 'A definir')}</td><td>${safe(row.label)}</td><td>${money(row.amount)}</td></tr>`).join('')}</tbody></table>
+            <table class="print-table"><thead><tr><th>M&ecirc;s</th><th>Vencimento</th><th>Obriga&ccedil;&atilde;o</th><th>Valor</th></tr></thead><tbody>${fees.rows.map((row) => `<tr><td>${safe(row.month)}</td><td>${safe(row.due || 'A definir')}</td><td>${safe(row.label)}</td><td>${typeof row.amount === 'number' ? money(row.amount) : safe(row.amount)}</td></tr>`).join('')}</tbody></table>
             <div class="print-total"><span>Total contratado</span><strong>${money(fees.total)}</strong></div>
           </section>
 
