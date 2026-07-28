@@ -202,13 +202,30 @@ router.post('/from-lead/:leadId', async (req: Request, res: Response) => {
   };
   const adv = await getEscritorio();
   party.email = lead.email; party.phone = lead.phone;
-  const content = buildTemplate({ party, area, value: req.body.value, descricao: lead.case_summary, contratada: adv });
+
+  // Proposta vinculada a este lead — mesma busca de reprocessContract/gerar-menor.
+  // ANTES: esta rota nunca consultava a proposta, então o que foi preenchido em
+  // "Produção da Proposta" (êxito, consulta, parcelamento etc.) nunca ia pro
+  // contrato — a Cláusula Segunda saía com o fallback genérico de 30% de êxito.
+  const [pr] = await db.query(
+    'SELECT tipo_causa, honorarios FROM propostas WHERE (lead_id <=> ? OR client_id <=> ?) ORDER BY created_at DESC LIMIT 1',
+    [lead.id, lead.client_id ?? null]
+  ) as any;
+  const prop = pr[0] || null;
+  let honorarios: any = null;
+  try { honorarios = typeof prop?.honorarios === 'string' ? JSON.parse(prop.honorarios) : prop?.honorarios; } catch {}
+  const valorContrato = req.body.value ?? (honorarios?.parcelamento?.total > 0 ? honorarios.parcelamento.total : undefined);
+
+  const content = buildTemplate({
+    party, area, value: valorContrato, descricao: lead.case_summary,
+    tipoCausa: prop?.tipo_causa, honorarios, contratada: adv,
+  });
 
   const [result] = await db.query(
     `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'rascunho')`,
     [req.user!.id, lead.client_id ?? null, leadId, area,
-     `Contrato — ${lead.name}`, content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), req.body.value ?? null]
+     `Contrato — ${lead.name}`, content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), valorContrato ?? null]
   ) as any;
 
   await db.query("UPDATE leads SET status = 'fechada', analise_since = NULL WHERE id = ?", [leadId]);
