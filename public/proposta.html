@@ -532,7 +532,7 @@
       const parcelamento = honorarios?.parcelamento || null;
       const items = feeItems(honorarios);
       const fixedTotal = items.filter((it) => it.fixed).reduce((sum, it) => sum + it.amount, 0);
-      const total = Number(parcelamento?.total || proposal.valor || fixedTotal || 0);
+      const total = Number(parcelamento?.total) || Number(proposal.valor) || fixedTotal || 0;
       return { parcelamento, total, honorarios, items };
     }
 
