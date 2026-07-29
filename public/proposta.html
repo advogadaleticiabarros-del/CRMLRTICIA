@@ -533,7 +533,15 @@
       const items = feeItems(honorarios);
       const fixedTotal = items.filter((it) => it.fixed).reduce((sum, it) => sum + it.amount, 0);
       const total = Number(parcelamento?.total) || Number(proposal.valor) || fixedTotal || 0;
-      return { parcelamento, total, honorarios, items };
+      const pctItems = items.filter((it) => !it.fixed);
+      return { parcelamento, total, honorarios, items, pctItems };
+    }
+
+    // Êxito/ad exitum SEMPRE em evidência — mesmo peso visual do "Total
+    // contratado" (mesma classe .plan-kpi.gold), em qualquer combinação com
+    // parcelamento. ANTES só aparecia quando não havia parcelamento nenhum.
+    function pctKpisHtml(pctItems) {
+      return pctItems.map((it) => `<div class="plan-kpi gold"><span>${safe(it.label.split(',')[0])}</span><strong>${it.pct}%</strong></div>`).join('');
     }
 
     // Meios de pagamento aceitos (escolhidos na produção da proposta)
@@ -550,7 +558,7 @@
     }
 
     function feeHtml(proposal) {
-      const { parcelamento, total, honorarios, items } = paymentData(proposal);
+      const { parcelamento, total, honorarios, items, pctItems } = paymentData(proposal);
       const today = new Date();
 
       if (!parcelamento || !Number(parcelamento.total)) {
@@ -563,7 +571,8 @@
             <div class="investment-summary-panel">
               <p class="plan-intro">Planejamento financeiro da contrata&ccedil;&atilde;o, com o valor previsto para formalizar a atua&ccedil;&atilde;o jur&iacute;dica.</p>
               <div class="plan-summary">
-                <div class="plan-kpi gold"><span>Total contratado</span><strong>${money(total)}</strong></div>
+                ${total > 0 ? `<div class="plan-kpi gold"><span>Total contratado</span><strong>${money(total)}</strong></div>` : ''}
+                ${pctKpisHtml(pctItems)}
                 <div class="plan-kpi"><span>Formato</span><strong>Pagamento &uacute;nico</strong></div>
                 <div class="plan-kpi"><span>Refer&ecirc;ncia</span><strong>${fmtDate(due) || 'A definir'}</strong></div>
               </div>
@@ -610,6 +619,7 @@
             <p class="plan-intro">Planejamento dos honor&aacute;rios contratados, com os vencimentos previstos m&ecirc;s a m&ecirc;s para facilitar sua organiza&ccedil;&atilde;o financeira.</p>
             <div class="plan-summary">
               <div class="plan-kpi gold"><span>Total contratado</span><strong>${money(totalContrato)}</strong></div>
+              ${pctKpisHtml(pctItems)}
               <div class="plan-kpi"><span>Entrada</span><strong>${entrada > 0 ? money(entrada) : 'Sem entrada'}</strong></div>
               <div class="plan-kpi"><span>Saldo parcelado</span><strong>${parcelas}x &middot; ${money(saldoParcelado)}</strong></div>
             </div>
@@ -651,7 +661,7 @@
     }
 
     function printFeeRows(proposal) {
-      const { parcelamento, total, items } = paymentData(proposal);
+      const { parcelamento, total, items, pctItems } = paymentData(proposal);
       const today = new Date();
       if (!parcelamento || !Number(parcelamento.total)) {
         const due = parseLocalDate(proposal.validade) || today;
@@ -674,6 +684,7 @@
         const due = addMonths(firstDue, i);
         rows.push({ month: monthLabel(due), due: fmtDate(due), label: `${i + 1}\u00aa parcela mensal`, amount: i === parcelas - 1 ? ultima : valorParcela });
       }
+      pctItems.forEach((it) => rows.push({ month: 'Ao final do caso', due: 'Ao final do caso', label: it.label, amount: `${it.pct}%` }));
       return { total: totalContrato, rows };
     }
 
@@ -736,7 +747,7 @@
       const validade = fmtDate(proposal.validade);
       const created = fmtDate(proposal.created_at);
       const description = normalize(proposal.description) || 'A descrição do caso será alinhada diretamente com o escritório antes do início das providências.';
-      const { total } = paymentData(proposal);
+      const { total, pctItems } = paymentData(proposal);
       const partners = partnerText(proposal);
 
       document.title = `Proposta de Honorários | ${proposal.contact_name || 'Cliente'}`;
@@ -771,7 +782,8 @@
               <div class="metric"><span>Área</span><strong>${safe(area)}</strong></div>
               ${proposal.tipo_causa ? `<div class="metric"><span>Demanda</span><strong>${safe(proposal.tipo_causa)}</strong></div>` : ''}
               ${partners ? `<div class="metric"><span>Parceria</span><strong>${safe(partners)}</strong></div>` : ''}
-              <div class="investment"><span>Investimento jurídico</span><strong>${money(total)}</strong></div>
+              ${total > 0 ? `<div class="investment"><span>Investimento jurídico</span><strong>${money(total)}</strong></div>` : ''}
+              ${pctItems.map((it) => `<div class="investment"><span>${safe(it.label.split(',')[0])}</span><strong>${it.pct}%</strong></div>`).join('')}
             </div>
           </aside>
         </section>
