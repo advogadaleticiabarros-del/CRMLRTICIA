@@ -64,6 +64,11 @@ router.post('/generate', async (req: Request, res: Response) => {
   let proc: any = null;
   if (case_id) { const [[c]] = await db.query('SELECT * FROM cases WHERE id = ?', [case_id]) as any; proc = c; }
   const [[lawyer]] = await db.query("SELECT name, oab_number, oab_uf FROM lawyers WHERE active = 1 ORDER BY id LIMIT 1") as any;
+  // O banco guarda só os dígitos (formato usado pelo DJEN) — formata com o
+  // ponto de milhar (39948 → 39.948) só na hora de exibir. Mesmo padrão já
+  // usado em getEscritorio() para os contratos.
+  const oabFormatado = lawyer?.oab_number && /^\d+$/.test(String(lawyer.oab_number))
+    ? Number(lawyer.oab_number).toLocaleString('pt-BR') : lawyer?.oab_number;
 
   const map: Record<string, string> = {
     cliente_nome: client.name || '',
@@ -80,7 +85,7 @@ router.post('/generate', async (req: Request, res: Response) => {
     processo_numero: (numero_processo && String(numero_processo).trim()) || (proc ? (proc.case_number || proc.process_number || '') : ''),
     juizo: (juizo && String(juizo).trim()) || '',
     advogada_nome: lawyer?.name || '',
-    advogada_oab: lawyer ? `${lawyer.oab_number || ''}${lawyer.oab_uf ? '/' + lawyer.oab_uf : ''}` : '',
+    advogada_oab: lawyer ? `${oabFormatado || ''}${lawyer.oab_uf ? '/' + lawyer.oab_uf : ''}` : '',
     data_extenso: dataExtenso(),
   };
   const content = round(String(tpl.content).replace(/\{\{(\w+)\}\}/g, (_m, k) => (map[k] !== undefined ? map[k] : '')));
