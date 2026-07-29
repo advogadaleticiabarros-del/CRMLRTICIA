@@ -3909,6 +3909,10 @@ async function finAcordos(c) {
         if (a.status === 'Proposto') acoes.push(`<button class="btn-sm" data-acd-sign="${a.id}">Assinar</button>`);
         if (['Aceito','Homologado','Em pagamento'].includes(a.status)) acoes.push(`<button class="btn-sm" data-acd-close="${a.id}">Encerrar</button>`);
         if (!['Quitado','Descumprido'].includes(a.status)) acoes.push(`<button class="btn-sm" data-acd-cancel="${a.id}">Cancelar</button>`);
+        if (a.is_extrajudicial) acoes.push(`<button class="btn-sm" data-acd-termo="${a.id}">Gerar termo</button>`);
+        if (a.payment_flow === 'via_escritorio') acoes.push(`<button class="btn-sm" data-acd-repasses="${a.id}">Repasses</button>`);
+        if (a.is_extrajudicial) acoes.push(`<button class="btn-sm" data-acd-upload="${a.id}">${a.minuta_document_id ? 'Substituir minuta' : 'Enviar minuta'}</button>`);
+        if (a.minuta_document_id) acoes.push(`<button class="btn-sm" data-acd-download="${a.id}">Baixar minuta</button>`);
         return `<tr>
           <td><strong>${a.opposing_party}</strong>${a.process_number ? `<br><small style="color:var(--text-muted)">${a.process_number}</small>` : ''}</td>
           <td>${a.client_name || '—'}</td>
@@ -3928,6 +3932,26 @@ async function finAcordos(c) {
     act('[data-acd-sign]', 'assinar', 'Acordo assinado');
     act('[data-acd-close]', 'encerrar', 'Acordo encerrado');
     act('[data-acd-cancel]', 'cancelar', 'Acordo cancelado');
+    document.querySelectorAll('[data-acd-termo]').forEach((b) => b.onclick = async () => {
+      try { const doc = await api(`/api/acordos/${b.dataset.acdTermo}/gerar-termo`, { method: 'POST', body: '{}' }); toast('Termo gerado'); docViewer(doc.id, load); }
+      catch (e) { toast(e.message, 'error'); }
+    });
+    document.querySelectorAll('[data-acd-repasses]').forEach((b) => b.onclick = () => acordoRepassesModal(b.dataset.acdRepasses));
+    document.querySelectorAll('[data-acd-upload]').forEach((b) => b.onclick = () => acordoUploadMinuta(b.dataset.acdUpload, load));
+    document.querySelectorAll('[data-acd-download]').forEach((b) => b.onclick = async () => {
+      try {
+        const res = await fetch(`/api/acordos/${b.dataset.acdDownload}/minuta`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+        if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Erro ao baixar minuta'); }
+        const blob = await res.blob();
+        const cd = res.headers.get('Content-Disposition') || '';
+        const m = cd.match(/filename="?([^"]+)"?/);
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = m ? decodeURIComponent(m[1]) : 'minuta';
+        link.click();
+        URL.revokeObjectURL(link.href);
+      } catch (e) { toast(e.message, 'error'); }
+    });
   };
   $('#new-acordo').onclick = () => acordoForm(load);
   await load();
@@ -4562,6 +4586,18 @@ async function acordoForm(onSave, existing = null) {
     ${field('Parte contrária *', 'opposing_party', { value: e0.opposing_party || '' })}
     ${field('Nº do processo', 'process_number', { value: e0.process_number || '' })}
 
+    <div class="prop-sec">Extrajudicial (opcional)</div>
+    <label><input type="checkbox" name="is_extrajudicial" ${e0.is_extrajudicial ? 'checked' : ''} /> Este é um acordo extrajudicial (sem processo por trás)</label>
+    <div class="form-row">${field('CNPJ da empresa', 'opposing_cnpj', { value: e0.opposing_cnpj || '' })}${field('Endereço da empresa', 'opposing_address', { value: e0.opposing_address || '' })}</div>
+    <div class="form-row">${field('Representante legal (nome)', 'opposing_legal_rep_name', { value: e0.opposing_legal_rep_name || '' })}${field('Representante legal (CPF)', 'opposing_legal_rep_cpf', { value: e0.opposing_legal_rep_cpf || '' })}</div>
+    <div class="form-row">${field('Advogado da parte contrária', 'opposing_lawyer_name', { value: e0.opposing_lawyer_name || '' })}${field('OAB do advogado', 'opposing_lawyer_oab', { value: e0.opposing_lawyer_oab || '' })}</div>
+    ${field('Objeto do acordo', 'agreement_object', { type: 'textarea', value: e0.agreement_object || '' })}
+    <div class="form-row">
+      ${field('Forma de pagamento', 'payment_method', { value: e0.payment_method || '', options: [{v:'',t:'—'},{v:'PIX',t:'PIX'},{v:'TED',t:'TED'},{v:'Boleto',t:'Boleto'},{v:'Cheque',t:'Cheque'},{v:'Dinheiro',t:'Dinheiro'},{v:'Outro',t:'Outro'}] })}
+      ${field('Fluxo do dinheiro', 'payment_flow', { value: e0.payment_flow || 'direto_cliente', options: [{v:'direto_cliente',t:'Direto ao cliente'},{v:'via_escritorio',t:'Via escritório (com repasse)'}] })}
+    </div>
+    <div class="form-row">${field('Cláusula penal (%)', 'penalty_percentage', { type: 'number', value: e0.penalty_percentage ?? '' })}${field('Foro de eleição', 'jurisdiction_forum', { value: e0.jurisdiction_forum || '' })}</div>
+
     <div class="prop-sec">Valor do acordo — entrada + parcelamento</div>
     <p class="sub" style="margin-top:-6px">Digite os reais sem separador de milhar (ex.: 9555 ou 9555,00) para evitar confusão.</p>
     ${moneyField('Valor total do acordo (R$) *', 'total_agreement_value', e0.total_agreement_value)}
@@ -4623,6 +4659,7 @@ async function acordoForm(onSave, existing = null) {
   form.onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form));
+    body.is_extrajudicial = form.querySelector('[name=is_extrajudicial]').checked;
     ['total_agreement_value', 'entrada_value', 'honorarium_value', 'sucumbencia_value'].forEach((n) => { body[n] = parseMoneyBR(body[n]); });
     if (!body.case_id) delete body.case_id;
     const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Salvando…';
@@ -4636,6 +4673,56 @@ async function acordoForm(onSave, existing = null) {
     } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = existing ? 'Salvar alterações' : 'Criar acordo'; }
   };
   openModal(existing ? 'Editar acordo' : 'Novo acordo', form);
+}
+
+async function acordoRepassesModal(agreementId) {
+  const rows = await api(`/api/acordos/${agreementId}/repasses`);
+  const wrap = el(`<div>
+    ${rows.length ? `<table><thead><tr><th>Tranche</th><th>Bruto</th><th>Honorários</th><th>Líquido</th><th>Status</th><th></th></tr></thead>
+    <tbody>${rows.map((r) => `<tr>
+      <td>${r.tranche_label}</td>
+      <td>${money(r.valor_bruto)}</td>
+      <td>${money(r.valor_honorarios)}</td>
+      <td>${money(r.valor_liquido)}</td>
+      <td>${badge(r.status === 'repassado' ? 'Repassado' : 'Pendente')}</td>
+      <td>${r.status === 'pendente' ? `<button class="btn-sm" data-payout-mark="${r.id}">Marcar como repassado</button>` : ''}</td>
+    </tr>`).join('')}</tbody></table>`
+    : '<div class="empty">Nenhum repasse gerado para este acordo.</div>'}
+  </div>`);
+  wrap.querySelectorAll('[data-payout-mark]').forEach((b) => b.onclick = async () => {
+    try {
+      await api(`/api/acordos/repasses/${b.dataset.payoutMark}/marcar-repassado`, { method: 'PATCH', body: '{}' });
+      toast('Repasse marcado');
+      closeModal();
+      acordoRepassesModal(agreementId);
+    } catch (e) { toast(e.message, 'error'); }
+  });
+  openModal('Repasses ao cliente', wrap);
+}
+
+// Envia a minuta própria (docx/pdf) como base64 — não há multer no projeto.
+function acordoUploadMinuta(agreementId, onDone) {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.doc,.docx,.pdf,image/*';
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { toast('Arquivo maior que 15MB', 'error'); return; }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        await api(`/api/acordos/${agreementId}/minuta`, {
+          method: 'POST',
+          body: JSON.stringify({ file_base64: reader.result, file_name: file.name, mime: file.type }),
+        });
+        toast('Minuta enviada');
+        onDone && onDone();
+      } catch (e) { toast(e.message, 'error'); }
+    };
+    reader.readAsDataURL(file);
+  };
+  input.click();
 }
 
 async function receitaForm(onSave) {

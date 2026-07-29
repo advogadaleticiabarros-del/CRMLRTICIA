@@ -2,11 +2,12 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logFinancialAudit } from '../services/FinancialAuditService';
 import { logTimeline } from '../services/TimelineService';
-import { syncAgreementFinanceLaunches, montarCronogramaAcordo } from '../services/agreementFinance';
+import { syncAgreementFinanceLaunches, syncAgreementClientPayouts, montarCronogramaAcordo, cronogramaAcordoTexto } from '../services/agreementFinance';
 
 const router = Router();
 
 const STATUSES = ['Proposto', 'Aceito', 'Homologado', 'Em pagamento', 'Quitado', 'Descumprido'];
+const PAYMENT_FLOWS = ['direto_cliente', 'via_escritorio'];
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
 // ── GET /api/acordos — lista com filtros ────────────────────────────────────
@@ -63,6 +64,128 @@ router.get('/:id/cronograma', async (req: Request, res: Response) => {
   res.json({ tranches: montarCronogramaAcordo(a) });
 });
 
+// ── GET /api/acordos/:id/repasses — repasses ao cliente (quando via_escritorio)
+router.get('/:id/repasses', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    'SELECT * FROM agreement_client_payouts WHERE agreement_id = ? ORDER BY data_prevista ASC',
+    [req.params.id]
+  ) as any;
+  res.json(rows);
+});
+
+// ── PATCH /api/acordos/repasses/:payoutId/marcar-repassado ──────────────────
+router.patch('/repasses/:payoutId/marcar-repassado', async (req: Request, res: Response) => {
+  const [result] = await db.query(
+    "UPDATE agreement_client_payouts SET status = 'repassado', data_repasse = NOW() WHERE id = ?",
+    [req.params.payoutId]
+  ) as any;
+  if (!result.affectedRows) { res.status(404).json({ error: 'Repasse não encontrado' }); return; }
+  const [[row]] = await db.query('SELECT * FROM agreement_client_payouts WHERE id = ?', [req.params.payoutId]) as any;
+  res.json(row);
+});
+
+// ── POST /api/acordos/:id/gerar-termo — Termo de Acordo Extrajudicial ───────
+// Reusa o mecanismo de document_templates (mesmo de Procuração/Contrato de
+// Honorários) com o modelo inserido na migration 076.
+router.post('/:id/gerar-termo', async (req: Request, res: Response) => {
+  const [[a]] = await db.query('SELECT * FROM agreements WHERE id = ?', [req.params.id]) as any;
+  if (!a) { res.status(404).json({ error: 'Acordo não encontrado' }); return; }
+  const [[client]] = await db.query('SELECT * FROM clients WHERE id = ?', [a.client_id]) as any;
+  if (!client) { res.status(404).json({ error: 'Cliente não encontrado' }); return; }
+  const [[tpl]] = await db.query("SELECT * FROM document_templates WHERE name = 'Termo de Acordo Extrajudicial'") as any;
+  if (!tpl) { res.status(500).json({ error: 'Modelo do termo não encontrado — confira se a migration 076 foi aplicada' }); return; }
+  const [[lawyer]] = await db.query("SELECT name, oab_number, oab_uf FROM lawyers WHERE active = 1 ORDER BY id LIMIT 1") as any;
+
+  const money = (v: number) => `R$ ${(Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const dataExtenso = () => new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
+
+  const empresaAdvogadoTexto = a.opposing_lawyer_name
+    ? `, neste ato assistida por seu advogado ${a.opposing_lawyer_name}${a.opposing_lawyer_oab ? ` (OAB ${a.opposing_lawyer_oab})` : ''}`
+    : '';
+  const clausulaPenal = a.penalty_percentage
+    ? `4 - DA CLÁUSULA PENAL\nCláusula 4ª. Em caso de descumprimento de qualquer obrigação prevista neste instrumento, incidirá multa de ${Number(a.penalty_percentage)}% sobre o valor da parcela vencida e não paga, sem prejuízo de correção monetária e juros legais.`
+    : '';
+
+  const map: Record<string, string> = {
+    cliente_nome: client.name || '',
+    cliente_cpf: client.cpf_cnpj || '',
+    cliente_endereco: client.address || '',
+    cliente_cidade: client.city || '',
+    cliente_estado: client.state || '',
+    cliente_profissao: client.profession || '',
+    cliente_estado_civil: client.marital_status || '',
+    advogada_nome: lawyer?.name || '',
+    advogada_oab: lawyer ? `${lawyer.oab_number || ''}${lawyer.oab_uf ? '/' + lawyer.oab_uf : ''}` : '',
+    empresa_nome: a.opposing_party || '',
+    empresa_cnpj: a.opposing_cnpj || '',
+    empresa_endereco: a.opposing_address || '',
+    empresa_representante_nome: a.opposing_legal_rep_name || '',
+    empresa_representante_cpf: a.opposing_legal_rep_cpf || '',
+    empresa_advogado_texto: empresaAdvogadoTexto,
+    acordo_objeto: a.agreement_object || '',
+    acordo_valor_total: money(a.total_agreement_value),
+    acordo_forma_pagamento: a.payment_method || 'a combinar entre as partes',
+    acordo_cronograma: cronogramaAcordoTexto(montarCronogramaAcordo(a)),
+    acordo_clausula_penal: clausulaPenal,
+    acordo_foro: a.jurisdiction_forum || client.city || '',
+    data_extenso: dataExtenso(),
+  };
+  const content = String(tpl.content).replace(/\{\{(\w+)\}\}/g, (_m: string, k: string) => (map[k] !== undefined ? map[k] : ''));
+
+  const [r] = await db.query(
+    `INSERT INTO documents (client_id, case_id, name, type, folder, content, template_id, status, created_by)
+     VALUES (?, ?, ?, 'gerado', ?, ?, ?, 'pendente', ?)`,
+    [a.client_id, a.case_id ?? null, tpl.name, tpl.category, content, tpl.id, req.user!.id]
+  ) as any;
+
+  await logTimeline({
+    clientId: a.client_id, caseId: a.case_id ?? null, eventType: 'documento_gerado',
+    description: `Termo de acordo extrajudicial gerado — ${a.opposing_party}`, userId: req.user!.id,
+  }).catch(() => {});
+
+  const [rows] = await db.query('SELECT * FROM documents WHERE id = ?', [r.insertId]) as any;
+  res.status(201).json(rows[0]);
+});
+
+// ── POST /api/acordos/:id/minuta — upload de minuta própria (arquivo) ───────
+// Sem multer no projeto: o front lê o arquivo como base64 e manda em JSON
+// (o limite global de express.json já é 20mb, de sobra pra um docx/pdf).
+router.post('/:id/minuta', async (req: Request, res: Response) => {
+  const { file_base64, file_name, mime } = req.body || {};
+  if (!file_base64 || !file_name) { res.status(400).json({ error: 'file_base64 e file_name são obrigatórios' }); return; }
+  const [[a]] = await db.query('SELECT * FROM agreements WHERE id = ?', [req.params.id]) as any;
+  if (!a) { res.status(404).json({ error: 'Acordo não encontrado' }); return; }
+
+  const buffer = Buffer.from(String(file_base64).replace(/^data:[^;]+;base64,/, ''), 'base64');
+  const MAX = 15 * 1024 * 1024;
+  if (buffer.length > MAX) { res.status(400).json({ error: 'Arquivo maior que 15MB' }); return; }
+
+  const [r] = await db.query(
+    `INSERT INTO documents (client_id, case_id, name, type, folder, data, mime, status, created_by)
+     VALUES (?, ?, ?, 'minuta_propria', 'acordos', ?, ?, 'recebido', ?)`,
+    [a.client_id, a.case_id ?? null, file_name, buffer, mime || 'application/octet-stream', req.user!.id]
+  ) as any;
+  await db.query('UPDATE agreements SET minuta_document_id = ? WHERE id = ?', [r.insertId, a.id]);
+
+  await logTimeline({
+    clientId: a.client_id, caseId: a.case_id ?? null, eventType: 'documento_gerado',
+    description: `Minuta enviada para o acordo — ${a.opposing_party} (${file_name})`, userId: req.user!.id,
+  }).catch(() => {});
+
+  res.status(201).json({ document_id: r.insertId, file_name, mime: mime || 'application/octet-stream' });
+});
+
+// ── GET /api/acordos/:id/minuta — baixa a minuta enviada (autenticado) ──────
+router.get('/:id/minuta', async (req: Request, res: Response) => {
+  const [[a]] = await db.query('SELECT minuta_document_id FROM agreements WHERE id = ?', [req.params.id]) as any;
+  if (!a || !a.minuta_document_id) { res.status(404).json({ error: 'Este acordo não tem minuta enviada' }); return; }
+  const [[doc]] = await db.query('SELECT name, mime, data FROM documents WHERE id = ?', [a.minuta_document_id]) as any;
+  if (!doc || !doc.data) { res.status(404).json({ error: 'Arquivo não encontrado' }); return; }
+  res.setHeader('Content-Type', doc.mime || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.name)}"`);
+  res.send(doc.data);
+});
+
 // ── POST /api/acordos — criar ───────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
   const {
@@ -70,6 +193,9 @@ router.post('/', async (req: Request, res: Response) => {
     total_agreement_value, entrada_value, entrada_date, installments_count, first_due_date,
     honorarium_percentage, honorarium_value, sucumbencia_value, sucumbencia_due_date,
     receiving_method, notes,
+    is_extrajudicial, opposing_cnpj, opposing_address, opposing_legal_rep_name, opposing_legal_rep_cpf,
+    opposing_lawyer_name, opposing_lawyer_oab, payment_method, payment_flow, agreement_object,
+    penalty_percentage, jurisdiction_forum,
   } = req.body;
 
   if (!client_id) { res.status(400).json({ error: 'client_id é obrigatório' }); return; }
@@ -79,17 +205,27 @@ router.post('/', async (req: Request, res: Response) => {
   const totalValue = Number(total_agreement_value) || 0;
   const honPct = Number(honorarium_percentage) || 0;
   const honValue = honorarium_value !== undefined ? Number(honorarium_value) : round2((totalValue * honPct) / 100);
+  const flow = PAYMENT_FLOWS.includes(payment_flow) ? payment_flow : 'direto_cliente';
+  const penalty = penalty_percentage !== undefined && penalty_percentage !== null && penalty_percentage !== ''
+    ? Number(penalty_percentage) : null;
 
   const [result] = await db.query(
     `INSERT INTO agreements
        (client_id, case_id, process_number, opposing_party, total_agreement_value, entrada_value, entrada_date,
         installments_count, first_due_date, honorarium_percentage, honorarium_value,
-        sucumbencia_value, sucumbencia_due_date, receiving_method, status, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Proposto', ?)`,
+        sucumbencia_value, sucumbencia_due_date, receiving_method, status, notes,
+        is_extrajudicial, opposing_cnpj, opposing_address, opposing_legal_rep_name, opposing_legal_rep_cpf,
+        opposing_lawyer_name, opposing_lawyer_oab, payment_method, payment_flow, agreement_object,
+        penalty_percentage, jurisdiction_forum)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Proposto', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [client_id, case_id ?? null, process_number ?? null, opposing_party.trim(), totalValue,
      round2(entrada_value), entrada_date || null, Number(installments_count) || 1, first_due_date, honPct, honValue,
      round2(sucumbencia_value), sucumbencia_due_date || null,
-     receiving_method || 'Acordo', notes ?? null]
+     receiving_method || 'Acordo', notes ?? null,
+     is_extrajudicial ? 1 : 0, opposing_cnpj || null, opposing_address || null,
+     opposing_legal_rep_name || null, opposing_legal_rep_cpf || null,
+     opposing_lawyer_name || null, opposing_lawyer_oab || null,
+     payment_method || null, flow, agreement_object || null, penalty, jurisdiction_forum || null]
   ) as any;
 
   await logFinancialAudit({
@@ -100,6 +236,7 @@ router.post('/', async (req: Request, res: Response) => {
   });
 
   const { lancados } = await syncAgreementFinanceLaunches(result.insertId, req.user!.id).catch((e) => { console.error('❌ [acordo-financeiro] falha ao lançar honorários (create):', e?.message || e); return { lancados: 0 }; });
+  await syncAgreementClientPayouts(result.insertId).catch((e) => console.error('❌ [acordo-repasses] falha ao gerar repasses (create):', e?.message || e));
 
   // Centraliza no histórico do cliente: o acordo e o que foi lançado no financeiro.
   await logTimeline({
@@ -142,6 +279,20 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('receiving_method', req.body.receiving_method);
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
   setIf('notes', req.body.notes);
+  setIf('is_extrajudicial', req.body.is_extrajudicial !== undefined ? (req.body.is_extrajudicial ? 1 : 0) : undefined);
+  setIf('opposing_cnpj', req.body.opposing_cnpj);
+  setIf('opposing_address', req.body.opposing_address);
+  setIf('opposing_legal_rep_name', req.body.opposing_legal_rep_name);
+  setIf('opposing_legal_rep_cpf', req.body.opposing_legal_rep_cpf);
+  setIf('opposing_lawyer_name', req.body.opposing_lawyer_name);
+  setIf('opposing_lawyer_oab', req.body.opposing_lawyer_oab);
+  setIf('payment_method', req.body.payment_method);
+  setIf('payment_flow', req.body.payment_flow, PAYMENT_FLOWS.includes(req.body.payment_flow));
+  setIf('agreement_object', req.body.agreement_object);
+  setIf('penalty_percentage', req.body.penalty_percentage !== undefined
+    ? (req.body.penalty_percentage === null || req.body.penalty_percentage === '' ? null : Number(req.body.penalty_percentage))
+    : undefined);
+  setIf('jurisdiction_forum', req.body.jurisdiction_forum);
 
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
   params.push(id);
@@ -157,6 +308,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   // Re-sincroniza o financeiro: refaz só os lançamentos PENDENTES deste acordo
   // (o que já foi recebido/pago fica intacto).
   const { lancados } = await syncAgreementFinanceLaunches(Number(id), req.user!.id).catch((e) => { console.error('❌ [acordo-financeiro] falha ao lançar honorários (update):', e?.message || e); return { lancados: 0 }; });
+  await syncAgreementClientPayouts(Number(id)).catch((e) => console.error('❌ [acordo-repasses] falha ao gerar repasses (update):', e?.message || e));
 
   const [rows] = await db.query('SELECT * FROM agreements WHERE id = ?', [id]) as any;
   const atual = rows[0];
