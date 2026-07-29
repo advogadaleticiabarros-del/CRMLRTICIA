@@ -3308,15 +3308,103 @@ function exportTableCSV(tableEl, filename = 'exportacao') {
   URL.revokeObjectURL(a.href);
   toast('CSV exportado');
 }
-// tableTools: barra padrão "De · Até · Limpar · Exportar CSV" para qualquer lista.
+// Extrai cabeçalho + linhas de uma <table> do DOM (mesma lógica de exportTableCSV,
+// reaproveitada aqui pro PDF em papel timbrado).
+function tableToRows(tableEl) {
+  const tabelas = tableEl.tagName === 'TABLE' ? [tableEl] : [...tableEl.querySelectorAll('table')];
+  if (!tabelas.length) return null;
+  const cell = (td) => td.innerText.replace(/\s+/g, ' ').trim();
+  let headers = null;
+  const rows = [];
+  // Várias tabelas (ex.: Contas a Pagar, uma por grupo/categoria) — usa o
+  // cabeçalho da primeira e junta as linhas de todas, assumindo mesmas colunas.
+  for (const tb of tabelas) {
+    const trs = [...tb.querySelectorAll('tr')];
+    if (!trs.length) continue;
+    if (!headers) headers = [...trs[0].querySelectorAll('th,td')].map(cell);
+    trs.slice(1).forEach((tr) => rows.push([...tr.querySelectorAll('th,td')].map(cell)));
+  }
+  if (!headers || !rows.length) return null;
+  return { headers, rows };
+}
+
+// PDF em papel timbrado (mesmo cabeçalho/rodapé do contrato) — tabela +
+// total da coluna de valor (se houver), com o período selecionado no título.
+function printTablePDF(title, tableEl, periodo) {
+  const data = tableToRows(tableEl);
+  if (!data || !data.rows.length) { toast('Nada para exportar', 'error'); return; }
+  const { headers, rows } = data;
+  const valorIdx = headers.findIndex((h) => /valor/i.test(h));
+  let total = null;
+  if (valorIdx >= 0) {
+    total = rows.reduce((s, r) => s + parseMoneyBR(r[valorIdx] || ''), 0);
+  }
+  const w = window.open('', '_blank');
+  if (!w) { toast('Permita pop-ups para gerar o PDF', 'error'); return; }
+  const logo = location.origin + '/logo.png';
+  const theadHtml = `<tr>${headers.map((h) => `<th>${esc(h)}</th>`).join('')}</tr>`;
+  const tbodyHtml = rows.map((r) => `<tr>${r.map((c, i) => `<td${i === valorIdx ? ' class="num"' : ''}>${esc(c)}</td>`).join('')}</tr>`).join('');
+  const totalHtml = total !== null
+    ? `<tr class="tot"><td colspan="${Math.max(1, valorIdx)}">Total</td><td class="num">${money(total)}</td>${valorIdx < headers.length - 1 ? `<td colspan="${headers.length - valorIdx - 1}"></td>` : ''}</tr>`
+    : '';
+  w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(title)}</title>
+    <style>
+      @page { margin: 1.5cm 1.8cm; }
+      * { box-sizing: border-box; }
+      body { font-family: 'Times New Roman', Georgia, serif; font-size: 10.5pt; line-height: 1.5; color: #1a1a1a; margin: 0; }
+      @media screen { body { background: #f5f5f5; } .page { background: #fff; max-width: 24cm; margin: 16px auto; padding: 1.5cm 1.8cm; box-shadow: 0 2px 14px rgba(0,0,0,.15); } }
+      table.page { width: 100%; border-collapse: collapse; }
+      thead td, tfoot td, tbody td { padding: 0; border: 0; }
+      .lh-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #B8943F; padding-bottom: 6px; margin-bottom: 14px; }
+      .lh-header .brand { display: flex; align-items: center; gap: 11px; }
+      .lh-header img { height: 1.4cm; width: auto; }
+      .lh-header .name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22pt; font-weight: 700; color: #2b2b2b; letter-spacing: 1.5px; line-height: 1; }
+      .lh-header .oab { font-size: 9.5pt; color: #555; white-space: nowrap; letter-spacing: .5px; }
+      .lh-foot-spacer { height: 1.15cm; }
+      .lh-footer-fixed { position: fixed; bottom: 0.7cm; left: 1.8cm; right: 1.8cm; background: #fff; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
+      .lh-footer-fixed .sep { color: #B8943F; margin: 0 6px; }
+      .doc-title { text-align: center; font-size: 14pt; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; margin: 0 0 4px; }
+      .doc-periodo { text-align: center; font-size: 10pt; color: #555; margin: 0 0 16px; }
+      table.fin { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+      table.fin th { text-align: left; border-bottom: 1.5px solid #B8943F; padding: 5px 8px; font-size: 8.5pt; text-transform: uppercase; letter-spacing: .5px; color: #6b6252; }
+      table.fin td { border-bottom: 1px solid #e5e0d5; padding: 5px 8px; text-align: left; }
+      table.fin td.num, table.fin th.num { text-align: right; }
+      table.fin tr.tot td { border-top: 2px solid #B8943F; border-bottom: 0; font-weight: bold; padding-top: 8px; }
+      @media print { .no-print { display: none; } thead { display: table-header-group; } }
+    </style></head><body>
+    <img class="watermark" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:12cm;opacity:.035;z-index:-1" src="${location.origin}/logo-sem-fundo.png" onerror="this.onerror=null;this.src='${logo}'">
+    <div class="lh-footer-fixed">(27) 99515-1402 | (44) 99101-1402<span class="sep">·</span>advogadaleticia.barros@gmail.com<span class="sep">·</span>@adv.leticiabarros2</div>
+    <table class="page">
+      <thead><tr><td>
+        <div class="lh-header">
+          <div class="brand"><img src="${logo}" onerror="this.style.display='none'">
+            <div><div class="name">LETÍCIA BARROS</div></div></div>
+          <div class="oab">OAB Nº 39.948 - ES</div>
+        </div>
+      </td></tr></thead>
+      <tfoot><tr><td><div class="lh-foot-spacer"></div></td></tr></tfoot>
+      <tbody><tr><td>
+        <div class="doc-title">${esc(title)}</div>
+        ${periodo ? `<div class="doc-periodo">${esc(periodo)}</div>` : ''}
+        <table class="fin"><thead>${theadHtml}</thead><tbody>${tbodyHtml}${totalHtml}</tbody></table>
+      </td></tr></tbody>
+    </table>
+    <div class="no-print" style="text-align:center;margin:20px 0"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
+    </body></html>`);
+  w.document.close();
+  setTimeout(() => w.focus(), 400);
+}
+
+// tableTools: barra padrão "De · Até · Limpar · Exportar CSV/PDF" para qualquer lista.
 // getRows(de, ate) recarrega a lista com o período; findTable() acha a tabela p/ exportar.
-function tableTools(container, { onPeriod, findTable, filename = 'exportacao' }) {
+function tableTools(container, { onPeriod, findTable, filename = 'exportacao', title }) {
   const bar = el(`<div style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-bottom:10px">
     <label style="font-size:12px;color:var(--text-muted)">De<input type="date" data-tt-de style="display:block" /></label>
     <label style="font-size:12px;color:var(--text-muted)">Até<input type="date" data-tt-ate style="display:block" /></label>
     <button type="button" class="btn-sm" data-tt-limpar>Limpar</button>
     <span style="flex:1"></span>
     <button type="button" class="btn-sm" data-tt-csv>Exportar CSV</button>
+    <button type="button" class="btn-sm" data-tt-pdf>Exportar PDF</button>
   </div>`);
   const de = bar.querySelector('[data-tt-de]');
   const ate = bar.querySelector('[data-tt-ate]');
@@ -3324,6 +3412,10 @@ function tableTools(container, { onPeriod, findTable, filename = 'exportacao' })
   else { de.parentElement.style.display = 'none'; ate.parentElement.style.display = 'none'; bar.querySelector('[data-tt-limpar]').style.display = 'none'; }
   bar.querySelector('[data-tt-limpar]').onclick = () => { de.value = ''; ate.value = ''; onPeriod && onPeriod('', ''); };
   bar.querySelector('[data-tt-csv]').onclick = () => exportTableCSV(findTable ? findTable() : container.querySelector('table'), filename);
+  bar.querySelector('[data-tt-pdf]').onclick = () => {
+    const periodo = (de.value || ate.value) ? `Período: ${de.value ? fmtDate(de.value) : '—'} a ${ate.value ? fmtDate(ate.value) : '—'}` : '';
+    printTablePDF(title || filename, findTable ? findTable() : container.querySelector('table'), periodo);
+  };
   container.prepend(bar);
   return bar;
 }
@@ -3775,8 +3867,9 @@ async function finVisaoGeral(c) {
     ${metaHtml}
     ${cxHtml}
     ${origemHtml}
-    <div class="card" style="margin:20px 0"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Lançamentos</strong></div><div id="fin-table"></div></div>
+    <div class="card" id="fin-lancamentos-card" style="margin:20px 0"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Lançamentos</strong></div><div id="fin-table"></div></div>
     <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Parcelas a receber</strong></div><div id="inst-table"></div></div>`;
+  tableTools(c.querySelector('#fin-lancamentos-card'), { findTable: () => c.querySelector('#fin-table table'), filename: 'lancamentos', title: 'Lançamentos' });
   const loadFin = async () => {
     const r = await api('/api/financial');
     $('#fin-table').innerHTML = r.data.length ? `
@@ -3899,7 +3992,7 @@ async function finAcordos(c) {
   c.innerHTML = `
     <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-acordo">+ Novo acordo</button></div>
     <div class="card"><div id="acordo-table"></div></div>`;
-  tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#acordo-table table'), filename: 'acordos' });
+  tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#acordo-table table'), filename: 'acordos', title: 'Acordos' });
   const load = async () => {
     const r = await api('/api/acordos');
     $('#acordo-table').innerHTML = r.data.length ? `
@@ -3984,7 +4077,7 @@ async function finReceitas(c) {
       </div>
     </div>
     <div class="card"><div id="rec-lista"><div class="spinner"></div></div></div>`;
-  tableTools(c.querySelector('.card:last-child'), { findTable: () => c.querySelector('#rec-lista table'), filename: 'a-receber' });
+  tableTools(c.querySelector('.card:last-child'), { findTable: () => c.querySelector('#rec-lista table'), filename: 'a-receber', title: 'A Receber' });
 
   // Pagamentos que o CLIENTE declarou no portal — confirmar ou recusar aqui mesmo.
   const loadConfirmar = async () => {
@@ -4129,7 +4222,7 @@ async function finRepasses(c) {
   c.innerHTML = `
     <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-repasse">+ Novo repasse</button></div>
     <div class="card"><div id="repasse-table"></div></div>`;
-  tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#repasse-table table'), filename: 'repasses' });
+  tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#repasse-table table'), filename: 'repasses', title: 'Repasses a Parceiros' });
   const load = async () => {
     const r = await api('/api/repasses');
     $('#repasse-table').innerHTML = r.data.length ? `
@@ -4164,7 +4257,7 @@ async function finInadimplencia(c) {
   c.innerHTML = `
     <div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0"><button class="btn-ghost" id="renegociar-btn">Renegociar parcelas</button><button class="btn-gold" id="recalc-inad">Recalcular agora</button></div>
     <div class="card"><div id="inad-table"></div></div>`;
-  tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#inad-table table'), filename: 'inadimplencia' });
+  tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#inad-table table'), filename: 'inadimplencia', title: 'Inadimplência' });
 
   // Renegociação: parcelas em aberto de um cliente viram um novo parcelamento
   $('#renegociar-btn').onclick = async () => {
@@ -4266,7 +4359,7 @@ async function finContasPagar(c) {
       <button class="btn-gold" id="cp-new">+ Conta a pagar</button>
     </div>
     <div id="cp-kpis" class="kpi-grid"></div>
-    <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn-sm" id="cp-export">Exportar CSV</button></div>
+    <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px"><button class="btn-sm" id="cp-export">Exportar CSV</button><button class="btn-sm" id="cp-export-pdf">Exportar PDF</button></div>
     <div id="cp-groups"></div>
     <div id="cp-entradas-section" style="margin-top:20px;display:none">
       <div class="card">
@@ -4402,6 +4495,7 @@ async function finContasPagar(c) {
   $('#cp-new').onclick = () => contaPagarForm(load, $('#cp-month').value, scope === 'pessoal' ? 'pessoal' : 'empresa');
   $('#cp-new-entrada').onclick = () => cashflowForm(load, 'entrada');
   $('#cp-export').onclick = () => exportTableCSV($('#cp-groups'), `contas-a-pagar-${$('#cp-month').value}`);
+  $('#cp-export-pdf').onclick = () => printTablePDF('Contas a Pagar', $('#cp-groups'), `Mês: ${$('#cp-month').value}`);
   await load();
 }
 
