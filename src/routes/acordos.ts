@@ -8,7 +8,11 @@ const router = Router();
 
 const STATUSES = ['Proposto', 'Aceito', 'Homologado', 'Em pagamento', 'Quitado', 'Descumprido'];
 const PAYMENT_FLOWS = ['direto_cliente', 'via_escritorio'];
-const round2 = (n: number) => Math.round(n * 100) / 100;
+// (Number(n) || 0) evita NaN quando entrada_value/sucumbencia_value vem
+// undefined — Math.round(undefined * 100) = NaN, e o mysql2 manda NaN sem
+// aspas pro SQL, virando "Unknown column 'NaN'" (achado testando a API
+// direto, sem passar por esses campos no formulário).
+const round2 = (n: number) => Math.round((Number(n) || 0) * 100) / 100;
 
 // ── GET /api/acordos — lista com filtros ────────────────────────────────────
 router.get('/', async (req: Request, res: Response) => {
