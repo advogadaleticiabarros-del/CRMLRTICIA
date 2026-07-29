@@ -7069,8 +7069,8 @@ function printDocs(docs) {
       .content .party { margin: 6px 0; text-align: justify; }
       .content .body { margin: 9px 0; text-align: justify; }
       .content .sp { height: 5px; }
-      .content .sig-block { break-inside: avoid; page-break-inside: avoid; margin-top: 4.5cm; text-align: center; }
-      .content .sig-block:first-of-type { margin-top: 4.5cm; }
+      .content .sig-block { break-inside: avoid; page-break-inside: avoid; margin-top: 3cm; text-align: center; }
+      .content .sig-block:first-of-type { margin-top: 3cm; }
       .content .sig-line { width: 62%; margin: 0 auto 6px; border-bottom: 1px solid #333; }
       .content .sig-name { text-align: center; margin: 0; line-height: 1.5; }
       .docwrap + .docwrap { page-break-before: always; }
