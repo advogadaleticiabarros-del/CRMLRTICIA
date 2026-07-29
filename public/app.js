@@ -5193,6 +5193,13 @@ async function propostaForm(onSave, lead = null, existing = null) {
       valor = 0;
     } else {
       const pc = calcParcelas();
+      // Entrada e/ou parcelas preenchidas sem o "Honorário total" travam a conta
+      // em zero (restante = total - entrada = 0 - entrada), gerando parcelas de
+      // R$ 0,00 sem nenhum aviso — foi o que aconteceu na proposta do Huber.
+      if (!pc.total && (pc.entrada > 0 || pc.qtd > 1)) {
+        toast('Preencha o "Honorário total (R$)" — sem ele, a entrada/parcelas ficam com valor R$ 0,00', 'error');
+        return;
+      }
       honorarios.parcelamento = {
         total: pc.total, entrada: pc.entrada, entrada_data: fd.entrada_data || null,
         parcelas: pc.qtd, primeiro_vencimento: pc.venc || null,
