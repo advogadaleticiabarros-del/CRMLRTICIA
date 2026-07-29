@@ -2563,11 +2563,11 @@ async function docViewer(id, onSave) {
     catch (e) { toast(e.message, 'error'); }
   };
   loadSigs();
+  // Mesmo papel timbrado + espaço de assinatura (4,5cm) usado no contrato,
+  // procuração e declaração — antes esse "Imprimir/PDF" era um dump de texto
+  // simples, sem timbre nem espaço reservado pra assinar.
   wrap.querySelector('#doc-print').onclick = () => {
-    const txt = wrap.querySelector('#doc-content').value;
-    const w = window.open('', '_blank');
-    w.document.write(`<html><head><title>${doc.name}</title><style>body{font-family:Georgia,serif;line-height:1.7;max-width:720px;margin:48px auto;padding:0 24px;white-space:pre-wrap;color:#231E1A}</style></head><body>${txt.replace(/</g, '&lt;')}</body></html>`);
-    w.document.close(); w.focus(); setTimeout(() => w.print(), 300);
+    printDocs([{ title: doc.name, content: wrap.querySelector('#doc-content').value }]);
   };
   openModal(doc.name, wrap);
 }
@@ -6962,11 +6962,11 @@ function formatDocHtml(text) {
     // Dentro do bloco de assinatura: nomes/cargos (ignora linhas em branco).
     if (inSig) { if (t) html += `<p class="sig-name">${esc(t)}</p>`; continue; }
     if (!t) { html += '<div class="sp"></div>'; continue; }
-    if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
+    if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO|TERMO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
     if (/^CL[ÁA]USULA\b/i.test(t)) { html += `<p class="clause">${esc(t)}</p>`; continue; }
     const mp = t.match(/^(PAR[ÁA]GRAFO[^-]*-)\s*([\s\S]*)$/i);
     if (mp) { html += `<p class="para"><strong>${esc(mp[1])}</strong> ${esc(mp[2])}</p>`; continue; }
-    const ml = t.match(/^(CONTRATANTE|CONTRATADA|OUTORGANTE|OUTORGADO\(A\)|OUTORGADA|DECLARANTE):([\s\S]*)$/i);
+    const ml = t.match(/^(CONTRATANTE|CONTRATADA|OUTORGANTE|OUTORGADO\(A\)|OUTORGADA|DECLARANTE|PRIMEIRO ACORDANTE|SEGUNDO ACORDANTE):([\s\S]*)$/i);
     if (ml) { html += `<p class="party"><strong>${esc(ml[1])}:</strong>${esc(ml[2])}</p>`; continue; }
     html += `<p class="body">${esc(t)}</p>`;
   }
@@ -7069,8 +7069,8 @@ function printDocs(docs) {
       .content .party { margin: 6px 0; text-align: justify; }
       .content .body { margin: 9px 0; text-align: justify; }
       .content .sp { height: 5px; }
-      .content .sig-block { break-inside: avoid; page-break-inside: avoid; margin-top: 56px; text-align: center; }
-      .content .sig-block:first-of-type { margin-top: 36px; }
+      .content .sig-block { break-inside: avoid; page-break-inside: avoid; margin-top: 4.5cm; text-align: center; }
+      .content .sig-block:first-of-type { margin-top: 4.5cm; }
       .content .sig-line { width: 62%; margin: 0 auto 6px; border-bottom: 1px solid #333; }
       .content .sig-name { text-align: center; margin: 0; line-height: 1.5; }
       .docwrap + .docwrap { page-break-before: always; }
