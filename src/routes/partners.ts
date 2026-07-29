@@ -3,6 +3,7 @@ import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 import { ajustarEntradaParceria } from '../services/partnerEntry';
 import { createProductionFolder } from '../services/DriveService';
+import { slaDiasEfetivosSql, pendenciasAbertasSql } from '../services/productionSla';
 
 const router = Router();
 
@@ -126,7 +127,8 @@ router.post('/:id/cases', async (req: Request, res: Response) => {
 router.get('/:id/cases', async (req: Request, res: Response) => {
   const [rows] = await db.query(`
     SELECT c.id, c.title, c.case_number, c.legal_area, c.production_stage, c.production_started_at, c.status,
-           DATEDIFF(NOW(), c.production_started_at) AS sla_days,
+           ${slaDiasEfetivosSql('c.id', 'c.production_started_at')} AS sla_days,
+           ${pendenciasAbertasSql('c.id')} AS pendencias,
            cl.name AS client_name,
            (SELECT COALESCE(SUM(valor),0) FROM financial_records fr WHERE fr.case_id = c.id AND fr.tipo='receita') AS receita,
            (SELECT COALESCE(SUM(valor),0) FROM repasses r WHERE r.case_id = c.id) AS repasse_parceiro

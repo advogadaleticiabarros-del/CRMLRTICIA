@@ -7,6 +7,7 @@ import { notificationService } from '../services/NotificationService';
 import { montarEndereco } from '../services/contractTemplates';
 import { buildPeticaoInicial, analyzeCaseDrive } from '../services/peticaoBuilder';
 import { revisarPeticaoDoCaso } from '../services/peticaoReviewer';
+import { slaDiasEfetivosSql } from '../services/productionSla';
 
 const router = Router();
 
@@ -67,7 +68,7 @@ router.get('/production-board', async (_req: Request, res: Response) => {
     SELECT c.id, c.case_number, c.title, c.legal_area, c.production_stage,
            c.production_started_at, c.production_labels, c.production_obs,
            c.rejection_reason, c.rejection_notes, c.rejected_at, c.stage_before_rejection,
-           DATEDIFF(NOW(), c.production_started_at) AS sla_days,
+           ${slaDiasEfetivosSql('c.id', 'c.production_started_at')} AS sla_days,
            cl.name AS client_name,
            u.name  AS assignee_name,
            (SELECT COUNT(*) FROM production_notes pn

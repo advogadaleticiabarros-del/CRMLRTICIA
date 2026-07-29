@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { rentabilidadeClientes, rentabilidadeProcessos, centroCusto, provisionamentoResumo } from '../services/controladoriaService';
+import { slaDiasEfetivosSql } from '../services/productionSla';
 
 const router = Router();
 
@@ -49,7 +50,7 @@ router.get('/produtividade', async (req: Request, res: Response) => {
 
   // Etapas com casos parados (contexto do gargalo, não por pessoa)
   const [gargalos] = await db.query(`
-    SELECT production_stage AS etapa, COUNT(*) AS casos, MAX(DATEDIFF(NOW(), production_started_at)) AS mais_antigo_dias
+    SELECT production_stage AS etapa, COUNT(*) AS casos, MAX(${slaDiasEfetivosSql('cases.id', 'production_started_at')}) AS mais_antigo_dias
       FROM cases
      WHERE production_stage IN ('em_analise','separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')
      GROUP BY production_stage`).catch(() => [[]]) as any;

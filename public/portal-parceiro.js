@@ -31,7 +31,7 @@ Object.assign(ROUTES, {
         </div>
         ${stepperHtml(c)}
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:13px">
-          <span>SLA: <strong style="color:${atras ? 'var(--red)' : 'var(--text)'}">${['protocolado', 'concluido'].includes(c.production_stage) ? 'concluído' : (c.sla_days ?? 0) + '/10 dias'}</strong></span>
+          <span>SLA: <strong style="color:${atras ? 'var(--red)' : 'var(--text)'}">${['protocolado', 'concluido'].includes(c.production_stage) ? 'concluído' : (c.sla_days ?? 0) + '/10 dias'}</strong>${!['protocolado', 'concluido'].includes(c.production_stage) && Number(c.pendencias) ? ' <span style="color:var(--blue,#2f6fb0);font-weight:600" title="SLA pausado — pendência aberta">⏸ Pausado</span>' : ''}</span>
           ${c.valor_causa ? `<span>Valor da causa: <strong style="color:var(--navy-deep)">${money(c.valor_causa)}</strong></span>` : ''}
           <span>Valor do processo: <strong>${money(c.valor_processo)}</strong></span>
           <span>Seu repasse: <strong style="color:var(--gold)">${money(c.repasse_parceiro)}</strong></span>

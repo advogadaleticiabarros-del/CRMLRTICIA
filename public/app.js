@@ -1877,7 +1877,7 @@ const ROUTES = {
             <div class="kf-card-wrap">
               ${labelsHtml(r)}
             <div class="kf-card" draggable="true" data-case="${r.id}" data-stage="${r.production_stage}">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">${slaBadge(r)}${Number(r.pendencias) ? `<span style="font-size:11px;color:var(--red);font-weight:600">⚠ ${r.pendencias}</span>` : ''}</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">${slaBadge(r)}${Number(r.pendencias) ? `<span style="font-size:11px;color:var(--blue,#2f6fb0);font-weight:600" title="SLA pausado enquanto a pendência estiver aberta">⏸ Pausado · ⚠ ${r.pendencias}</span>` : ''}</div>
               <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
               <small>${esc2(r.title) || r.case_number || 's/ número'}${r.legal_area ? ' · ' + r.legal_area : ''}</small>
               ${r.assignee_name ? `<small style="color:var(--text-muted)">resp.: ${esc2(r.assignee_name)}</small>` : ''}
@@ -2110,7 +2110,7 @@ const ROUTES = {
               <td><strong>${esc(c.client_name || '—')}</strong><br><span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">Parceria: ${esc(p.name)}</span></td>
               <td>${esc(c.title || '—')}${c.case_number ? `<br><small style="color:var(--text-muted)">nº ${esc(c.case_number)}</small>` : ''}<br><small style="color:var(--text-muted)">${esc(c.legal_area || '')}</small></td>
               <td>${proto ? `<span class="badge protocolado" style="background:#e3f0e6;color:var(--green)">${STAGE_PT[c.production_stage]}</span>` : (STAGE_PT[c.production_stage] || '—')}</td>
-              <td style="color:${atras ? 'var(--red)' : 'var(--text)'}">${proto ? '✓' : (c.sla_days ?? 0) + '/10d'}</td>
+              <td style="color:${atras ? 'var(--red)' : 'var(--text)'}">${proto ? '✓' : (c.sla_days ?? 0) + '/10d'}${!proto && Number(c.pendencias) ? ' <span style="color:var(--blue,#2f6fb0)" title="SLA pausado — pendência aberta">⏸</span>' : ''}</td>
               <td>${money(c.receita)}</td>
               <td>${money(c.repasse_parceiro)}</td>
               <td style="white-space:nowrap"><button class="btn-sm" data-result="${c.id}" data-name="${esc(c.client_name || '')}">Êxito / Sucumb.</button></td></tr>
@@ -3732,7 +3732,7 @@ async function dashProducao(c) {
     ${miniList(`Parados há mais tempo (é aqui que a produção trava)`, parados.length
       ? parados.map((p) => `<div class="mini-row" style="cursor:pointer" data-caso="${p.id}">
           <span><strong>${esc(p.client_name || 'sem cliente')}</strong> — ${esc(p.title || '')}
-            <br><small style="color:var(--text-muted)">${esc(p.production_stage || '')}${Number(p.pendencias) ? ` · ⚠ ${p.pendencias} pendência(s)` : ''}</small></span>
+            <br><small style="color:var(--text-muted)">${esc(p.production_stage || '')}${Number(p.pendencias) ? ` · <span style="color:var(--blue,#2f6fb0);font-weight:600">⏸ Pausado</span> · ⚠ ${p.pendencias} pendência(s)` : ''}</small></span>
           <strong style="color:${Number(p.dias) > k.sla_dias ? 'var(--red)' : 'var(--text-muted)'}">${p.dias}d</strong>
         </div>`)
       : ['<div class="mini-row"><span>Nenhum caso parado na esteira.</span></div>'])}`;

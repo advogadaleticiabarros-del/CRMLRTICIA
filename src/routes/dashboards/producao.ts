@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../../config/database';
+import { slaDiasEfetivosSql } from '../../services/productionSla';
 
 const router = Router();
 
@@ -42,12 +43,13 @@ router.get('/', async (_req: Request, res: Response) => {
 
     const emProducao = ATIVAS.reduce((s, e) => s + (mapa[e] || 0), 0);
 
-    // 2. Atrasados: em etapa ativa há mais de SLA_DIAS
+    // 2. Atrasados: em etapa ativa há mais de SLA_DIAS de trabalho EFETIVO
+    // (pendência aberta pausa o relógio — não é atraso do escritório).
     const [[atr]] = await db.query(`
       SELECT COUNT(*) AS n FROM cases
        WHERE production_stage IN (${ATIVAS.map(() => '?').join(',')})
          AND production_started_at IS NOT NULL
-         AND DATEDIFF(NOW(), production_started_at) > ?
+         AND ${slaDiasEfetivosSql('cases.id', 'production_started_at')} > ?
     `, [...ATIVAS, SLA_DIAS]) as any;
 
     // 3. Pendências abertas (o que falta para a peça andar)
@@ -81,7 +83,7 @@ router.get('/', async (_req: Request, res: Response) => {
     // 6. Os que estão parados há mais tempo (é aqui que o dinheiro trava)
     const [parados] = await db.query(`
       SELECT c.id, c.title, c.production_stage,
-             DATEDIFF(NOW(), c.production_started_at) AS dias,
+             ${slaDiasEfetivosSql('c.id', 'c.production_started_at')} AS dias,
              cl.name AS client_name,
              (SELECT COUNT(*) FROM production_notes pn
                WHERE pn.case_id = c.id AND pn.kind = 'pendencia' AND pn.resolved = 0) AS pendencias

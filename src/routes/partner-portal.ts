@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { db } from '../config/database';
+import { slaDiasEfetivosSql, pendenciasAbertasSql } from '../services/productionSla';
 
 const router = Router();
 
@@ -37,7 +38,8 @@ router.get('/me', async (req: Request, res: Response) => {
 router.get('/cases', async (req: Request, res: Response) => {
   const [rows] = await db.query(`
     SELECT c.id, c.case_number, c.title, c.legal_area, c.status, c.production_stage, c.valor_causa,
-           DATEDIFF(NOW(), c.production_started_at) AS sla_days, c.created_at,
+           ${slaDiasEfetivosSql('c.id', 'c.production_started_at')} AS sla_days,
+           ${pendenciasAbertasSql('c.id')} AS pendencias, c.created_at,
            cl.name AS client_name,
            (SELECT COALESCE(SUM(valor),0) FROM installments i WHERE i.case_id = c.id) AS valor_processo,
            (SELECT COALESCE(SUM(valor),0) FROM repasses r WHERE r.case_id = c.id) AS repasse_parceiro
@@ -178,7 +180,8 @@ router.get('/clients', async (req: Request, res: Response) => {
   for (const cl of clients) {
     const [cases] = await db.query(`
       SELECT c.id, c.title, c.case_number, c.legal_area, c.production_stage, c.status, c.valor_causa,
-             DATEDIFF(NOW(), c.production_started_at) AS sla_days
+             ${slaDiasEfetivosSql('c.id', 'c.production_started_at')} AS sla_days,
+             ${pendenciasAbertasSql('c.id')} AS pendencias
         FROM cases c WHERE c.client_id = ? AND c.partner_id = ? ORDER BY c.created_at DESC`,
       [cl.id, partnerId]) as any;
 
