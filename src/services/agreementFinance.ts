@@ -112,3 +112,76 @@ export async function syncAgreementFinanceLaunches(agreementId: number, userId: 
 
   return { lancados };
 }
+
+export interface RepasseCliente {
+  tranche_label: string;
+  valor_bruto: number;
+  valor_honorarios: number;
+  valor_liquido: number;
+  data_prevista: string;
+}
+
+/**
+ * Quanto de cada tranche do acordo (entrada/parcelas) o escritório retém
+ * como honorário e quanto repassa ao cliente — só relevante quando o
+ * dinheiro passa pela conta do escritório (payment_flow = 'via_escritorio').
+ * Mesmo cálculo proporcional de syncAgreementFinanceLaunches, para os dois
+ * nunca divergirem.
+ */
+export function montarRepassesCliente(a: {
+  total_agreement_value: number; entrada_value?: number; entrada_date?: string | Date | null;
+  installments_count: number; first_due_date: string | Date; honorarium_value?: number;
+}): RepasseCliente[] {
+  const tranches = montarCronogramaAcordo(a);
+  const total = Number(a.total_agreement_value) || 0;
+  const honTotal = Number(a.honorarium_value) || 0;
+  if (!tranches.length || total <= 0) return [];
+  return tranches.map((t) => {
+    const honTranche = round2((honTotal * t.valor) / total);
+    return {
+      tranche_label: t.label,
+      valor_bruto: t.valor,
+      valor_honorarios: honTranche,
+      valor_liquido: round2(t.valor - honTranche),
+      data_prevista: t.data,
+    };
+  });
+}
+
+/** Cronograma em texto corrido pro termo gerado (mesmo estilo de contractTemplates.ts). */
+export function cronogramaAcordoTexto(tranches: Tranche[]): string {
+  if (!tranches.length) return 'pagamento à vista, conforme acordado entre as partes';
+  const money = (v: number) => `R$ ${(Number(v) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const dt = (s: string) => (s ? new Date(s + 'T00:00:00').toLocaleDateString('pt-BR') : '');
+  return tranches.map((t) => `${t.label} de ${money(t.valor)} em ${dt(t.data)}`).join('; ') + '.';
+}
+
+/**
+ * Gera (ou refaz) os repasses PENDENTES ao cliente para este acordo, quando
+ * o dinheiro passa pela conta do escritório. Idempotente como
+ * syncAgreementFinanceLaunches: apaga só os PENDENTES antes de recriar — o
+ * que já foi marcado como repassado fica intacto. Se o acordo não for
+ * via_escritorio, garante que não sobra nenhum repasse pendente órfão (caso
+ * o fluxo tenha sido trocado depois de criado).
+ */
+export async function syncAgreementClientPayouts(agreementId: number): Promise<{ criados: number }> {
+  const [[a]] = await db.query('SELECT * FROM agreements WHERE id = ?', [agreementId]) as any;
+  if (!a) return { criados: 0 };
+
+  await db.query("DELETE FROM agreement_client_payouts WHERE agreement_id = ? AND status = 'pendente'", [agreementId]);
+
+  if (a.payment_flow !== 'via_escritorio') return { criados: 0 };
+
+  const payouts = montarRepassesCliente(a);
+  let criados = 0;
+  for (const p of payouts) {
+    if (p.valor_liquido <= 0) continue;
+    await db.query(
+      `INSERT INTO agreement_client_payouts (agreement_id, tranche_label, valor_bruto, valor_honorarios, valor_liquido, status, data_prevista)
+       VALUES (?, ?, ?, ?, ?, 'pendente', ?)`,
+      [agreementId, p.tranche_label, p.valor_bruto, p.valor_honorarios, p.valor_liquido, p.data_prevista]
+    );
+    criados++;
+  }
+  return { criados };
+}
