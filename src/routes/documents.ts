@@ -53,7 +53,7 @@ router.delete('/templates/:id', async (req: Request, res: Response) => {
 
 // ── GERAÇÃO a partir de template + cliente/caso ─────────────────────────────
 router.post('/generate', async (req: Request, res: Response) => {
-  const { template_id, client_id, case_id } = req.body;
+  const { template_id, client_id, case_id, juizo, numero_processo } = req.body;
   if (!template_id || !client_id) { res.status(400).json({ error: 'template_id e client_id são obrigatórios' }); return; }
 
   const [[tpl]] = await db.query('SELECT * FROM document_templates WHERE id = ?', [template_id]) as any;
@@ -74,7 +74,11 @@ router.post('/generate', async (req: Request, res: Response) => {
     cliente_estado: client.state || '',
     cliente_profissao: client.profession || '',
     cliente_estado_civil: client.marital_status || '',
-    processo_numero: proc ? (proc.case_number || proc.process_number || '') : '',
+    // numero_processo/juizo digitados na hora prevalecem sobre o do caso vinculado —
+    // uma habilitação em processo novo (ex.: homologação) muitas vezes não tem
+    // relação 1:1 com o número de processo já cadastrado no caso do CRM.
+    processo_numero: (numero_processo && String(numero_processo).trim()) || (proc ? (proc.case_number || proc.process_number || '') : ''),
+    juizo: (juizo && String(juizo).trim()) || '',
     advogada_nome: lawyer?.name || '',
     advogada_oab: lawyer ? `${lawyer.oab_number || ''}${lawyer.oab_uf ? '/' + lawyer.oab_uf : ''}` : '',
     data_extenso: dataExtenso(),

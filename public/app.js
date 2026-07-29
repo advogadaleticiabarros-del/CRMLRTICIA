@@ -2512,6 +2512,7 @@ async function gerarDocForm(clientId, onSave) {
     ${field('Modelo', 'template_id', { options: templates.map((t) => ({ v: t.id, t: t.name })) })}
     <div id="tpl-info"></div>
     ${field('Processo (opcional)', 'case_id', { options: [{ v: '', t: '—' }].concat(caseList.map((c) => ({ v: c.id, t: c.title || c.case_number }))) })}
+    <div class="form-row">${field('Nº do processo (se diferente do caso)', 'numero_processo')}${field('Juízo/Vara (ex.: 3ª Vara do Trabalho de Vitória/ES)', 'juizo')}</div>
     <button type="submit" class="btn-primary">Gerar documento</button>
   </form>`);
 
@@ -7108,7 +7109,7 @@ function formatDocHtml(text) {
     // Dentro do bloco de assinatura: nomes/cargos (ignora linhas em branco).
     if (inSig) { if (t) html += `<p class="sig-name">${esc(t)}</p>`; continue; }
     if (!t) { html += '<div class="sp"></div>'; continue; }
-    if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO|TERMO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
+    if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO|TERMO|HABILITAÇÃO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
     if (/^CL[ÁA]USULA\b/i.test(t)) { html += `<p class="clause">${esc(t)}</p>`; continue; }
     const mp = t.match(/^(PAR[ÁA]GRAFO[^-]*-)\s*([\s\S]*)$/i);
     if (mp) { html += `<p class="para"><strong>${esc(mp[1])}</strong> ${esc(mp[2])}</p>`; continue; }
