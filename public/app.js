@@ -3283,6 +3283,14 @@ async function partnerForm(id, onSave) {
 
 // ── Ferramentas universais de tabela: exportar CSV + filtro por período ──────
 // exportTableCSV: exporta QUALQUER tabela renderizada (o que está na tela).
+// Colunas de ação (botões "Receber"/"Recibo"/"Editar" etc.) sempre têm
+// cabeçalho vazio (<th></th>) nesta tela — acham-se pelo índice e ficam de
+// fora de qualquer exportação (CSV/PDF). Sem isso, o texto do botão ("Recibo",
+// "Dar baixa"...) vazava pro relatório como se fosse um dado real da linha.
+function colunasComCabecalho(headerTr) {
+  return [...headerTr.querySelectorAll('th,td')].map((td) => td.innerText.trim() !== '');
+}
+
 function exportTableCSV(tableEl, filename = 'exportacao') {
   if (!tableEl) { toast('Nada para exportar', 'error'); return; }
   // Aceita uma tabela OU um contêiner com várias (une com linha em branco)
@@ -3291,8 +3299,11 @@ function exportTableCSV(tableEl, filename = 'exportacao') {
   const linhas = [];
   tabelas.forEach((tb, i) => {
     if (i > 0) linhas.push('');
-    [...tb.querySelectorAll('tr')].forEach((tr) => {
-      linhas.push([...tr.querySelectorAll('th,td')].map((td) => {
+    const trs = [...tb.querySelectorAll('tr')];
+    const manter = trs.length ? colunasComCabecalho(trs[0]) : [];
+    trs.forEach((tr) => {
+      const cels = [...tr.querySelectorAll('th,td')].filter((_, idx) => manter[idx] !== false);
+      linhas.push(cels.map((td) => {
         const t = td.innerText.replace(/\s+/g, ' ').trim();
         return `"${t.replace(/"/g, '""')}"`;
       }).join(';'));
@@ -3315,14 +3326,22 @@ function tableToRows(tableEl) {
   if (!tabelas.length) return null;
   const cell = (td) => td.innerText.replace(/\s+/g, ' ').trim();
   let headers = null;
+  let manter = null;
   const rows = [];
   // Várias tabelas (ex.: Contas a Pagar, uma por grupo/categoria) — usa o
   // cabeçalho da primeira e junta as linhas de todas, assumindo mesmas colunas.
+  // Colunas de ação (cabeçalho vazio) ficam de fora.
   for (const tb of tabelas) {
     const trs = [...tb.querySelectorAll('tr')];
     if (!trs.length) continue;
-    if (!headers) headers = [...trs[0].querySelectorAll('th,td')].map(cell);
-    trs.slice(1).forEach((tr) => rows.push([...tr.querySelectorAll('th,td')].map(cell)));
+    if (!headers) {
+      manter = colunasComCabecalho(trs[0]);
+      headers = [...trs[0].querySelectorAll('th,td')].filter((_, idx) => manter[idx] !== false).map(cell);
+    }
+    trs.slice(1).forEach((tr) => {
+      const cels = [...tr.querySelectorAll('th,td')].filter((_, idx) => manter[idx] !== false);
+      rows.push(cels.map(cell));
+    });
   }
   if (!headers || !rows.length) return null;
   return { headers, rows };
