@@ -56,6 +56,23 @@ export async function onContractSigned(contractId: number, actorId: number, acto
   ) as any;
   const caseId = caseRes.insertId;
 
+  // Avisa a equipe no sino — evento especial, com som diferente (channel='som').
+  // A rotina que engole erro de "rotina_falhou" já usa esse padrão de aviso;
+  // aqui é positivo (contrato fechado), não uma falha.
+  try {
+    const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [ct.client_id]) as any;
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+    for (const a of admins) {
+      await db.query(
+        `INSERT INTO notifications (user_id, client_id, case_id, title, message, notification_type, channel, scheduled_at, status)
+         VALUES (?, ?, ?, ?, ?, 'contrato_assinado', 'som', NOW(), 'pendente')`,
+        [a.id, ct.client_id, caseId,
+         '✍️ Contrato assinado!',
+         `${cl?.name || ct.title || 'Cliente'} assinou o contrato — o processo já está na esteira de produção.`]
+      );
+    }
+  } catch { /* aviso é best-effort — nunca pode travar a assinatura */ }
+
   // Etiqueta o cliente com a ÁREA do contrato (ex.: Cível). Um cliente pode ter várias.
   if (ct.area) {
     try {

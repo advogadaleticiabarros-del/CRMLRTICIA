@@ -557,7 +557,37 @@ async function refreshBell() {
     const badge = $('#bell-count');
     if (count > 0) { badge.textContent = count; badge.classList.remove('hidden'); }
     else badge.classList.add('hidden');
-    if ('Notification' in window && Notification.permission === 'granted') await maybeNotify();
+    await maybeNotify(); // roda sempre — o som especial não depende de permissão de notificação do SO
+  } catch {}
+}
+
+// Som especial (sintetizado, sem depender de arquivo de áudio) pra eventos
+// que merecem destaque — hoje só contrato assinado (channel='som' na
+// notificação). Contexto criado uma vez e "destravado" no 1º clique da
+// usuária na página, porque navegadores bloqueiam áudio sem gesto do usuário.
+let audioCtx = null;
+function unlockAudio() {
+  if (audioCtx) return;
+  try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch {}
+}
+document.addEventListener('click', unlockAudio, { once: true });
+function playSomEspecial() {
+  unlockAudio();
+  if (!audioCtx) return;
+  try {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    [660, 880, 1100].forEach((freq, i) => { // Mi5 · Lá5 · Dó#6 — "tcharam" curto e celebratório
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const start = audioCtx.currentTime + i * 0.11;
+      gain.gain.setValueAtTime(0, start);
+      gain.gain.linearRampToValueAtTime(0.25, start + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, start + 0.35);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(start); osc.stop(start + 0.4);
+    });
   } catch {}
 }
 
@@ -572,12 +602,15 @@ async function maybeNotify() {
   const novos = items.filter((n) => !notifiedIds.has(n.id)).slice(0, 5);
   for (const n of novos) {
     notifiedIds.add(n.id);
-    const opts = { body: n.message || '', icon: '/logo.png', badge: '/logo.png', tag: 'crm-' + n.id };
-    try {
-      const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
-      if (reg && reg.showNotification) await reg.showNotification(n.title || 'CRM', opts);
-      else new Notification(n.title || 'CRM', opts);
-    } catch {}
+    if (n.channel === 'som') playSomEspecial();
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const opts = { body: n.message || '', icon: '/logo.png', badge: '/logo.png', tag: 'crm-' + n.id };
+      try {
+        const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+        if (reg && reg.showNotification) await reg.showNotification(n.title || 'CRM', opts);
+        else new Notification(n.title || 'CRM', opts);
+      } catch {}
+    }
   }
   if (novos.length) persistNotified();
 }
