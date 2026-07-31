@@ -2449,6 +2449,7 @@ async function gedDocumentos(c) {
     <div class="toolbar">
       <select id="ged-client"><option value="">Selecione um cliente…</option>${clients.data.map((cl) => `<option value="${cl.id}">${cl.name}</option>`).join('')}</select>
       <span class="spacer"></span>
+      <button class="btn-sm" id="ged-upload" disabled>Enviar arquivo assinado</button>
       <button class="btn-gold" id="ged-generate" disabled>Gerar documento</button>
     </div>
     <div id="ged-folders"></div>`;
@@ -2456,6 +2457,7 @@ async function gedDocumentos(c) {
   const load = async () => {
     const cid = sel.value;
     $('#ged-generate').disabled = !cid;
+    $('#ged-upload').disabled = !cid;
     if (!cid) { $('#ged-folders').innerHTML = '<div class="empty">Selecione um cliente para ver as pastas</div>'; return; }
     const docs = await api('/api/documents?client_id=' + cid);
     const byFolder = {};
@@ -2466,16 +2468,66 @@ async function gedDocumentos(c) {
         <div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">${FOLDER_PT[f]}</strong> <small style="color:var(--text-muted)">(${byFolder[f].length})</small></div>
         <div>${byFolder[f].length ? byFolder[f].map((d) => `<div class="mini-row">
           <span>${d.name}<br><small style="color:var(--text-muted)">${fmtDate(d.created_at)}</small></span>
-          <span>${badge(d.status)} ${d.has_content == 1 ? `<button class="btn-sm" data-doc="${d.id}">Abrir</button>` : ''} ${!d.has_content && d.file_url ? `<a class="btn-sm" style="text-decoration:none" href="${esc(fileHref(d.file_url))}" target="_blank" rel="noopener">Abrir</a>` : ''} <button class="btn-sm" data-del-doc="${d.id}">×</button></span></div>`).join('') : '<div class="mini-row"><small>Vazia</small></div>'}</div>
+          <span>${badge(d.status)} ${d.has_content == 1 ? `<button class="btn-sm" data-doc="${d.id}">Abrir</button>` : ''} ${!d.has_content && d.file_url ? `<a class="btn-sm" style="text-decoration:none" href="${esc(fileHref(d.file_url))}" target="_blank" rel="noopener">Abrir</a>` : ''} ${d.has_data == 1 ? `<button class="btn-sm" data-doc-download="${d.id}" data-doc-name="${esc(d.name)}">Baixar</button>` : ''} <button class="btn-sm" data-del-doc="${d.id}">×</button></span></div>`).join('') : '<div class="mini-row"><small>Vazia</small></div>'}</div>
       </div>`).join('');
     document.querySelectorAll('[data-doc]').forEach((b) => b.onclick = () => docViewer(b.dataset.doc, load));
+    document.querySelectorAll('[data-doc-download]').forEach((b) => b.onclick = () => downloadDocFile(b.dataset.docDownload, b.dataset.docName));
     document.querySelectorAll('[data-del-doc]').forEach((b) => b.onclick = async () => {
       try { await api('/api/documents/' + b.dataset.delDoc, { method: 'DELETE' }); toast('Documento removido'); load(); } catch (e) { toast(e.message, 'error'); }
     });
   };
   sel.onchange = load;
   $('#ged-generate').onclick = () => gerarDocForm(sel.value, load);
+  $('#ged-upload').onclick = () => uploadDocForm(sel.value, load);
   await load();
+}
+
+// Baixa um arquivo enviado (upload) — fetch autenticado + blob, porque o
+// token fica em localStorage (não em cookie), um <a href> direto dá 401.
+async function downloadDocFile(id, name) {
+  try {
+    const res = await fetch(`/api/documents/${id}/file`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); throw new Error(j.error || 'Erro ao baixar arquivo'); }
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name || 'documento';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+// Envia um arquivo já assinado (PDF/foto/docx) — base64, sem multer no projeto.
+async function uploadDocForm(clientId, onSave) {
+  const form = el(`<form class="form-grid">
+    ${field('Nome do documento *', 'name')}
+    ${field('Pasta', 'folder', { value: 'contratos', options: Object.entries(FOLDER_PT).map(([v, t]) => ({ v, t })) })}
+    ${field('Status', 'status', { value: 'assinado', options: [{v:'assinado',t:'Assinado'},{v:'recebido',t:'Recebido'},{v:'arquivado',t:'Arquivado'},{v:'pendente',t:'Pendente'}] })}
+    <label>Arquivo *<input type="file" name="file" accept=".pdf,.doc,.docx,image/*" required></label>
+    <button type="submit" class="btn-primary">Enviar</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const file = form.querySelector('[name=file]').files[0];
+    if (!file) return;
+    if (file.size > 15 * 1024 * 1024) { toast('Arquivo maior que 15MB', 'error'); return; }
+    const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Enviando…';
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        const body = Object.fromEntries(new FormData(form));
+        delete body.file;
+        body.client_id = clientId;
+        body.name = (body.name && body.name.trim()) || file.name;
+        body.file_base64 = reader.result;
+        body.mime = file.type;
+        await api('/api/documents', { method: 'POST', body: JSON.stringify(body) });
+        closeModal(); toast('Arquivo enviado'); onSave();
+      } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Enviar'; }
+    };
+    reader.readAsDataURL(file);
+  };
+  openModal('Enviar arquivo assinado', form);
 }
 
 async function gedModelos(c) {

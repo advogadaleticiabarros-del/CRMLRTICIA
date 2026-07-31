@@ -110,7 +110,8 @@ router.get('/', async (req: Request, res: Response) => {
   if (req.query.folder) { where.push('d.folder = ?'); params.push(req.query.folder); }
   const [rows] = await db.query(
     `SELECT d.id, d.client_id, d.case_id, d.name, d.type, d.folder, d.status, d.file_url,
-            d.visible_to_client, (d.content IS NOT NULL) AS has_content, d.created_at, c.name AS client_name
+            d.visible_to_client, (d.content IS NOT NULL) AS has_content, (d.data IS NOT NULL) AS has_data,
+            d.created_at, c.name AS client_name
        FROM documents d LEFT JOIN clients c ON c.id = d.client_id
       WHERE ${where.join(' AND ')} ORDER BY d.created_at DESC LIMIT 500`, params
   ) as any;
@@ -129,18 +130,42 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 router.post('/', async (req: Request, res: Response) => {
-  const { client_id, case_id, name, folder, type, file_url, status, content } = req.body;
+  const { client_id, case_id, name, folder, type, file_url, status, content, file_base64, mime } = req.body;
   if (!client_id) { res.status(400).json({ error: 'client_id é obrigatório' }); return; }
   if (!name || !String(name).trim()) { res.status(400).json({ error: 'O nome é obrigatório' }); return; }
+
+  // Upload de arquivo (ex.: PDF/foto do documento assinado) — mesmo padrão
+  // já usado pra minuta do acordo extrajudicial: base64 em JSON (sem multer
+  // no projeto), guardado como blob em documents.data.
+  let data: Buffer | null = null;
+  if (file_base64) {
+    data = Buffer.from(String(file_base64).replace(/^data:[^;]+;base64,/, ''), 'base64');
+    const MAX = 15 * 1024 * 1024;
+    if (data.length > MAX) { res.status(400).json({ error: 'Arquivo maior que 15MB' }); return; }
+  }
+
   const [r] = await db.query(
-    `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, content, status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, content, data, mime, status, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [client_id, case_id ?? null, name.trim(), type ?? null,
      FOLDERS.includes(folder) ? folder : 'outros', file_url ?? null, content ?? null,
+     data, data ? (mime || 'application/octet-stream') : null,
      STATUSES.includes(status) ? status : 'recebido', req.user!.id]
   ) as any;
-  const [rows] = await db.query('SELECT * FROM documents WHERE id = ?', [r.insertId]) as any;
+  const [rows] = await db.query(
+    'SELECT id, client_id, case_id, name, type, folder, file_url, status, visible_to_client, (data IS NOT NULL) AS has_data, created_at FROM documents WHERE id = ?',
+    [r.insertId]
+  ) as any;
   res.status(201).json(rows[0]);
+});
+
+// ── GET /api/documents/:id/file — baixa o arquivo enviado (upload) ─────────
+router.get('/:id/file', async (req: Request, res: Response) => {
+  const [[doc]] = await db.query('SELECT name, mime, data FROM documents WHERE id = ?', [req.params.id]) as any;
+  if (!doc || !doc.data) { res.status(404).json({ error: 'Arquivo não encontrado' }); return; }
+  res.setHeader('Content-Type', doc.mime || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(doc.name)}"`);
+  res.send(doc.data);
 });
 
 router.put('/:id', async (req: Request, res: Response) => {
