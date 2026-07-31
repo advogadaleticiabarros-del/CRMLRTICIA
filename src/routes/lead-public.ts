@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
+import { normalizeChannel } from '../services/leadChannel';
 
 const router = Router();
 
@@ -35,6 +36,18 @@ router.post('/lead', async (req: Request, res: Response) => {
   const area = String(b.area || '').trim().slice(0, 100) || null;
   const message = String(b.message || '').trim().slice(0, 2000);
 
+  // UTM: aceita tanto no body (form que já leu location.search via JS) quanto
+  // na própria query string do POST (link do anúncio/bio apontando direto pra cá).
+  const q = req.query || {};
+  const pick = (k: string) => String(b[k] ?? q[k] ?? '').trim().slice(0, 150) || null;
+  const utm_source = pick('utm_source');
+  const utm_medium = pick('utm_medium');
+  const utm_campaign = pick('utm_campaign');
+  const utm_content = pick('utm_content');
+  const utm_term = pick('utm_term');
+  const landing_page = String(b.landing_page || req.get('referer') || '').trim().slice(0, 500) || null;
+  const source = normalizeChannel({ utm_source, utm_medium, fallback: 'site' });
+
   const [[admin]] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
   if (!admin) { res.status(500).json({ error: 'Indisponível' }); return; }
 
@@ -52,9 +65,11 @@ router.post('/lead', async (req: Request, res: Response) => {
   }
 
   const [ins] = await db.query(
-    `INSERT INTO leads (user_id, name, phone, email, source, legal_area, status, case_summary)
-     VALUES (?, ?, ?, ?, 'site', ?, 'triagem', ?)`,
-    [admin.id, name, phone, email, area, message ? `Mensagem enviada pelo site:\n"${message}"` : null]
+    `INSERT INTO leads (user_id, name, phone, email, source, legal_area, status, case_summary,
+                         utm_source, utm_medium, utm_campaign, utm_content, utm_term, landing_page)
+     VALUES (?, ?, ?, ?, ?, ?, 'triagem', ?, ?, ?, ?, ?, ?, ?)`,
+    [admin.id, name, phone, email, source, area, message ? `Mensagem enviada pelo site:\n"${message}"` : null,
+     utm_source, utm_medium, utm_campaign, utm_content, utm_term, landing_page]
   ) as any;
 
   try {

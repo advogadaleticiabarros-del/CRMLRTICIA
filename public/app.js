@@ -205,6 +205,7 @@ const NAV_BY_ROLE = {
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
   parceiro_portal: ['ppcases','ppclients','ppupdates','ppagenda','ppfin'],
+  comercial:  ['dashboard','leads','clients','propostas','contratos','agenda'],
 };
 function navForRole() { return NAV_BY_ROLE[USER?.role] || NAV_BY_ROLE.advogado; }
 
@@ -487,7 +488,7 @@ function initials(name) {
   const parts = (name || '').trim().split(/\s+/);
   return ((parts[0]?.[0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '')).toUpperCase() || 'U';
 }
-const ROLE_PT = { admin: 'Administrador', advogado: 'Advogado(a)', estagiario: 'Estagiário(a)', parceiro: 'Parceiro(a)', cliente: 'Cliente', staff: 'Equipe', parceiro_portal: 'Parceiro' };
+const ROLE_PT = { admin: 'Administrador', advogado: 'Advogado(a)', estagiario: 'Estagiário(a)', parceiro: 'Parceiro(a)', cliente: 'Cliente', staff: 'Equipe', parceiro_portal: 'Parceiro', comercial: 'Comercial' };
 
 let bellTimer = null;
 function showApp() {
@@ -859,17 +860,19 @@ function router() {
 // ── Pages ──
 const ROUTES = {
   async dashboard(page) {
+    // Papel comercial só cuida de leads/propostas — nada de financeiro/processual.
+    const isComercial = USER?.role === 'comercial';
+    const allTabs = [
+      ['cockpit', 'Cockpit'], ['comercial', 'Comercial'], ['monitoramento', 'Processos'],
+      ['processual', 'Processual'], ['agenda', 'Agenda'], ['financeiro', 'Financeiro'],
+      ['producao', 'Produção'], ['parceria', 'Parceria (protocolados)'],
+    ];
+    const visibleTabs = isComercial ? allTabs.filter(([id]) => ['comercial', 'agenda'].includes(id)) : allTabs;
+    const startTab = isComercial ? 'comercial' : 'cockpit';
     page.innerHTML = `
       <div class="page-header"><div><h2>Dashboards</h2><p class="sub">Visão gerencial do escritório</p></div></div>
       <div class="tabs" id="dash-tabs">
-        <button class="tab active" data-tab="cockpit">Cockpit</button>
-        <button class="tab" data-tab="comercial">Comercial</button>
-        <button class="tab" data-tab="monitoramento">Processos</button>
-        <button class="tab" data-tab="processual">Processual</button>
-        <button class="tab" data-tab="agenda">Agenda</button>
-        <button class="tab" data-tab="financeiro">Financeiro</button>
-        <button class="tab" data-tab="producao">Produção</button>
-        <button class="tab" data-tab="parceria">Parceria (protocolados)</button>
+        ${visibleTabs.map(([id, label]) => `<button class="tab${id === startTab ? ' active' : ''}" data-tab="${id}">${label}</button>`).join('')}
       </div>
       <div id="dash-content"></div>`;
     const tabs = { cockpit: dashCockpit, comercial: dashComercial, monitoramento: dashMonitoramento, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao, parceria: dashParceriaMensal };
@@ -879,7 +882,7 @@ const ROUTES = {
       try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
     };
     document.querySelectorAll('#dash-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
-    await show('cockpit');
+    await show(startTab);
   },
 
   async clients(page) {
@@ -3681,7 +3684,11 @@ async function dashComercial(c) {
     <div class="dash-2col">
       ${chartCard('Leads por origem', chartHBars((d.por_origem || []).map((r) => ({ label: r.origem, value: r.total }))))}
       ${chartCard('Leads por área jurídica', chartHBars((d.por_area || []).map((r) => ({ label: r.area, value: r.total }))))}
-    </div>`;
+    </div>
+    ${miniList('Campanhas (leads com utm_campaign)', (d.por_campanha || []).map((cp) =>
+      `<div class="mini-row"><span>${esc(cp.campanha)}<br><small>${esc(cp.origem)}</small></span>
+        <span>${cp.total} lead${cp.total == 1 ? '' : 's'}${Number(cp.convertidos) ? ` · <strong style="color:var(--green)">${cp.convertidos} convertido${cp.convertidos == 1 ? '' : 's'}</strong>` : ''}</span></div>`
+    ))}`;
 }
 
 async function dashMonitoramento(c) {
@@ -6345,7 +6352,7 @@ async function userForm(onSave) {
     ${field('Nome *', 'name')}
     ${field('E-mail *', 'email', { type: 'email' })}
     ${field('Senha provisória *', 'password', { type: 'password' })}
-    ${field('Papel', 'role', { options: [['advogado','Advogado do escritório'],['estagiario','Estagiário'],['parceiro','Advogado parceiro'],['parceiro_portal','Parceiro (portal de acompanhamento)'],['cliente','Cliente (portal)'],['admin','Administrador']].map(([v,t])=>({v,t})) })}
+    ${field('Papel', 'role', { options: [['advogado','Advogado do escritório'],['estagiario','Estagiário'],['comercial','Comercial (leads, propostas e contratos)'],['parceiro','Advogado parceiro'],['parceiro_portal','Parceiro (portal de acompanhamento)'],['cliente','Cliente (portal)'],['admin','Administrador']].map(([v,t])=>({v,t})) })}
     <div id="f-commission" style="display:none">${field('Repasse do parceiro', 'commission_percent', { options: [{v:30,t:'30%'},{v:50,t:'50%'}] })}</div>
     <div id="f-client" style="display:none">${field('Cliente vinculado', 'client_id', { options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}</div>
     <div id="f-partner" style="display:none">${field('Parceiro vinculado', 'partner_id', { options: partners.map((p) => ({ v: p.id, t: p.name })) })}</div>

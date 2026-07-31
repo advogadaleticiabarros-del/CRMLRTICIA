@@ -5,7 +5,7 @@ import { sendNewPassword, sendCredentials, isEmailConfigured } from '../services
 
 const router = Router();
 
-const ROLES = ['admin', 'advogado', 'estagiario', 'parceiro', 'cliente', 'parceiro_portal'];
+const ROLES = ['admin', 'advogado', 'estagiario', 'parceiro', 'cliente', 'parceiro_portal', 'comercial'];
 const COMMISSIONS = [30, 50];
 
 // ── GET /api/users — lista usuários ─────────────────────────────────────────

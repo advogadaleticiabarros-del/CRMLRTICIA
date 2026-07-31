@@ -65,7 +65,7 @@ export function authorize(...roles: string[]) {
   };
 }
 
-export const STAFF_ROLES = ['admin', 'advogado', 'estagiario', 'parceiro', 'staff'];
+export const STAFF_ROLES = ['admin', 'advogado', 'estagiario', 'parceiro', 'staff', 'comercial'];
 
 /** Bloqueia o papel 'cliente' das rotas de gestão (ele só acessa /api/portal). */
 export function requireStaff(req: Request, res: Response, next: NextFunction): void {

@@ -35,6 +35,15 @@ router.get('/', async (req: Request, res: Response) => {
       [userId]
     ) as any;
 
+    // Só campanhas de fato (utm_campaign preenchido) — orgânico/direto não tem campanha pra medir.
+    const [porCampanha] = await db.query(
+      `SELECT utm_campaign AS campanha, COALESCE(NULLIF(source,''),'(sem origem)') AS origem, COUNT(*) AS total,
+              SUM(CASE WHEN status IN ('fechada','convertido') THEN 1 ELSE 0 END) AS convertidos
+         FROM leads WHERE user_id = ? AND utm_campaign IS NOT NULL AND utm_campaign <> ''
+        GROUP BY utm_campaign, origem ORDER BY total DESC LIMIT 20`,
+      [userId]
+    ) as any;
+
     const [[fin]] = await db.query(`
       SELECT
         (SELECT COALESCE(SUM(valor),0) FROM propostas WHERE user_id = ? AND status = 'enviada')                AS receita_prevista,
@@ -54,6 +63,7 @@ router.get('/', async (req: Request, res: Response) => {
       leads_por_status:    leadsPorStatus,
       por_origem:          porOrigem,
       por_area:            porArea,
+      por_campanha:        porCampanha,
       propostas_enviadas:  metrics.propostas_enviadas,
       propostas_aceitas:   metrics.propostas_aceitas,
       taxa_conversao:      `${taxa_conversao}%`,
