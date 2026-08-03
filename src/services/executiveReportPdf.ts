@@ -156,12 +156,19 @@ export function buildExecutiveReportPdf(d: ExecutiveReportData, prev: ExecutiveR
     divider();
     row('RECEITA TOTAL', money(d.receita_total), true);
 
-    // ── Saídas ────────────────────────────────────────────────────────────
+    // ── Saídas — Empresa e Pessoal separadas, com o total geral ────────────
     sectionTitle('Saídas pagas');
-    row('Despesas', money(d.saidas.despesas));
-    row('Repasses a parceiros', money(d.saidas.repasses));
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(GOLD).text('EMPRESA', PAGE_MARGIN, doc.y, { characterSpacing: 0.4 });
+    doc.moveDown(0.25);
+    row('Despesas', money(d.saidas.empresa.despesas));
+    row('Repasses a parceiros', money(d.saidas.empresa.repasses));
+    row('Subtotal empresa', money(d.saidas.empresa.total), true);
+    doc.moveDown(0.15);
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(GOLD).text('PESSOAL', PAGE_MARGIN, doc.y, { characterSpacing: 0.4 });
+    doc.moveDown(0.25);
+    row('Despesas pessoais/família', money(d.saidas.pessoal.despesas), true);
     divider();
-    row('TOTAL DE SAÍDAS', money(d.saidas.total), true);
+    row('TOTAL GERAL DE SAÍDAS', money(d.saidas.total_geral), true);
 
     // ── Resultado em destaque ─────────────────────────────────────────────
     ensureSpace(46);
@@ -170,6 +177,7 @@ export function buildExecutiveReportPdf(d: ExecutiveReportData, prev: ExecutiveR
     doc.roundedRect(PAGE_MARGIN, ry, contentW, 34, 6).lineWidth(1.4).strokeColor(NAVY).stroke();
     doc.font('Times-Bold').fontSize(12).fillColor(NAVY).text('RESULTADO DO MÊS', PAGE_MARGIN + 14, ry + 10);
     doc.fillColor(d.resultado >= 0 ? GREEN : RED).text(money(d.resultado), PAGE_MARGIN, ry + 10, { width: contentW - 14, align: 'right' });
+    doc.font('Helvetica').fontSize(7.5).fillColor(MUTED).text('receita total − saídas da empresa (não conta despesas pessoais)', PAGE_MARGIN + 14, ry + 24);
     doc.y = ry + 44;
 
     // ── Volume de trabalho: processos protocolados ───────────────────────

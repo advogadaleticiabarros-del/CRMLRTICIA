@@ -24,7 +24,11 @@ export interface ExecutiveReportData {
   month: string;
   receitas: { clientes: number; parcerias: number; dativo: number; correspondente: number; exitos: number };
   receita_total: number;
-  saidas: { despesas: number; repasses: number; total: number };
+  saidas: {
+    empresa: { despesas: number; repasses: number; total: number };
+    pessoal: { despesas: number };
+    total_geral: number;
+  };
   resultado: number;
   processos: {
     protocolados: Protocolado[];
@@ -50,13 +54,17 @@ export async function getExecutiveReportData(month: string): Promise<ExecutiveRe
   const rec = await getReceitasRecebidasNoMes(month);
 
   // Saídas pagas no mês (financial_records fica vazia em produção — despesas
-  // reais da tela "Contas a Pagar" vivem em cashflow_entries).
+  // reais da tela "Contas a Pagar" vivem em cashflow_entries). Separadas por
+  // escopo — o "Resultado do mês" do escritório usa só "empresa"; "pessoal"
+  // aparece à parte, só pra dar a soma total de tudo que saiu de casa.
   const sai = await one(`
     SELECT
-      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='despesa' AND status='pago' AND escopo='empresa' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_fr,
-      (SELECT COALESCE(SUM(amount),0) FROM cashflow_entries WHERE type='saida' AND status='realizado' AND escopo='empresa' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_cf,
+      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='despesa' AND status='pago' AND escopo='empresa' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_fr_empresa,
+      (SELECT COALESCE(SUM(amount),0) FROM cashflow_entries WHERE type='saida' AND status='realizado' AND escopo='empresa' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_cf_empresa,
+      (SELECT COALESCE(SUM(valor),0) FROM financial_records WHERE tipo='despesa' AND status='pago' AND escopo='pessoal' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_fr_pessoal,
+      (SELECT COALESCE(SUM(amount),0) FROM cashflow_entries WHERE type='saida' AND status='realizado' AND escopo='pessoal' AND DATE_FORMAT(COALESCE(paid_at, due_date),'%Y-%m') = ?) AS despesas_cf_pessoal,
       (SELECT COALESCE(SUM(valor),0) FROM repasses WHERE status='repassado' AND DATE_FORMAT(data_repasse,'%Y-%m') = ?) AS repasses
-  `, [month, month, month]);
+  `, [month, month, month, month, month]);
 
   // Funil comercial do mês
   const funil = await one(`
@@ -117,14 +125,21 @@ export async function getExecutiveReportData(month: string): Promise<ExecutiveRe
     exitos: rec.exitos,
   };
   const receita_total = rec.total;
-  const despesasTotal = r2(N(sai.despesas_fr) + N(sai.despesas_cf));
-  const saida_total = r2(despesasTotal + N(sai.repasses));
+  const despesasEmpresa = r2(N(sai.despesas_fr_empresa) + N(sai.despesas_cf_empresa));
+  const despesasPessoal = r2(N(sai.despesas_fr_pessoal) + N(sai.despesas_cf_pessoal));
+  const repasses = r2(N(sai.repasses));
+  const totalEmpresa = r2(despesasEmpresa + repasses);
+  const totalGeral = r2(totalEmpresa + despesasPessoal);
 
   return {
     month,
     receitas, receita_total,
-    saidas: { despesas: despesasTotal, repasses: r2(N(sai.repasses)), total: saida_total },
-    resultado: r2(receita_total - saida_total),
+    saidas: {
+      empresa: { despesas: despesasEmpresa, repasses, total: totalEmpresa },
+      pessoal: { despesas: despesasPessoal },
+      total_geral: totalGeral,
+    },
+    resultado: r2(receita_total - totalEmpresa),
     processos: {
       protocolados,
       total_protocolados: protocolados.length,

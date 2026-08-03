@@ -99,7 +99,18 @@ export async function sendMonthlyExecutiveReportEmail(month?: string): Promise<S
       ${kpiCell('Leads novos', String(data.funil.leads_novos), dLeads)}
     </tr></table>
 
-    <table style="width:100%;border-collapse:collapse;margin:22px 0 0" role="presentation">
+    <div style="margin-top:22px">
+      <div style="font-size:9px;color:${GOLD};text-transform:uppercase;letter-spacing:1px;font-family:Arial,sans-serif;font-weight:700;margin-bottom:4px">Saídas pagas</div>
+      <table style="width:100%;border-collapse:collapse" role="presentation">
+        ${linha('Empresa — despesas', money(data.saidas.empresa.despesas))}
+        ${linha('Empresa — repasses a parceiros', money(data.saidas.empresa.repasses))}
+        ${linha('Pessoal — despesas', money(data.saidas.pessoal.despesas))}
+        ${linha('TOTAL GERAL', money(data.saidas.total_geral))}
+      </table>
+      <p style="margin:4px 0 0;font-size:11px;color:#9a9284;font-family:Arial,sans-serif">O resultado acima é receita − saídas da empresa; as despesas pessoais não entram nessa conta, só no total geral.</p>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;margin:18px 0 0" role="presentation">
       ${linha('Propostas criadas · aceitas', `${data.funil.propostas_criadas} · ${data.funil.propostas_aceitas}`)}
       ${linha('Inadimplência acumulada (hoje)', money(data.situacao_atual.inadimplencia))}
       ${linha('Casos na esteira agora', String(data.situacao_atual.casos_na_esteira))}

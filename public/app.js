@@ -4047,14 +4047,23 @@ async function finVisaoGeral(c) {
         </table>
         ${prevM ? `<p style="margin:2px 0 0;font-size:11.5px;color:#999">vs. ${prevM.month}${deltaTag(calcDelta(d.receita_total, prevM.receita_total))}</p>` : ''}
         <h3 style="margin:16px 0 4px">Saídas pagas</h3>
+        <p style="font-size:10px;color:#c19a4e;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:8px 0 2px">Empresa</p>
         <table style="width:100%;border-collapse:collapse">
-          ${linha('Despesas', d.saidas.despesas)}
-          ${linha('Repasses a parceiros', d.saidas.repasses)}
-          ${linha('TOTAL DE SAÍDAS', d.saidas.total, 1)}
+          ${linha('Despesas', d.saidas.empresa.despesas)}
+          ${linha('Repasses a parceiros', d.saidas.empresa.repasses)}
+          ${linha('Subtotal empresa', d.saidas.empresa.total, 1)}
+        </table>
+        <p style="font-size:10px;color:#c19a4e;text-transform:uppercase;letter-spacing:.5px;font-weight:700;margin:10px 0 2px">Pessoal</p>
+        <table style="width:100%;border-collapse:collapse">
+          ${linha('Despesas pessoais/família', d.saidas.pessoal.despesas, 1)}
+        </table>
+        <table style="width:100%;border-collapse:collapse;margin-top:4px;border-top:2px solid #ccc">
+          ${linha('TOTAL GERAL DE SAÍDAS', d.saidas.total_geral, 1)}
         </table>
         <div style="margin-top:14px;padding:12px 14px;border:2px solid #0d1b2e;border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-size:16px">
           <strong>RESULTADO DO MÊS</strong><span><strong style="color:${d.resultado >= 0 ? '#1c7a3d' : '#c0392b'}">${money(d.resultado)}</strong>${prevM ? deltaTag(calcDelta(d.resultado, prevM.resultado)) : ''}</span>
         </div>
+        <p style="font-size:11px;color:#999;margin:4px 0 0">receita total − saídas da empresa (despesas pessoais não entram nessa conta)</p>
         <h3 style="margin:16px 0 4px">Processos protocolados no mês (${d.processos.total_protocolados})${prevM ? deltaTag(calcDelta(d.processos.total_protocolados, prevM.processos.total_protocolados)) : ''}</h3>
         <p style="font-size:12px;color:#777;margin:0 0 6px">${d.processos.proprios} próprio(s) · ${d.processos.parcerias} de parceria</p>
         ${d.processos.protocolados.length ? `<table style="width:100%;border-collapse:collapse">
