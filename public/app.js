@@ -4031,7 +4031,10 @@ async function finVisaoGeral(c) {
       printBranded(`Relatório Executivo — ${d.month}`, 'Visão consolidada do escritório (regime de caixa)', `
         <div style="background:#eef1f6;border-radius:8px;padding:14px 18px;margin:6px 0 18px">
           <div style="font-size:10px;color:#c19a4e;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:6px">Resumo do mês</div>
-          <p style="margin:0;font-size:13.5px;line-height:1.6;color:#1f3047">${esc(d.narrativa.resumo)}</p>
+          <p style="margin:0 0 10px;font-size:13.5px;line-height:1.6;color:#1f3047">${esc(d.narrativa.resumo)}</p>
+          <ul style="margin:10px 0 0;padding:10px 0 0 18px;border-top:1px solid #d7dde6;color:#1f3047;font-size:12.5px;line-height:1.7">
+            ${d.narrativa.destaques.map((t) => `<li>${esc(t)}</li>`).join('')}
+          </ul>
         </div>
         <h3 style="margin:14px 0 4px">Receita recebida por frente</h3>
         <table style="width:100%;border-collapse:collapse">

@@ -16,40 +16,45 @@ export function delta(atual: number, anterior: number): Delta {
   return { pct, alta: pct >= 0 };
 }
 
-export interface Narrative { resumo: string; dicas: string[] }
+export interface Narrative { resumo: string; destaques: string[]; dicas: string[] }
 
 const mesLabel = (ym: string) => {
   const [y, m] = ym.split('-');
   return ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'][Number(m) - 1] + '/' + y;
 };
 const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+const pctBR = (n: number) => Math.abs(n).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
 
 /**
- * Texto do "Resumo do mês" + dicas acionáveis, geradas a partir dos números
- * (sem IA — regras simples e transparentes, fáceis de ajustar). Compara com
- * o mês anterior quando existe base pra comparar.
+ * Resumo do mês (manchete financeira) + destaques (fatos soltos, um por
+ * linha — mais fácil de escanear que um parágrafo só) + dicas acionáveis,
+ * geradas a partir dos números (sem IA — regras simples e transparentes,
+ * fáceis de ajustar). Compara com o mês anterior quando existe base pra isso.
  */
 export function buildNarrative(cur: ExecutiveReportData, prev: ExecutiveReportData | null): Narrative {
   const dRec = prev ? delta(cur.receita_total, prev.receita_total) : null;
   const dRes = prev ? delta(cur.resultado, prev.resultado) : null;
 
-  const variacao = (d: Delta | null, coisa: string) =>
-    d && d.pct !== null ? `, ${d.alta ? 'uma alta' : 'uma queda'} de ${Math.abs(d.pct)}% em ${coisa} ao mês anterior` : '';
+  const variacao = (d: Delta | null) =>
+    d && d.pct !== null ? ` (${d.alta ? 'alta' : 'queda'} de ${pctBR(d.pct)}% frente ao mês anterior)` : '';
 
   const resumo =
-    `Em ${mesLabel(cur.month)}, o escritório faturou ${money(cur.receita_total)}${variacao(dRec, 'relação')}, ` +
-    `fechando o mês com resultado de ${money(cur.resultado)}${cur.resultado >= 0 ? '' : ' (negativo)'}${variacao(dRes, 'relação')}. ` +
-    `Foram ${cur.processos.total_protocolados} processo(s) protocolado(s) (${cur.processos.proprios} próprio(s) · ${cur.processos.parcerias} de parceria), ` +
-    `com ${cur.processos.movimentacoes_total} movimentação(ões) processual(is) recebida(s) em ${cur.processos.processos_com_movimentacao} processo(s). ` +
-    `A agenda somou ${cur.agenda.compromissos_total} compromisso(s), e o funil comercial trouxe ${cur.funil.leads_novos} lead(s) novo(s), ` +
-    `com ${cur.funil.propostas_aceitas} proposta(s) aceita(s) (${cur.funil.conversao_pct}% de conversão).`;
+    `Em ${mesLabel(cur.month)}, o escritório faturou ${money(cur.receita_total)}${variacao(dRec)}, ` +
+    `fechando com resultado de ${money(cur.resultado)}${cur.resultado >= 0 ? '' : ' (negativo)'}${variacao(dRes)}.`;
+
+  const destaques: string[] = [
+    `${cur.processos.total_protocolados} processo(s) protocolado(s) — ${cur.processos.proprios} próprio(s) · ${cur.processos.parcerias} de parceria`,
+    `${cur.processos.movimentacoes_total} movimentação(ões) processual(is) recebida(s), em ${cur.processos.processos_com_movimentacao} processo(s)`,
+    `${cur.agenda.compromissos_total} compromisso(s) na agenda`,
+    `${cur.funil.leads_novos} lead(s) novo(s) · ${cur.funil.propostas_aceitas} proposta(s) aceita(s) (${cur.funil.conversao_pct}% de conversão)`,
+  ];
 
   const dicas: string[] = [];
 
   if (cur.resultado < 0) {
     dicas.push('O mês fechou no negativo — vale revisar a lista de despesas fixas em Contas a Pagar e ver o que dá pra renegociar ou cortar.');
   } else if (dRes && dRes.pct !== null && dRes.alta && dRes.pct >= 15) {
-    dicas.push(`O resultado cresceu ${dRes.pct}% frente ao mês anterior — bom momento para revisar se algum canal específico puxou esse ganho e reforçar nele.`);
+    dicas.push(`O resultado cresceu ${pctBR(dRes.pct)}% frente ao mês anterior — bom momento para revisar se algum canal específico puxou esse ganho e reforçar nele.`);
   }
 
   if (cur.situacao_atual.inadimplencia > 0 && cur.receita_total > 0 && cur.situacao_atual.inadimplencia > cur.receita_total * 0.3) {
@@ -72,5 +77,5 @@ export function buildNarrative(cur: ExecutiveReportData, prev: ExecutiveReportDa
     dicas.push('Sem alertas — os números do mês estão dentro do esperado.');
   }
 
-  return { resumo, dicas };
+  return { resumo, destaques, dicas };
 }

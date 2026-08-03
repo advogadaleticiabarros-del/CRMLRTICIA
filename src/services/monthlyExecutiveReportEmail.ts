@@ -84,7 +84,11 @@ export async function sendMonthlyExecutiveReportEmail(month?: string): Promise<S
   const html = brandedLayout(`Relatório Executivo — ${mesLabel(ym)}`, `
     <div style="background:${NAVY_SOFT};border-radius:8px;padding:16px 18px;margin-bottom:20px">
       <div style="font-size:9px;color:${GOLD};text-transform:uppercase;letter-spacing:1px;font-family:Arial,sans-serif;font-weight:700;margin-bottom:6px">Resumo do mês</div>
-      <p style="margin:0;font-size:13.5px;line-height:1.6;color:${NAVY}">${narrative.resumo}</p>
+      <p style="margin:0 0 12px;font-size:13.5px;line-height:1.6;color:${NAVY}">${narrative.resumo}</p>
+      <ul style="margin:12px 0 0;padding:12px 0 0 18px;border-top:1px solid #d7dde6;list-style:none">
+        ${narrative.destaques.map((t) => `<li style="font-size:12.5px;color:${NAVY};line-height:1.6;margin-bottom:5px;position:relative;padding-left:14px">
+          <span style="position:absolute;left:0;color:${GOLD}">●</span>${t}</li>`).join('')}
+      </ul>
     </div>
 
     <table role="presentation" width="100%" cellspacing="6" cellpadding="0"><tr>
@@ -96,11 +100,9 @@ export async function sendMonthlyExecutiveReportEmail(month?: string): Promise<S
     </tr></table>
 
     <table style="width:100%;border-collapse:collapse;margin:22px 0 0" role="presentation">
-      ${linha('Processos protocolados', String(data.processos.total_protocolados) + ` (${data.processos.proprios} próprio · ${data.processos.parcerias} parceria)`)}
-      ${linha('Movimentações processuais recebidas', String(data.processos.movimentacoes_total))}
-      ${linha('Compromissos na agenda', String(data.agenda.compromissos_total))}
       ${linha('Propostas criadas · aceitas', `${data.funil.propostas_criadas} · ${data.funil.propostas_aceitas}`)}
       ${linha('Inadimplência acumulada (hoje)', money(data.situacao_atual.inadimplencia))}
+      ${linha('Casos na esteira agora', String(data.situacao_atual.casos_na_esteira))}
     </table>
 
     <div style="background:${GOLD_SOFT};border-radius:8px;padding:16px 18px;margin-top:20px">

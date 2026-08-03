@@ -94,12 +94,21 @@ export function buildExecutiveReportPdf(d: ExecutiveReportData, prev: ExecutiveR
     // ── Resumo do mês ─────────────────────────────────────────────────────
     ensureSpace(70);
     const boxY = doc.y;
-    const resumoH = doc.font('Helvetica').fontSize(9.6).heightOfString(narrative.resumo, { width: contentW - 32, lineGap: 2.5 });
-    const boxH = 26 + resumoH + 14;
+    const innerW = contentW - 32;
+    const resumoH = doc.font('Helvetica').fontSize(9.8).heightOfString(narrative.resumo, { width: innerW, lineGap: 2.5 });
+    const destH = narrative.destaques.reduce((s, t) => s + doc.font('Helvetica').fontSize(9).heightOfString(t, { width: innerW - 14, lineGap: 1 }) + 6, 0);
+    const boxH = 26 + resumoH + 14 + destH + 10;
     doc.roundedRect(PAGE_MARGIN, boxY, contentW, boxH, 6).fill(NAVY_SOFT);
     doc.font('Helvetica-Bold').fontSize(8).fillColor(GOLD).text('RESUMO DO MÊS', PAGE_MARGIN + 16, boxY + 12, { characterSpacing: 1 });
-    doc.font('Helvetica').fontSize(9.6).fillColor(NAVY)
-      .text(narrative.resumo, PAGE_MARGIN + 16, boxY + 26, { width: contentW - 32, lineGap: 2.5 });
+    doc.font('Helvetica').fontSize(9.8).fillColor(NAVY)
+      .text(narrative.resumo, PAGE_MARGIN + 16, boxY + 26, { width: innerW, lineGap: 2.5 });
+    doc.moveTo(PAGE_MARGIN + 16, doc.y + 6).lineTo(PAGE_MARGIN + contentW - 16, doc.y + 6).lineWidth(0.6).strokeColor('#d7dde6').stroke();
+    let desY = doc.y + 16;
+    for (const t of narrative.destaques) {
+      doc.circle(PAGE_MARGIN + 21, desY + 4, 1.6).fill(GOLD);
+      doc.font('Helvetica').fontSize(9).fillColor(NAVY).text(t, PAGE_MARGIN + 30, desY, { width: innerW - 14, lineGap: 1 });
+      desY = doc.y + 6;
+    }
     doc.y = boxY + boxH + 14;
 
     // ── KPIs em destaque (com variação vs. mês anterior) ─────────────────────
