@@ -4654,7 +4654,18 @@ async function contaPagarForm(onSave, ym, escopoInicial, editing) {
       } else {
         body.type = 'saida';
         const r = await api('/api/cashflow', { method: 'POST', body: JSON.stringify(body) });
-        closeModal(); toast(`Conta lançada (${r.created}x)`); onSave();
+        closeModal();
+        if (r.created > 1) {
+          // Cada parcela cai num mês diferente — avisa onde foram parar, senão
+          // parece que "sumiu" quando na verdade caiu na aba do mês seguinte.
+          const [y, m, d] = body.due_date.split('-').map(Number);
+          const ultima = new Date(y, (m - 1) + (r.created - 1), d);
+          const MES = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
+          toast(`Conta lançada em ${r.created}x — de ${MES[m - 1]}/${y} até ${MES[ultima.getMonth()]}/${ultima.getFullYear()}. Troque o mês no topo da tela pra ver as próximas parcelas.`);
+        } else {
+          toast('Conta lançada');
+        }
+        onSave();
       }
     } catch (err) { toast(err.message, 'error'); }
   };
