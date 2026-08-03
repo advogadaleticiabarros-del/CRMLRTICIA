@@ -11,7 +11,8 @@ import nodemailer, { Transporter } from 'nodemailer';
  */
 export interface SendResult { ok: boolean; skipped?: boolean; error?: string; messageId?: string; }
 
-interface MailInput { to: string; subject: string; html: string; text?: string; }
+interface Attachment { filename: string; content: Buffer; contentType?: string; }
+interface MailInput { to: string; subject: string; html: string; text?: string; attachments?: Attachment[]; }
 
 const FROM = process.env.EMAIL_FROM || 'Advocacia Letícia Barros <no-reply@advogadaleticiabarros.com.br>';
 const BRAND = '#2a3f5f';
@@ -60,6 +61,9 @@ async function sendViaResend(input: MailInput): Promise<SendResult> {
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         from: FROM, to: [input.to], subject: input.subject, html: input.html,
+        attachments: input.attachments?.map((a) => ({
+          filename: a.filename, content: a.content.toString('base64'),
+        })),
       }),
     });
     if (!res.ok) {
@@ -86,6 +90,9 @@ export async function sendEmail(input: MailInput): Promise<SendResult> {
     const info = await tx.sendMail({
       from: FROM, to: input.to, subject: input.subject, html: input.html,
       text: input.text || input.html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+      attachments: input.attachments?.map((a) => ({
+        filename: a.filename, content: a.content, contentType: a.contentType,
+      })),
     });
     return { ok: true, messageId: info.messageId };
   } catch (e: any) {

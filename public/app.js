@@ -187,6 +187,7 @@ function logout() {
   $('#app-view').classList.add('hidden');
   $('#login-view').classList.remove('hidden');
 }
+const AGENDA_TIPO_PT = { reuniao: 'Reuniões', audiencia: 'Audiências', prazo: 'Prazos', tarefa: 'Tarefas', compromisso: 'Outros compromissos' };
 const NAV_LABELS = {
   dashboard: 'Dashboard', clients: 'Clientes', leads: 'Leads',
   propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos & Tarefas',
@@ -3955,7 +3956,7 @@ async function finVisaoGeral(c) {
         </div>` : ''}
     </div>` : '';
   c.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0;flex-wrap:wrap"><button class="btn-ghost" id="fin-executivo">Relatório executivo (mês)</button><button class="btn-ghost" id="fin-dre">Relatório do contador (mês)</button><button class="btn-gold" id="new-fin">+ Lançamento</button></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0;flex-wrap:wrap"><button class="btn-ghost" id="fin-executivo">Relatório executivo (mês)</button><button class="btn-ghost" id="fin-executivo-email">Enviar por e-mail</button><button class="btn-ghost" id="fin-dre">Relatório do contador (mês)</button><button class="btn-gold" id="new-fin">+ Lançamento</button></div>
     <h3 style="color:var(--navy);margin:16px 0 8px">Resumo Geral <small style="font-weight:400;color:var(--text-muted);font-size:12px">· consolida clientes, parcerias, dativas e correspondente</small></h3>
     <div class="kpi-grid">
       ${kpi('Receita prevista', money(s.receita_prevista), 'money')}
@@ -4039,6 +4040,26 @@ async function finVisaoGeral(c) {
         <div style="margin-top:14px;padding:12px 14px;border:2px solid #0d1b2e;border-radius:8px;display:flex;justify-content:space-between;font-size:16px">
           <strong>RESULTADO DO MÊS</strong><strong style="color:${d.resultado >= 0 ? '#1c7a3d' : '#c0392b'}">${money(d.resultado)}</strong>
         </div>
+        <h3 style="margin:16px 0 4px">Processos protocolados no mês (${d.processos.total_protocolados})</h3>
+        <p style="font-size:12px;color:#777;margin:0 0 6px">${d.processos.proprios} próprio(s) · ${d.processos.parcerias} de parceria</p>
+        ${d.processos.protocolados.length ? `<table style="width:100%;border-collapse:collapse">
+          <thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ccc">Nº do processo</th><th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ccc">Cliente</th><th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ccc">Área</th><th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ccc">Tipo</th><th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ccc">Data</th></tr></thead>
+          <tbody>${d.processos.protocolados.map((p) => `<tr>
+            <td style="padding:5px 8px;border-bottom:1px solid #eee">${esc(p.case_number || '—')}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #eee">${esc(p.client_name)}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #eee">${esc(AREAS.find((a) => a.v === p.legal_area)?.t || p.legal_area)}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #eee">${p.tipo === 'parceria' ? 'Parceria' : 'Próprio'}</td>
+            <td style="padding:5px 8px;border-bottom:1px solid #eee">${esc(p.data)}</td></tr>`).join('')}</tbody>
+        </table>` : '<p style="font-size:13px;color:#777">Nenhum processo protocolado neste mês.</p>'}
+        <h3 style="margin:16px 0 4px">Movimentação processual (DJEN)</h3>
+        <table style="width:100%;border-collapse:collapse">
+          ${num('Movimentações recebidas no mês', d.processos.movimentacoes_total)}
+          ${num('Processos com movimentação', d.processos.processos_com_movimentacao)}
+        </table>
+        <h3 style="margin:16px 0 4px">Agenda do mês (${d.agenda.compromissos_total} compromisso${d.agenda.compromissos_total === 1 ? '' : 's'})</h3>
+        <table style="width:100%;border-collapse:collapse">
+          ${d.agenda.por_tipo.length ? d.agenda.por_tipo.map((t) => num(AGENDA_TIPO_PT[t.tipo] || t.tipo, t.total)).join('') : num('Nenhum compromisso registrado', '—')}
+        </table>
         <h3 style="margin:16px 0 4px">Funil comercial</h3>
         <table style="width:100%;border-collapse:collapse">
           ${num('Leads novos', d.funil.leads_novos)}
@@ -4059,6 +4080,18 @@ async function finVisaoGeral(c) {
         </table>
         <p style="color:#777;font-size:12px;margin-top:12px">Gerado automaticamente pelo CRM. Use "Imprimir → Salvar como PDF" para arquivar.</p>`);
     } catch (e) { toast(e.message, 'error'); }
+  };
+
+  // Reenvia o relatório executivo por e-mail sob demanda (o automático roda todo dia 1)
+  $('#fin-executivo-email').onclick = async () => {
+    const mes = await uiPrompt('Mês do relatório (AAAA-MM):', new Date().toISOString().slice(0, 7));
+    if (!mes) return;
+    try {
+      $('#fin-executivo-email').disabled = true;
+      const r = await api('/api/dashboards/relatorio-mensal/enviar', { method: 'POST', body: JSON.stringify({ month: mes.trim() }) });
+      toast(`Relatório de ${r.month} enviado por e-mail`);
+    } catch (e) { toast(e.message, 'error'); }
+    finally { $('#fin-executivo-email').disabled = false; }
   };
 
   // Relatório do contador — DRE simplificada do mês (imprimir → salvar como PDF)
