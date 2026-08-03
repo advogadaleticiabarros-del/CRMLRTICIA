@@ -4021,7 +4021,18 @@ async function finVisaoGeral(c) {
       const d = await api('/api/dashboards/relatorio-mensal?month=' + encodeURIComponent(mes.trim()));
       const linha = (t, v, forte) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${t}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;${forte ? 'font-weight:700' : ''}">${typeof v === 'number' && String(t).indexOf('%') === -1 ? money(v) : v}</td></tr>`;
       const num = (t, v) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${t}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee">${v}</td></tr>`;
+      const calcDelta = (atual, anterior) => {
+        if (!anterior) return null;
+        const pct = Math.round(((atual - anterior) / Math.abs(anterior)) * 1000) / 10;
+        return { pct, alta: pct >= 0 };
+      };
+      const deltaTag = (dl) => (!dl || dl.pct === null) ? '' : ` <strong style="color:${dl.alta ? '#1c7a3d' : '#c0392b'};font-size:12px">${dl.alta ? '▲' : '▼'} ${Math.abs(dl.pct)}%</strong>`;
+      const prevM = d.mes_anterior;
       printBranded(`Relatório Executivo — ${d.month}`, 'Visão consolidada do escritório (regime de caixa)', `
+        <div style="background:#eef1f6;border-radius:8px;padding:14px 18px;margin:6px 0 18px">
+          <div style="font-size:10px;color:#c19a4e;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:6px">Resumo do mês</div>
+          <p style="margin:0;font-size:13.5px;line-height:1.6;color:#1f3047">${esc(d.narrativa.resumo)}</p>
+        </div>
         <h3 style="margin:14px 0 4px">Receita recebida por frente</h3>
         <table style="width:100%;border-collapse:collapse">
           ${linha('Clientes & contratos', d.receitas.clientes)}
@@ -4031,16 +4042,17 @@ async function finVisaoGeral(c) {
           ${linha('Êxitos (RPV/precatório/alvará)', d.receitas.exitos)}
           ${linha('RECEITA TOTAL', d.receita_total, 1)}
         </table>
+        ${prevM ? `<p style="margin:2px 0 0;font-size:11.5px;color:#999">vs. ${prevM.month}${deltaTag(calcDelta(d.receita_total, prevM.receita_total))}</p>` : ''}
         <h3 style="margin:16px 0 4px">Saídas pagas</h3>
         <table style="width:100%;border-collapse:collapse">
           ${linha('Despesas', d.saidas.despesas)}
           ${linha('Repasses a parceiros', d.saidas.repasses)}
           ${linha('TOTAL DE SAÍDAS', d.saidas.total, 1)}
         </table>
-        <div style="margin-top:14px;padding:12px 14px;border:2px solid #0d1b2e;border-radius:8px;display:flex;justify-content:space-between;font-size:16px">
-          <strong>RESULTADO DO MÊS</strong><strong style="color:${d.resultado >= 0 ? '#1c7a3d' : '#c0392b'}">${money(d.resultado)}</strong>
+        <div style="margin-top:14px;padding:12px 14px;border:2px solid #0d1b2e;border-radius:8px;display:flex;justify-content:space-between;align-items:center;font-size:16px">
+          <strong>RESULTADO DO MÊS</strong><span><strong style="color:${d.resultado >= 0 ? '#1c7a3d' : '#c0392b'}">${money(d.resultado)}</strong>${prevM ? deltaTag(calcDelta(d.resultado, prevM.resultado)) : ''}</span>
         </div>
-        <h3 style="margin:16px 0 4px">Processos protocolados no mês (${d.processos.total_protocolados})</h3>
+        <h3 style="margin:16px 0 4px">Processos protocolados no mês (${d.processos.total_protocolados})${prevM ? deltaTag(calcDelta(d.processos.total_protocolados, prevM.processos.total_protocolados)) : ''}</h3>
         <p style="font-size:12px;color:#777;margin:0 0 6px">${d.processos.proprios} próprio(s) · ${d.processos.parcerias} de parceria</p>
         ${d.processos.protocolados.length ? `<table style="width:100%;border-collapse:collapse">
           <thead><tr><th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ccc">Nº do processo</th><th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ccc">Cliente</th><th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ccc">Área</th><th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ccc">Tipo</th><th style="text-align:left;padding:6px 8px;border-bottom:2px solid #ccc">Data</th></tr></thead>
@@ -4060,7 +4072,7 @@ async function finVisaoGeral(c) {
         <table style="width:100%;border-collapse:collapse">
           ${d.agenda.por_tipo.length ? d.agenda.por_tipo.map((t) => num(AGENDA_TIPO_PT[t.tipo] || t.tipo, t.total)).join('') : num('Nenhum compromisso registrado', '—')}
         </table>
-        <h3 style="margin:16px 0 4px">Funil comercial</h3>
+        <h3 style="margin:16px 0 4px">Funil comercial${prevM ? deltaTag(calcDelta(d.funil.leads_novos, prevM.funil.leads_novos)) : ''}</h3>
         <table style="width:100%;border-collapse:collapse">
           ${num('Leads novos', d.funil.leads_novos)}
           ${num('Contratos fechados', d.funil.leads_fechados)}
@@ -4078,6 +4090,12 @@ async function finVisaoGeral(c) {
           ${linha('Inadimplência acumulada', d.situacao_atual.inadimplencia)}
           ${num('Casos na esteira agora', d.situacao_atual.casos_na_esteira)}
         </table>
+        <h3 style="margin:16px 0 4px">Dicas &amp; recomendações</h3>
+        <div style="background:#f2ead3;border-radius:8px;padding:14px 18px">
+          <ul style="margin:0;padding-left:18px;color:#4a3d1d;font-size:13px;line-height:1.7">
+            ${d.narrativa.dicas.map((t) => `<li style="margin-bottom:6px">${esc(t)}</li>`).join('')}
+          </ul>
+        </div>
         <p style="color:#777;font-size:12px;margin-top:12px">Gerado automaticamente pelo CRM. Use "Imprimir → Salvar como PDF" para arquivar.</p>`);
     } catch (e) { toast(e.message, 'error'); }
   };

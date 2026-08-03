@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getExecutiveReportData } from '../../services/executiveReport';
+import { buildNarrative, prevMonthOf } from '../../services/executiveReportNarrative';
 
 const router = Router();
 
@@ -15,7 +16,11 @@ router.get('/', async (req: Request, res: Response) => {
   const month = /^\d{4}-\d{2}$/.test(String(req.query.month))
     ? String(req.query.month)
     : new Date().toISOString().slice(0, 7);
-  res.json(await getExecutiveReportData(month));
+  const [atual, anterior] = await Promise.all([
+    getExecutiveReportData(month),
+    getExecutiveReportData(prevMonthOf(month)).catch(() => null),
+  ]);
+  res.json({ ...atual, narrativa: buildNarrative(atual, anterior), mes_anterior: anterior });
 });
 
 // ── POST /api/dashboards/relatorio-mensal/enviar — dispara o e-mail na hora ──
