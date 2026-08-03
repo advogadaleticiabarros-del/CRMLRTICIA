@@ -4544,6 +4544,7 @@ async function finContasPagar(c) {
       entradasEl.style.display = 'none';
     }
 
+    const byId = new Map(visible.map((r) => [String(r.id), r]));
     const groups = {};
     visible.forEach((r) => { (groups[r.category] ??= []).push(r); });
     const order = GRUPOS_DESPESA.map(([k]) => k);
@@ -4571,6 +4572,7 @@ async function finContasPagar(c) {
             <td>${st}</td>
             <td style="white-space:nowrap;text-align:right">
               ${r.status !== 'realizado' ? `<button class="btn-sm" data-pay="${r.id}">Pagar</button>` : `<button class="btn-sm" data-reopen="${r.id}" title="Desfazer pagamento">Reabrir</button>`}
+              <button class="btn-sm" data-edit="${r.id}">Editar</button>
               <button class="btn-sm" data-del="${r.id}" data-grp="${r.recurrence_group || ''}" data-tot="${r.installment_total || 1}">Excluir</button>
             </td></tr>`;
         }).join('')}</tbody></table></div>`;
@@ -4584,6 +4586,10 @@ async function finContasPagar(c) {
       if (!await uiConfirm('Desfazer o pagamento e reabrir esta conta?')) return;
       try { await api(`/api/cashflow/${b.dataset.reopen}/reopen`, { method: 'PATCH', body: '{}' }); toast('Conta reaberta'); load(); }
       catch (e) { toast(e.message, 'error'); }
+    });
+    $('#cp-groups').querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => {
+      const rec = byId.get(b.dataset.edit);
+      if (rec) contaPagarForm(load, $('#cp-month').value, rec.escopo, rec);
     });
     $('#cp-groups').querySelectorAll('[data-del]').forEach((b) => b.onclick = async () => {
       const tot = Number(b.dataset.tot) || 1; const grp = b.dataset.grp;
@@ -4611,40 +4617,48 @@ async function finContasPagar(c) {
   await load();
 }
 
-async function contaPagarForm(onSave, ym, escopoInicial) {
+async function contaPagarForm(onSave, ym, escopoInicial, editing) {
   const now = new Date();
   const base = ym || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   const opc = await api('/api/cashflow/opcoes').catch(() => ({ pagadores: [], bancos: [] }));
   const dl = (id, arr) => `<datalist id="${id}">${(arr || []).map((v) => `<option value="${esc(v)}">`).join('')}</datalist>`;
-  const isPessoal = escopoInicial === 'pessoal';
+  const isPessoal = (editing ? editing.escopo : escopoInicial) === 'pessoal';
+  const due = editing ? (editing.due_date || '').split('T')[0] : `${base}-10`;
   const form = el(`<form class="form-grid">
     <div><small style="color:var(--text-muted)">Tipo da conta</small>
       <div class="seg-toggle" id="cp-escopo">
         <label class="${isPessoal ? '' : 'on'}"><input type="radio" name="escopo" value="empresa" ${isPessoal ? '' : 'checked'}>🏢 Empresa</label>
         <label class="${isPessoal ? 'on' : ''}"><input type="radio" name="escopo" value="pessoal" ${isPessoal ? 'checked' : ''}>👤 Pessoal</label>
       </div></div>
-    <label>Grupo de despesa<select name="category">${GRUPOS_DESPESA.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select></label>
-    ${field('Descrição *', 'description')}
-    <div class="form-row">${field('Valor (R$) *', 'amount', { type: 'number' })}${field('Vencimento *', 'due_date', { type: 'date', value: `${base}-10` })}</div>
+    <label>Grupo de despesa<select name="category">${GRUPOS_DESPESA.map(([v, t]) => `<option value="${v}"${editing && editing.category === v ? ' selected' : ''}>${t}</option>`).join('')}</select></label>
+    ${field('Descrição *', 'description', { value: editing?.description })}
+    <div class="form-row">${field('Valor (R$) *', 'amount', { type: 'number', value: editing?.amount })}${field('Vencimento *', 'due_date', { type: 'date', value: due })}</div>
     <div class="form-row">
-      <label>Pagadora (quem paga)<input name="pagador" list="dl-pag" placeholder="ex.: Escritório, você…" autocomplete="off">${dl('dl-pag', opc.pagadores)}</label>
-      <label>Banco / conta de saída<input name="banco" list="dl-ban" placeholder="ex.: Itaú, Nubank…" autocomplete="off">${dl('dl-ban', opc.bancos)}</label>
+      <label>Pagadora (quem paga)<input name="pagador" list="dl-pag" placeholder="ex.: Escritório, você…" autocomplete="off" value="${esc(editing?.pagador || '')}">${dl('dl-pag', opc.pagadores)}</label>
+      <label>Banco / conta de saída<input name="banco" list="dl-ban" placeholder="ex.: Itaú, Nubank…" autocomplete="off" value="${esc(editing?.banco || '')}">${dl('dl-ban', opc.bancos)}</label>
     </div>
-    ${field('Recorrência', 'recurrence', { options: [{ v: 'unica', t: 'Única (1x)' }, { v: 'mensal', t: 'Mensal (repetir)' }] })}
-    <div id="cp-occ" style="display:none">${field('Quantos meses', 'occurrences', { type: 'number', value: 12 })}</div>
-    ${field('Observações', 'notes', { type: 'textarea' })}
-    <button type="submit" class="btn-primary">Lançar conta</button>
+    ${editing ? '' : field('Recorrência', 'recurrence', { options: [{ v: 'unica', t: 'Única (1x)' }, { v: 'mensal', t: 'Mensal (repetir)' }] })}
+    ${editing ? '' : `<div id="cp-occ" style="display:none">${field('Quantos meses', 'occurrences', { type: 'number', value: 12 })}</div>`}
+    ${field('Observações', 'notes', { type: 'textarea', value: editing?.notes })}
+    <button type="submit" class="btn-primary">${editing ? 'Salvar alterações' : 'Lançar conta'}</button>
   </form>`);
   form.querySelectorAll('#cp-escopo input').forEach((r) => r.onchange = () => form.querySelectorAll('#cp-escopo label').forEach((l) => l.classList.toggle('on', l.querySelector('input').checked)));
-  form.querySelector('[name=recurrence]').onchange = (e) => { form.querySelector('#cp-occ').style.display = e.target.value === 'mensal' ? 'block' : 'none'; };
+  if (!editing) form.querySelector('[name=recurrence]').onchange = (e) => { form.querySelector('#cp-occ').style.display = e.target.value === 'mensal' ? 'block' : 'none'; };
   form.onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form));
-    body.type = 'saida';
-    try { const r = await api('/api/cashflow', { method: 'POST', body: JSON.stringify(body) }); closeModal(); toast(`Conta lançada (${r.created}x)`); onSave(); }
-    catch (err) { toast(err.message, 'error'); }
+    try {
+      if (editing) {
+        await api(`/api/cashflow/${editing.id}`, { method: 'PUT', body: JSON.stringify(body) });
+        closeModal(); toast('Conta atualizada'); onSave();
+      } else {
+        body.type = 'saida';
+        const r = await api('/api/cashflow', { method: 'POST', body: JSON.stringify(body) });
+        closeModal(); toast(`Conta lançada (${r.created}x)`); onSave();
+      }
+    } catch (err) { toast(err.message, 'error'); }
   };
-  openModal('Nova conta a pagar', form);
+  openModal(editing ? 'Editar conta a pagar' : 'Nova conta a pagar', form);
 }
 
 async function finFluxoCaixa(c) {
