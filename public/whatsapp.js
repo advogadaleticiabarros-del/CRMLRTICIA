@@ -92,11 +92,24 @@ Object.assign(ROUTES, {
         if (auto) auto.onclick = async () => { await api('/api/whatsapp-instance/auto', { method: 'POST', body: JSON.stringify({ on: !s.autoSend }) }).catch(() => {}); };
       };
       render(st);
-      // Atualiza status/QR a cada 3s enquanto estiver nesta aba
+      // Atualiza status/QR a cada 3s enquanto estiver nesta aba. Só refaz a
+      // tela inteira quando o "formato" muda (conectou, desconectou, QR
+      // apareceu pela 1ª vez) — se já está mostrando QR e o novo status
+      // também é QR, só troca a imagem no lugar. Sem isso, a tela inteira
+      // piscava a cada 3s (recriava tudo, mesmo o QR sendo o mesmo).
+      let lastShape = st.connected ? 'connected' : st.qr ? 'qr' : 'off';
       chatTimer = setInterval(async () => {
         if (tab !== 'conexao') { clearInterval(chatTimer); chatTimer = null; return; }
         const s = await api('/api/whatsapp-instance/status').catch(() => null);
-        if (s) render(s);
+        if (!s) return;
+        const shape = s.connected ? 'connected' : s.qr ? 'qr' : 'off';
+        if (shape === 'qr' && lastShape === 'qr') {
+          const img = body.querySelector('img[alt="QR Code"]');
+          if (img && s.qr && img.src !== s.qr) img.src = s.qr;
+        } else {
+          render(s);
+        }
+        lastShape = shape;
       }, 3000);
     };
 
