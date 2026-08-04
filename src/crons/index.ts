@@ -248,6 +248,17 @@ export function startCronJobs() {
     }, { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── semanal (domingo, 03h): apaga log de rotina (job_runs) com mais de 60
+  // dias — é só telemetria técnica (rotina rodou/deu erro), sem ligação com
+  // cliente/processo/financeiro. Sozinha já tinha passado de 21 mil linhas em
+  // 3 semanas e era o maior consumidor de espaço do banco no Railway.
+  cron.schedule('0 3 * * 0', () => {
+    runJob('manutencao:job-runs-antigos', async () => {
+      const [r] = await db.query('DELETE FROM job_runs WHERE ran_at < NOW() - INTERVAL 60 DAY') as any;
+      return { apagados: r.affectedRows };
+    }, { silencioso: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── a cada hora: proposta em análise há 7+ dias → perdida (inativa) ───────
   cron.schedule('30 * * * *', () => {
     runJob('comercial:propostas-expiradas', async () => {
