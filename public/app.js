@@ -6727,6 +6727,7 @@ async function dativeCaseDetail(id, onSave) {
         ? `<button type="button" class="btn-sm" id="dat-ver-esteira" style="border-color:var(--green);color:var(--green)">✓ Na esteira de produção — abrir</button>`
         : `<button type="button" class="btn-gold btn-sm" id="dat-mover-esteira">Mover para a esteira de produção</button>`}
       <button type="button" class="btn-sm" id="dat-add-relato">+ Incluir relato</button>
+      <button type="button" class="btn-sm" id="dat-gerar-aceite">Gerar aceite de nomeação</button>
     </div>
     <strong style="color:var(--navy);font-size:13px">Dados da demanda — edite o que precisar</strong>
     ${field('Comarca *', 'comarca', { value: d.comarca || '' })}
@@ -6779,6 +6780,36 @@ async function dativeCaseDetail(id, onSave) {
       await api(`/api/dative/cases/${id}/relatos`, { method: 'POST', body: JSON.stringify({ text: texto.trim() }) });
       toast('Relato registrado'); closeModal(); dativeCaseDetail(id, onSave);
     } catch (e) { toast(e.message, 'error'); }
+  };
+  const gerarAceiteBtn = form.querySelector('#dat-gerar-aceite');
+  if (gerarAceiteBtn) gerarAceiteBtn.onclick = async () => {
+    if (!d.client_id) { toast('Informe e salve o assistido antes de gerar o aceite', 'error'); return; }
+    const juizoSugerido = [d.vara, d.comarca ? `de ${d.comarca}` : ''].filter(Boolean).join(' ');
+    const gform = el(`<form class="form-grid">
+      ${field('Juízo (ex.: "DO 4º JUIZADO ESPECIAL CÍVEL DE CARIACICA/ES")', 'dativo_juizo', { value: juizoSugerido ? `DO ${juizoSugerido.toUpperCase()}` : '' })}
+      ${field('Qualificação da parte assistida (ex.: requerente/recorrida, réu, autora)', 'dativo_parte', { value: '' })}
+      ${field('Finalidade do aceite (ex.: apresentação de contrarrazões ao Recurso Inominado e prática dos demais atos necessários à defesa dos interesses da assistida)', 'dativo_finalidade', { type: 'textarea' })}
+      <button type="submit" class="btn-primary">Gerar documento</button>
+    </form>`);
+    gform.onsubmit = async (e) => {
+      e.preventDefault();
+      const b = Object.fromEntries(new FormData(gform));
+      if (!b.dativo_finalidade || !b.dativo_finalidade.trim()) { toast('Descreva a finalidade do aceite', 'error'); return; }
+      try {
+        const templates = await api('/api/documents/templates');
+        const tpl = templates.find((t) => t.name === 'Aceite de Nomeação Dativa');
+        if (!tpl) { toast('Modelo "Aceite de Nomeação Dativa" não encontrado', 'error'); return; }
+        const doc = await api('/api/documents/generate', {
+          method: 'POST',
+          body: JSON.stringify({
+            template_id: tpl.id, client_id: d.client_id, numero_processo: d.process_number || '',
+            extra: { dativo_juizo: b.dativo_juizo, dativo_parte: b.dativo_parte, dativo_finalidade: b.dativo_finalidade, dativo_comarca: d.comarca || '' },
+          }),
+        });
+        closeModal(); toast('Aceite gerado'); docViewer(doc.id, () => dativeCaseDetail(id, onSave));
+      } catch (err) { toast(err.message, 'error'); }
+    };
+    openModal('Gerar aceite de nomeação', gform);
   };
   openModal('Demanda dativa', form);
 }
@@ -7361,7 +7392,7 @@ function formatDocHtml(text, signatures) {
     // Dentro do bloco de assinatura: nomes/cargos (ignora linhas em branco).
     if (inSig) { if (t) sigBuf.push(t); continue; }
     if (!t) { html += '<div class="sp"></div>'; continue; }
-    if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO|TERMO|HABILITAÇÃO|NOTIFICAÇÃO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
+    if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO|TERMO|HABILITAÇÃO|NOTIFICAÇÃO|ACEITAÇÃO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
     if (/^CL[ÁA]USULA\b/i.test(t)) { html += `<p class="clause">${esc(t)}</p>`; continue; }
     const mp = t.match(/^(PAR[ÁA]GRAFO[^-]*-)\s*([\s\S]*)$/i);
     if (mp) { html += `<p class="para"><strong>${esc(mp[1])}</strong> ${escBold(mp[2])}</p>`; continue; }

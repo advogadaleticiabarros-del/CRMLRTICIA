@@ -53,7 +53,7 @@ router.delete('/templates/:id', async (req: Request, res: Response) => {
 
 // ── GERAÇÃO a partir de template + cliente/caso ─────────────────────────────
 router.post('/generate', async (req: Request, res: Response) => {
-  const { template_id, client_id, case_id, juizo, numero_processo } = req.body;
+  const { template_id, client_id, case_id, juizo, numero_processo, extra } = req.body;
   if (!template_id || !client_id) { res.status(400).json({ error: 'template_id e client_id são obrigatórios' }); return; }
 
   const [[tpl]] = await db.query('SELECT * FROM document_templates WHERE id = ?', [template_id]) as any;
@@ -88,6 +88,14 @@ router.post('/generate', async (req: Request, res: Response) => {
     advogada_oab: lawyer ? `${oabFormatado || ''}${lawyer.oab_uf ? '/' + lawyer.oab_uf : ''}` : '',
     data_extenso: dataExtenso(),
   };
+  // Campos extras livres (ex.: dativo_parte, dativo_finalidade) — pra
+  // documentos com trechos que variam caso a caso e não têm coluna própria
+  // no cadastro do cliente/caso. Só string, com limite de tamanho.
+  if (extra && typeof extra === 'object') {
+    for (const k of Object.keys(extra)) {
+      if (/^\w+$/.test(k)) map[k] = String(extra[k] ?? '').slice(0, 2000);
+    }
+  }
   const content = round(String(tpl.content).replace(/\{\{(\w+)\}\}/g, (_m, k) => (map[k] !== undefined ? map[k] : '')));
 
   const [r] = await db.query(

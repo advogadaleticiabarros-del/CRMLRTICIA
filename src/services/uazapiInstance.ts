@@ -62,14 +62,24 @@ export async function getStatus(): Promise<WAStatus> {
     return { connected: false, connecting: false, qr: null, me: null, autoSend, sentToday: 0, lastError: 'Uazapi não configurada' };
   }
   try {
-    const r = await uazapi.status();
-    const st = r?.instance?.status || 'disconnected';
-    const connected = st === 'connected';
+    let r = await uazapi.status();
+    let st = r?.instance?.status || 'disconnected';
+    let connected = st === 'connected';
     if (connected) { cachedQr = null; lastError = null; }
     // O status ao vivo também traz o QR — mantém atualizado a cada consulta
-    // (o front sonda a cada 3s), já que o QR expira em ~2min e precisa
-    // renovar sozinho sem a pessoa ter que clicar em "Conectar" de novo.
-    else if (r?.instance?.qrcode) cachedQr = normalizeQr(r);
+    // (o front sonda a cada 3s). O QR expira em ~2min ("QR Code timeout") e
+    // a Uazapi NÃO renova sozinha — se isso acontecer no meio de uma tentativa
+    // de conexão (já tínhamos um QR em mãos), pede um novo automaticamente,
+    // sem a pessoa precisar clicar em "Conectar" de novo (é o que a tela promete).
+    else if (r?.instance?.qrcode) {
+      cachedQr = normalizeQr(r);
+    } else if (cachedQr && st === 'disconnected') {
+      await startInstance();
+      r = await uazapi.status();
+      st = r?.instance?.status || 'disconnected';
+      connected = st === 'connected';
+      if (connected) cachedQr = null;
+    }
     return {
       connected,
       connecting: connecting || st === 'connecting',
