@@ -15,7 +15,11 @@ interface Attachment { filename: string; content: Buffer; contentType?: string; 
 interface MailInput { to: string; subject: string; html: string; text?: string; attachments?: Attachment[]; }
 
 const FROM = process.env.EMAIL_FROM || 'Advocacia Letícia Barros <no-reply@advogadaleticiabarros.com.br>';
-const BRAND = '#2a3f5f';
+// Mesma identidade do papel timbrado (public/app.js printDocs/docTableHtml) e
+// do Relatório Executivo: navy + dourado, serif no nome, logo do escritório.
+const NAVY = '#1f3047';
+const GOLD = '#c19a4e';
+const LOGO_URL = (process.env.APP_URL || 'https://crm.advogadaleticiabarros.com.br') + '/logo.png';
 
 let cached: Transporter | null = null;
 function transporter(): Transporter | null {
@@ -33,20 +37,33 @@ function transporter(): Transporter | null {
   return cached;
 }
 
-/** Envolve o conteúdo num layout simples com a marca do escritório. */
+/**
+ * Envolve o conteúdo no mesmo design system do papel timbrado — navy +
+ * dourado, logo do escritório, serif no nome. Usada por TODOS os e-mails
+ * automáticos (senha, recibo, proposta, resumo matinal, relatório executivo)
+ * pra manter a identidade visual consistente em qualquer canal.
+ */
 export function layout(title: string, bodyHtml: string): string {
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#1f2a3a">
-    <div style="background:${BRAND};color:#fff;padding:22px 28px;border-radius:12px 12px 0 0">
-      <div style="font-size:20px;font-weight:bold;letter-spacing:.5px">Advocacia Letícia Barros</div>
-      <div style="font-size:12px;color:#ceae72;letter-spacing:1px;text-transform:uppercase">Advocacia &amp; Consultoria</div>
+  return `<div style="font-family:Georgia,'Times New Roman',serif;background:#faf8f4;padding:24px 12px">
+  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2ddd1">
+    <div style="padding:26px 30px 20px;border-bottom:3px solid ${GOLD}">
+      <table role="presentation" width="100%"><tr>
+        <td style="vertical-align:middle;width:44px"><img src="${LOGO_URL}" width="40" height="40" alt="" style="display:block;border-radius:6px"></td>
+        <td style="vertical-align:middle;padding-left:12px">
+          <div style="font-size:19px;color:${NAVY};font-weight:700;line-height:1.1">Letícia Barros</div>
+          <div style="font-size:10px;color:${GOLD};letter-spacing:1.5px;font-family:Arial,sans-serif;font-weight:700;margin-top:2px">ADVOCACIA &amp; CONSULTORIA</div>
+        </td>
+      </tr></table>
     </div>
-    <div style="border:1px solid #e7ecf3;border-top:none;padding:26px 28px;border-radius:0 0 12px 12px;background:#fff">
-      <h2 style="margin:0 0 14px;font-size:18px;color:${BRAND}">${title}</h2>
+    <div style="padding:26px 30px 30px;font-family:Arial,Helvetica,sans-serif;color:#232323">
+      <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:20px;color:${NAVY};margin:0 0 16px">${title}</h1>
       ${bodyHtml}
     </div>
-    <p style="text-align:center;color:#93a0b5;font-size:11px;margin-top:14px">
-      Mensagem automática do CRM — crm.advogadaleticiabarros.com.br</p>
-  </div>`;
+    <div style="padding:16px 30px;border-top:1px solid #eee;font-family:Arial,sans-serif;font-size:11px;color:#9a9284;text-align:center">
+      Mensagem automática do CRM — crm.advogadaleticiabarros.com.br
+    </div>
+  </div>
+</div>`;
 }
 
 export function isEmailConfigured(): boolean {
@@ -103,7 +120,7 @@ export async function sendEmail(input: MailInput): Promise<SendResult> {
 // ── Modelos prontos ─────────────────────────────────────────────────────────
 
 const BTN = (url: string, label: string) =>
-  `<a href="${url}" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:bold">${label}</a>`;
+  `<a href="${url}" style="display:inline-block;background:${GOLD};color:#231e17;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:bold">${label}</a>`;
 
 export function sendNewPassword(to: string, name: string, password: string): Promise<SendResult> {
   return sendEmail({

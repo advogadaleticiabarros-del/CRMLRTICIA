@@ -1,8 +1,15 @@
 import { db } from '../config/database';
-import { sendEmail } from './EmailService';
+import { sendEmail, layout } from './EmailService';
 
-const BRAND = '#2a3f5f';
+const NAVY = '#1f3047';
+const GOLD = '#c19a4e';
+const NAVY_SOFT = '#eef1f6';
+const GOLD_SOFT = '#f2ead3';
 const CITY = process.env.BRIEFING_CITY || 'Vitória';
+// Coordenadas de Vitória/ES — usadas se a geocodificação falhar (a API de
+// geocoding tem mais de uma cidade chamada "Vitória" no mundo — ver getWeather).
+const FALLBACK_LAT = -20.3222;
+const FALLBACK_LON = -40.3381;
 
 // Códigos WMO do Open-Meteo → descrição amigável (PT).
 const WMO: Record<number, string> = {
@@ -15,16 +22,32 @@ const WMO: Record<number, string> = {
 
 interface Weather { tmin: number; tmax: number; desc: string; city: string; }
 
-/** Busca a previsão do dia via Open-Meteo (grátis, sem chave). Retorna null em falha. */
+/**
+ * Busca a previsão do dia via Open-Meteo (grátis, sem chave). Retorna null em falha.
+ *
+ * BUG CORRIGIDO: a busca de geocodificação tem VÁRIAS cidades chamadas "Vitória"
+ * no mundo (Espanha, Portugal, e duas no Brasil — ES e PE) e o parâmetro
+ * `country=BR` da API não filtra de fato (confirmado testando direto) — o
+ * primeiro resultado vinha sendo Vitoria-Gasteiz, Espanha. Por isso o e-mail
+ * às vezes mostrava "não consegui obter a previsão" (coordenadas erradas
+ * geravam respostas inconsistentes) e, pior, poderia mostrar clima errado
+ * sem avisar. Agora filtra explicitamente por country_code==='BR' e prioriza
+ * Espírito Santo; se a geocodificação falhar, cai nas coordenadas fixas.
+ */
 async function getWeather(): Promise<Weather | null> {
   try {
-    const geo: any = await (await fetch(
-      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(CITY)}&count=1&language=pt&country=BR`
-    )).json();
-    const loc = geo?.results?.[0];
-    if (!loc) return null;
+    let lat = FALLBACK_LAT, lon = FALLBACK_LON, cityName = CITY;
+    try {
+      const geo: any = await (await fetch(
+        `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(CITY)}&count=10&language=pt&country=BR`
+      )).json();
+      const candidatos = (geo?.results || []).filter((r: any) => r.country_code === 'BR');
+      const loc = candidatos.find((r: any) => r.admin1 === 'Espírito Santo') || candidatos[0];
+      if (loc) { lat = loc.latitude; lon = loc.longitude; cityName = loc.name; }
+    } catch { /* usa o fallback fixo */ }
+
     const f: any = await (await fetch(
-      `https://api.open-meteo.com/v1/forecast?latitude=${loc.latitude}&longitude=${loc.longitude}` +
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       `&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=America%2FSao_Paulo&forecast_days=1`
     )).json();
     const d = f?.daily;
@@ -33,7 +56,7 @@ async function getWeather(): Promise<Weather | null> {
       tmin: Math.round(d.temperature_2m_min?.[0]),
       tmax: Math.round(d.temperature_2m_max?.[0]),
       desc: WMO[d.weather_code?.[0]] || 'tempo variável',
-      city: loc.name,
+      city: cityName,
     };
   } catch { return null; }
 }
@@ -80,6 +103,32 @@ function weatherTip(w: Weather | null): string {
   if (!tips.length) tips.push('Tempo agradável pela frente — aproveite o dia. 😊');
   tips.push('E lembre-se: cuide de você também. 💛');
   return tips.join(' ');
+}
+
+// ── Frase de força do dia ────────────────────────────────────────────────
+// Gira uma por dia do ano (sem repetir por ~2 meses) — lembrete curto de
+// força/consistência, não conselho genérico de autoajuda solto no ar.
+const FRASES_FORCA = [
+  'Escritório não se constrói em um dia só — se constrói em dias como hoje.',
+  'Você já resolveu o que parecia impossível antes. Hoje é só mais um dia de trabalho bem feito.',
+  'Cuidar do seu corpo também é cuidar do seu escritório — os dois dependem de você inteira.',
+  'Nem todo dia precisa ser produtivo do jeito que você imagina. Constante já é muito.',
+  'Cada cliente que você atende hoje é resultado do trabalho que você não largou ontem.',
+  'Descansar não é parar — é parte de continuar por mais tempo.',
+  'Você não precisa dar conta de tudo hoje. Precisa dar o próximo passo certo.',
+  'A advocacia que você está construindo tem a sua marca porque você não desistiu nos dias difíceis.',
+  'Um corpo cuidado sustenta uma mente que decide bem. Não deixe isso pra depois.',
+  'O escritório cresce nas escolhas pequenas do dia a dia, não só nas grandes decisões.',
+  'Você já é a referência que outras mulheres buscam — trate a si mesma com o mesmo cuidado que oferece às suas clientes.',
+  'Foco no que está sob seu controle hoje. O resto se organiza andando.',
+  'Progresso de verdade é silencioso — ninguém vê os dias comuns que sustentam os grandes resultados.',
+  'Beber água, se alongar, respirar fundo: pequenos atos que sustentam uma advogada inteira.',
+];
+function fraseDoDia(): string {
+  const inicioAno = new Date(new Date().getFullYear(), 0, 0);
+  const hoje = new Date();
+  const diaDoAno = Math.floor((hoje.getTime() - inicioAno.getTime()) / 86_400_000);
+  return FRASES_FORCA[diaDoAno % FRASES_FORCA.length];
 }
 
 /**
@@ -137,7 +186,7 @@ function pulsoHtml(p: any): string {
   if (p.casos_atrasados) itens.push(`<li>⏱ <strong>${p.casos_atrasados} caso(s) estourando o SLA de 10 dias</strong> na esteira de produção.</li>`);
   if (p.emails_parceria_pendentes) itens.push(`<li>📥 <strong>${p.emails_parceria_pendentes} e-mail(s) da parceria</strong> aguardando revisão na fila.</li>`);
   if (!itens.length) return `<p style="color:#2f8f63;font-size:14px">✅ Nenhuma pendência urgente — o escritório está em dia!</p>`;
-  return `<ul style="line-height:1.9;padding-left:18px;margin:8px 0">${itens.join('')}</ul>`;
+  return `<ul style="line-height:1.9;padding-left:18px;margin:8px 0;color:#232323">${itens.join('')}</ul>`;
 }
 
 function buildHtml(name: string, weather: Weather | null, agenda: any, pulso: any): string {
@@ -149,35 +198,45 @@ function buildHtml(name: string, weather: Weather | null, agenda: any, pulso: an
     : `(Não consegui obter a previsão do tempo agora.)`;
 
   const evHtml = (agenda.eventos || []).map((e: any) =>
-    `<li><strong>${e.hora}</strong> — ${tipoLabel[e.event_type] || '📌'} ${e.title}${e.location ? ` <span style="color:#93a0b5">(${e.location})</span>` : ''}${e.video_link ? ` · <a href="${e.video_link}">vídeo</a>` : ''}</li>`).join('');
+    `<li><strong>${e.hora}</strong> — ${tipoLabel[e.event_type] || '📌'} ${e.title}${e.location ? ` <span style="color:#8a8175">(${e.location})</span>` : ''}${e.video_link ? ` · <a href="${e.video_link}" style="color:${NAVY}">vídeo</a>` : ''}</li>`).join('');
   const przHtml = (agenda.prazos || []).map((p: any) =>
-    `<li>⏰ <strong>Prazo:</strong> ${p.description}${p.case_number ? ` <span style="color:#93a0b5">(proc. ${p.case_number})</span>` : ''}</li>`).join('');
+    `<li>⏰ <strong>Prazo:</strong> ${p.description}${p.case_number ? ` <span style="color:#8a8175">(proc. ${p.case_number})</span>` : ''}</li>`).join('');
   const tskHtml = (agenda.tarefas || []).map((t: any) =>
-    `<li>✓ ${t.title} <span style="color:#93a0b5">(${t.priority})</span></li>`).join('');
+    `<li>✓ ${t.title} <span style="color:#8a8175">(${t.priority})</span></li>`).join('');
 
   const temAlgo = evHtml || przHtml || tskHtml;
   const corpo = temAlgo
-    ? `<ul style="line-height:1.9;padding-left:18px;margin:8px 0">${evHtml}${przHtml}${tskHtml}</ul>`
-    : `<p style="color:#51607a">Você não tem compromissos, prazos ou tarefas registrados para hoje. Bom dia tranquilo! ☕</p>`;
+    ? `<ul style="line-height:1.9;padding-left:18px;margin:8px 0;color:#232323">${evHtml}${przHtml}${tskHtml}</ul>`
+    : `<p style="color:#6b6252">Você não tem compromissos, prazos ou tarefas registrados para hoje. Bom dia tranquilo! ☕</p>`;
 
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:580px;margin:0 auto;color:#1f2a3a">
-    <div style="background:${BRAND};color:#fff;padding:24px 28px;border-radius:12px 12px 0 0">
-      <div style="font-size:13px;color:#ceae72;text-transform:uppercase;letter-spacing:1px">${hoje}</div>
-      <div style="font-size:22px;font-weight:bold;margin-top:4px">Bom dia, Dra. ${name}! ☀️</div>
+  const body = `
+    <div style="font-size:12px;color:${GOLD};text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:2px">${hoje}</div>
+    <p style="font-size:19px;font-weight:700;color:${NAVY};margin:0 0 16px">Bom dia, Dra. ${name}! ☀️</p>
+
+    <div style="background:${GOLD_SOFT};border-radius:8px;padding:16px 18px;margin-bottom:18px">
+      <div style="font-size:9px;color:#8a6d1a;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:6px">Frase de força do dia</div>
+      <p style="margin:0;font-size:14.5px;line-height:1.6;color:#4a3d1d;font-style:italic">"${fraseDoDia()}"</p>
     </div>
-    <div style="border:1px solid #e7ecf3;border-top:none;padding:24px 28px;border-radius:0 0 12px 12px;background:#fff">
-      <p style="font-size:15px">${weatherLine}</p>
-      <div style="background:#fbf7ee;border-left:3px solid #ceae72;border-radius:8px;padding:12px 14px;margin:14px 0;font-size:14px;color:#51607a">
-        <strong style="color:${BRAND}">💡 Dica do dia:</strong> ${weatherTip(weather)}
-      </div>
-      <h3 style="color:${BRAND};font-size:16px;margin:18px 0 6px">📅 Seu dia hoje</h3>
-      ${corpo}
-      <h3 style="color:${BRAND};font-size:16px;margin:18px 0 6px">📊 Pulso do escritório</h3>
-      ${pulsoHtml(pulso)}
-      <p style="margin-top:22px"><a href="https://crm.advogadaleticiabarros.com.br" style="display:inline-block;background:${BRAND};color:#fff;text-decoration:none;padding:11px 20px;border-radius:8px;font-weight:bold">Abrir o CRM</a></p>
+
+    <p style="font-size:14.5px;color:#232323">${weatherLine}</p>
+    <div style="background:${NAVY_SOFT};border-radius:8px;padding:12px 16px;margin:12px 0 18px;font-size:13.5px;color:#232323">
+      <strong style="color:${NAVY}">💡 Dica do dia:</strong> ${weatherTip(weather)}
     </div>
-    <p style="text-align:center;color:#93a0b5;font-size:11px;margin-top:14px">Resumo matinal automático — Advocacia Letícia Barros</p>
-  </div>`;
+
+    <h3 style="color:${NAVY};font-size:15px;margin:18px 0 6px;font-family:Georgia,serif">📅 Seu dia hoje</h3>
+    ${corpo}
+
+    <h3 style="color:${NAVY};font-size:15px;margin:18px 0 6px;font-family:Georgia,serif">📊 Pulso do escritório</h3>
+    ${pulsoHtml(pulso)}
+
+    <div style="border:1px solid #e2ddd1;border-radius:8px;padding:16px 18px;margin-top:20px;text-align:center">
+      <p style="margin:0 0 4px;font-size:13px;color:#6b6252">🧘 Antes de começar: já bebeu água hoje? Um alongamento de 2 minutos também conta.</p>
+      <p style="margin:10px 0 0;font-size:15px;font-weight:700;color:${NAVY};font-family:Georgia,serif">Qual é o seu objetivo hoje?</p>
+    </div>
+
+    <p style="margin-top:22px;text-align:center"><a href="https://crm.advogadaleticiabarros.com.br" style="display:inline-block;background:${GOLD};color:#231e17;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:bold;font-family:Arial,sans-serif">Abrir o CRM</a></p>`;
+
+  return layout(`Resumo de ${hoje}`, body);
 }
 
 /** Envia o resumo matinal para os usuários admin/advogado ativos com e-mail. */

@@ -2,18 +2,16 @@ import { db } from '../config/database';
 import { getExecutiveReportData, ExecutiveReportData } from './executiveReport';
 import { buildExecutiveReportPdf } from './executiveReportPdf';
 import { buildNarrative, prevMonthOf, delta, Delta } from './executiveReportNarrative';
-import { sendEmail, SendResult } from './EmailService';
+import { sendEmail, layout, SendResult } from './EmailService';
 
 // ── Identidade visual — mesma paleta do papel timbrado (ver executiveReportPdf.ts) ──
 const NAVY = '#1f3047';
 const GOLD = '#c19a4e';
 const GOLD_SOFT = '#f2ead3';
 const NAVY_SOFT = '#eef1f6';
-const INK = '#232323';
 const MUTED = '#6b6252';
 const GREEN = '#1c7a3d';
 const RED = '#c0392b';
-const LOGO_URL = (process.env.APP_URL || 'https://crm.advogadaleticiabarros.com.br') + '/logo.png';
 
 const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 const mesLabel = (ym: string) => {
@@ -25,30 +23,6 @@ const deltaHtml = (dl: Delta | null): string => {
   const color = dl.alta ? GREEN : RED;
   return ` <span style="color:${color};font-size:12px;font-weight:700">${dl.alta ? '▲' : '▼'} ${Math.abs(dl.pct)}%</span>`;
 };
-
-/** Envelope visual do e-mail — mesma identidade do papel timbrado (navy + dourado, serif no título). */
-function brandedLayout(title: string, bodyHtml: string): string {
-  return `<div style="font-family:Georgia,'Times New Roman',serif;background:#faf8f4;padding:24px 12px">
-  <div style="max-width:600px;margin:0 auto;background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e2ddd1">
-    <div style="padding:26px 30px 20px;border-bottom:3px solid ${GOLD}">
-      <table role="presentation" width="100%"><tr>
-        <td style="vertical-align:middle"><img src="${LOGO_URL}" width="40" height="40" alt="" style="display:block;border-radius:6px"></td>
-        <td style="vertical-align:middle;padding-left:12px">
-          <div style="font-size:19px;color:${NAVY};font-weight:700;line-height:1.1">Letícia Barros</div>
-          <div style="font-size:10px;color:${GOLD};letter-spacing:1.5px;font-family:Arial,sans-serif;font-weight:700;margin-top:2px">ADVOCACIA &amp; CONSULTORIA</div>
-        </td>
-      </tr></table>
-    </div>
-    <div style="padding:26px 30px 30px;font-family:Arial,Helvetica,sans-serif;color:${INK}">
-      <h1 style="font-family:Georgia,'Times New Roman',serif;font-size:21px;color:${NAVY};margin:0 0 18px">${title}</h1>
-      ${bodyHtml}
-    </div>
-    <div style="padding:16px 30px;border-top:1px solid #eee;font-family:Arial,sans-serif;font-size:11px;color:#9a9284;text-align:center">
-      Mensagem automática do CRM — crm.advogadaleticiabarros.com.br
-    </div>
-  </div>
-</div>`;
-}
 
 /** Mês anterior (AAAA-MM) — usado no envio automático do dia 1, quando o mês corrente acabou de fechar. */
 function mesAnteriorFechado(): string {
@@ -81,7 +55,7 @@ export async function sendMonthlyExecutiveReportEmail(month?: string): Promise<S
   const linha = (label: string, valor: string) =>
     `<tr><td style="padding:7px 0;color:${MUTED};font-size:13px">${label}</td><td style="padding:7px 0;text-align:right;font-weight:700;color:${NAVY};font-size:13px">${valor}</td></tr>`;
 
-  const html = brandedLayout(`Relatório Executivo — ${mesLabel(ym)}`, `
+  const html = layout(`Relatório Executivo — ${mesLabel(ym)}`, `
     <div style="background:${NAVY_SOFT};border-radius:8px;padding:16px 18px;margin-bottom:20px">
       <div style="font-size:9px;color:${GOLD};text-transform:uppercase;letter-spacing:1px;font-family:Arial,sans-serif;font-weight:700;margin-bottom:6px">Resumo do mês</div>
       <p style="margin:0 0 12px;font-size:13.5px;line-height:1.6;color:${NAVY}">${narrative.resumo}</p>
