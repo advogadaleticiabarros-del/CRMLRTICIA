@@ -30,10 +30,12 @@ router.get('/sign/:token', async (req: Request, res: Response) => {
     document_name: r.document_name,
     content: r.content || '',
     signer_name: r.signer_name || '',
-    // Link exclusivo: se já veio identificado (nome preenchido na criação),
-    // o front trava os campos — devolve o CPF mascarado só pra exibir/conferir.
-    signer_cpf: r.signer_name ? maskCpf(r.signer_cpf) : '',
-    locked: !!r.signer_name,
+    // Link exclusivo: cada campo trava de forma independente — nome pode vir
+    // pré-identificado sem CPF (o signatário completa só o CPF). Devolve o
+    // CPF mascarado só pra exibir/conferir, nunca os dígitos reais.
+    signer_cpf: r.signer_cpf ? maskCpf(r.signer_cpf) : '',
+    name_locked: !!r.signer_name,
+    cpf_locked: !!r.signer_cpf,
     party_label: r.party_label || '',
     status: r.status,
     verification_code: r.status === 'assinado' ? r.verification_code : null,
@@ -46,8 +48,6 @@ router.post('/sign/:token', async (req: Request, res: Response) => {
   const { signer_name, signer_cpf, signer_email, signer_phone, signature_image,
           selfie_image, consent_lgpd, geo, opened_at } = req.body;
   if (!signer_name || !String(signer_name).trim()) { res.status(400).json({ error: 'Informe seu nome completo' }); return; }
-  const cpfDigits = String(signer_cpf || '').replace(/\D/g, '');
-  if (cpfDigits.length < 11) { res.status(400).json({ error: 'Informe um CPF válido' }); return; }
   if (!consent_lgpd) { res.status(400).json({ error: 'É necessário aceitar os termos e a política de privacidade (LGPD).' }); return; }
   if (!signature_image || !String(signature_image).startsWith('data:image')) { res.status(400).json({ error: 'Faça sua assinatura na tela' }); return; }
 
@@ -63,10 +63,19 @@ router.post('/sign/:token', async (req: Request, res: Response) => {
   if (reqRow.status === 'assinado') { res.status(409).json({ error: 'Documento já assinado', verification_code: reqRow.verification_code }); return; }
   if (reqRow.status === 'cancelado') { res.status(409).json({ error: 'Solicitação cancelada' }); return; }
 
-  // Link exclusivo: se o nome já veio identificado na criação do link, o
-  // signatário não pode trocá-lo no formulário — trava aqui, não só na tela.
-  const signerNameFinal = reqRow.signer_name ? reqRow.signer_name : String(signer_name).trim();
-  const cpfDigitsFinal = reqRow.signer_name && reqRow.signer_cpf ? String(reqRow.signer_cpf) : cpfDigits;
+  // Link exclusivo: nome e CPF pré-cadastrados no link ficam travados —
+  // usa o que já está no banco, ignorando o que vier no corpo (que no caso
+  // do CPF é só a versão mascarada exibida na tela, não os dígitos reais).
+  // Cada campo trava de forma independente (dá pra pré-identificar só o
+  // nome e deixar o signatário completar o próprio CPF).
+  const nameLocked = !!reqRow.signer_name;
+  const cpfLocked = !!reqRow.signer_cpf;
+  if (!cpfLocked) {
+    const cpfDigits = String(signer_cpf || '').replace(/\D/g, '');
+    if (cpfDigits.length < 11) { res.status(400).json({ error: 'Informe um CPF válido' }); return; }
+  }
+  const signerNameFinal = nameLocked ? reqRow.signer_name : String(signer_name).trim();
+  const cpfDigitsFinal = cpfLocked ? String(reqRow.signer_cpf) : String(signer_cpf || '').replace(/\D/g, '');
 
   const docHash = crypto.createHash('sha256').update(String(reqRow.content || '')).digest('hex');
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '';

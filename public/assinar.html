@@ -62,17 +62,18 @@
     }
 
     function render(r) {
-      window._locked = !!r.locked;
+      window._nameLocked = !!r.name_locked;
+      window._cpfLocked = !!r.cpf_locked;
       root.innerHTML = `
         <h2 style="font-family:'Cormorant Garamond',serif;font-size:24px;color:#C9A962;margin-bottom:4px">${r.document_name}</h2>
         ${r.party_label ? `<p style="color:#C9A962;font-size:13px;font-weight:600;margin-bottom:4px">Você está assinando como: ${r.party_label.toUpperCase()}</p>` : ''}
         <p style="color:#9a8f7d;font-size:13px;margin-bottom:14px">Leia o documento e assine no campo abaixo.</p>
         <div class="doc">${(r.content || '').replace(/</g, '&lt;')}</div>
         <label>Nome completo</label>
-        <input id="nome" value="${r.signer_name || ''}" placeholder="Seu nome completo" ${r.locked ? 'disabled' : ''} />
+        <input id="nome" value="${r.signer_name || ''}" placeholder="Seu nome completo" ${r.name_locked ? 'disabled' : ''} />
         <label>CPF</label>
-        <input id="cpf" inputmode="numeric" placeholder="000.000.000-00" value="${r.locked ? (r.signer_cpf || '') : ''}" ${r.locked ? 'disabled' : ''} />
-        ${r.locked ? `<p style="color:#8a8270;font-size:11.5px;margin-top:4px">Link exclusivo — nome e CPF já identificados, não podem ser alterados. Se algo estiver errado, peça um novo link ao escritório.</p>` : ''}
+        <input id="cpf" inputmode="numeric" placeholder="000.000.000-00" value="${r.cpf_locked ? (r.signer_cpf || '') : ''}" ${r.cpf_locked ? 'disabled' : ''} />
+        ${(r.name_locked || r.cpf_locked) ? `<p style="color:#8a8270;font-size:11.5px;margin-top:4px">Link exclusivo — ${r.name_locked && r.cpf_locked ? 'nome e CPF já identificados, não podem' : r.name_locked ? 'o nome já identificado não pode' : 'o CPF já identificado não pode'} ser alterado${r.name_locked && r.cpf_locked ? 's' : ''}. Se algo estiver errado, peça um novo link ao escritório.</p>` : ''}
         <div class="row" style="gap:10px">
           <div style="flex:1"><label>E-mail</label><input id="email" type="email" placeholder="seu@email.com" /></div>
           <div style="flex:1"><label>Telefone / WhatsApp</label><input id="phone" inputmode="numeric" placeholder="(00) 00000-0000" /></div>
@@ -144,10 +145,10 @@
       const phone = document.getElementById('phone').value.replace(/\D/g, '');
       const lgpd = document.getElementById('lgpd').checked;
       if (!nome) { msg.textContent = 'Informe seu nome.'; return; }
-      // Link travado: nome/CPF vêm do cadastro do escritório (o campo mostra
-      // o CPF mascarado, não os dígitos reais) — o servidor usa o valor
-      // travado de qualquer forma, então a validação de formato não se aplica.
-      if (!window._locked && cpf.length !== 11) { msg.textContent = 'Informe um CPF válido.'; return; }
+      // CPF travado: o campo mostra o CPF mascarado (não os dígitos reais) —
+      // o servidor usa o valor já cadastrado de qualquer forma, então a
+      // validação de formato só vale quando o signatário digita o próprio CPF.
+      if (!window._cpfLocked && cpf.length !== 11) { msg.textContent = 'Informe um CPF válido.'; return; }
       if (!lgpd) { msg.textContent = 'É necessário autorizar o registro dos dados (LGPD).'; return; }
       const img = window._pad.toDataURL('image/png');
       const btn = document.getElementById('sign'); btn.disabled = true; btn.textContent = 'Assinando…';
