@@ -259,6 +259,17 @@ export function startCronJobs() {
     }, { silencioso: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── semanal (domingo, 03h10): apaga log técnico do monitoramento
+  // (monitoring_logs) com mais de 30 dias — "checou o processo X, sem
+  // novidade/erro". A movimentação real do processo fica em
+  // process_movements, que essa faxina NÃO toca.
+  cron.schedule('10 3 * * 0', () => {
+    runJob('manutencao:monitoring-logs-antigos', async () => {
+      const [r] = await db.query('DELETE FROM monitoring_logs WHERE executed_at < NOW() - INTERVAL 30 DAY') as any;
+      return { apagados: r.affectedRows };
+    }, { silencioso: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── a cada hora: proposta em análise há 7+ dias → perdida (inativa) ───────
   cron.schedule('30 * * * *', () => {
     runJob('comercial:propostas-expiradas', async () => {
