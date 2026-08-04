@@ -7242,6 +7242,10 @@ async function lawyerForm(id, onSave) {
 
 function formatDocHtml(text) {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  // Igual esc(), mas converte **negrito** em <strong> — pra textos digitados em
+  // markdown (ex.: notificações extrajudiciais) renderizarem negrito de verdade
+  // em vez de mostrar os asteriscos literais.
+  const escBold = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
   const lines = String(text || '').split('\n');
   let html = ''; let inSig = false; let sigOpen = false; let titleDone = false;
   const closeSig = () => { if (sigOpen) { html += '</div>'; sigOpen = false; } };
@@ -7256,13 +7260,16 @@ function formatDocHtml(text) {
     // Dentro do bloco de assinatura: nomes/cargos (ignora linhas em branco).
     if (inSig) { if (t) html += `<p class="sig-name">${esc(t)}</p>`; continue; }
     if (!t) { html += '<div class="sp"></div>'; continue; }
-    if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO|TERMO|HABILITAÇÃO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
+    if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO|TERMO|HABILITAÇÃO|NOTIFICAÇÃO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
     if (/^CL[ÁA]USULA\b/i.test(t)) { html += `<p class="clause">${esc(t)}</p>`; continue; }
     const mp = t.match(/^(PAR[ÁA]GRAFO[^-]*-)\s*([\s\S]*)$/i);
-    if (mp) { html += `<p class="para"><strong>${esc(mp[1])}</strong> ${esc(mp[2])}</p>`; continue; }
-    const ml = t.match(/^(CONTRATANTE|CONTRATADA|OUTORGANTE|OUTORGADO\(A\)|OUTORGADA|DECLARANTE|PRIMEIRO ACORDANTE|SEGUNDO ACORDANTE):([\s\S]*)$/i);
-    if (ml) { html += `<p class="party"><strong>${esc(ml[1])}:</strong>${esc(ml[2])}</p>`; continue; }
-    html += `<p class="body">${esc(t)}</p>`;
+    if (mp) { html += `<p class="para"><strong>${esc(mp[1])}</strong> ${escBold(mp[2])}</p>`; continue; }
+    const ml = t.match(/^(CONTRATANTE|CONTRATADA|OUTORGANTE|OUTORGADO\(A\)|OUTORGADA|DECLARANTE|NOTIFICANTE|NOTIFICADA|PRIMEIRO ACORDANTE|SEGUNDO ACORDANTE):([\s\S]*)$/i);
+    if (ml) { html += `<p class="party"><strong>${esc(ml[1])}:</strong>${escBold(ml[2])}</p>`; continue; }
+    // Subtítulo de seção (ex.: "DA RESPONSABILIDADE DA EMPRESA") — linha curta,
+    // toda maiúscula, que não caiu em nenhum padrão específico acima.
+    if (titleDone && t === t.toUpperCase() && t.length <= 70 && /[A-ZÀ-Ú]/.test(t)) { html += `<p class="section-heading">${esc(t)}</p>`; continue; }
+    html += `<p class="body">${escBold(t)}</p>`;
   }
   closeSig();
   return html;
@@ -7356,9 +7363,10 @@ function printDocs(docs) {
       .lh-footer-fixed { position: fixed; bottom: 0.7cm; left: 1.8cm; right: 1.8cm; background: #fff; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
       .lh-footer-fixed .sep { color: #B8943F; margin: 0 6px; }
       .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 12cm; height: auto; opacity: 0.035; z-index: -1; }
-      .content { font-size: 12pt; line-height: 1.6; }
+      .content { font-size: 12pt; line-height: 1.5; }
       .content .doc-title { text-align: center; font-size: 13.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; margin: 0 0 20px; }
       .content .clause { font-weight: bold; margin: 16px 0 5px; }
+      .content .section-heading { font-weight: bold; letter-spacing: .3px; margin: 18px 0 6px; }
       .content .para { margin: 8px 0; text-align: justify; }
       .content .party { margin: 6px 0; text-align: justify; }
       .content .body { margin: 9px 0; text-align: justify; }
