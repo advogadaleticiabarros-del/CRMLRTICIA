@@ -239,12 +239,21 @@ function buildHtml(name: string, weather: Weather | null, agenda: any, pulso: an
   return layout(`Resumo de ${hoje}`, body);
 }
 
+// E-mail que SEMPRE recebe o resumo matinal, independente do papel/status do
+// usuário no cadastro — pedido explícito da Dra. Letícia. O e-mail placeholder
+// da conta "admin" (admin@advogadaleticiabarros.com.br) não é uma caixa real
+// e não deveria receber conteúdo pessoal mesmo assim.
+const GARANTIDO_EMAIL = process.env.MORNING_BRIEFING_EMAIL || 'advogadaleticia.barros@gmail.com';
+
 /** Envia o resumo matinal para os usuários admin/advogado ativos com e-mail. */
 export async function sendMorningBriefings(): Promise<{ sent: number; failed: number }> {
   const weather = await getWeather();
   const pulso = await getPulsoNegocio();
   const [users] = await db.query(
-    "SELECT id, name, email FROM users WHERE active = 1 AND role IN ('admin','advogado') AND email IS NOT NULL AND email <> ''"
+    `SELECT id, name, email FROM users
+      WHERE (active = 1 AND role IN ('admin','advogado') AND email IS NOT NULL AND email <> '')
+         OR LOWER(email) = LOWER(?)`,
+    [GARANTIDO_EMAIL]
   ) as any;
 
   let sent = 0, failed = 0;
