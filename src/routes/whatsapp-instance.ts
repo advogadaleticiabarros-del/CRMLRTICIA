@@ -38,26 +38,27 @@ export async function mediaHandler(req: Request, res: Response, next: () => void
 }
 
 // ── GET /api/whatsapp-instance/status — conexão + QR (quando aguardando) ────
-router.get('/status', (_req: Request, res: Response) => {
-  res.json(getStatus());
+// getStatus() consulta a Uazapi ao vivo (não é mais estado em memória só) — precisa de await.
+router.get('/status', async (_req: Request, res: Response) => {
+  res.json(await getStatus());
 });
 
 // ── POST /api/whatsapp-instance/connect — inicia (gera QR se sem sessão) ────
 router.post('/connect', async (_req: Request, res: Response) => {
   await startInstance();
-  res.json(getStatus());
+  res.json(await getStatus());
 });
 
 // ── POST /api/whatsapp-instance/disconnect — encerra e apaga a sessão ───────
 router.post('/disconnect', async (_req: Request, res: Response) => {
   await disconnectInstance();
-  res.json(getStatus());
+  res.json(await getStatus());
 });
 
 // ── POST /api/whatsapp-instance/auto — liga/desliga o envio automático ──────
-router.post('/auto', (req: Request, res: Response) => {
+router.post('/auto', async (req: Request, res: Response) => {
   setAutoSend(!!req.body?.on);
-  res.json(getStatus());
+  res.json(await getStatus());
 });
 
 // ── Mensagens prontas (modelos jurídicos com {{nome}}) ──────────────────────
