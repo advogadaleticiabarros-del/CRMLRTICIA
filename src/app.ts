@@ -67,6 +67,7 @@ import officeSettingsRoutes from './routes/office-settings';
 import paymentsRoutes from './routes/payments';
 import partnerPortalRoutes from './routes/partner-portal';
 import whatsappQueueRoutes from './routes/whatsapp-queue';
+import whatsappWebhookRoutes from './routes/whatsapp-webhook';
 import whatsappInstanceRoutes, { mediaHandler } from './routes/whatsapp-instance';
 import { googleOAuthCallback } from './routes/google-callback';
 
@@ -103,6 +104,7 @@ export function createApp() {
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
   app.use('/api/public', leadPublicRoutes);     // formulário do site/blog → lead no funil
+  app.use('/api/public', whatsappWebhookRoutes); // eventos da Uazapi (mensagens recebidas)
 
   // ── Portal do Cliente (papel 'cliente' — escopo isolado por client_id) ────
   app.use('/api/portal',                authenticate, portalRoutes);

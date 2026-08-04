@@ -20,10 +20,11 @@ import { runJob } from './runner';
  * `critica: true` = prazos, backup e financeiro (falha aqui gera dano real).
  */
 export function startCronJobs() {
-  // ── WhatsApp: reconecta a instância no boot se já houver sessão salva ─────
+  // ── WhatsApp: religa o auto-envio no boot se a instância já estiver conectada
+  // (a sessão em si mora no servidor da Uazapi, não precisa "reconectar" aqui).
   setTimeout(() => {
     runJob('whatsapp:reconectar', async () => {
-      const m = await import('../services/waInstance');
+      const m = await import('../services/uazapiInstance');
       await m.startIfSession();
     });
   }, 8000);

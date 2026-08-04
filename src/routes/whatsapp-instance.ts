@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { db } from '../config/database';
 import { env } from '../config/env';
-import { startInstance, disconnectInstance, sendText, getStatus, setAutoSend } from '../services/waInstance';
+import { startInstance, disconnectInstance, sendText, getStatus, setAutoSend } from '../services/uazapiInstance';
 
 const router = Router();
 
