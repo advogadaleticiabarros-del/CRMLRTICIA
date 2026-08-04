@@ -64,7 +64,9 @@ export const uazapi = {
     return request('POST', '/message/download', { id: messageId, return_base64: true });
   },
   /** POST /webhook — configura a URL que recebe os eventos (mensagens etc.). */
+  // enabled: true é obrigatório aqui — sem ele a Uazapi salva a configuração
+  // mas mantém o webhook DESLIGADO (confirmado testando direto).
   setWebhook(url: string, events: string[]): Promise<void> {
-    return request('POST', '/webhook', { url, events });
+    return request('POST', '/webhook', { url, events, enabled: true });
   },
 };
