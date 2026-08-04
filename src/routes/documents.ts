@@ -210,8 +210,14 @@ router.post('/:id/sign-request', async (req: Request, res: Response) => {
 });
 
 router.get('/:id/signatures', async (req: Request, res: Response) => {
+  // signature_image e os campos de auditoria só vêm preenchidos quando
+  // status='assinado' — usados pra montar o documento final com a assinatura
+  // de verdade no lugar certo + página de autenticação anexada (ver "Baixar
+  // documento assinado" em public/app.js).
   const [rows] = await db.query(
-    `SELECT id, token, verification_code, signer_name, signer_cpf, party_label, status, signed_at, signer_ip
+    `SELECT id, token, verification_code, signer_name, signer_cpf, signer_email, signer_phone,
+            party_label, status, signed_at, signer_ip, signature_image, doc_hash,
+            geo_lat, geo_lng, geo_accuracy
        FROM signature_requests WHERE document_id = ? ORDER BY created_at DESC`, [req.params.id]
   ) as any;
   res.json(rows);

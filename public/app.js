@@ -2627,6 +2627,7 @@ async function docViewer(id, onSave) {
       <button class="btn-primary" id="doc-save" style="width:auto">Salvar</button>
       <button class="btn-gold" id="doc-print">Imprimir / PDF</button>
       <button class="btn-sm" id="doc-sign">Enviar para assinatura</button>
+      ${doc.status === 'assinado' ? '<button class="btn-gold" id="doc-print-signed">Baixar documento assinado</button>' : ''}
     </div>
     <div id="doc-sig" style="margin-top:14px"></div>
   </div>`);
@@ -2676,6 +2677,23 @@ async function docViewer(id, onSave) {
   // simples, sem timbre nem espaço reservado pra assinar.
   wrap.querySelector('#doc-print').onclick = () => {
     printDocs([{ title: doc.name, content: wrap.querySelector('#doc-content').value }]);
+  };
+  // Documento com todas as assinaturas concluídas — monta a assinatura de
+  // verdade (a imagem que a pessoa desenhou) no lugar de cada nome no papel
+  // timbrado, em vez de mostrar só o texto com espaço em branco.
+  const printSignedBtn = wrap.querySelector('#doc-print-signed');
+  if (printSignedBtn) printSignedBtn.onclick = async () => {
+    try {
+      const sigs = await api(`/api/documents/${id}/signatures`);
+      const sigMap = {};
+      const assinados = sigs.filter((s) => s.status === 'assinado');
+      for (const s of assinados) {
+        if (s.signer_name && s.signature_image) {
+          sigMap[s.signer_name.trim().toUpperCase()] = { image: s.signature_image, signedAt: s.signed_at, code: s.verification_code };
+        }
+      }
+      printDocs([{ title: doc.name, content: wrap.querySelector('#doc-content').value, signatures: sigMap, authSigners: assinados }]);
+    } catch (e) { toast(e.message, 'error'); }
   };
   openModal(doc.name, wrap);
 }
@@ -7258,7 +7276,7 @@ async function lawyerForm(id, onSave) {
   openModal(id ? 'Editar advogado / OAB' : 'Novo advogado', form);
 }
 
-function formatDocHtml(text) {
+function formatDocHtml(text, signatures) {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   // Igual esc(), mas converte **negrito** em <strong> e _itálico_ em <em> —
   // pra textos digitados em markdown (ex.: notificações, termos de estrangeirismo)
@@ -7268,9 +7286,24 @@ function formatDocHtml(text) {
   const escBold = (s) => esc(s)
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/(?<![a-zà-ú0-9])_(.+?)_(?![a-zà-ú0-9])/gi, '<em>$1</em>');
+  // Mapa opcional { "NOME EM CAIXA ALTA": { image, signedAt, code } } — quando
+  // presente, a assinatura manuscrita de verdade entra no lugar do nome, em
+  // vez do espaço/linha em branco (ver "Baixar documento assinado").
+  const sigFor = (name) => signatures && signatures[String(name || '').trim().toUpperCase()];
+  const fmtSignedAt = (iso) => { try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return ''; } };
+  const partyHtml = (lines, comLinha) => {
+    const sig = sigFor(lines[0]);
+    if (sig) {
+      return `<img class="sig-photo" src="${sig.image}" alt="assinatura">` +
+        `<p class="sig-name"><strong>${esc(lines[0] || '')}</strong></p>` +
+        lines.slice(1).map((l) => `<p class="sig-name">${esc(l)}</p>`).join('') +
+        `<p class="sig-meta">Assinado eletronicamente em ${fmtSignedAt(sig.signedAt)} · cód. ${esc(sig.code || '')}</p>`;
+    }
+    return (comLinha ? '<div class="sig-line"></div>' : '') + lines.map((l) => `<p class="sig-name">${esc(l)}</p>`).join('');
+  };
   const lines = String(text || '').split('\n');
-  let html = ''; let inSig = false; let sigOpen = false; let titleDone = false;
-  const closeSig = () => { if (sigOpen) { html += '</div>'; sigOpen = false; } };
+  let html = ''; let inSig = false; let sigOpen = false; let titleDone = false; let sigBuf = [];
+  const closeSig = () => { if (sigOpen) { html += partyHtml(sigBuf, true) + '</div>'; sigOpen = false; sigBuf = []; } };
   // Rodapé de duas colunas SEM espaço de assinatura (ex.: notificante + advogada
   // lado a lado, quando o documento não precisa de assinatura física reservada).
   // Sintaxe no conteúdo: linha "<<LADO-A-LADO>>" abre, "<<COLUNA>>" troca de
@@ -7278,8 +7311,8 @@ function formatDocHtml(text) {
   let inCols = false; let colIdx = 0; let colBuf = [[], []];
   const closeCols = () => {
     if (!inCols) return;
-    html += `<div class="cols-block"><div class="col">${colBuf[0].map((l) => `<p class="sig-name">${esc(l)}</p>`).join('')}</div>` +
-      `<div class="col">${colBuf[1].map((l) => `<p class="sig-name">${esc(l)}</p>`).join('')}</div></div>`;
+    html += `<div class="cols-block"><div class="col">${partyHtml(colBuf[0], false)}</div>` +
+      `<div class="col">${partyHtml(colBuf[1], false)}</div></div>`;
     inCols = false; colIdx = 0; colBuf = [[], []];
   };
   for (const raw of lines) {
@@ -7293,11 +7326,11 @@ function formatDocHtml(text) {
     // Linha de assinatura: abre um bloco que NÃO pode quebrar entre páginas.
     if (/^_{5,}$/.test(t)) {
       closeSig();
-      html += '<div class="sig-block"><div class="sig-line"></div>';
-      sigOpen = true; inSig = true; continue;
+      html += '<div class="sig-block">';
+      sigOpen = true; inSig = true; sigBuf = []; continue;
     }
     // Dentro do bloco de assinatura: nomes/cargos (ignora linhas em branco).
-    if (inSig) { if (t) html += `<p class="sig-name">${esc(t)}</p>`; continue; }
+    if (inSig) { if (t) sigBuf.push(t); continue; }
     if (!t) { html += '<div class="sp"></div>'; continue; }
     if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO|TERMO|HABILITAÇÃO|NOTIFICAÇÃO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
     if (/^CL[ÁA]USULA\b/i.test(t)) { html += `<p class="clause">${esc(t)}</p>`; continue; }
@@ -7317,7 +7350,7 @@ function formatDocHtml(text) {
   return html;
 }
 
-function docTableHtml(content, logo) {
+function docTableHtml(content, logo, signatures) {
   return `<table class="page">
       <thead><tr><td>
         <div class="lh-header">
@@ -7327,8 +7360,53 @@ function docTableHtml(content, logo) {
         </div>
       </td></tr></thead>
       <tfoot><tr><td><div class="lh-foot-spacer"></div></td></tr></tfoot>
-      <tbody><tr><td><div class="content">${formatDocHtml(content)}</div></td></tr></tbody>
+      <tbody><tr><td><div class="content">${formatDocHtml(content, signatures)}</div></td></tr></tbody>
     </table>`;
+}
+
+// Página de autenticação anexada ao final do documento assinado — mesmo
+// papel timbrado, com os dados de auditoria de cada assinante (não é um
+// relatório à parte: é uma página a mais dentro do mesmo PDF).
+function authPageHtml(signers, logo) {
+  if (!signers || !signers.length) return '';
+  const fmt = (iso) => { try { return new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch { return '—'; } };
+  const fmtCpf = (cpf) => {
+    const d = String(cpf || '').replace(/\D/g, '');
+    return d.length === 11 ? `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}` : (cpf || '—');
+  };
+  const cards = signers.map((s) => {
+    const geo = (s.geo_lat != null && s.geo_lng != null) ? `${s.geo_lat}, ${s.geo_lng} (±${s.geo_accuracy ?? '?'}m)` : 'não autorizada';
+    return `<div class="auth-card">
+      <div class="auth-card-h">
+        <img class="auth-sig-thumb" src="${s.signature_image}" alt="assinatura">
+        <div>
+          <div class="auth-name">${esc(s.signer_name || '')}${s.party_label ? ` <span class="auth-role">— ${esc(s.party_label)}</span>` : ''}</div>
+          <div class="auth-code">Código de verificação: <strong>${esc(s.verification_code || '')}</strong></div>
+        </div>
+      </div>
+      <table class="auth-grid">
+        <tr><td>CPF</td><td>${esc(fmtCpf(s.signer_cpf))}</td><td>Data/hora da assinatura</td><td>${fmt(s.signed_at)}</td></tr>
+        <tr><td>E-mail</td><td>${esc(s.signer_email || '—')}</td><td>Telefone</td><td>${esc(s.signer_phone || '—')}</td></tr>
+        <tr><td>IP de origem</td><td>${esc(s.signer_ip || '—')}</td><td>Geolocalização</td><td>${esc(geo)}</td></tr>
+        <tr><td>Hash SHA-256</td><td colspan="3" class="auth-hash">${esc(s.doc_hash || '—')}</td></tr>
+      </table>
+    </div>`;
+  }).join('');
+  return `<div class="docwrap" style="page-break-before:always"><table class="page">
+      <thead><tr><td>
+        <div class="lh-header">
+          <div class="brand"><img src="${logo}" onerror="this.style.display='none'">
+            <div><div class="name">LETÍCIA BARROS</div><div class="sub">Advocacia &amp; Consultoria</div></div></div>
+          <div class="oab">OAB Nº 39.948 - ES</div>
+        </div>
+      </td></tr></thead>
+      <tfoot><tr><td><div class="lh-foot-spacer"></div></td></tr></tfoot>
+      <tbody><tr><td><div class="content">
+        <h1 class="doc-title">Autenticação Digital</h1>
+        <p class="body" style="text-align:center;color:#6b6252;font-size:10.5pt;margin-top:-10px">Assinatura eletrônica avançada — Lei nº 14.063/2020 e MP 2.200-2/2001</p>
+        ${cards}
+      </div></td></tr></tbody>
+    </table></div>`;
 }
 
 function dataExtensoHoje() {
@@ -7382,7 +7460,8 @@ function printDocs(docs) {
   const hoje = dataExtensoHoje(); // data da impressão/download
   const blocks = docs.map((d, i) => {
     const c = String(d.content || '').split('[DATA]').join(hoje).split('{{data_extenso}}').join(hoje);
-    return `<div class="docwrap"${i > 0 ? ' style="page-break-before:always"' : ''}>${docTableHtml(c, logo)}</div>`;
+    return `<div class="docwrap"${i > 0 ? ' style="page-break-before:always"' : ''}>${docTableHtml(c, logo, d.signatures)}</div>` +
+      authPageHtml(d.authSigners, logo);
   }).join('');
   w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${titulo}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -7422,9 +7501,22 @@ function printDocs(docs) {
       .content .sig-block:first-of-type { margin-top: 3cm; }
       .content .sig-line { width: 62%; margin: 0 auto 6px; border-bottom: 1px solid #333; }
       .content .sig-name { text-align: center; margin: 0; line-height: 1.5; }
+      .content .sig-photo { display: block; max-width: 220px; max-height: 90px; margin: 0 auto 4px; }
+      .content .sig-meta { text-align: center; margin: 3px 0 0; font-size: 8.5pt; color: #6b6252; }
       .content .cols-block { break-inside: avoid; page-break-inside: avoid; display: flex; justify-content: space-between; gap: 30px; margin-top: 28px; }
       .content .cols-block .col { flex: 1; text-align: center; }
       .content .cols-block .sig-name { line-height: 1.5; }
+      /* Página de autenticação (auditoria da assinatura), anexada ao final do documento */
+      .auth-card { border: 1px solid #ddd; border-radius: 8px; padding: 14px 16px; margin: 16px 0; break-inside: avoid; page-break-inside: avoid; }
+      .auth-card-h { display: flex; align-items: center; gap: 14px; margin-bottom: 10px; }
+      .auth-sig-thumb { max-width: 110px; max-height: 55px; border: 1px solid #eee; border-radius: 4px; background: #fff; }
+      .auth-name { font-weight: bold; font-size: 12pt; }
+      .auth-role { font-weight: normal; color: #B8943F; font-size: 10pt; text-transform: uppercase; letter-spacing: .3px; }
+      .auth-code { font-size: 9.5pt; color: #555; margin-top: 2px; }
+      .auth-grid { width: 100%; border-collapse: collapse; font-size: 9.5pt; }
+      .auth-grid td { padding: 5px 8px; border-top: 1px solid #eee; vertical-align: top; }
+      .auth-grid tr td:nth-child(1), .auth-grid tr td:nth-child(3) { color: #9a8f7d; text-transform: uppercase; font-size: 8pt; letter-spacing: .3px; white-space: nowrap; width: 1%; }
+      .auth-hash { font-family: monospace; font-size: 8.5pt; word-break: break-all; color: #555; }
       .docwrap + .docwrap { page-break-before: always; }
       @media print { .no-print { display: none; } .content .clause, .content .sig-line { page-break-inside: avoid; } }
     </style></head><body>
