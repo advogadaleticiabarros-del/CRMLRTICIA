@@ -7249,8 +7249,25 @@ function formatDocHtml(text) {
   const lines = String(text || '').split('\n');
   let html = ''; let inSig = false; let sigOpen = false; let titleDone = false;
   const closeSig = () => { if (sigOpen) { html += '</div>'; sigOpen = false; } };
+  // Rodapé de duas colunas SEM espaço de assinatura (ex.: notificante + advogada
+  // lado a lado, quando o documento não precisa de assinatura física reservada).
+  // Sintaxe no conteúdo: linha "<<LADO-A-LADO>>" abre, "<<COLUNA>>" troca de
+  // coluna, e uma linha em branco fecha o bloco.
+  let inCols = false; let colIdx = 0; let colBuf = [[], []];
+  const closeCols = () => {
+    if (!inCols) return;
+    html += `<div class="cols-block"><div class="col">${colBuf[0].map((l) => `<p class="sig-name">${esc(l)}</p>`).join('')}</div>` +
+      `<div class="col">${colBuf[1].map((l) => `<p class="sig-name">${esc(l)}</p>`).join('')}</div></div>`;
+    inCols = false; colIdx = 0; colBuf = [[], []];
+  };
   for (const raw of lines) {
     const t = raw.trim();
+    if (t === '<<LADO-A-LADO>>') { closeSig(); closeCols(); inCols = true; colIdx = 0; colBuf = [[], []]; continue; }
+    if (inCols) {
+      if (t === '<<COLUNA>>') { colIdx = 1; continue; }
+      if (!t) { closeCols(); continue; }
+      colBuf[colIdx].push(t); continue;
+    }
     // Linha de assinatura: abre um bloco que NÃO pode quebrar entre páginas.
     if (/^_{5,}$/.test(t)) {
       closeSig();
@@ -7272,6 +7289,7 @@ function formatDocHtml(text) {
     html += `<p class="body">${escBold(t)}</p>`;
   }
   closeSig();
+  closeCols();
   return html;
 }
 
@@ -7375,6 +7393,9 @@ function printDocs(docs) {
       .content .sig-block:first-of-type { margin-top: 3cm; }
       .content .sig-line { width: 62%; margin: 0 auto 6px; border-bottom: 1px solid #333; }
       .content .sig-name { text-align: center; margin: 0; line-height: 1.5; }
+      .content .cols-block { break-inside: avoid; page-break-inside: avoid; display: flex; justify-content: space-between; gap: 30px; margin-top: 28px; }
+      .content .cols-block .col { flex: 1; text-align: center; }
+      .content .cols-block .sig-name { line-height: 1.5; }
       .docwrap + .docwrap { page-break-before: always; }
       @media print { .no-print { display: none; } .content .clause, .content .sig-line { page-break-inside: avoid; } }
     </style></head><body>
