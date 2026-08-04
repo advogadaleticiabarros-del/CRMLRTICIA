@@ -198,17 +198,20 @@ router.post('/:id/sign-request', async (req: Request, res: Response) => {
 
   const token = crypto.randomUUID();
   const code = crypto.randomBytes(5).toString('hex').toUpperCase(); // 10 chars
+  // Link exclusivo: se nome/CPF forem informados na criação, ficam travados
+  // na tela de assinatura (ninguém mais consegue assinar nesse link no lugar
+  // do signatário indicado) — ver GET/POST /api/public/sign/:token.
   await db.query(
-    `INSERT INTO signature_requests (document_id, token, verification_code, signer_name, signer_cpf, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [req.params.id, token, code, req.body?.signer_name ?? null, req.body?.signer_cpf ?? null, req.user!.id]
+    `INSERT INTO signature_requests (document_id, token, verification_code, signer_name, signer_cpf, party_label, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [req.params.id, token, code, req.body?.signer_name ?? null, req.body?.signer_cpf ?? null, req.body?.party_label ?? null, req.user!.id]
   );
   res.status(201).json({ token, verification_code: code, path: `/assinar.html?token=${token}` });
 });
 
 router.get('/:id/signatures', async (req: Request, res: Response) => {
   const [rows] = await db.query(
-    `SELECT id, token, verification_code, signer_name, signer_cpf, status, signed_at, signer_ip
+    `SELECT id, token, verification_code, signer_name, signer_cpf, party_label, status, signed_at, signer_ip
        FROM signature_requests WHERE document_id = ? ORDER BY created_at DESC`, [req.params.id]
   ) as any;
   res.json(rows);

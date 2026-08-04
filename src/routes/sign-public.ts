@@ -17,7 +17,7 @@ function maskCpf(cpf: string | null): string {
 // ── GET /api/public/sign/:token — carrega o documento para assinar ──────────
 router.get('/sign/:token', async (req: Request, res: Response) => {
   const [rows] = await db.query(
-    `SELECT s.id, s.status, s.signer_name, s.verification_code, s.signed_at,
+    `SELECT s.id, s.status, s.signer_name, s.signer_cpf, s.party_label, s.verification_code, s.signed_at,
             COALESCE(d.name, ct.title) AS document_name, COALESCE(d.content, ct.content) AS content
        FROM signature_requests s
        LEFT JOIN documents d ON d.id = s.document_id
@@ -30,6 +30,11 @@ router.get('/sign/:token', async (req: Request, res: Response) => {
     document_name: r.document_name,
     content: r.content || '',
     signer_name: r.signer_name || '',
+    // Link exclusivo: se já veio identificado (nome preenchido na criação),
+    // o front trava os campos — devolve o CPF mascarado só pra exibir/conferir.
+    signer_cpf: r.signer_name ? maskCpf(r.signer_cpf) : '',
+    locked: !!r.signer_name,
+    party_label: r.party_label || '',
     status: r.status,
     verification_code: r.status === 'assinado' ? r.verification_code : null,
     signed_at: r.signed_at,
@@ -58,6 +63,11 @@ router.post('/sign/:token', async (req: Request, res: Response) => {
   if (reqRow.status === 'assinado') { res.status(409).json({ error: 'Documento já assinado', verification_code: reqRow.verification_code }); return; }
   if (reqRow.status === 'cancelado') { res.status(409).json({ error: 'Solicitação cancelada' }); return; }
 
+  // Link exclusivo: se o nome já veio identificado na criação do link, o
+  // signatário não pode trocá-lo no formulário — trava aqui, não só na tela.
+  const signerNameFinal = reqRow.signer_name ? reqRow.signer_name : String(signer_name).trim();
+  const cpfDigitsFinal = reqRow.signer_name && reqRow.signer_cpf ? String(reqRow.signer_cpf) : cpfDigits;
+
   const docHash = crypto.createHash('sha256').update(String(reqRow.content || '')).digest('hex');
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '';
   const ua = String(req.headers['user-agent'] || '').slice(0, 500);
@@ -80,13 +90,22 @@ router.post('/sign/:token', async (req: Request, res: Response) => {
            doc_hash = ?, consent_lgpd = 1, geo_lat = ?, geo_lng = ?, geo_accuracy = ?, event_log = ?,
            status = 'assinado', signed_at = NOW(), signer_ip = ?, signer_ua = ?
      WHERE id = ?`,
-    [signer_name.trim(), cpfDigits, signer_email || null, String(signer_phone || '').replace(/\D/g, '') || null,
+    [signerNameFinal, cpfDigitsFinal, signer_email || null, String(signer_phone || '').replace(/\D/g, '') || null,
      signature_image, (selfie_image && String(selfie_image).startsWith('data:image')) ? selfie_image : null,
      docHash, lat, lng, acc, JSON.stringify(eventLog), ip, ua, reqRow.id]
   );
 
   if (reqRow.document_id) {
-    await db.query("UPDATE documents SET status = 'assinado' WHERE id = ?", [reqRow.document_id]);
+    // Documento com vários signatários: só fecha como "assinado" quando não
+    // sobrar nenhum link pendente/aguardando — antes, a assinatura de UM só
+    // já marcava o documento inteiro como assinado.
+    const [[pend]] = await db.query(
+      "SELECT COUNT(*) AS n FROM signature_requests WHERE document_id = ? AND status = 'pendente'",
+      [reqRow.document_id]
+    ) as any;
+    if (Number(pend.n) === 0) {
+      await db.query("UPDATE documents SET status = 'assinado' WHERE id = ?", [reqRow.document_id]);
+    }
     const [[doc]] = await db.query('SELECT client_id, case_id, name FROM documents WHERE id = ?', [reqRow.document_id]) as any;
     if (doc?.client_id) {
       await logTimeline({ clientId: doc.client_id, caseId: doc.case_id ?? null, eventType: 'documento_assinado',

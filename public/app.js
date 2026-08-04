@@ -2640,17 +2640,35 @@ async function docViewer(id, onSave) {
       <strong style="color:var(--navy);font-size:13px">Assinaturas</strong>
       ${sigs.map((s) => {
         const url = location.origin + '/assinar.html?token=' + s.token;
+        const quem = [s.party_label, s.signer_name].filter(Boolean).join(' — ') || 'Signatário não identificado';
         return `<div class="mini-row">
-          <span>${s.signer_name || 'Aguardando'} ${s.status === 'assinado' ? `<br><small style="color:var(--green)">Assinado · cód. ${s.verification_code}</small>` : '<br><small style="color:var(--text-muted)">pendente</small>'}</span>
+          <span>${esc(quem)} ${s.status === 'assinado' ? `<br><small style="color:var(--green)">Assinado · cód. ${s.verification_code}</small>` : '<br><small style="color:var(--text-muted)">pendente</small>'}</span>
           <span>${s.status === 'assinado'
             ? `<a class="btn-sm" href="/verificar.html?codigo=${s.verification_code}" target="_blank">Termo</a>`
-            : `<button class="btn-sm" data-copy="${url}">Copiar link</button> <a class="btn-sm" href="https://wa.me/?text=${encodeURIComponent('Assine seu documento: ' + url)}" target="_blank">WhatsApp</a>`}</span></div>`;
+            : `<button class="btn-sm" data-copy="${url}">Copiar link</button> <a class="btn-sm" href="https://wa.me/?text=${encodeURIComponent((s.party_label ? s.party_label + ': ' : '') + 'assine seu documento: ' + url)}" target="_blank">WhatsApp</a>`}</span></div>`;
       }).join('')}` : '';
     wrap.querySelectorAll('[data-copy]').forEach((b) => b.onclick = () => { navigator.clipboard.writeText(b.dataset.copy); toast('Link copiado'); });
   };
-  wrap.querySelector('#doc-sign').onclick = async () => {
-    try { await api(`/api/documents/${id}/sign-request`, { method: 'POST', body: '{}' }); toast('Link de assinatura criado'); loadSigs(); }
-    catch (e) { toast(e.message, 'error'); }
+  // Cada assinante tem seu próprio link, já identificado (nome/CPF travados
+  // na tela de assinatura) — evita um único link genérico compartilhado entre
+  // as partes, onde qualquer um podia digitar qualquer nome.
+  wrap.querySelector('#doc-sign').onclick = () => {
+    const form = el(`<form class="form-grid">
+      ${field('Papel (ex.: Notificante, Advogada, Contratante)', 'party_label')}
+      ${field('Nome completo do signatário *', 'signer_name')}
+      ${field('CPF do signatário (opcional — se informado, fica travado no link)', 'signer_cpf')}
+      <p class="sub">Deixando nome/CPF em branco, o link fica genérico (quem abrir preenche os próprios dados).</p>
+      <button type="submit" class="btn-primary">Gerar link exclusivo</button>
+    </form>`);
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const b = Object.fromEntries(new FormData(form));
+      try {
+        await api(`/api/documents/${id}/sign-request`, { method: 'POST', body: JSON.stringify(b) });
+        closeModal(); toast('Link de assinatura criado'); loadSigs();
+      } catch (err) { toast(err.message, 'error'); }
+    };
+    openModal('Novo link de assinatura', form);
   };
   loadSigs();
   // Mesmo papel timbrado + espaço de assinatura (4,5cm) usado no contrato,
