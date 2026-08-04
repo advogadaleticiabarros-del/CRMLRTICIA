@@ -6718,9 +6718,16 @@ async function dativeCaseDetail(id, onSave) {
   const d = await api('/api/dative/cases/' + id);
   // Audiências: clicáveis para editar (o valor do ato pode vir a mais ou a menos).
   const hearings = (d.hearings || []).map((h) => `<div class="mini-row" data-hedit="${h.id}" style="padding:6px 0;cursor:pointer" title="Clique para editar"><span>${fmtDate(h.hearing_date)} · ${esc(h.type || '')} <small>${esc(h.comarca || '')}</small></span><span><strong>${money(h.act_value)}</strong> ${badge(h.status)} ${svgIcon('edit', 'ic-xs')}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem audiências</small>';
+  const relatos = (d.relatos || []).map((r) => `<div class="mini-row" style="padding:6px 0;display:block"><small style="color:var(--text-muted)">${fmtDate(r.created_at)} · ${esc(r.user_name || '')}</small><div style="font-size:13px;margin-top:2px">${esc(r.text)}</div></div>`).join('') || '<small style="color:var(--text-muted)">Sem relatos ainda</small>';
 
   const dinput = d.nomeacao_date ? String(d.nomeacao_date).slice(0, 10) : '';
   const form = el(`<div class="form-grid">
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${d.case_id
+        ? `<button type="button" class="btn-sm" id="dat-ver-esteira" style="border-color:var(--green);color:var(--green)">✓ Na esteira de produção — abrir</button>`
+        : `<button type="button" class="btn-gold btn-sm" id="dat-mover-esteira">Mover para a esteira de produção</button>`}
+      <button type="button" class="btn-sm" id="dat-add-relato">+ Incluir relato</button>
+    </div>
     <strong style="color:var(--navy);font-size:13px">Dados da demanda — edite o que precisar</strong>
     ${field('Comarca *', 'comarca', { value: d.comarca || '' })}
     <div class="form-row">${field('Nº do processo', 'process_number', { value: d.process_number || '' })}${field('Vara', 'vara', { value: d.vara || '' })}</div>
@@ -6730,6 +6737,9 @@ async function dativeCaseDetail(id, onSave) {
     <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d.estimated_value ?? 0 })}${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
     ${field('Observações', 'notes', { value: d.notes || '', type: 'textarea' })}
     <button class="btn-primary" id="dat-save">Salvar alterações</button>
+    <hr style="border:none;border-top:1px solid var(--border)">
+    <strong style="font-size:13px">Relatos (atualizações registradas)</strong>
+    <div>${relatos}</div>
     <hr style="border:none;border-top:1px solid var(--border)">
     <strong style="font-size:13px">Audiências (clique para editar o valor/data)</strong>
     <div>${hearings}</div>
@@ -6751,6 +6761,25 @@ async function dativeCaseDetail(id, onSave) {
       if (h) dativeHearingEditForm(h, () => dativeCaseDetail(id, onSave));
     };
   });
+  const moverBtn = form.querySelector('#dat-mover-esteira');
+  if (moverBtn) moverBtn.onclick = async () => {
+    if (!await uiConfirm('Mover esta demanda para a esteira de produção? Isso cria um caso vinculado ao assistido, com o SLA de produção contando a partir de agora.')) return;
+    try {
+      await api(`/api/dative/cases/${id}/mover-esteira`, { method: 'POST', body: '{}' });
+      toast('Movida para a esteira de produção'); closeModal(); dativeCaseDetail(id, onSave);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  const verEsteiraBtn = form.querySelector('#dat-ver-esteira');
+  if (verEsteiraBtn) verEsteiraBtn.onclick = () => { closeModal(); caseDetail(d.case_id, onSave); };
+  const addRelatoBtn = form.querySelector('#dat-add-relato');
+  if (addRelatoBtn) addRelatoBtn.onclick = async () => {
+    const texto = await uiPrompt('Relato / atualização:');
+    if (!texto || !texto.trim()) return;
+    try {
+      await api(`/api/dative/cases/${id}/relatos`, { method: 'POST', body: JSON.stringify({ text: texto.trim() }) });
+      toast('Relato registrado'); closeModal(); dativeCaseDetail(id, onSave);
+    } catch (e) { toast(e.message, 'error'); }
+  };
   openModal('Demanda dativa', form);
 }
 

@@ -82,7 +82,58 @@ router.get('/cases/:id', async (req: Request, res: Response) => {
     'SELECT id, hearing_date, comarca, type, act_value, status FROM dative_hearings WHERE dative_case_id = ? ORDER BY hearing_date DESC',
     [req.params.id]
   ) as any;
-  res.json({ ...rows[0], hearings });
+  const [relatos] = await db.query(
+    `SELECT n.id, n.text, n.created_at, u.name AS user_name
+       FROM dative_case_notes n LEFT JOIN users u ON u.id = n.user_id
+      WHERE n.dative_case_id = ? ORDER BY n.created_at DESC`,
+    [req.params.id]
+  ) as any;
+  res.json({ ...rows[0], hearings, relatos });
+});
+
+// ── POST /api/dative/cases/:id/relatos — registra uma atualização (linha do tempo) ─
+router.post('/cases/:id/relatos', async (req: Request, res: Response) => {
+  const text = String(req.body?.text || '').trim();
+  if (!text) { res.status(400).json({ error: 'Escreva o relato' }); return; }
+  const [dc] = await db.query('SELECT id FROM dative_cases WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!dc.length) { res.status(404).json({ error: 'Demanda não encontrada' }); return; }
+  await db.query(
+    'INSERT INTO dative_case_notes (dative_case_id, user_id, text) VALUES (?, ?, ?)',
+    [req.params.id, req.user!.id, text.slice(0, 4000)]
+  );
+  res.status(201).json({ success: true });
+});
+
+// ── POST /api/dative/cases/:id/mover-esteira — cria o caso na esteira de produção ─
+// A demanda dativa já exige um cliente vinculado (client_id) desde o cadastro —
+// aproveita esse mesmo cliente, não cria outro. Idempotente: se já tem case_id,
+// não duplica, só devolve o que já existe.
+router.post('/cases/:id/mover-esteira', async (req: Request, res: Response) => {
+  const [rows] = await db.query('SELECT * FROM dative_cases WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Demanda não encontrada' }); return; }
+  const dc = rows[0];
+  if (dc.case_id) { res.json({ success: true, case_id: dc.case_id, ja_existia: true }); return; }
+  if (!dc.client_id) { res.status(400).json({ error: 'Esta demanda não tem cliente/assistido vinculado — edite e informe o assistido antes' }); return; }
+
+  // Área do dativo (criminal/infância) não tem par exato no caso — cai em "outro".
+  const CASE_AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
+  const legalArea = CASE_AREAS.includes(dc.area) ? dc.area : 'outro';
+  const title = dc.assunto || dc.assisted_name || `Dativo — ${dc.comarca}`;
+  const labels = JSON.stringify(['Dativo']);
+
+  const [cr] = await db.query(
+    `INSERT INTO cases (user_id, client_id, title, case_number, legal_area, status,
+                        production_stage, production_started_at, production_labels, description)
+     VALUES (?, ?, ?, ?, ?, 'ativo', 'em_analise', NOW(), ?, ?)`,
+    [req.user!.id, dc.client_id, title, dc.process_number || null, legalArea, labels, dc.notes || null]
+  ) as any;
+  await db.query('UPDATE dative_cases SET case_id = ? WHERE id = ?', [cr.insertId, req.params.id]);
+  await db.query(
+    'INSERT INTO dative_case_notes (dative_case_id, user_id, text) VALUES (?, ?, ?)',
+    [req.params.id, req.user!.id, 'Demanda movida para a esteira de produção.']
+  ).catch(() => {});
+
+  res.status(201).json({ success: true, case_id: cr.insertId, ja_existia: false });
 });
 
 router.post('/cases', async (req: Request, res: Response) => {
