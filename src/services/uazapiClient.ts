@@ -39,7 +39,7 @@ export interface UazapiConnectResponse {
   instance?: { status?: string; owner?: string };
 }
 export interface UazapiStatusResponse {
-  instance: { id: string; name: string; status: string; owner?: string; profileName?: string };
+  instance: { id: string; name: string; status: string; owner?: string; profileName?: string; qrcode?: string };
 }
 
 export const uazapi = {

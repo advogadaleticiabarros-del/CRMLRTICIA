@@ -30,8 +30,12 @@ let lastError: string | null = null;
 let autoSend = true;
 let autoTimer: NodeJS.Timeout | null = null;
 
+// O QR vem aninhado em instance.qrcode (já como data URI completa) — testado
+// direto na API, não no topo da resposta como a documentação sugeria.
 function normalizeQr(r: any): string | null {
-  const raw = (typeof r?.qrcode === 'object' ? r.qrcode?.base64 : r?.qrcode) || r?.base64 || null;
+  const raw = r?.instance?.qrcode
+    || (typeof r?.qrcode === 'object' ? r.qrcode?.base64 : r?.qrcode)
+    || r?.base64 || null;
   if (!raw) return null;
   return String(raw).startsWith('data:') ? raw : `data:image/png;base64,${raw}`;
 }
@@ -61,8 +65,11 @@ export async function getStatus(): Promise<WAStatus> {
     const r = await uazapi.status();
     const st = r?.instance?.status || 'disconnected';
     const connected = st === 'connected';
-    if (connected) cachedQr = null;
-    if (connected) lastError = null;
+    if (connected) { cachedQr = null; lastError = null; }
+    // O status ao vivo também traz o QR — mantém atualizado a cada consulta
+    // (o front sonda a cada 3s), já que o QR expira em ~2min e precisa
+    // renovar sozinho sem a pessoa ter que clicar em "Conectar" de novo.
+    else if (r?.instance?.qrcode) cachedQr = normalizeQr(r);
     return {
       connected,
       connecting: connecting || st === 'connecting',
