@@ -7260,10 +7260,14 @@ async function lawyerForm(id, onSave) {
 
 function formatDocHtml(text) {
   const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  // Igual esc(), mas converte **negrito** em <strong> — pra textos digitados em
-  // markdown (ex.: notificações extrajudiciais) renderizarem negrito de verdade
-  // em vez de mostrar os asteriscos literais.
-  const escBold = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  // Igual esc(), mas converte **negrito** em <strong> e _itálico_ em <em> —
+  // pra textos digitados em markdown (ex.: notificações, termos de estrangeirismo)
+  // renderizarem formatação de verdade em vez de mostrar os símbolos literais.
+  // Padrão forense: negrito em título de peça/termo importante, itálico em
+  // palavra estrangeira.
+  const escBold = (s) => esc(s)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(?<![a-zà-ú0-9])_(.+?)_(?![a-zà-ú0-9])/gi, '<em>$1</em>');
   const lines = String(text || '').split('\n');
   let html = ''; let inSig = false; let sigOpen = false; let titleDone = false;
   const closeSig = () => { if (sigOpen) { html += '</div>'; sigOpen = false; } };
@@ -7304,6 +7308,8 @@ function formatDocHtml(text) {
     // Subtítulo de seção (ex.: "DA RESPONSABILIDADE DA EMPRESA") — linha curta,
     // toda maiúscula, que não caiu em nenhum padrão específico acima.
     if (titleDone && t === t.toUpperCase() && t.length <= 70 && /[A-ZÀ-Ú]/.test(t)) { html += `<p class="section-heading">${esc(t)}</p>`; continue; }
+    // Citação longa/nota de rodapé: linha começando com "> " — fonte menor (10pt), recuada.
+    if (/^>\s?/.test(t)) { html += `<p class="citacao">${escBold(t.replace(/^>\s?/, ''))}</p>`; continue; }
     html += `<p class="body">${escBold(t)}</p>`;
   }
   closeSig();
@@ -7382,10 +7388,13 @@ function printDocs(docs) {
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600;700&display=swap" rel="stylesheet">
     <style>
-      @page { margin: 1.5cm 1.8cm; }
+      /* Padrão ABNT/forense: A4, margens 3cm (sup./esq.) e 2cm (inf./dir.),
+         fonte 12pt preta justificada, espaçamento 1,5 — usado em toda peça
+         gerada pelo CRM (contrato, procuração, notificação, habilitação...). */
+      @page { size: A4; margin: 3cm 2cm 2cm 3cm; }
       * { box-sizing: border-box; }
-      body { font-family: 'Times New Roman', Georgia, serif; font-size: 12pt; line-height: 1.7; color: #1a1a1a; margin: 0; }
-      @media screen { body { background: #f5f5f5; } .page { background: #fff; max-width: 21cm; margin: 16px auto; padding: 1.5cm 1.8cm; box-shadow: 0 2px 14px rgba(0,0,0,.15); } }
+      body { font-family: 'Times New Roman', Georgia, serif; font-size: 12pt; line-height: 1.5; color: #000; margin: 0; }
+      @media screen { body { background: #f5f5f5; } .page { background: #fff; max-width: 21cm; margin: 16px auto; padding: 3cm 2cm 2cm 3cm; box-shadow: 0 2px 14px rgba(0,0,0,.15); } }
       table.page { width: 100%; border-collapse: collapse; }
       thead td, tfoot td, tbody td { padding: 0; border: 0; }
       .lh-header { display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid #B8943F; padding-bottom: 6px; margin-bottom: 18px; }
@@ -7396,16 +7405,18 @@ function printDocs(docs) {
       .lh-header .oab { font-size: 9.5pt; color: #555; white-space: nowrap; letter-spacing: .5px; }
       .lh-spacer-top { height: 0.5cm; }
       .lh-foot-spacer { height: 1.15cm; }
-      .lh-footer-fixed { position: fixed; bottom: 0.7cm; left: 1.8cm; right: 1.8cm; background: #fff; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
+      .lh-footer-fixed { position: fixed; bottom: 0.7cm; left: 3cm; right: 2cm; background: #fff; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
       .lh-footer-fixed .sep { color: #B8943F; margin: 0 6px; }
       .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 12cm; height: auto; opacity: 0.035; z-index: -1; }
-      .content { font-size: 12pt; line-height: 1.5; }
+      .content { font-size: 12pt; line-height: 1.5; color: #000; }
       .content .doc-title { text-align: center; font-size: 13.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; margin: 0 0 20px; }
       .content .clause { font-weight: bold; margin: 16px 0 5px; }
       .content .section-heading { font-weight: bold; letter-spacing: .3px; margin: 18px 0 6px; }
       .content .para { margin: 8px 0; text-align: justify; }
       .content .party { margin: 6px 0; text-align: justify; }
       .content .body { margin: 9px 0; text-align: justify; }
+      /* Citação longa/nota — fonte menor (10pt), recuada, como manda o padrão forense */
+      .content .citacao { font-size: 10pt; line-height: 1.4; margin: 10px 0 10px 2cm; text-align: justify; color: #000; }
       .content .sp { height: 5px; }
       .content .sig-block { break-inside: avoid; page-break-inside: avoid; margin-top: 3cm; text-align: center; }
       .content .sig-block:first-of-type { margin-top: 3cm; }
