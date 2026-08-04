@@ -146,15 +146,24 @@
       const img = window._pad.toDataURL('image/png');
       const btn = document.getElementById('sign'); btn.disabled = true; btn.textContent = 'Assinando…';
       try {
-        const r = await fetch('/api/public/sign/' + token, {
+        const resp = await fetch('/api/public/sign/' + token, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ signer_name: nome, signer_cpf: cpf, signer_email: email, signer_phone: phone,
             signature_image: img, selfie_image: window._selfie || null, consent_lgpd: true,
             geo: window._geo || null, opened_at: window._openedAt }),
-        }).then((x) => x.json());
-        if (r.error) { msg.textContent = r.error; btn.disabled = false; btn.textContent = 'Assinar documento'; return; }
+        });
+        // Erro de servidor/proxy (ex.: foto grande demais) pode voltar sem corpo
+        // JSON (HTML de erro) — sem isso, .json() estoura e cai no catch mudo,
+        // mostrando sempre a mesma mensagem genérica sem dizer o que houve.
+        let r;
+        try { r = await resp.json(); }
+        catch { throw new Error(`O servidor respondeu de forma inesperada (HTTP ${resp.status}). Se anexou uma foto grande, tente sem foto ou com uma foto menor.`); }
+        if (!resp.ok || r.error) { msg.textContent = r.error || `Falha ao assinar (HTTP ${resp.status}).`; btn.disabled = false; btn.textContent = 'Assinar documento'; return; }
         showDone(r.verification_code);
-      } catch (e) { msg.textContent = 'Falha ao assinar. Tente novamente.'; btn.disabled = false; btn.textContent = 'Assinar documento'; }
+      } catch (e) {
+        msg.textContent = (e && e.message) ? `Falha ao assinar: ${e.message}` : 'Falha ao assinar — sem conexão com o servidor. Verifique sua internet e tente novamente.';
+        btn.disabled = false; btn.textContent = 'Assinar documento';
+      }
     }
 
     function showDone(code) {
