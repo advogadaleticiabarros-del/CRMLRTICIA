@@ -2885,17 +2885,27 @@ async function renderCorrespondente(page) {
   // TAB: Histórico (tabela com filtros)
   const showHistorico = async () => {
     const c = $('#corr-content');
+    const solicitantes = await api('/api/correspondente/solicitantes').catch(() => []);
+    const pagadores = [...new Set(solicitantes.map((s) => s.payer_name).filter(Boolean))].sort();
     c.innerHTML = `
       <div class="form-section" style="margin-bottom:16px">
-        <div class="section-header">${svgIcon('search', 'ic-inline')} Filtro de Status</div>
-        <select id="corr-filter" style="width:100%;max-width:300px">
-          <option value="">Todas</option>
-          <option value="agendada">Agendadas</option>
-          <option value="realizada">Realizadas</option>
-          <option value="faturada">Faturadas</option>
-          <option value="paga">Pagas</option>
-          <option value="cancelada">Canceladas</option>
-        </select>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:end">
+          <div><div class="section-header" style="margin-bottom:4px">${svgIcon('search', 'ic-inline')} Status</div>
+            <select id="corr-filter" style="min-width:200px">
+              <option value="">Todas</option>
+              <option value="agendada">Agendadas</option>
+              <option value="realizada">Realizadas</option>
+              <option value="faturada">Faturadas</option>
+              <option value="paga">Pagas</option>
+              <option value="cancelada">Canceladas</option>
+            </select></div>
+          <div><div class="section-header" style="margin-bottom:4px">${svgIcon('users', 'ic-inline')} Pagador</div>
+            <select id="corr-pagador" style="min-width:200px">
+              <option value="">Todos</option>
+              ${pagadores.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}
+            </select></div>
+          <button class="btn-gold btn-sm" type="button" id="corr-guia">${svgIcon('banknote', 'ic-inline')} Guia de cobrança</button>
+        </div>
       </div>
       <div class="card"><div id="corr-table"></div></div>`;
 
@@ -2953,12 +2963,14 @@ async function renderCorrespondente(page) {
     };
     const loadHistorico = async () => {
       const filtro = $('#corr-filter').value;
+      const pagador = $('#corr-pagador').value;
       const q = filtro ? '?status=' + filtro : '';
       let rows = await api('/api/correspondente' + q);
       rows = rows.filter((r) => {
         const d = r.hearing_datetime ? String(r.hearing_datetime).slice(0, 10) : '';
         if (corrPeriodo.de && (!d || d < corrPeriodo.de)) return false;
         if (corrPeriodo.ate && (!d || d > corrPeriodo.ate)) return false;
+        if (pagador && r.payer_name !== pagador) return false;
         return true;
       });
       rowsCache = rows;
@@ -2980,6 +2992,27 @@ async function renderCorrespondente(page) {
       wireRowActions();
     };
     $('#corr-filter').onchange = loadHistorico;
+    $('#corr-pagador').onchange = loadHistorico;
+    $('#corr-guia').onclick = () => {
+      const pendentes = rowsCache.filter((r) => ['agendada', 'realizada', 'faturada'].includes(r.status));
+      if (!pendentes.length) { toast('Nenhuma audiência pendente de recebimento nesse filtro', 'error'); return; }
+      const total = pendentes.reduce((s, r) => s + Number(r.value || 0), 0);
+      const pagadorSel = $('#corr-pagador').value;
+      const linhas = pendentes.map((r) => `<tr>
+        <td>${fmtDateTime(r.hearing_datetime)}</td>
+        <td>${esc(r.process_number || '—')}</td>
+        <td>${esc(r.comarca || '—')}</td>
+        <td>${esc(r.payer_name || '—')}</td>
+        <td style="text-align:right">${money(r.value)}</td></tr>`).join('');
+      const html = `
+        <table style="width:100%;border-collapse:collapse;margin-top:8px">
+          <thead><tr style="border-bottom:2px solid #c19a4e"><th style="text-align:left;padding:6px 4px">Data</th><th style="text-align:left;padding:6px 4px">Processo</th><th style="text-align:left;padding:6px 4px">Comarca</th><th style="text-align:left;padding:6px 4px">Pagador</th><th style="text-align:right;padding:6px 4px">Valor</th></tr></thead>
+          <tbody>${linhas}</tbody>
+          <tfoot><tr style="border-top:2px solid #c19a4e;font-weight:700"><td colspan="4" style="padding:8px 4px">Total pendente</td><td style="text-align:right;padding:8px 4px">${money(total)}</td></tr></tfoot>
+        </table>
+        <p style="margin-top:16px;font-size:10.5pt;color:#6b6252">Favor efetuar o pagamento referente às audiências de correspondente acima. Qualquer dúvida, estamos à disposição.</p>`;
+      printBranded('Guia de Cobrança — Correspondente Jurídico', pagadorSel ? `Pagador: ${pagadorSel}` : 'Todos os pagadores', html);
+    };
     await loadHistorico();
   };
 
@@ -4564,14 +4597,23 @@ async function finReceitas(c) {
 
 async function finRepasses(c) {
   c.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-repasse">+ Novo repasse</button></div>
+    <div style="display:flex;justify-content:space-between;align-items:end;margin:8px 0;flex-wrap:wrap;gap:10px">
+      <div><label style="display:block;font-size:11px;color:var(--text-muted);margin-bottom:2px">Parceiro</label>
+        <select id="rep-f-parceiro" style="min-width:220px"><option value="">Todos</option></select></div>
+      <div style="display:flex;gap:8px">
+        <button class="btn-sm" id="rep-guia">${svgIcon('banknote', 'ic-inline')} Guia de repasse</button>
+        <button class="btn-gold" id="new-repasse">+ Novo repasse</button>
+      </div>
+    </div>
     <div class="card"><div id="repasse-table"></div></div>`;
   tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#repasse-table table'), filename: 'repasses', title: 'Repasses a Parceiros' });
-  const load = async () => {
-    const r = await api('/api/repasses');
-    $('#repasse-table').innerHTML = r.data.length ? `
+  let dados = [];
+  const render = () => {
+    const parc = $('#rep-f-parceiro').value;
+    const rows = parc ? dados.filter((rp) => rp.parceiro === parc) : dados;
+    $('#repasse-table').innerHTML = rows.length ? `
       <table><thead><tr><th>Parceiro</th><th>Processo</th><th>Tipo</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
-      <tbody>${r.data.map((rp) => {
+      <tbody>${rows.map((rp) => {
         const acoes = [];
         if (rp.status === 'pendente' || rp.status === 'processando') acoes.push(`<button class="btn-sm" data-rep-pay="${rp.id}">Repassar</button>`);
         if (rp.status !== 'repassado' && rp.status !== 'cancelado') acoes.push(`<button class="btn-sm" data-rep-cancel="${rp.id}">Cancelar</button>`);
@@ -4593,7 +4635,34 @@ async function finRepasses(c) {
       try { await api(`/api/repasses/${b.dataset.repCancel}/cancelar`, { method: 'POST', body: '{}' }); toast('Repasse cancelado'); load(); } catch (e) { toast(e.message, 'error'); }
     });
   };
+  const load = async () => {
+    const r = await api('/api/repasses');
+    dados = r.data || [];
+    const parceiros = [...new Set(dados.map((rp) => rp.parceiro).filter(Boolean))].sort();
+    const sel = $('#rep-f-parceiro'); const atual = sel.value;
+    sel.innerHTML = '<option value="">Todos</option>' + parceiros.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('');
+    sel.value = atual;
+    render();
+  };
+  $('#rep-f-parceiro').onchange = render;
   $('#new-repasse').onclick = () => repasseForm(load);
+  $('#rep-guia').onclick = () => {
+    const parc = $('#rep-f-parceiro').value;
+    if (!parc) { toast('Selecione um parceiro para gerar a guia', 'error'); return; }
+    const pendentes = dados.filter((rp) => rp.parceiro === parc && ['pendente', 'processando'].includes(rp.status));
+    if (!pendentes.length) { toast('Nenhum repasse pendente para esse parceiro', 'error'); return; }
+    const total = pendentes.reduce((s, rp) => s + Number(rp.valor || 0), 0);
+    const linhas = pendentes.map((rp) => `<tr>
+      <td>${esc(rp.case_title || '—')}</td><td>${esc(rp.tipo)}</td><td>${fmtDate(rp.data_vencimento)}</td>
+      <td style="text-align:right">${money(rp.valor)}</td></tr>`).join('');
+    const html = `
+      <table style="width:100%;border-collapse:collapse;margin-top:8px">
+        <thead><tr style="border-bottom:2px solid #c19a4e"><th style="text-align:left;padding:6px 4px">Processo</th><th style="text-align:left;padding:6px 4px">Tipo</th><th style="text-align:left;padding:6px 4px">Vencimento</th><th style="text-align:right;padding:6px 4px">Valor</th></tr></thead>
+        <tbody>${linhas}</tbody>
+        <tfoot><tr style="border-top:2px solid #c19a4e;font-weight:700"><td colspan="3" style="padding:8px 4px">Total a repassar</td><td style="text-align:right;padding:8px 4px">${money(total)}</td></tr></tfoot>
+      </table>`;
+    printBranded('Guia de Repasse — Parceria', `Parceiro: ${parc}`, html);
+  };
   await load();
 }
 
