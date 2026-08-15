@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
+import { notifyNewLead } from '../services/leadAlert';
 
 const router = Router();
 
@@ -163,6 +164,11 @@ router.post('/:id/convert-lead', async (req: Request, res: Response) => {
   ) as any;
 
   await db.query("UPDATE intakes SET lead_id = ?, status = 'convertido' WHERE id = ?", [result.insertId, id]);
+
+  await notifyNewLead({
+    leadId: result.insertId, name: intake.contact_name, phone: intake.phone,
+    source: intake.source, area: intake.legal_area, message: intake.report,
+  });
 
   await logActivity({
     leadId: result.insertId, clientId: intake.client_id, actorId: req.user!.id, actorName: req.user!.name,

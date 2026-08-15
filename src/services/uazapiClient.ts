@@ -59,9 +59,29 @@ export const uazapi = {
   sendText(number: string, text: string): Promise<{ messageid: string; status: string }> {
     return request('POST', '/send/text', { number, text });
   },
+  /**
+   * POST /send/media — envia imagem/documento/vídeo/áudio. "file" é uma URL
+   * que a Uazapi busca no servidor deles — por isso o CRM sobe o arquivo pra
+   * whatsapp_media primeiro e manda um link assinado (signMediaUrl), não o
+   * arquivo em si. Contrato confirmado testando direto: number/file/type/text
+   * (sem "text" a Uazapi rejeita com "missing text for text message").
+   */
+  sendMedia(number: string, fileUrl: string, type: 'image' | 'document' | 'video' | 'audio' | 'ptt', text = ''): Promise<{ messageid: string; status: string }> {
+    return request('POST', '/send/media', { number, file: fileUrl, type, text });
+  },
   /** POST /message/download — baixa mídia de uma mensagem recebida. */
   downloadMessage(messageId: string): Promise<{ base64?: string; url?: string }> {
     return request('POST', '/message/download', { id: messageId, return_base64: true });
+  },
+  // Campo é "id", não "messageId" como a doc da SDK sugere — confirmado
+  // testando direto (a doc devolvia "Missing Id in Payload" com messageId).
+  /** POST /message/edit — edita o texto de uma mensagem já enviada (só suas, dentro do prazo do WhatsApp). */
+  editMessage(messageId: string, text: string): Promise<any> {
+    return request('POST', '/message/edit', { id: messageId, text });
+  },
+  /** POST /message/delete — apaga a mensagem para todos no chat. */
+  deleteMessage(messageId: string): Promise<any> {
+    return request('POST', '/message/delete', { id: messageId });
   },
   /** POST /webhook — configura a URL que recebe os eventos (mensagens etc.). */
   // enabled: true é obrigatório aqui — sem ele a Uazapi salva a configuração

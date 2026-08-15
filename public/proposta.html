@@ -330,6 +330,18 @@
     .clause-num { width: 29px; height: 29px; border-radius: 50%; display: grid; place-items: center; flex: 0 0 auto; color: var(--gold); background: #fff7e3; border: 1px solid rgba(191,147,64,.24); font-size: 12px; font-weight: 800; }
     .clause strong { display: block; color: var(--ink); font-size: 12px; letter-spacing: .8px; text-transform: uppercase; margin-bottom: 5px; }
 
+    .exito-clause { margin-top: 22px; padding-top: 20px; border-top: 1px dashed rgba(191,147,64,.35); }
+    .exito-head { margin-bottom: 8px; }
+    .exito-head small { display: block; color: var(--gold); font-size: 11px; font-weight: 700; letter-spacing: .8px; text-transform: uppercase; }
+    .exito-head h3 { margin: 2px 0 0; font-size: 17px; color: var(--ink); }
+    .exito-clause > p { color: #665a4d; font-size: 13px; line-height: 1.7; margin: 0 0 10px; }
+    .exito-clause .pct { color: var(--gold); }
+    .exito-itens { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; margin-top: 14px; }
+    .exito-item { background: #fff7e3; border: 1px solid rgba(191,147,64,.24); border-radius: 12px; padding: 13px 15px; }
+    .exito-item strong { display: block; color: var(--ink); font-size: 12.5px; margin-bottom: 5px; }
+    .exito-item p { color: #665a4d; font-size: 12.5px; line-height: 1.6; margin: 0; }
+    .exito-item small { display: block; color: #8a7a63; font-size: 11px; margin-top: 7px; font-style: italic; }
+
     .agree { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: flex-start; margin-top: 22px; padding: 15px 16px; border-radius: 14px; border: 1px solid rgba(191,147,64,.34); background: rgba(255,248,232,.58); cursor: pointer; color: #5d5144; font-size: 14px; transition: border-color .18s ease, background .18s ease, box-shadow .18s ease; }
     .agree:hover { border-color: rgba(191,147,64,.58); background: rgba(255,246,222,.82); box-shadow: 0 10px 28px rgba(191,147,64,.08); }
     .agree input { width: 20px; height: 20px; accent-color: var(--gold); flex: 0 0 auto; margin-top: 2px; }
@@ -645,16 +657,50 @@
         const numbered = block.match(/^\d+\.\s*([\s\S]+)$/);
         const cleaned = numbered ? numbered[1].trim() : block;
         const colon = cleaned.indexOf(':');
-        return colon > 0 && colon < 70 ? [cleaned.slice(0, colon).trim(), cleaned.slice(colon + 1).trim()] : ['Condição', cleaned];
-      });
+        if (colon > 0 && colon < 70) return [cleaned.slice(0, colon).trim(), cleaned.slice(colon + 1).trim()];
+        // Bloco sem número nem dois-pontos: normalmente é um título/cabeçalho
+        // solto (ex.: "OBSERVAÇÕES E CONDIÇÕES..."), não uma cláusula de
+        // verdade — sem isso virava um card fantasma "Condição" no topo.
+        return numbered ? ['Condição', cleaned] : null;
+      }).filter(Boolean);
     }
 
     function strategyHtml(proposal) {
       const items = STRATEGIES[proposal.legal_area || 'outro'] || STRATEGIES.outro;
       return items.map(([title, body], index) => `<article class="strategy-item"><span class="token">${index + 1}</span><b>${safe(title)}</b><p>${safe(body)}</p></article>`).join('');
     }
+    // Cláusula de honorários de êxito — só pra pensão alimentícia (as 3
+    // hipóteses de cálculo são específicas dessa área). Fica logo abaixo do
+    // bloco de valores (mesmo card da seção 03), não misturada no texto
+    // corrido das demais cláusulas — pedido explícito: era "bagunçado" ter
+    // tudo numa parede de texto só.
+    function exitoClauseHtml(proposal) {
+      if (!/pens[aã]o/i.test(proposal.tipo_causa || '')) return '';
+      return `
+        <div class="exito-clause">
+          <div class="exito-head"><small>Honor&aacute;rios</small><h3>Honor&aacute;rios de &ecirc;xito</h3></div>
+          <p>Os honor&aacute;rios ajustados remuneram exclusivamente a atua&ccedil;&atilde;o descrita nesta proposta, n&atilde;o abrangendo recursos, incidentes processuais, novas a&ccedil;&otilde;es ou demandas aut&ocirc;nomas, que poder&atilde;o ser objeto de novo ajuste de honor&aacute;rios.</p>
+          <p>Al&eacute;m dos honor&aacute;rios eventualmente previstos nesta proposta, fica estabelecido o percentual de <strong class="pct">20% (vinte por cento)</strong> a t&iacute;tulo de honor&aacute;rios de &ecirc;xito, calculado de acordo com a natureza da demanda:</p>
+          <div class="exito-itens">
+            <div class="exito-item">
+              <strong>a) Pedido inicial de pens&atilde;o aliment&iacute;cia</strong>
+              <p>Incide sobre o valor correspondente a <b>12 (doze) meses</b> da pens&atilde;o fixada judicialmente, pago em 6 (seis) parcelas junto &agrave;s 6 primeiras parcelas da pens&atilde;o recebida, salvo ajuste diverso formalizado entre as partes.</p>
+              <small>Ex.: pens&atilde;o de R$ 1.000,00/m&ecirc;s &rarr; base de c&aacute;lculo R$ 12.000,00.</small>
+            </div>
+            <div class="exito-item">
+              <strong>b) Execu&ccedil;&atilde;o de alimentos / cobran&ccedil;a de valores atrasados</strong>
+              <p>Incide sobre o <b>valor total da d&iacute;vida efetivamente recuperada</b> em favor do(a) CONTRATANTE, seja por pagamento volunt&aacute;rio, acordo, bloqueio judicial, penhora ou qualquer outra forma de satisfa&ccedil;&atilde;o do d&eacute;bito.</p>
+            </div>
+            <div class="exito-item">
+              <strong>c) A&ccedil;&atilde;o revisional de alimentos</strong>
+              <p>Incide sobre a <b>diferen&ccedil;a anual</b> entre o valor anteriormente pago e o novo valor fixado judicialmente, considerando 12 (doze) meses.</p>
+              <small>Ex.: pens&atilde;o de R$ 1.000,00 &rarr; R$ 1.500,00 = diferen&ccedil;a R$ 500,00 &times; 12 meses &rarr; base de c&aacute;lculo R$ 6.000,00.</small>
+            </div>
+          </div>
+        </div>`;
+    }
     function clausesHtml(text) {
-      return clausesFromText(text).slice(0, 8).map(([title, body], index) => `<article class="clause"><span class="clause-num">${index + 1}</span><div><strong>${safe(title)}</strong><p>${safe(body)}</p></div></article>`).join('');
+      return clausesFromText(text).slice(0, 12).map(([title, body], index) => `<article class="clause"><span class="clause-num">${index + 1}</span><div><strong>${safe(title)}</strong><p>${safe(body)}</p></div></article>`).join('');
     }
     function acceptedHtml() {
       return `<section class="accepted" id="accepted"><div class="accepted-icon">✓</div><strong>Proposta aceita com sucesso.</strong><p>Seu aceite foi registrado. O escritório seguirá com a preparação dos documentos de contratação e assinatura.</p></section>`;
@@ -801,6 +847,7 @@
             <article class="card investment-section" data-reveal style="--delay:.24s">
               <div class="section-head"><span class="section-number">03</span><div><small>Honor&aacute;rios</small><h2>Planejamento de investimento</h2></div></div>
               ${feeHtml(proposal)}
+              ${exitoClauseHtml(proposal)}
             </article>
             <article class="card" data-reveal style="--delay:.28s">
               <div class="section-head"><span class="section-number">04</span><div><small>Condi&ccedil;&otilde;es</small><h2>Termos essenciais</h2></div></div>

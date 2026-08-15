@@ -437,6 +437,19 @@ Object.assign(ICONS, {
   printer:  '<path d="M7 8V4h10v4"/><rect x="4" y="8" width="16" height="8" rx="1.5"/><path d="M7 14h10v5H7z"/>',
   building: '<rect x="5" y="3.5" width="14" height="17" rx="1.5"/><path d="M9 7h2M13 7h2M9 11h2M13 11h2M9 15h6v5.5H9z"/>',
 });
+// Ícones da tela de WhatsApp (mesma razão do expurgo acima — 📎🎙🔎🏷ℹ✨ eram
+// os últimos emoji de interface sobrando no sistema).
+Object.assign(ICONS, {
+  mic:       '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0"/><path d="M12 17.5V21"/>',
+  paperclip: '<path d="M17.5 8.5 9.8 16.2a3.2 3.2 0 0 1-4.5-4.5l8-8a2.2 2.2 0 0 1 3.1 3.1l-7.6 7.6a1.1 1.1 0 0 1-1.6-1.6l6.9-6.9"/>',
+  tag:       '<path d="M11.5 3H5.5a1.5 1.5 0 0 0-1.5 1.5v6L13.5 20l6.5-6.5z"/><circle cx="8.3" cy="7.3" r="1.3"/>',
+  info:      '<circle cx="12" cy="12" r="8.5"/><path d="M12 11v5.2"/><circle cx="12" cy="7.8" r=".25" fill="currentColor" stroke="none"/>',
+  x:         '<path d="M6 6l12 12M18 6 6 18"/>',
+  send:      '<path d="M4.5 12 20 4.5 15 20l-3.5-6.5z"/><path d="M11.5 13.5 20 4.5"/>',
+  chevronUp:   '<path d="M6 15l6-6 6 6"/>',
+  chevronDown: '<path d="M6 9l6 6 6-6"/>',
+  trash:       '<path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M8 7l1 13h6l1-13"/>',
+});
 
 function svgIcon(name, extra) {
   const p = ICONS[name] || ICONS.dot;
@@ -2891,8 +2904,56 @@ async function renderCorrespondente(page) {
       onPeriod: (de, ate) => { corrPeriodo = { de, ate }; loadHistorico(); },
       findTable: () => page.querySelector('#corr-table table'), filename: 'correspondente',
     });
+    const rowHtml = (h, cancelada) => {
+      const acoes = [];
+      if (h.status === 'agendada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="realizada">Realizada</button>`);
+      if (h.status === 'realizada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="faturada">Faturar</button>`);
+      if (h.status === 'faturada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="paga">Receber</button>`);
+      if (!['paga', 'cancelada'].includes(h.status)) acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="cancelada">Cancelar</button>`);
+      acoes.push(`<button class="btn-sm" data-editar="${h.id}" title="Editar">${svgIcon('edit', 'ic-xs')}</button>`);
+      acoes.push(`<button class="btn-sm" data-excluir="${h.id}" title="Excluir permanentemente" style="color:var(--red,#c0392b)">${svgIcon('trash', 'ic-xs')}</button>`);
+      return `<tr data-ver="${h.id}" style="cursor:pointer">
+        <td>${fmtDateTime(h.hearing_datetime)}<br><small style="color:var(--text-muted)">${h.comarca || ''}</small></td>
+        <td>${h.role === 'preposto' ? 'Preposto' : 'Advogado'}</td>
+        <td>${h.process_number || '—'}<br><small style="color:var(--text-muted)">${h.requesting_office || ''}</small></td>
+        <td>${h.payer_name}<br><small style="color:var(--text-muted)">${h.payer_type}${h.payer_document ? ' · ' + h.payer_document : ''}</small></td>
+        <td>${money(h.value)}</td><td>${badge(h.status)}</td>
+        <td style="white-space:nowrap" onclick="event.stopPropagation()">${acoes.join(' ')}</td></tr>`;
+    };
+    let rowsCache = [];
+    const wireRowActions = () => {
+      document.querySelectorAll('[data-st]').forEach((b) => b.onclick = async (e) => {
+        e.stopPropagation();
+        try { await api(`/api/correspondente/${b.dataset.st}/status`, { method: 'PATCH', body: JSON.stringify({ status: b.dataset.to }) }); toast('Status atualizado'); loadKpis(); loadHistorico(); }
+        catch (err) { toast(err.message, 'error'); }
+      });
+      document.querySelectorAll('[data-editar]').forEach((b) => b.onclick = (e) => {
+        e.stopPropagation();
+        const h = rowsCache.find((r) => String(r.id) === b.dataset.editar);
+        if (!h) return;
+        correspondenteForm(() => { loadKpis(); loadHistorico(); }, {
+          id: h.id, hearing_datetime: h.hearing_datetime ? String(h.hearing_datetime).replace(' ', 'T').slice(0, 16) : '',
+          role: h.role, process_number: h.process_number, comarca: h.comarca, vara: h.vara, location: h.location,
+          requesting_office: h.requesting_office, payer_name: h.payer_name, payer_type: h.payer_type, payer_document: h.payer_document,
+          value: h.value, due_date: h.due_date ? String(h.due_date).slice(0, 10) : '', notes: h.notes,
+        });
+      });
+      document.querySelectorAll('[data-excluir]').forEach((b) => b.onclick = async (e) => {
+        e.stopPropagation();
+        const h = rowsCache.find((r) => String(r.id) === b.dataset.excluir);
+        const ok = await uiConfirm(`Excluir permanentemente a audiência de ${h?.payer_name || 'pagador'} em ${fmtDateTime(h?.hearing_datetime)}?\n\nEsta ação não pode ser desfeita.`);
+        if (!ok) return;
+        try { await api(`/api/correspondente/${b.dataset.excluir}`, { method: 'DELETE' }); toast('Audiência excluída'); loadKpis(); loadHistorico(); }
+        catch (err) { toast(err.message, 'error'); }
+      });
+      document.querySelectorAll('[data-ver]').forEach((tr) => tr.onclick = () => {
+        const h = rowsCache.find((r) => String(r.id) === tr.dataset.ver);
+        if (h) correspondenteDetailModal(h);
+      });
+    };
     const loadHistorico = async () => {
-      const q = $('#corr-filter').value ? '?status=' + $('#corr-filter').value : '';
+      const filtro = $('#corr-filter').value;
+      const q = filtro ? '?status=' + filtro : '';
       let rows = await api('/api/correspondente' + q);
       rows = rows.filter((r) => {
         const d = r.hearing_datetime ? String(r.hearing_datetime).slice(0, 10) : '';
@@ -2900,27 +2961,23 @@ async function renderCorrespondente(page) {
         if (corrPeriodo.ate && (!d || d > corrPeriodo.ate)) return false;
         return true;
       });
-      $('#corr-table').innerHTML = rows.length ? `
-        <table><thead><tr><th>Data/hora</th><th>Atuação</th><th>Processo</th><th>Pagador</th><th>Valor</th><th>Status</th><th></th></tr></thead>
-        <tbody>${rows.map((h) => {
-          const acoes = [];
-          if (h.status === 'agendada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="realizada">Realizada</button>`);
-          if (h.status === 'realizada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="faturada">Faturar</button>`);
-          if (h.status === 'faturada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="paga">Receber</button>`);
-          if (!['paga','cancelada'].includes(h.status)) acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="cancelada">Cancelar</button>`);
-          return `<tr>
-            <td>${fmtDateTime(h.hearing_datetime)}<br><small style="color:var(--text-muted)">${h.comarca || ''}</small></td>
-            <td>${h.role === 'preposto' ? 'Preposto' : 'Advogado'}</td>
-            <td>${h.process_number || '—'}<br><small style="color:var(--text-muted)">${h.requesting_office || ''}</small></td>
-            <td>${h.payer_name}<br><small style="color:var(--text-muted)">${h.payer_type}${h.payer_document ? ' · ' + h.payer_document : ''}</small></td>
-            <td>${money(h.value)}</td><td>${badge(h.status)}</td>
-            <td style="white-space:nowrap">${acoes.join(' ')}</td></tr>`;
-        }).join('')}</tbody></table>`
-        : '<div class="empty">Nenhuma audiência registrada</div>';
-      document.querySelectorAll('[data-st]').forEach((b) => b.onclick = async () => {
-        try { await api(`/api/correspondente/${b.dataset.st}/status`, { method: 'PATCH', body: JSON.stringify({ status: b.dataset.to }) }); toast('Status atualizado'); loadKpis(); loadHistorico(); }
-        catch (e) { toast(e.message, 'error'); }
-      });
+      rowsCache = rows;
+      const tableOf = (list) => `<table><thead><tr><th>Data/hora</th><th>Atuação</th><th>Processo</th><th>Pagador</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+        <tbody>${list.map((h) => rowHtml(h)).join('')}</tbody></table>`;
+
+      if (filtro) {
+        $('#corr-table').innerHTML = rows.length ? tableOf(rows) : '<div class="empty">Nenhuma audiência registrada</div>';
+      } else {
+        const ativas = rows.filter((r) => r.status !== 'cancelada');
+        const canceladas = rows.filter((r) => r.status === 'cancelada');
+        $('#corr-table').innerHTML = `
+          ${ativas.length ? tableOf(ativas) : '<div class="empty">Nenhuma audiência registrada</div>'}
+          ${canceladas.length ? `<details style="margin-top:14px">
+            <summary style="cursor:pointer;color:var(--text-muted);padding:8px 0;font-size:13px">Canceladas (${canceladas.length}) — não entram nos totais</summary>
+            <div style="margin-top:8px">${tableOf(canceladas)}</div>
+          </details>` : ''}`;
+      }
+      wireRowActions();
     };
     $('#corr-filter').onchange = loadHistorico;
     await loadHistorico();
@@ -3100,7 +3157,16 @@ async function attachCorrespondenteFormHandlers(onSave, prefill = {}) {
 }
 
 async function correspondenteForm(onSave, prefill = {}) {
+  const editing = !!prefill.id;
   const form = el(`<form class="form-grid">${await correspondenteFormHtml(prefill)}</form>`);
+  if (editing) {
+    const btn = form.querySelector('button[type=submit]');
+    if (btn) btn.textContent = '✓ Salvar alterações';
+    ['process_number', 'comarca', 'vara', 'location', 'requesting_office', 'payer_name', 'payer_type', 'payer_document', 'value', 'due_date', 'notes'].forEach((n) => {
+      const inp = form.querySelector(`[name=${n}]`);
+      if (inp && prefill[n] != null) inp.value = prefill[n];
+    });
+  }
   const solicitantes = await api('/api/correspondente/solicitantes').catch(() => []);
   const pick = form.querySelector('[name=sol_pick]');
   if (pick) pick.onchange = () => {
@@ -3117,11 +3183,49 @@ async function correspondenteForm(onSave, prefill = {}) {
     const body = Object.fromEntries(new FormData(form));
     delete body.sol_pick;
     if (prefill.calendar_event_id) body.calendar_event_id = prefill.calendar_event_id;
-    try { await api('/api/correspondente', { method: 'POST', body: JSON.stringify(body) });
-      closeModal(); toast('Audiência registrada e agendada'); onSave(); }
+    try {
+      if (editing) {
+        await api(`/api/correspondente/${prefill.id}`, { method: 'PUT', body: JSON.stringify(body) });
+        closeModal(); toast('Audiência atualizada'); onSave();
+      } else {
+        await api('/api/correspondente', { method: 'POST', body: JSON.stringify(body) });
+        closeModal(); toast('Audiência registrada e agendada'); onSave();
+      }
+    }
     catch (err) { toast(err.message, 'error'); }
   };
-  openModal('Nova audiência de correspondente', form);
+  openModal(editing ? 'Editar audiência de correspondente' : 'Nova audiência de correspondente', form);
+}
+
+function correspondenteDetailModal(h) {
+  const linha = (label, valor) => valor ? `<div style="padding:8px 0;border-bottom:1px solid var(--border,#eee)"><small style="color:var(--text-muted);text-transform:uppercase;letter-spacing:.4px;font-size:11px">${label}</small><div>${valor}</div></div>` : '';
+  const body = el(`<div>
+    ${linha('Data/hora da audiência', fmtDateTime(h.hearing_datetime))}
+    ${linha('Atuação', h.role === 'preposto' ? 'Preposto' : 'Advogado')}
+    ${linha('Status', badge(h.status))}
+    ${linha('Processo', h.process_number)}
+    ${linha('Comarca / Vara', [h.comarca, h.vara].filter(Boolean).join(' — '))}
+    ${linha('Fórum / link', h.location)}
+    ${linha('Escritório/advogado contratante', h.requesting_office)}
+    ${linha('Pagador', `${h.payer_name || ''} (${h.payer_type || ''})${h.payer_document ? ' · ' + h.payer_document : ''}`)}
+    ${linha('Valor', money(h.value))}
+    ${linha('Vencimento', h.due_date ? fmtDate(h.due_date) : '')}
+    ${linha('Pago em', h.paid_at ? fmtDate(h.paid_at) : '')}
+    ${linha('Observações', h.notes ? esc(h.notes).replace(/\n/g, '<br>') : '')}
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn-sm" id="corr-det-editar">${svgIcon('edit', 'ic-xs')} Editar</button>
+    </div>
+  </div>`);
+  body.querySelector('#corr-det-editar').onclick = () => {
+    closeModal();
+    correspondenteForm(() => renderCorrespondente($('#page')), {
+      id: h.id, hearing_datetime: h.hearing_datetime ? String(h.hearing_datetime).replace(' ', 'T').slice(0, 16) : '',
+      role: h.role, process_number: h.process_number, comarca: h.comarca, vara: h.vara, location: h.location,
+      requesting_office: h.requesting_office, payer_name: h.payer_name, payer_type: h.payer_type, payer_document: h.payer_document,
+      value: h.value, due_date: h.due_date ? String(h.due_date).slice(0, 10) : '', notes: h.notes,
+    });
+  };
+  openModal('Detalhes da audiência', body);
 }
 
 const INTAKE_AREAS = [['trabalhista', 'Trabalhista'], ['civel', 'Cível'], ['familia', 'Família'], ['previdenciario', 'Previdenciário'], ['consumidor', 'Consumidor'], ['gestante', 'Gestante'], ['outro', 'Outro']].map(([v, t]) => ({ v, t }));
@@ -3978,7 +4082,10 @@ async function finVisaoGeral(c) {
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px">
       ${s.por_origem.map((o) => `
         <div class="card" style="padding:14px 18px">
-          <strong style="font-size:13px;color:var(--navy)">${esc(o.label)}</strong>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;gap:6px">
+            <strong style="font-size:13px;color:var(--navy)">${esc(o.label)}</strong>
+            ${o.origem === 'parcerias' ? `<button class="btn-sm" id="print-parcerias-receber" title="Relatório do que está pronto para receber, em papel timbrado" style="flex:0 0 auto">🖨</button>` : ''}
+          </div>
           <div class="mini-row" style="margin-top:8px"><span>A receber</span><strong>${money(o.previsto)}</strong></div>
           <div class="mini-row"><span>Recebido</span><strong style="color:var(--green)">${money(o.realizado)}</strong></div>
           ${Number(o.vencido) > 0 ? `<div class="mini-row"><span>Vencido</span><strong style="color:var(--red)">${money(o.vencido)}</strong></div>` : ''}
@@ -4194,6 +4301,32 @@ async function finVisaoGeral(c) {
         </table>
         ${Number(d.despesas_vencidas) ? `<p style="color:#c0392b;font-size:12px;margin-top:6px"><strong>Atenção:</strong> ${money(d.despesas_vencidas)} em despesas vencidas e ainda não pagas.</p>` : ''}
         <p style="color:#777;font-size:12px;margin-top:12px">Resultado do mês em regime de caixa (o que efetivamente entrou e saiu). Pendências são a posição de hoje, não do mês fechado. Use "Imprimir → Salvar como PDF" para enviar ao contador.</p>`);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  const printParc = $('#print-parcerias-receber');
+  if (printParc) printParc.onclick = async () => {
+    try {
+      const d = await api('/api/financial/parcerias/a-receber');
+      const linhas = d.rows.map((r) => `<tr>
+        <td style="padding:6px 8px;border-bottom:1px solid #eee">${esc(r.descricao || '—')}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eee">${esc(r.parceiro || '—')}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eee">${r.vencimento ? fmtDate(r.vencimento) : '—'}</td>
+        <td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;${r.vencido ? 'color:#c0392b;font-weight:600' : ''}">${money(r.valor)}${r.vencido ? ' (vencido)' : ''}</td>
+      </tr>`).join('') || `<tr><td colspan="4" style="padding:10px;text-align:center;color:#777">Nada pendente de parceria no momento</td></tr>`;
+      printBranded('Relatório de Parcerias — a receber', `Posição em ${new Date().toLocaleDateString('pt-BR')}`, `
+        <table style="width:100%;border-collapse:collapse;font-size:13px">
+          <thead><tr>
+            <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #0d1b2e">Descrição</th>
+            <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #0d1b2e">Parceiro</th>
+            <th style="padding:6px 8px;text-align:left;border-bottom:2px solid #0d1b2e">Vencimento</th>
+            <th style="padding:6px 8px;text-align:right;border-bottom:2px solid #0d1b2e">Valor</th>
+          </tr></thead>
+          <tbody>${linhas}</tbody>
+        </table>
+        <div style="margin-top:18px;padding:12px 14px;border:2px solid #0d1b2e;border-radius:8px;display:flex;justify-content:space-between;font-size:16px">
+          <strong>TOTAL A RECEBER</strong><strong>${money(d.total)}</strong>
+        </div>
+        <p style="color:#777;font-size:12px;margin-top:12px">Inclui valores vencidos ainda não recebidos. Use "Imprimir → Salvar como PDF".</p>`);
     } catch (e) { toast(e.message, 'error'); }
   };
   await loadFin(); await loadInst();
@@ -5254,6 +5387,7 @@ async function leadDetail(id, onSave) {
   const form = el(`<div class="form-grid">
     <div><strong style="font-size:18px">${l.name}</strong><br><small style="color:var(--text-muted)">${l.source || ''}${l.legal_area ? ' · ' + l.legal_area : ''}</small></div>
     <div>${l.phone ? esc(l.phone) + waBtn(l.phone, 'WhatsApp') : ''} ${l.email ? '· ' + esc(l.email) : ''}</div>
+    ${l.phone ? `<button type="button" class="btn-gold btn-sm" id="wa-crm-lead" style="align-self:start">${svgIcon('chat')}Chamar no WhatsApp do CRM — lead novo</button>` : ''}
     ${info ? `<div style="font-size:13px;color:var(--text-soft)">${info}</div>` : ''}
     ${field('Resumo / contexto do caso', 'case_summary', { type: 'textarea', value: l.case_summary || '' })}
     <button class="btn-sm" id="save-summary" style="align-self:start">Salvar resumo/contexto</button>
@@ -5275,6 +5409,21 @@ async function leadDetail(id, onSave) {
     <div id="lead-journey"><div class="spinner"></div></div>
   </div>`);
   loadJourney(form.querySelector('#lead-journey'), { lead_id: id });
+  const waCrmBtn = form.querySelector('#wa-crm-lead');
+  if (waCrmBtn) waCrmBtn.onclick = () => {
+    let digits = String(l.phone).replace(/\D/g, '');
+    if (digits.length <= 11) digits = '55' + digits; // sem DDI — assume Brasil
+    const primeiroNome = (l.name || '').trim().split(' ')[0] || '';
+    // Tira as tags de origem/rastreio ([LP-v3 ...] [Origem: ...] [Triagem: ...]
+    // [Ciente: ...]) que o formulário do site grava junto — só interessam
+    // internamente, não fazem sentido numa mensagem pro cliente.
+    const resumo = (l.case_summary || '').replace(/\[[^\]]*\]/g, '').replace(/["“”]/g, '').replace(/\s+/g, ' ').trim();
+    // *asterisco* é a sintaxe de negrito do WhatsApp (não é markdown **).
+    const texto = `Olá${primeiroNome ? ', ' + primeiroNome : ''}! Recebemos seu contato${resumo ? ` — resumo: "${resumo.slice(0, 300)}"` : ''}. *Em instantes vamos iniciar o seu atendimento, já pode separar os documentos do seu caso.*`;
+    sessionStorage.setItem('wa_abrir_pendente', JSON.stringify({ phone: digits, nome: l.name, texto }));
+    closeModal();
+    location.hash = '#whatsapp';
+  };
   form.querySelector('#save-area').onclick = async () => {
     try { await api('/api/leads/' + id, { method: 'PUT', body: JSON.stringify({ legal_area: form.querySelector('[name=legal_area]').value }) });
       toast('Área salva'); } catch (e) { toast(e.message, 'error'); }
@@ -5367,6 +5516,30 @@ const OBSERVACOES_PROPOSTA = `OBSERVAÇÕES E CONDIÇÕES (Estatuto da Advocacia
 
 8. HONORÁRIOS SUCUMBENCIAIS: Os honorários de sucumbência, quando houver, pertencem exclusivamente ao(à) advogado(a) (art. 23 da Lei 8.906/94).`;
 
+// Padrão específico pra Pensão Alimentícia — troca automática quando o tipo
+// de causa é esse (ver listener em propostaForm). Cada cláusula fica num
+// bloco só (sem linha em branco no meio) porque o visualizador público
+// (proposta.html/clausesFromText) separa os cartões por linha em branco —
+// com quebra no meio, os itens a/b/c da cláusula 1 viravam cartões soltos
+// sem título.
+const OBSERVACOES_PENSAO = `OBSERVAÇÕES E CONDIÇÕES (Estatuto da Advocacia — Lei 8.906/94 — e Código de Ética e Disciplina da OAB)
+
+1. DESPESAS E CUSTAS: Custas judiciais, taxas, emolumentos, honorários periciais e demais despesas processuais necessárias ao andamento da demanda correrão por conta exclusiva do(a) CONTRATANTE, não estando incluídas nos honorários advocatícios, salvo se expressamente previsto em sentido contrário nesta proposta.
+
+2. DESLOCAMENTOS E DILIGÊNCIAS: Diligências, deslocamentos e despesas necessárias para atuação fora da comarca ou da sede do escritório poderão ser cobrados separadamente, mediante prévia comunicação ao(à) CONTRATANTE, conforme os critérios e valores aplicáveis pelo escritório.
+
+3. COMPROMISSOS E COMPARECIMENTOS: O não comparecimento do(a) CONTRATANTE a audiências, perícias, reuniões ou outros compromissos previamente agendados, sem comunicação prévia e sem justificativa válida, poderá ensejar a adoção das medidas contratuais cabíveis, inclusive a rescisão do contrato, observada a legislação aplicável e as normas da OAB.
+
+4. ATRASO NO PAGAMENTO: O atraso no pagamento de qualquer parcela sujeitará o(a) CONTRATANTE à incidência de multa de 2% (dois por cento) sobre o valor em atraso, acrescida de juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente ao período de atraso.
+
+5. SUSPENSÃO POR INADIMPLÊNCIA: A inadimplência por 2 (dois) meses consecutivos poderá autorizar a suspensão dos serviços advocatícios, observadas as limitações legais e éticas aplicáveis à atuação profissional, sem prejuízo da cobrança dos valores devidos e das demais medidas cabíveis.
+
+6. RESCISÃO CONTRATUAL: A rescisão contratual observará o Estatuto da Advocacia, o Código de Ética e Disciplina da OAB e as demais normas aplicáveis, sendo devidos os honorários proporcionais ao trabalho efetivamente realizado, sem prejuízo de outros valores eventualmente previstos contratualmente.
+
+7. HONORÁRIOS DE SUCUMBÊNCIA: Os honorários de sucumbência eventualmente fixados judicialmente pertencem exclusivamente ao(à) advogado(a), nos termos do art. 23 da Lei nº 8.906/94, não se confundindo com os honorários contratuais estabelecidos nesta proposta.
+
+8. CIÊNCIA E ACEITE: Ao aceitar esta proposta, o(a) CONTRATANTE declara ter lido e compreendido as condições relativas aos honorários, à forma de cálculo dos honorários de êxito, às despesas processuais e às demais condições aqui estabelecidas.`;
+
 const HON_MODS = [
   { k: 'entrada', label: 'Entrada (R$)', kind: 'money' },
   { k: 'fixo', label: 'Honorário fixo (R$)', kind: 'money', extra: 'parcelas', extraLabel: 'parcelas' },
@@ -5448,6 +5621,18 @@ async function propostaForm(onSave, lead = null, existing = null) {
 
     <button type="submit" class="btn-primary">${existing ? 'Salvar alterações' : 'Criar proposta'}</button>
   </form>`);
+
+  // Troca o padrão de "Observações e cláusulas" pro modelo de Pensão
+  // Alimentícia quando esse é o tipo de causa — só se o campo ainda estiver
+  // com um dos textos padrão (não mexe se a usuária já personalizou).
+  const tipoCausaInput = form.querySelector('[name=tipo_causa]');
+  const obsTextarea = form.querySelector('[name=observacoes]');
+  tipoCausaInput.addEventListener('input', () => {
+    const atual = obsTextarea.value;
+    const ehPadrao = atual === OBSERVACOES_PROPOSTA || atual === OBSERVACOES_PENSAO || !atual.trim();
+    if (!ehPadrao) return;
+    obsTextarea.value = /pens[aã]o/i.test(tipoCausaInput.value) ? OBSERVACOES_PENSAO : OBSERVACOES_PROPOSTA;
+  });
 
   // Introdução do caso — rascunho profissional a partir do que já foi preenchido
   form.querySelector('#gerar-intro').onclick = () => {
@@ -7716,4 +7901,27 @@ if (gParam) {
   }, 500);
 }
 
-if (TOKEN && USER) showApp(); else { $('#login-view').classList.remove('hidden'); }
+// Modo "tela cheia" — abre a mesma aplicação (mesmo login, via localStorage)
+// numa aba separada, escondendo menu lateral e topo pra aproveitar o espaço
+// todo. Usado hoje pelo botão "⛶ Tela cheia" da tela de WhatsApp, mas serve
+// pra qualquer página (basta abrir "?foco=1#rota").
+if (new URLSearchParams(location.search).get('foco') === '1') {
+  document.body.classList.add('foco-total');
+  const voltar = document.createElement('a');
+  voltar.href = location.pathname; voltar.textContent = '← Voltar ao CRM';
+  voltar.className = 'foco-voltar';
+  document.body.appendChild(voltar);
+}
+
+// whatsapp.js e portal-parceiro.js são <script src> carregados DEPOIS deste
+// arquivo — se a rota inicial (ex.: entrar direto em "#whatsapp", como o
+// botão "Tela cheia" faz) rodar showApp()/router() antes deles terminarem,
+// ROUTES.whatsapp ainda nem existe e cai na 1ª rota do menu por engano.
+// "load" é o sinal mais forte que existe de que TUDO (scripts, imagens,
+// DOM) já terminou — mais garantido que setTimeout(...,0), que em teoria
+// deveria bastar mas na prática não resolveu.
+function bootApp() {
+  if (TOKEN && USER) showApp(); else { $('#login-view').classList.remove('hidden'); }
+}
+if (document.readyState === 'complete') bootApp();
+else window.addEventListener('load', bootApp);

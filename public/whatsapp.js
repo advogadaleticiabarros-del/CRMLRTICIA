@@ -11,20 +11,36 @@ Object.assign(ROUTES, {
     const CTX = { cobranca: ['Cobrança', 'var(--amber)'], audiencia: ['Audiência', 'var(--red)'], protocolo: ['Protocolo', 'var(--green)'], avulsa: ['Avulsa', 'var(--text-muted)'] };
     let tab = 'fila';
     let chatTimer = null;
+    let abrirFonePendente = null; // { phone, texto? } a abrir ao entrar em Conversas (clique num card do quadro, ou vindo de outra tela)
+
+    // Vindo de outra tela (ex.: "Chamar no WhatsApp" na ficha do lead) — grava
+    // no sessionStorage porque é OUTRA rota (o módulo é remontado do zero,
+    // uma variável comum não atravessa). Lido só uma vez, aqui na entrada.
+    try {
+      const cross = sessionStorage.getItem('wa_abrir_pendente');
+      if (cross) {
+        sessionStorage.removeItem('wa_abrir_pendente');
+        const d = JSON.parse(cross);
+        if (d?.phone) { abrirFonePendente = d; tab = 'conversas'; }
+      }
+    } catch { /* opcional */ }
 
     const shell = async () => {
       if (chatTimer) { clearInterval(chatTimer); chatTimer = null; }
       const st = await api('/api/whatsapp-instance/status').catch(() => ({ connected: false }));
       page.innerHTML = `
         <div class="page-header"><div><h2>WhatsApp</h2><p class="sub">${st.connected ? `Instância conectada (${esc(st.me || '')}) — envio automático ${st.autoSend ? 'LIGADO' : 'desligado'} · ${st.sentToday || 0}/30 hoje` : 'Instância desconectada — a fila usa o wa.me (1 clique) até você conectar'}</p></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn-ghost" id="wa-gerar">Gerar agora</button><button class="btn-gold" id="wa-nova">+ Nova mensagem</button></div></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">${document.body.classList.contains('foco-total') ? '' : `<button class="btn-ghost" id="wa-tela-cheia" title="Abre numa aba separada, sem menu lateral">${svgIcon('expand')}Tela cheia</button>`}<button class="btn-ghost" id="wa-gerar">Gerar agora</button><button class="btn-gold" id="wa-nova">+ Nova mensagem</button></div></div>
         <div class="tabs" style="margin-bottom:14px">
           <button class="tab ${tab === 'fila' ? 'active' : ''}" data-wtab="fila">Fila</button>
           <button class="tab ${tab === 'conversas' ? 'active' : ''}" data-wtab="conversas">Conversas</button>
+          <button class="tab ${tab === 'contatos' ? 'active' : ''}" data-wtab="contatos">Contatos</button>
           <button class="tab ${tab === 'conexao' ? 'active' : ''}" data-wtab="conexao">Conexão</button>
         </div>
         <div id="wa-body"><div class="spinner"></div></div>`;
       page.querySelectorAll('[data-wtab]').forEach((b) => b.onclick = () => { tab = b.dataset.wtab; shell(); });
+      const telaCheiaBtn = $('#wa-tela-cheia');
+      if (telaCheiaBtn) telaCheiaBtn.onclick = () => window.open(location.pathname + '?foco=1#whatsapp', '_blank', 'noopener');
       $('#wa-gerar').onclick = async () => {
         try { const r = await api('/api/whatsapp-queue/gerar', { method: 'POST', body: '{}' }); toast(r.created ? `${r.created} mensagem(ns) preparadas` : 'Nada novo para preparar'); shell(); }
         catch (e) { toast(e.message, 'error'); }
@@ -55,6 +71,7 @@ Object.assign(ROUTES, {
       };
       if (tab === 'fila') await tabFila(st);
       else if (tab === 'conversas') await tabConversas();
+      else if (tab === 'contatos') await tabContatos();
       else await tabConexao(st);
     };
 
@@ -134,16 +151,38 @@ Object.assign(ROUTES, {
       let busca = '';
       let filtro = '';          // etiqueta selecionada no filtro
       let qtdMsgs = 0;          // p/ detectar novidade no polling
+      let listaHtmlAtual = '';  // p/ pular re-render quando nada mudou (evita piscar/pesar)
+      let ultimaInteracaoLista = 0; // p/ não deixar o polling reordenar a lista embaixo do dedo logo após um clique
 
       body.innerHTML = `<div class="wa-shell" id="wa-shell">
         <div class="wa-side">
-          <div class="wa-search"><input id="waq" placeholder="Buscar conversa…" autocomplete="off"></div>
+          <div class="wa-search">${svgIcon('search', 'ic-inline')}<input id="waq" placeholder="Buscar conversa…" autocomplete="off"></div>
           <div class="wa-filters" id="waf"></div>
           <div class="wa-list" id="wal"></div>
         </div>
-        <div class="wa-pane" id="wap"><div class="wa-empty">Escolha uma conversa ao lado 💬</div></div>
+        <div class="wa-pane" id="wap">
+          <div class="wa-empty wa-empty-inicial">
+            <div class="wa-empty-badge">${svgIcon('scale')}</div>
+            <strong>Central de conversas</strong>
+            <p>Escolha uma conversa ao lado para ver o histórico, responder e organizar o atendimento.</p>
+          </div>
+        </div>
         <div class="wa-ctx" id="wa-ctx"></div>
       </div>`;
+
+      // Altura calculada de verdade (topo do quadro até o fim da viewport),
+      // em vez de um "calc(100vh - Npx)" fixo no CSS que não bate com a
+      // altura real do cabeçalho/abas em cada tamanho de tela — por isso o
+      // quadro ficava cortando a caixa de mensagem embaixo.
+      const ajustarAltura = () => {
+        if (tab !== 'conversas') { window.removeEventListener('resize', ajustarAltura); return; }
+        const shellEl = $('#wa-shell');
+        if (!shellEl) return;
+        const topo = shellEl.getBoundingClientRect().top;
+        shellEl.style.height = Math.max(480, window.innerHeight - topo - 20) + 'px';
+      };
+      ajustarAltura();
+      window.addEventListener('resize', ajustarAltura);
 
       const todasEtiquetas = () => [...new Set(chats.flatMap((c) => parseLabels(c.labels)))];
 
@@ -161,7 +200,7 @@ Object.assign(ROUTES, {
           if (filtro && !parseLabels(c.labels).includes(filtro)) return false;
           return true;
         });
-        $('#wal').innerHTML = vis.length ? vis.map((c) => {
+        const html = vis.length ? vis.map((c) => {
           const nome = c.client_name || '+' + c.phone;
           const tags = parseLabels(c.labels);
           return `<div class="wa-item ${ativo && ativo.phone === c.phone ? 'on' : ''}" data-chat="${esc(c.phone)}">
@@ -177,24 +216,65 @@ Object.assign(ROUTES, {
             </div>
           </div>`;
         }).join('') : '<div class="wa-empty">Nenhuma conversa encontrada</div>';
+        // Nada mudou desde o último render (comum no polling de 6s) — pula a
+        // reconstrução do DOM. Isso é o que causava a piscada/oscilação e o
+        // peso: a lista inteira era refeita mesmo sem mudança nenhuma.
+        if (html === listaHtmlAtual) return;
+        listaHtmlAtual = html;
+        // innerHTML zera o scroll — sem isso, a lista "voltava sozinha pro
+        // topo" a cada atualização (parecia que não dava pra rolar).
+        const scrollAtual = $('#wal').scrollTop;
+        $('#wal').innerHTML = html;
+        $('#wal').scrollTop = scrollAtual;
         $('#wal').querySelectorAll('[data-chat]').forEach((r) => r.onclick = () => {
+          ultimaInteracaoLista = Date.now();
           const c = chats.find((x) => x.phone === r.dataset.chat);
           abrirChat(c);
         });
       };
 
-      const renderMsgs = (msgs) => {
+      // Busca DENTRO da conversa aberta (client-side — as mensagens já estão
+      // carregadas em memória). Cada ocorrência vira <mark data-hl="N"> em
+      // ordem global na conversa, pra dar pra navegar "próxima/anterior" e
+      // pular até ela — igual à busca em chat do WhatsApp de verdade.
+      // Confirmação de leitura — mapeia o status bruto que a Uazapi manda
+      // (varia de caixa/nome, por isso é por trecho, não igualdade exata) pro
+      // ícone de sempre: ✓ enviado, ✓✓ entregue, ✓✓ azul lido.
+      const statusIcone = (raw) => {
+        if (!raw) return '<span class="wa-check" title="Enviado">✓</span>';
+        const s = String(raw).toLowerCase();
+        if (s.includes('read') || s.includes('played')) return '<span class="wa-check lido" title="Lido">✓✓</span>';
+        if (s.includes('deliver') || s.includes('ack')) return '<span class="wa-check" title="Entregue">✓✓</span>';
+        return '<span class="wa-check" title="Enviado">✓</span>';
+      };
+
+      const renderMsgs = (msgs, termoBusca, ativoIdx) => {
         let dia = '';
+        let contador = 0;
+        const termoEsc = termoBusca ? termoBusca.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') : '';
         return msgs.map((m) => {
           const d = fmtDia(m.msg_time);
           const sep = d !== dia ? `<div class="wa-day">${d}</div>` : '';
           dia = d;
           const ehAudio = m.media_mime && (String(m.media_mime).startsWith('audio/'));
           const anexo = m.media_id && m.media_url
-            ? `<br><a href="${esc(m.media_url)}" target="_blank" rel="noopener" style="font-size:12px;font-weight:600">📎 Abrir anexo</a>${ehAudio && !String(m.body).includes('📝 Transcrição:') ? ` <button type="button" class="btn-sm" data-transcrever="${m.media_id}" style="font-size:11px;padding:2px 8px;margin-left:6px">Transcrever áudio</button>` : ''}`
+            ? `<br><a href="${esc(m.media_url)}" target="_blank" rel="noopener" class="wa-anexo-link">${svgIcon('paperclip', 'ic-inline')}Abrir anexo</a>${ehAudio && !String(m.body).includes('📝 Transcrição:') ? ` <button type="button" class="btn-sm" data-transcrever="${m.media_id}" style="font-size:11px;padding:2px 8px;margin-left:6px">Transcrever áudio</button>` : ''}`
             : '';
           const autor = Number(m.from_me) && m.sent_by ? `<div style="font-size:9.5px;color:rgba(0,0,0,.45);margin-bottom:2px">${esc(m.sent_by)}</div>` : '';
-          return `${sep}<div class="wa-bub ${Number(m.from_me) ? 'out' : 'in'}">${autor}${esc(m.body)}${anexo}<span class="wa-time">${fmtHora(m.msg_time)}</span></div>`;
+          let corpo = esc(m.body);
+          if (termoEsc) {
+            corpo = corpo.replace(new RegExp(termoEsc, 'gi'), (match) => {
+              const i = contador++;
+              return `<mark class="wa-hl${i === ativoIdx ? ' cur' : ''}" data-hl="${i}">${match}</mark>`;
+            });
+          }
+          // Editar/apagar — só mensagem NOSSA, ainda não apagada (o WhatsApp só
+          // deixa mexer no que você mesmo mandou, dentro do prazo dele).
+          const podeMexer = Number(m.from_me) && m.body !== '🚫 Mensagem apagada';
+          const acoes = podeMexer
+            ? `<span class="wa-msg-acoes">${!m.media_id ? `<button type="button" data-editar-msg="${m.id}" title="Editar">${svgIcon('edit', 'ic-xs')}</button>` : ''}<button type="button" data-apagar-msg="${m.id}" title="Apagar">${svgIcon('trash', 'ic-xs')}</button></span>`
+            : '';
+          return `${sep}<div class="wa-bub ${Number(m.from_me) ? 'out' : 'in'}">${acoes}${autor}${corpo}${anexo}<span class="wa-time">${fmtHora(m.msg_time)}${Number(m.from_me) ? ' ' + statusIcone(m.status) : ''}</span></div>`;
         }).join('') || '<div class="wa-empty">Sem mensagens</div>';
       };
 
@@ -218,7 +298,10 @@ Object.assign(ROUTES, {
         } else if (cx.lead) {
           html += bloco('Lead', `<strong style="color:var(--navy-deep)">${esc(cx.lead.name)}</strong><br><small style="color:var(--text-muted)">${esc(cx.lead.legal_area || '')} · ${esc(cx.lead.status || '')}</small>`);
         } else {
-          html += bloco('Contato', `<small style="color:var(--text-muted)">Número não cadastrado.</small><div style="margin-top:8px"><button class="btn-gold btn-sm" id="wa-mklead">+ Cadastrar como lead</button></div>`);
+          const sug = cx.lead_sugerido;
+          html += bloco('Contato', `<small style="color:var(--text-muted)">Número não cadastrado.</small>
+            ${sug ? `<div style="margin-top:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--gold);border-radius:6px;font-size:12.5px"><strong style="color:var(--navy);display:flex;align-items:center">${svgIcon('ia', 'ic-inline')}Parece um caso novo</strong><br>${esc(sug.resumo)}</div>` : ''}
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px"><button class="btn-gold btn-sm" id="wa-mklead">+ Cadastrar como lead</button><button class="btn-sm" id="wa-vincular-cliente">Vincular a cliente existente</button></div>`);
         }
         html += bloco('Última resposta do contato', cx.ultima_resposta ? `<small>${fmtDateTime(cx.ultima_resposta)}</small>` : '<small style="color:var(--text-muted)">nunca respondeu</small>');
         html += bloco('Converter conversa em…', `
@@ -228,18 +311,19 @@ Object.assign(ROUTES, {
             <button class="btn-sm" data-conv="compromisso">+ Compromisso</button>
             <button class="btn-sm" data-conv="anotacao" ${cx.client ? '' : 'disabled title="Precisa ser cliente"'}>+ Anotação</button>
           </div>`);
-        html += `<div style="padding:12px 14px"><button class="btn-sm" id="wa-resumo" style="width:100%">✨ Resumir conversa com IA</button></div>`;
-        box.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:13px;color:var(--navy)">Ficha do contato</strong><button class="btn-sm" id="wa-ctx-close">✕</button></div>` + html;
+        html += `<div style="padding:12px 14px"><button class="btn-sm" id="wa-resumo" style="width:100%">${svgIcon('ia')}Resumir conversa com IA</button></div>`;
+        box.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:13px;color:var(--navy)">Ficha do contato</strong><button class="btn-icon btn-icon-sm" id="wa-ctx-close" title="Fechar">${svgIcon('x', 'ic-xs')}</button></div>` + html;
         box.querySelector('#wa-ctx-close').onclick = () => $('#wa-shell').classList.remove('ctx-open');
 
         const mk = box.querySelector('#wa-mklead');
         if (mk) mk.onclick = () => {
+          const sug = cx.lead_sugerido;
           const form = el(`<form class="form-grid">
-            ${field('Nome *', 'name', { value: ativo.name.startsWith('+') ? '' : ativo.name })}
-            ${field('Área', 'legal_area', { options: [['trabalhista','Trabalhista'],['previdenciario','Previdenciário'],['consumidor','Consumidor'],['familia','Família'],['civel','Cível'],['gestante','Gestante'],['outro','Outro']].map(([v, t]) => ({ v, t })) })}
+            ${field('Nome *', 'name', { value: (sug && sug.nome) || (ativo.name.startsWith('+') ? '' : ativo.name) })}
+            ${field('Área', 'legal_area', { value: (sug && sug.area) || '', options: [['trabalhista','Trabalhista'],['previdenciario','Previdenciário'],['consumidor','Consumidor'],['familia','Família'],['civel','Cível'],['gestante','Gestante'],['outro','Outro']].map(([v, t]) => ({ v, t })) })}
             ${field('Origem', 'source', { options: [['whatsapp','WhatsApp'],['instagram','Instagram'],['google','Google'],['indicacao','Indicação'],['outro','Outro']].map(([v, t]) => ({ v, t })) })}
-            ${field('Observações', 'notes', { type: 'textarea' })}
-            <div style="display:flex;gap:8px"><button type="button" class="btn-ghost" id="lead-ia" style="flex:1">✨ Preencher com IA</button><button type="submit" class="btn-primary" style="flex:1">Cadastrar lead</button></div>
+            ${field('Observações', 'notes', { type: 'textarea', value: (sug && sug.resumo) || '' })}
+            <div style="display:flex;gap:8px"><button type="button" class="btn-ghost" id="lead-ia" style="flex:1">${svgIcon('ia')}Preencher com IA</button><button type="submit" class="btn-primary" style="flex:1">Cadastrar lead</button></div>
           </form>`);
           form.querySelector('#lead-ia').onclick = async (ev) => {
             ev.target.disabled = true; ev.target.textContent = 'Lendo a conversa…';
@@ -248,9 +332,9 @@ Object.assign(ROUTES, {
               if (r.nome) form.querySelector('[name=name]').value = r.nome;
               if (r.area) form.querySelector('[name=legal_area]').value = r.area;
               if (r.resumo) form.querySelector('[name=notes]').value = r.resumo;
-              toast('Dados extraídos da conversa ✨');
+              toast('Dados extraídos da conversa');
             } catch (e) { toast(e.message, 'error'); }
-            ev.target.disabled = false; ev.target.textContent = '✨ Preencher com IA';
+            ev.target.disabled = false; ev.target.innerHTML = `${svgIcon('ia')}Preencher com IA`;
           };
           form.onsubmit = async (ev) => {
             ev.preventDefault();
@@ -261,6 +345,28 @@ Object.assign(ROUTES, {
             } catch (e) { toast(e.message, 'error'); }
           };
           openModal('Novo lead a partir da conversa', form);
+        };
+
+        const vc = box.querySelector('#wa-vincular-cliente');
+        if (vc) vc.onclick = async () => {
+          const clientes = await api('/api/clients?limit=200').catch(() => ({ data: [] }));
+          const form = el(`<form class="form-grid">
+            ${field('Cliente *', 'client_id', { options: [{ v: '', t: '— selecione —' }, ...clientes.data.map((c2) => ({ v: c2.id, t: c2.name + (c2.phone ? ` · ${c2.phone}` : '') }))] })}
+            <p class="sub">O número +${esc(ativo.phone)} passa a ser o telefone salvo desse cliente — é assim que o CRM reconhece de quem é a conversa.</p>
+            <button type="submit" class="btn-primary">Vincular</button>
+          </form>`);
+          form.onsubmit = async (ev) => {
+            ev.preventDefault();
+            const b = Object.fromEntries(new FormData(form));
+            if (!b.client_id) { toast('Selecione um cliente', 'error'); return; }
+            const cliente = clientes.data.find((c2) => String(c2.id) === b.client_id);
+            if (cliente?.phone && !(await uiConfirm(`${cliente.name} já tem o telefone ${cliente.phone} cadastrado. Substituir por +${ativo.phone}?`))) return;
+            try {
+              await api(`/api/whatsapp-instance/chats/${ativo.phone}/vincular-cliente`, { method: 'POST', body: JSON.stringify({ client_id: b.client_id }) });
+              closeModal(); toast('Contato vinculado ao cliente'); renderContexto(); await atualizar(true);
+            } catch (e) { toast(e.message, 'error'); }
+          };
+          openModal('Vincular a cliente existente', form);
         };
 
         // Converter a conversa em tarefa / prazo / compromisso / anotação
@@ -332,7 +438,7 @@ Object.assign(ROUTES, {
               <button class="btn-sm" style="margin-top:10px" onclick="navigator.clipboard.writeText(this.previousElementSibling.textContent).then(()=>{})">Copiar resumo</button>
             </div>`));
           } catch (e) { toast(e.message, 'error'); }
-          rs.disabled = false; rs.textContent = '✨ Resumir conversa com IA';
+          rs.disabled = false; rs.innerHTML = `${svgIcon('ia')}Resumir conversa com IA`;
         };
       };
 
@@ -353,27 +459,145 @@ Object.assign(ROUTES, {
               <small style="color:var(--text-muted)">+${esc(ativo.phone)}${ativo.client_id ? ' · cliente do escritório' : ''}</small>
             </div>
             <div class="wa-tags" id="wah-tags">${ativo.labels.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>
-            <button class="btn-sm" id="wa-label">🏷 Etiquetas</button>
-            <button class="btn-sm" id="wa-pdf" title="Gerar PDF da conversa (juntar ao processo)">🖨</button>
-            <button class="btn-sm" id="wa-info" title="Ficha do contato">ℹ</button>
+            <button class="btn-icon" id="wa-buscar-chat" title="Buscar nesta conversa">${svgIcon('search')}</button>
+            <button class="btn-icon" id="wa-label" title="Etiquetas">${svgIcon('tag')}</button>
+            <button class="btn-icon" id="wa-pdf" title="Gerar PDF da conversa (juntar ao processo)">${svgIcon('printer')}</button>
+            <button class="btn-icon" id="wa-info" title="Ficha do contato">${svgIcon('info')}</button>
+          </div>
+          <div class="wa-search-chat" id="wa-search-chat" style="display:none">
+            ${svgIcon('search', 'ic-inline')}
+            <input id="wa-busca-chat-input" placeholder="Buscar nesta conversa…" autocomplete="off">
+            <span id="wa-busca-chat-cont" style="font-size:12px;color:var(--text-muted);white-space:nowrap">0/0</span>
+            <button type="button" class="btn-icon btn-icon-sm" id="wa-busca-chat-prev" title="Anterior">${svgIcon('chevronUp', 'ic-xs')}</button>
+            <button type="button" class="btn-icon btn-icon-sm" id="wa-busca-chat-next" title="Próxima">${svgIcon('chevronDown', 'ic-xs')}</button>
+            <button type="button" class="btn-icon btn-icon-sm" id="wa-busca-chat-fechar" title="Fechar busca">${svgIcon('x', 'ic-xs')}</button>
           </div>
           <div class="wa-msgs" id="wam">${renderMsgs(msgs)}</div>
           <form class="wa-input" id="wa-reply">
-            <button type="button" class="btn-sm" id="wa-modelos" title="Mensagens prontas" style="flex:0 0 auto;border-radius:20px">⚡</button>
+            <button type="button" class="btn-icon" id="wa-modelos" title="Mensagens prontas">${svgIcon('ia')}</button>
+            <button type="button" class="btn-icon" id="wa-anexar" title="Enviar documento ou imagem">${svgIcon('paperclip')}</button>
             <input name="text" placeholder="Digite uma mensagem" autocomplete="off" value="${esc(textoAtual)}">
-            <button class="wa-send" type="submit" title="Enviar">➤</button>
+            <button type="button" class="btn-icon" id="wa-gravar" title="Gravar áudio">${svgIcon('mic')}</button>
+            <button class="wa-send" type="submit" title="Enviar">${svgIcon('send')}</button>
           </form>`;
         const box = $('#wam'); box.scrollTop = box.scrollHeight;
         if (window.innerWidth < 760) { const bk = $('#wa-back'); bk.style.display = ''; bk.onclick = () => { ativo = null; $('#wa-shell').classList.remove('chat-open'); renderLista(); }; }
 
-        // Transcrever áudio (Whisper) — a transcrição fica gravada na mensagem
-        box.querySelectorAll('[data-transcrever]').forEach((b) => b.onclick = async () => {
-          b.disabled = true; b.textContent = 'Transcrevendo…';
+        // Transcrever áudio (Whisper) — a transcrição fica gravada na mensagem.
+        // Função à parte porque a busca dentro da conversa (abaixo) redesenha
+        // #wam e precisa religar esses botões de novo depois de cada busca.
+        const ligarTranscricao = () => {
+          $('#wam').querySelectorAll('[data-transcrever]').forEach((b) => b.onclick = async () => {
+            b.disabled = true; b.textContent = 'Transcrevendo…';
+            try {
+              await api(`/api/whatsapp-instance/media/${b.dataset.transcrever}/transcricao`, { method: 'POST', body: '{}' });
+              toast('Áudio transcrito ✓'); await atualizar(true);
+            } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Transcrever áudio'; }
+          });
+        };
+        ligarTranscricao();
+
+        // Editar/apagar mensagem enviada — mesma razão da função acima (precisa
+        // religar depois de cada redesenho de #wam).
+        const ligarAcoesMsg = () => {
+          $('#wam').querySelectorAll('[data-editar-msg]').forEach((b) => b.onclick = async () => {
+            const msgId = b.dataset.editarMsg;
+            const atual = msgs.find((m) => String(m.id) === msgId);
+            const novo = await uiPrompt('Editar mensagem:', atual?.body || '');
+            if (novo === null || !novo.trim() || novo === atual?.body) return;
+            try {
+              await api(`/api/whatsapp-instance/messages/${msgId}`, { method: 'PUT', body: JSON.stringify({ text: novo.trim() }) });
+              toast('Mensagem editada'); await atualizar(true);
+            } catch (e) { toast(e.message, 'error'); }
+          });
+          $('#wam').querySelectorAll('[data-apagar-msg]').forEach((b) => b.onclick = async () => {
+            if (!(await uiConfirm('Apagar esta mensagem para o contato também? Não dá pra desfazer.'))) return;
+            try {
+              await api(`/api/whatsapp-instance/messages/${b.dataset.apagarMsg}`, { method: 'DELETE' });
+              toast('Mensagem apagada'); await atualizar(true);
+            } catch (e) { toast(e.message, 'error'); }
+          });
+        };
+        ligarAcoesMsg();
+
+        // Busca dentro da conversa aberta — filtra as mensagens já carregadas
+        // em memória, sem ir ao servidor. Realça cada ocorrência e navega
+        // entre elas (↑/↓), rolando até a mensagem.
+        let buscaChatTermo = '';
+        let buscaChatIdx = 0;
+        const contarOcorrencias = (termo) => {
+          if (!termo) return 0;
+          const termoEsc = termo.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          const re = new RegExp(termoEsc, 'gi');
+          return msgs.reduce((total, m) => total + (esc(m.body).match(re) || []).length, 0);
+        };
+        const redesenharBusca = () => {
+          const total = contarOcorrencias(buscaChatTermo);
+          if (buscaChatIdx >= total) buscaChatIdx = Math.max(0, total - 1);
+          $('#wam').innerHTML = renderMsgs(msgs, buscaChatTermo, buscaChatTermo ? buscaChatIdx : -1);
+          $('#wa-busca-chat-cont').textContent = total ? `${buscaChatIdx + 1}/${total}` : '0/0';
+          ligarTranscricao(); ligarAcoesMsg();
+          if (buscaChatTermo && total) {
+            const alvo = $('#wam').querySelector('mark.cur');
+            if (alvo) alvo.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          }
+        };
+        $('#wa-buscar-chat').onclick = () => {
+          const bar = $('#wa-search-chat');
+          const abrindo = bar.style.display === 'none';
+          bar.style.display = abrindo ? 'flex' : 'none';
+          if (abrindo) { $('#wa-busca-chat-input').focus(); }
+          else { buscaChatTermo = ''; buscaChatIdx = 0; $('#wam').innerHTML = renderMsgs(msgs); ligarTranscricao(); ligarAcoesMsg(); }
+        };
+        $('#wa-busca-chat-fechar').onclick = () => { $('#wa-buscar-chat').click(); };
+        $('#wa-busca-chat-input').oninput = (e) => { buscaChatTermo = e.target.value.trim(); buscaChatIdx = 0; redesenharBusca(); };
+        $('#wa-busca-chat-next').onclick = () => {
+          const total = contarOcorrencias(buscaChatTermo); if (!total) return;
+          buscaChatIdx = (buscaChatIdx + 1) % total; redesenharBusca();
+        };
+        $('#wa-busca-chat-prev').onclick = () => {
+          const total = contarOcorrencias(buscaChatTermo); if (!total) return;
+          buscaChatIdx = (buscaChatIdx - 1 + total) % total; redesenharBusca();
+        };
+        $('#wa-busca-chat-input').onkeydown = (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); $(e.shiftKey ? '#wa-busca-chat-prev' : '#wa-busca-chat-next').click(); }
+          if (e.key === 'Escape') { $('#wa-buscar-chat').click(); }
+        };
+
+        // Gravar e enviar áudio — reusa o mesmo /send-media do anexo (o
+        // arquivo vira uma mensagem de voz na conversa, igual às recebidas).
+        let gravador = null, gravando = false, chunksAudio = [];
+        $('#wa-gravar').onclick = async () => {
+          const btn = $('#wa-gravar');
+          if (gravando) { gravador.stop(); return; }
+          if (!navigator.mediaDevices?.getUserMedia) { toast('Este navegador não permite gravar áudio', 'error'); return; }
           try {
-            await api(`/api/whatsapp-instance/media/${b.dataset.transcrever}/transcricao`, { method: 'POST', body: '{}' });
-            toast('Áudio transcrito ✓'); await atualizar(true);
-          } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Transcrever áudio'; }
-        });
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            chunksAudio = [];
+            gravador = new MediaRecorder(stream);
+            gravador.ondataavailable = (e) => { if (e.data.size) chunksAudio.push(e.data); };
+            gravador.onstop = async () => {
+              stream.getTracks().forEach((t) => t.stop());
+              gravando = false; btn.classList.remove('gravando');
+              if (!chunksAudio.length) return;
+              const blob = new Blob(chunksAudio, { type: gravador.mimeType || 'audio/webm' });
+              if (blob.size < 500) { toast('Gravação muito curta'); return; }
+              const b64 = await new Promise((ok, err) => {
+                const r = new FileReader();
+                r.onload = () => ok(r.result); r.onerror = err; r.readAsDataURL(blob);
+              });
+              try {
+                await api(`/api/whatsapp-instance/chats/${ativo.phone}/send-media`, {
+                  method: 'POST', body: JSON.stringify({ file_base64: b64, file_name: 'audio.webm', mime: blob.type, as_voice: true }),
+                });
+                toast('Áudio enviado'); await atualizar(true);
+              } catch (e) { toast(e.message, 'error'); }
+            };
+            gravador.start();
+            gravando = true; btn.classList.add('gravando');
+            toast('Gravando… clique de novo pra enviar');
+          } catch { toast('Não consegui acessar o microfone — confira a permissão do navegador', 'error'); }
+        };
 
         // PDF da conversa — com papel timbrado, pronto para juntar ao processo
         $('#wa-pdf').onclick = () => {
@@ -403,7 +627,7 @@ Object.assign(ROUTES, {
               ${tpls.map((t) => `<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px">
                 <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
                   <strong style="font-size:13px;color:var(--navy-deep)">${esc(t.title)}</strong>
-                  <span style="white-space:nowrap"><button class="btn-gold btn-sm" data-usar="${t.id}">Usar</button> <button class="btn-ghost btn-sm" data-apagar="${t.id}">×</button></span>
+                  <span style="white-space:nowrap"><button class="btn-gold btn-sm" data-usar="${t.id}">Usar</button> <button class="btn-ghost btn-sm" data-editar-tpl="${t.id}">${svgIcon('edit', 'ic-xs')}</button> <button class="btn-ghost btn-sm" data-apagar="${t.id}">${svgIcon('x', 'ic-xs')}</button></span>
                 </div>
                 <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${esc(t.body.slice(0, 110))}…</div>
               </div>`).join('') || '<div class="empty">Nenhum modelo ainda</div>'}
@@ -426,6 +650,24 @@ Object.assign(ROUTES, {
             await api('/api/whatsapp-instance/templates/' + b.dataset.apagar, { method: 'DELETE' }).catch(() => {});
             closeModal(); $('#wa-modelos').click();
           });
+          wrap.querySelectorAll('[data-editar-tpl]').forEach((b) => b.onclick = () => {
+            const t = tpls.find((x) => x.id == b.dataset.editarTpl);
+            const ef = el(`<form class="form-grid">
+              ${field('Título', 'title', { value: t.title })}
+              ${field('Mensagem (use {{nome}} para o nome do cliente)', 'body', { type: 'textarea', value: t.body })}
+              <button type="submit" class="btn-primary">Salvar alterações</button>
+            </form>`);
+            ef.onsubmit = async (ev) => {
+              ev.preventDefault();
+              const b2 = Object.fromEntries(new FormData(ev.target));
+              if (!b2.title || !b2.body) { toast('Preencha título e mensagem', 'error'); return; }
+              try {
+                await api('/api/whatsapp-instance/templates/' + t.id, { method: 'PUT', body: JSON.stringify(b2) });
+                toast('Modelo atualizado'); closeModal(); $('#wa-modelos').click();
+              } catch (e) { toast(e.message, 'error'); }
+            };
+            openModal('Editar modelo', ef);
+          });
           wrap.querySelector('#tpl-novo').onsubmit = async (ev) => {
             ev.preventDefault();
             const b2 = Object.fromEntries(new FormData(ev.target));
@@ -434,6 +676,46 @@ Object.assign(ROUTES, {
             catch (e) { toast(e.message, 'error'); }
           };
           openModal('Mensagens prontas', wrap);
+        };
+
+        // Enviar documento/imagem — do GED do cliente ou upload do computador
+        $('#wa-anexar').onclick = async () => {
+          const docs = ativo.client_id ? await api('/api/documents?client_id=' + ativo.client_id).catch(() => []) : [];
+          const comArquivo = docs.filter((d) => d.has_data);
+          const wrap = el(`<div>
+            ${comArquivo.length ? `
+              <strong style="font-size:13px;color:var(--navy)">Enviar um documento já no sistema</strong>
+              <div style="display:flex;flex-direction:column;gap:6px;max-height:30vh;overflow:auto;margin:8px 0 16px">
+                ${comArquivo.map((d) => `<button type="button" class="btn-sm" data-doc="${d.id}" style="text-align:left">${svgIcon('file')}${esc(d.name)}</button>`).join('')}
+              </div>
+              <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">` : ''}
+            <strong style="font-size:13px;color:var(--navy)">Ou enviar um arquivo do computador</strong>
+            <form id="wa-anexo-form" class="form-grid" style="margin-top:8px">
+              <input type="file" name="arquivo" accept="image/*,application/pdf,.doc,.docx">
+              ${field('Legenda (opcional)', 'text')}
+              <button type="submit" class="btn-primary">Enviar</button>
+            </form>
+          </div>`);
+          const enviar = async (body) => {
+            try {
+              await api(`/api/whatsapp-instance/chats/${ativo.phone}/send-media`, { method: 'POST', body: JSON.stringify(body) });
+              closeModal(); toast('Arquivo enviado'); await atualizar(true);
+            } catch (e) { toast(e.message, 'error'); }
+          };
+          wrap.querySelectorAll('[data-doc]').forEach((b) => b.onclick = () => enviar({ document_id: b.dataset.doc }));
+          wrap.querySelector('#wa-anexo-form').onsubmit = async (ev) => {
+            ev.preventDefault();
+            const fd = new FormData(ev.target);
+            const arquivo = fd.get('arquivo');
+            if (!arquivo || !arquivo.size) { toast('Escolha um arquivo', 'error'); return; }
+            if (arquivo.size > 15 * 1024 * 1024) { toast('Arquivo maior que 15MB', 'error'); return; }
+            const b64 = await new Promise((ok, err) => {
+              const r = new FileReader();
+              r.onload = () => ok(r.result); r.onerror = err; r.readAsDataURL(arquivo);
+            });
+            await enviar({ file_base64: b64, file_name: arquivo.name, mime: arquivo.type, text: fd.get('text') || '' });
+          };
+          openModal('Enviar arquivo', wrap);
         };
         // Painel de contexto: abre sozinho em telas largas; botão ℹ alterna
         $('#wa-info').onclick = () => { $('#wa-shell').classList.toggle('ctx-open'); if ($('#wa-shell').classList.contains('ctx-open')) renderContexto(); };
@@ -471,20 +753,36 @@ Object.assign(ROUTES, {
         };
       };
 
-      // Atualização (polling suave a cada 6s — lista e conversa aberta)
+      // Atualização (polling suave a cada 6s — lista e conversa aberta).
+      // Trava por conversa-alvo: se o usuário trocar de conversa enquanto
+      // este ciclo ainda está buscando dados da conversa ANTIGA, o resultado
+      // chega depois e não pode mais ser aplicado — sem isso, um ciclo lento
+      // sobrescrevia a conversa recém-aberta de volta pra anterior (o bug de
+      // "oscilar para a conversa marcada" ao clicar).
+      let cicloEmAndamento = false;
       const atualizar = async (forcarChat) => {
-        // Busca com 3+ letras vale também para o CONTEÚDO das mensagens (servidor)
-        const q = busca.trim().length >= 3 ? `?q=${encodeURIComponent(busca.trim())}` : '';
-        chats = await api('/api/whatsapp-instance/chats' + q).catch(() => chats);
-        renderFiltros(); renderLista();
-        if (ativo) {
-          const c = chats.find((x) => x.phone === ativo.phone);
-          const msgs = await api('/api/whatsapp-instance/chats/' + ativo.phone).catch(() => null);
-          if (msgs && (forcarChat || msgs.length !== qtdMsgs)) {
-            const digitando = $('#wa-reply [name=text]')?.value || '';
-            await abrirChat(c || { phone: ativo.phone, client_name: ativo.name, client_id: ativo.client_id, labels: JSON.stringify(ativo.labels) }, digitando);
+        if (cicloEmAndamento && !forcarChat) return; // evita empilhar ciclos de polling
+        // Dá uma folga pro clique assentar antes de deixar o polling reordenar
+        // a lista — é o que fazia clicar numa conversa "escorregar" pra outra.
+        if (!forcarChat && Date.now() - ultimaInteracaoLista < 1200) return;
+        cicloEmAndamento = true;
+        try {
+          // Busca com 3+ letras vale também para o CONTEÚDO das mensagens (servidor)
+          const q = busca.trim().length >= 3 ? `?q=${encodeURIComponent(busca.trim())}` : '';
+          const novosChats = await api('/api/whatsapp-instance/chats' + q).catch(() => null);
+          if (novosChats) chats = novosChats;
+          renderFiltros(); renderLista();
+          if (ativo) {
+            const alvo = ativo.phone;
+            const c = chats.find((x) => x.phone === alvo);
+            const msgs = await api('/api/whatsapp-instance/chats/' + alvo).catch(() => null);
+            if (!ativo || ativo.phone !== alvo) return; // usuário já trocou de conversa — descarta
+            if (msgs && (forcarChat || msgs.length !== qtdMsgs)) {
+              const digitando = $('#wa-reply [name=text]')?.value || '';
+              await abrirChat(c || { phone: alvo, client_name: ativo.name, client_id: ativo.client_id, labels: JSON.stringify(ativo.labels) }, digitando);
+            }
           }
-        }
+        } finally { cicloEmAndamento = false; }
       };
 
       let buscaTimer = null;
@@ -495,7 +793,125 @@ Object.assign(ROUTES, {
       };
       await atualizar(false);
       if (!chats.length) $('#wal').innerHTML = '<div class="wa-empty">Nenhuma conversa ainda.<br>Com a instância conectada, tudo que chegar e sair aparece aqui.</div>';
+      if (abrirFonePendente) {
+        const alvo = abrirFonePendente;
+        abrirFonePendente = null;
+        const c = chats.find((x) => x.phone === alvo.phone);
+        // Sem conversa ainda (lead novo, nunca mandou WhatsApp) — abre do
+        // mesmo jeito, com um contato "em branco", pra já poder mandar a
+        // primeira mensagem.
+        abrirChat(c || { phone: alvo.phone, client_name: alvo.nome || ('+' + alvo.phone), client_id: null, labels: '[]' }, alvo.texto || '');
+      }
       chatTimer = setInterval(() => { if (tab === 'conversas') atualizar(false); else { clearInterval(chatTimer); chatTimer = null; } }, 6000);
+    };
+
+    // ── Aba CONTATOS: quadro Kanban de organização (etapas editáveis) ──
+    const tabContatos = async () => {
+      const body = $('#wa-body');
+      body.innerHTML = `
+        <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
+          <button class="btn-gold btn-sm" id="wc-nova-etapa">+ Nova etapa</button>
+        </div>
+        <div id="wc-board" class="kanban-fases"></div>`;
+
+      const fmtRel = (d) => d ? fmtDateTime(d) : '—';
+
+      const load = async () => {
+        const [stagesResp, boardResp] = await Promise.all([
+          api('/api/whatsapp-instance/stages').catch(() => []),
+          api('/api/whatsapp-instance/board').catch(() => ({ stages: [], board: {} })),
+        ]);
+        const stages = boardResp.stages && boardResp.stages.length ? boardResp.stages : stagesResp;
+        const board = boardResp.board || {};
+
+        if (!stages.length) {
+          $('#wc-board').innerHTML = '<div class="empty">Nenhuma etapa criada ainda — clique em "+ Nova etapa" pra começar.</div>';
+          return;
+        }
+
+        $('#wc-board').innerHTML = stages.map((s) => `
+          <div class="kf-col" data-stage="${s.id}">
+            <div class="kf-head" style="border-top:3px solid ${esc(s.color)}">
+              <span data-editar-etapa="${s.id}" class="wa-etapa-editar" title="Renomear/apagar etapa">${esc(s.name)}${svgIcon('edit', 'ic-xs')}</span>
+              <span class="kf-count">${(board[s.id] || []).length}</span>
+            </div>
+            <div class="kf-cards" data-stage="${s.id}">
+              ${(board[s.id] || []).map((c) => `
+                <div class="kf-card" draggable="true" data-phone="${esc(c.phone)}" data-stage="${s.id}">
+                  <strong>${esc(c.name)}</strong>
+                  <small>${c.client_id ? 'cliente do escritório · ' : ''}${fmtRel(c.last_time)}</small>
+                  <select class="kf-move" draggable="false" data-phone="${esc(c.phone)}" data-from="${s.id}" title="Mover para outra etapa">
+                    ${stages.map((s2) => `<option value="${s2.id}" ${s2.id === s.id ? 'selected' : ''}>${esc(s2.name)}</option>`).join('')}
+                  </select>
+                </div>`).join('') || ''}
+            </div>
+          </div>`).join('');
+
+        // Editar/apagar etapa
+        $('#wc-board').querySelectorAll('[data-editar-etapa]').forEach((el2) => el2.onclick = async (e) => {
+          e.stopPropagation();
+          const id = el2.dataset.editarEtapa;
+          const atual = stages.find((s) => String(s.id) === String(id));
+          const novoNome = await uiPrompt('Nome da etapa (deixe vazio pra apagar a etapa):', atual?.name || '');
+          if (novoNome === null) return;
+          try {
+            if (!novoNome.trim()) {
+              if (!(await uiConfirm('Apagar esta etapa? Os contatos voltam para a 1ª coluna.'))) return;
+              await api('/api/whatsapp-instance/stages/' + id, { method: 'DELETE' });
+              toast('Etapa apagada');
+            } else {
+              await api('/api/whatsapp-instance/stages/' + id, { method: 'PUT', body: JSON.stringify({ name: novoNome.trim() }) });
+              toast('Etapa atualizada');
+            }
+            load();
+          } catch (err) { toast(err.message, 'error'); }
+        });
+
+        // Arrastar card entre colunas — move a etapa e já aplica a etiqueta
+        const moverEtapa = async (phone, stageId, from) => {
+          if (!phone || !stageId || String(stageId) === String(from)) return;
+          try {
+            await api(`/api/whatsapp-instance/chats/${phone}/stage`, { method: 'POST', body: JSON.stringify({ stage_id: stageId }) });
+            toast('Contato movido — etiqueta aplicada');
+            load();
+          } catch (err) { toast(err.message, 'error'); load(); }
+        };
+        $('#wc-board').querySelectorAll('.kf-card').forEach((card) => {
+          card.addEventListener('dragstart', (e) => {
+            if (e.target.closest('.kf-move')) { e.preventDefault(); return; } // não deixa o menu virar "arrasto"
+            e.dataTransfer.setData('text/plain', JSON.stringify({ phone: card.dataset.phone, from: card.dataset.stage })); card.style.opacity = '0.45';
+          });
+          card.addEventListener('dragend', () => { card.style.opacity = ''; });
+          card.onclick = (e) => { if (e.target.closest('.kf-move')) return; abrirFonePendente = { phone: card.dataset.phone }; tab = 'conversas'; shell(); };
+        });
+        // Mover pelo menu (mais confiável que arrastar — funciona em qualquer navegador/trackpad).
+        // stopPropagation em mousedown/click: o card é "draggable", e sem isso o
+        // navegador trata o clique no <select> como início de arrasto e o menu
+        // não abre nem dispara o "change" direito.
+        $('#wc-board').querySelectorAll('.kf-move').forEach((sel) => {
+          sel.addEventListener('mousedown', (e) => e.stopPropagation());
+          sel.addEventListener('click', (e) => e.stopPropagation());
+          sel.onchange = () => moverEtapa(sel.dataset.phone, Number(sel.value), sel.dataset.from);
+        });
+        $('#wc-board').querySelectorAll('.kf-cards').forEach((zone) => {
+          zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.outline = '2px dashed var(--gold)'; });
+          zone.addEventListener('dragleave', () => { zone.style.outline = ''; });
+          zone.addEventListener('drop', (e) => {
+            e.preventDefault(); zone.style.outline = '';
+            let d = {}; try { d = JSON.parse(e.dataTransfer.getData('text/plain')); } catch {}
+            moverEtapa(d.phone, zone.dataset.stage, d.from);
+          });
+        });
+      };
+
+      $('#wc-nova-etapa').onclick = async () => {
+        const nome = await uiPrompt('Nome da nova etapa:', '');
+        if (!nome || !nome.trim()) return;
+        try { await api('/api/whatsapp-instance/stages', { method: 'POST', body: JSON.stringify({ name: nome.trim() }) }); load(); }
+        catch (e) { toast(e.message, 'error'); }
+      };
+
+      await load();
     };
 
     // ── Aba FILA (comportamento original + envio direto quando conectado) ──

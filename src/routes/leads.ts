@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
+import { notifyNewLead } from '../services/leadAlert';
 
 const router = Router();
 
@@ -124,6 +125,11 @@ router.post('/', async (req: Request, res: Response) => {
   ) as any;
 
   const [rows] = await db.query('SELECT * FROM leads WHERE id = ?', [result.insertId]) as any;
+
+  await notifyNewLead({
+    leadId: result.insertId, name: rows[0].name, phone: rows[0].phone,
+    source: rows[0].source, area: rows[0].legal_area, message: rows[0].notes,
+  });
 
   await logActivity({
     leadId: result.insertId, clientId: client_id ?? null, actorId: req.user!.id, actorName: req.user!.name,

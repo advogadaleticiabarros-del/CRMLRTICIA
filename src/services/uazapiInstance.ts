@@ -106,6 +106,12 @@ export async function startInstance(): Promise<void> {
   } finally {
     connecting = false;
   }
+  // Garante "message_status" no webhook (confirmação de leitura ✓✓) toda vez
+  // que reconecta — best-effort, nunca derruba a conexão se falhar.
+  try {
+    const base = (process.env.APP_BASE_URL || 'https://crm.advogadaleticiabarros.com.br').replace(/\/+$/, '');
+    await uazapi.setWebhook(`${base}/api/public/uazapi-webhook`, ['messages', 'message_status']);
+  } catch { /* opcional */ }
 }
 
 export async function disconnectInstance(): Promise<void> {
@@ -127,14 +133,90 @@ export async function sendText(phone: string, text: string, sentBy?: string): Pr
   const digits = String(phone).replace(/\D/g, '');
   if (digits.length < 12) return false;
   try {
-    await uazapi.sendText(digits, text);
+    const r = await uazapi.sendText(digits, text);
+    // Guarda o messageid real da Uazapi: o webhook manda de volta um "eco" da
+    // própria mensagem enviada, e sem o message_id aqui a deduplicação
+    // (UNIQUE em message_id) não reconhece que é a mesma — duplicava a
+    // mensagem na conversa (confirmado testando um envio real).
     await db.query(
-      `INSERT INTO whatsapp_messages (phone, client_id, from_me, body, msg_time, sent_by)
-       VALUES (?, ?, 1, ?, NOW(), ?)`,
-      [digits, await findClientByPhone(digits), String(text).slice(0, 4000), sentBy || null]).catch(() => {});
+      `INSERT IGNORE INTO whatsapp_messages (message_id, phone, client_id, from_me, body, msg_time, sent_by)
+       VALUES (?, ?, ?, 1, ?, NOW(), ?)`,
+      [r?.messageid || null, digits, await findClientByPhone(digits), String(text).slice(0, 4000), sentBy || null]).catch(() => {});
     return true;
   } catch (e: any) {
     lastError = e?.message || 'Falha ao enviar';
+    return false;
+  }
+}
+
+// "ptt" é o tipo que a Uazapi espera pra virar a bolha redonda de mensagem
+// de voz (com PTT:true no retorno — testado direto); "audio" manda o MESMO
+// arquivo, mas vira um anexo de áudio comum, sem o visual de voice note.
+// Confirmado testando os dois: só muda o "type" no /send/media, a Uazapi já
+// transcodifica pra ogg/opus sozinha (não precisa converter no CRM).
+function tipoUazapi(mime: string, comoVoz: boolean): 'image' | 'document' | 'video' | 'audio' | 'ptt' {
+  if (mime.startsWith('image/')) return 'image';
+  if (mime.startsWith('video/')) return 'video';
+  if (mime.startsWith('audio/')) return comoVoz ? 'ptt' : 'audio';
+  return 'document';
+}
+
+/**
+ * Envia um arquivo (documento/imagem/etc). O arquivo já precisa estar salvo
+ * em whatsapp_media (fileName/mime/data) — quem chama isso decide a origem
+ * (upload do computador ou um documento já existente no GED do cliente) e
+ * copia os bytes pra lá primeiro. Assim a mensagem enviada aparece na
+ * conversa exatamente como uma recebida (mesmo media_id, mesmo /media/:id).
+ * comoVoz=true (gravação feita no próprio CRM) manda como mensagem de voz.
+ */
+export async function sendMedia(phone: string, mediaId: number, caption: string, sentBy?: string, comoVoz = false): Promise<boolean> {
+  const digits = String(phone).replace(/\D/g, '');
+  if (digits.length < 12) return false;
+  try {
+    const [[m]] = await db.query('SELECT file_name, mime FROM whatsapp_media WHERE id = ?', [mediaId]) as any;
+    if (!m) { lastError = 'Arquivo não encontrado'; return false; }
+    const { signMediaUrl } = await import('../routes/whatsapp-instance');
+    const url = signMediaUrl(`/api/whatsapp-instance/media/${mediaId}`);
+    const base = (process.env.APP_BASE_URL || 'https://crm.advogadaleticiabarros.com.br').replace(/\/+$/, '');
+    const r = await uazapi.sendMedia(digits, `${base}${url}`, tipoUazapi(String(m.mime || ''), comoVoz), caption || '');
+    await db.query(
+      `INSERT IGNORE INTO whatsapp_messages (message_id, phone, client_id, from_me, body, msg_time, media_id, sent_by)
+       VALUES (?, ?, ?, 1, ?, NOW(), ?, ?)`,
+      [r?.messageid || null, digits, await findClientByPhone(digits), caption || `📎 ${m.file_name}`, mediaId, sentBy || null]).catch(() => {});
+    return true;
+  } catch (e: any) {
+    lastError = e?.message || 'Falha ao enviar arquivo';
+    return false;
+  }
+}
+
+// Só dá pra editar/apagar mensagem NOSSA (from_me) — o WhatsApp não permite
+// mexer em mensagem de quem está do outro lado, e a Uazapi também recusa
+// fora do prazo dela (edição ~15min, exclusão alguns dias).
+export async function editarMensagem(dbId: number, novoTexto: string): Promise<boolean> {
+  try {
+    const [[m]] = await db.query('SELECT message_id, from_me FROM whatsapp_messages WHERE id = ?', [dbId]) as any;
+    if (!m || !m.message_id || !m.from_me) return false;
+    await uazapi.editMessage(m.message_id, novoTexto);
+    await db.query('UPDATE whatsapp_messages SET body = ? WHERE id = ?', [novoTexto, dbId]);
+    return true;
+  } catch (e: any) {
+    lastError = e?.message || 'Falha ao editar mensagem';
+    return false;
+  }
+}
+
+export async function apagarMensagem(dbId: number): Promise<boolean> {
+  try {
+    const [[m]] = await db.query('SELECT message_id, from_me FROM whatsapp_messages WHERE id = ?', [dbId]) as any;
+    if (!m || !m.message_id || !m.from_me) return false;
+    await uazapi.deleteMessage(m.message_id);
+    // Mantém a linha (registro/prova), só marca como apagada — igual ao
+    // próprio WhatsApp, que mostra "mensagem apagada" no lugar do texto.
+    await db.query("UPDATE whatsapp_messages SET body = '🚫 Mensagem apagada' WHERE id = ?", [dbId]);
+    return true;
+  } catch (e: any) {
+    lastError = e?.message || 'Falha ao apagar mensagem';
     return false;
   }
 }

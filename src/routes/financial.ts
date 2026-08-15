@@ -320,6 +320,33 @@ router.get('/a-receber', async (_req: Request, res: Response) => {
   });
 });
 
+// ── GET /api/financial/parcerias/a-receber — itemizado, só parcerias ────────
+// Mesmo critério "ehParceria" do financeSummary.ts (caso com partner_id, ou
+// lançamento avulso "Entrada parceria..."), mas linha a linha em vez de
+// somado — é o que dá pra imprimir em papel timbrado e cobrar cada item.
+router.get('/parcerias/a-receber', async (_req: Request, res: Response) => {
+  const [rows] = await db.query(`
+    SELECT fr.id, fr.description, fr.valor, fr.due_date, fr.status, pt.name AS partner_name
+      FROM financial_records fr
+      LEFT JOIN cases c ON c.id = fr.case_id
+      LEFT JOIN partners pt ON pt.id = c.partner_id
+     WHERE fr.tipo='receita' AND fr.escopo='empresa' AND fr.status='pendente'
+       AND (c.partner_id IS NOT NULL OR (fr.case_id IS NULL AND fr.description LIKE 'Entrada parceria%'))
+     ORDER BY fr.due_date ASC`) as any;
+  const hoje = new Date().toISOString().slice(0, 10);
+  const N = (x: any) => Number(x) || 0;
+  // r.due_date vem do mysql2 como objeto Date, não string — String(Date) não
+  // é ISO (é o toString() padrão do JS), então comparar direto quebra o
+  // cálculo de "vencido" silenciosamente (nunca dava true). toISOString()
+  // primeiro.
+  const linhas = rows.map((r: any) => ({
+    id: r.id, descricao: r.description, parceiro: r.partner_name || null,
+    valor: N(r.valor), vencimento: r.due_date,
+    vencido: !!r.due_date && new Date(r.due_date).toISOString().slice(0, 10) < hoje,
+  }));
+  res.json({ rows: linhas, total: Math.round(linhas.reduce((s: number, r: any) => s + r.valor, 0) * 100) / 100 });
+});
+
 // ── POST /api/financial/conciliar — conciliação bancária via extrato OFX ─────
 // Recebe o texto do arquivo OFX do banco e cruza os CRÉDITOS com o A Receber:
 // - "conferido": valor bate com item já marcado como recebido (±3 dias)

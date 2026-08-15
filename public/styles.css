@@ -151,6 +151,14 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 .content { margin-left: 260px; flex: 1; padding: 0 0 40px; min-height: 100vh; }
 .content > .page { padding: 28px 42px; max-width: 1200px; }
 
+/* ── Modo "tela cheia" (aba separada, sem menu/topo) ── */
+body.foco-total .sidebar,
+body.foco-total .topbar { display: none; }
+body.foco-total .content { margin-left: 0; padding: 0; }
+body.foco-total .content > .page { padding: 10px 16px; max-width: none; }
+.foco-voltar { position: fixed; top: 8px; left: 8px; z-index: 500; background: var(--navy); color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 12px; text-decoration: none; opacity: .78; transition: opacity .15s; }
+.foco-voltar:hover { opacity: 1; }
+
 /* ── Topbar ── */
 .topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between;
   padding: 0 42px; height: 64px; background: rgba(255,255,255,.85); backdrop-filter: saturate(180%) blur(8px);
@@ -331,8 +339,9 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .kf-col { min-width: 230px; flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; }
 .kf-head { font-weight: 600; color: var(--navy); display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; font-size: 13px; }
 .kf-count { background: var(--gold); color: #fff; border-radius: 11px; padding: 1px 9px; font-size: 11px; font-weight: 700; }
-.kf-cards { display: flex; flex-direction: column; gap: 8px; max-height: 62vh; overflow-y: auto; }
-.kf-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; cursor: pointer; display: flex; flex-direction: column; gap: 2px; transition: box-shadow .15s, transform .12s; }
+.kf-cards { display: flex; flex-direction: column; gap: 8px; max-height: 62vh; min-height: 70px; overflow-y: auto; }
+.kf-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; cursor: grab; display: flex; flex-direction: column; gap: 2px; transition: box-shadow .15s, transform .12s; user-select: none; -webkit-user-drag: element; }
+.kf-card:active { cursor: grabbing; }
 .kf-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); border-color: var(--gold); }
 .kf-card strong { font-size: 12.5px; color: var(--text); }
 .kf-card small { font-size: 11px; color: var(--text-soft); }
@@ -1402,38 +1411,93 @@ img, svg, video { max-width: 100%; }
 }
 
 /* ── WhatsApp Web dentro do CRM (aba Conversas) ─────────────────────────── */
-.wa-shell { display: grid; grid-template-columns: minmax(280px, 360px) 1fr; height: calc(100vh - 210px); min-height: 420px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface-card, var(--surface)); }
-.wa-side { display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 0; }
-.wa-search { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); }
-.wa-search input { width: 100%; border-radius: 18px; padding: 8px 14px; font-size: 13px; }
-.wa-filters { display: flex; gap: 6px; padding: 8px 12px; flex-wrap: wrap; border-bottom: 1px solid var(--border-soft); }
-.wa-filter { font-size: 11px; padding: 3px 10px; border-radius: 12px; border: 1px solid var(--border); background: none; cursor: pointer; color: var(--text-soft); font-family: inherit; }
+/* Altura real calculada em JS (ajustarAltura em whatsapp.js) — o calc()
+   fixo abaixo é só o valor antes do JS rodar (1º paint) e o fallback caso
+   JS falhe; não é mais o valor "oficial" (por isso o quadro cortava a caixa
+   de mensagem: 210px nunca bateu com a altura real do cabeçalho+abas). */
+/* grid-template-rows: minmax(0,1fr) é o que trava de verdade a altura da
+   linha da grade — sem isso, uma grade com 1 linha "auto" cresce pra caber
+   TODO o conteúdo (a conversa inteira) em vez de respeitar a altura do
+   container, e a caixa de digitar ficava fisicamente fora da área visível
+   mesmo com overflow:hidden no pai (confirmado com teste automatizado real:
+   a caixa existia no HTML, mas a 1700px de distância da área visível). */
+.wa-shell { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; grid-template-rows: minmax(0, 1fr); height: calc(100vh - 210px); min-height: 560px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface-card, var(--surface)); }
+.wa-side { display: flex; flex-direction: column; border-right: 1px solid var(--border); min-width: 0; min-height: 0; }
+.wa-search { padding: 10px 12px; border-bottom: 1px solid var(--border-soft); display: flex; align-items: center; position: relative; }
+.wa-search .ic-inline { position: absolute; left: 24px; margin: 0; opacity: .5; pointer-events: none; }
+.wa-search input { width: 100%; border-radius: 18px; padding: 8px 14px 8px 34px; font-size: 13px; background: var(--surface-2, #f0f2f5); border-color: transparent; }
+.wa-search input:focus { background: var(--surface-card, #fff); border-color: var(--gold); }
+/* Quebra em várias linhas (a rolagem lateral escondida não tinha nenhum
+   sinal visual de que dava pra arrastar — ninguém achava o resto das
+   etiquetas). Com muitas etiquetas, rola verticalmente num espaço pequeno
+   em vez de empurrar a lista de conversas pra baixo. */
+.wa-filters { display: flex; gap: 6px; padding: 8px 12px; flex-wrap: wrap; max-height: 80px; overflow-y: auto; border-bottom: 1px solid var(--border-soft); }
+.wa-filter { font-size: 12px; padding: 5px 13px; border-radius: 14px; border: 1px solid var(--border); background: var(--surface-card, #fff); cursor: pointer; color: var(--text-soft); font-family: inherit; white-space: nowrap; flex: 0 0 auto; text-transform: capitalize; transition: background .15s, color .15s, border-color .15s; }
+.wa-filter:hover { border-color: var(--gold); }
 .wa-filter.on { background: var(--navy, #0d1b2e); color: #fff; border-color: var(--navy, #0d1b2e); }
 .wa-list { flex: 1; overflow-y: auto; }
-.wa-item { display: flex; gap: 10px; padding: 10px 12px; cursor: pointer; border-bottom: 1px solid var(--border-soft); align-items: center; }
+.wa-item { display: flex; gap: 11px; padding: 11px 14px; cursor: pointer; border-bottom: 1px solid var(--border-soft); align-items: center; }
 .wa-item:hover { background: var(--surface-2, rgba(0,0,0,.03)); }
 .wa-item.on { background: var(--gold-soft, #efe3c8); }
-.wa-ava { width: 42px; height: 42px; border-radius: 50%; flex: 0 0 42px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 15px; }
+.wa-ava { width: 46px; height: 46px; border-radius: 50%; flex: 0 0 46px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 15px; }
 .wa-item-mid { flex: 1; min-width: 0; }
-.wa-item-name { font-weight: 600; font-size: 14px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wa-item-name { font-weight: 600; font-size: 14.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wa-item-prev { font-size: 12.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
 .wa-item-right { text-align: right; flex: 0 0 auto; }
 .wa-item-time { font-size: 11px; color: var(--text-muted); }
-.wa-unread { display: inline-flex; min-width: 19px; height: 19px; border-radius: 10px; background: #25d366; color: #fff; font-size: 11px; font-weight: 700; align-items: center; justify-content: center; padding: 0 5px; margin-top: 4px; }
-.wa-tags { display: flex; gap: 4px; margin-top: 3px; flex-wrap: wrap; }
-.wa-tag { font-size: 9.5px; padding: 1px 7px; border-radius: 9px; color: #fff; font-weight: 600; letter-spacing: .2px; }
-.wa-pane { display: flex; flex-direction: column; min-width: 0; }
+.wa-unread { display: inline-flex; min-width: 19px; height: 19px; border-radius: 10px; background: var(--gold); color: #fff; font-size: 11px; font-weight: 700; align-items: center; justify-content: center; padding: 0 5px; margin-top: 4px; }
+.wa-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
+.wa-tag { font-size: 9.5px; padding: 1px 7px; border-radius: 9px; color: #fff; font-weight: 600; letter-spacing: .2px; text-transform: capitalize; }
+.wa-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.wa-empty-inicial { flex-direction: column; gap: 10px; max-width: 320px; margin: 0 auto; }
+.wa-empty-badge { width: 64px; height: 64px; border-radius: 50%; background: rgba(193,154,78,.14); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+.wa-empty-badge .ic { width: 28px; height: 28px; color: var(--gold); }
+.wa-empty-inicial strong { font-family: 'Spectral', Georgia, serif; font-size: 18px; color: var(--navy-deep, var(--navy)); font-weight: 600; }
+.wa-empty-inicial p { font-size: 13px; color: var(--text-muted); line-height: 1.5; margin: 0; }
+.wa-etapa-editar { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.wa-etapa-editar .ic { opacity: .55; }
+.wa-etapa-editar:hover .ic { opacity: 1; }
 .wa-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2, var(--surface)); }
-.wa-msgs { flex: 1; overflow-y: auto; padding: 18px 8%; display: flex; flex-direction: column; gap: 4px; background: var(--surface); background-image: radial-gradient(var(--border-soft) .8px, transparent .8px); background-size: 22px 22px; }
+.wa-search-chat { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border-soft); background: var(--surface-2, var(--surface)); }
+.wa-search-chat input { flex: 1; border-radius: 14px; padding: 6px 12px; font-size: 13px; }
+.wa-hl { background: #ffe58a; border-radius: 2px; padding: 0 1px; }
+.wa-hl.cur { background: #ffb74d; }
+.wa-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 8%; display: flex; flex-direction: column; gap: 4px; background: var(--surface); background-image: radial-gradient(var(--border-soft) .8px, transparent .8px); background-size: 22px 22px; }
 .wa-day { align-self: center; font-size: 11px; background: var(--surface-2, #fff); border: 1px solid var(--border-soft); color: var(--text-muted); padding: 3px 12px; border-radius: 10px; margin: 10px 0 6px; }
-.wa-bub { max-width: 68%; padding: 7px 11px 5px; border-radius: 9px; font-size: 13.5px; line-height: 1.45; box-shadow: 0 1px 1px rgba(0,0,0,.08); word-wrap: break-word; }
+.wa-bub { position: relative; max-width: 68%; padding: 7px 11px 5px; border-radius: 9px; font-size: 13.5px; line-height: 1.45; box-shadow: 0 1px 1px rgba(0,0,0,.08); word-wrap: break-word; }
 .wa-bub.in { align-self: flex-start; background: var(--surface-card, #fff); border: 1px solid var(--border-soft); color: var(--text); border-top-left-radius: 2px; }
 .wa-bub.out { align-self: flex-end; background: #d9fdd3; color: #111b21; border-top-right-radius: 2px; }
+/* Editar/apagar — só aparece ao passar o mouse, pra não poluir a conversa */
+.wa-msg-acoes { position: absolute; top: -13px; right: 6px; display: flex; gap: 2px; opacity: 0; transition: opacity .12s; }
+.wa-bub:hover .wa-msg-acoes, .wa-bub:focus-within .wa-msg-acoes { opacity: 1; }
+.wa-msg-acoes button { display: flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface-card, #fff); color: var(--text-soft); cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.wa-msg-acoes button:hover { color: var(--navy-deep); border-color: var(--gold); }
+.wa-msg-acoes .ic { margin: 0; }
 .wa-bub .wa-time { display: block; font-size: 10px; color: rgba(0,0,0,.4); text-align: right; margin-top: 2px; }
 .wa-bub.in .wa-time { color: var(--text-muted); }
-.wa-input { display: flex; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--surface-2, var(--surface)); }
+.wa-check { letter-spacing: -1px; }
+.wa-check.lido { color: #53bdeb; }
+.wa-anexo-link { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; }
+.wa-anexo-link .ic { margin-right: 4px; }
+.wa-input { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--surface-2, var(--surface)); }
 .wa-input input { flex: 1; border-radius: 20px; padding: 10px 16px; font-size: 14px; }
-.wa-send { width: 42px; height: 42px; border-radius: 50%; border: none; background: #25d366; color: #fff; font-size: 18px; cursor: pointer; flex: 0 0 42px; }
+.wa-send { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--navy); color: #fff; cursor: pointer; flex: 0 0 40px; display: flex; align-items: center; justify-content: center; transition: background .15s, transform .1s; }
+.wa-send:hover { background: var(--navy-deep, var(--navy)); }
+.wa-send:active { transform: scale(.94); }
+.wa-send .ic { width: 17px; height: 17px; margin: 0 0 0 -1px; }
+/* Botão só-ícone (barra da conversa e busca) — mesma linguagem do resto do
+   CRM (svgIcon), nunca emoji: consistência é o que faz parecer feito à mão,
+   não gerado. */
+.btn-icon { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 50%; border: none; background: none; color: var(--text-soft); cursor: pointer; transition: background .15s, color .15s; flex: 0 0 auto; }
+.btn-icon .ic { width: 18px; height: 18px; margin: 0; }
+.btn-icon:hover { background: rgba(13,27,46,.07); color: var(--navy-deep); }
+.btn-icon-sm { width: 28px; height: 28px; }
+.btn-icon-sm .ic { width: 14px; height: 14px; }
+[data-theme="escuro"] .btn-icon:hover { background: rgba(255,255,255,.08); color: var(--gold); }
+.btn-icon.gravando { background: var(--red, #c0392b); color: #fff; animation: wa-pulso 1.1s ease-in-out infinite; }
+.btn-icon.gravando:hover { background: var(--red, #c0392b); }
+@keyframes wa-pulso { 0%, 100% { box-shadow: 0 0 0 0 rgba(192,57,43,.35); } 50% { box-shadow: 0 0 0 7px rgba(192,57,43,0); } }
+@media (prefers-reduced-motion: reduce) { .btn-icon.gravando { animation: none; } }
 .wa-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 14px; text-align: center; padding: 30px; }
 @media (max-width: 760px) {
   .wa-shell { grid-template-columns: 1fr; height: calc(100vh - 190px); }
@@ -1441,7 +1505,7 @@ img, svg, video { max-width: 100%; }
   .wa-shell:not(.chat-open) .wa-pane { display: none; }
   .wa-msgs { padding: 14px 4%; }
 }
-.wa-ctx { display: none; border-left: 1px solid var(--border); overflow-y: auto; background: var(--surface-card, var(--surface)); min-width: 0; }
+.wa-ctx { display: none; border-left: 1px solid var(--border); overflow-y: auto; background: var(--surface-card, var(--surface)); min-width: 0; min-height: 0; }
 .wa-shell.ctx-open { grid-template-columns: minmax(260px, 320px) 1fr minmax(230px, 280px); }
 .wa-shell.ctx-open .wa-ctx { display: block; }
 @media (max-width: 1099px) { .wa-shell.ctx-open { grid-template-columns: minmax(260px, 320px) 1fr; } .wa-shell.ctx-open .wa-ctx { display: none; } }

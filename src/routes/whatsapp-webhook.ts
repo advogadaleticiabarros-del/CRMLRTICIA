@@ -60,38 +60,66 @@ async function storeMedia(messageId: string, phone: string, clientId: number | n
   } catch { return null; }
 }
 
-// Cria o lead automaticamente na 1ª mensagem de um número desconhecido.
-// Idempotente: se já existe lead com esse telefone (qualquer formato), não duplica.
-async function autoLeadFromWhatsapp(phone: string, pushName: string | null, primeiraMsg: string): Promise<void> {
-  const digits = phone.replace(/\D/g, '');
-  const semDDI = digits.startsWith('55') ? digits.slice(2) : digits;
-  const [[jaLead]] = await db.query(
-    `SELECT id FROM leads WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''),'(',''),')',''),'-',''),' ','') LIKE ? LIMIT 1`,
-    [`%${semDDI}%`]
-  ) as any;
-  if (jaLead) return;
-
-  const [[admin]] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
-  if (!admin) return;
-
-  const nome = (pushName && pushName.trim()) || `WhatsApp +${digits}`;
-  const [ins] = await db.query(
-    `INSERT INTO leads (user_id, name, phone, source, status, case_summary)
-     VALUES (?, ?, ?, 'whatsapp', 'triagem', ?)`,
-    [admin.id, nome, digits, `Lead criado automaticamente pela 1ª mensagem no WhatsApp:\n"${primeiraMsg}"`]
-  ) as any;
-
+// Lê a 1ª mensagem com IA (Groq, mesmo motor do "extrair" da ficha do
+// contato) pra distinguir relato de caso de contato pessoal/engano/spam.
+// Best-effort: se a IA falhar ou não reconhecer nada, segue sem resumo —
+// nunca bloqueia o aviso no sino.
+async function classificarPrimeiraMsg(texto: string): Promise<{ eLead: boolean; nome: string; area: string; resumo: string } | null> {
   try {
-    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
-    for (const a of admins) {
-      await db.query(
-        `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
-         VALUES (?, ?, ?, 'lead_whatsapp', 'sistema', NOW(), 'pendente')`,
-        [a.id, 'Novo lead pelo WhatsApp',
-         `${nome} mandou mensagem e virou lead automaticamente (nº ${ins.insertId}). Primeira mensagem: "${primeiraMsg.slice(0, 160)}"`]
-      );
-    }
-  } catch { /* aviso é best-effort */ }
+    const { aiComplete } = await import('../services/aiAssistant');
+    const r = await aiComplete(`Uma pessoa mandou esta mensagem pela 1ª vez no WhatsApp de um escritório de advocacia. Devolva APENAS um JSON válido, sem comentários:
+{"e_lead": true/false, "nome": "nome completo se a pessoa se identificou, senão vazio", "area": "trabalhista|previdenciario|consumidor|familia|gestante|civel|outro|vazio", "resumo": "resumo do caso relatado em até 300 caracteres, ou vazio"}
+"e_lead" é true SÓ se a mensagem parecer um relato de caso jurídico real (alguém pedindo ajuda com um problema). É false se for contato pessoal, colega, engano de número, spam, cumprimento sem contexto, ou mensagem vaga demais pra saber.
+
+MENSAGEM:
+${texto}`, 'groq');
+    if (!r.ok) return null;
+    const clean = String(r.text || '').replace(/```json|```/g, '').trim();
+    const j = JSON.parse(clean.slice(clean.indexOf('{'), clean.lastIndexOf('}') + 1));
+    return { eLead: !!j.e_lead, nome: j.nome || '', area: j.area || '', resumo: j.resumo || '' };
+  } catch { return null; }
+}
+
+// Avisa no sino na 1ª mensagem de um número desconhecido — NÃO cria lead
+// automaticamente (contato pessoal, colega, engano etc. viravam lead e
+// enchiam o funil). Virar lead é uma ação manual: "Ficha do contato →
+// + Cadastrar como lead" na tela de WhatsApp. Quando a IA reconhece a
+// mensagem como um relato de caso, o resumo fica salvo em
+// whatsapp_chat_meta pra já vir pronto quando ela converter.
+// Idempotente via sent_reminders (mesmo padrão do alertSilentChats): sem
+// isso, toda mensagem seguinte do mesmo número dispararia um aviso novo.
+async function notifyNewWhatsappContact(phone: string, pushName: string | null, primeiraMsg: string): Promise<void> {
+  const digits = phone.replace(/\D/g, '');
+  const [dup] = await db.query(
+    'INSERT IGNORE INTO sent_reminders (ref_key, channel) VALUES (?, ?)',
+    [`wa_novo_contato_${digits}`, 'sino']
+  ) as any;
+  if (!dup.affectedRows) return;
+
+  const nome = (pushName && pushName.trim()) || `+${digits}`;
+  const classificacao = await classificarPrimeiraMsg(primeiraMsg);
+  const pareceLead = classificacao?.eLead && classificacao.resumo;
+
+  if (pareceLead) {
+    await db.query(
+      `INSERT INTO whatsapp_chat_meta (phone, unread, lead_summary, lead_area, lead_nome) VALUES (?, 0, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE lead_summary = VALUES(lead_summary), lead_area = VALUES(lead_area), lead_nome = VALUES(lead_nome)`,
+      [phone, classificacao!.resumo, classificacao!.area || null, classificacao!.nome || null]
+    ).catch(() => {});
+  }
+
+  const corpo = pareceLead
+    ? `${classificacao!.nome || nome} relatou um caso pelo WhatsApp: "${classificacao!.resumo}". Abra a conversa e clique em "Cadastrar como lead" se quiser seguir.`
+    : `${nome} mandou mensagem pela 1ª vez: "${primeiraMsg.slice(0, 160)}". Abra a conversa e clique em "Cadastrar como lead" se for um caso.`;
+
+  const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+  for (const a of admins) {
+    await db.query(
+      `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+       VALUES (?, ?, ?, 'contato_whatsapp_novo', 'sistema', NOW(), 'pendente')`,
+      [a.id, pareceLead ? 'Possível lead novo no WhatsApp' : 'Novo contato no WhatsApp', corpo]
+    ).catch(() => {});
+  }
 }
 
 // ── POST /api/public/uazapi-webhook — eventos da Uazapi (mensagens) ─────────
@@ -111,6 +139,8 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
     const phone = String(chat.phone || msg.sender || msg.chatid || '').replace(/\D/g, '');
     if (!phone) return;
     const clientId = await findClientByPhone(phone);
+    const msgId = msg.messageid || msg.id || null;
+    const statusBruto = msg.status ? String(msg.status) : null;
 
     let mediaId: number | null = null;
     let body = msg.text || (typeof msg.content === 'string' ? msg.content : '') || '';
@@ -118,21 +148,38 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
       const media = await storeMedia(msg.messageid || msg.id, phone, clientId, msg.mediaType);
       if (media) { mediaId = media.mediaId; body = body || `📎 ${media.label}`; }
     }
-    if (!body) return;
+    if (!body) {
+      // Evento de só-status (confirmação de entrega/leitura) de uma mensagem
+      // que já existe — sem conteúdo novo pra inserir, só atualiza o ✓✓.
+      if (statusBruto && msgId) {
+        await db.query('UPDATE whatsapp_messages SET status = ? WHERE message_id = ?', [statusBruto, msgId]).catch(() => {});
+      }
+      return;
+    }
 
+    // A Uazapi manda messageTimestamp em milissegundos — FROM_UNIXTIME espera
+    // segundos e devolve NULL se o valor estourar o intervalo válido.
+    const tsRaw = Number(msg.messageTimestamp) || Date.now();
+    const tsSeconds = Math.floor((tsRaw > 1e12 ? tsRaw : tsRaw * 1000) / 1000);
+    // ON DUPLICATE (em vez de IGNORE): se essa mensagem já foi gravada por
+    // sendText/sendMedia (envio nosso, message_id já conhecido), o "eco" do
+    // webhook não duplica — só atualiza o status (✓ → ✓✓ → ✓✓ azul).
     const [r] = await db.query(
-      `INSERT IGNORE INTO whatsapp_messages (message_id, phone, client_id, from_me, body, msg_time, media_id)
-       VALUES (?, ?, ?, ?, ?, FROM_UNIXTIME(?), ?)`,
-      [msg.messageid || msg.id || null, phone, clientId, msg.fromMe ? 1 : 0, String(body).slice(0, 4000),
-       Number(msg.messageTimestamp) || Math.floor(Date.now() / 1000), mediaId]) as any;
+      `INSERT INTO whatsapp_messages (message_id, phone, client_id, from_me, body, msg_time, media_id, status)
+       VALUES (?, ?, ?, ?, ?, FROM_UNIXTIME(?), ?, ?)
+       ON DUPLICATE KEY UPDATE status = VALUES(status)`,
+      [msgId, phone, clientId, msg.fromMe ? 1 : 0, String(body).slice(0, 4000),
+       tsSeconds, mediaId, statusBruto]) as any;
 
-    if (r.affectedRows > 0 && !msg.fromMe) {
+    // affectedRows: 1 = inserção nova; 2 = atualizou uma existente (ON DUPLICATE);
+    // 0 = update sem mudança nenhuma. Só trata como mensagem NOVA no caso 1.
+    if (r.affectedRows === 1 && !msg.fromMe) {
       await db.query(
         `INSERT INTO whatsapp_chat_meta (phone, unread) VALUES (?, 1)
          ON DUPLICATE KEY UPDATE unread = unread + 1`, [phone]).catch(() => {});
 
       if (!clientId) {
-        await autoLeadFromWhatsapp(phone, msg.senderName || chat.wa_name || null, String(body).slice(0, 500)).catch(() => {});
+        await notifyNewWhatsappContact(phone, msg.senderName || chat.wa_name || null, String(body).slice(0, 500)).catch(() => {});
       }
     }
   } catch { /* inbox é best-effort — nunca derruba o webhook */ }

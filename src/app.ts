@@ -3,6 +3,7 @@ import 'express-async-errors'; // captura erros de rotas async e envia ao error 
 import cors from 'cors';
 import compression from 'compression';
 import path from 'path';
+import fs from 'fs';
 import { env } from './config/env';
 import { authenticate, requireStaff, requireAdmin } from './middleware/auth';
 
@@ -173,18 +174,45 @@ export function createApp() {
 
   // ── Frontend (arquivos estáticos) ─────────────────────────────────────────
   const publicDir = path.join(__dirname, '..', 'public');
-  // Assets com revalidação (ETag): o browser reusa app.js/styles.css se não mudaram (304),
-  // evitando rebaixar ~175KB a cada carregamento.
-  app.use(express.static(publicDir, { etag: true, lastModified: true, maxAge: '5m' }));
+  // Assets com revalidação (ETag): maxAge 0 força o browser a SEMPRE perguntar
+  // ao servidor antes de usar o cache — se nada mudou, o servidor responde 304
+  // (barato, sem corpo), então continua evitando rebaixar ~175KB à toa.
+  app.use(express.static(publicDir, { etag: true, lastModified: true, maxAge: 0, index: false }));
+
+  // BUILD_ID muda a cada deploy (o processo reinicia) — usado como ?v= nos
+  // <script src> do index.html. Isso é o que garante de verdade que uma
+  // aba nova NUNCA rode JS de um deploy anterior: cada deploy vira uma URL
+  // literalmente diferente, então nenhuma camada de cache (browser, extensão,
+  // proxy) pode confundir uma com a outra — só confiar em Cache-Control/ETag
+  // não bastou (foi o que causou a tela do WhatsApp e o Kanban parecerem
+  // "sumidos" logo depois de um deploy).
+  const BUILD_ID = String(Date.now());
+  let indexHtmlCache: string | null = null;
+  function indexHtmlVersionado(): string {
+    if (!indexHtmlCache) {
+      const raw = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
+      indexHtmlCache = raw.replace(
+        /(src="\/(?:app|whatsapp|portal-parceiro)\.js)"/g,
+        `$1?v=${BUILD_ID}"`
+      );
+    }
+    return indexHtmlCache;
+  }
+
+  app.get('/', (_req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.type('html').send(indexHtmlVersionado());
+  });
 
   // 404 apenas para rotas /api desconhecidas
   app.use('/api', (_req: Request, res: Response) => {
     res.status(404).json({ error: 'Rota não encontrada' });
   });
 
-  // SPA fallback: qualquer outra rota devolve o index.html
+  // SPA fallback: qualquer outra rota devolve o index.html (versionado, mesma razão acima)
   app.get('*', (_req: Request, res: Response) => {
-    res.sendFile(path.join(publicDir, 'index.html'));
+    res.setHeader('Cache-Control', 'no-store');
+    res.type('html').send(indexHtmlVersionado());
   });
 
   // Error handler global

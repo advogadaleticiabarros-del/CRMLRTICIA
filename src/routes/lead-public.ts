@@ -1,8 +1,58 @@
 import { Router, Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import { db } from '../config/database';
 import { normalizeChannel } from '../services/leadChannel';
+import { notifyNewLead } from '../services/leadAlert';
+import { sendEmail, layout } from '../services/EmailService';
+import { sendText } from '../services/uazapiInstance';
 
 const router = Router();
+
+// ── Campanhas de isca (e-book) — dispara e-mail com anexo + aviso no
+// WhatsApp assim que o lead entra. Cada campanha é identificada pelo
+// utm_campaign que a própria LP manda fixo no envio do formulário.
+const CAMPANHAS_EBOOK: Record<string, { arquivo: string; titulo: string }> = {
+  'guia-gestante-trabalhadora': {
+    arquivo: 'guia-direitos-gestante-trabalhadora.pdf',
+    titulo: 'Guia de Direitos da Gestante Trabalhadora',
+  },
+};
+
+async function enviarEbook(campanha: string, nome: string, email: string | null, phone: string | null): Promise<void> {
+  const info = CAMPANHAS_EBOOK[campanha];
+  if (!info) return;
+  const primeiroNome = (nome || '').trim().split(' ')[0] || '';
+
+  if (email) {
+    try {
+      const caminho = path.join(__dirname, '..', '..', 'assets', 'ebooks', info.arquivo);
+      const pdf = fs.readFileSync(caminho);
+      await sendEmail({
+        to: email,
+        subject: `Seu material: ${info.titulo}`,
+        html: layout(info.titulo, `
+          <p>Olá${primeiroNome ? ', ' + primeiroNome : ''}!</p>
+          <p>Obrigada por se cadastrar. Segue em anexo o <strong>${info.titulo}</strong>, com uma explicação clara sobre esse direito.</p>
+          <p>Qualquer dúvida sobre o seu caso específico, é só responder este e-mail ou chamar no WhatsApp — vamos te ajudar com prazer.</p>
+          <p style="margin-top:22px">Um abraço,<br><strong>Dra. Letícia Barros</strong><br><span style="font-size:12px;color:#8a8172">OAB/ES 39.948</span></p>
+        `),
+        attachments: [{ filename: info.arquivo, content: pdf, contentType: 'application/pdf' }],
+      });
+    } catch { /* best-effort — a mensagem de WhatsApp abaixo já avisa como pedir reenvio */ }
+  }
+
+  if (phone) {
+    let digits = phone.replace(/\D/g, '');
+    if (digits.length <= 11) digits = '55' + digits;
+    const texto = [
+      `Olá${primeiroNome ? ', ' + primeiroNome : ''}! Recebemos seu cadastro e já enviamos o *${info.titulo}* para o seu e-mail${email ? ' (' + email + ')' : ''}.`,
+      `Se não encontrar, dá uma olhada na caixa de spam/promoções. E se mesmo assim não chegar, é só pedir aqui que a gente reenvia na hora.`,
+      `*Salve nosso contato* e conte com a gente sempre que precisar:\n• (44) 99101-1402\n• (27) 99515-1402\n• advogadaleticia.barros@gmail.com`,
+    ].join('\n\n');
+    await sendText(digits, texto, 'Automático — envio de e-book').catch(() => {});
+  }
+}
 
 // Anti-spam simples: máx. 5 envios por IP a cada 15 min + campo honeypot.
 const WINDOW_MS = 15 * 60 * 1000;
@@ -72,17 +122,11 @@ router.post('/lead', async (req: Request, res: Response) => {
      utm_source, utm_medium, utm_campaign, utm_content, utm_term, landing_page]
   ) as any;
 
-  try {
-    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
-    for (const a of admins) {
-      await db.query(
-        `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
-         VALUES (?, ?, ?, 'lead_site', 'sistema', NOW(), 'pendente')`,
-        [a.id, 'Novo lead pelo site',
-         `${name}${area ? ' · ' + area : ''} preencheu o formulário do site (lead nº ${ins.insertId}).${phone ? ' Tel: ' + phone : ''}`]
-      );
-    }
-  } catch { /* aviso é best-effort */ }
+  await notifyNewLead({ leadId: ins.insertId, name, phone, source, area, message });
+
+  if (utm_campaign && CAMPANHAS_EBOOK[utm_campaign]) {
+    enviarEbook(utm_campaign, name, email, phone).catch(() => {});
+  }
 
   res.status(201).json({ success: true });
 });

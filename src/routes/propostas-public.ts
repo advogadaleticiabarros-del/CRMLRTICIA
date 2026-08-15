@@ -5,6 +5,32 @@ import { notificationService } from '../services/NotificationService';
 import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
 import { getEscritorio } from '../services/escritorio';
 import { ensurePartnerLawyersColumn } from '../services/propostaSchema';
+import { sendText } from '../services/uazapiInstance';
+
+const moneyBR = (v: number) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+
+// Mensagem de boas-vindas + dados de pagamento, disparada pro WhatsApp do
+// cliente assim que ele aceita a proposta (best-effort — nunca impede o
+// aceite de seguir se o envio falhar).
+function mensagemAceite(nome: string, entrada: number): string {
+  const primeiroNome = (nome || '').trim().split(' ')[0] || '';
+  const bloco = [
+    `Olá${primeiroNome ? ', ' + primeiroNome : ''}! Você aceitou nossa proposta — muito obrigada pela confiança. Já estamos formalizando o contrato, a procuração e os demais documentos.`,
+  ];
+  if (entrada > 0) {
+    bloco.push(
+      `*Pagamento da entrada*\nValor: ${moneyBR(entrada)}\nChave PIX (CPF): 13451070723\nBanco: Nubank\nTitular: Leticia Elias Barros`,
+      `*Confira sempre o nome do titular antes de transferir.* Não nos responsabilizamos por valores enviados por engano para contas de terceiros — usamos somente a chave PIX informada aqui.`
+    );
+  }
+  bloco.push(
+    `*Canais oficiais do escritório* (salve para contato):\n• (44) 99101-1402\n• (27) 99515-1402\n• advogadaleticia.barros@gmail.com`,
+    `Nos siga nas redes sociais para acompanhar o dia a dia:\n📷 https://www.instagram.com/adv.leticiabarros2/`,
+    `E acompanhe nosso blog para ficar por dentro dos seus direitos:\n🔗 https://advogadaleticiabarros.com.br/blog/index.html`,
+    `Em breve entraremos em contato com os próximos passos. Qualquer dúvida, é só chamar por aqui.`
+  );
+  return bloco.join('\n\n');
+}
 
 const router = Router();
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
@@ -125,6 +151,13 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
       message: `${p.contact_name || 'O cliente'} aceitou a proposta. Contrato, procuração e declaração gerados para revisão e assinatura.`,
       notificationType: 'proposta_aceita', channel: 'sistema', scheduledAt: new Date(),
     });
+  }
+
+  if (phone) {
+    let digits = String(phone).replace(/\D/g, '');
+    if (digits.length <= 11) digits = '55' + digits;
+    const entrada = Number(parcelamento?.entrada) || 0;
+    sendText(digits, mensagemAceite(nome, entrada), 'Automático — aceite de proposta').catch(() => {});
   }
 
   res.json({ success: true, contract_id: contractId });
