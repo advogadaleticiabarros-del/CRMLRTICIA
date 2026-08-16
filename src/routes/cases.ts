@@ -734,21 +734,44 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
 
   // Ao mover para "CRIAÇÃO INICIAL": gera a petição inicial com a IA, lendo o
   // relato + os DOCUMENTOS anexados (Drive) do caso. Só na entrada na etapa.
-  let peticao: { ok: boolean; docId?: number; message?: string } | null = null;
+  // RODA EM BACKGROUND — a leitura de anexos (Gemini visão) pode levar dezenas
+  // de segundos; travar a resposta aqui prendia a tela ao mover o card.
   if (stage === 'criacao_inicial' && c.production_stage !== 'criacao_inicial') {
-    try { peticao = await buildPeticaoInicial(Number(id), req.user!.id); }
-    catch (e: any) { peticao = { ok: false, message: e?.message || 'Falha ao gerar a petição' }; }
+    buildPeticaoInicial(Number(id), req.user!.id)
+      .then((r) => notificationService.create({
+        userId: req.user!.id, caseId: Number(id),
+        title: r.ok ? 'Petição inicial gerada' : 'Falha ao gerar a petição inicial',
+        message: r.ok ? `${c.title || 'Processo'} — confira em Documentos do caso.` : (r.message || 'Erro desconhecido'),
+        notificationType: r.ok ? 'peticao_gerada' : 'peticao_falhou', channel: 'sistema', scheduledAt: new Date(),
+      }))
+      .catch((e: any) => notificationService.create({
+        userId: req.user!.id, caseId: Number(id),
+        title: 'Falha ao gerar a petição inicial',
+        message: `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`,
+        notificationType: 'peticao_falhou', channel: 'sistema', scheduledAt: new Date(),
+      }).catch(() => {}));
   }
 
   // Ao mover para "REVISÃO INICIAL": revisa a petição (checagens estruturais +
   // análise de mérito por IA) e salva o parecer nos Documentos do caso.
-  let revisao: { ok: boolean; docId?: number; message?: string; resumo?: any } | null = null;
+  // Também em background pelo mesmo motivo.
   if (stage === 'revisao_inicial' && c.production_stage !== 'revisao_inicial') {
-    try { revisao = await revisarPeticaoDoCaso(Number(id), req.user!.id); }
-    catch (e: any) { revisao = { ok: false, message: e?.message || 'Falha ao revisar a petição' }; }
+    revisarPeticaoDoCaso(Number(id), req.user!.id)
+      .then((r) => notificationService.create({
+        userId: req.user!.id, caseId: Number(id),
+        title: r.ok ? 'Revisão da petição concluída' : 'Falha ao revisar a petição',
+        message: r.ok ? `${c.title || 'Processo'} — parecer salvo em Documentos do caso.` : (r.message || 'Erro desconhecido'),
+        notificationType: r.ok ? 'revisao_concluida' : 'revisao_falhou', channel: 'sistema', scheduledAt: new Date(),
+      }))
+      .catch((e: any) => notificationService.create({
+        userId: req.user!.id, caseId: Number(id),
+        title: 'Falha ao revisar a petição',
+        message: `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`,
+        notificationType: 'revisao_falhou', channel: 'sistema', scheduledAt: new Date(),
+      }).catch(() => {}));
   }
 
-  res.json({ success: true, production_stage: stage, case_number: finalCaseNumber, credentials, peticao, revisao });
+  res.json({ success: true, production_stage: stage, case_number: finalCaseNumber, credentials, peticao: null, revisao: null });
   } catch (err: any) {
     console.error('Erro no production-stage:', err?.message || err);
     res.status(500).json({ error: err?.message || 'Erro ao mover a etapa de produção' });

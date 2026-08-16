@@ -1978,19 +1978,10 @@ const ROUTES = {
             const vc = await uiPrompt('Valor da causa (R$) — não definitivo, apenas registro do protocolado (deixe vazio para pular):');
             if (vc && vc.trim()) extra.valor_causa = vc.trim();
           }
-          if (stage === 'criacao_inicial') toast('Gerando petição inicial com IA…');
-          if (stage === 'revisao_inicial') toast('Revisando a petição com IA…');
-          const resp = await api(`/api/cases/${caseId}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage, ...extra }) });
-          if (resp && resp.peticao) {
-            if (resp.peticao.ok) toast('✓ Petição inicial gerada — confira em Documentos do caso');
-            else toast('Movido, mas a petição falhou: ' + (resp.peticao.message || ''), 'error');
-          } else if (resp && resp.revisao) {
-            if (resp.revisao.ok) {
-              const r = resp.revisao.resumo || {};
-              const crit = r.pendencias_criticas ? ` · ${r.pendencias_criticas} pendência(s) crítica(s)` : '';
-              toast(`✓ Revisão pronta: ${r.itens_ok}/${r.itens_verificados} itens OK${crit} — veja em Documentos`, r.pendencias_criticas ? 'error' : 'success');
-            } else toast('Movido, mas a revisão falhou: ' + (resp.revisao.message || ''), 'error');
-          } else { toast('Movido · registrado'); }
+          await api(`/api/cases/${caseId}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage, ...extra }) });
+          if (stage === 'criacao_inicial') toast('Movido — a petição inicial está sendo gerada com IA em segundo plano, você será avisada no sino quando terminar');
+          else if (stage === 'revisao_inicial') toast('Movido — a revisão com IA está rodando em segundo plano, você será avisada no sino quando terminar');
+          else toast('Movido · registrado');
           load();
         } catch (e) {
           // NOVO: Tratamento de erro 400 — pendências abertas
