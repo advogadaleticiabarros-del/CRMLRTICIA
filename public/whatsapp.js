@@ -5,6 +5,82 @@
 // toast, closeModal, fileHref) e registra a rota em ROUTES.
 // ============================================================================
 
+const AGENDA_CAT_PT = { forum: 'Fórum', parceiro: 'Parceiro', cliente: 'Cliente', outro: 'Outro' };
+
+// Agenda telefônica do escritório (fórum, parceiros, clientes) — aberta pelo
+// ícone ao lado da busca de conversas. onEscolher(phone) é chamado ao clicar
+// em "Conversar" num contato (abre/inicia o chat com esse número).
+async function abrirAgendaModal(onEscolher, prefill = null) {
+  const body = el(`<div>
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input id="ag-busca" placeholder="Buscar por nome ou telefone…" style="flex:1">
+      <select id="ag-cat" style="max-width:140px"><option value="">Todas</option>${Object.entries(AGENDA_CAT_PT).map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}</select>
+      <button class="btn-gold btn-sm" id="ag-novo" type="button">+ Contato</button>
+    </div>
+    <div id="ag-lista"><div class="spinner"></div></div>
+  </div>`);
+  openModal('Agenda telefônica', body);
+
+  const load = async () => {
+    const q = body.querySelector('#ag-busca').value.trim();
+    const cat = body.querySelector('#ag-cat').value;
+    const params = new URLSearchParams(); if (q) params.set('q', q); if (cat) params.set('category', cat);
+    const rows = await api('/api/phonebook?' + params.toString()).catch(() => []);
+    const lista = body.querySelector('#ag-lista');
+    lista.innerHTML = rows.length ? rows.map((c) => `
+      <div class="mini-row" style="padding:10px 0;border-bottom:1px solid var(--border-soft)">
+        <span><strong>${esc(c.name)}</strong> <span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">${AGENDA_CAT_PT[c.category] || c.category}</span>
+          <br><small style="color:var(--text-muted)">+${esc(c.phone)}${c.notes ? ' · ' + esc(c.notes) : ''}</small></span>
+        <span style="white-space:nowrap;display:flex;gap:6px">
+          <button class="btn-sm" data-ag-conversar="${c.id}" data-phone="${esc(c.phone)}" type="button">Conversar</button>
+          <button class="btn-icon btn-icon-sm" data-ag-editar="${c.id}" type="button" title="Editar">${svgIcon('edit', 'ic-xs')}</button>
+          <button class="btn-icon btn-icon-sm" data-ag-apagar="${c.id}" type="button" title="Excluir">${svgIcon('trash', 'ic-xs')}</button>
+        </span>
+      </div>`).join('') : '<div class="empty">Nenhum contato na agenda.</div>';
+
+    lista.querySelectorAll('[data-ag-conversar]').forEach((b) => b.onclick = () => { closeModal(); onEscolher(b.dataset.phone); });
+    lista.querySelectorAll('[data-ag-editar]').forEach((b) => b.onclick = () => {
+      const c = rows.find((r) => String(r.id) === b.dataset.agEditar);
+      abrirAgendaForm(c, () => abrirAgendaModal(onEscolher));
+    });
+    lista.querySelectorAll('[data-ag-apagar]').forEach((b) => b.onclick = async () => {
+      const c = rows.find((r) => String(r.id) === b.dataset.agApagar);
+      if (!(await uiConfirm(`Excluir "${c?.name}" da agenda?`))) return;
+      try { await api('/api/phonebook/' + b.dataset.agApagar, { method: 'DELETE' }); toast('Contato removido'); load(); }
+      catch (e) { toast(e.message, 'error'); }
+    });
+  };
+  body.querySelector('#ag-busca').oninput = () => load();
+  body.querySelector('#ag-cat').onchange = () => load();
+  body.querySelector('#ag-novo').onclick = () => abrirAgendaForm(prefill, () => abrirAgendaModal(onEscolher));
+  await load();
+}
+
+// Formulário de novo contato / edição. `prefill` pode vir com name/phone já
+// preenchidos (ex.: "Salvar contato" a partir de uma conversa aberta).
+function abrirAgendaForm(prefill, onSave) {
+  const editing = !!prefill?.id;
+  const form = el(`<form class="form-grid">
+    ${field('Nome *', 'name', { value: prefill?.name || '' })}
+    ${field('Telefone (DDI+DDD+número) *', 'phone', { value: prefill?.phone || '' })}
+    ${field('Categoria', 'category', { options: Object.entries(AGENDA_CAT_PT).map(([v, t]) => ({ v, t })), value: prefill?.category || 'outro' })}
+    ${field('Observações', 'notes', { type: 'textarea', value: prefill?.notes || '' })}
+    <button type="submit" class="btn-primary">${editing ? 'Salvar' : 'Adicionar à agenda'}</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const b = Object.fromEntries(new FormData(form));
+    if (!b.name.trim()) { toast('Informe o nome', 'error'); return; }
+    if (!b.phone.replace(/\D/g, '')) { toast('Informe o telefone', 'error'); return; }
+    try {
+      if (editing) await api('/api/phonebook/' + prefill.id, { method: 'PUT', body: JSON.stringify(b) });
+      else await api('/api/phonebook', { method: 'POST', body: JSON.stringify(b) });
+      closeModal(); toast(editing ? 'Contato atualizado' : 'Contato adicionado à agenda'); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal(editing ? 'Editar contato' : 'Novo contato na agenda', form);
+}
+
 Object.assign(ROUTES, {
   // ── WhatsApp — módulo completo: fila, conversas (instância) e conexão QR ──
   async whatsapp(page) {
@@ -156,7 +232,7 @@ Object.assign(ROUTES, {
 
       body.innerHTML = `<div class="wa-shell" id="wa-shell">
         <div class="wa-side">
-          <div class="wa-search">${svgIcon('search', 'ic-inline')}<input id="waq" placeholder="Buscar conversa…" autocomplete="off"></div>
+          <div class="wa-search" style="display:flex;gap:6px;align-items:center">${svgIcon('search', 'ic-inline')}<input id="waq" placeholder="Buscar conversa…" autocomplete="off"><button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button></div>
           <div class="wa-filters" id="waf"></div>
           <div class="wa-list" id="wal"></div>
         </div>
@@ -201,7 +277,7 @@ Object.assign(ROUTES, {
           return true;
         });
         const html = vis.length ? vis.map((c) => {
-          const nome = c.client_name || '+' + c.phone;
+          const nome = c.client_name || c.push_name || '+' + c.phone;
           const tags = parseLabels(c.labels);
           return `<div class="wa-item ${ativo && ativo.phone === c.phone ? 'on' : ''}" data-chat="${esc(c.phone)}">
             <div class="wa-ava" style="background:${cor(nome)}">${iniciais(nome)}</div>
@@ -312,8 +388,18 @@ Object.assign(ROUTES, {
             <button class="btn-sm" data-conv="anotacao" ${cx.client ? '' : 'disabled title="Precisa ser cliente"'}>+ Anotação</button>
           </div>`);
         html += `<div style="padding:12px 14px"><button class="btn-sm" id="wa-resumo" style="width:100%">${svgIcon('ia')}Resumir conversa com IA</button></div>`;
-        box.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center"><strong style="font-size:13px;color:var(--navy)">Ficha do contato</strong><button class="btn-icon btn-icon-sm" id="wa-ctx-close" title="Fechar">${svgIcon('x', 'ic-xs')}</button></div>` + html;
+        box.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
+            <strong style="font-size:13px;color:var(--navy)">Ficha do contato</strong>
+            <span style="display:flex;gap:4px">
+              <button class="btn-icon btn-icon-sm" id="wa-ctx-agenda" title="Salvar na agenda telefônica">${svgIcon('users', 'ic-xs')}</button>
+              <button class="btn-icon btn-icon-sm" id="wa-ctx-close" title="Fechar">${svgIcon('x', 'ic-xs')}</button>
+            </span>
+          </div>` + html;
         box.querySelector('#wa-ctx-close').onclick = () => $('#wa-shell').classList.remove('ctx-open');
+        box.querySelector('#wa-ctx-agenda').onclick = () => abrirAgendaForm(
+          { name: cx.client?.name || cx.lead?.name || ativo.name || '', phone: ativo.phone, category: cx.client ? 'cliente' : 'outro' },
+          () => renderContexto()
+        );
 
         const mk = box.querySelector('#wa-mklead');
         if (mk) mk.onclick = () => {
@@ -443,7 +529,7 @@ Object.assign(ROUTES, {
       };
 
       const abrirChat = async (c, manterInput) => {
-        ativo = { phone: c.phone, name: c.client_name || '+' + c.phone, client_id: c.client_id, labels: parseLabels(c.labels) };
+        ativo = { phone: c.phone, name: c.client_name || c.push_name || '+' + c.phone, client_id: c.client_id, labels: parseLabels(c.labels) };
         $('#wa-shell').classList.add('chat-open');
         const msgs = await api('/api/whatsapp-instance/chats/' + c.phone).catch(() => []);
         qtdMsgs = msgs.length;
@@ -791,6 +877,7 @@ Object.assign(ROUTES, {
         clearTimeout(buscaTimer);
         buscaTimer = setTimeout(() => atualizar(false), 400); // busca no conteúdo (servidor)
       };
+      $('#wa-agenda-btn').onclick = () => abrirAgendaModal((phone) => { abrirFonePendente = { phone }; shell(); });
       await atualizar(false);
       if (!chats.length) $('#wal').innerHTML = '<div class="wa-empty">Nenhuma conversa ainda.<br>Com a instância conectada, tudo que chegar e sair aparece aqui.</div>';
       if (abrirFonePendente) {

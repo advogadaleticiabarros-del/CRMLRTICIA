@@ -66,6 +66,7 @@ import briefingRoutes from './routes/briefing';
 import metricsRoutes from './routes/metrics';
 import officeSettingsRoutes from './routes/office-settings';
 import goalsRoutes from './routes/goals';
+import phonebookRoutes from './routes/phonebook';
 import paymentsRoutes from './routes/payments';
 import partnerPortalRoutes from './routes/partner-portal';
 import whatsappQueueRoutes from './routes/whatsapp-queue';
@@ -149,6 +150,7 @@ export function createApp() {
   app.use('/api/metrics',               authenticate, requireStaff, metricsRoutes);
   app.use('/api/office-settings',       authenticate, requireAdmin, officeSettingsRoutes);
   app.use('/api/goals',                 authenticate, requireStaff, goalsRoutes);
+  app.use('/api/phonebook',             authenticate, requireStaff, phonebookRoutes);
   app.use('/api/payments',              authenticate, requireStaff, paymentsRoutes);
   app.use('/api/processes',             authenticate, requireStaff, processRoutes);
   app.use('/api/prazos-detectados',     authenticate, requireStaff, detectedDeadlineRoutes);

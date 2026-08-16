@@ -174,12 +174,14 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
     // affectedRows: 1 = inserção nova; 2 = atualizou uma existente (ON DUPLICATE);
     // 0 = update sem mudança nenhuma. Só trata como mensagem NOVA no caso 1.
     if (r.affectedRows === 1 && !msg.fromMe) {
+      const pushName = (msg.senderName || chat.wa_name || null) as string | null;
       await db.query(
-        `INSERT INTO whatsapp_chat_meta (phone, unread) VALUES (?, 1)
-         ON DUPLICATE KEY UPDATE unread = unread + 1`, [phone]).catch(() => {});
+        `INSERT INTO whatsapp_chat_meta (phone, unread, push_name) VALUES (?, 1, ?)
+         ON DUPLICATE KEY UPDATE unread = unread + 1, push_name = COALESCE(VALUES(push_name), push_name)`,
+        [phone, pushName ? pushName.trim().slice(0, 255) : null]).catch(() => {});
 
       if (!clientId) {
-        await notifyNewWhatsappContact(phone, msg.senderName || chat.wa_name || null, String(body).slice(0, 500)).catch(() => {});
+        await notifyNewWhatsappContact(phone, pushName, String(body).slice(0, 500)).catch(() => {});
       }
     }
   } catch { /* inbox é best-effort — nunca derruba o webhook */ }
