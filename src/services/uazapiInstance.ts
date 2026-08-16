@@ -206,11 +206,16 @@ export async function editarMensagem(dbId: number, novoTexto: string): Promise<b
   }
 }
 
-export async function apagarMensagem(dbId: number): Promise<boolean> {
+/** Apagar exige motivo (auditoria) — registrado ANTES de sobrescrever o texto original. */
+export async function apagarMensagem(dbId: number, reason: string, userId: number | null): Promise<boolean> {
   try {
-    const [[m]] = await db.query('SELECT message_id, from_me FROM whatsapp_messages WHERE id = ?', [dbId]) as any;
+    const [[m]] = await db.query('SELECT message_id, phone, body, from_me FROM whatsapp_messages WHERE id = ?', [dbId]) as any;
     if (!m || !m.message_id || !m.from_me) return false;
     await uazapi.deleteMessage(m.message_id);
+    await db.query(
+      'INSERT INTO whatsapp_message_deletions (message_id, phone, body_original, reason, deleted_by) VALUES (?, ?, ?, ?, ?)',
+      [dbId, m.phone, m.body, reason, userId]
+    );
     // Mantém a linha (registro/prova), só marca como apagada — igual ao
     // próprio WhatsApp, que mostra "mensagem apagada" no lugar do texto.
     await db.query("UPDATE whatsapp_messages SET body = '🚫 Mensagem apagada' WHERE id = ?", [dbId]);

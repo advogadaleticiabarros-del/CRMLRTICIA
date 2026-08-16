@@ -94,9 +94,21 @@ router.put('/messages/:id', async (req: Request, res: Response) => {
   res.json({ success: true });
 });
 router.delete('/messages/:id', async (req: Request, res: Response) => {
-  const ok = await apagarMensagem(Number(req.params.id));
+  const reason = String(req.body?.reason || '').trim();
+  if (!reason) { res.status(400).json({ error: 'Informe o motivo da exclusão' }); return; }
+  const ok = await apagarMensagem(Number(req.params.id), reason, req.user!.id);
   if (!ok) { res.status(400).json({ error: 'Não deu pra apagar — pode ter passado do prazo do WhatsApp, ou a mensagem não é sua' }); return; }
   res.json({ success: true });
+});
+
+// ── GET /api/whatsapp-instance/messages/deletions — auditoria de exclusões ──
+router.get('/messages/deletions', async (_req: Request, res: Response) => {
+  const [rows] = await db.query(`
+    SELECT d.id, d.phone, d.body_original, d.reason, d.deleted_at, u.name AS deleted_by_name
+      FROM whatsapp_message_deletions d
+      LEFT JOIN users u ON u.id = d.deleted_by
+     ORDER BY d.deleted_at DESC LIMIT 200`) as any;
+  res.json(rows);
 });
 
 // ── POST /api/whatsapp-instance/media/:id/transcricao — áudio → texto (Whisper)

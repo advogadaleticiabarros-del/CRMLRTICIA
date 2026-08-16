@@ -81,6 +81,23 @@ function abrirAgendaForm(prefill, onSave) {
   openModal(editing ? 'Editar contato' : 'Novo contato na agenda', form);
 }
 
+// Auditoria de mensagens apagadas — quem, quando, o texto original e o motivo.
+async function abrirAuditoriaModal() {
+  const body = el('<div><div class="spinner"></div></div>');
+  openModal('Auditoria — mensagens apagadas', body, { wide: true });
+  const rows = await api('/api/whatsapp-instance/messages/deletions').catch(() => []);
+  body.innerHTML = rows.length ? `
+    <table><thead><tr><th>Quando</th><th>Telefone</th><th>Quem apagou</th><th>Texto original</th><th>Motivo</th></tr></thead>
+    <tbody>${rows.map((r) => `<tr>
+      <td style="white-space:nowrap">${fmtDateTime(r.deleted_at)}</td>
+      <td>+${esc(r.phone)}</td>
+      <td>${esc(r.deleted_by_name || '—')}</td>
+      <td>${esc(r.body_original || '—')}</td>
+      <td>${esc(r.reason)}</td>
+    </tr>`).join('')}</tbody></table>`
+    : '<div class="empty">Nenhuma mensagem apagada ainda.</div>';
+}
+
 Object.assign(ROUTES, {
   // ── WhatsApp — módulo completo: fila, conversas (instância) e conexão QR ──
   async whatsapp(page) {
@@ -232,7 +249,7 @@ Object.assign(ROUTES, {
 
       body.innerHTML = `<div class="wa-shell" id="wa-shell">
         <div class="wa-side">
-          <div class="wa-search" style="display:flex;gap:6px;align-items:center">${svgIcon('search', 'ic-inline')}<input id="waq" placeholder="Buscar conversa…" autocomplete="off"><button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button></div>
+          <div class="wa-search" style="display:flex;gap:6px;align-items:center">${svgIcon('search', 'ic-inline')}<input id="waq" placeholder="Buscar conversa…" autocomplete="off"><button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button><button type="button" class="btn-icon btn-icon-sm" id="wa-auditoria-btn" title="Auditoria de mensagens apagadas">${svgIcon('info', 'ic-xs')}</button></div>
           <div class="wa-filters" id="waf"></div>
           <div class="wa-list" id="wal"></div>
         </div>
@@ -597,10 +614,12 @@ Object.assign(ROUTES, {
             } catch (e) { toast(e.message, 'error'); }
           });
           $('#wam').querySelectorAll('[data-apagar-msg]').forEach((b) => b.onclick = async () => {
-            if (!(await uiConfirm('Apagar esta mensagem para o contato também? Não dá pra desfazer.'))) return;
+            const motivo = await uiPrompt('Apagar esta mensagem para o contato também (não dá pra desfazer).\n\nInforme o motivo da exclusão (fica registrado na auditoria):');
+            if (motivo === null) return;
+            if (!motivo.trim()) { toast('O motivo é obrigatório para apagar', 'error'); return; }
             try {
-              await api(`/api/whatsapp-instance/messages/${b.dataset.apagarMsg}`, { method: 'DELETE' });
-              toast('Mensagem apagada'); await atualizar(true);
+              await api(`/api/whatsapp-instance/messages/${b.dataset.apagarMsg}`, { method: 'DELETE', body: JSON.stringify({ reason: motivo.trim() }) });
+              toast('Mensagem apagada — registrado na auditoria'); await atualizar(true);
             } catch (e) { toast(e.message, 'error'); }
           });
         };
@@ -878,6 +897,7 @@ Object.assign(ROUTES, {
         buscaTimer = setTimeout(() => atualizar(false), 400); // busca no conteúdo (servidor)
       };
       $('#wa-agenda-btn').onclick = () => abrirAgendaModal((phone) => { abrirFonePendente = { phone }; shell(); });
+      $('#wa-auditoria-btn').onclick = () => abrirAuditoriaModal();
       await atualizar(false);
       if (!chats.length) $('#wal').innerHTML = '<div class="wa-empty">Nenhuma conversa ainda.<br>Com a instância conectada, tudo que chegar e sair aparece aqui.</div>';
       if (abrirFonePendente) {
