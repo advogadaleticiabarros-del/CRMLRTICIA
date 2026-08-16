@@ -1004,7 +1004,7 @@ const ROUTES = {
         <select id="prop-status"><option value="">Todos status</option>
           <option value="rascunho">Rascunho</option><option value="enviada">Enviada</option>
           <option value="em_negociacao">Em negociação</option><option value="aceita">Aceita</option>
-          <option value="recusada">Recusada</option></select>
+          <option value="recusada">Recusada</option><option value="expirada">Expirada</option></select>
         <span class="spacer"></span>
         <button class="btn-ghost" id="prop-export">${svgIcon('docs')}Exportar CSV</button>
       </div>

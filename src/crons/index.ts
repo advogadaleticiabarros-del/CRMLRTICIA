@@ -7,6 +7,7 @@ import { telegramNotificationService } from '../services/TelegramNotificationSer
 import { runMonitoringJob, runDiscoveryJob } from '../services/monitoringService';
 import { runBackup } from '../services/backupService';
 import { sendMorningBriefings, sendMorningBriefingWhatsapp } from '../services/morningBriefingService';
+import { runPropostaFollowups } from '../services/propostaFollowupService';
 import { captureDailyMetrics } from '../services/metricsSnapshotService';
 import { runJob } from './runner';
 
@@ -37,6 +38,11 @@ export function startCronJobs() {
   // ── Mesmo resumo matinal, organizado por seções, no WhatsApp às 08:00 ─────
   cron.schedule('0 8 * * *', () => {
     runJob('briefing:matinal-whatsapp', () => sendMorningBriefingWhatsapp());
+  }, { timezone: 'America/Sao_Paulo' });
+
+  // ── Follow-up automático de propostas enviadas (48h / 5 dias / 7 dias) ────
+  cron.schedule('0 10 * * *', () => {
+    runJob('propostas:followup', () => runPropostaFollowups());
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── Dia 1º às 08:00: manda o relatório executivo do mês que fechou por e-mail

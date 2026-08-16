@@ -7,9 +7,9 @@ import { ensurePartnerLawyersColumn } from '../services/propostaSchema';
 
 const router = Router();
 
-const STATUSES = ['rascunho', 'enviada', 'em_negociacao', 'aceita', 'recusada'];
+const STATUSES = ['rascunho', 'enviada', 'em_negociacao', 'aceita', 'recusada', 'expirada'];
 const PROP_STATUS_PT: Record<string, string> = {
-  rascunho: 'Rascunho', enviada: 'Enviada', em_negociacao: 'Em negociação', aceita: 'Aceita', recusada: 'Recusada',
+  rascunho: 'Rascunho', enviada: 'Enviada', em_negociacao: 'Em negociação', aceita: 'Aceita', recusada: 'Recusada', expirada: 'Expirada',
 };
 
 function addMonths(date: Date, months: number): Date {
@@ -171,7 +171,8 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
   const [pRows] = await db.query('SELECT lead_id, client_id, case_id, status FROM propostas WHERE id = ?', [req.params.id]) as any;
   if (!pRows.length) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
   const p = pRows[0];
-  await db.query('UPDATE propostas SET status = ? WHERE id = ?', [status, req.params.id]);
+  const carimboEnvio = status === 'enviada' ? ", enviada_em = COALESCE(enviada_em, NOW())" : '';
+  await db.query(`UPDATE propostas SET status = ?${carimboEnvio} WHERE id = ?`, [status, req.params.id]);
 
   await logActivity({
     leadId: p.lead_id, clientId: p.client_id, caseId: p.case_id,
@@ -256,13 +257,17 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
 
 // ── POST /api/propostas/:id/share — garante o token público e devolve o link ─
 router.post('/:id/share', async (req: Request, res: Response) => {
-  const [rows] = await db.query('SELECT public_token FROM propostas WHERE id = ?', [req.params.id]) as any;
+  const [rows] = await db.query('SELECT public_token, status FROM propostas WHERE id = ?', [req.params.id]) as any;
   if (!rows.length) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
   let token = rows[0].public_token;
   if (!token) {
     token = crypto.randomUUID();
     await db.query('UPDATE propostas SET public_token = ? WHERE id = ?', [token, req.params.id]);
   }
+  // Gerar o link pra compartilhar é, na prática, o momento do envio — dispara
+  // o relógio do follow-up automático (48h/5d/7d) se ainda não tinha começado.
+  const novoStatus = rows[0].status === 'rascunho' ? ", status = 'enviada'" : '';
+  await db.query(`UPDATE propostas SET enviada_em = COALESCE(enviada_em, NOW())${novoStatus} WHERE id = ?`, [req.params.id]);
   res.json({ token });
 });
 
@@ -289,6 +294,10 @@ router.post('/:id/send-email', async (req: Request, res: Response) => {
   const url = `https://crm.advogadaleticiabarros.com.br/proposta.html?t=${token}`;
   const r = await sendProposalLink(to, p.name, url, p.title);
   if (!r.ok) { res.status(400).json({ error: r.error || 'Falha ao enviar e-mail' }); return; }
+  await db.query(
+    "UPDATE propostas SET enviada_em = COALESCE(enviada_em, NOW()), status = IF(status = 'rascunho', 'enviada', status) WHERE id = ?",
+    [req.params.id]
+  );
   res.json({ success: true, to });
 });
 
