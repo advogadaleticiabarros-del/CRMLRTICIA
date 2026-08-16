@@ -6,7 +6,7 @@ import { calendarSyncService } from '../services/CalendarSyncService';
 import { telegramNotificationService } from '../services/TelegramNotificationService';
 import { runMonitoringJob, runDiscoveryJob } from '../services/monitoringService';
 import { runBackup } from '../services/backupService';
-import { sendMorningBriefings } from '../services/morningBriefingService';
+import { sendMorningBriefings, sendMorningBriefingWhatsapp } from '../services/morningBriefingService';
 import { captureDailyMetrics } from '../services/metricsSnapshotService';
 import { runJob } from './runner';
 
@@ -32,6 +32,11 @@ export function startCronJobs() {
   // ── Resumo matinal por e-mail às 07:00 (horário de Brasília) ──────────────
   cron.schedule('0 7 * * *', () => {
     runJob('briefing:matinal', () => sendMorningBriefings());
+  }, { timezone: 'America/Sao_Paulo' });
+
+  // ── Mesmo resumo matinal, organizado por seções, no WhatsApp às 08:00 ─────
+  cron.schedule('0 8 * * *', () => {
+    runJob('briefing:matinal-whatsapp', () => sendMorningBriefingWhatsapp());
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── Dia 1º às 08:00: manda o relatório executivo do mês que fechou por e-mail

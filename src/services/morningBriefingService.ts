@@ -1,5 +1,7 @@
 import { db } from '../config/database';
 import { sendEmail, layout } from './EmailService';
+import { getGoalProgress, GoalProgress } from './goalsService';
+import { sendText } from './uazapiInstance';
 
 const NAVY = '#1f3047';
 const GOLD = '#c19a4e';
@@ -34,31 +36,40 @@ interface Weather { tmin: number; tmax: number; desc: string; city: string; }
  * sem avisar. Agora filtra explicitamente por country_code==='BR' e prioriza
  * Espírito Santo; se a geocodificação falhar, cai nas coordenadas fixas.
  */
+async function fetchWithTimeout(url: string, ms = 8000): Promise<any> {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    return await r.json();
+  } finally { clearTimeout(t); }
+}
+
 async function getWeather(): Promise<Weather | null> {
   try {
     let lat = FALLBACK_LAT, lon = FALLBACK_LON, cityName = CITY;
     try {
-      const geo: any = await (await fetch(
+      const geo: any = await fetchWithTimeout(
         `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(CITY)}&count=10&language=pt&country=BR`
-      )).json();
+      );
       const candidatos = (geo?.results || []).filter((r: any) => r.country_code === 'BR');
       const loc = candidatos.find((r: any) => r.admin1 === 'Espírito Santo') || candidatos[0];
       if (loc) { lat = loc.latitude; lon = loc.longitude; cityName = loc.name; }
-    } catch { /* usa o fallback fixo */ }
+    } catch (e: any) { console.error('[briefing] geocoding falhou, usando coordenadas fixas de Vitória/ES:', e?.message || e); }
 
-    const f: any = await (await fetch(
+    const f: any = await fetchWithTimeout(
       `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
       `&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=America%2FSao_Paulo&forecast_days=1`
-    )).json();
+    );
     const d = f?.daily;
-    if (!d) return null;
+    if (!d) { console.error('[briefing] previsão sem campo "daily" na resposta:', JSON.stringify(f).slice(0, 300)); return null; }
     return {
       tmin: Math.round(d.temperature_2m_min?.[0]),
       tmax: Math.round(d.temperature_2m_max?.[0]),
       desc: WMO[d.weather_code?.[0]] || 'tempo variável',
       city: cityName,
     };
-  } catch { return null; }
+  } catch (e: any) { console.error('[briefing] falha ao buscar a previsão do tempo:', e?.message || e); return null; }
 }
 
 const horaBR = "TIME_FORMAT(CONVERT_TZ(%s, '+00:00', '-03:00'), '%H:%i')";
@@ -123,6 +134,50 @@ const FRASES_FORCA = [
   'Foco no que está sob seu controle hoje. O resto se organiza andando.',
   'Progresso de verdade é silencioso — ninguém vê os dias comuns que sustentam os grandes resultados.',
   'Beber água, se alongar, respirar fundo: pequenos atos que sustentam uma advogada inteira.',
+  'Todo processo que você ganhou começou como um caso difícil que ninguém sabia se ia dar certo.',
+  'Você não precisa se sentir pronta o tempo todo — precisa continuar aparecendo, mesmo cansada.',
+  'A cliente que te procura hoje está confiando o problema dela em mãos que já resolveram muitos outros.',
+  'Um escritório sólido nasce de mil decisões pequenas tomadas com calma, uma de cada vez.',
+  'Você troca de assunto o dia inteiro — trabalhista de manhã, família à tarde — e ainda assim entrega qualidade. Isso é raro.',
+  'Ninguém constrói uma advocacia de referência sem aprender a dizer "hoje eu paro por aqui".',
+  'O cansaço de hoje é prova de que você apareceu. Ele passa; o trabalho feito fica.',
+  'Cuidar da sua saúde não compete com o escritório — é o que garante que o escritório continue existindo.',
+  'Cada contrato assinado é alguém que escolheu você entre todas as opções que tinha. Não é pouco.',
+  'Você não precisa provar nada hoje que já não tenha provado nos últimos anos de trabalho.',
+  'Cansaço, prazo apertado, cliente ansiosa — nada disso muda o fato de que você sabe o que está fazendo.',
+  'A advocacia que cuida de gente também precisa cuidar de quem advoga. Comece por você hoje.',
+  'Dias difíceis fazem parte do ofício. O que te diferencia é continuar mesmo neles.',
+  'Você não está atrasada — está no seu próprio ritmo, e ele tem sustentado um escritório inteiro.',
+  'Uma decisão bem tomada hoje vale mais que dez decisões apressadas. Respire antes de responder.',
+  'O que parece pequeno — responder rápido, documentar direito, ligar de volta — é o que fideliza clientes.',
+  'Ser referência para outras mulheres começa em como você trata a si mesma nos dias corridos.',
+  'Nem toda vitória é uma sentença favorável. Às vezes é simplesmente não ter desistido esta semana.',
+  'Você aprendeu sozinha grande parte do que sabe hoje sobre gerir um escritório. Confie nesse repertório.',
+  'Descanso não tirado hoje vira erro cometido amanhã. Cuide da sua energia como cuida dos seus prazos.',
+  'O escritório que você sonhou começou exatamente com dias como este — comuns, cheios, e ainda assim cumpridos.',
+  'Cada prazo cumprido é um tijolo na reputação que você está construindo há anos.',
+  'Você não precisa fazer tudo perfeito — precisa fazer o suficiente bem feito, todos os dias.',
+  'Existe força em pedir ajuda quando o volume aperta. Delegar também é cuidar do escritório.',
+  'A confiança que suas clientes têm em você não nasceu num dia — nasceu de constância.',
+  'Hoje pode ser só mais um dia de trabalho. E está tudo bem que seja assim.',
+  'Você já superou audiências difíceis, clientes em crise e prazos apertados. Isso também passa.',
+  'Um corpo descansado toma decisões melhores que um corpo exausto. Durma bem hoje à noite.',
+  'O tempo que você investe organizando hoje é tempo que você não vai perder apagando incêndio amanhã.',
+  'Ser dona do próprio negócio é também ter a liberdade de ajustar o ritmo quando for preciso.',
+  'Nenhuma advogada de sucesso chegou lá sem também errar, aprender e ajustar o rumo.',
+  'Você constrói autoridade toda vez que explica o direito de alguém com clareza e paciência.',
+  'O que hoje parece rotina, daqui a um ano vai parecer o alicerce de tudo que você conquistou.',
+  'Cuidar de si não é luxo de quem tem tempo sobrando — é estratégia de quem quer durar.',
+  'Escritório de mulher também cresce com delicadeza, não só com força bruta.',
+  'Uma boa noite de sono vale mais do que uma madrugada inteira revisando o mesmo parágrafo.',
+  'Você não trabalha sozinha — trabalha com anos de estudo, experiência e casos resolvidos atrás de você.',
+  'Nem tudo precisa ser resolvido antes do meio-dia. Priorize o que realmente importa hoje.',
+  'A calma com que você atende uma cliente ansiosa também é parte do seu trabalho jurídico.',
+  'Você já disse "não" quando precisou e "sim" quando valia a pena. Continue confiando nesse critério.',
+  'Ser referência é também mostrar que dá pra ter um escritório de sucesso sem abrir mão de si mesma.',
+  'O que você faz hoje por um cliente, ele vai lembrar e contar pra outras pessoas amanhã.',
+  'Você não precisa correr o dia inteiro para ser produtiva — precisa saber o que é prioridade.',
+  'Cada processo que passa pela sua mesa carrega uma vida real esperando um desfecho justo. Isso tem peso — e propósito.',
 ];
 function fraseDoDia(): string {
   const inicioAno = new Date(new Date().getFullYear(), 0, 0);
@@ -189,7 +244,27 @@ function pulsoHtml(p: any): string {
   return `<ul style="line-height:1.9;padding-left:18px;margin:8px 0;color:#232323">${itens.join('')}</ul>`;
 }
 
-function buildHtml(name: string, weather: Weather | null, agenda: any, pulso: any): string {
+function metaHtml(meta: GoalProgress): string {
+  const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const pct = Math.min(100, meta.percent);
+  const cor = meta.percent >= 100 ? '#2f8f63' : GOLD;
+  return `
+    <div style="background:${NAVY_SOFT};border-radius:8px;padding:16px 18px;margin:8px 0 18px">
+      <div style="display:flex;justify-content:space-between;font-size:13.5px;color:#232323;margin-bottom:8px">
+        <span><strong>${money(meta.current)}</strong> de ${money(meta.target)}</span>
+        <strong style="color:${cor}">${meta.percent}%</strong>
+      </div>
+      <div style="background:#ddd;border-radius:6px;height:8px;overflow:hidden">
+        <div style="background:${cor};height:8px;width:${pct}%"></div>
+      </div>
+      <div style="font-size:12.5px;color:#6b6252;margin-top:8px">
+        ${meta.percent >= 100 ? '🎉 Meta do mês batida!' : `Faltam ${money(meta.faltam)} para bater a meta de ${new Date().toLocaleDateString('pt-BR', { month: 'long' })}.`}
+        · ${meta.contratos_fechados_mes} contrato(s) protocolado(s) no mês.
+      </div>
+    </div>`;
+}
+
+function buildHtml(name: string, weather: Weather | null, agenda: any, pulso: any, meta: GoalProgress): string {
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
   const tipoLabel: Record<string, string> = { reuniao: '🤝 Reunião', audiencia: '⚖️ Audiência', compromisso: '📌 Compromisso', prazo: '⏰ Prazo', tarefa: '✓ Tarefa' };
 
@@ -226,6 +301,9 @@ function buildHtml(name: string, weather: Weather | null, agenda: any, pulso: an
     <h3 style="color:${NAVY};font-size:15px;margin:18px 0 6px;font-family:Georgia,serif">📅 Seu dia hoje</h3>
     ${corpo}
 
+    <h3 style="color:${NAVY};font-size:15px;margin:18px 0 6px;font-family:Georgia,serif">🎯 Meta do mês</h3>
+    ${metaHtml(meta)}
+
     <h3 style="color:${NAVY};font-size:15px;margin:18px 0 6px;font-family:Georgia,serif">📊 Pulso do escritório</h3>
     ${pulsoHtml(pulso)}
 
@@ -242,18 +320,22 @@ function buildHtml(name: string, weather: Weather | null, agenda: any, pulso: an
 // E-mail que SEMPRE recebe o resumo matinal, independente do papel/status do
 // usuário no cadastro — pedido explícito da Dra. Letícia. O e-mail placeholder
 // da conta "admin" (admin@advogadaleticiabarros.com.br) não é uma caixa real
-// e não deveria receber conteúdo pessoal mesmo assim.
+// e é explicitamente excluído abaixo — mandar pra ele só gera falha registrada
+// (confirmado: Resend nem tenta entregar, é rejeitado por não ser o remetente
+// verificado da conta) todo santo dia sem ninguém nunca ler.
 const GARANTIDO_EMAIL = process.env.MORNING_BRIEFING_EMAIL || 'advogadaleticia.barros@gmail.com';
+const ADMIN_PLACEHOLDER_EMAIL = process.env.ADMIN_PLACEHOLDER_EMAIL || 'admin@advogadaleticiabarros.com.br';
 
 /** Envia o resumo matinal para os usuários admin/advogado ativos com e-mail. */
 export async function sendMorningBriefings(): Promise<{ sent: number; failed: number }> {
   const weather = await getWeather();
   const pulso = await getPulsoNegocio();
+  const meta = await getGoalProgress();
   const [users] = await db.query(
     `SELECT id, name, email FROM users
-      WHERE (active = 1 AND role IN ('admin','advogado') AND email IS NOT NULL AND email <> '')
-         OR LOWER(email) = LOWER(?)`,
-    [GARANTIDO_EMAIL]
+      WHERE ((active = 1 AND role IN ('admin','advogado') AND email IS NOT NULL AND email <> '' AND LOWER(email) <> LOWER(?))
+         OR LOWER(email) = LOWER(?))`,
+    [ADMIN_PLACEHOLDER_EMAIL, GARANTIDO_EMAIL]
   ) as any;
 
   let sent = 0, failed = 0;
@@ -266,7 +348,7 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
     const r = await sendEmail({
       to: u.email,
       subject: `☀️ Bom dia! Sua agenda de hoje`,
-      html: buildHtml(firstName, weather, agenda, pulso),
+      html: buildHtml(firstName, weather, agenda, pulso, meta),
     });
     if (r.ok) sent++; else failed++;
 
@@ -287,4 +369,73 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
     }
   }
   return { sent, failed };
+}
+
+const BRIEFING_WHATSAPP_KEY = 'briefing_whatsapp';
+
+/** Monta a versão em texto do resumo matinal, organizada em seções, para o WhatsApp. */
+function buildWhatsappText(name: string, weather: Weather | null, agenda: any, pulso: any, meta: GoalProgress): string {
+  const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
+  const tipoLabel: Record<string, string> = { reuniao: '🤝', audiencia: '⚖️', compromisso: '📌', prazo: '⏰', tarefa: '✓' };
+
+  const blocos: string[] = [];
+  blocos.push(`☀️ *Bom dia, Dra. ${name}!*\n${hoje}`);
+  blocos.push(`💛 _"${fraseDoDia()}"_`);
+
+  const weatherLine = weather
+    ? `🌤️ *Previsão (${weather.city})*: ${weather.tmin}°C a ${weather.tmax}°C, ${weather.desc}.\n${weatherTip(weather)}`
+    : `🌤️ Não consegui obter a previsão do tempo agora.`;
+  blocos.push(weatherLine);
+
+  const evLinhas = (agenda.eventos || []).map((e: any) => `${tipoLabel[e.event_type] || '📌'} ${e.hora} — ${e.title}${e.location ? ` (${e.location})` : ''}`);
+  const przLinhas = (agenda.prazos || []).map((p: any) => `⏰ Prazo: ${p.description}${p.case_number ? ` (proc. ${p.case_number})` : ''}`);
+  const tskLinhas = (agenda.tarefas || []).map((t: any) => `✓ ${t.title} (${t.priority})`);
+  const diaLinhas = [...evLinhas, ...przLinhas, ...tskLinhas];
+  blocos.push(`📅 *Seu dia hoje*\n${diaLinhas.length ? diaLinhas.join('\n') : 'Sem compromissos, prazos ou tarefas para hoje.'}`);
+
+  const pct = Math.min(100, meta.percent);
+  const barra = '▓'.repeat(Math.round(pct / 10)) + '░'.repeat(10 - Math.round(pct / 10));
+  blocos.push(`🎯 *Meta do mês*\n${barra} ${meta.percent}%\n${money(meta.current)} de ${money(meta.target)}${meta.percent >= 100 ? ' — 🎉 batida!' : ` — faltam ${money(meta.faltam)}`}\n${meta.contratos_fechados_mes} contrato(s) protocolado(s) no mês.`);
+
+  const pulsoLinhas: string[] = [];
+  if (pulso.leads_frios) pulsoLinhas.push(`🔥 ${pulso.leads_frios} lead(s) sem resposta há 48h+`);
+  if (pulso.receber_vencido_hoje > 0) pulsoLinhas.push(`💰 ${money(pulso.receber_vencido_hoje)} a receber vencendo até hoje`);
+  if (pulso.pagar_vencido_hoje > 0) pulsoLinhas.push(`📤 ${money(pulso.pagar_vencido_hoje)} a pagar até hoje`);
+  if (pulso.casos_atrasados) pulsoLinhas.push(`⏱ ${pulso.casos_atrasados} caso(s) estourando o SLA`);
+  if (pulso.emails_parceria_pendentes) pulsoLinhas.push(`📥 ${pulso.emails_parceria_pendentes} e-mail(s) de parceria na fila`);
+  blocos.push(`📊 *Pulso do escritório*\n${pulsoLinhas.length ? pulsoLinhas.join('\n') : '✅ Nenhuma pendência urgente!'}`);
+
+  blocos.push(`🧘 Já bebeu água hoje? Qual é o seu objetivo pra hoje?`);
+  return blocos.join('\n\n');
+}
+
+/**
+ * Envia o mesmo resumo matinal, em versão organizada por seções, para o
+ * WhatsApp configurado em office_settings.briefing_whatsapp. Roda separado
+ * do e-mail (07h) — às 08h, depois que o e-mail já chegou.
+ */
+export async function sendMorningBriefingWhatsapp(): Promise<{ sent: boolean; reason?: string }> {
+  const [[cfg]] = await db.query(
+    "SELECT setting_value FROM office_settings WHERE setting_key = ?", [BRIEFING_WHATSAPP_KEY]
+  ) as any;
+  const phoneRaw = cfg?.setting_value?.trim();
+  if (!phoneRaw) return { sent: false, reason: 'briefing_whatsapp não configurado em Configurações' };
+
+  const [[user]] = await db.query(
+    `SELECT id, name FROM users WHERE LOWER(email) = LOWER(?) LIMIT 1`, [GARANTIDO_EMAIL]
+  ) as any;
+  const userId = user?.id;
+  const firstName = (user?.name || 'Dra.').split(' ')[0];
+
+  const weather = await getWeather();
+  const pulso = await getPulsoNegocio();
+  const meta = await getGoalProgress();
+  const agenda = userId ? await getDayAgenda(userId) : { eventos: [], prazos: [], tarefas: [] };
+
+  let digits = phoneRaw.replace(/\D/g, '');
+  if (digits.length <= 11) digits = '55' + digits;
+  const texto = buildWhatsappText(firstName, weather, agenda, pulso, meta);
+  const ok = await sendText(digits, texto, 'Automático — onboarding matinal').catch(() => false);
+  return { sent: ok };
 }

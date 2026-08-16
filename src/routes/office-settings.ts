@@ -1,10 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
+import { setGoalForMonth, currentMonth } from '../services/goalsService';
 
 const router = Router();
 
 // Chaves conhecidas — usadas no portal do cliente (Pix e contato).
-const KEYS = ['pix_key', 'pix_nome', 'pix_cidade', 'whatsapp', 'multa_percent', 'juros_mes_percent', 'meta_faturamento_mes', 'google_review_url'];
+const KEYS = ['pix_key', 'pix_nome', 'pix_cidade', 'whatsapp', 'multa_percent', 'juros_mes_percent', 'meta_faturamento_mes', 'google_review_url', 'briefing_whatsapp'];
 
 // ── GET /api/office-settings — config do escritório (Pix, WhatsApp) ─────────
 router.get('/', async (_req: Request, res: Response) => {
@@ -23,6 +24,11 @@ router.patch('/', async (req: Request, res: Response) => {
       'INSERT INTO office_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)',
       [k, String(req.body[k] ?? '').trim()]
     );
+  }
+  // Mantém o histórico do módulo de Metas em sincronia com o ajuste manual feito aqui.
+  const metaVal = Number(req.body.meta_faturamento_mes);
+  if (req.body.meta_faturamento_mes !== undefined && metaVal > 0) {
+    await setGoalForMonth(currentMonth(), metaVal).catch(() => {});
   }
   res.json({ success: true });
 });
