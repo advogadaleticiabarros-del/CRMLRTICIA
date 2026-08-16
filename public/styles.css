@@ -1439,6 +1439,7 @@ img, svg, video { max-width: 100%; }
 .wa-item { display: flex; gap: 11px; padding: 11px 14px; cursor: pointer; border-bottom: 1px solid var(--border-soft); align-items: center; }
 .wa-item:hover { background: var(--surface-2, rgba(0,0,0,.03)); }
 .wa-item.on { background: var(--gold-soft, #efe3c8); }
+.btn-icon.on { color: var(--gold, #c19a4e); }
 .wa-ava { width: 46px; height: 46px; border-radius: 50%; flex: 0 0 46px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 15px; }
 .wa-item-mid { flex: 1; min-width: 0; }
 .wa-item-name { font-weight: 600; font-size: 14.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

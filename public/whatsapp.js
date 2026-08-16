@@ -243,6 +243,7 @@ Object.assign(ROUTES, {
       let ativo = null;         // { phone, name, client_id, labels }
       let busca = '';
       let filtro = '';          // etiqueta selecionada no filtro
+      let mostrarArquivadas = false;
       let qtdMsgs = 0;          // p/ detectar novidade no polling
       let listaHtmlAtual = '';  // p/ pular re-render quando nada mudou (evita piscar/pesar)
       let ultimaInteracaoLista = 0; // p/ não deixar o polling reordenar a lista embaixo do dedo logo após um clique
@@ -281,25 +282,31 @@ Object.assign(ROUTES, {
 
       const renderFiltros = () => {
         const ets = todasEtiquetas();
-        $('#waf').innerHTML = [`<button class="wa-filter ${!filtro ? 'on' : ''}" data-f="">Todas</button>`,
-          ...ets.map((t) => `<button class="wa-filter ${filtro === t ? 'on' : ''}" data-f="${esc(t)}" style="${filtro === t ? `background:${cor(t)};border-color:${cor(t)}` : ''}">${esc(t)}</button>`)].join('');
-        $('#waf').querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { filtro = b.dataset.f; renderFiltros(); renderLista(); });
+        const arquivadasN = chats.filter((c) => Number(c.archived)).length;
+        $('#waf').innerHTML = [`<button class="wa-filter ${!filtro && !mostrarArquivadas ? 'on' : ''}" data-f="">Todas</button>`,
+          ...ets.map((t) => `<button class="wa-filter ${filtro === t ? 'on' : ''}" data-f="${esc(t)}" style="${filtro === t ? `background:${cor(t)};border-color:${cor(t)}` : ''}">${esc(t)}</button>`),
+          arquivadasN ? `<button class="wa-filter ${mostrarArquivadas ? 'on' : ''}" data-arquivadas="1">${svgIcon('archive', 'ic-xs')} Arquivadas (${arquivadasN})</button>` : ''].join('');
+        $('#waf').querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { filtro = b.dataset.f; mostrarArquivadas = false; renderFiltros(); renderLista(); });
+        const arqBtn = $('#waf').querySelector('[data-arquivadas]');
+        if (arqBtn) arqBtn.onclick = () => { mostrarArquivadas = !mostrarArquivadas; filtro = ''; renderFiltros(); renderLista(); };
       };
 
       const renderLista = () => {
         const q = busca.toLowerCase();
-        const vis = chats.filter((c) => {
+        let vis = chats.filter((c) => {
           if (q && !(String(c.client_name || '').toLowerCase().includes(q) || String(c.phone).includes(q))) return false;
           if (filtro && !parseLabels(c.labels).includes(filtro)) return false;
-          return true;
+          if (mostrarArquivadas) return !!Number(c.archived);
+          return !Number(c.archived);
         });
+        vis = [...vis].sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || (new Date(b.last_time) - new Date(a.last_time)));
         const html = vis.length ? vis.map((c) => {
           const nome = c.client_name || c.push_name || '+' + c.phone;
           const tags = parseLabels(c.labels);
           return `<div class="wa-item ${ativo && ativo.phone === c.phone ? 'on' : ''}" data-chat="${esc(c.phone)}">
             <div class="wa-ava" style="background:${cor(nome)}">${iniciais(nome)}</div>
             <div class="wa-item-mid">
-              <div class="wa-item-name">${esc(nome)}</div>
+              <div class="wa-item-name">${Number(c.pinned) ? svgIcon('pin', 'ic-xs') + ' ' : ''}${esc(nome)}</div>
               <div class="wa-item-prev">${Number(c.last_from_me) ? '✓ ' : ''}${esc(String(c.last_body || '').slice(0, 52))}</div>
               ${tags.length ? `<div class="wa-tags">${tags.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>` : ''}
             </div>
@@ -308,7 +315,7 @@ Object.assign(ROUTES, {
               ${Number(c.unread) ? `<span class="wa-unread">${c.unread}</span>` : ''}
             </div>
           </div>`;
-        }).join('') : '<div class="wa-empty">Nenhuma conversa encontrada</div>';
+        }).join('') : `<div class="wa-empty">${mostrarArquivadas ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa encontrada'}</div>`;
         // Nada mudou desde o último render (comum no polling de 6s) — pula a
         // reconstrução do DOM. Isso é o que causava a piscada/oscilação e o
         // peso: a lista inteira era refeita mesmo sem mudança nenhuma.
@@ -563,6 +570,8 @@ Object.assign(ROUTES, {
             </div>
             <div class="wa-tags" id="wah-tags">${ativo.labels.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>
             <button class="btn-icon" id="wa-buscar-chat" title="Buscar nesta conversa">${svgIcon('search')}</button>
+            <button class="btn-icon ${Number(c.pinned) ? 'on' : ''}" id="wa-pin" title="${Number(c.pinned) ? 'Desfixar conversa' : 'Fixar conversa'}">${svgIcon('pin')}</button>
+            <button class="btn-icon" id="wa-archive" title="${Number(c.archived) ? 'Desarquivar conversa' : 'Arquivar conversa'}">${svgIcon('archive')}</button>
             <button class="btn-icon" id="wa-label" title="Etiquetas">${svgIcon('tag')}</button>
             <button class="btn-icon" id="wa-pdf" title="Gerar PDF da conversa (juntar ao processo)">${svgIcon('printer')}</button>
             <button class="btn-icon" id="wa-info" title="Ficha do contato">${svgIcon('info')}</button>
@@ -821,6 +830,24 @@ Object.assign(ROUTES, {
             await enviar({ file_base64: b64, file_name: arquivo.name, mime: arquivo.type, text: fd.get('text') || '' });
           };
           openModal('Enviar arquivo', wrap);
+        };
+        $('#wa-pin').onclick = async () => {
+          const novo = !Number(c.pinned);
+          try {
+            await api(`/api/whatsapp-instance/chats/${c.phone}/pin`, { method: 'POST', body: JSON.stringify({ pinned: novo }) });
+            c.pinned = novo ? 1 : 0; toast(novo ? 'Conversa fixada' : 'Conversa desfixada');
+            const btn = $('#wa-pin'); btn.classList.toggle('on', novo); btn.title = novo ? 'Desfixar conversa' : 'Fixar conversa';
+            renderFiltros(); renderLista();
+          } catch (e) { toast(e.message, 'error'); }
+        };
+        $('#wa-archive').onclick = async () => {
+          const novo = !Number(c.archived);
+          try {
+            await api(`/api/whatsapp-instance/chats/${c.phone}/archive`, { method: 'POST', body: JSON.stringify({ archived: novo }) });
+            c.archived = novo ? 1 : 0; toast(novo ? 'Conversa arquivada' : 'Conversa desarquivada');
+            if (novo) { ativo = null; $('#wa-shell').classList.remove('chat-open'); }
+            renderFiltros(); renderLista();
+          } catch (e) { toast(e.message, 'error'); }
         };
         // Painel de contexto: abre sozinho em telas largas; botão ℹ alterna
         $('#wa-info').onclick = () => { $('#wa-shell').classList.toggle('ctx-open'); if ($('#wa-shell').classList.contains('ctx-open')) renderContexto(); };

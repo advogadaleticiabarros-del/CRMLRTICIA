@@ -163,7 +163,9 @@ router.get('/chats', async (req: Request, res: Response) => {
            MAX(cl.name) AS client_name,
            MAX(m.unread) AS unread,
            MAX(m.labels) AS labels,
-           MAX(m.push_name) AS push_name
+           MAX(m.push_name) AS push_name,
+           MAX(m.pinned) AS pinned,
+           MAX(m.archived) AS archived
       FROM whatsapp_messages w
       LEFT JOIN clients cl ON cl.id = w.client_id
       LEFT JOIN whatsapp_chat_meta m ON m.phone = w.phone
@@ -171,6 +173,26 @@ router.get('/chats', async (req: Request, res: Response) => {
      GROUP BY w.phone
      ORDER BY last_time DESC LIMIT 100`, q ? [like, like, like] : []) as any;
   res.json(rows);
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/pin — fixa/desfixa a conversa ──
+router.post('/chats/:phone/pin', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const pinned = req.body?.pinned ? 1 : 0;
+  await db.query(
+    'INSERT INTO whatsapp_chat_meta (phone, pinned) VALUES (?, ?) ON DUPLICATE KEY UPDATE pinned = VALUES(pinned)',
+    [phone, pinned]);
+  res.json({ success: true, pinned: !!pinned });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/archive — arquiva/desarquiva ───
+router.post('/chats/:phone/archive', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const archived = req.body?.archived ? 1 : 0;
+  await db.query(
+    'INSERT INTO whatsapp_chat_meta (phone, archived) VALUES (?, ?) ON DUPLICATE KEY UPDATE archived = VALUES(archived)',
+    [phone, archived]);
+  res.json({ success: true, archived: !!archived });
 });
 
 // ── POST /api/whatsapp-instance/chats/:phone/read — zera as não lidas ───────
