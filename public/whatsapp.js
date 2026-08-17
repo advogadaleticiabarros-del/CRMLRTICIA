@@ -5,6 +5,19 @@
 // toast, closeModal, fileHref) e registra a rota em ROUTES.
 // ============================================================================
 
+// Avatar consistente em toda a tela de WhatsApp (Conversas + Kanban + drawer
+// de pré-visualização) — mesma cor/iniciais pro mesmo nome, sempre.
+const WA_CORES = ['#e17076', '#7bc862', '#65aadd', '#a695e7', '#ee7aae', '#6ec9cb', '#faa774', '#54a3b8'];
+const waCor = (s) => WA_CORES[[...String(s)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % WA_CORES.length];
+const waIniciais = (n) => String(n || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+const waFmtDia = (d) => {
+  const dt = new Date(d), hoje = new Date();
+  const ontem = new Date(hoje); ontem.setDate(hoje.getDate() - 1);
+  if (dt.toDateString() === hoje.toDateString()) return dt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  if (dt.toDateString() === ontem.toDateString()) return 'Ontem';
+  return dt.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+};
+
 const AGENDA_CAT_PT = { forum: 'Fórum', parceiro: 'Parceiro', cliente: 'Cliente', outro: 'Outro' };
 
 // Agenda telefônica do escritório (fórum, parceiros, clientes) — aberta pelo
@@ -96,6 +109,33 @@ async function abrirAuditoriaModal() {
       <td>${esc(r.reason)}</td>
     </tr>`).join('')}</tbody></table>`
     : '<div class="empty">Nenhuma mensagem apagada ainda.</div>';
+}
+
+// Pré-visualização de um contato a partir do Kanban — mostra avatar, nome e
+// as últimas mensagens juntos, sem sair da tela de etapas. "Abrir conversa
+// completa" leva pra aba Conversas de fato, quando ela quiser responder.
+async function abrirPreviaContato(phone, nome, onAbrirConversa) {
+  const body = el(`<div>
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+      <div class="wc-ava" style="width:48px;height:48px;font-size:16px;background:${waCor(nome)}">${waIniciais(nome)}</div>
+      <div><strong style="font-size:15px;color:var(--navy-deep)">${esc(nome)}</strong><br><small style="color:var(--text-muted)">+${esc(phone)}</small></div>
+    </div>
+    <div id="wcp-msgs" style="max-height:360px;overflow-y:auto;border:1px solid var(--border-soft);border-radius:8px;padding:10px;background:var(--surface-2)"><div class="spinner"></div></div>
+    <button class="btn-gold" id="wcp-abrir" style="width:100%;margin-top:14px">${svgIcon('chat')} Abrir conversa completa</button>
+  </div>`);
+  openModal('Pré-visualização', body);
+  body.querySelector('#wcp-abrir').onclick = () => { closeModal(); onAbrirConversa(); };
+
+  const msgs = await api('/api/whatsapp-instance/chats/' + phone).catch(() => []);
+  const ultimas = msgs.slice(-8);
+  const box = body.querySelector('#wcp-msgs');
+  box.innerHTML = ultimas.length ? ultimas.map((m) => `
+    <div style="display:flex;${Number(m.from_me) ? 'justify-content:flex-end' : ''};margin-bottom:6px">
+      <div style="max-width:80%;padding:6px 10px;border-radius:8px;font-size:12.5px;line-height:1.4;background:${Number(m.from_me) ? '#d9fdd3' : '#fff'};border:1px solid var(--border-soft)">
+        ${esc(String(m.body || '').slice(0, 200))}
+      </div>
+    </div>`).join('') : '<div class="empty">Sem mensagens</div>';
+  box.scrollTop = box.scrollHeight;
 }
 
 Object.assign(ROUTES, {
@@ -973,8 +1013,6 @@ Object.assign(ROUTES, {
         </div>
         <div id="wc-board" class="kanban-fases"></div>`;
 
-      const fmtRel = (d) => d ? fmtDateTime(d) : '—';
-
       const load = async () => {
         const [stagesResp, boardResp] = await Promise.all([
           api('/api/whatsapp-instance/stages').catch(() => []),
@@ -996,9 +1034,17 @@ Object.assign(ROUTES, {
             </div>
             <div class="kf-cards" data-stage="${s.id}">
               ${(board[s.id] || []).map((c) => `
-                <div class="kf-card" draggable="true" data-phone="${esc(c.phone)}" data-stage="${s.id}">
-                  <strong>${esc(c.name)}</strong>
-                  <small>${c.client_id ? 'cliente do escritório · ' : ''}${fmtRel(c.last_time)}</small>
+                <div class="kf-card wc-card" draggable="true" data-phone="${esc(c.phone)}" data-nome="${esc(c.name)}" data-cliente="${c.client_id || ''}" data-stage="${s.id}">
+                  ${Number(c.unread) ? `<span class="wc-unread">${c.unread}</span>` : ''}
+                  <div class="wc-card-top">
+                    <div class="wc-ava" style="background:${waCor(c.name)}">${waIniciais(c.name)}</div>
+                    <div class="wc-info">
+                      <strong>${esc(c.name)}</strong>
+                      <small>${c.client_id ? '★ Cliente · ' : ''}+${esc(c.phone)}</small>
+                    </div>
+                    <span class="wc-time">${c.last_time ? waFmtDia(c.last_time) : ''}</span>
+                  </div>
+                  <div class="wc-prev">${Number(c.last_from_me) ? '✓ ' : ''}${esc(String(c.last_body || '').slice(0, 60))}</div>
                   <select class="kf-move" draggable="false" data-phone="${esc(c.phone)}" data-from="${s.id}" title="Mover para outra etapa">
                     ${stages.map((s2) => `<option value="${s2.id}" ${s2.id === s.id ? 'selected' : ''}>${esc(s2.name)}</option>`).join('')}
                   </select>
@@ -1041,7 +1087,12 @@ Object.assign(ROUTES, {
             e.dataTransfer.setData('text/plain', JSON.stringify({ phone: card.dataset.phone, from: card.dataset.stage })); card.style.opacity = '0.45';
           });
           card.addEventListener('dragend', () => { card.style.opacity = ''; });
-          card.onclick = (e) => { if (e.target.closest('.kf-move')) return; abrirFonePendente = { phone: card.dataset.phone }; tab = 'conversas'; shell(); };
+          card.onclick = (e) => {
+            if (e.target.closest('.kf-move')) return;
+            abrirPreviaContato(card.dataset.phone, card.dataset.nome, () => {
+              abrirFonePendente = { phone: card.dataset.phone }; tab = 'conversas'; shell();
+            });
+          };
         });
         // Mover pelo menu (mais confiável que arrastar — funciona em qualquer navegador/trackpad).
         // stopPropagation em mousedown/click: o card é "draggable", e sem isso o
