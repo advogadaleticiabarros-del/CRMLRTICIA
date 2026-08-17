@@ -371,10 +371,15 @@ Object.assign(ROUTES, {
           // Editar/apagar — só mensagem NOSSA, ainda não apagada (o WhatsApp só
           // deixa mexer no que você mesmo mandou, dentro do prazo dele).
           const podeMexer = Number(m.from_me) && m.body !== '🚫 Mensagem apagada';
-          const acoes = podeMexer
-            ? `<span class="wa-msg-acoes">${!m.media_id ? `<button type="button" data-editar-msg="${m.id}" title="Editar">${svgIcon('edit', 'ic-xs')}</button>` : ''}<button type="button" data-apagar-msg="${m.id}" title="Apagar">${svgIcon('trash', 'ic-xs')}</button></span>`
+          const podeResponder = m.body !== '🚫 Mensagem apagada';
+          const botoesMexer = podeMexer ? `${!m.media_id ? `<button type="button" data-editar-msg="${m.id}" title="Editar">${svgIcon('edit', 'ic-xs')}</button>` : ''}<button type="button" data-apagar-msg="${m.id}" title="Apagar">${svgIcon('trash', 'ic-xs')}</button>` : '';
+          const acoes = (podeResponder || botoesMexer)
+            ? `<span class="wa-msg-acoes">${podeResponder ? `<button type="button" data-responder-msg="${m.id}" title="Responder">${svgIcon('reply', 'ic-xs')}</button>` : ''}${botoesMexer}</span>`
             : '';
-          return `${sep}<div class="wa-bub ${Number(m.from_me) ? 'out' : 'in'}">${acoes}${autor}${corpo}${anexo}<span class="wa-time">${fmtHora(m.msg_time)}${Number(m.from_me) ? ' ' + statusIcone(m.status) : ''}</span></div>`;
+          const citacao = m.reply_to_body
+            ? `<div class="wa-quote">${esc(String(m.reply_to_body).slice(0, 120))}</div>`
+            : (m.reply_to_message_id ? `<div class="wa-quote wa-quote-sumiu">Mensagem original não encontrada</div>` : '');
+          return `${sep}<div class="wa-bub ${Number(m.from_me) ? 'out' : 'in'}">${acoes}${autor}${citacao}${corpo}${anexo}<span class="wa-time">${fmtHora(m.msg_time)}${Number(m.from_me) ? ' ' + statusIcone(m.status) : ''}</span></div>`;
         }).join('') || '<div class="wa-empty">Sem mensagens</div>';
       };
 
@@ -560,6 +565,7 @@ Object.assign(ROUTES, {
         api(`/api/whatsapp-instance/chats/${c.phone}/read`, { method: 'POST', body: '{}' }).catch(() => {});
         c.unread = 0;
         const textoAtual = manterInput || '';
+        let respondendoA = null; // { id, texto } — mensagem sendo citada na próxima resposta
         $('#wap').innerHTML = `
           <div class="wa-head">
             <button class="btn-ghost btn-sm" id="wa-back" style="display:none">←</button>
@@ -585,6 +591,10 @@ Object.assign(ROUTES, {
             <button type="button" class="btn-icon btn-icon-sm" id="wa-busca-chat-fechar" title="Fechar busca">${svgIcon('x', 'ic-xs')}</button>
           </div>
           <div class="wa-msgs" id="wam">${renderMsgs(msgs)}</div>
+          <div class="wa-reply-banner" id="wa-reply-banner" style="display:none">
+            <div class="wa-quote" id="wa-reply-banner-txt"></div>
+            <button type="button" class="btn-icon btn-icon-sm" id="wa-reply-cancel" title="Cancelar resposta">${svgIcon('x', 'ic-xs')}</button>
+          </div>
           <form class="wa-input" id="wa-reply">
             <button type="button" class="btn-icon" id="wa-modelos" title="Mensagens prontas">${svgIcon('ia')}</button>
             <button type="button" class="btn-icon" id="wa-anexar" title="Enviar documento ou imagem">${svgIcon('paperclip')}</button>
@@ -612,6 +622,10 @@ Object.assign(ROUTES, {
         // Editar/apagar mensagem enviada — mesma razão da função acima (precisa
         // religar depois de cada redesenho de #wam).
         const ligarAcoesMsg = () => {
+          $('#wam').querySelectorAll('[data-responder-msg]').forEach((b) => b.onclick = () => {
+            const atual = msgs.find((m) => String(m.id) === b.dataset.responderMsg);
+            if (atual) iniciarResposta(atual.id, atual.body);
+          });
           $('#wam').querySelectorAll('[data-editar-msg]').forEach((b) => b.onclick = async () => {
             const msgId = b.dataset.editarMsg;
             const atual = msgs.find((m) => String(m.id) === msgId);
@@ -853,13 +867,24 @@ Object.assign(ROUTES, {
         $('#wa-info').onclick = () => { $('#wa-shell').classList.toggle('ctx-open'); if ($('#wa-shell').classList.contains('ctx-open')) renderContexto(); };
         if (window.innerWidth >= 1100 && !manterInput) { $('#wa-shell').classList.add('ctx-open'); renderContexto(); }
         else if ($('#wa-shell').classList.contains('ctx-open')) renderContexto();
+        const limparResposta = () => { respondendoA = null; $('#wa-reply-banner').style.display = 'none'; };
+        const iniciarResposta = (id, texto) => {
+          respondendoA = { id, texto };
+          $('#wa-reply-banner-txt').textContent = String(texto || '').slice(0, 140);
+          $('#wa-reply-banner').style.display = 'flex';
+          $('#wa-reply [name=text]').focus();
+        };
+        $('#wa-reply-cancel').onclick = limparResposta;
         $('#wa-reply').onsubmit = async (ev) => {
           ev.preventDefault();
           const inp = $('#wa-reply [name=text]');
           const texto = inp.value.trim(); if (!texto) return;
           inp.value = '';
-          try { await api(`/api/whatsapp-instance/chats/${ativo.phone}/send`, { method: 'POST', body: JSON.stringify({ text: texto }) }); await atualizar(true); }
-          catch (e) { toast(e.message, 'error'); inp.value = texto; }
+          const replyTo = respondendoA?.id; limparResposta();
+          try {
+            await api(`/api/whatsapp-instance/chats/${ativo.phone}/send`, { method: 'POST', body: JSON.stringify({ text: texto, ...(replyTo ? { reply_to: replyTo } : {}) }) });
+            await atualizar(true);
+          } catch (e) { toast(e.message, 'error'); inp.value = texto; }
         };
         $('#wa-label').onclick = () => {
           const existentes = todasEtiquetas();

@@ -235,7 +235,8 @@ router.post('/chats/:phone/vincular-cliente', async (req: Request, res: Response
 router.get('/chats/:phone', async (req: Request, res: Response) => {
   const phone = String(req.params.phone).replace(/\D/g, '');
   const [rows] = await db.query(
-    `SELECT w.id, w.from_me, w.body, w.msg_time, w.media_id, w.sent_by, w.status, wm.mime AS media_mime
+    `SELECT w.id, w.from_me, w.body, w.msg_time, w.media_id, w.sent_by, w.status, wm.mime AS media_mime,
+            w.reply_to_message_id, w.reply_to_body, w.reply_to_from_me
        FROM whatsapp_messages w LEFT JOIN whatsapp_media wm ON wm.id = w.media_id
       WHERE w.phone = ? ORDER BY w.msg_time ASC, w.id ASC LIMIT 300`, [phone]) as any;
   for (const r of rows) if (r.media_id) r.media_url = signMediaUrl(`/api/whatsapp-instance/media/${r.media_id}`);
@@ -314,7 +315,8 @@ router.get('/chats/:phone/context', async (req: Request, res: Response) => {
 router.post('/chats/:phone/send', async (req: Request, res: Response) => {
   const text = String(req.body?.text || '').trim();
   if (!text) { res.status(400).json({ error: 'Escreva a mensagem' }); return; }
-  const ok = await sendText(req.params.phone, text, req.user!.name);
+  const replyTo = req.body?.reply_to ? Number(req.body.reply_to) : undefined;
+  const ok = await sendText(req.params.phone, text, req.user!.name, replyTo);
   if (!ok) { res.status(400).json({ error: 'Instância desconectada — conecte na aba Conexão' }); return; }
   res.json({ success: true });
 });

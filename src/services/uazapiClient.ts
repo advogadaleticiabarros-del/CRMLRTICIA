@@ -55,9 +55,9 @@ export const uazapi = {
   logout(): Promise<void> {
     return request('POST', '/instance/logout');
   },
-  /** POST /send/text — envia mensagem de texto. */
-  sendText(number: string, text: string): Promise<{ messageid: string; status: string }> {
-    return request('POST', '/send/text', { number, text });
+  /** POST /send/text — envia mensagem de texto. replyid (opcional) cita outra mensagem. */
+  sendText(number: string, text: string, replyid?: string): Promise<{ messageid: string; status: string }> {
+    return request('POST', '/send/text', replyid ? { number, text, replyid } : { number, text });
   },
   /**
    * POST /send/media — envia imagem/documento/vídeo/áudio. "file" é uma URL

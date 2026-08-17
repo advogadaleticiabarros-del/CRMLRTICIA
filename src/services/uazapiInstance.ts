@@ -129,19 +129,29 @@ export async function startIfSession(): Promise<void> {
   } catch { /* Uazapi fora do ar no boot — status refletirá isso quando alguém abrir a tela */ }
 }
 
-export async function sendText(phone: string, text: string, sentBy?: string): Promise<boolean> {
+export async function sendText(phone: string, text: string, sentBy?: string, replyToDbId?: number): Promise<boolean> {
   const digits = String(phone).replace(/\D/g, '');
   if (digits.length < 12) return false;
   try {
-    const r = await uazapi.sendText(digits, text);
+    // Citar mensagem (reply/quote): busca o message_id real da Uazapi da
+    // mensagem apontada + guarda uma "foto" do texto pra continuar exibindo
+    // a citação mesmo que a original seja editada/apagada depois.
+    let replyUazapiId: string | undefined;
+    let replySnapshot: { body: string; fromMe: number } | null = null;
+    if (replyToDbId) {
+      const [[orig]] = await db.query('SELECT message_id, body, from_me FROM whatsapp_messages WHERE id = ? AND phone = ?', [replyToDbId, digits]) as any;
+      if (orig?.message_id) { replyUazapiId = orig.message_id; replySnapshot = { body: orig.body, fromMe: orig.from_me }; }
+    }
+    const r = await uazapi.sendText(digits, text, replyUazapiId);
     // Guarda o messageid real da Uazapi: o webhook manda de volta um "eco" da
     // própria mensagem enviada, e sem o message_id aqui a deduplicação
     // (UNIQUE em message_id) não reconhece que é a mesma — duplicava a
     // mensagem na conversa (confirmado testando um envio real).
     await db.query(
-      `INSERT IGNORE INTO whatsapp_messages (message_id, phone, client_id, from_me, body, msg_time, sent_by)
-       VALUES (?, ?, ?, 1, ?, NOW(), ?)`,
-      [r?.messageid || null, digits, await findClientByPhone(digits), String(text).slice(0, 4000), sentBy || null]).catch(() => {});
+      `INSERT IGNORE INTO whatsapp_messages (message_id, phone, client_id, from_me, body, msg_time, sent_by, reply_to_message_id, reply_to_body, reply_to_from_me)
+       VALUES (?, ?, ?, 1, ?, NOW(), ?, ?, ?, ?)`,
+      [r?.messageid || null, digits, await findClientByPhone(digits), String(text).slice(0, 4000), sentBy || null,
+       replyToDbId || null, replySnapshot?.body.slice(0, 500) || null, replySnapshot ? replySnapshot.fromMe : null]).catch(() => {});
     return true;
   } catch (e: any) {
     lastError = e?.message || 'Falha ao enviar';
