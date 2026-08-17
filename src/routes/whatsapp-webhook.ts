@@ -57,7 +57,10 @@ async function storeMedia(messageId: string, phone: string, clientId: number | n
         [clientId, `WhatsApp — ${fileName}`.slice(0, 255), `/api/whatsapp-instance/media/${mediaId}`, adm?.id ?? 1]).catch(() => {});
     }
     return { mediaId, label: `${info.rotulo}: ${fileName}` };
-  } catch { return null; }
+  } catch (e: any) {
+    console.error(`[whatsapp-webhook] falha ao baixar mídia (messageId=${messageId}, tipo=${mediaType}):`, e?.message || e);
+    return null;
+  }
 }
 
 // Lê a 1ª mensagem com IA (Groq, mesmo motor do "extrair" da ficha do
@@ -144,9 +147,17 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
 
     let mediaId: number | null = null;
     let body = msg.text || (typeof msg.content === 'string' ? msg.content : '') || '';
+    // DIAGNÓSTICO (17/08): nenhuma mídia recebida jamais foi salva no CRM —
+    // pode ser falha no download OU o nome do campo de tipo de mídia ter
+    // mudado do lado da Uazapi (já aconteceu antes com "id"/"messageId").
+    // Loga as chaves da mensagem quando não há mediaType, pra comparar.
+    if (!msg.fromMe && !msg.mediaType && !msg.text && !msg.content) {
+      console.error('[whatsapp-webhook] mensagem sem texto/mediaType — payload de msg:', JSON.stringify(msg).slice(0, 1500));
+    }
     if (!msg.fromMe && msg.mediaType) {
       const media = await storeMedia(msg.messageid || msg.id, phone, clientId, msg.mediaType);
       if (media) { mediaId = media.mediaId; body = body || `📎 ${media.label}`; }
+      else console.error(`[whatsapp-webhook] mídia tipo "${msg.mediaType}" não foi salva (storeMedia devolveu null) — mensagem descartada se não houver legenda.`);
     }
     if (!body) {
       // Evento de só-status (confirmação de entrega/leitura) de uma mensagem

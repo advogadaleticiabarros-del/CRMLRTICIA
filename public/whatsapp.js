@@ -764,7 +764,16 @@ Object.assign(ROUTES, {
             gravador.start();
             gravando = true; btn.classList.add('gravando');
             toast('Gravando… clique de novo pra enviar');
-          } catch { toast('Não consegui acessar o microfone — confira a permissão do navegador', 'error'); }
+          } catch (e) {
+            const msgs = {
+              NotAllowedError: 'Permissão de microfone bloqueada — clique no cadeado/ícone ao lado do endereço do site e libere o microfone, depois recarregue a página.',
+              PermissionDeniedError: 'Permissão de microfone bloqueada — clique no cadeado/ícone ao lado do endereço do site e libere o microfone, depois recarregue a página.',
+              NotFoundError: 'Nenhum microfone encontrado neste dispositivo.',
+              DevicesNotFoundError: 'Nenhum microfone encontrado neste dispositivo.',
+              NotReadableError: 'O microfone está sendo usado por outro programa/aba — feche e tente de novo.',
+            };
+            toast(msgs[e?.name] || `Não consegui acessar o microfone (${e?.name || e?.message || 'erro desconhecido'})`, 'error');
+          }
         };
 
         // PDF da conversa — com papel timbrado, pronto para juntar ao processo
