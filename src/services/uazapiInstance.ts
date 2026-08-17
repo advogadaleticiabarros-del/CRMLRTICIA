@@ -159,6 +159,23 @@ export async function sendText(phone: string, text: string, sentBy?: string, rep
   }
 }
 
+/** Botão nativo de pagamento PIX (chave/titular clicáveis no WhatsApp), em vez de texto puro. */
+export async function sendPixButton(phone: string, pixKey: string, pixName: string, pixType: 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP', sentBy?: string): Promise<boolean> {
+  const digits = String(phone).replace(/\D/g, '');
+  if (digits.length < 12) return false;
+  try {
+    const r = await uazapi.sendPixButton(digits, pixKey, pixName, pixType);
+    await db.query(
+      `INSERT IGNORE INTO whatsapp_messages (message_id, phone, client_id, from_me, body, msg_time, sent_by)
+       VALUES (?, ?, ?, 1, ?, NOW(), ?)`,
+      [r?.messageid || null, digits, await findClientByPhone(digits), `💳 Botão PIX — ${pixName} (${pixKey})`, sentBy || null]).catch(() => {});
+    return true;
+  } catch (e: any) {
+    lastError = e?.message || 'Falha ao enviar botão PIX';
+    return false;
+  }
+}
+
 // "ptt" é o tipo que a Uazapi espera pra virar a bolha redonda de mensagem
 // de voz (com PTT:true no retorno — testado direto); "audio" manda o MESMO
 // arquivo, mas vira um anexo de áudio comum, sem o visual de voice note.

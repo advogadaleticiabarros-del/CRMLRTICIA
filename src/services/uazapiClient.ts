@@ -69,6 +69,10 @@ export const uazapi = {
   sendMedia(number: string, fileUrl: string, type: 'image' | 'document' | 'video' | 'audio' | 'ptt', text = ''): Promise<{ messageid: string; status: string }> {
     return request('POST', '/send/media', { number, file: fileUrl, type, text });
   },
+  /** POST /send/pix-button — manda um botão nativo de pagamento PIX (chave/nome do titular). */
+  sendPixButton(number: string, pixKey: string, pixName: string, pixType: 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP'): Promise<any> {
+    return request('POST', '/send/pix-button', { number, pixKey, pixName, pixType });
+  },
   /** POST /message/download — baixa mídia de uma mensagem recebida. */
   downloadMessage(messageId: string): Promise<{ base64?: string; url?: string }> {
     return request('POST', '/message/download', { id: messageId, return_base64: true });

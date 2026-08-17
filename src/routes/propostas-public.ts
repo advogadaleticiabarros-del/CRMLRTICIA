@@ -5,7 +5,7 @@ import { notificationService } from '../services/NotificationService';
 import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
 import { getEscritorio } from '../services/escritorio';
 import { ensurePartnerLawyersColumn } from '../services/propostaSchema';
-import { sendText } from '../services/uazapiInstance';
+import { sendText, sendPixButton } from '../services/uazapiInstance';
 
 const moneyBR = (v: number) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 
@@ -157,7 +157,13 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
     let digits = String(phone).replace(/\D/g, '');
     if (digits.length <= 11) digits = '55' + digits;
     const entrada = Number(parcelamento?.entrada) || 0;
-    sendText(digits, mensagemAceite(nome, entrada), 'Automático — aceite de proposta').catch(() => {});
+    sendText(digits, mensagemAceite(nome, entrada), 'Automático — aceite de proposta')
+      .then(() => {
+        // Botão nativo de pagamento PIX, além do texto — mais fácil pro
+        // cliente pagar sem digitar/copiar a chave manualmente.
+        if (entrada > 0) sendPixButton(digits, '13451070723', 'Leticia Elias Barros', 'CPF', 'Automático — aceite de proposta').catch(() => {});
+      })
+      .catch(() => {});
   }
 
   res.json({ success: true, contract_id: contractId });
