@@ -24,8 +24,12 @@ async function main() {
   let ajustados = 0;
   for (const cl of clients) {
     const clientId = cl.id;
+    // Mesma regra de ajustarEntradaParceria (partnerEntry.ts): a entrada só é
+    // devida por caso já PROTOCOLADO/CONCLUÍDO — contar qualquer caso de
+    // parceria (inclusive ainda em produção) cobrava clientes prematuramente.
     const [[cc]] = await db.query(
-      'SELECT COUNT(*) AS n FROM cases WHERE client_id = ? AND partner_id IS NOT NULL', [clientId]
+      `SELECT COUNT(*) AS n FROM cases WHERE client_id = ? AND partner_id IS NOT NULL
+         AND production_stage IN ('protocolado', 'concluido')`, [clientId]
     ) as any;
     const totalCasos = Number(cc?.n) || 0;
     if (totalCasos === 0) continue;
