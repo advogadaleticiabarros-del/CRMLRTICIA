@@ -6,6 +6,17 @@ const router = Router();
 const ROLES = ['advogado', 'preposto'];
 const STATUSES = ['agendada', 'realizada', 'faturada', 'paga', 'cancelada'];
 
+// O <input type="datetime-local"> manda hora local (Brasília, sem info de
+// fuso) — ex.: "2026-08-25T14:00". O banco guarda tudo em UTC (timezone 'Z'
+// na conexão — ver src/config/database.ts). Sem essa conversão, "14:00"
+// digitado virava "14:00 UTC" gravado, e ao exibir de volta (fuso do
+// navegador, Brasília) aparecia 11:00 — 3h a menos do que foi digitado.
+// Brasil não observa horário de verão desde 2019, então o offset -03:00 é fixo.
+function localParaUtcMysql(v: string): string {
+  const d = new Date(`${v}:00-03:00`);
+  return d.toISOString().slice(0, 19).replace('T', ' ');
+}
+
 /** Cria/atualiza o evento da agenda da audiência (para sincronizar com o Google). */
 async function syncHearingToCalendar(hearingId: number, userId: number): Promise<void> {
   const [[h]] = await db.query('SELECT * FROM correspondent_hearings WHERE id = ?', [hearingId]) as any;
@@ -79,13 +90,13 @@ router.post('/', async (req: Request, res: Response) => {
   if (!hearing_datetime) { res.status(400).json({ error: 'Data e hora da audiência são obrigatórias' }); return; }
   if (!payer_name || !String(payer_name).trim()) { res.status(400).json({ error: 'O pagador é obrigatório' }); return; }
 
-  const finalDueDate = due_date || hearing_datetime; // Default to hearing datetime if not provided
+  const finalDueDate = due_date || String(hearing_datetime).slice(0, 10); // data local, antes da conversão pra UTC
   const [result] = await db.query(
     `INSERT INTO correspondent_hearings
        (user_id, hearing_datetime, role, process_number, comarca, vara, location, requesting_office,
         payer_name, payer_type, payer_document, value, status, due_date, notes)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [req.user!.id, hearing_datetime, ROLES.includes(role) ? role : 'advogado',
+    [req.user!.id, localParaUtcMysql(hearing_datetime), ROLES.includes(role) ? role : 'advogado',
      process_number ?? null, comarca ?? null, vara ?? null, location ?? null, requesting_office ?? null,
      payer_name.trim(), payer_type === 'PF' ? 'PF' : 'PJ', payer_document ?? null,
      Number(value) || 0, STATUSES.includes(status) ? status : 'agendada', finalDueDate, notes ?? null]
@@ -109,7 +120,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   if (!existing.length) { res.status(404).json({ error: 'Audiência não encontrada' }); return; }
   const fields: string[] = []; const params: any[] = [];
   const setIf = (col: string, val: any, valid = true) => { if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val); } };
-  setIf('hearing_datetime', req.body.hearing_datetime);
+  setIf('hearing_datetime', req.body.hearing_datetime !== undefined ? localParaUtcMysql(req.body.hearing_datetime) : undefined);
   setIf('role', req.body.role, ROLES.includes(req.body.role));
   setIf('process_number', req.body.process_number);
   setIf('comarca', req.body.comarca);
@@ -122,7 +133,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('value', req.body.value !== undefined ? Number(req.body.value) : undefined);
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
   if (req.body.due_date !== undefined) { fields.push('due_date = ?'); params.push(req.body.due_date || null); }
-  else if (req.body.hearing_datetime !== undefined) { fields.push('due_date = ?'); params.push(req.body.hearing_datetime); }
+  else if (req.body.hearing_datetime !== undefined) { fields.push('due_date = ?'); params.push(String(req.body.hearing_datetime).slice(0, 10)); }
   setIf('notes', req.body.notes);
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido' }); return; }
   params.push(id);

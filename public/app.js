@@ -2993,7 +2993,7 @@ async function renderCorrespondente(page) {
         const h = rowsCache.find((r) => String(r.id) === b.dataset.editar);
         if (!h) return;
         correspondenteForm(() => { loadKpis(); loadHistorico(); }, {
-          id: h.id, hearing_datetime: h.hearing_datetime ? String(h.hearing_datetime).replace(' ', 'T').slice(0, 16) : '',
+          id: h.id, hearing_datetime: utcParaInputLocal(h.hearing_datetime),
           role: h.role, process_number: h.process_number, comarca: h.comarca, vara: h.vara, location: h.location,
           requesting_office: h.requesting_office, payer_name: h.payer_name, payer_type: h.payer_type, payer_document: h.payer_document,
           value: h.value, due_date: h.due_date ? String(h.due_date).slice(0, 10) : '', notes: h.notes,
@@ -3758,6 +3758,14 @@ function kpi(label, value, cls = '') {
 }
 
 const fmtDateTime = (d) => d ? new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—';
+// Converte um datetime UTC (vindo da API) pro valor local (Brasília) que um
+// <input type="datetime-local"> espera — sem isso, editar um horário já
+// salvo mostrava a hora UTC (3h a mais) em vez da hora que foi digitada.
+const utcParaInputLocal = (d) => {
+  if (!d) return '';
+  const dt = new Date(d);
+  return new Date(dt.getTime() - 3 * 3600 * 1000).toISOString().slice(0, 16);
+};
 
 /** Renderiza a linha do tempo unificada da jornada (lead → cliente → processo). */
 function journeyHTML(events) {
