@@ -3053,7 +3053,7 @@ async function renderCorrespondente(page) {
         <td>${fmtDateTime(r.hearing_datetime)}</td>
         <td>${esc(r.process_number || '—')}</td>
         <td>${esc(r.comarca || '—')}</td>
-        <td>${esc(r.payer_name || '—')}</td>
+        <td style="font-size:13.5pt;font-weight:600">${esc(r.payer_name || '—')}</td>
         <td style="text-align:right">${money(r.value)}</td></tr>`).join('');
       const html = `
         <table style="width:100%;border-collapse:collapse;margin-top:8px">
@@ -3061,8 +3061,15 @@ async function renderCorrespondente(page) {
           <tbody>${linhas}</tbody>
           <tfoot><tr style="border-top:2px solid #c19a4e;font-weight:700"><td colspan="4" style="padding:8px 4px">Total pendente</td><td style="text-align:right;padding:8px 4px">${money(total)}</td></tr></tfoot>
         </table>
-        <p style="margin-top:16px;font-size:10.5pt;color:#6b6252">Favor efetuar o pagamento referente às audiências de correspondente acima. Qualquer dúvida, estamos à disposição.</p>`;
-      printBranded('Guia de Cobrança — Correspondente Jurídico', pagadorSel ? `Pagador: ${pagadorSel}` : 'Todos os pagadores', html);
+        <div style="margin-top:18px;padding:12px 16px;background:#f4f1ea;border-radius:8px">
+          <strong style="color:#1f3047">Dados para pagamento (PIX)</strong>
+          <div style="margin-top:4px">Chave PIX (CPF): <strong>13451070723</strong></div>
+          <div>Banco: Nubank</div>
+          <div>Titular: Leticia Elias Barros</div>
+        </div>
+        <p style="margin-top:14px;font-size:10.5pt;color:#6b6252">Favor efetuar o pagamento referente às audiências de correspondente acima. Qualquer dúvida, estamos à disposição.</p>
+        <p style="margin-top:8px;font-size:10.5pt;color:#6b6252"><strong>Confira sempre o nome do titular antes de transferir.</strong> Não nos responsabilizamos por valores enviados por engano para contas de terceiros — utilize somente a chave PIX informada acima.</p>`;
+      printBranded('Guia de Recebimento — Correspondente Jurídico', pagadorSel ? `Pagador: ${pagadorSel}` : 'Todos os pagadores', html);
     };
     await loadHistorico();
   };
