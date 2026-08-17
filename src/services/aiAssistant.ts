@@ -32,7 +32,10 @@ async function callGemini(prompt: string): Promise<{ ok: boolean; text?: string;
 async function callGroq(prompt: string): Promise<{ ok: boolean; text?: string; message?: string }> {
   const key = process.env.GROQ_API_KEY;
   if (!key) return { ok: false, message: 'sem_groq' };
-  const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
+  // A família Llama saiu do catálogo da Groq (confirmado via GET /models —
+  // "llama-3.3-70b-versatile" não existe mais na conta). openai/gpt-oss-120b
+  // é o modelo de maior porte disponível hoje, equivalente em capacidade.
+  const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
   const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
