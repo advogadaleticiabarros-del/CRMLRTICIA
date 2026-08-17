@@ -193,15 +193,15 @@ const NAV_LABELS = {
   propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos & Tarefas',
   agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Controladoria', correspondente: 'Correspondente',
   documentos: 'Documentos', ia: 'IA Jurídica', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
-  contratos: 'Contratos', intakes: 'Novo Atendimento',
+  contratos: 'Contratos', intakes: 'Novo Atendimento', newsletter: 'Newsletter',
   monitor: 'Monitoramento', fases: 'Fases (Kanban)', producao: 'Produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB', whatsapp: 'WhatsApp',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
   ppcases: 'Meus Indicados', ppclients: 'Fichas dos Clientes', ppupdates: 'Atualizações', ppagenda: 'Audiências', ppfin: 'Financeiro',
 };
 const NAV_BY_ROLE = {
-  admin:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
-  staff:      ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
-  advogado:   ['intakes','dashboard','leads','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
+  admin:      ['intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
+  advogado:   ['intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
   estagiario: ['producao','cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -459,7 +459,7 @@ function svgIcon(name, extra) {
 
 // Ícone (nome no set SVG) por rota — usado na barra lateral e nas abas inferiores
 const NAV_ICONS = {
-  intakes: 'plus', dashboard: 'home', leads: 'leads', clients: 'users', propostas: 'file',
+  intakes: 'plus', dashboard: 'home', leads: 'leads', newsletter: 'mail', clients: 'users', propostas: 'file',
   contratos: 'contract', documentos: 'docs', ia: 'ia', cases: 'briefcase', producao: 'kanban',
   parcerias: 'swap', monitor: 'activity', fases: 'branch', prazos: 'clock', agenda: 'calendar',
   financeiro: 'wallet', controladoria: 'pie', correspondente: 'pin', dativo: 'scale',
@@ -993,6 +993,56 @@ const ROUTES = {
       });
     };
     $('#new-lead').onclick = () => leadForm(load);
+    await load();
+  },
+
+  async newsletter(page) {
+    page.innerHTML = `
+      <div class="page-header"><div><h2>Jornal da Semana</h2><p class="sub">Assinantes da newsletter do blog</p></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-ghost" id="nl-export">${svgIcon('docs')}Exportar CSV</button>
+          <button class="btn-gold" id="nl-copiar">${svgIcon('paperclip')}Copiar todos os WhatsApp</button>
+        </div></div>
+      <div class="toolbar"><input id="nl-busca" placeholder="Buscar por nome, e-mail ou telefone…" style="max-width:320px"></div>
+      <div id="nl-count" style="font-size:12px;color:var(--text-muted);margin-bottom:6px"></div>
+      <div class="card"><div id="nl-table"></div></div>`;
+    let rows = [];
+    const load = async () => {
+      const r = await api('/api/leads?status=newsletter&limit=500').catch(() => ({ data: [] }));
+      rows = r.data || [];
+      render();
+    };
+    const render = () => {
+      const q = ($('#nl-busca').value || '').toLowerCase().trim();
+      const vis = q ? rows.filter((l) => [l.name, l.email, l.phone].some((v) => String(v || '').toLowerCase().includes(q))) : rows;
+      $('#nl-count').textContent = `${vis.length} assinante(s)`;
+      $('#nl-table').innerHTML = vis.length ? `
+        <table><thead><tr><th>Nome</th><th>E-mail</th><th>WhatsApp</th><th>Assinou em</th><th></th></tr></thead>
+        <tbody>${vis.map((l) => `<tr>
+          <td>${esc(l.name)}</td><td>${esc(l.email || '—')}</td>
+          <td>${l.phone ? esc(l.phone) : '—'}</td><td>${fmtDateTime(l.created_at)}</td>
+          <td><button class="btn-icon btn-icon-sm" data-nl-apagar="${l.id}" title="Excluir">${svgIcon('trash', 'ic-xs')}</button></td></tr>`).join('')}</tbody></table>`
+        : '<div class="empty">Nenhum assinante ainda.</div>';
+      $('#nl-table').querySelectorAll('[data-nl-apagar]').forEach((b) => b.onclick = async () => {
+        const l = rows.find((r2) => String(r2.id) === b.dataset.nlApagar);
+        if (!(await uiConfirm(`Excluir "${l?.name}" da lista do Jornal da Semana?`))) return;
+        try { await api('/api/leads/' + b.dataset.nlApagar, { method: 'DELETE' }); toast('Assinante removido'); await load(); }
+        catch (e) { toast(e.message, 'error'); }
+      });
+    };
+    $('#nl-busca').oninput = render;
+    $('#nl-export').onclick = () => downloadCsv(`jornal-da-semana-${new Date().toISOString().slice(0, 10)}.csv`, [
+      { label: 'Nome', get: (l) => l.name || '' },
+      { label: 'E-mail', get: (l) => l.email || '' },
+      { label: 'WhatsApp', get: (l) => l.phone || '' },
+      { label: 'Assinou em', get: (l) => fmtDateTime(l.created_at) },
+    ], rows);
+    $('#nl-copiar').onclick = async () => {
+      const nums = rows.map((l) => l.phone).filter(Boolean);
+      if (!nums.length) { toast('Nenhum WhatsApp cadastrado ainda', 'error'); return; }
+      try { await navigator.clipboard.writeText(nums.join('\n')); toast(`${nums.length} número(s) copiado(s)`); }
+      catch { toast('Não consegui copiar — copie manualmente', 'error'); }
+    };
     await load();
   },
 

@@ -131,4 +131,68 @@ router.post('/lead', async (req: Request, res: Response) => {
   res.status(201).json({ success: true });
 });
 
+// ── POST /api/public/newsletter — assinatura do "Jornal da Semana" (blog) ───
+// Campos: name*, email*, phone (opcional), website (honeypot).
+// Cai em `leads` com status='newsletter' — fora de ACTIVE_STATUSES, então
+// nunca aparece no Kanban de triagem/conversão, só na lista separada.
+// Dispara e-mail de boas-vindas (se configurado) e o alerta de sino/WhatsApp
+// de sempre pra Letícia saber que alguém novo assinou.
+router.options('/newsletter', (_req: Request, res: Response) => {
+  res.set({ 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' });
+  res.sendStatus(204);
+});
+
+router.post('/newsletter', async (req: Request, res: Response) => {
+  res.set('Access-Control-Allow-Origin', '*');
+  const b = req.body || {};
+  if (b.website) { res.json({ success: true }); return; } // honeypot: bot preencheu — finge sucesso
+  if (tooMany(req.ip || 'ip')) { res.status(429).json({ error: 'Muitos envios — tente mais tarde' }); return; }
+
+  const name = String(b.name || '').trim();
+  if (name.length < 3) { res.status(400).json({ error: 'Informe seu nome' }); return; }
+  const email = String(b.email || '').trim().toLowerCase().slice(0, 255);
+  if (!email || !email.includes('@')) { res.status(400).json({ error: 'Informe um e-mail válido' }); return; }
+  const phone = String(b.phone || '').replace(/\D/g, '').slice(0, 15) || null;
+
+  const q = req.query || {};
+  const pick = (k: string) => String(b[k] ?? q[k] ?? '').trim().slice(0, 150) || null;
+  const utm_source = pick('utm_source');
+  const utm_medium = pick('utm_medium');
+  const utm_campaign = pick('utm_campaign') || 'jornal-da-semana';
+  const utm_content = pick('utm_content');
+  const utm_term = pick('utm_term');
+  const landing_page = String(b.landing_page || req.get('referer') || '').trim().slice(0, 500) || null;
+
+  const [[admin]] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
+  if (!admin) { res.status(500).json({ error: 'Indisponível' }); return; }
+
+  // Não duplica: mesmo e-mail já assinante só atualiza o telefone se informado agora.
+  const [[dup]] = await db.query(
+    `SELECT id, phone FROM leads WHERE email = ? AND status = 'newsletter' LIMIT 1`,
+    [email]
+  ) as any;
+  if (dup) {
+    if (phone && !dup.phone) {
+      await db.query('UPDATE leads SET phone = ? WHERE id = ?', [phone, dup.id]).catch(() => {});
+    }
+    res.json({ success: true });
+    return;
+  }
+
+  const [ins] = await db.query(
+    `INSERT INTO leads (user_id, name, phone, email, source, legal_area, status, case_summary,
+                         utm_source, utm_medium, utm_campaign, utm_content, utm_term, landing_page)
+     VALUES (?, ?, ?, ?, ?, NULL, 'newsletter', ?, ?, ?, ?, ?, ?, ?)`,
+    [admin.id, name, phone, email, normalizeChannel({ utm_source, utm_medium, fallback: 'blog' }),
+     'Assinante do Jornal da Semana (blog)', utm_source, utm_medium, utm_campaign, utm_content, utm_term, landing_page]
+  ) as any;
+
+  await notifyNewLead({
+    leadId: ins.insertId, name, phone, source: 'Jornal da Semana (blog)',
+    area: null, message: `Nova assinatura do jornal. E-mail: ${email}`,
+  });
+
+  res.status(201).json({ success: true });
+});
+
 export default router;

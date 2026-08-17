@@ -9,6 +9,7 @@ const STATUS_PT: Record<string, string> = {
   triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado',
   documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação',
   contrato_assinado: 'Contrato Assinado', fechada: 'Convertido', convertido: 'Convertido', perdida: 'Perdido',
+  newsletter: 'Newsletter',
 };
 
 // Campos de cadastro completo do lead (além de name/email/phone/source/legal_area/status/notes)
@@ -16,7 +17,7 @@ const EXTRA_COLS = ['cpf_cnpj', 'rg', 'birth_date', 'marital_status', 'professio
   'number', 'neighborhood', 'city', 'state', 'case_summary', 'estimated_value', 'close_probability',
   'next_followup', 'loss_reason'];
 
-const STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado', 'fechada', 'convertido', 'perdida'];
+const STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado', 'fechada', 'convertido', 'perdida', 'newsletter'];
 const ACTIVE_STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado'];
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
 
