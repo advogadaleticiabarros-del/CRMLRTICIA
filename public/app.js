@@ -8,12 +8,16 @@ let USER = JSON.parse(localStorage.getItem('crm_user') || 'null');
 // ── HTTP helper ──
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) };
+  const tinhaToken = !!TOKEN; // 401 só é "sessão expirou" se havia sessão pra expirar
   if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
   const res = await fetch(API + path, { ...opts, headers });
   // Renovação deslizante da sessão: o servidor manda um token novo perto de expirar
   const renewed = res.headers.get('X-Renew-Token');
   if (renewed) { TOKEN = renewed; localStorage.setItem('crm_token', renewed); }
-  if (res.status === 401) { logout(); throw new Error('Sessão expirada'); }
+  // Sem token (ex.: tela de login) um 401 é credencial errada, não sessão
+  // expirada — deixa a mensagem real do servidor (ex.: "E-mail ou senha
+  // inválidos") passar em vez de mascarar tudo como "Sessão expirada".
+  if (res.status === 401 && tinhaToken) { logout(); throw new Error('Sessão expirada'); }
   const data = res.status === 204 ? null : await res.json();
   if (!res.ok) {
     const err = new Error(data?.error || 'Erro na requisição');
