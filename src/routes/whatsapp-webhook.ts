@@ -35,9 +35,15 @@ async function storeMedia(messageId: string, phone: string, clientId: number | n
   if (!info) return null;
   try {
     const dl = await uazapi.downloadMessage(messageId);
-    if (!dl?.base64) return null;
+    if (!dl?.base64) {
+      console.error(`[whatsapp-webhook] download sem base64 (messageId=${messageId}, tipo=${mediaType}) — resposta:`, JSON.stringify(dl).slice(0, 500));
+      return null;
+    }
     const buffer = Buffer.from(dl.base64, 'base64');
-    if (!buffer.length || buffer.length > MEDIA_MAX) return null;
+    if (!buffer.length || buffer.length > MEDIA_MAX) {
+      console.error(`[whatsapp-webhook] buffer inválido (messageId=${messageId}, tipo=${mediaType}) — tamanho: ${buffer.length}`);
+      return null;
+    }
 
     const stamp = new Date().toISOString().slice(0, 10);
     const fileName = `WhatsApp_${info.rotulo}_${stamp}.${info.ext}`;
