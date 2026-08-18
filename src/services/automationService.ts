@@ -143,17 +143,22 @@ export interface PrazoConfirmadoCtx {
 }
 
 export async function runPrazoConfirmadoPlaybooks(ctx: PrazoConfirmadoCtx): Promise<void> {
-  // Tarefa para vincular processo sem caso
+  // Tarefa para vincular processo sem caso — carrega a DATA-LIMITE real do
+  // prazo confirmado (antes ficava "due NOW()", perdendo o prazo que a
+  // advogada acabou de digitar; a tarefa virava um lembrete genérico sem
+  // relação óbvia com o prazo que ela tinha acabado de confirmar).
   if (ctx.processId && !ctx.caseId && await isEnabled('prazo_confirmado_sem_caso')) {
     const ref = `process:${ctx.processId}`;
     try {
       const [[lp]] = await db.query('SELECT process_number FROM legal_processes WHERE id = ?', [ctx.processId]) as any;
+      const dueStr = ctx.dueDate ? new Date(`${ctx.dueDate}T09:00:00-03:00`) : new Date();
       await db.query(
         `INSERT INTO tasks (user_id, client_id, title, description, due_date, priority, status)
-         VALUES (?, ?, ?, ?, NOW(), 'media', 'pendente')`,
+         VALUES (?, ?, ?, ?, ?, 'alta', 'pendente')`,
         [ctx.userId, ctx.clientId ?? null,
-         `Vincular processo ${lp?.process_number || ''} a um caso`,
-         `Prazo "${ctx.deadlineType}" confirmado, mas o processo ainda não está vinculado a um caso. Vincule para ativar os alertas automáticos de prazo (30/15/7/3/1 dia).`]
+         `⚠ Prazo "${ctx.deadlineType}" — vincular processo ${lp?.process_number || ''} a um caso`,
+         `Prazo "${ctx.deadlineType}" confirmado para ${ctx.dueDate ? new Date(ctx.dueDate + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}, mas o processo ainda não está vinculado a um caso — por isso NÃO aparece em "Prazos processuais". Vincule o processo a um caso para o prazo entrar nos alertas automáticos (30/15/7/3/1 dia).`,
+         dueStr]
       );
       await logRun('prazo_confirmado_sem_caso', ref, 'ok');
     } catch (e: any) {
