@@ -732,6 +732,27 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     } catch { /* fila é best-effort */ }
   }
 
+  // Ao CONCLUIR: fecha sozinha qualquer tarefa "Vincular processo X a um
+  // caso" pendente cujo processo tenha acabado sendo vinculado A ESTE caso —
+  // a vinculação em si continua manual (a advogada decide quando há mais de
+  // um caso possível pro mesmo cliente), mas depois de concluído o lembrete
+  // não faz mais sentido ficar pendente.
+  if (stage === 'concluido' && c.production_stage !== 'concluido') {
+    try {
+      const [procs] = await db.query(
+        'SELECT process_number FROM legal_processes WHERE case_id = ? AND process_number IS NOT NULL', [id]
+      ) as any;
+      for (const p of procs) {
+        await db.query(
+          `UPDATE tasks SET status = 'concluida'
+             WHERE status = 'pendente' AND title LIKE '%vincular processo%a um caso%'
+               AND title LIKE ?`,
+          [`%${p.process_number}%`]
+        ).catch(() => {});
+      }
+    } catch { /* best-effort — não trava a conclusão do caso */ }
+  }
+
   // Ao mover para "CRIAÇÃO INICIAL": gera a petição inicial com a IA, lendo o
   // relato + os DOCUMENTOS anexados (Drive) do caso. Só na entrada na etapa.
   // RODA EM BACKGROUND — a leitura de anexos (Gemini visão) pode levar dezenas
