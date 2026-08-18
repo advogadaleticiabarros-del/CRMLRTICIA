@@ -89,6 +89,21 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
   let lp: any = null;
   if (dd.process_id) {
     [[lp]] = await db.query('SELECT case_id, client_id FROM legal_processes WHERE id = ?', [dd.process_id]) as any;
+
+    // Auto-vincula o processo a um caso quando não há ambiguidade: se o
+    // cliente já tem exatamente 1 caso, é claramente esse. Só fica pendente
+    // de vínculo manual (tarefa) quando há 2+ casos possíveis pro mesmo
+    // cliente — aí só ela sabe decidir qual é o certo.
+    if (!lp?.case_id && lp?.client_id) {
+      const [candidatos] = await db.query(
+        'SELECT id FROM cases WHERE client_id = ? AND status = \'ativo\'', [lp.client_id]
+      ) as any;
+      if (candidatos.length === 1) {
+        await db.query('UPDATE legal_processes SET case_id = ? WHERE id = ?', [candidatos[0].id, dd.process_id]);
+        lp.case_id = candidatos[0].id;
+      }
+    }
+
     if (lp?.case_id) {
       // Busca o texto completo da intimação/origem
       const [[mov]] = dd.movement_id

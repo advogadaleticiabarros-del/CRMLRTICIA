@@ -382,6 +382,22 @@ export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublicatio
       if (cid) {
         await db.query('UPDATE legal_processes SET client_id = ? WHERE id = ? AND client_id IS NULL', [cid, processId]);
         vinculados++;
+        clientId = cid;
+      }
+    }
+
+    // Auto-vincula o processo a um CASO quando não há ambiguidade: se o
+    // cliente já tem exatamente 1 caso ativo, é claramente esse. Com 2+
+    // casos possíveis, fica pendente de vínculo manual — só ela sabe qual.
+    if (clientId) {
+      const [[semCase]] = await db.query('SELECT case_id FROM legal_processes WHERE id = ?', [processId]) as any;
+      if (!semCase?.case_id) {
+        const [candidatos] = await db.query(
+          'SELECT id FROM cases WHERE client_id = ? AND status = \'ativo\'', [clientId]
+        ) as any;
+        if (candidatos.length === 1) {
+          await db.query('UPDATE legal_processes SET case_id = ? WHERE id = ?', [candidatos[0].id, processId]);
+        }
       }
     }
   }
