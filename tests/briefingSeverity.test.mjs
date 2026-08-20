@@ -72,6 +72,15 @@ test('top3 com menos de 3 críticos devolve só os que existem', () => {
   assert.deepEqual(top3(itens).map((i) => i.id), ['a']);
 });
 
+test('top3 em empate de ordemDesempate desempata por PESO_KIND (prazo antes de pagamento)', () => {
+  const itens = [
+    { id: 'a', kind: 'pagamento', label: 'A', severity: 'critica', ordemDesempate: 1 },
+    { id: 'b', kind: 'prazo', label: 'B', severity: 'critica', ordemDesempate: 1 },
+  ];
+  const r = top3(itens);
+  assert.deepEqual(r.map((i) => i.id), ['b', 'a']);
+});
+
 test('top3 sem nenhum crítico devolve lista vazia', () => {
   const itens = [
     { id: 'a', kind: 'esteira', label: 'A', severity: 'atencao', ordemDesempate: 1 },
