@@ -111,15 +111,50 @@ export async function enqueueIntake(opts: {
     if (exists) return { id: exists.id, parsed: null, duplicated: true };
   }
   const parsed = await parseEmail(opts.subject || null, opts.rawText);
+  if (!parsed) {
+    // Falha de parse (Groq indisponível ou JSON inválido) — item vai pra fila
+    // sem dados estruturados. Registra bem visível, senão ninguém percebe que
+    // sobrou um item "mudo" na fila (só aparece na revisão manual).
+    console.warn(
+      `[emailIntake] parseEmail falhou — item entrará na fila SEM dados estruturados.` +
+      ` source=${opts.source || 'manual'} de=${opts.fromEmail || '?'} assunto="${(opts.subject || '').slice(0, 120)}"` +
+      ` msgId=${opts.sourceMessageId || '(sem id)'}`
+    );
+  }
   const partner = await resolvePartner(opts.partnerId);
   const atts = opts.attachments && opts.attachments.length ? JSON.stringify(opts.attachments) : null;
-  const [r] = await db.query(
-    `INSERT INTO email_imports (source, source_message_id, from_email, subject, raw_text, parsed_json, attachments_json, partner_id, status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)`,
-    [opts.source || 'manual', opts.sourceMessageId || null, opts.fromEmail || null, opts.subject || null,
-     opts.rawText, parsed ? JSON.stringify(parsed) : null, atts, partner?.id || null, opts.createdBy || null]
-  ) as any;
-  return { id: r.insertId, parsed };
+  let insertId: number;
+  try {
+    const [r] = await db.query(
+      `INSERT INTO email_imports (source, source_message_id, from_email, subject, raw_text, parsed_json, attachments_json, partner_id, status, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)`,
+      [opts.source || 'manual', opts.sourceMessageId || null, opts.fromEmail || null, opts.subject || null,
+       opts.rawText, parsed ? JSON.stringify(parsed) : null, atts, partner?.id || null, opts.createdBy || null]
+    ) as any;
+    insertId = r.insertId;
+  } catch (e: any) {
+    // Corrida entre o cron e outra chamada concorrente para o mesmo e-mail
+    // (uq_msg, migration 048): não é erro real, o outro processo já inseriu.
+    if (e?.code === 'ER_DUP_ENTRY' && opts.sourceMessageId) {
+      const [[exists]] = await db.query('SELECT id FROM email_imports WHERE source_message_id = ?', [opts.sourceMessageId]) as any;
+      if (exists) return { id: exists.id, parsed: null, duplicated: true };
+    }
+    throw e;
+  }
+  if (!parsed) {
+    try {
+      const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+      for (const a of admins) {
+        await db.query(
+          `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+           VALUES (?, ?, ?, 'email_intake_sem_dados', 'sistema', NOW(), 'pendente')`,
+          [a.id, 'Importação sem dados estruturados',
+           `E-mail de ${opts.fromEmail || 'remetente desconhecido'} (assunto: "${(opts.subject || '(vazio)').slice(0, 150)}") caiu na fila sem que a IA conseguisse extrair cliente/casos. Edite manualmente (item #${insertId}).`]
+        );
+      }
+    } catch (e) { console.error('[emailIntake] falha ao notificar admins sobre parse falho, import id', insertId, e); }
+  }
+  return { id: insertId, parsed };
 }
 
 /**
@@ -143,13 +178,33 @@ export async function confirmIntake(id: number, actorId: number, override?: Pars
   const nome = parsed.cliente.nome.trim();
 
   // Cliente — dedup por CPF (se houver) ou por nome.
+  // CPF: compara normalizado (só dígitos) dos dois lados — a máscara pode
+  // vir ou não vir tanto do banco quanto do que a IA extraiu do e-mail.
+  // Nome: normaliza espaços múltiplos/trim antes de comparar. Acentos NÃO são
+  // normalizados aqui (MySQL puro sem função de unaccent) — limitação conhecida:
+  // "José" e "Jose" são tratados como clientes diferentes.
   let clientId: number;
   let found: any[] = [];
   if (parsed.cliente.cpf) {
-    [found] = await db.query('SELECT id FROM clients WHERE cpf_cnpj = ? LIMIT 1', [parsed.cliente.cpf]) as any;
+    const cpfDigits = parsed.cliente.cpf.replace(/\D/g, '');
+    if (cpfDigits) {
+      [found] = await db.query(
+        "SELECT id FROM clients WHERE REPLACE(REPLACE(REPLACE(cpf_cnpj,'.',''),'-',''),'/','') = ? LIMIT 1",
+        [cpfDigits]
+      ) as any;
+    }
   }
+  const nomeNormalizado = nome.replace(/\s+/g, ' ').trim();
   if (!found.length) {
-    [found] = await db.query('SELECT id FROM clients WHERE LOWER(name) = LOWER(?) LIMIT 1', [nome]) as any;
+    // TRIM cobre espaço nas pontas no banco; espaços múltiplos no MEIO do nome
+    // salvo são raros (cadastro normal não gera isso) e ficam por conta da
+    // normalização do lado da busca (nomeNormalizado) — colapsar espaços
+    // internos armazenados exigiria REGEXP_REPLACE (MySQL 8+), que não
+    // confirmamos disponível neste ambiente.
+    [found] = await db.query(
+      'SELECT id FROM clients WHERE LOWER(TRIM(name)) = LOWER(?) LIMIT 1',
+      [nomeNormalizado]
+    ) as any;
   }
   if (found.length) {
     clientId = found[0].id;
@@ -173,7 +228,15 @@ export async function confirmIntake(id: number, actorId: number, override?: Pars
   let novos = 0;
   for (const c of parsed.casos) {
     const title = tituloCaso(nome, c);
-    const [dup] = await db.query('SELECT id FROM cases WHERE client_id = ? AND title = ? LIMIT 1', [clientId, title]) as any;
+    // Dedup por título: a tabela `cases` não guarda banco/tipo em colunas
+    // próprias (só title/legal_area/description), então não dá pra comparar
+    // por uma combinação estruturada mais estável. Compara normalizando
+    // espaços múltiplos/trim e case (o título da IA pode variar em espaçamento
+    // e caixa entre execuções, mesmo para o mesmo caso).
+    const [dup] = await db.query(
+      "SELECT id FROM cases WHERE client_id = ? AND LOWER(TRIM(title)) = LOWER(?) LIMIT 1",
+      [clientId, title.replace(/\s+/g, ' ').trim()]
+    ) as any;
     if (dup.length) { caseIds.push(dup[0].id); continue; }
     const desc = [c.descricao, c.banco ? `Banco: ${c.banco}` : null, c.tipo ? `Tipo: ${c.tipo}` : null].filter(Boolean).join(' · ') || null;
     const [cr] = await db.query(
@@ -190,11 +253,18 @@ export async function confirmIntake(id: number, actorId: number, override?: Pars
   try {
     const [[cl]] = await db.query('SELECT areas FROM clients WHERE id = ?', [clientId]) as any;
     let arr: string[] = [];
-    try { arr = cl?.areas ? (typeof cl.areas === 'string' ? JSON.parse(cl.areas) : cl.areas) : []; } catch {}
+    try {
+      arr = cl?.areas ? (typeof cl.areas === 'string' ? JSON.parse(cl.areas) : cl.areas) : [];
+    } catch (e) {
+      console.warn('[emailIntake] falha ao parsear clients.areas para clientId', clientId, e);
+    }
     if (!Array.isArray(arr)) arr = [];
     for (const a of areasSet) if (!arr.includes(a)) arr.push(a);
     await db.query('UPDATE clients SET areas = ? WHERE id = ?', [JSON.stringify(arr), clientId]);
-  } catch { /* migration 046 pode não ter rodado */ }
+  } catch (e) {
+    // migration 046 pode não ter rodado (coluna areas ausente) — não bloqueia a confirmação.
+    console.warn('[emailIntake] falha ao etiquetar áreas do cliente', clientId, e);
+  }
 
   // Entrada da parceria (100% do escritório) — POR CLIENTE: 1 caso = R$100,
   // 2+ casos = R$130 total. Lança só a diferença que faltar. Venc. +7 dias.
@@ -203,7 +273,16 @@ export async function confirmIntake(id: number, actorId: number, override?: Pars
     entrada = await ajustarEntradaParceria(clientId, partner, caseIds[0] ?? null, actorId);
   }
 
-  await db.query("UPDATE email_imports SET status = 'confirmado', client_id = ?, confirmed_at = NOW() WHERE id = ?", [clientId, id]);
+  // LGPD: depois de confirmado, raw_text/parsed_json (CPF em texto puro,
+  // e-mail bruto do parceiro) não servem mais pra nada — o cliente/caso já
+  // foi criado com os dados que interessam. Nulifica pra não guardar dado
+  // sensível indefinidamente. Nenhum outro ponto do código lê estes campos
+  // depois de status='confirmado' (conferido: grep por raw_text/parsed_json
+  // — só há leitura em enqueueIntake/confirmIntake, antes deste ponto).
+  await db.query(
+    "UPDATE email_imports SET status = 'confirmado', client_id = ?, confirmed_at = NOW(), raw_text = NULL, parsed_json = NULL WHERE id = ?",
+    [clientId, id]
+  );
   await logTimeline({
     clientId, caseId: caseIds[0] ?? null, eventType: 'parceria_importada',
     description: `Importado do e-mail (${partner?.name || 'parceria'}) — ${parsed.casos.length} caso(s)${entrada ? ` · entrada R$ ${entrada.toFixed(2)}` : ''}.`,

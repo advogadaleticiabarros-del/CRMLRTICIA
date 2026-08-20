@@ -23,6 +23,38 @@ const SCOPES = [
 ];
 const DRIVE_ROOT_NAME = 'CRM Jurídico - Anexos';
 
+// ── Validação de anexos (item de segurança) ─────────────────────────────────
+// Anexos de e-mail vêm de fora (parceiro/terceiros) e sobem direto pro Drive
+// e viram documento vinculado ao caso — sem validar tipo/tamanho, o robô sobe
+// qualquer coisa (inclusive executável) sem ninguém perceber.
+const MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024; // 25MB
+const BLOCKED_ATTACHMENT_EXTENSIONS = new Set([
+  '.exe', '.bat', '.cmd', '.sh', '.js', '.msi', '.com', '.scr', '.ps1', '.vbs', '.jar', '.cpl',
+]);
+
+export function attachmentExtension(filename?: string | null): string {
+  const f = String(filename || '').trim().toLowerCase();
+  const idx = f.lastIndexOf('.');
+  return idx >= 0 ? f.slice(idx) : '';
+}
+
+/**
+ * Valida um anexo ANTES de subir pro Drive: tamanho e extensão bloqueada.
+ * Não travar o processamento dos demais — quem chama loga e faz `continue`.
+ * `sizeBytes` pode vir do tamanho já conhecido (base64 decodificado) ou ser
+ * checado depois de baixar, dependendo de onde os bytes estão disponíveis.
+ */
+export function rejectAttachment(filename: string | undefined, sizeBytes: number | undefined): string | null {
+  const ext = attachmentExtension(filename);
+  if (ext && BLOCKED_ATTACHMENT_EXTENSIONS.has(ext)) {
+    return `extensão bloqueada (${ext})`;
+  }
+  if (typeof sizeBytes === 'number' && sizeBytes > MAX_ATTACHMENT_BYTES) {
+    return `excede o limite de ${(MAX_ATTACHMENT_BYTES / (1024 * 1024)).toFixed(0)}MB (${(sizeBytes / (1024 * 1024)).toFixed(1)}MB)`;
+  }
+  return null;
+}
+
 function oauth() {
   return new google.auth.OAuth2(env.GOOGLE_CLIENT_ID, env.GOOGLE_CLIENT_SECRET, env.GOOGLE_REDIRECT_URI);
 }
@@ -475,7 +507,9 @@ async function existingAttachmentNames(auth: any, folderId: string, clientId: nu
       [caseId, clientId]
     ) as any;
     for (const d of docs) if (d.name) set.add(String(d.name).trim().toLowerCase());
-  } catch {}
+  } catch (e) {
+    console.error('[existingAttachmentNames] falha ao ler documents do banco — clientId', clientId, 'caseId', caseId, e);
+  }
   try {
     const drive = google.drive({ version: 'v3', auth });
     let pageToken: string | undefined;
@@ -487,7 +521,9 @@ async function existingAttachmentNames(auth: any, folderId: string, clientId: nu
       for (const f of r.data.files || []) if (f.name) set.add(String(f.name).trim().toLowerCase());
       pageToken = r.data.nextPageToken || undefined;
     } while (pageToken);
-  } catch {}
+  } catch (e) {
+    console.error('[existingAttachmentNames] falha ao listar arquivos do Drive — folderId', folderId, e);
+  }
   return set;
 }
 
@@ -534,6 +570,11 @@ export async function processAttachmentsForImport(importId: number, clientId: nu
   for (const a of atts) {
     try {
       if (a.filename && jaBaixados.has(String(a.filename).trim().toLowerCase())) continue; // já existe, não duplica
+      const extRejeicao = rejectAttachment(a.filename, undefined);
+      if (extRejeicao) {
+        console.warn('[processAttachmentsForImport] anexo rejeitado', a?.filename, '-', extRejeicao, '- importId', importId);
+        continue;
+      }
       let raw = a.data as string | undefined;
       if (!raw && a.attachmentId) {
         const data = await gmail.users.messages.attachments.get({ userId: 'me', messageId: imp.source_message_id, id: a.attachmentId });
@@ -541,6 +582,11 @@ export async function processAttachmentsForImport(importId: number, clientId: nu
       }
       if (!raw) continue;
       const buf = Buffer.from(raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+      const tamanhoRejeicao = rejectAttachment(a.filename, buf.length);
+      if (tamanhoRejeicao) {
+        console.warn('[processAttachmentsForImport] anexo rejeitado', a?.filename, '-', tamanhoRejeicao, '- importId', importId);
+        continue;
+      }
       const up = await drive.files.create({
         requestBody: { name: a.filename, parents: [folderId] },
         media: { mimeType: a.mimeType || 'application/octet-stream', body: Readable.from(buf) },
@@ -619,6 +665,11 @@ export async function downloadClientAttachmentsFromGmail(
       for (const a of atts) {
         try {
           if (a.filename && jaBaixados.has(String(a.filename).trim().toLowerCase())) { pulados++; continue; } // já existe
+          const extRejeicao = rejectAttachment(a.filename, undefined);
+          if (extRejeicao) {
+            console.warn('[downloadClientAttachmentsFromGmail] anexo rejeitado', a?.filename, '-', extRejeicao, '- clientId', clientId);
+            pulados++; continue;
+          }
           let raw = a.data as string | undefined;
           if (!raw && a.attachmentId) {
             const data = await gmail.users.messages.attachments.get({ userId: 'me', messageId: m.id!, id: a.attachmentId });
@@ -626,6 +677,11 @@ export async function downloadClientAttachmentsFromGmail(
           }
           if (!raw) continue;
           const buf = Buffer.from(raw.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+          const tamanhoRejeicao = rejectAttachment(a.filename, buf.length);
+          if (tamanhoRejeicao) {
+            console.warn('[downloadClientAttachmentsFromGmail] anexo rejeitado', a?.filename, '-', tamanhoRejeicao, '- clientId', clientId);
+            pulados++; continue;
+          }
           const up = await drive.files.create({
             requestBody: { name: a.filename, parents: [folderId] },
             media: { mimeType: a.mimeType || 'application/octet-stream', body: Readable.from(buf) },
@@ -656,6 +712,11 @@ export async function downloadClientAttachmentsFromGmail(
           if (!dl) { cloudFalhos.push(lk.filename || lk.url); continue; }
           const finalName = lk.filename || dl.filename || `anexo_nuvem_${anexos + 1}.bin`;
           if (jaBaixados.has(finalName.trim().toLowerCase())) { pulados++; continue; }
+          const rejeicao = rejectAttachment(finalName, dl.buffer.length);
+          if (rejeicao) {
+            console.warn('[downloadClientAttachmentsFromGmail] anexo de nuvem rejeitado', finalName, '-', rejeicao, '- clientId', clientId);
+            cloudFalhos.push(finalName); continue;
+          }
           const up = await drive.files.create({
             requestBody: { name: finalName, parents: [folderId] },
             media: { mimeType: dl.mimeType || 'application/octet-stream', body: Readable.from(dl.buffer) },

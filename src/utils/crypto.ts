@@ -45,15 +45,29 @@ function chave(): Buffer | null {
   const jwt = process.env.JWT_SECRET;
   if (jwt) {
     console.warn(
-      '⚠️  [crypto] ENCRYPTION_KEY não definida — derivando do JWT_SECRET.\n' +
+      '\n' +
+      '████████████████████████████████████████████████████████████████\n' +
+      '⚠️  [crypto] ENCRYPTION_KEY NÃO DEFINIDA — derivando do JWT_SECRET.\n' +
+      '    Isto é um FALLBACK, não o ideal: rotacionar o JWT_SECRET depois\n' +
+      '    tornaria ILEGÍVEIS os tokens já cifrados com esta chave derivada.\n' +
       '    Defina ENCRYPTION_KEY (32 bytes) no Railway e NUNCA a perca:\n' +
-      '    node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"'
+      '    node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n' +
+      '████████████████████████████████████████████████████████████████\n'
     );
     chaveCache = crypto.createHash('sha256').update('crm-enc:' + jwt).digest();
     return chaveCache;
   }
 
-  console.error('❌ [crypto] Sem ENCRYPTION_KEY nem JWT_SECRET — dados sensíveis NÃO serão cifrados.');
+  console.error(
+    '\n' +
+    '████████████████████████████████████████████████████████████████\n' +
+    '❌ [crypto] SEM ENCRYPTION_KEY NEM JWT_SECRET — dados sensíveis (tokens\n' +
+    '    OAuth, backups) serão gravados/enviados EM TEXTO PURO a partir daqui.\n' +
+    '    Defina pelo menos uma das duas variáveis no ambiente (Railway) o\n' +
+    '    quanto antes. O processo continua rodando de propósito (melhor\n' +
+    '    funcionar sem cifrar do que travar o CRM), mas isto precisa de ação.\n' +
+    '████████████████████████████████████████████████████████████████\n'
+  );
   chaveCache = null;
   return null;
 }

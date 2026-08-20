@@ -102,7 +102,12 @@ router.post('/:id/confirm', async (req: Request, res: Response) => {
     const out = await confirmIntake(Number(req.params.id), req.user!.id, override);
     // Anexos do e-mail (Gmail) → Google Drive, vinculados ao caso.
     let anexos = 0;
-    try { anexos = await processAttachmentsForImport(Number(req.params.id), out.clientId, out.caseIds[0] ?? null, req.user!.id); } catch { /* Drive indisponível não trava a confirmação */ }
+    try {
+      anexos = await processAttachmentsForImport(Number(req.params.id), out.clientId, out.caseIds[0] ?? null, req.user!.id);
+    } catch (e) {
+      // Drive indisponível não trava a confirmação, mas precisa ficar registrado.
+      console.error('[email-intake/confirm] falha ao processar anexos do import', req.params.id, e);
+    }
 
     // Auto-criar pasta Drive individual por caso (igual ao fluxo manual de parceria)
     if (out.caseIds.length > 0) {
@@ -116,11 +121,17 @@ router.post('/:id/confirm', async (req: Request, res: Response) => {
         for (const c of cases) {
           createProductionFolder(req.user!.id, c.client_name || 'Cliente', c.legal_area || 'Geral', (c.title || '').substring(0, 50))
             .then((result) => {
-              if (result) db.query('UPDATE cases SET drive_folder_url = ? WHERE id = ?', [result.folderUrl, c.id]).catch(() => {});
+              if (result) {
+                db.query('UPDATE cases SET drive_folder_url = ? WHERE id = ?', [result.folderUrl, c.id])
+                  .catch((e) => console.error('[email-intake/confirm] falha ao salvar drive_folder_url do caso', c.id, e));
+              }
             })
-            .catch(() => {});
+            .catch((e) => console.error('[email-intake/confirm] falha ao criar pasta Drive do caso (fire-and-forget)', c.id, e));
         }
-      } catch { /* silent — não bloqueia o retorno */ }
+      } catch (e) {
+        // silent por design (não bloqueia o retorno), mas registrado.
+        console.error('[email-intake/confirm] falha ao preparar criação de pastas Drive por caso', out.caseIds, e);
+      }
     }
 
     res.json({ success: true, ...out, anexos });
