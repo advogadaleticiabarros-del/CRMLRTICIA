@@ -6,6 +6,7 @@ import { googleCalendarService } from '../services/GoogleCalendarService';
 import { calendarSyncService } from '../services/CalendarSyncService';
 import { notificationService } from '../services/NotificationService';
 import { telegramNotificationService } from '../services/TelegramNotificationService';
+import { localParaUtcMysql } from '../utils/timezone';
 
 const router = Router();
 
@@ -81,7 +82,8 @@ router.post('/events', async (req: Request, res: Response) => {
         location, source, sync_status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'crm', 'pendente')`,
     [userId, client_id ?? null, case_id ?? null, task_id ?? null, deadline_id ?? null,
-     title, description ?? null, event_type ?? 'compromisso', start_datetime, end_datetime, location ?? null]
+     title, description ?? null, event_type ?? 'compromisso',
+     localParaUtcMysql(start_datetime), localParaUtcMysql(end_datetime), location ?? null]
   ) as any;
 
   const eventId = result.insertId;

@@ -1,6 +1,7 @@
 import { db } from '../config/database';
 import { runEstagiarioForDeadline } from './aiAssistant';
 import { telegramNotificationService } from './TelegramNotificationService';
+import { localParaUtcMysql } from '../utils/timezone';
 
 /**
  * Motor de automação (playbooks). Regras prontas, cada uma ligável/desligável
@@ -170,8 +171,8 @@ export async function runPrazoConfirmadoPlaybooks(ctx: PrazoConfirmadoCtx): Prom
   if (ctx.dueDate && await isEnabled('prazo_confirmado_agenda')) {
     const ref = `deadline:${ctx.deadlineId ?? ''}`;
     try {
-      const inicio = `${ctx.dueDate} 09:00:00`;
-      const fim = `${ctx.dueDate} 10:00:00`;
+      const inicio = localParaUtcMysql(`${ctx.dueDate}T09:00`);
+      const fim = localParaUtcMysql(`${ctx.dueDate}T10:00`);
       await db.query(
         `INSERT INTO calendar_events
            (user_id, client_id, case_id, deadline_id, title, description, event_type, start_datetime, end_datetime, source, sync_status)

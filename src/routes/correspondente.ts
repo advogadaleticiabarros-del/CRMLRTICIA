@@ -1,21 +1,11 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
+import { localParaUtcMysql } from '../utils/timezone';
 
 const router = Router();
 
 const ROLES = ['advogado', 'preposto'];
 const STATUSES = ['agendada', 'realizada', 'faturada', 'paga', 'cancelada'];
-
-// O <input type="datetime-local"> manda hora local (Brasília, sem info de
-// fuso) — ex.: "2026-08-25T14:00". O banco guarda tudo em UTC (timezone 'Z'
-// na conexão — ver src/config/database.ts). Sem essa conversão, "14:00"
-// digitado virava "14:00 UTC" gravado, e ao exibir de volta (fuso do
-// navegador, Brasília) aparecia 11:00 — 3h a menos do que foi digitado.
-// Brasil não observa horário de verão desde 2019, então o offset -03:00 é fixo.
-function localParaUtcMysql(v: string): string {
-  const d = new Date(`${v}:00-03:00`);
-  return d.toISOString().slice(0, 19).replace('T', ' ');
-}
 
 /** Cria/atualiza o evento da agenda da audiência (para sincronizar com o Google). */
 async function syncHearingToCalendar(hearingId: number, userId: number): Promise<void> {
