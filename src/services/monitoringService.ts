@@ -203,6 +203,10 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
         novas++;
         if (m.movement_date && (!latest || m.movement_date > latest)) latest = m.movement_date;
         await detectDeadline(processId, proc.client_id, m, proc.process_number, ins.insertId, provider.name);
+        // Interpretação para o briefing matinal — best-effort, nunca trava a sincronização.
+        const { interpretarMovimentacao } = await import('./aiAssistant');
+        await interpretarMovimentacao(ins.insertId, `${m.title || ''}\n${m.description || ''}`.trim())
+          .catch((e) => console.error(`[movimentação ${ins.insertId}] falha ao interpretar:`, e?.message || e));
       }
     } catch (e: any) {
       // duplicada (unique_hash) — ignora

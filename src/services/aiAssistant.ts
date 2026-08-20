@@ -271,3 +271,54 @@ ${teor}`;
     return { ok: false, message: e?.message || 'Falha ao gerar a minuta' };
   }
 }
+
+export interface MovementAiSummary {
+  resumo: string;
+  acao: string;
+  prazo_interno: string;
+  prioridade: 'Alta' | 'Média' | 'Baixa';
+}
+
+/** Extrai os 4 campos da resposta em texto da IA. Nunca lança — na dúvida, devolve valores vazios/Baixa. */
+export function parseMovementAiResponse(texto: string): MovementAiSummary {
+  const campo = (rotulo: string) => {
+    const m = texto.match(new RegExp(`${rotulo}:\\s*(.+)`, 'i'));
+    return m ? m[1].trim() : '';
+  };
+  const prioridadeRaw = campo('PRIORIDADE');
+  const prioridade: MovementAiSummary['prioridade'] =
+    prioridadeRaw === 'Alta' || prioridadeRaw === 'Média' ? prioridadeRaw : 'Baixa';
+  return {
+    resumo: campo('RESUMO'),
+    acao: campo('AÇÃO'),
+    prazo_interno: campo('PRAZO INTERNO'),
+    prioridade,
+  };
+}
+
+/**
+ * Interpreta UMA movimentação processual para o briefing matinal (seção 4 do
+ * spec) — reaproveita o mesmo padrão de análise do Estagiário IA
+ * (runEstagiarioForDeadline), mas roda para toda movimentação nova do dia,
+ * não só as que geram prazo detectado.
+ */
+export async function interpretarMovimentacao(
+  movementId: number,
+  texto: string
+): Promise<{ ok: boolean; summary?: MovementAiSummary; message?: string }> {
+  const teor = (texto || '').trim();
+  if (!teor) return { ok: false, message: 'Sem texto da movimentação' };
+  const prompt = `Você é assistente jurídico(a) experiente. Leia a movimentação processual abaixo e responda EXATAMENTE neste formato, sem texto fora dele:
+RESUMO: <1-2 linhas, linguagem simples>
+AÇÃO: <ação necessária, ou "nenhuma" se for andamento de rotina sem exigir providência>
+PRAZO INTERNO: <data sugerida dd/mm/aaaa, ou "sem prazo">
+PRIORIDADE: <Alta, Média ou Baixa>
+
+MOVIMENTAÇÃO:
+${teor}`;
+  const r = await aiComplete(prompt, 'groq');
+  if (!r.ok || !r.text) return { ok: false, message: r.message || 'IA indisponível' };
+  const summary = parseMovementAiResponse(r.text);
+  await db.query('UPDATE process_movements SET ai_summary = ? WHERE id = ?', [JSON.stringify(summary), movementId]);
+  return { ok: true, summary };
+}
