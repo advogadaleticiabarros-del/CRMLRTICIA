@@ -7331,7 +7331,7 @@ async function contractEditor(id, onSave) {
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn-gold btn-sm" id="zap-msg" type="button">Gerar mensagem ao cliente</button>
       <button class="btn-sm" id="zap-copy" type="button">Copiar</button>
-      <button class="btn-sm" id="zap-wpp" type="button">WhatsApp</button>
+      <button class="btn-sm" id="zap-wpp" type="button">${svgIcon('chat')} Enviar por WhatsApp</button>
     </div>
     <textarea id="zap-text" rows="8" placeholder="A mensagem orientando o cliente aparecerá aqui."></textarea>
     ${ct.status === 'assinado' ? '' : `<button class="btn-primary" id="zap-signed" type="button" style="background:var(--green)">${svgIcon('check')}Marcar como assinado (ZapSign)</button>`}
@@ -7470,10 +7470,18 @@ async function contractEditor(id, onSave) {
     try { await navigator.clipboard.writeText(t); toast('Mensagem copiada'); }
     catch { const ta = wrap.querySelector('#zap-text'); ta.select(); document.execCommand('copy'); toast('Mensagem copiada'); }
   };
-  wrap.querySelector('#zap-wpp').onclick = () => {
+  wrap.querySelector('#zap-wpp').onclick = async (ev) => {
     const link = wrap.querySelector('#zap-link').value.trim();
     if (!/^https?:\/\//i.test(link)) { toast('Cole um link válido do ZapSign', 'error'); return; }
-    window.open('https://wa.me/?text=' + encodeURIComponent(zapMsg(link)), '_blank');
+    if (!ct.client_phone) { toast('Cliente sem telefone cadastrado — copie a mensagem e envie manualmente', 'error'); return; }
+    const text = wrap.querySelector('#zap-text').value.trim() || zapMsg(link);
+    const btn = ev.currentTarget; btn.disabled = true;
+    try {
+      await api(`/api/whatsapp-instance/chats/${ct.client_phone.replace(/\D/g, '')}/send`, { method: 'POST', body: JSON.stringify({ text }) });
+      await saveDocs({ zapsign_link: link });
+      toast('Mensagem enviada pelo WhatsApp do escritório'); onSave && onSave();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { btn.disabled = false; }
   };
   const zapSigned = wrap.querySelector('#zap-signed');
   if (zapSigned) zapSigned.onclick = async () => {

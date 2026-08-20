@@ -30,9 +30,16 @@ router.get('/', async (req: Request, res: Response) => {
 
 // ── GET /api/contracts/:id ──────────────────────────────────────────────────
 router.get('/:id', async (req: Request, res: Response) => {
+  // client_phone vem do cliente já cadastrado OU, se o contrato ainda estiver
+  // preso a um lead (cliente só é criado ao confirmar a assinatura — ver
+  // contractFlow.ts), do telefone do lead. É o que permite mandar a mensagem
+  // de assinatura direto pelo WhatsApp antes mesmo do cliente existir no CRM.
   const [rows] = await db.query(
-    `SELECT ct.*, c.name AS client_name FROM contracts ct
-     LEFT JOIN clients c ON c.id = ct.client_id WHERE ct.id = ? AND ct.user_id = ?`,
+    `SELECT ct.*, c.name AS client_name, COALESCE(c.phone, l.phone) AS client_phone
+     FROM contracts ct
+     LEFT JOIN clients c ON c.id = ct.client_id
+     LEFT JOIN leads l ON l.id = ct.lead_id
+     WHERE ct.id = ? AND ct.user_id = ?`,
     [req.params.id, req.user!.id]
   ) as any;
   if (!rows.length) { res.status(404).json({ error: 'Contrato não encontrado' }); return; }
