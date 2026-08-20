@@ -1,6 +1,7 @@
 import { google, calendar_v3 } from 'googleapis';
 import { encrypt, decrypt } from '../utils/crypto';
 import { db } from '../config/database';
+import { collectAllPages } from './googlePagination';
 
 interface GoogleTokens {
   access_token: string;
@@ -203,13 +204,22 @@ export class GoogleCalendarService {
     const all: calendar_v3.Schema$Event[] = [];
     for (const cal of calendars) {
       try {
-        const response = await calendar.events.list({
-          calendarId: cal.id!,
-          timeMin, timeMax, maxResults,
-          singleEvents: true,
-          orderBy: 'startTime',
+        // Paginação: sem isso, calendários com muitos eventos no período de 25
+        // meses varrido perdiam compromissos futuros — a API só devolve
+        // `maxResults` por página, e a antiga chamada única ignorava
+        // `nextPageToken` (bug confirmado: eventos ordenados do mais antigo pro
+        // mais novo, então o corte comia justamente o que estava por vir).
+        const items = await collectAllPages<calendar_v3.Schema$Event>(async (pageToken) => {
+          const response = await calendar.events.list({
+            calendarId: cal.id!,
+            timeMin, timeMax, maxResults,
+            singleEvents: true,
+            orderBy: 'startTime',
+            pageToken,
+          });
+          return { items: response.data.items ?? undefined, nextPageToken: response.data.nextPageToken };
         });
-        for (const ev of response.data.items ?? []) {
+        for (const ev of items) {
           (ev as any)._calendarName = cal.summary ?? null;
           all.push(ev);
         }
