@@ -1,6 +1,21 @@
 import { db } from '../config/database';
 import { googleCalendarService } from './GoogleCalendarService';
 
+/**
+ * Converte o dateTime do Google (RFC3339 com offset, ex. "2026-08-25T14:00:00-03:00",
+ * ou "date" puro pra evento de dia inteiro) para o formato "YYYY-MM-DD HH:mm:ss" em
+ * UTC real, pronto para gravar numa coluna DATETIME com pool timezone:'Z'. Sem isso,
+ * o offset do Google era ignorado e o horário saía deslocado ao ler de volta.
+ */
+export function toUtcMysqlFromGoogleDateTime(value: string | null | undefined): string | null {
+  if (!value) return null;
+  // "date" puro (evento de dia inteiro) não tem hora nem offset — vira meia-noite.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value} 00:00:00`;
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 19).replace('T', ' ');
+}
+
 interface SyncResult {
   created: number;
   updated: number;
@@ -28,8 +43,8 @@ export class CalendarSyncService {
       if (!ev.id || !ev.summary) continue;
 
       try {
-        const start = ev.start?.dateTime ?? ev.start?.date;
-        const end   = ev.end?.dateTime   ?? ev.end?.date;
+        const start = toUtcMysqlFromGoogleDateTime(ev.start?.dateTime ?? ev.start?.date);
+        const end   = toUtcMysqlFromGoogleDateTime(ev.end?.dateTime   ?? ev.end?.date);
 
         const [existing] = await db.query(
           'SELECT id FROM calendar_events WHERE google_event_id = ? AND user_id = ?',
