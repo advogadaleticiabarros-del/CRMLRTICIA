@@ -2,13 +2,16 @@ import { db } from '../config/database';
 import { sendEmail, layout } from './EmailService';
 import { getGoalProgress, GoalProgress } from './goalsService';
 import { sendText } from './uazapiInstance';
-import { classificarAgenda, classificarPagamento, classificarEsteira, classificarLead, Severity } from './briefingSeverity';
+import { classificarAgenda, classificarPagamento, classificarEsteira, classificarLead, classificarPrazo, top3, Severity, BriefingItem } from './briefingSeverity';
 import { buildCaseChecklist } from './caseChecklists';
 
 const NAVY = '#1f3047';
 const GOLD = '#c19a4e';
 const NAVY_SOFT = '#eef1f6';
 const GOLD_SOFT = '#f2ead3';
+const CRITICAL = '#b3432f', CRITICAL_SOFT = '#fbeae6';
+const WARNING = '#a67626', WARNING_SOFT = '#faf1e0';
+const OK_STRONG = '#2f8f63', OK_SOFT = '#eaf3ee';
 const CITY = process.env.BRIEFING_CITY || 'Vitória';
 // Coordenadas de Vitória/ES — usadas se a geocodificação falhar (a API de
 // geocoding tem mais de uma cidade chamada "Vitória" no mundo — ver getWeather).
@@ -364,52 +367,143 @@ function metaHtml(meta: GoalProgress): string {
     </div>`;
 }
 
-function buildHtml(name: string, weather: Weather | null, agenda: any, pulso: any, meta: GoalProgress): string {
+interface MovimentacaoBriefing {
+  processo: string; clienteVsParte: string; resumo: string; acao: string;
+  prazoInterno: string; severity: Severity;
+}
+
+export function buildHtml(
+  name: string, weather: Weather | null, agenda: any, pulso: any, meta: GoalProgress,
+  agenda3d: AgendaItem[], financeiro: FinanceiroGranular,
+  comercial: { leadsNovos: LeadNovo[]; aniversariantes: Aniversariante[] },
+  esteira: { pecasAProduzir: PecaPendente[]; documentosPendentes: DocumentoPendente[] },
+  movimentacoes: MovimentacaoBriefing[]
+): string {
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
-  const tipoLabel: Record<string, string> = { reuniao: '🤝 Reunião', audiencia: '⚖️ Audiência', compromisso: '📌 Compromisso', prazo: '⏰ Prazo', tarefa: '✓ Tarefa' };
+  const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const tipoLabel: Record<string, string> = { reuniao: '🤝 Reunião', audiencia: '⚖️ Audiência', compromisso: '📌 Compromisso' };
 
-  const weatherLine = weather
-    ? `A previsão para <strong>${weather.city}</strong> hoje é de <strong>${weather.tmin}°C a ${weather.tmax}°C</strong>, com ${weather.desc}.`
-    : `(Não consegui obter a previsão do tempo agora.)`;
+  // Monta os itens tipados (Task 4: briefingSeverity) para agrupar por severidade.
+  const itensAgenda = agenda3d.map((a) => ({
+    html: `<div class="item item-${a.severity === 'critica' ? 'critical' : a.severity === 'atencao' ? 'warning' : 'ok'}">
+      <p class="item-title">${tipoLabel[a.tipo] || '📌'} ${a.titulo}</p>
+      <p class="item-meta">${a.data} ${a.hora}${a.local ? ` · ${a.local}` : ''}${a.videoLink ? ' · online' : ''}</p>
+    </div>`,
+    severity: a.severity,
+  }));
+  const itensMovimentacao = movimentacoes.map((m) => ({
+    html: `<div class="item item-${m.severity === 'critica' ? 'critical' : m.severity === 'atencao' ? 'warning' : 'ok'}">
+      <p class="item-title">${m.clienteVsParte}</p>
+      <p class="item-meta">Proc. ${m.processo} · ${m.resumo}</p>
+      ${m.acao && m.acao !== 'nenhuma' ? `<div class="item-action"><b>Ação:</b> ${m.acao}${m.prazoInterno && m.prazoInterno !== 'sem prazo' ? ` · <b>prazo interno ${m.prazoInterno}</b>` : ''}</div>` : ''}
+    </div>`,
+    severity: m.severity,
+  }));
+  const itensPagamento = financeiro.aReceberHoje > 0 ? [{
+    html: `<div class="item item-critical"><p class="item-title">${money(financeiro.aReceberHoje)} a receber vencendo hoje</p></div>`,
+    severity: 'critica' as const,
+  }] : [];
+  // Prazos processuais de hoje (agenda.prazos já vem de getDayAgenda, existente) —
+  // classificarPrazo(0) força 'critica' porque getDayAgenda só traz o dia de hoje.
+  const itensPrazo = (agenda.prazos || []).map((p: any) => ({
+    html: `<div class="item item-critical">
+      <p class="item-title">⏰ Prazo: ${p.description}</p>
+      <p class="item-meta">${p.case_number ? `Proc. ${p.case_number}` : ''}</p>
+    </div>`,
+    severity: classificarPrazo(0),
+  }));
+  const itensEsteira = esteira.pecasAProduzir.map((p) => ({
+    html: `<div class="item item-${p.severity === 'critica' ? 'critical' : p.severity === 'atencao' ? 'warning' : 'ok'}">
+      <p class="item-title">${p.caso} — parado há ${p.diasParado} dia(s)</p>
+      <p class="item-meta">Fase: ${p.fase}</p>
+    </div>`,
+    severity: p.severity,
+  }));
 
-  const evHtml = (agenda.eventos || []).map((e: any) =>
-    `<li><strong>${e.hora}</strong> — ${tipoLabel[e.event_type] || '📌'} ${e.title}${e.location ? ` <span style="color:#8a8175">(${e.location})</span>` : ''}${e.video_link ? ` · <a href="${e.video_link}" style="color:${NAVY}">vídeo</a>` : ''}</li>`).join('');
-  const przHtml = (agenda.prazos || []).map((p: any) =>
-    `<li>⏰ <strong>Prazo:</strong> ${p.description}${p.case_number ? ` <span style="color:#8a8175">(proc. ${p.case_number})</span>` : ''}</li>`).join('');
-  const tskHtml = (agenda.tarefas || []).map((t: any) =>
-    `<li>✓ ${t.title} <span style="color:#8a8175">(${t.priority})</span></li>`).join('');
+  const todosItens = [...itensAgenda, ...itensPrazo, ...itensMovimentacao, ...itensPagamento, ...itensEsteira];
+  const criticos = todosItens.filter((i) => i.severity === 'critica');
+  const atencao = todosItens.filter((i) => i.severity === 'atencao');
+  const acompanhamento = todosItens.filter((i) => i.severity === 'acompanhamento');
 
-  const temAlgo = evHtml || przHtml || tskHtml;
-  const corpo = temAlgo
-    ? `<ul style="line-height:1.9;padding-left:18px;margin:8px 0;color:#232323">${evHtml}${przHtml}${tskHtml}</ul>`
-    : `<p style="color:#6b6252">Você não tem compromissos, prazos ou tarefas registrados para hoje. Bom dia tranquilo! ☕</p>`;
+  const sevBlock = (titulo: string, emoji: string, cls: string, itens: typeof todosItens, id: string) =>
+    itens.length ? `
+    <div class="sev-block sev-${cls}" id="${id}">
+      <div class="sev-head"><span class="sev-dot"></span><h2 class="sev-title">${emoji} ${titulo}</h2><span class="sev-count">${itens.length}</span></div>
+      ${itens.map((i) => i.html).join('')}
+    </div>` : '';
+
+  const agendaListaHtml = agenda3d.map((a) =>
+    `<div class="agenda-row"><div class="agenda-day">${a.data}</div><div class="agenda-time">${a.hora}</div><div>${tipoLabel[a.tipo] || '📌'} ${a.titulo}${a.local ? ` <span class="pill pill-presencial">presencial</span>` : a.videoLink ? ` <span class="pill pill-online">online</span>` : ''}</div></div>`
+  ).join('') || '<p style="color:#6b6252;font-size:13px">Sem compromissos nos próximos 3 dias.</p>';
+
+  const comercialHtml = [
+    ...comercial.leadsNovos.map((l) => `<div class="agenda-row"><div class="agenda-day">Novo lead</div><div>${l.nome} — ${l.area} · ${l.origem}</div></div>`),
+    ...comercial.aniversariantes.map((a) => `<div class="agenda-row"><div class="agenda-day">🎂 Hoje</div><div>Aniversário de ${a.nome} (cliente)</div></div>`),
+  ].join('') || '<p style="color:#6b6252;font-size:13px">Nada novo hoje.</p>';
+
+  const podeEsperarPartes: string[] = [];
+  if (esteira.pecasAProduzir.some((p) => p.severity === 'pode_esperar'))
+    podeEsperarPartes.push(`${esteira.pecasAProduzir.filter((p) => p.severity === 'pode_esperar').length} caso(s) na esteira sem prazo em risco.`);
+  const podeEsperarHtml = podeEsperarPartes.length
+    ? `<h3 class="section" style="color:#6b6252;font-size:12px;margin-bottom:5px">⚪ Pode esperar</h3><p class="quiet-block">${podeEsperarPartes.map((p) => `<span>${p}</span>`).join('')}</p>`
+    : '';
+
+  // "3 prioridades do dia" — usa o classificador determinístico (Task 4), não uma nova síntese por IA.
+  const briefingItems: BriefingItem[] = [
+    ...movimentacoes.filter((m) => m.severity === 'critica').map((m, idx) => ({ id: `mov-${idx}`, kind: 'movimentacao' as const, label: `${m.acao} — ${m.clienteVsParte}`, severity: m.severity, ordemDesempate: idx })),
+    ...agenda3d.filter((a) => a.severity === 'critica').map((a, idx) => ({ id: `ag-${idx}`, kind: 'agenda' as const, label: `${a.titulo}, ${a.hora}`, severity: a.severity, ordemDesempate: idx })),
+  ];
+  const top3Items = top3(briefingItems);
+  const top3Html = top3Items.length ? `
+    <div class="top3">
+      <div class="top3-label">🎯 Se você fizer só 3 coisas hoje</div>
+      <ol>${top3Items.map((i: BriefingItem) => `<li>${i.label}</li>`).join('')}</ol>
+    </div>` : '';
 
   const body = `
     <div style="font-size:12px;color:${GOLD};text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:2px">${hoje}</div>
     <p style="font-size:19px;font-weight:700;color:${NAVY};margin:0 0 16px">Bom dia, Dra. ${name}! ☀️</p>
 
-    <div style="background:${GOLD_SOFT};border-radius:8px;padding:16px 18px;margin-bottom:18px">
+    <div style="background:${GOLD_SOFT};border-radius:8px;padding:16px 18px;margin-bottom:16px">
       <div style="font-size:9px;color:#8a6d1a;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:6px">Frase de força do dia</div>
       <p style="margin:0;font-size:14.5px;line-height:1.6;color:#4a3d1d;font-style:italic">"${fraseDoDia()}"</p>
     </div>
 
-    <p style="font-size:14.5px;color:#232323">${weatherLine}</p>
-    <div style="background:${NAVY_SOFT};border-radius:8px;padding:12px 16px;margin:12px 0 18px;font-size:13.5px;color:#232323">
-      <strong style="color:${NAVY}">💡 Dica do dia:</strong> ${weatherTip(weather)}
+    ${criticos.length || atencao.length || acompanhamento.length ? `
+    <div style="display:flex;gap:8px;margin:0 0 26px">
+      <a href="#atencao" style="flex:1;text-align:center;text-decoration:none;padding:9px 4px 8px;border-radius:8px;background:${CRITICAL_SOFT};color:${CRITICAL}"><span style="display:block;font-size:17px;font-weight:700">${criticos.length}</span><span style="display:block;font-size:9.5px;text-transform:uppercase">atenção</span></a>
+      <a href="#atencao2" style="flex:1;text-align:center;text-decoration:none;padding:9px 4px 8px;border-radius:8px;background:${WARNING_SOFT};color:${WARNING}"><span style="display:block;font-size:17px;font-weight:700">${atencao.length}</span><span style="display:block;font-size:9.5px;text-transform:uppercase">prioridade</span></a>
+      <a href="#acompanhamento" style="flex:1;text-align:center;text-decoration:none;padding:9px 4px 8px;border-radius:8px;background:${OK_SOFT};color:${OK_STRONG}"><span style="display:block;font-size:17px;font-weight:700">${acompanhamento.length}</span><span style="display:block;font-size:9.5px;text-transform:uppercase">acompanhar</span></a>
+    </div>` : ''}
+
+    ${sevBlock('Atenção imediata', '🔴', 'critical', criticos, 'atencao')}
+    ${sevBlock('Prioridade do dia', '🟠', 'warning', atencao, 'atencao2')}
+    ${sevBlock('Acompanhamento', '🟢', 'ok', acompanhamento, 'acompanhamento')}
+
+    <hr style="border:none;border-top:1px solid #e2ddd1;margin:26px 0">
+
+    <h3 style="color:${NAVY};font-size:15px;margin:0 0 8px;font-family:Georgia,serif">📅 Agenda — hoje e próximos 3 dias</h3>
+    ${agendaListaHtml}
+
+    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">💰 Financeiro</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 4px">
+      <div style="background:${NAVY_SOFT};border-radius:8px;padding:12px 14px;border-left:3px solid ${CRITICAL}"><div style="font-size:16px;font-weight:700;color:${NAVY}">${money(financeiro.aReceberHoje)}</div><div style="font-size:11px;color:#6b6252">a receber vencendo hoje</div></div>
+      <div style="background:${NAVY_SOFT};border-radius:8px;padding:12px 14px;border-left:3px solid ${NAVY}"><div style="font-size:16px;font-weight:700;color:${NAVY}">${money(financeiro.rpvSemana)}</div><div style="font-size:11px;color:#6b6252">RPV prevista esta semana</div></div>
+      <div style="background:${NAVY_SOFT};border-radius:8px;padding:12px 14px;border-left:3px solid ${OK_STRONG}"><div style="font-size:16px;font-weight:700;color:${NAVY}">${money(financeiro.recebido7d)}</div><div style="font-size:11px;color:#6b6252">recebido nos últimos 7 dias</div></div>
+      <div style="background:${NAVY_SOFT};border-radius:8px;padding:12px 14px;border-left:3px solid ${NAVY}"><div style="font-size:16px;font-weight:700;color:${NAVY}">${financeiro.alvarasAguardando}</div><div style="font-size:11px;color:#6b6252">alvarás aguardando conferência</div></div>
     </div>
 
-    <h3 style="color:${NAVY};font-size:15px;margin:18px 0 6px;font-family:Georgia,serif">📅 Seu dia hoje</h3>
-    ${corpo}
+    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">📲 Comercial</h3>
+    ${comercialHtml}
 
-    <h3 style="color:${NAVY};font-size:15px;margin:18px 0 6px;font-family:Georgia,serif">🎯 Meta do mês</h3>
-    ${metaHtml(meta)}
+    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">⚖️ Radar jurídico</h3>
+    <div style="border:1px dashed #e2ddd1;border-radius:8px;padding:12px 16px;font-size:12.5px;color:#6b6252">Em construção — só vai trazer algo quando houver Informativo do STJ relevante às suas áreas. Nada aqui hoje.</div>
 
-    <h3 style="color:${NAVY};font-size:15px;margin:18px 0 6px;font-family:Georgia,serif">📊 Pulso do escritório</h3>
-    ${pulsoHtml(pulso)}
+    ${podeEsperarHtml}
+    ${top3Html}
 
     <div style="border:1px solid #e2ddd1;border-radius:8px;padding:16px 18px;margin-top:20px;text-align:center">
-      <p style="margin:0 0 4px;font-size:13px;color:#6b6252">🧘 Antes de começar: já bebeu água hoje? Um alongamento de 2 minutos também conta.</p>
-      <p style="margin:10px 0 0;font-size:15px;font-weight:700;color:${NAVY};font-family:Georgia,serif">Qual é o seu objetivo hoje?</p>
+      <p style="margin:0;font-size:13px;color:#6b6252">🧘 Antes de começar: já bebeu água hoje? Um alongamento de 2 minutos também conta.</p>
     </div>
 
     <p style="margin-top:22px;text-align:center"><a href="https://crm.advogadaleticiabarros.com.br" style="display:inline-block;background:${GOLD};color:#231e17;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:bold;font-family:Arial,sans-serif">Abrir o CRM</a></p>`;
@@ -445,10 +539,14 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
     seen.add(u.email.toLowerCase());
     const agenda = await getDayAgenda(u.id);
     const firstName = (u.name || 'Dra.').split(' ')[0];
+    const agenda3d = await getAgenda3Dias(u.id);
+    const financeiro = await getFinanceiroGranular();
+    const comercial = await getComercialDoDia();
+    const esteira = await getEsteiraEDocumentos();
     const r = await sendEmail({
       to: u.email,
       subject: `☀️ Bom dia! Sua agenda de hoje`,
-      html: buildHtml(firstName, weather, agenda, pulso, meta),
+      html: buildHtml(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, []),
     });
     if (r.ok) sent++; else failed++;
 
