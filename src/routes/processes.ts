@@ -61,9 +61,21 @@ router.get('/:id', async (req: Request, res: Response) => {
 
 // ── POST /api/processes — cadastrar processo monitorado ─────────────────────
 router.post('/', async (req: Request, res: Response) => {
-  const { client_id, lawyer_id, process_number, court_alias, judicial_area, source, distribution_date, confidential } = req.body;
+  const { client_id, process_number, court_alias, judicial_area, source, distribution_date, confidential } = req.body;
+  let { lawyer_id } = req.body;
   if (!process_number || !String(process_number).trim()) {
     res.status(400).json({ error: 'O número do processo é obrigatório' }); return;
+  }
+  // Sem advogado responsável, o processo fica de fora do monitoramento (o cron
+  // faz JOIN com lawyers — lawyer_id nulo nunca casa e o processo nunca é
+  // consultado no DJEN, silenciosamente). Quem cadastra sem escolher explicitamente
+  // (ex.: campo rápido na ficha do cliente) recebe o advogado ativo padrão do
+  // escritório — mesma convenção já usada em aiAssistant.ts.
+  if (!lawyer_id) {
+    const [[padrao]] = await db.query(
+      "SELECT id FROM lawyers WHERE active = 1 ORDER BY id LIMIT 1"
+    ) as any;
+    lawyer_id = padrao?.id ?? null;
   }
   const alias = court_alias && TRIBUNAIS[court_alias] ? court_alias : suggestCourtAlias(judicial_area, 'ES');
   const court = alias && TRIBUNAIS[alias] ? TRIBUNAIS[alias].nome : null;
@@ -72,7 +84,7 @@ router.post('/', async (req: Request, res: Response) => {
     `INSERT INTO legal_processes
        (client_id, lawyer_id, process_number, court, court_alias, judicial_area, status, source, confidential, distribution_date)
      VALUES (?, ?, ?, ?, ?, ?, 'ativo', ?, ?, ?)`,
-    [client_id ?? null, lawyer_id ?? null, process_number.trim(), court, alias, judicial_area ?? null,
+    [client_id ?? null, lawyer_id, process_number.trim(), court, alias, judicial_area ?? null,
      source || 'manual', confidential ? 1 : 0, distribution_date || null]
   ) as any;
   const [rows] = await db.query('SELECT * FROM legal_processes WHERE id = ?', [result.insertId]) as any;
