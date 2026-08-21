@@ -383,40 +383,46 @@ export function buildHtml(
   const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   const tipoLabel: Record<string, string> = { reuniao: '🤝 Reunião', audiencia: '⚖️ Audiência', compromisso: '📌 Compromisso' };
 
+  // Cor de borda por severidade (mesma lógica usada nos 3 blocos de item abaixo).
+  const corSeveridade = (s: Severity) => s === 'critica' ? CRITICAL : s === 'atencao' ? WARNING : OK_STRONG;
+
+  const itemHtml = (tituloHtml: string, metaHtml: string, severity: Severity, acaoHtml?: string) => `
+    <div style="border-left:3px solid ${corSeveridade(severity)};padding:9px 0 9px 14px;margin-bottom:2px${severity === 'critica' ? `;background:linear-gradient(90deg,${CRITICAL_SOFT},transparent 70%)` : ''}">
+      <p style="margin:0 0 3px;color:#232323;font-size:${severity === 'critica' ? '14.5px;font-weight:700' : '13.5px'};line-height:1.45">${tituloHtml}</p>
+      ${metaHtml ? `<p style="margin:0;font-size:12px;color:#6b6252;line-height:1.5">${metaHtml}</p>` : ''}
+      ${acaoHtml ? `<div style="margin:6px 0 0;font-size:12.5px;color:${NAVY};background:${NAVY_SOFT};display:inline-block;padding:5px 10px;border-radius:6px">${acaoHtml}</div>` : ''}
+    </div>`;
+
   // Monta os itens tipados (Task 4: briefingSeverity) para agrupar por severidade.
   const itensAgenda = agenda3d.map((a) => ({
-    html: `<div class="item item-${a.severity === 'critica' ? 'critical' : a.severity === 'atencao' ? 'warning' : 'ok'}">
-      <p class="item-title">${tipoLabel[a.tipo] || '📌'} ${a.titulo}</p>
-      <p class="item-meta">${a.data} ${a.hora}${a.local ? ` · ${a.local}` : ''}${a.videoLink ? ' · online' : ''}</p>
-    </div>`,
+    html: itemHtml(
+      `${tipoLabel[a.tipo] || '📌'} ${a.titulo}`,
+      `${a.data} ${a.hora}${a.local ? ` · ${a.local}` : ''}${a.videoLink ? ' · online' : ''}`,
+      a.severity
+    ),
     severity: a.severity,
   }));
   const itensMovimentacao = movimentacoes.map((m) => ({
-    html: `<div class="item item-${m.severity === 'critica' ? 'critical' : m.severity === 'atencao' ? 'warning' : 'ok'}">
-      <p class="item-title">${m.clienteVsParte}</p>
-      <p class="item-meta">Proc. ${m.processo} · ${m.resumo}</p>
-      ${m.acao && m.acao !== 'nenhuma' ? `<div class="item-action"><b>Ação:</b> ${m.acao}${m.prazoInterno && m.prazoInterno !== 'sem prazo' ? ` · <b>prazo interno ${m.prazoInterno}</b>` : ''}</div>` : ''}
-    </div>`,
+    html: itemHtml(
+      m.clienteVsParte,
+      `Proc. ${m.processo} · ${m.resumo}`,
+      m.severity,
+      m.acao && m.acao !== 'nenhuma' ? `<b>Ação:</b> ${m.acao}${m.prazoInterno && m.prazoInterno !== 'sem prazo' ? ` · <b>prazo interno ${m.prazoInterno}</b>` : ''}` : undefined
+    ),
     severity: m.severity,
   }));
   const itensPagamento = financeiro.aReceberHoje > 0 ? [{
-    html: `<div class="item item-critical"><p class="item-title">${money(financeiro.aReceberHoje)} a receber vencendo hoje</p></div>`,
+    html: itemHtml(`${money(financeiro.aReceberHoje)} a receber vencendo hoje`, '', 'critica' as const),
     severity: 'critica' as const,
   }] : [];
   // Prazos processuais de hoje (agenda.prazos já vem de getDayAgenda, existente) —
   // classificarPrazo(0) força 'critica' porque getDayAgenda só traz o dia de hoje.
   const itensPrazo = (agenda.prazos || []).map((p: any) => ({
-    html: `<div class="item item-critical">
-      <p class="item-title">⏰ Prazo: ${p.description}</p>
-      <p class="item-meta">${p.case_number ? `Proc. ${p.case_number}` : ''}</p>
-    </div>`,
+    html: itemHtml(`⏰ Prazo: ${p.description}`, p.case_number ? `Proc. ${p.case_number}` : '', classificarPrazo(0)),
     severity: classificarPrazo(0),
   }));
   const itensEsteira = esteira.pecasAProduzir.map((p) => ({
-    html: `<div class="item item-${p.severity === 'critica' ? 'critical' : p.severity === 'atencao' ? 'warning' : 'ok'}">
-      <p class="item-title">${p.caso} — parado há ${p.diasParado} dia(s)</p>
-      <p class="item-meta">Fase: ${p.fase}</p>
-    </div>`,
+    html: itemHtml(`${p.caso} — parado há ${p.diasParado} dia(s)`, `Fase: ${p.fase}`, p.severity),
     severity: p.severity,
   }));
 
@@ -425,39 +431,51 @@ export function buildHtml(
   const atencao = todosItens.filter((i) => i.severity === 'atencao');
   const acompanhamento = todosItens.filter((i) => i.severity === 'acompanhamento');
 
-  const sevBlock = (titulo: string, emoji: string, cls: string, itens: typeof todosItens, id: string) =>
+  const sevBlock = (titulo: string, emoji: string, cor: string, fundo: string, itens: typeof todosItens, id: string) =>
     itens.length ? `
-    <div class="sev-block sev-${cls}" id="${id}">
-      <div class="sev-head"><span class="sev-dot"></span><h2 class="sev-title">${emoji} ${titulo}</h2><span class="sev-count">${itens.length}</span></div>
+    <div style="margin:0 0 22px" id="${id}">
+      <div style="display:flex;align-items:center;gap:8px;margin:0 0 12px;padding:7px 12px;border-radius:7px;background:linear-gradient(90deg,${fundo},transparent)">
+        <span style="width:9px;height:9px;border-radius:50%;background:${cor};display:inline-block;flex:none"></span>
+        <h2 style="font-family:Georgia,serif;margin:0;font-size:15px;color:${cor};flex:1">${emoji} ${titulo}</h2>
+        <span style="font-family:Arial,sans-serif;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:${fundo};color:${cor}">${itens.length}</span>
+      </div>
       ${itens.map((i) => i.html).join('')}
     </div>` : '';
 
   const agendaListaHtml = agenda3d.map((a) =>
-    `<div class="agenda-row"><div class="agenda-day">${a.data}</div><div class="agenda-time">${a.hora}</div><div>${tipoLabel[a.tipo] || '📌'} ${a.titulo}${a.local ? ` <span class="pill pill-presencial">presencial</span>` : a.videoLink ? ` <span class="pill pill-online">online</span>` : ''}</div></div>`
+    `<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #f1ede4;font-size:13px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#6b6252;width:74px;flex:none;padding-top:2px">${a.data}</div>
+      <div style="font-weight:700;color:${NAVY};width:42px;flex:none">${a.hora}</div>
+      <div>${tipoLabel[a.tipo] || '📌'} ${a.titulo}${a.local ? ` <span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;background:${WARNING_SOFT};color:${WARNING}">presencial</span>` : a.videoLink ? ` <span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;background:${OK_SOFT};color:${OK_STRONG}">online</span>` : ''}</div>
+    </div>`
   ).join('') || '<p style="color:#6b6252;font-size:13px">Sem compromissos nos próximos 3 dias.</p>';
 
   const comercialHtml = [
-    ...comercial.leadsNovos.map((l) => `<div class="agenda-row"><div class="agenda-day">Novo lead</div><div>${l.nome} — ${l.area} · ${l.origem}</div></div>`),
-    ...comercial.aniversariantes.map((a) => `<div class="agenda-row"><div class="agenda-day">🎂 Hoje</div><div>Aniversário de ${a.nome} (cliente)</div></div>`),
+    ...comercial.leadsNovos.map((l) => `<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #f1ede4;font-size:13px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#6b6252;width:74px;flex:none;padding-top:2px">Novo lead</div><div>${l.nome} — ${l.area} · ${l.origem}</div></div>`),
+    ...comercial.aniversariantes.map((a) => `<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #f1ede4;font-size:13px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#6b6252;width:74px;flex:none;padding-top:2px">🎂 Hoje</div><div>Aniversário de ${a.nome} (cliente)</div></div>`),
   ].join('') || '<p style="color:#6b6252;font-size:13px">Nada novo hoje.</p>';
 
   const podeEsperarPartes: string[] = [];
   if (esteira.pecasAProduzir.some((p) => p.severity === 'pode_esperar'))
     podeEsperarPartes.push(`${esteira.pecasAProduzir.filter((p) => p.severity === 'pode_esperar').length} caso(s) na esteira sem prazo em risco.`);
   const podeEsperarHtml = podeEsperarPartes.length
-    ? `<h3 class="section" style="color:#6b6252;font-size:12px;margin-bottom:5px">⚪ Pode esperar</h3><p class="quiet-block">${podeEsperarPartes.map((p) => `<span>${p}</span>`).join('')}</p>`
+    ? `<h3 style="font-family:Georgia,serif;color:#6b6252;font-size:12px;margin:22px 0 5px">⚪ Pode esperar</h3><p style="font-size:12px;color:#6b6252;line-height:1.7;font-style:italic;opacity:.8;margin:0">${podeEsperarPartes.map((p) => `<span style="display:block">${p}</span>`).join('')}</p>`
     : '';
 
-  // "3 prioridades do dia" — usa o classificador determinístico (Task 4), não uma nova síntese por IA.
+  // "3 prioridades do dia" — usa o classificador determinístico (Task 4), não uma nova síntese
+  // por IA. Inclui TODOS os kinds que podem ser críticos (prazo e pagamento também, não só
+  // movimentação/agenda — prazo é o de MAIOR peso em PESO_KIND, precisa poder vencer o desempate).
   const briefingItems: BriefingItem[] = [
+    ...(agenda.prazos || []).map((p: any, idx: number) => ({ id: `prazo-${idx}`, kind: 'prazo' as const, label: `Prazo: ${p.description}${p.case_number ? ` (proc. ${p.case_number})` : ''}`, severity: classificarPrazo(0), ordemDesempate: idx })),
     ...movimentacoes.filter((m) => m.severity === 'critica').map((m, idx) => ({ id: `mov-${idx}`, kind: 'movimentacao' as const, label: `${m.acao} — ${m.clienteVsParte}`, severity: m.severity, ordemDesempate: idx })),
     ...agenda3d.filter((a) => a.severity === 'critica').map((a, idx) => ({ id: `ag-${idx}`, kind: 'agenda' as const, label: `${a.titulo}, ${a.hora}`, severity: a.severity, ordemDesempate: idx })),
+    ...(financeiro.aReceberHoje > 0 ? [{ id: 'pag-0', kind: 'pagamento' as const, label: `Cobrar ${money(financeiro.aReceberHoje)} vencendo hoje`, severity: 'critica' as const, ordemDesempate: 0 }] : []),
   ];
   const top3Items = top3(briefingItems);
   const top3Html = top3Items.length ? `
-    <div class="top3">
-      <div class="top3-label">🎯 Se você fizer só 3 coisas hoje</div>
-      <ol>${top3Items.map((i: BriefingItem) => `<li>${i.label}</li>`).join('')}</ol>
+    <div style="margin-top:24px;background:${NAVY};border-radius:10px;padding:20px 22px;color:#fff">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:${GOLD};font-weight:700;font-family:Arial,sans-serif;margin-bottom:10px">🎯 Se você fizer só 3 coisas hoje</div>
+      <ol style="margin:0;padding-left:20px">${top3Items.map((i: BriefingItem) => `<li style="font-family:Georgia,serif;font-size:14.5px;line-height:1.7;margin-bottom:4px">${i.label}</li>`).join('')}</ol>
     </div>` : '';
 
   const body = `
@@ -476,9 +494,9 @@ export function buildHtml(
       <a href="#acompanhamento" style="flex:1;text-align:center;text-decoration:none;padding:9px 4px 8px;border-radius:8px;background:${OK_SOFT};color:${OK_STRONG}"><span style="display:block;font-size:17px;font-weight:700">${acompanhamento.length}</span><span style="display:block;font-size:9.5px;text-transform:uppercase">acompanhar</span></a>
     </div>` : ''}
 
-    ${sevBlock('Atenção imediata', '🔴', 'critical', criticos, 'atencao')}
-    ${sevBlock('Prioridade do dia', '🟠', 'warning', atencao, 'atencao2')}
-    ${sevBlock('Acompanhamento', '🟢', 'ok', acompanhamento, 'acompanhamento')}
+    ${sevBlock('Atenção imediata', '🔴', CRITICAL, CRITICAL_SOFT, criticos, 'atencao')}
+    ${sevBlock('Prioridade do dia', '🟠', WARNING, WARNING_SOFT, atencao, 'atencao2')}
+    ${sevBlock('Acompanhamento', '🟢', OK_STRONG, OK_SOFT, acompanhamento, 'acompanhamento')}
 
     <hr style="border:none;border-top:1px solid #e2ddd1;margin:26px 0">
 

@@ -48,6 +48,19 @@ test('financeiro granular mostra os 4 valores', () => {
 });
 
 test('sem nenhum item crítico, o bloco "3 prioridades" não aparece', () => {
-  const html = buildHtml('Letícia', null, { eventos: [], prazos: [], tarefas: [] }, {}, { current: 0, target: 1, percent: 0, faltam: 1, contratos_fechados_mes: 0 }, [], financeiroExemplo, { leadsNovos: [], aniversariantes: [] }, { pecasAProduzir: [], documentosPendentes: [] }, []);
+  const financeiroSemPendencia = { aReceberHoje: 0, rpvSemana: 2150, recebido7d: 6300, alvarasAguardando: 0 };
+  const html = buildHtml('Letícia', null, { eventos: [], prazos: [], tarefas: [] }, {}, { current: 0, target: 1, percent: 0, faltam: 1, contratos_fechados_mes: 0 }, [], financeiroSemPendencia, { leadsNovos: [], aniversariantes: [] }, { pecasAProduzir: [], documentosPendentes: [] }, []);
   assert.doesNotMatch(html, /3 coisas hoje/);
+});
+
+test('prazo crítico sozinho (sem movimentação nem agenda crítica) preenche o bloco "3 prioridades do dia"', () => {
+  const financeiroSemPendencia = { aReceberHoje: 0, rpvSemana: 0, recebido7d: 0, alvarasAguardando: 0 };
+  const agendaComPrazo = {
+    eventos: [],
+    prazos: [{ description: 'Contestação — Proc. trabalhista', case_number: '0012345-11.2026.5.17.0001' }],
+    tarefas: [],
+  };
+  const html = buildHtml('Letícia', null, agendaComPrazo, {}, { current: 0, target: 1, percent: 0, faltam: 1, contratos_fechados_mes: 0 }, [], financeiroSemPendencia, { leadsNovos: [], aniversariantes: [] }, { pecasAProduzir: [], documentosPendentes: [] }, []);
+  assert.match(html, /3 coisas hoje/, 'com prazo crítico isolado, o bloco "3 prioridades" deve aparecer (Achado 2)');
+  assert.match(html, /Prazo: Contestação/);
 });
