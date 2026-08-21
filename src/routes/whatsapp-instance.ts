@@ -115,33 +115,16 @@ router.get('/messages/deletions', async (_req: Request, res: Response) => {
 // Usa o Whisper do Groq (grátis com a GROQ_API_KEY já usada na IA). A transcrição
 // fica gravada na própria mensagem — vira prova legível e entra na busca.
 router.post('/media/:id/transcricao', async (req: Request, res: Response) => {
-  const key = process.env.GROQ_API_KEY;
-  if (!key) { res.status(400).json({ error: 'Transcrição requer GROQ_API_KEY configurada' }); return; }
   const [[m]] = await db.query('SELECT id, file_name, mime, data FROM whatsapp_media WHERE id = ?', [req.params.id]) as any;
   if (!m) { res.status(404).json({ error: 'Áudio não encontrado' }); return; }
-  if (!String(m.mime).startsWith('audio/') && !String(m.mime).startsWith('video/')) {
-    res.status(400).json({ error: 'Este arquivo não é um áudio' }); return;
-  }
-  try {
-    const fd = new FormData();
-    fd.append('file', new Blob([m.data], { type: m.mime }), m.file_name || 'audio.ogg');
-    fd.append('model', 'whisper-large-v3');
-    fd.append('language', 'pt');
-    const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-      method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: fd as any,
-    });
-    const d: any = await r.json();
-    if (!r.ok) { res.status(400).json({ error: d?.error?.message || 'Falha na transcrição' }); return; }
-    const texto = String(d.text || '').trim();
-    if (!texto) { res.status(400).json({ error: 'Não foi possível entender o áudio' }); return; }
-    // Grava na mensagem (vira registro permanente e pesquisável)
-    await db.query(
-      "UPDATE whatsapp_messages SET body = CONCAT(body, '\n📝 Transcrição: ', ?) WHERE media_id = ? AND body NOT LIKE '%📝 Transcrição:%'",
-      [texto.slice(0, 3000), m.id]).catch(() => {});
-    res.json({ texto });
-  } catch (e: any) {
-    res.status(400).json({ error: e?.message || 'Falha na transcrição' });
-  }
+  const { transcreverAudio } = await import('../services/whatsappTranscricao');
+  const r = await transcreverAudio(m);
+  if (!r.ok) { res.status(400).json({ error: r.erro }); return; }
+  // Grava na mensagem (vira registro permanente e pesquisável)
+  await db.query(
+    "UPDATE whatsapp_messages SET body = CONCAT(body, '\n📝 Transcrição: ', ?) WHERE media_id = ? AND body NOT LIKE '%📝 Transcrição:%'",
+    [r.texto.slice(0, 3000), m.id]).catch(() => {});
+  res.json({ texto: r.texto });
 });
 
 // ── GET /api/whatsapp-instance/chats — conversas (última msg + etiquetas + não lidas)
