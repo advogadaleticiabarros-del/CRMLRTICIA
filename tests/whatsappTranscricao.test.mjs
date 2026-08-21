@@ -45,8 +45,20 @@ test('descreverImagem devolve erro quando GEMINI_API_KEY não está configurada'
   }
 });
 
-test('garantirMidiaTranscrita: sem mensagens pendentes de mídia, não faz nada e não lança', async () => {
+test('garantirMidiaTranscrita: sem mensagens pendentes de mídia, não faz nada e não lança', async (t) => {
   const { garantirMidiaTranscrita } = await import('../dist/services/whatsappTranscricao.js');
-  // telefone inexistente na base de teste — não deve lançar mesmo sem linhas
-  await assert.doesNotReject(() => garantirMidiaTranscrita('00000000000'));
+  // telefone inexistente na base de teste — não deve lançar mesmo sem linhas.
+  // Exige MySQL local acessível (o resto da suíte audita schema estaticamente
+  // e não depende de conexão real — este teste é a exceção, porque
+  // garantirMidiaTranscrita usa o pool `db` direto, sem camada mockável).
+  // Pula com aviso em vez de falhar quando não há banco disponível no ambiente.
+  try {
+    await garantirMidiaTranscrita('00000000000');
+  } catch (e) {
+    if (/Access denied|ECONNREFUSED|ETIMEDOUT|ENOTFOUND/.test(e.message || '')) {
+      t.skip(`MySQL local indisponível neste ambiente (${e.message}) — teste requer banco real`);
+      return;
+    }
+    throw e;
+  }
 });
