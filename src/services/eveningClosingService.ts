@@ -1,6 +1,5 @@
 import { db } from '../config/database';
 import { sendEmail, layout } from './EmailService';
-import { sendText } from './uazapiInstance';
 
 interface TarefaSnapshot { id: number; titulo: string; status: string; }
 interface SnapshotPayload { tarefas: TarefaSnapshot[]; }
@@ -53,7 +52,7 @@ async function estadoAtualDasTarefas(userId: number): Promise<SnapshotPayload> {
   return { tarefas: rows };
 }
 
-/** Envia o fechamento do dia (18:30) — e-mail + WhatsApp, para quem recebe o briefing matinal. */
+/** Envia o fechamento do dia (18:30) por e-mail, para quem recebe o briefing matinal. */
 export async function sendEveningClosing(): Promise<{ sent: number; failed: number }> {
   const [users] = await db.query(
     `SELECT id, name, email FROM users WHERE active = 1 AND role IN ('admin','advogado') AND email IS NOT NULL AND email <> ''`
@@ -61,19 +60,23 @@ export async function sendEveningClosing(): Promise<{ sent: number; failed: numb
 
   let sent = 0, failed = 0;
   for (const u of users) {
-    const manha = await buscarSnapshotDeHoje(u.id);
-    const agora = await estadoAtualDasTarefas(u.id);
-    const { concluidos, pendentes } = compararSnapshotComEstadoAtual(manha, agora);
-    const firstName = (u.name || 'Dra.').split(' ')[0];
+    try {
+      const manha = await buscarSnapshotDeHoje(u.id);
+      const agora = await estadoAtualDasTarefas(u.id);
+      const { concluidos, pendentes } = compararSnapshotComEstadoAtual(manha, agora);
+      const firstName = (u.name || 'Dra.').split(' ')[0];
 
-    const body = `
-      <p style="font-size:19px;font-weight:700;color:#1f3047;margin:0 0 16px">Fechamento do dia, Dra. ${firstName} 🌙</p>
-      <h3 style="color:#1f3047;font-size:15px">✅ Concluído hoje</h3>
-      <p>${concluidos.length ? concluidos.join('<br>') : 'Nada marcado como concluído hoje.'}</p>
-      <h3 style="color:#1f3047;font-size:15px">⏳ Ficou pendente</h3>
-      <p>${pendentes.length ? pendentes.join('<br>') : 'Nada pendente — dia limpo!'}</p>`;
-    const r = await sendEmail({ to: u.email, subject: '🌙 Fechamento do dia', html: layout('Fechamento do dia', body) });
-    if (r.ok) sent++; else failed++;
+      const body = `
+        <p style="font-size:19px;font-weight:700;color:#1f3047;margin:0 0 16px">Fechamento do dia, Dra. ${firstName} 🌙</p>
+        <h3 style="color:#1f3047;font-size:15px">✅ Concluído hoje</h3>
+        <p>${concluidos.length ? concluidos.join('<br>') : 'Nada marcado como concluído hoje.'}</p>
+        <h3 style="color:#1f3047;font-size:15px">⏳ Ficou pendente</h3>
+        <p>${pendentes.length ? pendentes.join('<br>') : 'Nada pendente — dia limpo!'}</p>`;
+      const r = await sendEmail({ to: u.email, subject: '🌙 Fechamento do dia', html: layout('Fechamento do dia', body) });
+      if (r.ok) sent++; else failed++;
+    } catch {
+      failed++;
+    }
   }
   return { sent, failed };
 }
