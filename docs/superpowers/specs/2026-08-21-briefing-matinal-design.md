@@ -3,6 +3,8 @@
 **Data:** 2026-08-21
 **Status:** aprovado para implementação
 
+**Implementado em 2026-08-20 — ver commits a partir de a2bbdeb.**
+
 ## Contexto
 
 O resumo matinal (`src/services/morningBriefingService.ts`) já existe e roda todo dia por
