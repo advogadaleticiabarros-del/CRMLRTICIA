@@ -30,6 +30,13 @@ export function startCronJobs() {
     });
   }, 8000);
 
+  // ── 06:15: monitoramento DJEN adiantado — garante movimentação fresca ANTES
+  // do briefing das 07h. Mantém os horários 08h/16h já existentes (linha ~248);
+  // este é ADICIONAL, não substitui.
+  cron.schedule('15 6 * * *', () => {
+    runJob('monitoramento:processos-pre-briefing', () => runMonitoringJob(), { critica: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── Resumo matinal por e-mail às 07:00 (horário de Brasília) ──────────────
   cron.schedule('0 7 * * *', () => {
     runJob('briefing:matinal', () => sendMorningBriefings());
