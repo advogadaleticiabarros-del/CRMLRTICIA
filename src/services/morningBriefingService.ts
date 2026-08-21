@@ -2,7 +2,7 @@ import { db } from '../config/database';
 import { sendEmail, layout } from './EmailService';
 import { getGoalProgress, GoalProgress } from './goalsService';
 import { sendText } from './uazapiInstance';
-import { classificarAgenda, classificarPagamento, classificarEsteira, classificarLead, classificarPrazo, top3, Severity, BriefingItem } from './briefingSeverity';
+import { classificarAgenda, classificarPagamento, classificarEsteira, classificarLead, classificarPrazo, classificarMovimentacao, top3, Severity, BriefingItem } from './briefingSeverity';
 import { buildCaseChecklist } from './caseChecklists';
 
 const NAVY = '#1f3047';
@@ -549,6 +549,30 @@ export function buildHtml(
 const GARANTIDO_EMAIL = process.env.MORNING_BRIEFING_EMAIL || 'advogadaleticia.barros@gmail.com';
 const ADMIN_PLACEHOLDER_EMAIL = process.env.ADMIN_PLACEHOLDER_EMAIL || 'admin@advogadaleticiabarros.com.br';
 
+/** Movimentações processuais de hoje já interpretadas pela IA (Task 5), para o briefing. */
+async function getMovimentacoesDoDia(): Promise<MovimentacaoBriefing[]> {
+  const [rows] = await db.query(`
+    SELECT lp.process_number AS processo, cl.name AS cliente, pm.ai_summary
+      FROM process_movements pm
+      JOIN legal_processes lp ON lp.id = pm.process_id
+      LEFT JOIN clients cl ON cl.id = lp.client_id
+     WHERE DATE(CONVERT_TZ(pm.created_at,'+00:00','-03:00')) = DATE(CONVERT_TZ(NOW(),'+00:00','-03:00'))
+       AND pm.ai_summary IS NOT NULL
+     ORDER BY pm.created_at DESC`) as any;
+  return rows.map((r: any) => {
+    let s: any = {};
+    try { s = JSON.parse(r.ai_summary); } catch { /* ai_summary mal formado — trata como vazio */ }
+    return {
+      processo: r.processo,
+      clienteVsParte: r.cliente || r.processo,
+      resumo: s.resumo || '',
+      acao: s.acao || '',
+      prazoInterno: s.prazo_interno || '',
+      severity: classificarMovimentacao(s.prioridade ?? null),
+    };
+  });
+}
+
 /** Envia o resumo matinal para os usuários admin/advogado ativos com e-mail. */
 export async function sendMorningBriefings(): Promise<{ sent: number; failed: number }> {
   const weather = await getWeather();
@@ -572,10 +596,11 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
     const financeiro = await getFinanceiroGranular();
     const comercial = await getComercialDoDia();
     const esteira = await getEsteiraEDocumentos();
+    const movimentacoes = await getMovimentacoesDoDia();
     const r = await sendEmail({
       to: u.email,
       subject: `☀️ Bom dia! Sua agenda de hoje`,
-      html: buildHtml(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, []),
+      html: buildHtml(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes),
     });
     if (r.ok) sent++; else failed++;
 
@@ -702,10 +727,11 @@ export async function sendMorningBriefingWhatsapp(): Promise<{ sent: boolean; re
   const financeiro = await getFinanceiroGranular();
   const comercial = await getComercialDoDia();
   const esteira = await getEsteiraEDocumentos();
+  const movimentacoes = await getMovimentacoesDoDia();
 
   let digits = phoneRaw.replace(/\D/g, '');
   if (digits.length <= 11) digits = '55' + digits;
-  const texto = buildWhatsappText(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, []);
+  const texto = buildWhatsappText(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes);
   const ok = await sendText(digits, texto, 'Automático — onboarding matinal').catch(() => false);
   return { sent: ok };
 }

@@ -27,6 +27,12 @@ test('getAgenda3Dias, getFinanceiroGranular, getComercialDoDia e getEsteiraEDocu
   assert.equal(typeof mod.getEsteiraEDocumentos, 'function');
 });
 
+// getMovimentacoesDoDia (Task 9) não é exportada — é interna, usada só por
+// sendMorningBriefings/sendMorningBriefingWhatsapp. A cobertura dela vem da
+// auditoria de schema abaixo (mesmo arquivo) mais os testes de
+// briefingHtmlTemplate/briefingWhatsappTemplate, que já exercitam o shape
+// MovimentacaoBriefing consumido por buildHtml/buildWhatsappText.
+
 const raiz = path.resolve('.');
 const BRIEFING_FILE = path.join(raiz, 'src/services/morningBriefingService.ts');
 
@@ -73,4 +79,15 @@ test('clients.birth_date existe (migration 095)', () => {
 test('cases.production_stage e production_started_at existem (migrations 010/044)', () => {
   assert.ok(SCHEMA.get('cases')?.has('production_stage'), 'cases.production_stage deveria existir no schema real');
   assert.ok(SCHEMA.get('cases')?.has('production_started_at'), 'cases.production_started_at deveria existir no schema real');
+});
+
+// Sanidade específica da Task 9 (getMovimentacoesDoDia): process_movements.ai_summary
+// só existe a partir da migration 096 (JSON) — a coluna TEXT da 038 foi
+// substituída, e legal_processes.process_number/client_id vêm da migration 011.
+test('process_movements.ai_summary existe (migration 096, tipo JSON)', () => {
+  assert.ok(SCHEMA.get('process_movements')?.has('ai_summary'), 'process_movements.ai_summary deveria existir no schema real');
+});
+test('legal_processes.process_number e legal_processes.client_id existem (migration 011)', () => {
+  assert.ok(SCHEMA.get('legal_processes')?.has('process_number'), 'legal_processes.process_number deveria existir no schema real');
+  assert.ok(SCHEMA.get('legal_processes')?.has('client_id'), 'legal_processes.client_id deveria existir no schema real');
 });
