@@ -459,6 +459,8 @@ async function conversaTexto(phone: string, limite = 250): Promise<string> {
 // ── POST /api/whatsapp-instance/chats/:phone/resumo — resumo da conversa (IA)
 router.post('/chats/:phone/resumo', async (req: Request, res: Response) => {
   const phone = String(req.params.phone).replace(/\D/g, '');
+  const { garantirMidiaTranscrita } = await import('../services/whatsappTranscricao');
+  await garantirMidiaTranscrita(phone);
   const texto = await conversaTexto(phone);
   if (!texto) { res.status(400).json({ error: 'Conversa vazia' }); return; }
   const { aiComplete } = await import('../services/aiAssistant');
