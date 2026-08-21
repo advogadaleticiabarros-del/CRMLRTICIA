@@ -590,37 +590,65 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
 const BRIEFING_WHATSAPP_KEY = 'briefing_whatsapp';
 
 /** Monta a versão em texto do resumo matinal, organizada em seções, para o WhatsApp. */
-function buildWhatsappText(name: string, weather: Weather | null, agenda: any, pulso: any, meta: GoalProgress): string {
+export function buildWhatsappText(
+  name: string, weather: Weather | null, agenda: any, pulso: any, meta: GoalProgress,
+  agenda3d: AgendaItem[], financeiro: FinanceiroGranular,
+  comercial: { leadsNovos: LeadNovo[]; aniversariantes: Aniversariante[] },
+  esteira: { pecasAProduzir: PecaPendente[]; documentosPendentes: DocumentoPendente[] },
+  movimentacoes: MovimentacaoBriefing[]
+): string {
   const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
-  const tipoLabel: Record<string, string> = { reuniao: '🤝', audiencia: '⚖️', compromisso: '📌', prazo: '⏰', tarefa: '✓' };
+  const tipoLabel: Record<string, string> = { reuniao: '🤝', audiencia: '⚖️', compromisso: '📌' };
+
+  // Correção (mesma da Task 7 em buildHtml): prazos processuais de hoje
+  // (agenda.prazos) também entram nos críticos — o brief original só olhava
+  // agenda3d/movimentacoes/pagamento e deixava prazo de fora.
+  const criticos = [
+    ...(agenda.prazos || []).map((p: any) => `⏰ *Prazo:* ${p.description}${p.case_number ? ` (proc. ${p.case_number})` : ''}`),
+    ...agenda3d.filter((a) => a.severity === 'critica').map((a) => `${tipoLabel[a.tipo] || '📌'} ${a.titulo} — ${a.hora}${a.local ? ` (${a.local})` : ''}`),
+    ...movimentacoes.filter((m) => m.severity === 'critica').map((m) => `⚖️ *${m.clienteVsParte}* — ${m.resumo}${m.acao && m.acao !== 'nenhuma' ? `\n*Ação:* ${m.acao}${m.prazoInterno && m.prazoInterno !== 'sem prazo' ? ` · prazo interno ${m.prazoInterno}` : ''}` : ''}`),
+    ...(financeiro.aReceberHoje > 0 ? [`💰 ${money(financeiro.aReceberHoje)} vencendo hoje`] : []),
+  ];
+  const prioridade = [
+    ...esteira.pecasAProduzir.filter((p) => p.severity === 'atencao').map((p) => `📝 ${p.caso} — parado há ${p.diasParado} dia(s)`),
+  ];
+  const acompanhar = [
+    ...agenda3d.filter((a) => a.severity === 'acompanhamento').map((a) => `${tipoLabel[a.tipo] || '📌'} ${a.titulo} — ${a.data} ${a.hora}`),
+  ];
 
   const blocos: string[] = [];
   blocos.push(`☀️ *Bom dia, Dra. ${name}!*\n${hoje}`);
   blocos.push(`💛 _"${fraseDoDia()}"_`);
+  if (criticos.length) blocos.push(`🔴 *ATENÇÃO IMEDIATA (${criticos.length})*\n\n${criticos.join('\n\n')}`);
+  if (prioridade.length) blocos.push(`🟠 *PRIORIDADE DO DIA (${prioridade.length})*\n\n${prioridade.join('\n')}`);
+  if (acompanhar.length) blocos.push(`🟢 *ACOMPANHAMENTO (${acompanhar.length})*\n\n${acompanhar.join('\n')}`);
 
-  const weatherLine = weather
-    ? `🌤️ *Previsão (${weather.city})*: ${weather.tmin}°C a ${weather.tmax}°C, ${weather.desc}.\n${weatherTip(weather)}`
-    : `🌤️ Não consegui obter a previsão do tempo agora.`;
-  blocos.push(weatherLine);
+  const agendaLinhas = agenda3d.map((a) => `${tipoLabel[a.tipo] || '📌'} ${a.data} ${a.hora} — ${a.titulo}`);
+  blocos.push(`📅 *Agenda*\n${agendaLinhas.length ? agendaLinhas.join('\n') : 'Sem compromissos nos próximos 3 dias.'}`);
 
-  const evLinhas = (agenda.eventos || []).map((e: any) => `${tipoLabel[e.event_type] || '📌'} ${e.hora} — ${e.title}${e.location ? ` (${e.location})` : ''}`);
-  const przLinhas = (agenda.prazos || []).map((p: any) => `⏰ Prazo: ${p.description}${p.case_number ? ` (proc. ${p.case_number})` : ''}`);
-  const tskLinhas = (agenda.tarefas || []).map((t: any) => `✓ ${t.title} (${t.priority})`);
-  const diaLinhas = [...evLinhas, ...przLinhas, ...tskLinhas];
-  blocos.push(`📅 *Seu dia hoje*\n${diaLinhas.length ? diaLinhas.join('\n') : 'Sem compromissos, prazos ou tarefas para hoje.'}`);
+  blocos.push(`💰 *Financeiro*\n${money(financeiro.aReceberHoje)} a receber hoje · ${money(financeiro.rpvSemana)} RPV esta semana · ${money(financeiro.recebido7d)} recebidos (7d)`);
 
-  const pct = Math.min(100, meta.percent);
-  const barra = '▓'.repeat(Math.round(pct / 10)) + '░'.repeat(10 - Math.round(pct / 10));
-  blocos.push(`🎯 *Meta do mês*\n${barra} ${meta.percent}%\n${money(meta.current)} de ${money(meta.target)}${meta.percent >= 100 ? ' — 🎉 batida!' : ` — faltam ${money(meta.faltam)}`}\n${meta.contratos_fechados_mes} contrato(s) protocolado(s) no mês.`);
+  const comercialLinhas = [
+    ...comercial.leadsNovos.map((l) => `Novo lead: ${l.nome} (${l.area})`),
+    ...comercial.aniversariantes.map((a) => `🎂 Aniversário hoje: ${a.nome}`),
+  ];
+  if (comercialLinhas.length) blocos.push(`📲 *Comercial*\n${comercialLinhas.join('\n')}`);
 
-  const pulsoLinhas: string[] = [];
-  if (pulso.leads_frios) pulsoLinhas.push(`🔥 ${pulso.leads_frios} lead(s) sem resposta há 48h+`);
-  if (pulso.receber_vencido_hoje > 0) pulsoLinhas.push(`💰 ${money(pulso.receber_vencido_hoje)} a receber vencendo até hoje`);
-  if (pulso.pagar_vencido_hoje > 0) pulsoLinhas.push(`📤 ${money(pulso.pagar_vencido_hoje)} a pagar até hoje`);
-  if (pulso.casos_atrasados) pulsoLinhas.push(`⏱ ${pulso.casos_atrasados} caso(s) estourando o SLA`);
-  if (pulso.emails_parceria_pendentes) pulsoLinhas.push(`📥 ${pulso.emails_parceria_pendentes} e-mail(s) de parceria na fila`);
-  blocos.push(`📊 *Pulso do escritório*\n${pulsoLinhas.length ? pulsoLinhas.join('\n') : '✅ Nenhuma pendência urgente!'}`);
+  blocos.push(`⚖️ *Radar jurídico*\nEm construção — nada relevante hoje.`);
+
+  // Correção (mesma da Task 7 em buildHtml): inclui prazo e pagamento no
+  // cálculo do top3 — PESO_KIND.prazo é o de maior prioridade em
+  // briefingSeverity.ts, sem isso um dia só com prazo crítico preenche
+  // "ATENÇÃO IMEDIATA" mas deixa o fecho "3 coisas hoje" vazio.
+  const briefingItems: import('./briefingSeverity').BriefingItem[] = [
+    ...(agenda.prazos || []).map((p: any, idx: number) => ({ id: `prazo-${idx}`, kind: 'prazo' as const, label: `Prazo: ${p.description}${p.case_number ? ` (proc. ${p.case_number})` : ''}`, severity: 'critica' as const, ordemDesempate: idx })),
+    ...movimentacoes.filter((m) => m.severity === 'critica').map((m, idx) => ({ id: `mov-${idx}`, kind: 'movimentacao' as const, label: `${m.acao} — ${m.clienteVsParte}`, severity: m.severity, ordemDesempate: idx })),
+    ...agenda3d.filter((a) => a.severity === 'critica').map((a, idx) => ({ id: `ag-${idx}`, kind: 'agenda' as const, label: `${a.titulo}, ${a.hora}`, severity: a.severity, ordemDesempate: idx })),
+    ...(financeiro.aReceberHoje > 0 ? [{ id: 'pag-0', kind: 'pagamento' as const, label: `Cobrar ${money(financeiro.aReceberHoje)} vencendo hoje`, severity: 'critica' as const, ordemDesempate: 0 }] : []),
+  ];
+  const top = top3(briefingItems);
+  if (top.length) blocos.push(`🎯 *Se você fizer só 3 coisas hoje:*\n${top.map((i, idx) => `${idx + 1}. ${i.label}`).join('\n')}`);
 
   blocos.push(`🧘 Já bebeu água hoje? Qual é o seu objetivo pra hoje?`);
   return blocos.join('\n\n');
@@ -648,10 +676,14 @@ export async function sendMorningBriefingWhatsapp(): Promise<{ sent: boolean; re
   const pulso = await getPulsoNegocio();
   const meta = await getGoalProgress();
   const agenda = userId ? await getDayAgenda(userId) : { eventos: [], prazos: [], tarefas: [] };
+  const agenda3d = userId ? await getAgenda3Dias(userId) : [];
+  const financeiro = await getFinanceiroGranular();
+  const comercial = await getComercialDoDia();
+  const esteira = await getEsteiraEDocumentos();
 
   let digits = phoneRaw.replace(/\D/g, '');
   if (digits.length <= 11) digits = '55' + digits;
-  const texto = buildWhatsappText(firstName, weather, agenda, pulso, meta);
+  const texto = buildWhatsappText(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, []);
   const ok = await sendText(digits, texto, 'Automático — onboarding matinal').catch(() => false);
   return { sent: ok };
 }
