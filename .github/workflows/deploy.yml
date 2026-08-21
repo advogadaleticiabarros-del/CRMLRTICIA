@@ -1,0 +1,30 @@
+name: Deploy para VPS
+
+# Substitui o webhook automático do Railway (que quebrava com frequência,
+# sem aviso — várias vezes um push ficava dias sem ir pro ar sem ninguém
+# perceber). Aqui o fluxo é explícito e visível na aba Actions do GitHub:
+# dá pra ver se o deploy rodou e se falhou.
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+            cd ~/app
+            git fetch origin main
+            git reset --hard origin/main
+            npm install --include=dev
+            npm run build
+            npm run migrate
+            pm2 restart crm-juridico
+            pm2 save
