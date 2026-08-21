@@ -2,6 +2,7 @@ import { db } from '../config/database';
 import { sendEmail, layout } from './EmailService';
 import { getGoalProgress, GoalProgress } from './goalsService';
 import { sendText } from './uazapiInstance';
+import { classificarAgenda, classificarPagamento, classificarEsteira, classificarLead, Severity } from './briefingSeverity';
 
 const NAVY = '#1f3047';
 const GOLD = '#c19a4e';
@@ -230,6 +231,106 @@ export async function getPulsoNegocio() {
     casos_atrasados: Number(esteira.n) || 0,
     emails_parceria_pendentes: Number(emails.n) || 0,
   };
+}
+
+interface AgendaItem {
+  titulo: string; tipo: string; data: string; hora: string;
+  local: string | null; videoLink: string | null; severity: Severity;
+}
+
+/** Agenda de hoje + 3 dias (antes só trazia hoje). */
+export async function getAgenda3Dias(userId: number): Promise<AgendaItem[]> {
+  const [rows] = await db.query(
+    `SELECT title, event_type, location, video_link,
+            DATE(CONVERT_TZ(start_datetime,'+00:00','-03:00')) AS data,
+            TIME_FORMAT(CONVERT_TZ(start_datetime,'+00:00','-03:00'),'%H:%i') AS hora,
+            DATEDIFF(DATE(CONVERT_TZ(start_datetime,'+00:00','-03:00')), DATE(CONVERT_TZ(NOW(),'+00:00','-03:00'))) AS diasAteEvento
+       FROM calendar_events
+      WHERE user_id = ?
+        AND DATE(CONVERT_TZ(start_datetime,'+00:00','-03:00'))
+            BETWEEN DATE(CONVERT_TZ(NOW(),'+00:00','-03:00')) AND DATE_ADD(DATE(CONVERT_TZ(NOW(),'+00:00','-03:00')), INTERVAL 3 DAY)
+      ORDER BY start_datetime ASC`, [userId]) as any;
+  return rows.map((r: any) => ({
+    titulo: r.title, tipo: r.event_type, data: r.data, hora: r.hora,
+    local: r.location, videoLink: r.video_link,
+    severity: classificarAgenda(Number(r.diasAteEvento) === 0),
+  }));
+}
+
+interface FinanceiroGranular {
+  aReceberHoje: number; rpvSemana: number; recebido7d: number; alvarasAguardando: number;
+}
+
+/** Financeiro desagregado por tipo (antes era um único total no "Pulso"). */
+export async function getFinanceiroGranular(): Promise<FinanceiroGranular> {
+  const one = async (sql: string) => { const [[r]] = await db.query(sql) as any; return r; };
+  const r = await one(`
+    SELECT
+      (SELECT COALESCE(SUM(valor),0) FROM installments WHERE status='pendente' AND due_date = CURDATE())
+      + (SELECT COALESCE(SUM(valor_final),0) FROM parcelas WHERE status IN ('aberto','atrasado') AND data_vencimento = CURDATE())
+        AS a_receber_hoje,
+      (SELECT COALESCE(SUM(valor_escritorio),0) FROM case_awards WHERE status='aguardando' AND previsao_pagamento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY))
+        AS rpv_semana,
+      (SELECT COALESCE(SUM(valor),0) FROM installments WHERE status='pago' AND updated_at >= NOW() - INTERVAL 7 DAY)
+      + (SELECT COALESCE(SUM(valor_final),0) FROM parcelas WHERE status='pago' AND updated_at >= NOW() - INTERVAL 7 DAY)
+        AS recebido_7d,
+      (SELECT COUNT(*) FROM case_awards WHERE status='aguardando' AND alvara_recebido = 0)
+        AS alvaras_aguardando
+  `).catch(() => ({ a_receber_hoje: 0, rpv_semana: 0, recebido_7d: 0, alvaras_aguardando: 0 }));
+  return {
+    aReceberHoje: Number(r.a_receber_hoje) || 0,
+    rpvSemana: Number(r.rpv_semana) || 0,
+    recebido7d: Number(r.recebido_7d) || 0,
+    alvarasAguardando: Number(r.alvaras_aguardando) || 0,
+  };
+}
+
+interface LeadNovo { nome: string; area: string; origem: string; criadoEm: string; }
+interface Aniversariante { nome: string; }
+
+/** Leads criados desde o último briefing + aniversariantes de clientes hoje. */
+export async function getComercialDoDia(): Promise<{ leadsNovos: LeadNovo[]; aniversariantes: Aniversariante[] }> {
+  const [leads] = await db.query(`
+    SELECT name AS nome, COALESCE(area, 'não informada') AS area, COALESCE(source, 'não informado') AS origem, created_at AS criadoEm
+      FROM leads
+     WHERE created_at >= NOW() - INTERVAL 1 DAY
+     ORDER BY created_at DESC`).catch(() => [[]]) as any;
+  const [aniversariantes] = await db.query(`
+    SELECT name AS nome FROM clients
+     WHERE birth_date IS NOT NULL
+       AND MONTH(birth_date) = MONTH(CURDATE()) AND DAY(birth_date) = DAY(CURDATE())`).catch(() => [[]]) as any;
+  return { leadsNovos: leads, aniversariantes };
+}
+
+interface PecaPendente { caso: string; fase: string; diasParado: number; severity: Severity; }
+interface DocumentoPendente { caso: string; itensFaltando: string[]; }
+
+/** Casos parados na esteira de produção + documentos ainda não marcados no checklist. */
+export async function getEsteiraEDocumentos(): Promise<{ pecasAProduzir: PecaPendente[]; documentosPendentes: DocumentoPendente[] }> {
+  const [casos] = await db.query(`
+    SELECT title AS caso, production_stage AS fase, checklist_checked,
+           DATEDIFF(NOW(), production_started_at) AS diasParado
+      FROM cases
+     WHERE production_stage IN ('separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')
+       AND production_started_at IS NOT NULL
+     ORDER BY production_started_at ASC`) as any;
+
+  const pecasAProduzir: PecaPendente[] = casos.map((c: any) => ({
+    caso: c.caso, fase: c.fase, diasParado: Number(c.diasParado) || 0,
+    severity: classificarEsteira(Number(c.diasParado) || 0),
+  }));
+
+  const documentosPendentes: DocumentoPendente[] = casos
+    .filter((c: any) => c.fase === 'separacao_documentos' && c.checklist_checked)
+    .map((c: any) => {
+      let checklist: Record<string, boolean> = {};
+      try { checklist = JSON.parse(c.checklist_checked); } catch { /* checklist mal formado — trata como vazio */ }
+      const itensFaltando = Object.entries(checklist).filter(([, marcado]) => !marcado).map(([item]) => item);
+      return { caso: c.caso, itensFaltando };
+    })
+    .filter((d: DocumentoPendente) => d.itensFaltando.length > 0);
+
+  return { pecasAProduzir, documentosPendentes };
 }
 
 function pulsoHtml(p: any): string {
