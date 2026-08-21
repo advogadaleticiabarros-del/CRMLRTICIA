@@ -148,10 +148,23 @@ router.get('/chats', async (req: Request, res: Response) => {
            MAX(m.labels) AS labels,
            MAX(m.push_name) AS push_name,
            MAX(m.pinned) AS pinned,
-           MAX(m.archived) AS archived
+           MAX(m.archived) AS archived,
+           MIN(aud.dias) AS proxima_audiencia_dias,
+           MIN(parc.dias) AS parcela_vencendo_dias
       FROM whatsapp_messages w
       LEFT JOIN clients cl ON cl.id = w.client_id
       LEFT JOIN whatsapp_chat_meta m ON m.phone = w.phone
+      LEFT JOIN (
+        SELECT c.client_id, DATEDIFF(ce.start_datetime, CURDATE()) AS dias
+          FROM calendar_events ce
+          JOIN cases c ON c.id = ce.case_id
+         WHERE ce.event_type = 'audiencia' AND ce.start_datetime >= CURDATE() AND ce.start_datetime < DATE_ADD(CURDATE(), INTERVAL 8 DAY)
+      ) aud ON aud.client_id = w.client_id
+      LEFT JOIN (
+        SELECT client_id, DATEDIFF(due_date, CURDATE()) AS dias
+          FROM installments
+         WHERE status = 'pendente' AND due_date < DATE_ADD(CURDATE(), INTERVAL 4 DAY)
+      ) parc ON parc.client_id = w.client_id
      ${whereQ}
      GROUP BY w.phone
      ORDER BY last_time DESC LIMIT 100`, q ? [like, like, like] : []) as any;
