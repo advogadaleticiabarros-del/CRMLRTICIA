@@ -290,6 +290,10 @@ Object.assign(ROUTES, {
 
       body.innerHTML = `<div class="wa-shell" id="wa-shell">
         <div class="wa-side">
+          <div class="wa-head-col">
+            <span class="wa-head-col-title">Conversas</span>
+            <span class="wa-head-col-unread" id="wa-unread-total"></span>
+          </div>
           <div class="wa-search" style="display:flex;gap:6px;align-items:center">${svgIcon('search', 'ic-inline')}<input id="waq" placeholder="Buscar conversa…" autocomplete="off"><button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button><button type="button" class="btn-icon btn-icon-sm" id="wa-auditoria-btn" title="Auditoria de mensagens apagadas">${svgIcon('info', 'ic-xs')}</button></div>
           <div class="wa-filters" id="waf"></div>
           <div class="wa-list" id="wal"></div>
@@ -331,6 +335,41 @@ Object.assign(ROUTES, {
         if (arqBtn) arqBtn.onclick = () => { mostrarArquivadas = !mostrarArquivadas; filtro = ''; renderFiltros(); renderLista(); };
       };
 
+      // Mesma lógica/limiares de src/services/whatsappSeveridade.ts — ver spec
+      // docs/superpowers/specs/2026-08-21-whatsapp-conversas-redesign.md. Reescrita aqui
+      // porque este arquivo é servido direto ao navegador, sem build step.
+      const severidadeAudiencia = (dias) => {
+        if (dias === null || dias === undefined) return 'neutra';
+        if (dias <= 2) return 'critica';
+        if (dias <= 7) return 'atencao';
+        return 'neutra';
+      };
+      const severidadeParcela = (dias) => {
+        if (dias === null || dias === undefined) return 'neutra';
+        if (dias <= 0) return 'critica';
+        if (dias <= 3) return 'atencao';
+        return 'neutra';
+      };
+      const PESO_SEV = { critica: 2, atencao: 1, neutra: 0 };
+      const severidadeConversa = (c) => {
+        const a = severidadeAudiencia(c.proxima_audiencia_dias);
+        const p = severidadeParcela(c.parcela_vencendo_dias);
+        return PESO_SEV[a] >= PESO_SEV[p] ? a : p;
+      };
+      const etiquetaPendencia = (c) => {
+        const a = severidadeAudiencia(c.proxima_audiencia_dias);
+        const p = severidadeParcela(c.parcela_vencendo_dias);
+        if (a === 'neutra' && p === 'neutra') return null;
+        if (PESO_SEV[a] >= PESO_SEV[p]) {
+          const d = c.proxima_audiencia_dias;
+          const texto = d === 0 ? 'Audiência hoje' : d === 1 ? 'Audiência amanhã' : `Audiência em ${d} dias`;
+          return { icone: 'scale', texto };
+        }
+        const d = c.parcela_vencendo_dias;
+        const texto = d < 0 ? 'Parcela atrasada' : d === 0 ? 'Parcela vence hoje' : d === 1 ? 'Parcela vence amanhã' : `Parcela vence em ${d} dias`;
+        return { icone: 'banknote', texto };
+      };
+
       const renderLista = () => {
         const q = busca.toLowerCase();
         let vis = chats.filter((c) => {
@@ -343,12 +382,15 @@ Object.assign(ROUTES, {
         const html = vis.length ? vis.map((c) => {
           const nome = c.client_name || c.push_name || '+' + c.phone;
           const tags = parseLabels(c.labels);
-          return `<div class="wa-item ${ativo && ativo.phone === c.phone ? 'on' : ''}" data-chat="${esc(c.phone)}">
+          const sev = severidadeConversa(c);
+          const et = etiquetaPendencia(c);
+          return `<div class="wa-item sev-${sev} ${ativo && ativo.phone === c.phone ? 'on' : ''}" data-chat="${esc(c.phone)}">
             <div class="wa-ava" style="background:${cor(nome)}">${iniciais(nome)}</div>
             <div class="wa-item-mid">
               <div class="wa-item-name">${Number(c.pinned) ? svgIcon('pin', 'ic-xs') + ' ' : ''}${esc(nome)}</div>
               <div class="wa-item-prev">${Number(c.last_from_me) ? '✓ ' : ''}${esc(String(c.last_body || '').slice(0, 52))}</div>
               ${tags.length ? `<div class="wa-tags">${tags.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>` : ''}
+              ${et ? `<span class="wa-pill wa-pill-${sev}">${svgIcon(et.icone, 'ic-xs')}${esc(et.texto)}</span>` : ''}
             </div>
             <div class="wa-item-right">
               <div class="wa-item-time">${fmtDia(c.last_time) === 'Hoje' ? fmtHora(c.last_time) : fmtDia(c.last_time)}</div>
@@ -356,6 +398,9 @@ Object.assign(ROUTES, {
             </div>
           </div>`;
         }).join('') : `<div class="wa-empty">${mostrarArquivadas ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa encontrada'}</div>`;
+        const totalNaoLidas = chats.reduce((s, c) => s + Number(c.unread || 0), 0);
+        const elUnread = $('#wa-unread-total');
+        if (elUnread) elUnread.textContent = totalNaoLidas ? `${totalNaoLidas} não lida${totalNaoLidas > 1 ? 's' : ''}` : '';
         // Nada mudou desde o último render (comum no polling de 6s) — pula a
         // reconstrução do DOM. Isso é o que causava a piscada/oscilação e o
         // peso: a lista inteira era refeita mesmo sem mudança nenhuma.
