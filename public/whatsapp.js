@@ -585,7 +585,7 @@ Object.assign(ROUTES, {
 
         const rs = box.querySelector('#wa-resumo');
         if (rs) rs.onclick = async () => {
-          rs.disabled = true; rs.textContent = 'Lendo a conversa…';
+          rs.disabled = true; rs.textContent = 'Lendo a conversa (áudios e fotos incluídos)…';
           try {
             const r = await api(`/api/whatsapp-instance/chats/${ativo.phone}/resumo`, { method: 'POST', body: '{}' });
             openModal('Resumo da conversa (IA)', el(`<div>
