@@ -47,6 +47,14 @@ export function startCronJobs() {
     runJob('briefing:matinal-whatsapp', () => sendMorningBriefingWhatsapp());
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── Fechamento do dia às 18:30 (Brasília) ──────────────────────────────────
+  cron.schedule('30 18 * * *', () => {
+    runJob('briefing:fechamento-dia', async () => {
+      const { sendEveningClosing } = await import('../services/eveningClosingService');
+      return await sendEveningClosing();
+    });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── Follow-up automático de propostas enviadas (48h / 5 dias / 7 dias) ────
   cron.schedule('0 10 * * *', () => {
     runJob('propostas:followup', () => runPropostaFollowups());

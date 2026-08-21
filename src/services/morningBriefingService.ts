@@ -592,6 +592,15 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
     seen.add(u.email.toLowerCase());
     const agenda = await getDayAgenda(u.id);
     const firstName = (u.name || 'Dra.').split(' ')[0];
+
+    const { salvarSnapshotDoDia } = await import('./eveningClosingService');
+    const [tarefasHoje] = await db.query(
+      `SELECT id, title AS titulo, status FROM tasks
+        WHERE user_id = ? AND due_date IS NOT NULL
+          AND DATE(CONVERT_TZ(due_date,'+00:00','-03:00')) = DATE(CONVERT_TZ(NOW(),'+00:00','-03:00'))`,
+      [u.id]
+    ) as any;
+    await salvarSnapshotDoDia(u.id, { tarefas: tarefasHoje }).catch((e) => console.error('[briefing] falha ao salvar snapshot:', e?.message || e));
     const agenda3d = await getAgenda3Dias(u.id);
     const financeiro = await getFinanceiroGranular();
     const comercial = await getComercialDoDia();
