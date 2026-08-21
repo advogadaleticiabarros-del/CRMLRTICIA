@@ -86,7 +86,11 @@ export function createApp() {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    // Câmera segue bloqueada (nenhuma tela do CRM usa). Microfone (gravação de
+    // áudio no WhatsApp) e geolocalização (registrada na assinatura eletrônica,
+    // assinar.html — prova jurídica de onde o signatário assinou) precisam
+    // funcionar, mas só pra este domínio — nunca em iframe de terceiro.
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=(self)');
     next();
   });
   app.use(express.json({ limit: '20mb' })); // ingestão DJEN pode trazer muitas publicações
