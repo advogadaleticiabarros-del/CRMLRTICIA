@@ -551,8 +551,11 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     valorCausa !== undefined ? [stage, finalCaseNumber, valorCausa, id] : [stage, finalCaseNumber, id]
   );
 
-  // Data do protocolo (âncora do relatório mensal): grava na 1ª vez que protocola.
-  if (stage === 'protocolado' && c.production_stage !== 'protocolado') {
+  // Data do protocolo (âncora do relatório mensal): grava na 1ª vez que protocola
+  // — ou, se o card pulou direto pra "Concluído" sem passar por "Protocolado",
+  // grava aqui mesmo (o card não pode chegar em "Concluído" sem uma data de
+  // protocolo registrada, senão a mensagem ao cliente e o relatório mensal ficam sem essa data).
+  if ((stage === 'protocolado' || stage === 'concluido') && c.production_stage !== stage) {
     await db.query('UPDATE cases SET protocoled_at = COALESCE(protocoled_at, NOW()) WHERE id = ?', [id]);
   }
 
@@ -714,20 +717,32 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   // Ao CONCLUIR: agradece o cliente no WhatsApp e pede a avaliação no Google
   // (fila — envio em 1 clique). Casos de parceria ficam de fora (o contato é
   // do parceiro). Fecha o ciclo: cliente satisfeito vira reputação e novos leads.
+  // "Concluído" na esteira significa que a PEÇA foi protocolada — não que o
+  // processo em si terminou (ele segue o rito normal na Justiça a partir daqui).
+  // A mensagem tem que dizer "protocolado", nunca "concluído"/"encerrado", ou
+  // confunde o cliente fazendo achar que o caso acabou. Se o card já passou
+  // pela etapa "Protocolado" antes (o cliente já recebeu esse aviso lá,
+  // refKey prot_${id}), não manda de novo aqui — só cobre o caminho de quem
+  // pula direto pra "Concluído" sem passar por "Protocolado".
   if (stage === 'concluido' && c.client_id && !c.partner_id && c.production_stage !== 'concluido') {
     try {
-      const { enqueueWhatsapp } = await import('../services/whatsappQueue');
-      const [[cw]] = await db.query('SELECT name, phone FROM clients WHERE id = ?', [c.client_id]) as any;
-      if (cw?.phone) {
-        const [[rev]] = await db.query(
-          "SELECT setting_value FROM office_settings WHERE setting_key = 'google_review_url'"
-        ).catch(() => [[null]]) as any;
-        const linkAvaliacao = rev?.setting_value ? `\n\nSe puder, deixe sua avaliação — ajuda muito o nosso trabalho: ${rev.setting_value}` : '';
-        await enqueueWhatsapp({
-          clientId: c.client_id, name: cw.name, phone: cw.phone,
-          message: `Olá, ${String(cw.name || '').split(' ')[0]}! Seu caso foi concluído. Foi uma honra cuidar dele com você — obrigada pela confiança!${linkAvaliacao} — Advocacia Letícia Barros`,
-          context: 'conclusao', refKey: `concl_${id}`,
-        });
+      const [[jaAvisado]] = await db.query(
+        "SELECT id FROM whatsapp_queue WHERE ref_key = ?", [`prot_${id}`]
+      ).catch(() => [[null]]) as any;
+      if (!jaAvisado) {
+        const { enqueueWhatsapp } = await import('../services/whatsappQueue');
+        const [[cw]] = await db.query('SELECT name, phone FROM clients WHERE id = ?', [c.client_id]) as any;
+        const [[dataProtocolo]] = await db.query(
+          'SELECT COALESCE(protocoled_at, NOW()) AS data FROM cases WHERE id = ?', [id]
+        ) as any;
+        const dataFmt = new Date(dataProtocolo.data).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+        if (cw?.phone) {
+          await enqueueWhatsapp({
+            clientId: c.client_id, name: cw.name, phone: cw.phone,
+            message: `Olá, ${String(cw.name || '').split(' ')[0]}! Seu caso foi protocolado em ${dataFmt}, sob o nº ${finalCaseNumber}. A partir de agora o processo segue seu rito normal na Justiça — continuamos acompanhando cada movimentação e mantendo você informado(a). — Advocacia Letícia Barros`,
+            context: 'conclusao', refKey: `concl_${id}`,
+          });
+        }
       }
     } catch { /* fila é best-effort */ }
   }
