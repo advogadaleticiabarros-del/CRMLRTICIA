@@ -21,6 +21,16 @@ const STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pen
 const ACTIVE_STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado'];
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
 
+// leads.state é VARCHAR(2) (sigla de UF) — sem truncar aqui, um valor maior
+// (ex.: nome completo do estado digitado por engano) derruba o INSERT/UPDATE
+// inteiro com "Data too long for column 'state'" (bug real, visto em produção).
+export function normalizeExtraVal(col: string, v: any) {
+  if (col === 'estimated_value') return Number(v) || null;
+  if (col === 'close_probability') return parseInt(v) || null;
+  if (col === 'state') return String(v).trim().slice(0, 2).toUpperCase();
+  return v;
+}
+
 // ── GET /api/leads/board — funil agrupado por status (kanban) ───────────────
 router.get('/board', async (req: Request, res: Response) => {
   const userId = req.user!.id;
@@ -111,9 +121,7 @@ router.post('/', async (req: Request, res: Response) => {
   const extraVals = EXTRA_COLS.map((col) => {
     const v = req.body[col];
     if (v === undefined || v === '') return null;
-    if (col === 'estimated_value') return Number(v) || null;
-    if (col === 'close_probability') return parseInt(v) || null;
-    return v;
+    return normalizeExtraVal(col, v);
   });
   const [result] = await db.query(
     `INSERT INTO leads (user_id, client_id, name, email, phone, source, legal_area, status, notes, ${EXTRA_COLS.join(', ')})
@@ -168,10 +176,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('notes', body.notes);
   for (const col of EXTRA_COLS) {
     if (body[col] === undefined) continue;
-    const v = body[col] === '' ? null
-      : col === 'estimated_value' ? (Number(body[col]) || null)
-      : col === 'close_probability' ? (parseInt(body[col]) || null)
-      : body[col];
+    const v = body[col] === '' ? null : normalizeExtraVal(col, body[col]);
     fields.push(`${col} = ?`); params.push(v);
   }
 

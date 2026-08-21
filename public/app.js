@@ -5413,11 +5413,11 @@ async function receitaDetail(id, onSave) {
 }
 
 function field(label, name, opts = {}) {
-  const { type = 'text', value = '', options } = opts;
+  const { type = 'text', value = '', options, maxlength } = opts;
   if (options) return `<label>${label}<select name="${name}">${options.map((o) =>
     `<option value="${o.v}" ${o.v === value ? 'selected' : ''}>${o.t}</option>`).join('')}</select></label>`;
   if (type === 'textarea') return `<label>${label}<textarea name="${name}" rows="3">${value || ''}</textarea></label>`;
-  return `<label>${label}<input type="${type}" name="${name}" value="${value ?? ''}" /></label>`;
+  return `<label>${label}<input type="${type}" name="${name}" value="${value ?? ''}"${maxlength ? ` maxlength="${maxlength}"` : ''} /></label>`;
 }
 const AREAS = [['outro','Outro'],['trabalhista','Trabalhista'],['gestante','Gestante/Maternidade'],['familia','Família'],['civel','Cível'],['previdenciario','Previdenciário'],['consumidor','Consumidor']].map(([v,t])=>({v,t}));
 
@@ -5490,7 +5490,7 @@ async function leadForm(onSave) {
     <div><strong style="color:var(--navy)">Endereço</strong></div>
     <div class="form-row">${field('CEP', 'cep')}${field('Cidade', 'city')}</div>
     <div class="form-row">${field('Rua', 'street')}${field('Nº', 'number')}</div>
-    <div class="form-row">${field('Bairro', 'neighborhood')}${field('UF', 'state')}</div>
+    <div class="form-row">${field('Bairro', 'neighborhood')}${field('UF', 'state', { maxlength: 2 })}</div>
     <div><strong style="color:var(--navy)">Caso & Comercial</strong></div>
     <div class="form-row">${field('Área', 'legal_area', { options: AREAS })}${field('Origem', 'source', { options: ORIGENS.map(([v, t]) => ({ v, t })) })}</div>
     ${field('Resumo do caso / dor principal', 'case_summary', { type: 'textarea' })}
