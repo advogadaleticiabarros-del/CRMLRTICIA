@@ -31,3 +31,22 @@ test('transcreverAudio recusa arquivo que não é áudio/vídeo', async () => {
     delete process.env.GROQ_API_KEY;
   }
 });
+
+test('descreverImagem devolve erro quando GEMINI_API_KEY não está configurada', async () => {
+  const originalKey = process.env.GEMINI_API_KEY;
+  delete process.env.GEMINI_API_KEY;
+  try {
+    const { descreverImagem } = await import('../dist/services/whatsappTranscricao.js');
+    const r = await descreverImagem({ id: 3, file_name: 'foto.jpg', mime: 'image/jpeg', data: Buffer.from('x') });
+    assert.equal(r.ok, false);
+    assert.match(r.erro, /GEMINI_API_KEY/);
+  } finally {
+    if (originalKey) process.env.GEMINI_API_KEY = originalKey;
+  }
+});
+
+test('garantirMidiaTranscrita: sem mensagens pendentes de mídia, não faz nada e não lança', async () => {
+  const { garantirMidiaTranscrita } = await import('../dist/services/whatsappTranscricao.js');
+  // telefone inexistente na base de teste — não deve lançar mesmo sem linhas
+  await assert.doesNotReject(() => garantirMidiaTranscrita('00000000000'));
+});
