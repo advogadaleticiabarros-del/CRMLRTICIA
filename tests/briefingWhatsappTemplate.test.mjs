@@ -45,3 +45,13 @@ test('prazo crítico sozinho (sem movimentação nem agenda crítica) preenche t
   assert.match(texto, /Prazo: Contestação/);
   assert.match(texto, /3 coisas hoje/, 'com prazo crítico isolado, o fecho "3 coisas hoje" deve aparecer');
 });
+
+test('com previsão do tempo e meta do mês, o texto mostra a previsão e a Meta do mês (regressão Task 8)', () => {
+  const weatherExemplo = { tmin: 18, tmax: 27, desc: 'parcialmente nublado', city: 'Vitória' };
+  const metaExemplo = { current: 8500, target: 15000, percent: 57, faltam: 6500, contratos_fechados_mes: 5 };
+  const texto = buildWhatsappText('Letícia', weatherExemplo, { eventos: [], prazos: [], tarefas: [] }, {}, metaExemplo, agendaExemplo, financeiroExemplo, comercialExemplo, esteiraExemplo, movimentacoesExemplo);
+  assert.match(texto, /Vitória/);
+  assert.match(texto, /18°C a 27°C/);
+  assert.match(texto, /Meta do mês/);
+  assert.match(texto, /8\.500,00/);
+});

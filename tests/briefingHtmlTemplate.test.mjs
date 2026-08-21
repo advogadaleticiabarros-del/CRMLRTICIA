@@ -64,3 +64,14 @@ test('prazo crítico sozinho (sem movimentação nem agenda crítica) preenche o
   assert.match(html, /3 coisas hoje/, 'com prazo crítico isolado, o bloco "3 prioridades" deve aparecer (Achado 2)');
   assert.match(html, /Prazo: Contestação/);
 });
+
+test('com previsão do tempo e meta do mês, o HTML mostra a previsão e a Meta do mês (regressão Task 7)', () => {
+  const weatherExemplo = { tmin: 18, tmax: 27, desc: 'parcialmente nublado', city: 'Vitória' };
+  const metaExemplo = { current: 8500, target: 15000, percent: 57, faltam: 6500, contratos_fechados_mes: 5 };
+  const html = buildHtml('Letícia', weatherExemplo, { eventos: [], prazos: [], tarefas: [] }, {}, metaExemplo, agendaExemplo, financeiroExemplo, comercialExemplo, esteiraExemplo, movimentacoesExemplo);
+  assert.match(html, /Vitória/);
+  assert.match(html, /18°C a 27°C/);
+  assert.match(html, /parcialmente nublado/);
+  assert.match(html, /Meta do mês/);
+  assert.match(html, /8\.500,00/);
+});

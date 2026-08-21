@@ -379,6 +379,9 @@ export function buildHtml(
   esteira: { pecasAProduzir: PecaPendente[]; documentosPendentes: DocumentoPendente[] },
   movimentacoes: MovimentacaoBriefing[]
 ): string {
+  // pulso não é mais renderizado diretamente aqui — o conteúdo dele (leads frios,
+  // a receber, casos atrasados, e-mails pendentes) já está coberto pelos blocos
+  // de severidade 🔴🟠🟢 acima, de forma mais específica e acionável.
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
   const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   const tipoLabel: Record<string, string> = { reuniao: '🤝 Reunião', audiencia: '⚖️ Audiência', compromisso: '📌 Compromisso' };
@@ -487,6 +490,11 @@ export function buildHtml(
       <p style="margin:0;font-size:14.5px;line-height:1.6;color:#4a3d1d;font-style:italic">"${fraseDoDia()}"</p>
     </div>
 
+    <p style="font-size:14.5px;color:#232323">${weather ? `A previsão para <strong>${weather.city}</strong> hoje é de <strong>${weather.tmin}°C a ${weather.tmax}°C</strong>, com ${weather.desc}.` : '(Não consegui obter a previsão do tempo agora.)'}</p>
+    <div style="background:${NAVY_SOFT};border-radius:8px;padding:12px 16px;margin:12px 0 18px;font-size:13.5px;color:#232323">
+      <strong style="color:${NAVY}">💡 Dica do dia:</strong> ${weatherTip(weather)}
+    </div>
+
     ${criticos.length || atencao.length || acompanhamento.length ? `
     <div style="display:flex;gap:8px;margin:0 0 26px">
       <a href="#atencao" style="flex:1;text-align:center;text-decoration:none;padding:9px 4px 8px;border-radius:8px;background:${CRITICAL_SOFT};color:${CRITICAL}"><span style="display:block;font-size:17px;font-weight:700">${criticos.length}</span><span style="display:block;font-size:9.5px;text-transform:uppercase">atenção</span></a>
@@ -500,7 +508,10 @@ export function buildHtml(
 
     <hr style="border:none;border-top:1px solid #e2ddd1;margin:26px 0">
 
-    <h3 style="color:${NAVY};font-size:15px;margin:0 0 8px;font-family:Georgia,serif">📅 Agenda — hoje e próximos 3 dias</h3>
+    <h3 style="color:${NAVY};font-size:15px;margin:0 0 8px;font-family:Georgia,serif">🎯 Meta do mês</h3>
+    ${metaHtml(meta)}
+
+    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">📅 Agenda — hoje e próximos 3 dias</h3>
     ${agendaListaHtml}
 
     <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">💰 Financeiro</h3>
@@ -597,6 +608,9 @@ export function buildWhatsappText(
   esteira: { pecasAProduzir: PecaPendente[]; documentosPendentes: DocumentoPendente[] },
   movimentacoes: MovimentacaoBriefing[]
 ): string {
+  // pulso não é mais renderizado diretamente aqui — o conteúdo dele (leads frios,
+  // a receber, casos atrasados, e-mails pendentes) já está coberto pelos blocos
+  // de severidade 🔴🟠🟢 abaixo, de forma mais específica e acionável.
   const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
   const tipoLabel: Record<string, string> = { reuniao: '🤝', audiencia: '⚖️', compromisso: '📌' };
@@ -620,9 +634,17 @@ export function buildWhatsappText(
   const blocos: string[] = [];
   blocos.push(`☀️ *Bom dia, Dra. ${name}!*\n${hoje}`);
   blocos.push(`💛 _"${fraseDoDia()}"_`);
+  const weatherLine = weather
+    ? `🌤️ *Previsão (${weather.city})*: ${weather.tmin}°C a ${weather.tmax}°C, ${weather.desc}.\n${weatherTip(weather)}`
+    : `🌤️ Não consegui obter a previsão do tempo agora.`;
+  blocos.push(weatherLine);
   if (criticos.length) blocos.push(`🔴 *ATENÇÃO IMEDIATA (${criticos.length})*\n\n${criticos.join('\n\n')}`);
   if (prioridade.length) blocos.push(`🟠 *PRIORIDADE DO DIA (${prioridade.length})*\n\n${prioridade.join('\n')}`);
   if (acompanhar.length) blocos.push(`🟢 *ACOMPANHAMENTO (${acompanhar.length})*\n\n${acompanhar.join('\n')}`);
+
+  const pctMeta = Math.min(100, meta.percent);
+  const barraMeta = '▓'.repeat(Math.round(pctMeta / 10)) + '░'.repeat(10 - Math.round(pctMeta / 10));
+  blocos.push(`🎯 *Meta do mês*\n${barraMeta} ${meta.percent}%\n${money(meta.current)} de ${money(meta.target)}${meta.percent >= 100 ? ' — 🎉 batida!' : ` — faltam ${money(meta.faltam)}`}\n${meta.contratos_fechados_mes} contrato(s) protocolado(s) no mês.`);
 
   const agendaLinhas = agenda3d.map((a) => `${tipoLabel[a.tipo] || '📌'} ${a.data} ${a.hora} — ${a.titulo}`);
   blocos.push(`📅 *Agenda*\n${agendaLinhas.length ? agendaLinhas.join('\n') : 'Sem compromissos nos próximos 3 dias.'}`);
