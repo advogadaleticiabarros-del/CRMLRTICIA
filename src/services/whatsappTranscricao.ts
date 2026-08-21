@@ -1,8 +1,6 @@
-// Transcrição de áudio (Whisper/Groq) e descrição de imagem (Gemini Vision) das
-// mensagens de WhatsApp recebidas — usado tanto pelo botão manual "Transcrever
-// áudio" quanto pelo orquestrador automático chamado pelo botão de Resumo.
-import { db } from '../config/database';
-import { aiExtractFromFile } from './aiAssistant';
+// Transcrição de áudio (Whisper/Groq) das mensagens de WhatsApp recebidas
+// — usado tanto pelo botão manual "Transcrever áudio" quanto pelo orquestrador
+// automático chamado pelo botão de Resumo.
 
 export interface MediaRow {
   id: number;
