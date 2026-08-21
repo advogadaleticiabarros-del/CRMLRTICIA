@@ -779,9 +779,17 @@ export async function sendMorningBriefingWhatsapp(): Promise<{ sent: boolean; re
   const esteira = await getEsteiraEDocumentos();
   const movimentacoes = await getMovimentacoesDoDia();
 
-  let digits = phoneRaw.replace(/\D/g, '');
-  if (digits.length <= 11) digits = '55' + digits;
   const texto = buildWhatsappText(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes, prazosPorFaixa);
-  const ok = await sendText(digits, texto, 'Automático — onboarding matinal').catch(() => false);
-  return { sent: ok };
+
+  // Suporta múltiplos números separados por vírgula (ex.: "27995151402,44991274377")
+  // — cada um recebe o mesmo resumo. `sent` só vira true se pelo menos um envio funcionar.
+  const numeros = phoneRaw.split(',').map((n: string) => n.trim()).filter(Boolean);
+  let algumEnviado = false;
+  for (const numero of numeros) {
+    let digits = numero.replace(/\D/g, '');
+    if (digits.length <= 11) digits = '55' + digits;
+    const ok = await sendText(digits, texto, 'Automático — onboarding matinal').catch(() => false);
+    if (ok) algumEnviado = true;
+  }
+  return { sent: algumEnviado };
 }
