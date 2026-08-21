@@ -81,6 +81,23 @@ test('top3 em empate de ordemDesempate desempata por PESO_KIND (prazo antes de p
   assert.deepEqual(r.map((i) => i.id), ['b', 'a']);
 });
 
+test('top3 respeita a prioridade por TIPO mesmo quando o índice interno de um kind de menor prioridade é menor (Achado 1 da revisão final)', () => {
+  // 3 prazos (ordemDesempate 0,1,2 dentro do próprio kind) + 2 agendas (ordemDesempate 0,1
+  // dentro do próprio kind) — todos críticos. Antes do fix, o sort comparava ordemDesempate
+  // primeiro, intercalando por índice (prazo0, agenda0, prazo1, agenda1, prazo2) e derrubando
+  // um prazo fatal do top3. Com o fix, PESO_KIND decide primeiro: os 3 prazos vêm antes das
+  // 2 agendas, então top3 = os 3 prazos.
+  const itens = [
+    { id: 'prazo-0', kind: 'prazo', label: 'Prazo A', severity: 'critica', ordemDesempate: 0 },
+    { id: 'agenda-0', kind: 'agenda', label: 'Agenda A', severity: 'critica', ordemDesempate: 0 },
+    { id: 'prazo-1', kind: 'prazo', label: 'Prazo B', severity: 'critica', ordemDesempate: 1 },
+    { id: 'agenda-1', kind: 'agenda', label: 'Agenda B', severity: 'critica', ordemDesempate: 1 },
+    { id: 'prazo-2', kind: 'prazo', label: 'Prazo C', severity: 'critica', ordemDesempate: 2 },
+  ];
+  const r = top3(itens);
+  assert.deepEqual(r.map((i) => i.id), ['prazo-0', 'prazo-1', 'prazo-2'], 'os 3 prazos devem vir antes de qualquer agenda, apesar do índice interno');
+});
+
 test('top3 sem nenhum crítico devolve lista vazia', () => {
   const itens = [
     { id: 'a', kind: 'esteira', label: 'A', severity: 'atencao', ordemDesempate: 1 },

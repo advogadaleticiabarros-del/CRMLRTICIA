@@ -55,6 +55,6 @@ const PESO_KIND: Record<BriefingItem['kind'], number> = {
 export function top3(itens: BriefingItem[]): BriefingItem[] {
   return itens
     .filter((i) => i.severity === 'critica')
-    .sort((a, b) => a.ordemDesempate - b.ordemDesempate || PESO_KIND[a.kind] - PESO_KIND[b.kind])
+    .sort((a, b) => PESO_KIND[a.kind] - PESO_KIND[b.kind] || a.ordemDesempate - b.ordemDesempate)
     .slice(0, 3);
 }

@@ -7,6 +7,7 @@ import { notificationService } from './NotificationService';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
 import { runIntimacaoPlaybooks } from './automationService';
+import { interpretarMovimentacao } from './aiAssistant';
 
 // ── Sugestão de fase processual a partir do texto das movimentações ──────────
 const PHASE_RANK: Record<string, number> = { inicial: 1, instrucao: 2, sentenca: 3, recurso: 4, execucao: 5, encerrado: 6 };
@@ -204,7 +205,6 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
         if (m.movement_date && (!latest || m.movement_date > latest)) latest = m.movement_date;
         await detectDeadline(processId, proc.client_id, m, proc.process_number, ins.insertId, provider.name);
         // Interpretação para o briefing matinal — best-effort, nunca trava a sincronização.
-        const { interpretarMovimentacao } = await import('./aiAssistant');
         await interpretarMovimentacao(ins.insertId, `${m.title || ''}\n${m.description || ''}`.trim())
           .catch((e) => console.error(`[movimentação ${ins.insertId}] falha ao interpretar:`, e?.message || e));
       }

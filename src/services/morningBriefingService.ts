@@ -2,8 +2,18 @@ import { db } from '../config/database';
 import { sendEmail, layout } from './EmailService';
 import { getGoalProgress, GoalProgress } from './goalsService';
 import { sendText } from './uazapiInstance';
-import { classificarAgenda, classificarPagamento, classificarEsteira, classificarLead, classificarPrazo, classificarMovimentacao, top3, Severity, BriefingItem } from './briefingSeverity';
+import { classificarAgenda, classificarPagamento, classificarEsteira, classificarPrazo, classificarMovimentacao, top3, Severity, BriefingItem } from './briefingSeverity';
 import { buildCaseChecklist } from './caseChecklists';
+
+/** Escapa texto de origem externa/variável (DJEN, Groq) antes de interpolar no HTML do e-mail. */
+function esc(s: string): string {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 const NAVY = '#1f3047';
 const GOLD = '#c19a4e';
@@ -261,6 +271,18 @@ export async function getAgenda3Dias(userId: number): Promise<AgendaItem[]> {
   }));
 }
 
+/** Prazos PENDENTES do usuário na janela hoje→+7 dias ("faixa"), com diasParaVencer calculado. */
+export async function getPrazosPorFaixa(userId: number): Promise<{ description: string; case_number: string | null; diasParaVencer: number }[]> {
+  const [rows] = await db.query(
+    `SELECT d.description, c.case_number,
+            DATEDIFF(DATE(CONVERT_TZ(d.deadline_date,'+00:00','-03:00')), DATE(CONVERT_TZ(NOW(),'+00:00','-03:00'))) AS diasParaVencer
+       FROM deadlines d LEFT JOIN cases c ON c.id = d.case_id
+      WHERE d.user_id = ? AND d.status = 'pendente'
+        AND DATE(CONVERT_TZ(d.deadline_date,'+00:00','-03:00')) BETWEEN DATE(CONVERT_TZ(NOW(),'+00:00','-03:00')) AND DATE_ADD(DATE(CONVERT_TZ(NOW(),'+00:00','-03:00')), INTERVAL 7 DAY)
+      ORDER BY d.deadline_date ASC`, [userId]) as any;
+  return rows.map((r: any) => ({ description: r.description, case_number: r.case_number, diasParaVencer: Number(r.diasParaVencer) || 0 }));
+}
+
 interface FinanceiroGranular {
   aReceberHoje: number; rpvSemana: number; recebido7d: number; alvarasAguardando: number;
 }
@@ -377,7 +399,8 @@ export function buildHtml(
   agenda3d: AgendaItem[], financeiro: FinanceiroGranular,
   comercial: { leadsNovos: LeadNovo[]; aniversariantes: Aniversariante[] },
   esteira: { pecasAProduzir: PecaPendente[]; documentosPendentes: DocumentoPendente[] },
-  movimentacoes: MovimentacaoBriefing[]
+  movimentacoes: MovimentacaoBriefing[],
+  prazosPorFaixa: { description: string; case_number: string | null; diasParaVencer: number }[] = []
 ): string {
   // pulso não é mais renderizado diretamente aqui — o conteúdo dele (leads frios,
   // a receber, casos atrasados, e-mails pendentes) já está coberto pelos blocos
@@ -399,33 +422,34 @@ export function buildHtml(
   // Monta os itens tipados (Task 4: briefingSeverity) para agrupar por severidade.
   const itensAgenda = agenda3d.map((a) => ({
     html: itemHtml(
-      `${tipoLabel[a.tipo] || '📌'} ${a.titulo}`,
-      `${a.data} ${a.hora}${a.local ? ` · ${a.local}` : ''}${a.videoLink ? ' · online' : ''}`,
+      `${tipoLabel[a.tipo] || '📌'} ${esc(a.titulo)}`,
+      `${a.data} ${a.hora}${a.local ? ` · ${esc(a.local)}` : ''}${a.videoLink ? ' · online' : ''}`,
       a.severity
     ),
     severity: a.severity,
   }));
   const itensMovimentacao = movimentacoes.map((m) => ({
     html: itemHtml(
-      m.clienteVsParte,
-      `Proc. ${m.processo} · ${m.resumo}`,
+      esc(m.clienteVsParte),
+      `Proc. ${esc(m.processo)} · ${esc(m.resumo)}`,
       m.severity,
-      m.acao && m.acao !== 'nenhuma' ? `<b>Ação:</b> ${m.acao}${m.prazoInterno && m.prazoInterno !== 'sem prazo' ? ` · <b>prazo interno ${m.prazoInterno}</b>` : ''}` : undefined
+      m.acao && m.acao !== 'nenhuma' ? `<b>Ação:</b> ${esc(m.acao)}${m.prazoInterno && m.prazoInterno !== 'sem prazo' ? ` · <b>prazo interno ${esc(m.prazoInterno)}</b>` : ''}` : undefined
     ),
     severity: m.severity,
   }));
   const itensPagamento = financeiro.aReceberHoje > 0 ? [{
-    html: itemHtml(`${money(financeiro.aReceberHoje)} a receber vencendo hoje`, '', 'critica' as const),
-    severity: 'critica' as const,
+    html: itemHtml(`${money(financeiro.aReceberHoje)} a receber vencendo hoje`, '', classificarPagamento(0)),
+    severity: classificarPagamento(0),
   }] : [];
-  // Prazos processuais de hoje (agenda.prazos já vem de getDayAgenda, existente) —
-  // classificarPrazo(0) força 'critica' porque getDayAgenda só traz o dia de hoje.
-  const itensPrazo = (agenda.prazos || []).map((p: any) => ({
-    html: itemHtml(`⏰ Prazo: ${p.description}`, p.case_number ? `Proc. ${p.case_number}` : '', classificarPrazo(0)),
-    severity: classificarPrazo(0),
+  // Prazos por faixa (hoje/amanhã/3 dias/semana) — classificarPrazo(diasParaVencer)
+  // usa o valor real calculado em getPrazosPorFaixa (antes era classificarPrazo(0)
+  // fixo, porque só existiam prazos de HOJE).
+  const itensPrazo = prazosPorFaixa.map((p) => ({
+    html: itemHtml(`⏰ Prazo: ${esc(p.description)}`, p.case_number ? `Proc. ${esc(p.case_number)}` : '', classificarPrazo(p.diasParaVencer)),
+    severity: classificarPrazo(p.diasParaVencer),
   }));
   const itensEsteira = esteira.pecasAProduzir.map((p) => ({
-    html: itemHtml(`${p.caso} — parado há ${p.diasParado} dia(s)`, `Fase: ${p.fase}`, p.severity),
+    html: itemHtml(`${esc(p.caso)} — parado há ${p.diasParado} dia(s)`, `Fase: ${esc(p.fase)}`, p.severity),
     severity: p.severity,
   }));
 
@@ -449,14 +473,18 @@ export function buildHtml(
     `<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #f1ede4;font-size:13px">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#6b6252;width:74px;flex:none;padding-top:2px">${a.data}</div>
       <div style="font-weight:700;color:${NAVY};width:42px;flex:none">${a.hora}</div>
-      <div>${tipoLabel[a.tipo] || '📌'} ${a.titulo}${a.local ? ` <span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;background:${WARNING_SOFT};color:${WARNING}">presencial</span>` : a.videoLink ? ` <span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;background:${OK_SOFT};color:${OK_STRONG}">online</span>` : ''}</div>
+      <div>${tipoLabel[a.tipo] || '📌'} ${esc(a.titulo)}${a.local ? ` <span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;background:${WARNING_SOFT};color:${WARNING}">presencial</span>` : a.videoLink ? ` <span style="display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:999px;margin-left:6px;background:${OK_SOFT};color:${OK_STRONG}">online</span>` : ''}</div>
     </div>`
   ).join('') || '<p style="color:#6b6252;font-size:13px">Sem compromissos nos próximos 3 dias.</p>';
 
   const comercialHtml = [
-    ...comercial.leadsNovos.map((l) => `<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #f1ede4;font-size:13px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#6b6252;width:74px;flex:none;padding-top:2px">Novo lead</div><div>${l.nome} — ${l.area} · ${l.origem}</div></div>`),
-    ...comercial.aniversariantes.map((a) => `<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #f1ede4;font-size:13px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#6b6252;width:74px;flex:none;padding-top:2px">🎂 Hoje</div><div>Aniversário de ${a.nome} (cliente)</div></div>`),
+    ...comercial.leadsNovos.map((l) => `<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #f1ede4;font-size:13px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#6b6252;width:74px;flex:none;padding-top:2px">Novo lead</div><div>${esc(l.nome)} — ${esc(l.area)} · ${esc(l.origem)}</div></div>`),
+    ...comercial.aniversariantes.map((a) => `<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid #f1ede4;font-size:13px"><div style="font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#6b6252;width:74px;flex:none;padding-top:2px">🎂 Hoje</div><div>Aniversário de ${esc(a.nome)} (cliente)</div></div>`),
   ].join('') || '<p style="color:#6b6252;font-size:13px">Nada novo hoje.</p>';
+
+  const documentosPendentesHtml = esteira.documentosPendentes.length ? `
+    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">📄 Documentos pendentes</h3>
+    ${esteira.documentosPendentes.map((d) => `<p style="margin:0 0 6px;font-size:13px;color:#232323"><b>${esc(d.caso)}:</b> ${d.itensFaltando.map(esc).join(', ')}</p>`).join('')}` : '';
 
   const podeEsperarPartes: string[] = [];
   if (esteira.pecasAProduzir.some((p) => p.severity === 'pode_esperar'))
@@ -469,7 +497,7 @@ export function buildHtml(
   // por IA. Inclui TODOS os kinds que podem ser críticos (prazo e pagamento também, não só
   // movimentação/agenda — prazo é o de MAIOR peso em PESO_KIND, precisa poder vencer o desempate).
   const briefingItems: BriefingItem[] = [
-    ...(agenda.prazos || []).map((p: any, idx: number) => ({ id: `prazo-${idx}`, kind: 'prazo' as const, label: `Prazo: ${p.description}${p.case_number ? ` (proc. ${p.case_number})` : ''}`, severity: classificarPrazo(0), ordemDesempate: idx })),
+    ...prazosPorFaixa.filter((p) => classificarPrazo(p.diasParaVencer) === 'critica').map((p, idx) => ({ id: `prazo-${idx}`, kind: 'prazo' as const, label: `Prazo: ${p.description}${p.case_number ? ` (proc. ${p.case_number})` : ''}`, severity: 'critica' as const, ordemDesempate: idx })),
     ...movimentacoes.filter((m) => m.severity === 'critica').map((m, idx) => ({ id: `mov-${idx}`, kind: 'movimentacao' as const, label: `${m.acao} — ${m.clienteVsParte}`, severity: m.severity, ordemDesempate: idx })),
     ...agenda3d.filter((a) => a.severity === 'critica').map((a, idx) => ({ id: `ag-${idx}`, kind: 'agenda' as const, label: `${a.titulo}, ${a.hora}`, severity: a.severity, ordemDesempate: idx })),
     ...(financeiro.aReceberHoje > 0 ? [{ id: 'pag-0', kind: 'pagamento' as const, label: `Cobrar ${money(financeiro.aReceberHoje)} vencendo hoje`, severity: 'critica' as const, ordemDesempate: 0 }] : []),
@@ -513,6 +541,8 @@ export function buildHtml(
 
     <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">📅 Agenda — hoje e próximos 3 dias</h3>
     ${agendaListaHtml}
+
+    ${documentosPendentesHtml}
 
     <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">💰 Financeiro</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 4px">
@@ -585,6 +615,13 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
     [ADMIN_PLACEHOLDER_EMAIL, GARANTIDO_EMAIL]
   ) as any;
 
+  // Estas 4 consultas são GLOBAIS (sem parâmetro de usuário) — rodar uma vez só
+  // antes do loop, em vez de repeti-las a cada usuário (achado da revisão final).
+  const financeiro = await getFinanceiroGranular();
+  const comercial = await getComercialDoDia();
+  const esteira = await getEsteiraEDocumentos();
+  const movimentacoes = await getMovimentacoesDoDia();
+
   let sent = 0, failed = 0;
   const seen = new Set<string>();
   for (const u of users) {
@@ -602,14 +639,11 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
     ) as any;
     await salvarSnapshotDoDia(u.id, { tarefas: tarefasHoje }).catch((e) => console.error('[briefing] falha ao salvar snapshot:', e?.message || e));
     const agenda3d = await getAgenda3Dias(u.id);
-    const financeiro = await getFinanceiroGranular();
-    const comercial = await getComercialDoDia();
-    const esteira = await getEsteiraEDocumentos();
-    const movimentacoes = await getMovimentacoesDoDia();
+    const prazosPorFaixa = await getPrazosPorFaixa(u.id);
     const r = await sendEmail({
       to: u.email,
       subject: `☀️ Bom dia! Sua agenda de hoje`,
-      html: buildHtml(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes),
+      html: buildHtml(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes, prazosPorFaixa),
     });
     if (r.ok) sent++; else failed++;
 
@@ -640,7 +674,8 @@ export function buildWhatsappText(
   agenda3d: AgendaItem[], financeiro: FinanceiroGranular,
   comercial: { leadsNovos: LeadNovo[]; aniversariantes: Aniversariante[] },
   esteira: { pecasAProduzir: PecaPendente[]; documentosPendentes: DocumentoPendente[] },
-  movimentacoes: MovimentacaoBriefing[]
+  movimentacoes: MovimentacaoBriefing[],
+  prazosPorFaixa: { description: string; case_number: string | null; diasParaVencer: number }[] = []
 ): string {
   // pulso não é mais renderizado diretamente aqui — o conteúdo dele (leads frios,
   // a receber, casos atrasados, e-mails pendentes) já está coberto pelos blocos
@@ -649,11 +684,11 @@ export function buildWhatsappText(
   const hoje = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'America/Sao_Paulo' });
   const tipoLabel: Record<string, string> = { reuniao: '🤝', audiencia: '⚖️', compromisso: '📌' };
 
-  // Correção (mesma da Task 7 em buildHtml): prazos processuais de hoje
-  // (agenda.prazos) também entram nos críticos — o brief original só olhava
-  // agenda3d/movimentacoes/pagamento e deixava prazo de fora.
+  // Correção (mesma da Task 7 em buildHtml): prazos por faixa (hoje/amanhã/3
+  // dias/semana) também entram nos críticos quando classificarPrazo indicar
+  // 'critica' — antes só existiam prazos de HOJE (agenda.prazos).
   const criticos = [
-    ...(agenda.prazos || []).map((p: any) => `⏰ *Prazo:* ${p.description}${p.case_number ? ` (proc. ${p.case_number})` : ''}`),
+    ...prazosPorFaixa.filter((p) => classificarPrazo(p.diasParaVencer) === 'critica').map((p) => `⏰ *Prazo:* ${p.description}${p.case_number ? ` (proc. ${p.case_number})` : ''}`),
     ...agenda3d.filter((a) => a.severity === 'critica').map((a) => `${tipoLabel[a.tipo] || '📌'} ${a.titulo} — ${a.hora}${a.local ? ` (${a.local})` : ''}`),
     ...movimentacoes.filter((m) => m.severity === 'critica').map((m) => `⚖️ *${m.clienteVsParte}* — ${m.resumo}${m.acao && m.acao !== 'nenhuma' ? `\n*Ação:* ${m.acao}${m.prazoInterno && m.prazoInterno !== 'sem prazo' ? ` · prazo interno ${m.prazoInterno}` : ''}` : ''}`),
     ...(financeiro.aReceberHoje > 0 ? [`💰 ${money(financeiro.aReceberHoje)} vencendo hoje`] : []),
@@ -698,13 +733,18 @@ export function buildWhatsappText(
   // briefingSeverity.ts, sem isso um dia só com prazo crítico preenche
   // "ATENÇÃO IMEDIATA" mas deixa o fecho "3 coisas hoje" vazio.
   const briefingItems: import('./briefingSeverity').BriefingItem[] = [
-    ...(agenda.prazos || []).map((p: any, idx: number) => ({ id: `prazo-${idx}`, kind: 'prazo' as const, label: `Prazo: ${p.description}${p.case_number ? ` (proc. ${p.case_number})` : ''}`, severity: 'critica' as const, ordemDesempate: idx })),
+    ...prazosPorFaixa.filter((p) => classificarPrazo(p.diasParaVencer) === 'critica').map((p, idx) => ({ id: `prazo-${idx}`, kind: 'prazo' as const, label: `Prazo: ${p.description}${p.case_number ? ` (proc. ${p.case_number})` : ''}`, severity: 'critica' as const, ordemDesempate: idx })),
     ...movimentacoes.filter((m) => m.severity === 'critica').map((m, idx) => ({ id: `mov-${idx}`, kind: 'movimentacao' as const, label: `${m.acao} — ${m.clienteVsParte}`, severity: m.severity, ordemDesempate: idx })),
     ...agenda3d.filter((a) => a.severity === 'critica').map((a, idx) => ({ id: `ag-${idx}`, kind: 'agenda' as const, label: `${a.titulo}, ${a.hora}`, severity: a.severity, ordemDesempate: idx })),
     ...(financeiro.aReceberHoje > 0 ? [{ id: 'pag-0', kind: 'pagamento' as const, label: `Cobrar ${money(financeiro.aReceberHoje)} vencendo hoje`, severity: 'critica' as const, ordemDesempate: 0 }] : []),
   ];
   const top = top3(briefingItems);
   if (top.length) blocos.push(`🎯 *Se você fizer só 3 coisas hoje:*\n${top.map((i, idx) => `${idx + 1}. ${i.label}`).join('\n')}`);
+
+  if (esteira.documentosPendentes.length) {
+    const docLinhas = esteira.documentosPendentes.map((d) => `${d.caso}: ${d.itensFaltando.join(', ')}`);
+    blocos.push(`📄 *Documentos pendentes*\n${docLinhas.join('\n')}`);
+  }
 
   blocos.push(`🧘 Já bebeu água hoje? Qual é o seu objetivo pra hoje?`);
   return blocos.join('\n\n');
@@ -733,6 +773,7 @@ export async function sendMorningBriefingWhatsapp(): Promise<{ sent: boolean; re
   const meta = await getGoalProgress();
   const agenda = userId ? await getDayAgenda(userId) : { eventos: [], prazos: [], tarefas: [] };
   const agenda3d = userId ? await getAgenda3Dias(userId) : [];
+  const prazosPorFaixa = userId ? await getPrazosPorFaixa(userId) : [];
   const financeiro = await getFinanceiroGranular();
   const comercial = await getComercialDoDia();
   const esteira = await getEsteiraEDocumentos();
@@ -740,7 +781,7 @@ export async function sendMorningBriefingWhatsapp(): Promise<{ sent: boolean; re
 
   let digits = phoneRaw.replace(/\D/g, '');
   if (digits.length <= 11) digits = '55' + digits;
-  const texto = buildWhatsappText(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes);
+  const texto = buildWhatsappText(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes, prazosPorFaixa);
   const ok = await sendText(digits, texto, 'Automático — onboarding matinal').catch(() => false);
   return { sent: ok };
 }

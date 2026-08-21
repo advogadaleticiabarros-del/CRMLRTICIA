@@ -82,8 +82,9 @@ test('cases.production_stage e production_started_at existem (migrations 010/044
 });
 
 // Sanidade específica da Task 9 (getMovimentacoesDoDia): process_movements.ai_summary
-// só existe a partir da migration 096 (JSON) — a coluna TEXT da 038 foi
-// substituída, e legal_processes.process_number/client_id vêm da migration 011.
+// só existe a partir da migration 096 (JSON) — a migration 038 é sobre
+// detected_deadlines, não process_movements — e legal_processes.process_number/
+// client_id vêm da migration 011.
 test('process_movements.ai_summary existe (migration 096, tipo JSON)', () => {
   assert.ok(SCHEMA.get('process_movements')?.has('ai_summary'), 'process_movements.ai_summary deveria existir no schema real');
 });
