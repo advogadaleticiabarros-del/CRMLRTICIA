@@ -5462,14 +5462,23 @@ async function clientForm(id, onSave) {
     <div class="form-row">${field('E-mail', 'email', { value: c.email, type: 'email' })}${field('Telefone', 'phone', { value: c.phone })}</div>
     ${field('Endereço', 'address', { value: c.address })}
     ${field('Status', 'status', { value: c.status, options: [{v:'ativo',t:'Ativo'},{v:'inativo',t:'Inativo'},{v:'prospecto',t:'Prospecto'}] })}
+    ${field('Número do processo (opcional)', 'process_number', { value: '' })}
+    <p class="sub" style="margin:-6px 0 0">Preenchendo aqui, o processo já entra vinculado a ${esc(c.name) || 'este cliente'} e no monitoramento automático — mesma coisa que cadastrar em Processos.</p>
     <button type="submit" class="btn-primary">${id ? 'Salvar' : 'Cadastrar'}</button>
   </form>`);
   attachConflictCheck(form, { skip: !!id });
   form.onsubmit = async (e) => {
     e.preventDefault();
-    const body = Object.fromEntries(new FormData(form));
+    const { process_number, ...body } = Object.fromEntries(new FormData(form));
     try {
-      await api(id ? '/api/clients/' + id : '/api/clients', { method: id ? 'PUT' : 'POST', body: JSON.stringify(body) });
+      const saved = id
+        ? await api('/api/clients/' + id, { method: 'PUT', body: JSON.stringify(body) })
+        : await api('/api/clients', { method: 'POST', body: JSON.stringify(body) });
+      const clientId = id || saved?.id;
+      if (process_number && process_number.trim() && clientId) {
+        await api('/api/processes', { method: 'POST', body: JSON.stringify({ client_id: clientId, process_number: process_number.trim() }) })
+          .catch((e2) => toast(`Cliente salvo, mas o processo não pôde ser adicionado: ${e2.message}`, 'error'));
+      }
       closeModal(); toast(id ? 'Cliente atualizado' : 'Cliente cadastrado'); onSave();
     } catch (err) { toast(err.message, 'error'); }
   };
