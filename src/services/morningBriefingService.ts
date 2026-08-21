@@ -3,6 +3,7 @@ import { sendEmail, layout } from './EmailService';
 import { getGoalProgress, GoalProgress } from './goalsService';
 import { sendText } from './uazapiInstance';
 import { classificarAgenda, classificarPagamento, classificarEsteira, classificarLead, Severity } from './briefingSeverity';
+import { buildCaseChecklist } from './caseChecklists';
 
 const NAVY = '#1f3047';
 const GOLD = '#c19a4e';
@@ -272,9 +273,9 @@ export async function getFinanceiroGranular(): Promise<FinanceiroGranular> {
       (SELECT COALESCE(SUM(valor_escritorio),0) FROM case_awards WHERE status='aguardando' AND previsao_pagamento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY))
         AS rpv_semana,
       (SELECT COALESCE(SUM(valor),0) FROM installments WHERE status='pago' AND updated_at >= NOW() - INTERVAL 7 DAY)
-      + (SELECT COALESCE(SUM(valor_final),0) FROM parcelas WHERE status='pago' AND updated_at >= NOW() - INTERVAL 7 DAY)
+      + (SELECT COALESCE(SUM(valor_final),0) FROM parcelas WHERE status='pago' AND atualizado_em >= NOW() - INTERVAL 7 DAY)
         AS recebido_7d,
-      (SELECT COUNT(*) FROM case_awards WHERE status='aguardando' AND alvara_recebido = 0)
+      (SELECT COUNT(*) FROM case_awards WHERE kind='alvara' AND status='aguardando')
         AS alvaras_aguardando
   `).catch(() => ({ a_receber_hoje: 0, rpv_semana: 0, recebido_7d: 0, alvaras_aguardando: 0 }));
   return {
@@ -285,13 +286,13 @@ export async function getFinanceiroGranular(): Promise<FinanceiroGranular> {
   };
 }
 
-interface LeadNovo { nome: string; area: string; origem: string; criadoEm: string; }
+interface LeadNovo { nome: string; area: string; origem: string; criadoEm: Date; }
 interface Aniversariante { nome: string; }
 
 /** Leads criados desde o último briefing + aniversariantes de clientes hoje. */
 export async function getComercialDoDia(): Promise<{ leadsNovos: LeadNovo[]; aniversariantes: Aniversariante[] }> {
   const [leads] = await db.query(`
-    SELECT name AS nome, COALESCE(area, 'não informada') AS area, COALESCE(source, 'não informado') AS origem, created_at AS criadoEm
+    SELECT name AS nome, COALESCE(legal_area, 'não informada') AS area, COALESCE(source, 'não informado') AS origem, created_at AS criadoEm
       FROM leads
      WHERE created_at >= NOW() - INTERVAL 1 DAY
      ORDER BY created_at DESC`).catch(() => [[]]) as any;
@@ -308,7 +309,7 @@ interface DocumentoPendente { caso: string; itensFaltando: string[]; }
 /** Casos parados na esteira de produção + documentos ainda não marcados no checklist. */
 export async function getEsteiraEDocumentos(): Promise<{ pecasAProduzir: PecaPendente[]; documentosPendentes: DocumentoPendente[] }> {
   const [casos] = await db.query(`
-    SELECT title AS caso, production_stage AS fase, checklist_checked,
+    SELECT id, title AS caso, production_stage AS fase,
            DATEDIFF(NOW(), production_started_at) AS diasParado
       FROM cases
      WHERE production_stage IN ('separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')
@@ -320,15 +321,13 @@ export async function getEsteiraEDocumentos(): Promise<{ pecasAProduzir: PecaPen
     severity: classificarEsteira(Number(c.diasParado) || 0),
   }));
 
-  const documentosPendentes: DocumentoPendente[] = casos
-    .filter((c: any) => c.fase === 'separacao_documentos' && c.checklist_checked)
-    .map((c: any) => {
-      let checklist: Record<string, boolean> = {};
-      try { checklist = JSON.parse(c.checklist_checked); } catch { /* checklist mal formado — trata como vazio */ }
-      const itensFaltando = Object.entries(checklist).filter(([, marcado]) => !marcado).map(([item]) => item);
-      return { caso: c.caso, itensFaltando };
-    })
-    .filter((d: DocumentoPendente) => d.itensFaltando.length > 0);
+  const documentosPendentes: DocumentoPendente[] = [];
+  for (const c of casos.filter((c: any) => c.fase === 'separacao_documentos')) {
+    const checklist = await buildCaseChecklist(c.id).catch(() => null);
+    if (!checklist) continue;
+    const itensFaltando = checklist.itens.filter((item) => !item.done).map((item) => item.label);
+    if (itensFaltando.length > 0) documentosPendentes.push({ caso: c.caso, itensFaltando });
+  }
 
   return { pecasAProduzir, documentosPendentes };
 }

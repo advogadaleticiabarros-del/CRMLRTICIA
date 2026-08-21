@@ -1,10 +1,19 @@
-// Valida que as 4 novas funções de dado do briefing referenciam colunas/
-// tabelas que de fato existem no schema — mesmo padrão de tests/dashboards.test.mjs.
+// Valida que as 4 novas funções de dado do briefing (getFinanceiroGranular,
+// getComercialDoDia, getAgenda3Dias, getEsteiraEDocumentos) referenciam
+// colunas/tabelas que de fato existem no schema.
+//
+// Antes este teste fazia 3 greps de regex escolhidos a dedo, que não
+// cobriam as colunas quebradas (parcelas.updated_at, case_awards.alvara_recebido,
+// leads.area) encontradas em revisão manual. Agora reaproveita o MESMO
+// mecanismo genérico de tests/dashboards.test.mjs (schema real das
+// migrations + cruzamento alias.coluna), extraído para
+// tests/helpers/schemaAudit.mjs, aplicado a src/services/morningBriefingService.ts.
 import { test } from 'node:test';
-import assert from 'node:assert';
-import { readFileSync, readdirSync } from 'node:fs';
-import { execSync } from 'node:child_process';
+import assert from 'node:assert/strict';
+import path from 'node:path';
 import { existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
+import { lerSchema, tabelasComEscrita, auditarArquivos } from './helpers/schemaAudit.mjs';
 
 if (!existsSync(new URL('../dist/services/morningBriefingService.js', import.meta.url))) {
   execSync('npx tsc', { cwd: new URL('..', import.meta.url), stdio: 'ignore' });
@@ -18,19 +27,50 @@ test('getAgenda3Dias, getFinanceiroGranular, getComercialDoDia e getEsteiraEDocu
   assert.equal(typeof mod.getEsteiraEDocumentos, 'function');
 });
 
-// Colunas referenciadas pelas novas queries precisam existir nas migrations.
-const schemaSql = readdirSync(new URL('../migrations', import.meta.url))
-  .filter((f) => f.endsWith('.sql'))
-  .map((f) => readFileSync(new URL(`../migrations/${f}`, import.meta.url), 'utf8'))
-  .join('\n');
+const raiz = path.resolve('.');
+const BRIEFING_FILE = path.join(raiz, 'src/services/morningBriefingService.ts');
 
-test('clients.birth_date existe (migration 095)', () => {
-  assert.match(schemaSql, /birth_date\s+DATE/i);
+const SCHEMA = lerSchema();
+const ESCRITAS = tabelasComEscrita();
+
+test('a auditoria conseguiu ler o schema real', () => {
+  assert.ok(SCHEMA.size > 30, `esperava dezenas de tabelas, achei ${SCHEMA.size}`);
 });
-test('cases.checklist_checked existe (migration 065, reaproveitada)', () => {
-  assert.match(schemaSql, /checklist_checked\s+JSON/i);
+
+test('morningBriefingService só consulta tabelas que EXISTEM no banco', () => {
+  const { tabelasInexistentes } = auditarArquivos([BRIEFING_FILE], { schema: SCHEMA, escritas: ESCRITAS });
+  assert.deepEqual(tabelasInexistentes, [], '\n  ' + tabelasInexistentes.join('\n  '));
+});
+
+test('morningBriefingService não mede tabela MORTA (onde o código nunca escreve)', () => {
+  const { tabelasMortas } = auditarArquivos([BRIEFING_FILE], { schema: SCHEMA, escritas: ESCRITAS });
+  assert.deepEqual(tabelasMortas, [], '\n  ' + tabelasMortas.join('\n  '));
+});
+
+test('morningBriefingService não filtra/lê por uma coluna que NÃO existe na tabela', () => {
+  // Pegou exatamente os 3 bugs da revisão: parcelas.updated_at (correto:
+  // atualizado_em), case_awards.alvara_recebido (não existe — o filtro certo
+  // é kind='alvara' AND status='aguardando') e leads.area (correto: legal_area).
+  const { colunasInexistentes } = auditarArquivos([BRIEFING_FILE], { schema: SCHEMA, escritas: ESCRITAS });
+  assert.deepEqual(colunasInexistentes, [], '\n  ' + colunasInexistentes.join('\n  '));
+});
+
+// Sanidade adicional: colunas específicas que as 4 novas funções dependem
+// devem existir nas migrations, sob os nomes corretos.
+test('parcelas.atualizado_em existe (migration 013) — não "updated_at"', () => {
+  assert.ok(SCHEMA.get('parcelas')?.has('atualizado_em'), 'parcelas.atualizado_em deveria existir no schema real');
+});
+test('case_awards.kind e case_awards.status existem (migration 073) — não "alvara_recebido"', () => {
+  assert.ok(SCHEMA.get('case_awards')?.has('kind'), 'case_awards.kind deveria existir no schema real');
+  assert.ok(SCHEMA.get('case_awards')?.has('status'), 'case_awards.status deveria existir no schema real');
+});
+test('leads.legal_area existe (migration 001) — não "area"', () => {
+  assert.ok(SCHEMA.get('leads')?.has('legal_area'), 'leads.legal_area deveria existir no schema real');
+});
+test('clients.birth_date existe (migration 095)', () => {
+  assert.ok(SCHEMA.get('clients')?.has('birth_date'), 'clients.birth_date deveria existir no schema real');
 });
 test('cases.production_stage e production_started_at existem (migrations 010/044)', () => {
-  assert.match(schemaSql, /production_stage\s+ENUM/i);
-  assert.match(schemaSql, /production_started_at/i);
+  assert.ok(SCHEMA.get('cases')?.has('production_stage'), 'cases.production_stage deveria existir no schema real');
+  assert.ok(SCHEMA.get('cases')?.has('production_started_at'), 'cases.production_started_at deveria existir no schema real');
 });
