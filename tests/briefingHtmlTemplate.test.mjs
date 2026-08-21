@@ -97,3 +97,20 @@ test('com previsão do tempo e meta do mês, o HTML mostra a previsão e a Meta 
   assert.match(html, /Meta do mês/);
   assert.match(html, /8\.500,00/);
 });
+
+test('texto de fonte externa (movimentação/prazo/agenda) não escapa como HTML cru em nenhum bloco, inclusive "3 prioridades do dia"', () => {
+  const payload = '<script>alert(1)</script>';
+  const movimentacoesMaliciosas = [
+    { processo: '0001111-22.2026.5.17.0003', clienteVsParte: payload, resumo: payload, acao: payload, prazoInterno: '25/08', severity: 'critica' },
+  ];
+  const prazosMaliciosos = [
+    { description: payload, case_number: payload, diasParaVencer: 0 },
+  ];
+  const agendaMaliciosa = [
+    { titulo: payload, tipo: 'audiencia', data: '2026-08-21', hora: '16:20', local: payload, videoLink: null, severity: 'critica' },
+  ];
+  const financeiroSemPendencia = { aReceberHoje: 0, rpvSemana: 0, recebido7d: 0, alvarasAguardando: 0 };
+  const html = buildHtml('Letícia', null, { eventos: [], prazos: [], tarefas: [] }, {}, { current: 0, target: 1, percent: 0, faltam: 1, contratos_fechados_mes: 0 }, agendaMaliciosa, financeiroSemPendencia, { leadsNovos: [], aniversariantes: [] }, { pecasAProduzir: [], documentosPendentes: [] }, movimentacoesMaliciosas, prazosMaliciosos);
+  assert.doesNotMatch(html, /<script>alert\(1\)<\/script>/, 'nenhum bloco pode conter a tag crua — inclusive o fecho "3 prioridades do dia"');
+  assert.match(html, /&lt;script&gt;/, 'o texto deve aparecer escapado em algum lugar (prova que os dados chegaram e foram tratados)');
+});

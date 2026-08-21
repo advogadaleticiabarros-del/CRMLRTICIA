@@ -506,7 +506,7 @@ export function buildHtml(
   const top3Html = top3Items.length ? `
     <div style="margin-top:24px;background:${NAVY};border-radius:10px;padding:20px 22px;color:#fff">
       <div style="font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:${GOLD};font-weight:700;font-family:Arial,sans-serif;margin-bottom:10px">🎯 Se você fizer só 3 coisas hoje</div>
-      <ol style="margin:0;padding-left:20px">${top3Items.map((i: BriefingItem) => `<li style="font-family:Georgia,serif;font-size:14.5px;line-height:1.7;margin-bottom:4px">${i.label}</li>`).join('')}</ol>
+      <ol style="margin:0;padding-left:20px">${top3Items.map((i: BriefingItem) => `<li style="font-family:Georgia,serif;font-size:14.5px;line-height:1.7;margin-bottom:4px">${esc(i.label)}</li>`).join('')}</ol>
     </div>` : '';
 
   const body = `
@@ -739,7 +739,7 @@ export function buildWhatsappText(
     ...(financeiro.aReceberHoje > 0 ? [{ id: 'pag-0', kind: 'pagamento' as const, label: `Cobrar ${money(financeiro.aReceberHoje)} vencendo hoje`, severity: 'critica' as const, ordemDesempate: 0 }] : []),
   ];
   const top = top3(briefingItems);
-  if (top.length) blocos.push(`🎯 *Se você fizer só 3 coisas hoje:*\n${top.map((i, idx) => `${idx + 1}. ${i.label}`).join('\n')}`);
+  if (top.length) blocos.push(`🎯 *Se você fizer só 3 coisas hoje:*\n${top.map((i, idx) => `${idx + 1}. ${esc(i.label)}`).join('\n')}`);
 
   if (esteira.documentosPendentes.length) {
     const docLinhas = esteira.documentosPendentes.map((d) => `${d.caso}: ${d.itensFaltando.join(', ')}`);
