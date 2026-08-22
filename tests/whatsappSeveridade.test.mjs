@@ -48,9 +48,9 @@ test('etiquetaPendencia mostra audiência quando ela é a mais urgente', () => {
   assert.match(e.texto, /Audiência em 2 dias/);
 });
 test('etiquetaPendencia mostra parcela quando ela é a mais urgente', () => {
-  const e = etiquetaPendencia({ proxima_audiencia_dias: 6, parcela_vencendo_dias: 1 });
+  const e = etiquetaPendencia({ proxima_audiencia_dias: 6, parcela_vencendo_dias: 0 });
   assert.equal(e.icone, 'banknote');
-  assert.match(e.texto, /Parcela vence em 1 dia\b/);
+  assert.match(e.texto, /Parcela vence hoje/);
 });
 test('etiquetaPendencia é null quando neutra', () => {
   assert.equal(etiquetaPendencia({ proxima_audiencia_dias: null, parcela_vencendo_dias: null }), null);
@@ -58,4 +58,14 @@ test('etiquetaPendencia é null quando neutra', () => {
 test('etiquetaPendencia usa "hoje"/"atrasada" nos extremos', () => {
   assert.match(etiquetaPendencia({ proxima_audiencia_dias: 0, parcela_vencendo_dias: null }).texto, /Audiência hoje/);
   assert.match(etiquetaPendencia({ proxima_audiencia_dias: null, parcela_vencendo_dias: -1 }).texto, /Parcela atrasada/);
+});
+test('etiquetaPendencia: em empate de severidade, audiência prevalece sobre parcela', () => {
+  // audiência hoje (crítica) + parcela hoje (crítica) — mesma severidade, audiência vence
+  const e1 = etiquetaPendencia({ proxima_audiencia_dias: 0, parcela_vencendo_dias: 0 });
+  assert.equal(e1.icone, 'scale');
+  assert.match(e1.texto, /Audiência hoje/);
+  // audiência em 5 dias (atenção) + parcela em 2 dias (atenção) — mesma severidade, audiência vence
+  const e2 = etiquetaPendencia({ proxima_audiencia_dias: 5, parcela_vencendo_dias: 2 });
+  assert.equal(e2.icone, 'scale');
+  assert.match(e2.texto, /Audiência em 5 dias/);
 });

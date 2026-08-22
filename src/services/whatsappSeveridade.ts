@@ -37,7 +37,7 @@ export function etiquetaPendencia(chat: ChatPendencia): { icone: 'scale' | 'bank
   const a = severidadeAudiencia(chat.proxima_audiencia_dias);
   const p = severidadeParcela(chat.parcela_vencendo_dias);
   if (a === 'neutra' && p === 'neutra') return null;
-  const audienciaGanha = PESO[a] > PESO[p];
+  const audienciaGanha = PESO[a] >= PESO[p];
   if (audienciaGanha) {
     const d = chat.proxima_audiencia_dias as number;
     const texto = d === 0 ? 'Audiência hoje' : d === 1 ? 'Audiência amanhã' : `Audiência em ${d} dias`;

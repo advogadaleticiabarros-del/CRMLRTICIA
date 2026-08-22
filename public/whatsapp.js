@@ -360,7 +360,7 @@ Object.assign(ROUTES, {
         const a = severidadeAudiencia(c.proxima_audiencia_dias);
         const p = severidadeParcela(c.parcela_vencendo_dias);
         if (a === 'neutra' && p === 'neutra') return null;
-        if (PESO_SEV[a] > PESO_SEV[p]) {
+        if (PESO_SEV[a] >= PESO_SEV[p]) {
           const d = c.proxima_audiencia_dias;
           const texto = d === 0 ? 'Audiência hoje' : d === 1 ? 'Audiência amanhã' : `Audiência em ${d} dias`;
           return { icone: 'scale', texto };

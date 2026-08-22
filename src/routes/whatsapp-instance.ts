@@ -155,15 +155,15 @@ router.get('/chats', async (req: Request, res: Response) => {
       LEFT JOIN clients cl ON cl.id = w.client_id
       LEFT JOIN whatsapp_chat_meta m ON m.phone = w.phone
       LEFT JOIN (
-        SELECT c.client_id, DATEDIFF(ce.start_datetime, CURDATE()) AS dias
+        SELECT COALESCE(ce.client_id, c.client_id) AS client_id, DATEDIFF(ce.start_datetime, CURDATE()) AS dias
           FROM calendar_events ce
-          JOIN cases c ON c.id = ce.case_id
+          LEFT JOIN cases c ON c.id = ce.case_id
          WHERE ce.event_type = 'audiencia' AND ce.start_datetime >= CURDATE() AND ce.start_datetime < DATE_ADD(CURDATE(), INTERVAL 8 DAY)
       ) aud ON aud.client_id = w.client_id
       LEFT JOIN (
         SELECT client_id, DATEDIFF(due_date, CURDATE()) AS dias
           FROM installments
-         WHERE status = 'pendente' AND due_date < DATE_ADD(CURDATE(), INTERVAL 4 DAY)
+         WHERE status IN ('pendente', 'vencido', 'em_processamento') AND due_date < DATE_ADD(CURDATE(), INTERVAL 4 DAY)
       ) parc ON parc.client_id = w.client_id
      ${whereQ}
      GROUP BY w.phone
