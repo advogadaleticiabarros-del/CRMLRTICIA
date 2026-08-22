@@ -137,7 +137,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 router.patch('/:id/status', async (req: Request, res: Response) => {
   const { status } = req.body;
   if (!STATUSES.includes(status)) { res.status(400).json({ error: `status deve ser: ${STATUSES.join(', ')}` }); return; }
-  const paidSql = status === 'paga' ? ', paid_at = COALESCE(paid_at, CURDATE())' : '';
+  const paidSql = status === 'paga' ? ', paid_at = COALESCE(paid_at, CURDATE())' : ', paid_at = NULL';
   const [r] = await db.query(`UPDATE correspondent_hearings SET status = ?${paidSql} WHERE id = ?`, [status, req.params.id]) as any;
   if (!r.affectedRows) { res.status(404).json({ error: 'Audiência não encontrada' }); return; }
   res.json({ success: true, id: Number(req.params.id), status });
