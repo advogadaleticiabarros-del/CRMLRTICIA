@@ -2972,6 +2972,7 @@ async function renderCorrespondente(page) {
       if (h.status === 'agendada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="realizada">Realizada</button>`);
       if (h.status === 'realizada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="faturada">Faturar</button>`);
       if (h.status === 'faturada') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="paga">Receber</button>`);
+      if (h.status === 'paga') acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="faturada" title="Desfazer recebimento">Desfazer</button>`);
       if (!['paga', 'cancelada'].includes(h.status)) acoes.push(`<button class="btn-sm" data-st="${h.id}" data-to="cancelada">Cancelar</button>`);
       acoes.push(`<button class="btn-sm" data-editar="${h.id}" title="Editar">${svgIcon('edit', 'ic-xs')}</button>`);
       acoes.push(`<button class="btn-sm" data-excluir="${h.id}" title="Excluir permanentemente" style="color:var(--red,#c0392b)">${svgIcon('trash', 'ic-xs')}</button>`);
