@@ -188,6 +188,8 @@ function logout() {
   localStorage.removeItem('crm_token'); localStorage.removeItem('crm_user');
   if (idleTimer) clearTimeout(idleTimer);
   if (bellTimer) clearInterval(bellTimer);
+  closeModal();
+  $('#modal-body').innerHTML = ''; // sessão encerrada: não deixa dados sensíveis do formulário no DOM
   $('#app-view').classList.add('hidden');
   $('#login-view').classList.remove('hidden');
 }
