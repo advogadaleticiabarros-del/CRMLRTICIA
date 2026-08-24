@@ -3838,7 +3838,6 @@ function miniList(title, rows) {
 }
 
 const LEAD_STATUS_PT = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', contrato_assinado: 'Contrato Assinado', fechada: 'Convertido', convertido: 'Convertido', perdida: 'Perdido' };
-const FUNNEL_ORDER = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado'];
 
 // Cockpit — painel-mãe: dinheiro, prazos, intimações, alertas e agenda num só lugar.
 async function dashCockpit(c) {
