@@ -6044,7 +6044,7 @@ async function propostaDetail(id, onSave) {
   const parcelasHtml = (p.installments || []).length
     ? `<div style="margin-top:8px"><strong style="font-size:13px">Parcelas</strong>
        <table style="margin-top:6px"><tbody>${p.installments.map((i) =>
-        `<tr><td>${i.numero}ª</td><td>${money(i.valor)}</td><td>${fmtDate(i.due_date)}</td><td>${badge(i.status)}</td></tr>`).join('')}</tbody></table></div>`
+        `<tr><td>${i.numero}ª</td><td>${money(i.valor)}</td><td>${fmtDate(i.due_date)}</td><td>${badge(i.status)}</td><td>${i.invoice_url ? `<a href="${esc(i.invoice_url)}" target="_blank" rel="noopener" class="btn-sm">Link de pagamento</a>` : ''}</td></tr>`).join('')}</tbody></table></div>`
     : '';
   const isAceita = p.status === 'aceita';
   const form = el(`<div class="form-grid">

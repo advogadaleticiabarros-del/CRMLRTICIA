@@ -110,10 +110,15 @@ export async function generateRecurringRecords(): Promise<number> {
 
 // ── Pagamentos "Já paguei" parados há 48h+ sem confirmação ──────────────────
 export async function alertStuckPayments(): Promise<number> {
+  // Exclui os métodos Asaas (boleto/cartão): eles ficam 'em_processamento' por
+  // definição até o vencimento/pagamento — um boleto de 30 dias não é um
+  // pagamento "parado", é normal, e será confirmado sozinho pelo webhook.
+  // Só pix_manual depende de alguém (a advogada) confirmar manualmente.
   const [parados] = await db.query(`
     SELECT p.id, p.amount, p.created_at, cl.name AS client_name
       FROM payments p JOIN clients cl ON cl.id = p.client_id
-     WHERE p.status = 'em_processamento' AND p.created_at < NOW() - INTERVAL 48 HOUR`) as any;
+     WHERE p.status = 'em_processamento' AND p.created_at < NOW() - INTERVAL 48 HOUR
+       AND p.method = 'pix_manual'`) as any;
 
   let alerts = 0;
   for (const p of parados) {

@@ -27,14 +27,30 @@ export async function asaasConfigured(): Promise<boolean> {
   return (await getConfig()) !== null;
 }
 
+const ASAAS_REQUEST_TIMEOUT_MS = 15_000;
+
 async function request<T = any>(method: string, path: string, body?: Record<string, unknown>): Promise<T> {
   const cfg = await getConfig();
   if (!cfg) throw new Error('Asaas não configurado — defina a chave em Configurações → Financeiro');
-  const res = await fetch(`${cfg.baseUrl}${path}`, {
-    method,
-    headers: { access_token: cfg.apiKey, 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined,
-  });
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ASAAS_REQUEST_TIMEOUT_MS);
+  let res: Response;
+  try {
+    res = await fetch(`${cfg.baseUrl}${path}`, {
+      method,
+      headers: { access_token: cfg.apiKey, 'Content-Type': 'application/json' },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+  } catch (e: any) {
+    if (e?.name === 'AbortError') {
+      throw new Error(`Asaas não respondeu em ${ASAAS_REQUEST_TIMEOUT_MS / 1000}s (timeout)`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+  }
   const data: any = await res.json().catch(() => null);
   if (!res.ok) {
     const msg = data?.errors?.[0]?.description || data?.message || `Asaas HTTP ${res.status}`;

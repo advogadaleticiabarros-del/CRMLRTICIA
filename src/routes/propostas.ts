@@ -63,7 +63,9 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 
   const [installments] = await db.query(
-    'SELECT id, numero, valor, due_date, status, paid_at FROM installments WHERE proposta_id = ? ORDER BY numero ASC',
+    `SELECT i.id, i.numero, i.valor, i.due_date, i.status, i.paid_at,
+            (SELECT p.invoice_url FROM payments p WHERE p.installment_id = i.id ORDER BY p.id DESC LIMIT 1) AS invoice_url
+       FROM installments i WHERE i.proposta_id = ? ORDER BY i.numero ASC`,
     [req.params.id]
   ) as any;
 
@@ -216,9 +218,13 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
   const base = Math.floor((total / installmentsCount) * 100) / 100;
   const last = Math.round((total - base * (installmentsCount - 1)) * 100) / 100;
 
-  const { ensureAsaasCustomer, createAsaasCharge, createAsaasSubscription } = await import('../services/asaasService');
   const gatewayMethod: string = proposta.payment_gateway_method || 'pix';
-  let asaasSubscriptionId: string | null = null;
+
+  // ── Fase 1 (transação, SEM chamadas de rede) ───────────────────────────────
+  // Cria o caso (se preciso) e todas as parcelas. Isso garante que a proposta
+  // e as parcelas sempre existem, independente do Asaas estar disponível ou
+  // não — nenhuma chamada HTTP roda enquanto os locks da transação estão de pé.
+  const createdInstallments: { id: number; numero: number; valor: number; dueDate: string }[] = [];
 
   const conn = await db.getConnection();
   try {
@@ -238,26 +244,6 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
       await conn.query('UPDATE propostas SET case_id = ? WHERE id = ?', [caseId, id]);
     }
 
-    // Cartão recorrente: uma assinatura só, criada ANTES do loop de parcelas —
-    // uma assinatura no Asaas cobre todas as parcelas mensalmente, não uma por parcela.
-    if (gatewayMethod === 'asaas_cartao_recorrente' && proposta.client_id) {
-      const [[cliRow]] = await conn.query('SELECT id, name, cpf_cnpj, email, asaas_customer_id FROM clients WHERE id = ?', [proposta.client_id]) as any;
-      if (cliRow) {
-        try {
-          const customer = await ensureAsaasCustomer({ id: cliRow.id, name: cliRow.name, cpf_cnpj: cliRow.cpf_cnpj, email: cliRow.email, asaas_customer_id: cliRow.asaas_customer_id });
-          const sub = await createAsaasSubscription({
-            customerId: customer.id, value: base, nextDueDate: toDateStr(firstDueDate),
-            description: `Honorários — ${proposta.title || 'proposta ' + proposta.id}`,
-          });
-          asaasSubscriptionId = sub.id;
-        } catch (e: any) {
-          // Não bloqueia a criação das parcelas — a proposta é aceita normalmente,
-          // e a cobrança automática pode ser configurada manualmente depois.
-          console.error(`[proposta ${id}] falha ao criar assinatura Asaas:`, e?.message || e);
-        }
-      }
-    }
-
     for (let i = 0; i < installmentsCount; i++) {
       const valor = i === installmentsCount - 1 ? last : base;
       const dueDate = toDateStr(addMonths(firstDueDate, i));
@@ -266,35 +252,9 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
          VALUES (?, ?, ?, ?, ?, ?, ?, 'pendente')`,
         [req.user!.id, proposta.client_id, proposta.id, caseId, i + 1, valor, dueDate]
       ) as any;
-      const installmentId = insResult.insertId;
-
-      if (gatewayMethod === 'asaas_boleto' || gatewayMethod === 'asaas_cartao_avista') {
-        const [[cliRow]] = await conn.query('SELECT id, name, cpf_cnpj, email, asaas_customer_id FROM clients WHERE id = ?', [proposta.client_id]) as any;
-        if (cliRow) {
-          try {
-            const customer = await ensureAsaasCustomer({ id: cliRow.id, name: cliRow.name, cpf_cnpj: cliRow.cpf_cnpj, email: cliRow.email, asaas_customer_id: cliRow.asaas_customer_id });
-            const charge = await createAsaasCharge({
-              customerId: customer.id,
-              billingType: gatewayMethod === 'asaas_boleto' ? 'BOLETO' : 'CREDIT_CARD',
-              value: valor, dueDate, description: `Honorários — ${i + 1}ª parcela — ${proposta.title || 'proposta ' + proposta.id}`,
-            });
-            await conn.query(
-              `INSERT INTO payments (installment_id, client_id, method, status, amount, provider_txn_id)
-               VALUES (?, ?, ?, 'em_processamento', ?, ?)`,
-              [installmentId, proposta.client_id, gatewayMethod, valor, charge.id]
-            );
-          } catch (e: any) {
-            console.error(`[proposta ${id}] falha ao criar cobrança Asaas (parcela ${i + 1}):`, e?.message || e);
-          }
-        }
-      } else if (gatewayMethod === 'asaas_cartao_recorrente' && asaasSubscriptionId) {
-        await conn.query(
-          `INSERT INTO payments (installment_id, client_id, method, status, amount, asaas_subscription_id)
-           VALUES (?, ?, 'asaas_cartao_recorrente', 'em_processamento', ?, ?)`,
-          [installmentId, proposta.client_id, valor, asaasSubscriptionId]
-        );
-      }
+      createdInstallments.push({ id: insResult.insertId, numero: i + 1, valor, dueDate });
     }
+
     await conn.commit();
     proposta.case_id = caseId;
   } catch (err) {
@@ -302,6 +262,67 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
     throw err;
   } finally {
     conn.release();
+  }
+
+  // ── Fase 2 (fora da transação, best-effort) ─────────────────────────────────
+  // Chamadas de rede ao Asaas rodam DEPOIS do commit — a proposta e as parcelas
+  // já existem de qualquer forma. Falha aqui não derruba a resposta HTTP: só a
+  // cobrança automática daquela parcela específica deixa de ser gerada.
+  if (gatewayMethod !== 'pix' && proposta.client_id) {
+    const { ensureAsaasCustomer, createAsaasCharge, createAsaasSubscription } = await import('../services/asaasService');
+    try {
+      const [[cliRow]] = await db.query(
+        'SELECT id, name, cpf_cnpj, email, asaas_customer_id FROM clients WHERE id = ?',
+        [proposta.client_id]
+      ) as any;
+
+      if (cliRow) {
+        const customer = await ensureAsaasCustomer({
+          id: cliRow.id, name: cliRow.name, cpf_cnpj: cliRow.cpf_cnpj, email: cliRow.email, asaas_customer_id: cliRow.asaas_customer_id,
+        });
+
+        if (gatewayMethod === 'asaas_cartao_recorrente') {
+          // Uma assinatura só cobre todas as parcelas mensalmente, não uma por parcela.
+          try {
+            const sub = await createAsaasSubscription({
+              customerId: customer.id, value: base, nextDueDate: toDateStr(firstDueDate),
+              description: `Honorários — ${proposta.title || 'proposta ' + proposta.id}`,
+            });
+            for (const inst of createdInstallments) {
+              await db.query(
+                `INSERT INTO payments (installment_id, client_id, method, status, amount, asaas_subscription_id, invoice_url)
+                 VALUES (?, ?, 'asaas_cartao_recorrente', 'em_processamento', ?, ?, ?)`,
+                [inst.id, proposta.client_id, inst.valor, sub.id, sub.invoiceUrl || null]
+              );
+            }
+          } catch (e: any) {
+            console.error(`[proposta ${id}] falha ao criar assinatura Asaas:`, e?.message || e);
+          }
+        } else if (gatewayMethod === 'asaas_boleto' || gatewayMethod === 'asaas_cartao_avista') {
+          for (const inst of createdInstallments) {
+            try {
+              const charge = await createAsaasCharge({
+                customerId: customer.id,
+                billingType: gatewayMethod === 'asaas_boleto' ? 'BOLETO' : 'CREDIT_CARD',
+                value: inst.valor, dueDate: inst.dueDate,
+                description: `Honorários — ${inst.numero}ª parcela — ${proposta.title || 'proposta ' + proposta.id}`,
+              });
+              await db.query(
+                `INSERT INTO payments (installment_id, client_id, method, status, amount, provider_txn_id, invoice_url)
+                 VALUES (?, ?, ?, 'em_processamento', ?, ?, ?)`,
+                [inst.id, proposta.client_id, gatewayMethod, inst.valor, charge.id, charge.invoiceUrl || null]
+              );
+            } catch (e: any) {
+              console.error(`[proposta ${id}] falha ao criar cobrança Asaas (parcela ${inst.numero}):`, e?.message || e);
+            }
+          }
+        }
+      }
+    } catch (e: any) {
+      // ensureAsaasCustomer (ou o SELECT do cliente) falhou — nenhuma cobrança
+      // é criada para nenhuma parcela, mas a proposta e as parcelas já existem.
+      console.error(`[proposta ${id}] falha ao preparar cliente Asaas:`, e?.message || e);
+    }
   }
 
   await logActivity({

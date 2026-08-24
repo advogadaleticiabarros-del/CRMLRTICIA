@@ -5,6 +5,10 @@ import { logTimeline } from '../services/TimelineService';
 const router = Router();
 
 // ── GET /api/payments — fila de pagamentos declarados (default: em processamento)
+// Só devolve method = 'pix_manual': é o único fluxo que realmente depende de
+// confirmação manual da advogada (cliente clica "já paguei" no portal). As
+// parcelas via Asaas (boleto/cartão) também passam por 'em_processamento',
+// mas são confirmadas sozinhas pelo webhook — não devem poluir essa fila.
 router.get('/', async (req: Request, res: Response) => {
   const status = ['em_processamento', 'confirmado', 'recusado'].includes(String(req.query.status))
     ? String(req.query.status) : 'em_processamento';
@@ -15,7 +19,7 @@ router.get('/', async (req: Request, res: Response) => {
        JOIN clients cl ON cl.id = p.client_id
        JOIN installments i ON i.id = p.installment_id
        LEFT JOIN propostas pr ON pr.id = i.proposta_id
-      WHERE p.status = ?
+      WHERE p.status = ? AND p.method = 'pix_manual'
       ORDER BY p.created_at ASC`, [status]) as any;
   res.json(rows);
 });

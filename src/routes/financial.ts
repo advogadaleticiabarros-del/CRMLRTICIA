@@ -586,7 +586,11 @@ router.patch('/installments/:id/pay', async (req: Request, res: Response) => {
 });
 
 // ── GET /api/financial/asaas-config — status da integração (nunca devolve a chave) ──
-router.get('/asaas-config', async (_req: Request, res: Response) => {
+router.get('/asaas-config', async (req: Request, res: Response) => {
+  if (req.user!.role !== 'admin') {
+    res.status(403).json({ error: 'Apenas administradores podem configurar a integração Asaas' });
+    return;
+  }
   const [rows] = await db.query(
     "SELECT setting_key, setting_value FROM office_settings WHERE setting_key IN ('asaas_api_key','asaas_environment')"
   ) as any;
@@ -597,6 +601,10 @@ router.get('/asaas-config', async (_req: Request, res: Response) => {
 
 // ── PUT /api/financial/asaas-config — salva/atualiza a chave ────────────────
 router.put('/asaas-config', async (req: Request, res: Response) => {
+  if (req.user!.role !== 'admin') {
+    res.status(403).json({ error: 'Apenas administradores podem configurar a integração Asaas' });
+    return;
+  }
   const { api_key, environment, webhook_token } = req.body || {};
   if (!api_key || typeof api_key !== 'string') { res.status(400).json({ error: 'Informe a chave de API' }); return; }
   const env = environment === 'production' ? 'production' : 'sandbox';
