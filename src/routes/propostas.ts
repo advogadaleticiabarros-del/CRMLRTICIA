@@ -216,6 +216,10 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
   const base = Math.floor((total / installmentsCount) * 100) / 100;
   const last = Math.round((total - base * (installmentsCount - 1)) * 100) / 100;
 
+  const { ensureAsaasCustomer, createAsaasCharge, createAsaasSubscription } = await import('../services/asaasService');
+  const gatewayMethod: string = proposta.payment_gateway_method || 'pix';
+  let asaasSubscriptionId: string | null = null;
+
   const conn = await db.getConnection();
   try {
     await conn.beginTransaction();
@@ -234,14 +238,62 @@ router.post('/:id/accept', async (req: Request, res: Response) => {
       await conn.query('UPDATE propostas SET case_id = ? WHERE id = ?', [caseId, id]);
     }
 
+    // Cartão recorrente: uma assinatura só, criada ANTES do loop de parcelas —
+    // uma assinatura no Asaas cobre todas as parcelas mensalmente, não uma por parcela.
+    if (gatewayMethod === 'asaas_cartao_recorrente' && proposta.client_id) {
+      const [[cliRow]] = await conn.query('SELECT id, name, cpf_cnpj, email, asaas_customer_id FROM clients WHERE id = ?', [proposta.client_id]) as any;
+      if (cliRow) {
+        try {
+          const customer = await ensureAsaasCustomer({ id: cliRow.id, name: cliRow.name, cpf_cnpj: cliRow.cpf_cnpj, email: cliRow.email, asaas_customer_id: cliRow.asaas_customer_id });
+          const sub = await createAsaasSubscription({
+            customerId: customer.id, value: base, nextDueDate: toDateStr(firstDueDate),
+            description: `Honorários — ${proposta.title || 'proposta ' + proposta.id}`,
+          });
+          asaasSubscriptionId = sub.id;
+        } catch (e: any) {
+          // Não bloqueia a criação das parcelas — a proposta é aceita normalmente,
+          // e a cobrança automática pode ser configurada manualmente depois.
+          console.error(`[proposta ${id}] falha ao criar assinatura Asaas:`, e?.message || e);
+        }
+      }
+    }
+
     for (let i = 0; i < installmentsCount; i++) {
       const valor = i === installmentsCount - 1 ? last : base;
       const dueDate = toDateStr(addMonths(firstDueDate, i));
-      await conn.query(
+      const [insResult] = await conn.query(
         `INSERT INTO installments (user_id, client_id, proposta_id, case_id, numero, valor, due_date, status)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'pendente')`,
         [req.user!.id, proposta.client_id, proposta.id, caseId, i + 1, valor, dueDate]
-      );
+      ) as any;
+      const installmentId = insResult.insertId;
+
+      if (gatewayMethod === 'asaas_boleto' || gatewayMethod === 'asaas_cartao_avista') {
+        const [[cliRow]] = await conn.query('SELECT id, name, cpf_cnpj, email, asaas_customer_id FROM clients WHERE id = ?', [proposta.client_id]) as any;
+        if (cliRow) {
+          try {
+            const customer = await ensureAsaasCustomer({ id: cliRow.id, name: cliRow.name, cpf_cnpj: cliRow.cpf_cnpj, email: cliRow.email, asaas_customer_id: cliRow.asaas_customer_id });
+            const charge = await createAsaasCharge({
+              customerId: customer.id,
+              billingType: gatewayMethod === 'asaas_boleto' ? 'BOLETO' : 'CREDIT_CARD',
+              value: valor, dueDate, description: `Honorários — ${i + 1}ª parcela — ${proposta.title || 'proposta ' + proposta.id}`,
+            });
+            await conn.query(
+              `INSERT INTO payments (installment_id, client_id, method, status, amount, provider_txn_id)
+               VALUES (?, ?, ?, 'em_processamento', ?, ?)`,
+              [installmentId, proposta.client_id, gatewayMethod, valor, charge.id]
+            );
+          } catch (e: any) {
+            console.error(`[proposta ${id}] falha ao criar cobrança Asaas (parcela ${i + 1}):`, e?.message || e);
+          }
+        }
+      } else if (gatewayMethod === 'asaas_cartao_recorrente' && asaasSubscriptionId) {
+        await conn.query(
+          `INSERT INTO payments (installment_id, client_id, method, status, amount, asaas_subscription_id)
+           VALUES (?, ?, 'asaas_cartao_recorrente', 'em_processamento', ?, ?)`,
+          [installmentId, proposta.client_id, valor, asaasSubscriptionId]
+        );
+      }
     }
     await conn.commit();
     proposta.case_id = caseId;
