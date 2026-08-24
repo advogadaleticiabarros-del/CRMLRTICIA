@@ -3932,14 +3932,19 @@ async function dashCockpit(c) {
 
 async function dashComercial(c) {
   const d = await api('/api/dashboards/comercial');
-  const byStatus = Object.fromEntries((d.leads_por_status || []).map((s) => [s.status, s.total]));
-  const maxFunnel = Math.max(1, ...FUNNEL_ORDER.map((k) => byStatus[k] || 0));
-  const funnelHTML = FUNNEL_ORDER.map((k) => {
-    const n = byStatus[k] || 0;
-    return `<div class="funnel-row"><span class="funnel-label">${LEAD_STATUS_PT[k]}</span>
-      <div class="funnel-bar"><div class="funnel-fill" style="width:${Math.round((n / maxFunnel) * 100)}%"></div></div>
-      <strong class="funnel-num">${n}</strong></div>`;
+  const funil = d.funil_conversao || { etapas: [], desfechos: { fechados: 0, perdidos: 0, newsletter: 0 } };
+  const maxFunnel = Math.max(1, ...funil.etapas.map((e) => e.volume));
+  const funnelHTML = funil.etapas.map((e) => {
+    const taxaHTML = e.taxa_conversao == null ? '' : `<small class="funnel-taxa">${e.taxa_conversao}%</small>`;
+    return `<div class="funnel-row"><span class="funnel-label">${LEAD_STATUS_PT[e.status]}</span>
+      <div class="funnel-bar"><div class="funnel-fill" style="width:${Math.round((e.volume / maxFunnel) * 100)}%"></div></div>
+      <strong class="funnel-num">${e.volume}</strong>${taxaHTML}</div>`;
   }).join('');
+  const desfechosHTML = `<div class="funnel-desfechos" style="margin-top:10px;font-size:12px;color:var(--text-muted)">
+    ${funil.desfechos.fechados} convertido${funil.desfechos.fechados === 1 ? '' : 's'} ·
+    ${funil.desfechos.perdidos} perdido${funil.desfechos.perdidos === 1 ? '' : 's'} no período
+    ${funil.desfechos.newsletter ? ` · ${funil.desfechos.newsletter} assinante${funil.desfechos.newsletter === 1 ? '' : 's'} de newsletter` : ''}
+  </div>`;
   c.innerHTML = `
     <div class="kpi-grid">
       ${kpi('Leads hoje', d.leads_hoje)}${kpi('Total de leads', d.leads_total)}
@@ -3948,7 +3953,7 @@ async function dashComercial(c) {
       ${kpi('Pipeline estimado', money(d.pipeline_estimado), 'money')}${kpi('Reuniões marcadas', d.reunioes_marcadas)}
     </div>
     <div class="card" style="margin-bottom:20px;padding:18px"><strong style="color:var(--navy)">Funil comercial</strong>
-      <div class="funnel" style="margin-top:12px">${funnelHTML}</div></div>
+      <div class="funnel" style="margin-top:12px">${funnelHTML}</div>${desfechosHTML}</div>
     <div class="dash-2col">
       ${chartCard('Leads por origem', chartHBars((d.por_origem || []).map((r) => ({ label: r.origem, value: r.total }))))}
       ${chartCard('Leads por área jurídica', chartHBars((d.por_area || []).map((r) => ({ label: r.area, value: r.total }))))}
