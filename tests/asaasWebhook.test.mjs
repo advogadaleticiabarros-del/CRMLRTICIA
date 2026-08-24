@@ -13,6 +13,21 @@ test('rota do webhook do Asaas valida o token antes de processar', () => {
   assert.match(src, /confirmarPagamento/, 'deve reutilizar a função de confirmação existente, não duplicar a lógica');
 });
 
+test('webhook do Asaas tem fallback por asaas_subscription_id para cartão recorrente', () => {
+  // Cobrança avulsa de assinatura recorrente: payment.id (id da cobrança) nunca
+  // bate com provider_txn_id (que fica NULL nesse caso — o que é gravado ali é o
+  // id da assinatura, em asaas_subscription_id). Sem fallback por payment.subscription,
+  // cartão recorrente nunca confirma automaticamente.
+  const src = fs.readFileSync(path.resolve('src/routes/asaas-webhook.ts'), 'utf8');
+  assert.match(src, /payment\.subscription/, 'deve tratar payment.subscription como fallback quando provider_txn_id não casa');
+  assert.match(src, /asaas_subscription_id/, 'deve casar o fallback pela coluna asaas_subscription_id');
+  assert.match(
+    src,
+    /asaas_subscription_id\s*=\s*\?\s*AND\s*status\s*=\s*'em_processamento'/,
+    'o fallback só pode confirmar parcelas ainda pendentes (em_processamento) — nunca reprocessar mensalidades já pagas de meses anteriores da mesma assinatura'
+  );
+});
+
 test('app.ts monta a rota do webhook do Asaas sob /api/public, sem authenticate', () => {
   const src = fs.readFileSync(path.resolve('src/app.ts'), 'utf8');
   // O projeto já monta outras rotas públicas assim: app.use('/api/public', algumaRoutes);

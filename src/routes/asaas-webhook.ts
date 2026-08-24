@@ -24,7 +24,24 @@ router.post('/asaas-webhook', async (req: Request, res: Response) => {
     const [[row]] = await db.query(
       "SELECT id FROM payments WHERE provider_txn_id = ?", [payment.id]
     ) as any;
-    if (row) await confirmarPagamento(row.id, null);
+    if (row) {
+      await confirmarPagamento(row.id, null);
+    } else if (payment.subscription) {
+      // Cobrança avulsa gerada por assinatura recorrente (asaas_cartao_recorrente):
+      // payment.id é o id da cobrança individual (nunca gravado em provider_txn_id),
+      // mas payment.subscription é o id da assinatura, gravado em asaas_subscription_id.
+      // Casa pela assinatura, mas só confirma a parcela ainda pendente mais antiga —
+      // uma assinatura gera várias linhas em payments ao longo do tempo (uma por mês),
+      // e não podemos reconfirmar/reprocessar mensalidades de meses anteriores.
+      const [[subRow]] = await db.query(
+        `SELECT id FROM payments
+         WHERE asaas_subscription_id = ? AND status = 'em_processamento'
+         ORDER BY created_at ASC, id ASC
+         LIMIT 1`,
+        [payment.subscription]
+      ) as any;
+      if (subRow) await confirmarPagamento(subRow.id, null);
+    }
   }
 
   res.status(200).json({ ok: true }); // sempre 200 — Asaas reenvia em loop se não receber 200
