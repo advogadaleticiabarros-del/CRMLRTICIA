@@ -12,12 +12,43 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      # A conexão SSH (não o script) falha de vez em quando por instabilidade
+      # passageira de rede entre o GitHub e a VPS — erro "dial tcp ... i/o
+      # timeout" antes de qualquer comando chegar a rodar. Timeout de conexão
+      # aumentado (padrão da action é só 30s) para tolerar isso melhor.
       - name: Deploy via SSH
+        id: deploy_1
+        continue-on-error: true
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 15m
+          script: |
+            set -e
+            cd ~/app
+            git fetch origin main
+            git reset --hard origin/main
+            npm install --include=dev
+            npm run build
+            npm run migrate
+            pm2 restart crm-juridico
+            pm2 save
+
+      # Se a tentativa acima falhou (ex.: timeout de rede passageiro), tenta
+      # de novo automaticamente antes de marcar o workflow como falho e
+      # disparar o e-mail de erro do GitHub.
+      - name: Nova tentativa (a conexão SSH falhou na primeira vez)
+        if: steps.deploy_1.outcome == 'failure'
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 15m
           script: |
             set -e
             cd ~/app
