@@ -1,6 +1,36 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../../config/database';
 
+// Etapas ativas do funil (espelha FUNNEL_ORDER do frontend, public/app.js:3841).
+// Não inclui os 4 status de desfecho do ENUM de leads.status — esses são
+// resultados finais (virou cliente, foi perdido, ou é assinante de
+// newsletter que nunca entra no funil de triagem), não etapas do funil.
+const ETAPAS_FUNIL = [
+  'triagem', 'atendimento_inicial', 'reuniao',
+  'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado',
+];
+
+export function calcularFunilConversao(leadsPorStatus: { status: string; total: number }[]) {
+  const porStatus: Record<string, number> = {};
+  for (const row of leadsPorStatus) porStatus[row.status] = row.total;
+
+  const etapas = ETAPAS_FUNIL.map((status, i) => {
+    const volume = porStatus[status] || 0;
+    if (i === 0) return { status, volume, taxa_conversao: null as number | null };
+    const volumeAnterior = porStatus[ETAPAS_FUNIL[i - 1]] || 0;
+    const taxa = volumeAnterior === 0 ? null : Math.round((volume / volumeAnterior) * 1000) / 10;
+    return { status, volume, taxa_conversao: taxa };
+  });
+
+  const desfechos = {
+    fechados: (porStatus['fechada'] || 0) + (porStatus['convertido'] || 0),
+    perdidos: porStatus['perdida'] || 0,
+    newsletter: porStatus['newsletter'] || 0,
+  };
+
+  return { etapas, desfechos };
+}
+
 const router = Router();
 
 // GET /api/dashboards/comercial
@@ -24,6 +54,7 @@ router.get('/', async (req: Request, res: Response) => {
       'SELECT status, COUNT(*) AS total FROM leads WHERE user_id = ? GROUP BY status ORDER BY total DESC',
       [userId]
     ) as any;
+    const funil_conversao = calcularFunilConversao(leadsPorStatus);
 
     const [porOrigem] = await db.query(
       "SELECT COALESCE(NULLIF(source,''),'(sem origem)') AS origem, COUNT(*) AS total FROM leads WHERE user_id = ? GROUP BY origem ORDER BY total DESC",
@@ -61,6 +92,7 @@ router.get('/', async (req: Request, res: Response) => {
       leads_hoje:          metrics.leads_hoje,
       leads_total:         metrics.leads_total,
       leads_por_status:    leadsPorStatus,
+      funil_conversao,
       por_origem:          porOrigem,
       por_area:            porArea,
       por_campanha:        porCampanha,
