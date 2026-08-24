@@ -297,7 +297,7 @@ async function montarAReceber(): Promise<any[]> {
   for (const r of rows) {
     r.vencido = !r.recebido && r.vencimento && String(r.vencimento).slice(0, 10) < hoje;
   }
-  rows.sort((a, b) => String(b.vencimento || '').localeCompare(String(a.vencimento || '')));
+  rows.sort((a, b) => String(a.vencimento || '').localeCompare(String(b.vencimento || '')));
   return rows;
 }
 
