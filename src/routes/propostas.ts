@@ -11,6 +11,7 @@ const STATUSES = ['rascunho', 'enviada', 'em_negociacao', 'aceita', 'recusada', 
 const PROP_STATUS_PT: Record<string, string> = {
   rascunho: 'Rascunho', enviada: 'Enviada', em_negociacao: 'Em negociação', aceita: 'Aceita', recusada: 'Recusada', expirada: 'Expirada',
 };
+const PAYMENT_GATEWAY_METHODS = ['pix', 'asaas_boleto', 'asaas_cartao_avista', 'asaas_cartao_recorrente'];
 
 function addMonths(date: Date, months: number): Date {
   const d = new Date(date);
@@ -72,10 +73,13 @@ router.get('/:id', async (req: Request, res: Response) => {
 // ── POST /api/propostas — criar ─────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
   const { client_id, case_id, lead_id, title, valor, validade, description, status,
-          legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes, partner_lawyers } = req.body;
+          legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes, partner_lawyers,
+          payment_gateway_method, payment_consent } = req.body;
 
   if (!client_id && !lead_id) { res.status(400).json({ error: 'Informe o cliente ou o lead' }); return; }
   const finalTitle = (title && String(title).trim()) || `Proposta — ${contact_name || tipo_causa || 'cliente'}`;
+  const finalPaymentGatewayMethod = PAYMENT_GATEWAY_METHODS.includes(payment_gateway_method) ? payment_gateway_method : 'pix';
+  const grantsPaymentConsent = finalPaymentGatewayMethod !== 'pix' && !!payment_consent;
 
   const publicToken = crypto.randomUUID();
   const hasPartnerColumn = await ensurePartnerLawyersColumn();
@@ -85,8 +89,9 @@ router.post('/', async (req: Request, res: Response) => {
   const [result] = await db.query(
     `INSERT INTO propostas
        (user_id, client_id, case_id, lead_id, title, valor, status, validade, description,
-        legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes${partnerColumnSql}, public_token)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${partnerValueSql}, ?)`,
+        legal_area, tipo_causa, contact_name, cpf, phone, email, dependentes, honorarios, observacoes${partnerColumnSql},
+        payment_gateway_method, payment_consent_at, public_token)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?${partnerValueSql}, ?, ${grantsPaymentConsent ? 'NOW()' : 'NULL'}, ?)`,
     [
       req.user!.id, client_id ?? null, case_id ?? null, lead_id ?? null,
       finalTitle, Number(valor) || 0, STATUSES.includes(status) ? status : 'rascunho',
@@ -94,6 +99,7 @@ router.post('/', async (req: Request, res: Response) => {
       legal_area ?? null, tipo_causa ?? null, contact_name ?? null, cpf ?? null, phone ?? null, email ?? null,
       dependentes ? JSON.stringify(dependentes) : null, honorarios ? JSON.stringify(honorarios) : null, observacoes ?? null,
       ...partnerParams,
+      finalPaymentGatewayMethod,
       publicToken,
     ]
   ) as any;
@@ -137,6 +143,13 @@ router.put('/:id', async (req: Request, res: Response) => {
   if (await ensurePartnerLawyersColumn()) setIf('partner_lawyers', req.body.partner_lawyers);
   if (req.body.dependentes !== undefined) { fields.push('dependentes = ?'); params.push(req.body.dependentes ? JSON.stringify(req.body.dependentes) : null); }
   if (req.body.honorarios !== undefined) { fields.push('honorarios = ?'); params.push(req.body.honorarios ? JSON.stringify(req.body.honorarios) : null); }
+  if (req.body.payment_gateway_method !== undefined) {
+    const method = PAYMENT_GATEWAY_METHODS.includes(req.body.payment_gateway_method) ? req.body.payment_gateway_method : 'pix';
+    setIf('payment_gateway_method', method);
+    const grantsPaymentConsent = method !== 'pix' && !!req.body.payment_consent;
+    fields.push('payment_consent_at = ?');
+    params.push(grantsPaymentConsent ? new Date() : null);
+  }
 
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
   params.push(id);
