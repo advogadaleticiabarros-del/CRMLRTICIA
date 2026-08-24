@@ -20,20 +20,25 @@ router.get('/', async (req: Request, res: Response) => {
   res.json(rows);
 });
 
-// ── POST /api/payments/:id/confirmar — baixa de fato a parcela ──────────────
-router.post('/:id/confirmar', async (req: Request, res: Response) => {
-  const [[p]] = await db.query("SELECT * FROM payments WHERE id = ? AND status = 'em_processamento'", [req.params.id]) as any;
-  if (!p) { res.status(404).json({ error: 'Pagamento não encontrado ou já tratado' }); return; }
-  await db.query("UPDATE payments SET status = 'confirmado', confirmed_at = NOW(), confirmed_by = ? WHERE id = ?", [req.user!.id, p.id]);
+/**
+ * Confirma um pagamento (baixa a parcela). Reutilizada por:
+ * - POST /:id/confirmar (clique manual do admin)
+ * - o webhook do Asaas (confirmação automática)
+ * confirmedBy é null quando a confirmação é automática (não veio de um usuário logado).
+ */
+export async function confirmarPagamento(paymentId: number, confirmedBy: number | null): Promise<{ ok: true } | { ok: false; error: string }> {
+  const [[p]] = await db.query("SELECT * FROM payments WHERE id = ? AND status = 'em_processamento'", [paymentId]) as any;
+  if (!p) return { ok: false, error: 'Pagamento não encontrado ou já tratado' };
+
+  await db.query("UPDATE payments SET status = 'confirmado', confirmed_at = NOW(), confirmed_by = ? WHERE id = ?", [confirmedBy, p.id]);
   await db.query("UPDATE installments SET status = 'pago', paid_at = NOW() WHERE id = ?", [p.installment_id]);
   await logTimeline({
     clientId: p.client_id,
     eventType: 'financeiro',
     description: `Pagamento da parcela confirmado (R$ ${Number(p.amount).toFixed(2)})`,
-    userId: req.user!.id,
+    userId: confirmedBy,
   }).catch(() => {});
 
-  // Recibo automático por e-mail (best-effort)
   try {
     const [[info]] = await db.query(
       `SELECT cl.name, cl.email, i.numero, pr.title AS proposta
@@ -53,6 +58,13 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
     }
   } catch { /* recibo é best-effort */ }
 
+  return { ok: true };
+}
+
+// ── POST /api/payments/:id/confirmar — baixa de fato a parcela ──────────────
+router.post('/:id/confirmar', async (req: Request, res: Response) => {
+  const r = await confirmarPagamento(Number(req.params.id), req.user!.id);
+  if (!r.ok) { res.status(404).json({ error: r.error }); return; }
   res.json({ success: true });
 });
 
