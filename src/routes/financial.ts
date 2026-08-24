@@ -153,6 +153,49 @@ router.patch('/:id/pay', async (req: Request, res: Response) => {
   res.json({ success: true, id: Number(req.params.id), status: 'pago' });
 });
 
+// ── GET /api/financial/asaas-config — status da integração (nunca devolve a chave) ──
+// Precisa vir ANTES de PUT/:id — senão o Express casa "asaas-config" como
+// se fosse o :id de um lançamento (bug real encontrado em produção: toda
+// chamada caía em PUT /:id e devolvia "Lançamento não encontrado").
+router.get('/asaas-config', async (req: Request, res: Response) => {
+  if (req.user!.role !== 'admin') {
+    res.status(403).json({ error: 'Apenas administradores podem configurar a integração Asaas' });
+    return;
+  }
+  const [rows] = await db.query(
+    "SELECT setting_key, setting_value FROM office_settings WHERE setting_key IN ('asaas_api_key','asaas_environment')"
+  ) as any;
+  const map: Record<string, string> = {};
+  for (const r of rows) map[r.setting_key] = r.setting_value;
+  res.json({ configured: !!map.asaas_api_key, environment: map.asaas_environment || 'sandbox' });
+});
+
+// ── PUT /api/financial/asaas-config — salva/atualiza a chave ────────────────
+router.put('/asaas-config', async (req: Request, res: Response) => {
+  if (req.user!.role !== 'admin') {
+    res.status(403).json({ error: 'Apenas administradores podem configurar a integração Asaas' });
+    return;
+  }
+  const { api_key, environment, webhook_token } = req.body || {};
+  if (!api_key || typeof api_key !== 'string') { res.status(400).json({ error: 'Informe a chave de API' }); return; }
+  const env = environment === 'production' ? 'production' : 'sandbox';
+  await db.query(
+    "INSERT INTO office_settings (setting_key, setting_value) VALUES ('asaas_api_key', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
+    [api_key.trim()]
+  );
+  await db.query(
+    "INSERT INTO office_settings (setting_key, setting_value) VALUES ('asaas_environment', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
+    [env]
+  );
+  if (webhook_token) {
+    await db.query(
+      "INSERT INTO office_settings (setting_key, setting_value) VALUES ('asaas_webhook_token', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
+      [String(webhook_token).trim()]
+    );
+  }
+  res.json({ success: true });
+});
+
 // ── PUT /api/financial/:id ──────────────────────────────────────────────────
 router.put('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
@@ -583,46 +626,6 @@ router.patch('/installments/:id/pay', async (req: Request, res: Response) => {
   } catch { /* recibo é best-effort */ }
 
   res.json({ success: true, id: Number(req.params.id), status: 'pago' });
-});
-
-// ── GET /api/financial/asaas-config — status da integração (nunca devolve a chave) ──
-router.get('/asaas-config', async (req: Request, res: Response) => {
-  if (req.user!.role !== 'admin') {
-    res.status(403).json({ error: 'Apenas administradores podem configurar a integração Asaas' });
-    return;
-  }
-  const [rows] = await db.query(
-    "SELECT setting_key, setting_value FROM office_settings WHERE setting_key IN ('asaas_api_key','asaas_environment')"
-  ) as any;
-  const map: Record<string, string> = {};
-  for (const r of rows) map[r.setting_key] = r.setting_value;
-  res.json({ configured: !!map.asaas_api_key, environment: map.asaas_environment || 'sandbox' });
-});
-
-// ── PUT /api/financial/asaas-config — salva/atualiza a chave ────────────────
-router.put('/asaas-config', async (req: Request, res: Response) => {
-  if (req.user!.role !== 'admin') {
-    res.status(403).json({ error: 'Apenas administradores podem configurar a integração Asaas' });
-    return;
-  }
-  const { api_key, environment, webhook_token } = req.body || {};
-  if (!api_key || typeof api_key !== 'string') { res.status(400).json({ error: 'Informe a chave de API' }); return; }
-  const env = environment === 'production' ? 'production' : 'sandbox';
-  await db.query(
-    "INSERT INTO office_settings (setting_key, setting_value) VALUES ('asaas_api_key', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
-    [api_key.trim()]
-  );
-  await db.query(
-    "INSERT INTO office_settings (setting_key, setting_value) VALUES ('asaas_environment', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
-    [env]
-  );
-  if (webhook_token) {
-    await db.query(
-      "INSERT INTO office_settings (setting_key, setting_value) VALUES ('asaas_webhook_token', ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)",
-      [String(webhook_token).trim()]
-    );
-  }
-  res.json({ success: true });
 });
 
 export default router;
