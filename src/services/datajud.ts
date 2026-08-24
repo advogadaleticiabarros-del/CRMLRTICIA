@@ -125,22 +125,37 @@ export async function consultarProcessoDataJud(
     if (!res.ok) return { found: false, error: `DataJud HTTP ${res.status}`, movements: [] };
 
     const data: any = await res.json();
-    const hit = data?.hits?.hits?.[0]?._source;
-    if (!hit) return { found: false, error: 'Processo não encontrado', movements: [] };
+    const hits: any[] = data?.hits?.hits ?? [];
+    if (!hits.length) return { found: false, error: 'Processo não encontrado', movements: [] };
 
-    const movimentos: any[] = Array.isArray(hit.movimentos) ? hit.movimentos : [];
-    const movements: NormalizedMovement[] = movimentos.map((m) => ({
-      movement_date: m.dataHora ?? null,
-      title: m.nome ?? (m.complementosTabelados?.[0]?.nome) ?? 'Movimentação',
-      description: [m.nome, ...(m.complementosTabelados || []).map((c: any) => c.descricao || c.nome)]
-        .filter(Boolean).join(' — '),
-    }));
+    // O mesmo número de processo pode aparecer em mais de um registro do
+    // DataJud — um por grau/instância (1º grau, 2º grau/recurso, turma
+    // recursal...). Junta as movimentações de TODOS os hits, não só do
+    // primeiro, para não perder silenciosamente o histórico de um recurso.
+    const movements: NormalizedMovement[] = [];
+    for (const h of hits) {
+      const hit = h?._source;
+      if (!hit) continue;
+      const grau = hit.grau ? String(hit.grau) : null;
+      const prefixoGrau = grau ? `${grau === 'G1' ? '1º grau' : grau === 'G2' ? '2º grau' : grau} — ` : '';
+      const movimentos: any[] = Array.isArray(hit.movimentos) ? hit.movimentos : [];
+      for (const m of movimentos) {
+        const descricaoBase = [m.nome, ...(m.complementosTabelados || []).map((c: any) => c.descricao || c.nome)]
+          .filter(Boolean).join(' — ');
+        movements.push({
+          movement_date: m.dataHora ?? null,
+          title: m.nome ?? (m.complementosTabelados?.[0]?.nome) ?? 'Movimentação',
+          description: hits.length > 1 ? `${prefixoGrau}${descricaoBase}` : descricaoBase,
+        });
+      }
+    }
 
+    const primeiro = hits[0]?._source ?? {};
     return {
       found: true,
       metadata: {
-        classe: hit.classe?.nome, orgao: hit.orgaoJulgador?.nome,
-        grau: hit.grau, distribuicao: hit.dataAjuizamento,
+        classe: primeiro.classe?.nome, orgao: primeiro.orgaoJulgador?.nome,
+        grau: primeiro.grau, distribuicao: primeiro.dataAjuizamento,
       },
       movements,
     };
