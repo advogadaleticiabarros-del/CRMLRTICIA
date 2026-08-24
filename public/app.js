@@ -879,6 +879,30 @@ function router() {
   fn(page).catch((err) => { if (token === routeToken) page.innerHTML = `<div class="empty">${err.message}</div>`; });
 }
 
+// ── Configurações → Financeiro: chave da conta Asaas (boleto/cartão) ──
+async function asaasConfigSection(container) {
+  const status = await api('/api/financial/asaas-config').catch(() => ({ configured: false, environment: 'sandbox' }));
+  const box = el(`<div class="card" style="padding:20px;margin-bottom:20px">
+    <h3 style="color:var(--navy);margin-bottom:6px">${svgIcon('banknote', 'ic-title')} Boleto e cartão (Asaas)</h3>
+    <p class="sub" style="margin-bottom:12px">${status.configured ? '✅ Configurado — ambiente: ' + (status.environment === 'production' ? 'Produção' : 'Sandbox (teste)') : 'Não configurado — cole a chave de API do Asaas para liberar boleto e cartão nas propostas.'}</p>
+    <form id="asaas-form" class="form-grid">
+      ${field('Chave de API (Asaas)', 'api_key', { type: 'password', value: '' })}
+      ${field('Ambiente', 'environment', { value: status.environment, options: [{ v: 'sandbox', t: 'Sandbox (teste, sem dinheiro real)' }, { v: 'production', t: 'Produção' }] })}
+      ${field('Token do webhook (defina o mesmo no painel do Asaas)', 'webhook_token', { type: 'password', value: '' })}
+      <button type="submit" class="btn-primary">Salvar</button>
+    </form>
+  </div>`);
+  box.querySelector('#asaas-form').onsubmit = async (e) => {
+    e.preventDefault();
+    const body = Object.fromEntries(new FormData(e.target));
+    try {
+      await api('/api/financial/asaas-config', { method: 'PUT', body: JSON.stringify(body) });
+      toast('Configuração do Asaas salva');
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  container.appendChild(box);
+}
+
 // ── Pages ──
 const ROUTES = {
   async dashboard(page) {
@@ -1692,6 +1716,7 @@ const ROUTES = {
     await load();
     await loadAutomations();
     await loadBackups();
+    await asaasConfigSection(page);
   },
 
   async repasses(page) {
