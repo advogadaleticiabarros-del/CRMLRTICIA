@@ -5787,6 +5787,23 @@ async function propostaForm(onSave, lead = null, existing = null) {
     </div>
     <div id="meio-cartao-extra" style="display:none;max-width:220px">${field('Cartão em até (x)', 'cartao_parcelas', { type: 'number', value: 12 })}</div>
 
+    <div id="asaas-gateway-section" style="display:none">
+      ${sec('Cobrança automática (opcional)')}
+      <p class="sub" style="margin-top:-6px">Além do Pix (grátis, como já funciona hoje), você pode gerar boleto ou cobrança de cartão automática via Asaas — o cliente escolhe uma forma abaixo.</p>
+      ${field('Cobrar via', 'payment_gateway_method', { value: existing?.payment_gateway_method || 'pix', options: [
+        { v: 'pix', t: 'Pix (grátis, manual — como hoje)' },
+        { v: 'asaas_boleto', t: 'Boleto bancário' },
+        { v: 'asaas_cartao_avista', t: 'Cartão de crédito (cobrança avulsa por parcela)' },
+        { v: 'asaas_cartao_recorrente', t: 'Cartão de crédito (assinatura — cobra sozinho todo mês)' },
+      ] })}
+      <div id="asaas-consent-box" style="display:none">
+        <label style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;cursor:pointer">
+          <input type="checkbox" name="payment_consent" style="width:auto;margin-top:2px">
+          <span>Autorizo o envio dos dados deste cliente (nome, CPF, e-mail) ao Asaas, processador de pagamento, para emissão de boleto/cobrança de cartão.</span>
+        </label>
+      </div>
+    </div>
+
     ${sec('Validade & Observações')}
     ${field('Validade da proposta', 'validade', { type: 'date', value: existing?.validade || '' })}
     ${field('Observações e cláusulas (OAB)', 'observacoes', { type: 'textarea', value: existing?.observacoes || OBSERVACOES_PROPOSTA })}
@@ -5822,6 +5839,18 @@ async function propostaForm(onSave, lead = null, existing = null) {
     form.querySelector('[name=description]').value = partes.join('\n\n');
     toast('Introdução gerada — revise e ajuste como quiser');
   };
+
+  // Cobrança via Asaas: só mostra se a integração estiver configurada, e só
+  // exige consentimento quando a forma escolhida não é Pix.
+  api('/api/financial/asaas-config').then((cfg) => {
+    if (!cfg.configured) return;
+    form.querySelector('#asaas-gateway-section').style.display = '';
+    const sel = form.querySelector('[name=payment_gateway_method]');
+    const consentBox = form.querySelector('#asaas-consent-box');
+    const syncConsent = () => { consentBox.style.display = sel.value === 'pix' ? 'none' : ''; };
+    sel.onchange = syncConsent;
+    syncConsent();
+  }).catch(() => {});
 
   // Meios de pagamento — cartão revela o nº de parcelas
   const syncMeios = () => {
@@ -5937,6 +5966,9 @@ async function propostaForm(onSave, lead = null, existing = null) {
   form.onsubmit = async (e) => {
     e.preventDefault();
     const fd = Object.fromEntries(new FormData(form));
+    if (fd.payment_gateway_method && fd.payment_gateway_method !== 'pix' && !fd.payment_consent) {
+      toast('Marque o consentimento para usar boleto/cartão', 'error'); return;
+    }
     const dependentes = [...depList.querySelectorAll('.dep-row')].map((r) => ({
       nome: r.querySelector('[data-dep-nome]').value.trim(), cpf: r.querySelector('[data-dep-cpf]').value.trim(),
     })).filter((d) => d.nome);
@@ -5988,6 +6020,8 @@ async function propostaForm(onSave, lead = null, existing = null) {
       legal_area: fd.legal_area, tipo_causa: fd.tipo_causa, description: fd.description,
       validade: fd.validade || undefined, observacoes: fd.observacoes,
       dependentes, honorarios, valor,
+      payment_gateway_method: fd.payment_gateway_method || undefined,
+      payment_consent: fd.payment_consent ? true : undefined,
       title: `Proposta — ${fd.contact_name || fd.tipo_causa || 'cliente'}`,
     };
     if (!body.client_id) delete body.client_id;
