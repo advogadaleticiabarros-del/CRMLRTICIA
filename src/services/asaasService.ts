@@ -60,3 +60,34 @@ export async function ensureAsaasCustomer(
   await db.query('UPDATE clients SET asaas_customer_id = ? WHERE id = ?', [created.id, client.id]);
   return created;
 }
+
+export interface AsaasCharge { id: string; invoiceUrl: string; status: string }
+
+/** Cria uma cobrança avulsa (boleto ou cartão à vista). */
+export async function createAsaasCharge(opts: {
+  customerId: string; billingType: 'BOLETO' | 'CREDIT_CARD'; value: number; dueDate: string; description: string;
+}): Promise<AsaasCharge> {
+  return request<AsaasCharge>('POST', '/payments', {
+    customer: opts.customerId,
+    billingType: opts.billingType,
+    value: opts.value,
+    dueDate: opts.dueDate,
+    description: opts.description,
+  });
+}
+
+export interface AsaasSubscription { id: string; invoiceUrl?: string }
+
+/** Cria uma assinatura recorrente mensal de cartão. */
+export async function createAsaasSubscription(opts: {
+  customerId: string; value: number; nextDueDate: string; description: string; cycle?: 'MONTHLY';
+}): Promise<AsaasSubscription> {
+  return request<AsaasSubscription>('POST', '/subscriptions', {
+    customer: opts.customerId,
+    billingType: 'CREDIT_CARD',
+    value: opts.value,
+    nextDueDate: opts.nextDueDate,
+    cycle: opts.cycle || 'MONTHLY',
+    description: opts.description,
+  });
+}

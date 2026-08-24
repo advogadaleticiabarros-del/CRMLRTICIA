@@ -59,3 +59,39 @@ test('ensureAsaasCustomer cria e devolve o id do cliente no Asaas', async (t) =>
     delete process.env.ASAAS_TEST_BASE_URL;
   }
 });
+
+test('createAsaasCharge cria uma cobrança avulsa (boleto) e devolve o link', async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  process.env.ASAAS_TEST_API_KEY = 'chave-fake-sandbox';
+  globalThis.fetch = async (url, opts) => {
+    assert.ok(String(url).endsWith('/payments'));
+    const body = JSON.parse(opts.body);
+    assert.equal(body.billingType, 'BOLETO');
+    assert.equal(body.customer, 'cus_000001');
+    assert.equal(body.value, 300);
+    return { ok: true, status: 200, json: async () => ({ id: 'pay_abc123', invoiceUrl: 'https://sandbox.asaas.com/i/abc123', status: 'PENDING' }) };
+  };
+  const { createAsaasCharge } = await import('../dist/services/asaasService.js');
+  const r = await createAsaasCharge({ customerId: 'cus_000001', billingType: 'BOLETO', value: 300, dueDate: '2026-09-27', description: 'Honorários — 1ª parcela' });
+  assert.equal(r.id, 'pay_abc123');
+  assert.match(r.invoiceUrl, /^https:\/\//);
+  delete process.env.ASAAS_TEST_API_KEY;
+});
+
+test('createAsaasSubscription cria uma assinatura mensal e devolve o id', async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  process.env.ASAAS_TEST_API_KEY = 'chave-fake-sandbox';
+  globalThis.fetch = async (url, opts) => {
+    assert.ok(String(url).endsWith('/subscriptions'));
+    const body = JSON.parse(opts.body);
+    assert.equal(body.cycle, 'MONTHLY');
+    assert.equal(body.billingType, 'CREDIT_CARD');
+    return { ok: true, status: 200, json: async () => ({ id: 'sub_xyz789' }) };
+  };
+  const { createAsaasSubscription } = await import('../dist/services/asaasService.js');
+  const r = await createAsaasSubscription({ customerId: 'cus_000001', value: 300, nextDueDate: '2026-09-27', description: 'Honorários — assinatura mensal' });
+  assert.equal(r.id, 'sub_xyz789');
+  delete process.env.ASAAS_TEST_API_KEY;
+});
