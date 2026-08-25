@@ -191,8 +191,11 @@ async function autoLeadFromWhatsapp(phone: string, pushName: string | null, prim
 
   const nome = (pushName && pushName.trim()) || `WhatsApp +${digits}`;
   const [ins] = await db.query(
+    // 'WhatsApp' (maiúsculo) — mesmo valor de CANAIS (leadChannel.ts), pra bater
+    // com o canal usado no dashboard de custo por cliente adquirido. Em minúsculo
+    // esse lead virava um canal fantasma separado do 'WhatsApp' normalizado.
     `INSERT INTO leads (user_id, name, phone, source, status, case_summary)
-     VALUES (?, ?, ?, 'whatsapp', 'triagem', ?)`,
+     VALUES (?, ?, ?, 'WhatsApp', 'triagem', ?)`,
     [admin.id, nome, digits, `Lead criado automaticamente pela 1ª mensagem no WhatsApp:\n"${primeiraMsg}"`]
   ) as any;
 

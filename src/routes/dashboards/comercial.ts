@@ -163,63 +163,75 @@ router.get('/', async (req: Request, res: Response) => {
 
 // POST /api/dashboards/comercial/gasto-marketing — lança/atualiza o gasto de um mês+canal
 router.post('/gasto-marketing', async (req: Request, res: Response) => {
-  const { mes_referencia, canal, valor } = req.body || {};
-  if (!mes_referencia || !CANAIS.includes(canal)) {
-    res.status(400).json({ error: 'Informe mês e um canal válido' });
-    return;
+  try {
+    const { mes_referencia, canal, valor } = req.body || {};
+    if (!mes_referencia || !CANAIS.includes(canal)) {
+      res.status(400).json({ error: 'Informe mês e um canal válido' });
+      return;
+    }
+    const valorNum = Number(valor);
+    if (!Number.isFinite(valorNum) || valorNum < 0) {
+      res.status(400).json({ error: 'Informe um valor válido' });
+      return;
+    }
+    const userId = (req as any).user.id;
+    await db.query(
+      `INSERT INTO gasto_marketing (mes_referencia, canal, valor, created_by)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE valor = VALUES(valor), created_by = VALUES(created_by)`,
+      [mes_referencia, canal, valorNum, userId]
+    );
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao lançar gasto de marketing' });
   }
-  const valorNum = Number(valor);
-  if (!Number.isFinite(valorNum) || valorNum < 0) {
-    res.status(400).json({ error: 'Informe um valor válido' });
-    return;
-  }
-  const userId = (req as any).user.id;
-  await db.query(
-    `INSERT INTO gasto_marketing (mes_referencia, canal, valor, created_by)
-     VALUES (?, ?, ?, ?)
-     ON DUPLICATE KEY UPDATE valor = VALUES(valor), created_by = VALUES(created_by)`,
-    [mes_referencia, canal, valorNum, userId]
-  );
-  res.json({ success: true });
 });
 
 // GET /api/dashboards/comercial/gasto-marketing?mes=YYYY-MM — lançamentos do mês
 router.get('/gasto-marketing', async (req: Request, res: Response) => {
-  const mes = String(req.query.mes || '');
-  if (!/^\d{4}-\d{2}$/.test(mes)) {
-    res.status(400).json({ error: 'Informe o mês no formato YYYY-MM' });
-    return;
+  try {
+    const mes = String(req.query.mes || '');
+    if (!/^\d{4}-\d{2}$/.test(mes)) {
+      res.status(400).json({ error: 'Informe o mês no formato YYYY-MM' });
+      return;
+    }
+    const [rows] = await db.query(
+      `SELECT canal, valor FROM gasto_marketing WHERE DATE_FORMAT(mes_referencia, '%Y-%m') = ?`,
+      [mes]
+    ) as any;
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao carregar gasto de marketing' });
   }
-  const [rows] = await db.query(
-    `SELECT canal, valor FROM gasto_marketing WHERE DATE_FORMAT(mes_referencia, '%Y-%m') = ?`,
-    [mes]
-  ) as any;
-  res.json(rows);
 });
 
 // GET /api/dashboards/comercial/custo-aquisicao?mes=YYYY-MM — custo por cliente adquirido, por canal
 router.get('/custo-aquisicao', async (req: Request, res: Response) => {
-  const mes = String(req.query.mes || '');
-  if (!/^\d{4}-\d{2}$/.test(mes)) {
-    res.status(400).json({ error: 'Informe o mês no formato YYYY-MM' });
-    return;
+  try {
+    const mes = String(req.query.mes || '');
+    if (!/^\d{4}-\d{2}$/.test(mes)) {
+      res.status(400).json({ error: 'Informe o mês no formato YYYY-MM' });
+      return;
+    }
+    const userId = (req as any).user.id;
+
+    const [gastos] = await db.query(
+      `SELECT canal, valor FROM gasto_marketing WHERE DATE_FORMAT(mes_referencia, '%Y-%m') = ?`,
+      [mes]
+    ) as any;
+
+    const [clientesPorCanal] = await db.query(
+      `SELECT COALESCE(NULLIF(source,''),'Outro') AS canal, COUNT(*) AS total
+         FROM leads
+        WHERE user_id = ? AND status IN ('fechada','convertido') AND DATE_FORMAT(updated_at, '%Y-%m') = ?
+        GROUP BY canal`,
+      [userId, mes]
+    ) as any;
+
+    res.json(calcularCustoAquisicao(gastos, clientesPorCanal));
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao calcular custo de aquisição' });
   }
-  const userId = (req as any).user.id;
-
-  const [gastos] = await db.query(
-    `SELECT canal, valor FROM gasto_marketing WHERE DATE_FORMAT(mes_referencia, '%Y-%m') = ?`,
-    [mes]
-  ) as any;
-
-  const [clientesPorCanal] = await db.query(
-    `SELECT COALESCE(NULLIF(source,''),'Outro') AS canal, COUNT(*) AS total
-       FROM leads
-      WHERE user_id = ? AND status IN ('fechada','convertido') AND DATE_FORMAT(updated_at, '%Y-%m') = ?
-      GROUP BY canal`,
-    [userId, mes]
-  ) as any;
-
-  res.json(calcularCustoAquisicao(gastos, clientesPorCanal));
 });
 
 export default router;
