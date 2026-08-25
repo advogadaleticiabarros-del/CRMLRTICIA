@@ -155,8 +155,18 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 /* ── Modo "tela cheia" (aba separada, sem menu/topo) ── */
 body.foco-total .sidebar,
 body.foco-total .topbar { display: none; }
-body.foco-total .content { margin-left: 0; padding: 0; }
-body.foco-total .content > .page { padding: 0; max-width: none; }
+/* Altura 100% via flexbox em toda a cadeia (html→body→.content→.page→
+   #wa-body→.wa-shell), em vez de JS calculando px fixo com
+   window.innerHeight — o cálculo em JS rodava só 1x ao montar a tela e
+   não pegava mudanças posteriores da UI do navegador (barra de favoritos
+   recolhendo/expandindo, etc), sobrando uma faixa vazia embaixo. Flexbox
+   se adapta sozinho, sem depender de nenhum evento. */
+body.foco-total, body.foco-total html { height: 100%; }
+html:has(body.foco-total) { height: 100%; }
+body.foco-total .content { margin-left: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+body.foco-total .content > .page { padding: 0; max-width: none; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+body.foco-total #wa-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+body.foco-total .wa-shell { flex: 1; min-height: 0; height: auto !important; }
 /* Fallback: páginas cujo módulo não move .foco-voltar pra dentro do
    .page-header continuam usando o botão fixo — precisam do respiro
    original no topo pra ele não sobrepor o título (bug real já corrigido
@@ -182,9 +192,8 @@ body.foco-total .page-header {
   border-bottom: 1px solid var(--border); background: var(--surface);
   overflow-x: auto;
 }
-body.foco-total .page-header > div:first-child { display: flex; align-items: baseline; gap: 12px; white-space: nowrap; }
+body.foco-total .page-header > div:first-child { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 body.foco-total .page-header h2 { font-size: 17px; font-family: 'Spectral', Georgia, serif; }
-body.foco-total .page-header .sub { font-size: 12px; margin: 0; white-space: nowrap; color: var(--text-muted); }
 body.foco-total .page-header > div:last-child { display: flex; gap: 6px; margin-left: auto; white-space: nowrap; }
 body.foco-total .page-header .tabs { display: flex; gap: 2px; margin: 0; padding: 0; border-bottom: none; flex-shrink: 0; }
 body.foco-total .page-header .tab { padding: 5px 10px; font-size: 13px; }
@@ -225,6 +234,12 @@ body.foco-total .wa-shell { border: none; border-radius: 0; }
 .page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 18px; gap: 16px; flex-wrap: wrap; }
 .page-header h2 { font-size: 26px; }
 .page-header .sub { color: var(--text-muted); font-size: 13.5px; margin-top: 2px; }
+/* Status da instância do WhatsApp: era um texto técnico longo ("Instância
+   conectada (55279...) — envio automático LIGADO · 0/30 hoje") sempre
+   visível no cabeçalho — pedido da usuária pra virar só um indicador
+   discreto; o detalhe completo continua acessível no title (tooltip). */
+.wa-status-dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 8px; background: var(--text-muted); opacity: .5; }
+.wa-status-dot.on { background: var(--green, #2f8f63); opacity: 1; box-shadow: 0 0 0 3px rgba(47,143,99,.15); }
 
 /* ── KPIs ── */
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; margin-bottom: 28px; }

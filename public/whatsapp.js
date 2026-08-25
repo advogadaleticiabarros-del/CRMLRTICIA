@@ -163,7 +163,7 @@ Object.assign(ROUTES, {
       const st = await api('/api/whatsapp-instance/status').catch(() => ({ connected: false }));
       const focoTotal = document.body.classList.contains('foco-total');
       page.innerHTML = `
-        <div class="page-header"><div><h2>WhatsApp</h2><p class="sub">${st.connected ? `Instância conectada (${esc(st.me || '')}) — envio automático ${st.autoSend ? 'LIGADO' : 'desligado'} · ${st.sentToday || 0}/30 hoje` : 'Instância desconectada — a fila usa o wa.me (1 clique) até você conectar'}</p></div>
+        <div class="page-header"><div><h2>WhatsApp</h2><span class="wa-status-dot ${st.connected ? 'on' : ''}" title="${st.connected ? `Instância conectada (${esc(st.me || '')}) — envio automático ${st.autoSend ? 'LIGADO' : 'desligado'} · ${st.sentToday || 0}/30 hoje` : 'Instância desconectada — a fila usa o wa.me (1 clique) até você conectar'}"></span></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">${focoTotal ? '' : `<button class="btn-ghost" id="wa-tela-cheia" title="Abre numa aba separada, sem menu lateral">${svgIcon('expand')}Tela cheia</button>`}<button class="btn-ghost" id="wa-gerar">Gerar agora</button><button class="btn-gold" id="wa-nova">+ Nova mensagem</button></div></div>
         <div class="tabs" style="margin-bottom:14px">
           <button class="tab ${tab === 'fila' ? 'active' : ''}" data-wtab="fila">Fila</button>
