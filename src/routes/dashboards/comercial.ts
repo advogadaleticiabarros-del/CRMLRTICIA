@@ -49,6 +49,26 @@ export function calcularRentabilidadeArea(
   });
 }
 
+export function calcularCustoAquisicao(
+  gastos: { canal: string; valor: number }[],
+  clientesPorCanal: { canal: string; total: number }[]
+) {
+  const gastoPorCanal: Record<string, number> = {};
+  for (const g of gastos) gastoPorCanal[g.canal] = Number(g.valor) || 0;
+
+  const clientesPorCanalMap: Record<string, number> = {};
+  for (const c of clientesPorCanal) clientesPorCanalMap[c.canal] = c.total;
+
+  const canaisEnvolvidos = new Set([...Object.keys(gastoPorCanal), ...Object.keys(clientesPorCanalMap)]);
+
+  return Array.from(canaisEnvolvidos).map((canal) => {
+    const gasto = gastoPorCanal[canal] || 0;
+    const clientes = clientesPorCanalMap[canal] || 0;
+    const custo_por_cliente = clientes > 0 ? Math.round((gasto / clientes) * 100) / 100 : null;
+    return { canal, gasto, clientes, custo_por_cliente };
+  });
+}
+
 const router = Router();
 
 // GET /api/dashboards/comercial
@@ -175,6 +195,31 @@ router.get('/gasto-marketing', async (req: Request, res: Response) => {
     [mes]
   ) as any;
   res.json(rows);
+});
+
+// GET /api/dashboards/comercial/custo-aquisicao?mes=YYYY-MM — custo por cliente adquirido, por canal
+router.get('/custo-aquisicao', async (req: Request, res: Response) => {
+  const mes = String(req.query.mes || '');
+  if (!/^\d{4}-\d{2}$/.test(mes)) {
+    res.status(400).json({ error: 'Informe o mês no formato YYYY-MM' });
+    return;
+  }
+  const userId = (req as any).user.id;
+
+  const [gastos] = await db.query(
+    `SELECT canal, valor FROM gasto_marketing WHERE DATE_FORMAT(mes_referencia, '%Y-%m') = ?`,
+    [mes]
+  ) as any;
+
+  const [clientesPorCanal] = await db.query(
+    `SELECT COALESCE(NULLIF(source,''),'Outro') AS canal, COUNT(*) AS total
+       FROM leads
+      WHERE user_id = ? AND status IN ('fechada','convertido') AND DATE_FORMAT(updated_at, '%Y-%m') = ?
+      GROUP BY canal`,
+    [userId, mes]
+  ) as any;
+
+  res.json(calcularCustoAquisicao(gastos, clientesPorCanal));
 });
 
 export default router;
