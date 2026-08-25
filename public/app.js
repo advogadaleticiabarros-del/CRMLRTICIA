@@ -204,6 +204,10 @@ const NAV_LABELS = {
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
   ppcases: 'Meus Indicados', ppclients: 'Fichas dos Clientes', ppupdates: 'Atualizações', ppagenda: 'Audiências', ppfin: 'Financeiro',
 };
+// "whatsapp" fica de fora das listas abaixo — não é mais item de menu
+// lateral (é o botão dedicado no topbar, ver #whatsapp-btn), mas continua
+// controlando quem tem acesso: navForRole().includes('whatsapp') decide se
+// o botão aparece, e a rota #whatsapp continua existindo normalmente.
 const NAV_BY_ROLE = {
   admin:      ['intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
   staff:      ['intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
@@ -485,7 +489,9 @@ const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'cases', 'prazos', 'clients', '
 
 function buildNav() {
   const items = navForRole();
-  $('#nav').innerHTML = items.map((r) =>
+  // "whatsapp" fica de fora do menu lateral — virou o botão dedicado no
+  // topbar (#whatsapp-btn), que abre direto em tela cheia.
+  $('#nav').innerHTML = items.filter((r) => r !== 'whatsapp').map((r) =>
     `<a href="#${r}" class="nav-item ${r === 'intakes' ? 'nav-highlight' : ''}" data-route="${r}" title="${NAV_LABELS[r]}">${svgIcon(NAV_ICONS[r], 'nav-ic')}<span>${NAV_LABELS[r]}</span></a>`).join('');
   buildBottomNav(items);
 }
@@ -8142,6 +8148,18 @@ if (navOverlay) navOverlay.onclick = () => document.body.classList.remove('nav-o
 const sbCollapse = $('#sidebar-collapse');
 if (sbCollapse) sbCollapse.onclick = () => setSidebarCollapsed(!document.body.classList.contains('sidebar-collapsed'));
 initAppearance();
+// Botão dedicado no topbar (ícone só, ao lado do sino) — pedido da usuária
+// pra tirar "WhatsApp" do menu lateral (ficava um item grande igual aos
+// outros, mas é usado o tempo todo de um jeito diferente: tela cheia) e
+// abrir direto em ?foco=1, sem passar pela tela normal do CRM primeiro.
+const waTopbarBtn = $('#whatsapp-btn');
+if (waTopbarBtn) {
+  if (navForRole().includes('whatsapp')) {
+    waTopbarBtn.onclick = () => window.open(location.pathname + '?foco=1#whatsapp', '_blank', 'noopener');
+  } else {
+    waTopbarBtn.remove();
+  }
+}
 const fsBtn = $('#fullscreen-btn');
 if (fsBtn) {
   const fsSync = () => { const on = !!document.fullscreenElement; fsBtn.innerHTML = svgIcon(on ? 'minimize' : 'expand'); fsBtn.title = on ? 'Sair da tela cheia' : 'Tela cheia'; };
