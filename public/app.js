@@ -3839,6 +3839,8 @@ function miniList(title, rows) {
 
 const LEAD_STATUS_PT = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', contrato_assinado: 'Contrato Assinado', fechada: 'Convertido', convertido: 'Convertido', perdida: 'Perdido' };
 
+const LEGAL_AREA_PT = { trabalhista: 'Trabalhista', gestante: 'Gestante/Maternidade', familia: 'Família', civel: 'Cível', previdenciario: 'Previdenciário', consumidor: 'Consumidor', outro: 'Outro' };
+
 // Cockpit — painel-mãe: dinheiro, prazos, intimações, alertas e agenda num só lugar.
 async function dashCockpit(c) {
   const [d, series] = await Promise.all([
@@ -3957,6 +3959,10 @@ async function dashComercial(c) {
       ${chartCard('Leads por origem', chartHBars((d.por_origem || []).map((r) => ({ label: r.origem, value: r.total }))))}
       ${chartCard('Leads por área jurídica', chartHBars((d.por_area || []).map((r) => ({ label: r.area, value: r.total }))))}
     </div>
+    ${miniList('Rentabilidade por área (receita paga)', (d.rentabilidade_area || []).map((r) =>
+      `<div class="mini-row"><span>${LEGAL_AREA_PT[r.legal_area] || r.legal_area}<br><small>${r.total_casos} caso${r.total_casos === 1 ? '' : 's'}</small></span>
+        <span>${money(r.receita_total)}<br><small>média ${money(r.receita_media_caso)}/caso</small></span></div>`
+    ))}
     ${miniList('Campanhas (leads com utm_campaign)', (d.por_campanha || []).map((cp) =>
       `<div class="mini-row"><span>${esc(cp.campanha)}<br><small>${esc(cp.origem)}</small></span>
         <span>${cp.total} lead${cp.total == 1 ? '' : 's'}${Number(cp.convertidos) ? ` · <strong style="color:var(--green)">${cp.convertidos} convertido${cp.convertidos == 1 ? '' : 's'}</strong>` : ''}</span></div>`
