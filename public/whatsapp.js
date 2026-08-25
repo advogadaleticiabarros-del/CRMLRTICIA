@@ -163,7 +163,7 @@ Object.assign(ROUTES, {
       const st = await api('/api/whatsapp-instance/status').catch(() => ({ connected: false }));
       const focoTotal = document.body.classList.contains('foco-total');
       page.innerHTML = `
-        <div class="page-header"><div><h2>WhatsApp</h2><span class="wa-status-dot ${st.connected ? 'on' : ''}" title="${st.connected ? `Instância conectada (${esc(st.me || '')}) — envio automático ${st.autoSend ? 'LIGADO' : 'desligado'} · ${st.sentToday || 0}/30 hoje` : 'Instância desconectada — a fila usa o wa.me (1 clique) até você conectar'}"></span></div>
+        <div class="page-header">${focoTotal ? '<a href="' + esc(location.pathname) + '" class="foco-voltar">← Voltar ao CRM</a>' : ''}<div><h2>WhatsApp</h2><span class="wa-status-dot ${st.connected ? 'on' : ''}" title="${st.connected ? `Instância conectada (${esc(st.me || '')}) — envio automático ${st.autoSend ? 'LIGADO' : 'desligado'} · ${st.sentToday || 0}/30 hoje` : 'Instância desconectada — a fila usa o wa.me (1 clique) até você conectar'}"></span></div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">${focoTotal ? '' : `<button class="btn-ghost" id="wa-tela-cheia" title="Abre numa aba separada, sem menu lateral">${svgIcon('expand')}Tela cheia</button>`}<button class="btn-ghost" id="wa-gerar">Gerar agora</button><button class="btn-gold" id="wa-nova">+ Nova mensagem</button></div></div>
         <div class="tabs" style="margin-bottom:14px">
           <button class="tab ${tab === 'fila' ? 'active' : ''}" data-wtab="fila">Fila</button>
@@ -172,18 +172,20 @@ Object.assign(ROUTES, {
           <button class="tab ${tab === 'conexao' ? 'active' : ''}" data-wtab="conexao">Conexão</button>
         </div>
         <div id="wa-body"><div class="spinner"></div></div>`;
-      // Modo tela-cheia: cabeçalho denso em 1 linha só — move o botão
-      // "← Voltar ao CRM" (fixed, injetado uma vez pelo app.js) e a barra
-      // de abas para dentro do .page-header, entre o título/status e as
-      // ações. Precisa ser refeito a cada shell() porque page.innerHTML
-      // destrói o .page-header anterior (o .tabs já é recriado no HTML
-      // acima; só falta reposicioná-lo e trazer o .foco-voltar).
+      // Modo tela-cheia: cabeçalho denso em 1 linha só — o link "← Voltar
+      // ao CRM" é criado DIRETO no template acima (não movido de fora),
+      // porque page.innerHTML destrói o .page-header a cada shell(); mover
+      // o .foco-voltar único (criado 1x pelo app.js, vive em document.body)
+      // pra dentro dele o destruía junto no próximo render — a 2ª troca de
+      // aba ficava sem o botão E sem a classe que evita o padding de
+      // fallback (body.foco-total .page:not(:has(.page-header
+      // .foco-voltar))), empurrando a página inteira pra baixo dali em
+      // diante. O .foco-voltar original (fixed, em document.body) fica
+      // escondido via CSS quando .page-header já tem o seu próprio.
       if (focoTotal) {
         const header = page.querySelector('.page-header');
         const tabsEl = page.querySelector('.tabs');
         const acoesEl = header.querySelector(':scope > div:last-child');
-        const voltarEl = document.querySelector('.foco-voltar');
-        if (voltarEl) header.insertBefore(voltarEl, header.firstChild);
         if (tabsEl && acoesEl) header.insertBefore(tabsEl, acoesEl);
       }
       page.querySelectorAll('[data-wtab]').forEach((b) => b.onclick = () => { tab = b.dataset.wtab; shell(); });

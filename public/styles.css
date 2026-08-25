@@ -172,17 +172,21 @@ body.foco-total .content { margin-left: 0; padding: 0; display: flex; flex-direc
 body.foco-total .content > .page { padding: 0; max-width: none; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 body.foco-total #wa-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 body.foco-total .wa-shell { flex: 1; min-height: 0; height: auto !important; }
-/* Fallback: páginas cujo módulo não move .foco-voltar pra dentro do
-   .page-header continuam usando o botão fixo — precisam do respiro
-   original no topo pra ele não sobrepor o título (bug real já corrigido
-   nesta área antes). */
+/* Fallback: páginas cujo módulo não cria seu próprio .foco-voltar dentro
+   do .page-header continuam usando o botão fixo (o único, injetado 1x
+   pelo app.js em document.body) — precisam do respiro original no topo
+   pra ele não sobrepor o título (bug real já corrigido nesta área antes). */
 body.foco-total .page:not(:has(.page-header .foco-voltar)) { padding: 46px 16px 10px; }
-/* position:fixed é o comportamento padrão (cobre páginas que não movem
-   o botão para dentro do cabeçalho); o JS do WhatsApp desfaz o fixed ao
-   inserir o elemento dentro de .page-header (ver whatsapp.js). */
 .foco-voltar { position: fixed; top: 8px; left: 8px; z-index: 500; background: var(--navy); color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 12px; text-decoration: none; opacity: .78; transition: opacity .15s; white-space: nowrap; }
 .foco-voltar:hover { opacity: 1; }
 body.foco-total .page-header .foco-voltar { position: static; top: auto; left: auto; opacity: .85; }
+/* O WhatsApp cria seu PRÓPRIO <a class="foco-voltar"> dentro do
+   .page-header a cada render (ver whatsapp.js) — não move mais o
+   original de document.body (fazia isso antes; o original era destruído
+   junto do .page-header no próximo render, sumindo do DOM pra sempre).
+   Havendo um dentro do header, o original (filho direto do body, fixed)
+   fica de sobra — esconde pra não duplicar o botão na tela. */
+body.foco-total:has(.page-header .foco-voltar) > .foco-voltar { display: none; }
 
 /* Cabeçalho denso em 1 linha só (Opção A), usado no modo tela-cheia:
    .page-header vira uma faixa flex de altura fixa com voltar+título+
