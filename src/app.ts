@@ -102,6 +102,44 @@ export function createApp() {
     res.json({ status: 'ok', service: 'crm-juridico', timestamp: new Date().toISOString() });
   });
 
+  // Diagnóstico TEMPORÁRIO (público) — investigação de um caso real onde o
+  // CSS novo não chegava até a usuária mesmo com deploy/cache confirmados
+  // corretos no servidor. Roda no mesmo domínio do CRM (sem CORS) e mostra,
+  // na tela, exatamente o que o navegador da usuária recebe agora. Remover
+  // depois que o caso for fechado.
+  app.get('/diagnostico', (_req: Request, res: Response) => {
+    res.type('html').send(`<!doctype html><html><head><meta charset="utf-8">
+<title>Diagnóstico CRM</title>
+<style>body{font-family:Arial;background:#f7f5f1;padding:30px;max-width:700px}
+.card{background:#fff;border:1px solid #ddd;border-radius:10px;padding:20px;margin-bottom:14px}
+.ok{color:#3d7a5c;font-weight:bold}.fail{color:#a8432f;font-weight:bold}
+pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space:pre-wrap}</style>
+</head><body>
+<h1>Diagnóstico do CRM</h1>
+<div id="r">Carregando...</div>
+<script>
+(async () => {
+  const r = document.getElementById('r');
+  try {
+    const resp = await fetch('/styles.css?diag=' + Date.now(), { cache: 'no-store' });
+    const txt = await resp.text();
+    const c1 = txt.includes('padding: 46px 16px 10px');
+    const c2 = txt.includes('margin-bottom: 18px; gap: 16px');
+    const c3 = txt.includes('wa-ctx-primary');
+    r.innerHTML =
+      '<div class="card">HTTP: ' + resp.status + ' — Tamanho: ' + txt.length + ' caracteres (esperado ~103566)<br>' +
+      '<span class="' + (c1?'ok':'fail') + '">' + (c1?'✓ TEM':'✗ NÃO TEM') + '</span> correção do botão Voltar<br>' +
+      '<span class="' + (c2?'ok':'fail') + '">' + (c2?'✓ TEM':'✗ NÃO TEM') + '</span> correção do cabeçalho compacto<br>' +
+      '<span class="' + (c3?'ok':'fail') + '">' + (c3?'✓ TEM':'✗ NÃO TEM') + '</span> classe wa-ctx-primary (botões IA)</div>' +
+      '<div class="card">Seu navegador: ' + navigator.userAgent + '</div>';
+  } catch (e) {
+    r.innerHTML = '<div class="card fail">ERRO ao buscar: ' + e.message + '</div>';
+  }
+})();
+</script>
+</body></html>`);
+  });
+
   // Autenticação (login público; /me, register e password tratam auth internamente)
   app.use('/api/auth', authRoutes);
 
