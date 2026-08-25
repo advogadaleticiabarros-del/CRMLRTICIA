@@ -161,9 +161,14 @@ body.foco-total .topbar { display: none; }
    não pegava mudanças posteriores da UI do navegador (barra de favoritos
    recolhendo/expandindo, etc), sobrando uma faixa vazia embaixo. Flexbox
    se adapta sozinho, sem depender de nenhum evento. */
-body.foco-total, body.foco-total html { height: 100%; }
 html:has(body.foco-total) { height: 100%; }
-body.foco-total .content { margin-left: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; }
+body.foco-total { height: 100%; }
+/* 100dvh (dynamic viewport height), não 100vh: 100vh é fixado no primeiro
+   paint e não se atualiza se a UI do navegador mudar de altura depois
+   (barra de favoritos recolhendo, aviso de "novo Chrome disponível", etc)
+   — era exatamente esse o "some no primeiro momento, depois volta"
+   reportado. 100dvh acompanha a área visível real, sempre. */
+body.foco-total .content { margin-left: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
 body.foco-total .content > .page { padding: 0; max-width: none; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 body.foco-total #wa-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 body.foco-total .wa-shell { flex: 1; min-height: 0; height: auto !important; }
