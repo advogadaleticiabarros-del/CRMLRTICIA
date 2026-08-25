@@ -34,12 +34,18 @@ export function calcularFunilConversao(leadsPorStatus: { status: string; total: 
 export function calcularRentabilidadeArea(
   linhas: { legal_area: string; total_casos: number; receita_total: number }[]
 ) {
-  return linhas.map((l) => ({
-    legal_area: l.legal_area,
-    total_casos: l.total_casos,
-    receita_total: l.receita_total,
-    receita_media_caso: l.total_casos > 0 ? Math.round((l.receita_total / l.total_casos) * 100) / 100 : 0,
-  }));
+  return linhas.map((l) => {
+    // installments.valor é DECIMAL e o pool não usa decimalNumbers:true, então
+    // o mysql2 devolve SUM(i.valor) como string em runtime (ex: "8000.00").
+    // Normaliza pra number de verdade antes de calcular e retornar.
+    const receita_total = Number(l.receita_total) || 0;
+    return {
+      legal_area: l.legal_area,
+      total_casos: l.total_casos,
+      receita_total,
+      receita_media_caso: l.total_casos > 0 ? Math.round((receita_total / l.total_casos) * 100) / 100 : 0,
+    };
+  });
 }
 
 const router = Router();

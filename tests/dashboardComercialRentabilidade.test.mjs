@@ -33,3 +33,11 @@ test('preserva receita_total e total_casos sem alteração', () => {
   assert.equal(r[0].total_casos, 3);
   assert.equal(r[0].receita_total, 4500);
 });
+
+test('área com casos mas sem nenhuma installment paga: receita_total e média ficam 0', () => {
+  const linhas = [{ legal_area: 'previdenciario', total_casos: 3, receita_total: 0 }];
+  const r = calcularRentabilidadeArea(linhas);
+  assert.equal(r[0].total_casos, 3);
+  assert.equal(r[0].receita_total, 0);
+  assert.equal(r[0].receita_media_caso, 0);
+});

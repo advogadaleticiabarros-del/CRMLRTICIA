@@ -9,6 +9,11 @@ import { sendText } from '../services/uazapiInstance';
 
 const router = Router();
 
+// Mesma lista de 7 valores que a migration 100 grava no ENUM de leads.legal_area
+// (migrations/100_padroniza_legal_area.sql). Constante local — não compartilhada
+// com src/routes/leads.ts — seguindo o mesmo padrão já usado no projeto.
+const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
+
 // ── Campanhas de isca (e-book) — dispara e-mail com anexo + aviso no
 // WhatsApp assim que o lead entra. Cada campanha é identificada pelo
 // utm_campaign que a própria LP manda fixo no envio do formulário.
@@ -83,7 +88,11 @@ router.post('/lead', async (req: Request, res: Response) => {
   if (name.length < 3) { res.status(400).json({ error: 'Informe seu nome' }); return; }
   const phone = String(b.phone || '').replace(/\D/g, '').slice(0, 15) || null;
   const email = String(b.email || '').trim().slice(0, 255) || null;
-  const area = String(b.area || '').trim().slice(0, 100) || null;
+  // Formulário público (LP externa) pode mandar capitalização diferente
+  // ("Trabalhista" vs "trabalhista") — normaliza antes de validar contra a
+  // lista, em vez de descartar silenciosamente. Só os 7 valores exatos entram.
+  const areaRaw = String(b.area || '').trim().toLowerCase().slice(0, 100);
+  const area = AREAS.includes(areaRaw) ? areaRaw : null;
   const message = String(b.message || '').trim().slice(0, 2000);
 
   // UTM: aceita tanto no body (form que já leu location.search via JS) quanto
