@@ -26,12 +26,17 @@
 
 **Problema**: usuária sai da tela de Conversas pra gerar proposta/minuta com dados que o cliente já mandou, perdendo contexto e retrabalho de digitar de novo.
 
-**Decisão de design**: adicionar um botão "Gerar com IA" na tela de Conversas (`public/whatsapp.js`, perto do botão de resumo já existente), que abre um seletor com os tipos já catalogados em `PIECE_TYPES` (`src/routes/ai.ts`) — reaproveitando o catálogo existente, sem inventar um novo. Ao escolher um tipo:
-- O texto da conversa (mensagens da timeline já carregada em `renderMsgs`) é enviado como `inputs.contexto_conversa` para `POST /api/ai/generate` (mesmo endpoint que Minutas já usa).
-- O resultado abre no mesmo modal de preview que o módulo de peças já usa hoje, com a opção de salvar como documento do cliente (reaproveitando `POST /:id/save-document`, já existente).
-- Não duplica prompt nem lógica de IA nova — só alimenta o pipeline existente com o contexto da conversa em vez de formulário manual.
+**Decisão de design (corrigida após leitura do código real — `PIECE_TYPES` não é o catálogo certo)**: o catálogo real de tipos geráveis é `TEMPLATES` em `src/routes/ai.ts` (6 tipos: petição inicial, contestação, resumo de intimação, parecer, e-mail de cobrança, resumo da movimentação para o cliente — já exposto via `GET /api/ai/templates`), cada um com seus próprios campos de `inputs` específicos (não existe nem deve ser criado um campo genérico `contexto_conversa` aceito por todos). Adicionar um botão "Gerar com IA" na tela de Conversas (`public/whatsapp.js`, dentro de `renderContexto`, seguindo o mesmo padrão visual/estrutural do bloco `data-conv` já existente — tarefa/prazo/compromisso/anotação), que:
+- Abre um modal com `<select>` dos 6 tipos de `GET /api/ai/templates` e, ao escolher um, mostra os campos daquele template (`fields`, já vem na resposta da API).
+- Pré-preenche o primeiro campo do tipo `textarea` de cada template (ex: `texto` em `resumo_intimacao`, `movimentacao` em `resumo_cliente`, `consulta` em `parecer`) com o **resumo da conversa já gerado** (reaproveita `POST /api/whatsapp-instance/chats/:phone/resumo`, que já existe e já processa áudio/imagem via `garantirMidiaTranscrita`) — não com a timeline bruta, que teria ruído demais e templates diferentes esperam formatos diferentes de texto.
+- A usuária pode revisar/editar o texto pré-preenchido antes de gerar.
+- Envia para `POST /api/ai/generate` com `client_id` (de `cx.client?.id`, já disponível no contexto da conversa) e `inputs` no formato que aquele template espera.
+- O resultado abre no mesmo modal de preview que o módulo de peças já usa hoje (a UI de resultado de `/api/ai/generate` já existe em outro lugar do frontend — reaproveitar o componente/fluxo, não recriar), com a opção de salvar como documento do cliente via `POST /:id/save-document` (já existente).
+- Não duplica prompt nem lógica de IA nova — só alimenta o pipeline existente (templates, `ai_generations`, `document_templates`) a partir do resumo da conversa em vez de formulário manual do zero.
 
 **Fora de escopo**: gerar proposta preenchendo automaticamente valores financeiros a partir da conversa (isso exigiria extração estruturada, não coberta aqui — o Gemini recebe o texto bruto da conversa como contexto e redige, mas não popula campos numéricos da Proposta).
+
+**Reaproveitamento confirmado**: `iaForm(onSave)` e `iaViewer(id, onSave)` (`public/app.js:2447-2519`) já implementam o formulário de tipo+campos e o modal de preview/salvar-no-GED inteiros, e como `app.js` carrega antes de `whatsapp.js` no `index.html` (sem módulos ES — escopo global compartilhado), `whatsapp.js` já pode chamá-las diretamente. `iaForm` hoje sempre renderiza campos vazios; será generalizada para aceitar valores iniciais (client_id fixo + pré-preenchimento de um campo), sem duplicar o modal/form em `whatsapp.js`.
 
 ## Testes
 
