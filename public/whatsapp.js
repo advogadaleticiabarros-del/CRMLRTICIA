@@ -339,15 +339,41 @@ Object.assign(ROUTES, {
 
       const todasEtiquetas = () => [...new Set(chats.flatMap((c) => parseLabels(c.labels)))];
 
+      // Botão único "Filtrar" + menu suspenso, no lugar da fileira de chips
+      // sempre visível (ficava confusa: quebrava em várias linhas dentro de
+      // uma caixa apertada com scroll vertical sem nenhum sinal de que dava
+      // pra rolar — pedido explícito da usuária pra ficar "mais organizado,
+      // menos coisas"). Mantém a mesma lógica de estado (filtro/arquivadas).
+      const fecharMenuFiltro = () => {
+        const m = $('#waf-menu'); if (m) m.remove();
+        document.removeEventListener('click', onClickFora, true);
+      };
+      const onClickFora = (e) => { if (!e.target.closest('#waf')) fecharMenuFiltro(); };
       const renderFiltros = () => {
+        // renderFiltros() também roda no polling (atualizar(), a cada 6s) —
+        // se o menu estiver aberto nesse momento, o innerHTML abaixo apaga
+        // #waf-menu do DOM sem passar por fecharMenuFiltro(), deixando o
+        // listener onClickFora pendurado no document. Fecha primeiro.
+        fecharMenuFiltro();
         const ets = todasEtiquetas();
         const arquivadasN = chats.filter((c) => Number(c.archived)).length;
-        $('#waf').innerHTML = [`<button class="wa-filter ${!filtro && !mostrarArquivadas ? 'on' : ''}" data-f="">Todas</button>`,
-          ...ets.map((t) => `<button class="wa-filter ${filtro === t ? 'on' : ''}" data-f="${esc(t)}" style="${filtro === t ? `background:${cor(t)};border-color:${cor(t)}` : ''}">${esc(t)}</button>`),
-          arquivadasN ? `<button class="wa-filter ${mostrarArquivadas ? 'on' : ''}" data-arquivadas="1">${svgIcon('archive', 'ic-xs')} Arquivadas (${arquivadasN})</button>` : ''].join('');
-        $('#waf').querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { filtro = b.dataset.f; mostrarArquivadas = false; renderFiltros(); renderLista(); });
-        const arqBtn = $('#waf').querySelector('[data-arquivadas]');
-        if (arqBtn) arqBtn.onclick = () => { mostrarArquivadas = !mostrarArquivadas; filtro = ''; renderFiltros(); renderLista(); };
+        const ativoLabel = mostrarArquivadas ? `Arquivadas (${arquivadasN})` : (filtro || 'Todas');
+        const nAtivos = (filtro || mostrarArquivadas) ? 1 : 0;
+        $('#waf').innerHTML = `<button type="button" class="wa-filter-btn" id="waf-btn">${svgIcon('filter', 'ic-xs')}<span>${esc(ativoLabel)}</span>${nAtivos ? `<span class="wa-filter-count">${nAtivos}</span>` : ''}${svgIcon('chevronDown', 'ic-xs')}</button>`;
+        $('#waf-btn').onclick = (e) => {
+          e.stopPropagation();
+          if ($('#waf-menu')) { fecharMenuFiltro(); return; }
+          const opts = [`<div class="wa-filter-opt ${!filtro && !mostrarArquivadas ? 'active' : ''}" data-f="">${svgIcon('dot', 'ic-xs')}Todas</div>`,
+            ...ets.map((t) => `<div class="wa-filter-opt ${filtro === t ? 'active' : ''}" data-f="${esc(t)}"><span class="wa-filter-dot" style="background:${cor(t)}"></span>${esc(t)}</div>`),
+            arquivadasN ? `<div class="wa-filter-opt ${mostrarArquivadas ? 'active' : ''}" data-arquivadas="1">${svgIcon('archive', 'ic-xs')} Arquivadas (${arquivadasN})</div>` : ''].join('');
+          const menu = document.createElement('div');
+          menu.className = 'wa-filter-menu'; menu.id = 'waf-menu'; menu.innerHTML = opts;
+          $('#waf').appendChild(menu);
+          menu.querySelectorAll('[data-f]').forEach((o) => o.onclick = () => { filtro = o.dataset.f; mostrarArquivadas = false; fecharMenuFiltro(); renderFiltros(); renderLista(); });
+          const arqOpt = menu.querySelector('[data-arquivadas]');
+          if (arqOpt) arqOpt.onclick = () => { mostrarArquivadas = !mostrarArquivadas; filtro = ''; fecharMenuFiltro(); renderFiltros(); renderLista(); };
+          document.addEventListener('click', onClickFora, true);
+        };
       };
 
       // Mesma lógica/limiares de src/services/whatsappSeveridade.ts — ver spec

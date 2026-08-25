@@ -457,6 +457,7 @@ Object.assign(ICONS, {
   chevronUp:   '<path d="M6 15l6-6 6 6"/>',
   chevronDown: '<path d="M6 9l6 6 6-6"/>',
   trash:       '<path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M8 7l1 13h6l1-13"/>',
+  filter:      '<path d="M4 5h16M7 12h10M10 19h4"/>',
 });
 
 function svgIcon(name, extra) {
