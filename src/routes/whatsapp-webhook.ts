@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { uazapi } from '../services/uazapiClient';
+import { classificarTipoDocumento } from '../services/whatsappTranscricao';
 
 // Roteador PÚBLICO (sem autenticação) — a Uazapi entrega os eventos aqui.
 // Substitui o listener 'messages.upsert' do Baileys (waInstance.ts): como a
@@ -53,14 +54,17 @@ async function storeMedia(messageId: string, phone: string, clientId: number | n
       [phone, clientId, fileName.slice(0, 255), info.mime, buffer]) as any;
     const mediaId = r.insertId;
 
-    // Vira Documento do cliente automaticamente (Central de Documentos)
+    // Vira Documento do cliente automaticamente (Central de Documentos).
+    // Tenta classificar o tipo via IA (best-effort) — falha mantém 'recebido',
+    // igual ao comportamento anterior a esta mudança.
     if (clientId) {
       const [[adm]] = await db.query(
         "SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
+      const tipoClassificado = await classificarTipoDocumento({ id: mediaId, file_name: fileName, mime: info.mime, data: buffer }).catch(() => null);
       await db.query(
         `INSERT INTO documents (client_id, name, type, folder, file_url, status, created_by)
-         VALUES (?, ?, 'recebido', 'outros', ?, 'ativo', ?)`,
-        [clientId, `WhatsApp — ${fileName}`.slice(0, 255), `/api/whatsapp-instance/media/${mediaId}`, adm?.id ?? 1]).catch(() => {});
+         VALUES (?, ?, ?, 'outros', ?, 'ativo', ?)`,
+        [clientId, `WhatsApp — ${fileName}`.slice(0, 255), tipoClassificado || 'recebido', `/api/whatsapp-instance/media/${mediaId}`, adm?.id ?? 1]).catch(() => {});
     }
     return { mediaId, label: `${info.rotulo}: ${fileName}` };
   } catch (e: any) {

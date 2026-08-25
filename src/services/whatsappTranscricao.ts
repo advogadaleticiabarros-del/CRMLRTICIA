@@ -54,6 +54,32 @@ export async function descreverImagem(media: MediaRow): Promise<TranscricaoResul
   return { ok: true, texto: texto.slice(0, 500) };
 }
 
+const TIPOS_DOCUMENTO = ['rg', 'ctps', 'comprovante_residencia', 'procuracao', 'outro'] as const;
+
+const INSTRUCAO_CLASSIFICACAO = 'Classifique este documento/foto enviado por um cliente de escritório de '
+  + 'advocacia em UMA destas categorias exatas, respondendo APENAS a palavra da categoria, sem mais nada: '
+  + 'rg, ctps, comprovante_residencia, procuracao, outro. Se não tiver certeza, responda outro.';
+
+/**
+ * Classifica o tipo de um documento (imagem ou PDF) via Gemini Vision, para
+ * preencher documents.type automaticamente. Best-effort: qualquer falha ou
+ * resposta fora da lista fixa devolve null — quem chama mantém o valor atual
+ * ('recebido') nesse caso, nunca quebra o salvamento do documento.
+ */
+export async function classificarTipoDocumento(media: MediaRow): Promise<string | null> {
+  const mime = String(media.mime);
+  if (!mime.startsWith('image/') && mime !== 'application/pdf') return null;
+  if (!process.env.GEMINI_API_KEY) return null;
+  try {
+    const r = await aiExtractFromFile(media.data.toString('base64'), mime, INSTRUCAO_CLASSIFICACAO);
+    if (!r.ok) return null;
+    const valor = String(r.text || '').trim().toLowerCase();
+    return (TIPOS_DOCUMENTO as readonly string[]).includes(valor) ? valor : null;
+  } catch {
+    return null;
+  }
+}
+
 const LIMITE_MIDIA_POR_CHAMADA = 15;
 
 /**
