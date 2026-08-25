@@ -9,6 +9,7 @@
   --gold: #c19a4e;          /* ouro do emblema */
   --gold-soft: #e0c074;
   --gold-bright: #ecc869;   /* brilho dourado p/ acentos no escuro */
+  --gold-deep: #a67a34;     /* dourado escurecido p/ hover de botões cheios */
   --ink: #1b1610;           /* espresso/ônix — fundo escuro (combina c/ o logo) */
   --ink-2: #2a2017;
   --ink-line: rgba(224,192,116,.13);
