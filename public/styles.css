@@ -162,6 +162,15 @@ body.foco-total .content { margin-left: 0; padding: 0; }
 body.foco-total .content > .page { padding: 46px 16px 10px; max-width: none; }
 .foco-voltar { position: fixed; top: 8px; left: 8px; z-index: 500; background: var(--navy); color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 12px; text-decoration: none; opacity: .78; transition: opacity .15s; }
 .foco-voltar:hover { opacity: 1; }
+/* Cabeçalho compacto do modo tela-cheia: as media queries de desktop
+   (min-width:881px em diante) redefinem .page-header/.tabs pro tamanho
+   "editorial" normal do resto do sistema, sobrescrevendo os valores
+   compactos abaixo mesmo dentro do foco-total. Precisa de escopo
+   body.foco-total explícito pra vencer essas regras em qualquer largura. */
+body.foco-total .page-header { margin-bottom: 18px; }
+body.foco-total .page-header h2 { font-size: 26px; }
+body.foco-total .tabs { margin-bottom: 16px; }
+body.foco-total .tab { padding: 9px 18px; }
 
 /* ── Topbar ── */
 .topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between;
