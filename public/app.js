@@ -3978,9 +3978,10 @@ async function dashComercial(c) {
       <strong style="color:var(--navy)">Custo por cliente adquirido — ${mesAtual}</strong>
       <form id="gasto-mkt-form" class="form-grid" style="margin-top:12px">
         <div class="form-row">
-          <label>Canal<select name="canal">${CANAIS_MKT.map((ch) => `<option value="${ch}">${ch}</option>`).join('')}</select></label>
-          <label>Gasto no mês (R$)<input type="number" name="valor" step="0.01" min="0" placeholder="0,00" /></label>
+          <label>Canal<select name="canal" id="gasto-mkt-canal">${CANAIS_MKT.map((ch) => `<option value="${ch}">${ch}</option>`).join('')}</select></label>
+          <label>Gasto no mês (R$)<input type="number" name="valor" id="gasto-mkt-valor" step="0.01" min="0" placeholder="0,00" /></label>
         </div>
+        <small id="gasto-mkt-ja-lancado" style="color:var(--text-muted)"></small>
         <button type="submit" class="btn-sm">Lançar gasto</button>
       </form>
       ${miniList('Resultado do mês', (custoAquisicao || []).map((r) =>
@@ -3990,10 +3991,23 @@ async function dashComercial(c) {
     </div>`;
   const gastoForm = c.querySelector('#gasto-mkt-form');
   if (gastoForm) {
+    const canalSel = gastoForm.querySelector('#gasto-mkt-canal');
+    const valorInput = gastoForm.querySelector('#gasto-mkt-valor');
+    const jaLancadoEl = gastoForm.querySelector('#gasto-mkt-ja-lancado');
+    // Pré-preenche com o valor já lançado pro canal selecionado, evitando que a
+    // usuária lance de novo sem perceber que já tinha feito isso no mês.
+    const syncGastoJaLancado = () => {
+      const jaLancado = gastoPorCanal[canalSel.value];
+      valorInput.value = jaLancado != null ? jaLancado : '';
+      jaLancadoEl.textContent = jaLancado != null ? `Já lançado: ${money(jaLancado)}` : '';
+    };
+    canalSel.onchange = syncGastoJaLancado;
+    syncGastoJaLancado();
+
     gastoForm.onsubmit = async (e) => {
       e.preventDefault();
-      const canal = gastoForm.querySelector('[name=canal]').value;
-      const valor = gastoForm.querySelector('[name=valor]').value;
+      const canal = canalSel.value;
+      const valor = valorInput.value;
       try {
         await api('/api/dashboards/comercial/gasto-marketing', {
           method: 'POST',
