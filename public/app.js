@@ -3899,10 +3899,14 @@ async function dashCockpit(c) {
       <div class="dash-panel-b">${inner || `<div class="empty" style="padding:22px 16px">${vazio}</div>`}</div>
     </div>`;
 
-  const row = (esquerda, direita, route, sub) =>
-    `<div class="mini-row" ${go(route)} style="padding:10px 16px;border-bottom:1px solid var(--border-soft)">
-      <span>${esquerda}${sub ? `<br><small style="color:var(--text-muted)">${sub}</small>` : ''}</span>
-      <span style="white-space:nowrap">${direita}</span></div>`;
+  // itemKey (opcional): quando presente, adiciona um botão "Resolver" que
+  // marca o item como tratado (POST /resolver) e some a linha da tela na
+  // hora — sem esperar reload. stopPropagation evita que o clique no botão
+  // também dispare a navegação (${go(route)}) da linha inteira.
+  const row = (esquerda, direita, route, sub, itemKey) =>
+    `<div class="mini-row" ${go(route)} style="padding:10px 16px;border-bottom:1px solid var(--border-soft);display:flex;align-items:center;justify-content:space-between;gap:10px">
+      <span style="flex:1;min-width:0">${esquerda}${sub ? `<br><small style="color:var(--text-muted)">${sub}</small>` : ''}</span>
+      <span style="white-space:nowrap;display:flex;align-items:center;gap:8px">${direita}${itemKey ? `<button type="button" class="btn-icon btn-icon-sm" data-resolver="${esc(itemKey)}" title="Marcar como resolvido" onclick="event.stopPropagation()">${svgIcon('check', 'ic-xs')}</button>` : ''}</span></div>`;
 
   // Prazos críticos (72h)
   const prazosHtml = (d.prazos || []).map((p) => {
@@ -3910,7 +3914,7 @@ async function dashCockpit(c) {
     const dias = venc ? 'VENCIDO' : (p.days_remaining <= 0 ? 'hoje' : `${p.days_remaining}d`);
     const cor = venc ? 'var(--red)' : (p.days_remaining <= 1 ? 'var(--amber)' : 'var(--text-muted)');
     return row(esc(p.description || 'Prazo'), `<strong style="color:${cor}">${dias}</strong>`, 'prazos',
-      `${esc(p.client_name || '')}${p.case_number ? ' · ' + esc(p.case_number) : ''} · ${fmtDate(p.deadline_date)}`);
+      `${esc(p.client_name || '')}${p.case_number ? ' · ' + esc(p.case_number) : ''} · ${fmtDate(p.deadline_date)}`, p.item_key);
   }).join('');
 
   // Intimações a confirmar
@@ -3919,14 +3923,14 @@ async function dashCockpit(c) {
     row(esc(i.client_name || 'A vincular'),
         `<span class="badge">${esc(i.suggested_type || '—')}</span>${Number(i.tem_minuta) === 1 ? ' ' + svgIcon('edit', 'ic-xs') : ''}`,
         'prazos',
-        `${i.process_number ? 'proc. ' + esc(i.process_number) + ' · ' : ''}movimentação ${fmtDate(i.movement_date || i.start_date)}`)
+        `${i.process_number ? 'proc. ' + esc(i.process_number) + ' · ' : ''}movimentação ${fmtDate(i.movement_date || i.start_date)}`, i.item_key)
   ).join('');
 
   // Alertas (verificar)
   const al = d.alertas || { count: 0, itens: [] };
   const alHtml = (al.itens || []).map((a) =>
     row(esc(a.title || a.detected_keyword || 'Movimentação'), `<span class="badge">verificar</span>`, 'monitor',
-        a.process_number ? 'proc. ' + esc(a.process_number) : '')
+        a.process_number ? 'proc. ' + esc(a.process_number) : '', a.item_key)
   ).join('');
 
   // Agenda de hoje
@@ -3934,7 +3938,7 @@ async function dashCockpit(c) {
     row(esc(e.title || 'Evento'),
         `<strong>${new Date(e.start_datetime).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</strong>`,
         'agenda',
-        `${esc(e.event_type || '')}${e.client_name ? ' · ' + esc(e.client_name) : ''}`)
+        `${esc(e.event_type || '')}${e.client_name ? ' · ' + esc(e.client_name) : ''}`, e.item_key)
   ).join('');
 
   c.innerHTML = `
@@ -3945,6 +3949,21 @@ async function dashCockpit(c) {
       ${painel(`${svgIcon('alert', 'ic-t')}Movimentações a verificar`, al.count, 'monitor', alHtml, 'Sem alertas pendentes.')}
       ${painel(`${svgIcon('calendar', 'ic-t')}Agenda de hoje`, (d.agenda_hoje || []).length, 'agenda', agHtml, 'Nada agendado para hoje.')}
     </div>`;
+
+  c.querySelectorAll('[data-resolver]').forEach((btn) => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      const itemKey = btn.dataset.resolver;
+      btn.disabled = true;
+      try {
+        await api('/api/dashboards/cockpit/resolver', { method: 'POST', body: JSON.stringify({ item_key: itemKey }) });
+        btn.closest('.mini-row').remove();
+      } catch (err) {
+        toast(err.message, 'error');
+        btn.disabled = false;
+      }
+    };
+  });
 }
 
 async function dashComercial(c) {
