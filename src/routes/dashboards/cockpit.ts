@@ -8,6 +8,20 @@ async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }
 }
 
+/** Chaves de item resolvidas HOJE (fuso America/Sao_Paulo) pelo usuário — usadas
+ *  para excluir itens já tratados das listas de prazos/intimações/alertas/agenda.
+ *  CURDATE() puro compararia com o dia em UTC (servidor roda em UTC), reaparecendo
+ *  os itens 3h cedo demais — por isso o CONVERT_TZ explícito nos dois lados. */
+async function resolvidosHoje(userId: number): Promise<Set<string>> {
+  const [rows] = await db.query(
+    `SELECT item_key FROM cockpit_resolutions
+      WHERE user_id = ?
+        AND DATE(CONVERT_TZ(resolved_at, '+00:00', '-03:00')) = DATE(CONVERT_TZ(NOW(), '+00:00', '-03:00'))`,
+    [userId]
+  ) as any;
+  return new Set(rows.map((r: any) => r.item_key));
+}
+
 // ── GET /api/dashboards/cockpit — painel-mãe do escritório ───────────────────
 // Agrega os itens ACIONÁVEIS de cada área num só lugar: dinheiro, prazos
 // críticos, intimações a confirmar, alertas, agenda do dia e pendências.
@@ -74,6 +88,8 @@ router.get('/', async (req: Request, res: Response) => {
     };
   }, { receber_hoje: 0, receber_7d: 0, pagar_7d: 0, vencido: 0 });
 
+  const resolvidos = await safe(() => resolvidosHoje(userId), new Set<string>());
+
   // Prazos críticos — pendentes vencidos ou nas próximas 72h
   const prazos = await safe(async () => {
     const [rows] = await db.query(`
@@ -87,7 +103,9 @@ router.get('/', async (req: Request, res: Response) => {
        WHERE d.user_id = ? AND d.status = 'pendente'
          AND d.deadline_date <= DATE_ADD(NOW(), INTERVAL 3 DAY)
        ORDER BY d.deadline_date ASC LIMIT 15`, [userId]) as any;
-    return rows;
+    return rows
+      .map((r: any) => ({ ...r, item_key: `prazo:${r.id}` }))
+      .filter((r: any) => !resolvidos.has(r.item_key));
   }, [] as any[]);
 
   // Intimações a confirmar (detector DJEN) — com a análise do estagiário
@@ -107,7 +125,9 @@ router.get('/', async (req: Request, res: Response) => {
        -- usuario: nao ha o que filtrar.
        WHERE d.status = 'a_confirmar'
        ORDER BY d.start_date DESC LIMIT 10`) as any;
-    return rows;
+    return rows
+      .map((r: any) => ({ ...r, item_key: `intimacao:${r.id}` }))
+      .filter((r: any) => !resolvidos.has(r.item_key));
   }, [] as any[]);
 
   // Alertas de movimentação sem intimação (salvaguarda DataJud)
@@ -120,7 +140,9 @@ router.get('/', async (req: Request, res: Response) => {
        -- (movimentação sem intimação) ficava sempre vazia.
        WHERE ma.status = 'aberto'
        ORDER BY ma.created_at DESC LIMIT 10`) as any;
-    return rows;
+    return rows
+      .map((r: any) => ({ ...r, item_key: `alerta:${r.id}` }))
+      .filter((r: any) => !resolvidos.has(r.item_key));
   }, [] as any[]);
 
   // Agenda de hoje (reuniões/audiências/compromissos — excluindo canceladas)
@@ -131,7 +153,9 @@ router.get('/', async (req: Request, res: Response) => {
         LEFT JOIN clients cl ON cl.id = ce.client_id
        WHERE ce.user_id = ? AND DATE(ce.start_datetime) = CURDATE() AND ce.sync_status NOT IN ('cancelado','erro')
        ORDER BY ce.start_datetime ASC`, [userId]) as any;
-    return rows;
+    return rows
+      .map((r: any) => ({ ...r, item_key: `agenda:${r.id}` }))
+      .filter((r: any) => !resolvidos.has(r.item_key));
   }, [] as any[]);
 
   // Contadores de pendências
@@ -172,6 +196,28 @@ router.get('/', async (req: Request, res: Response) => {
     propostas_paradas,
     producao,
   });
+});
+
+// ── POST /api/dashboards/cockpit/resolver — marca um item como resolvido ──
+// Idempotente (ON DUPLICATE KEY UPDATE): clicar duas vezes no mesmo item não
+// gera erro nem duplicata. Expira sozinho à meia-noite de Brasília — ver
+// resolvidosHoje() acima, que só considera resolved_at de hoje.
+const ITEM_KEY_RE = /^[a-z]+:[0-9]+$/;
+
+router.post('/resolver', async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const { item_key } = req.body || {};
+  if (typeof item_key !== 'string' || !ITEM_KEY_RE.test(item_key)) {
+    res.status(400).json({ error: 'item_key inválido — formato esperado: dominio:id' });
+    return;
+  }
+  await db.query(
+    `INSERT INTO cockpit_resolutions (item_key, user_id, resolved_at)
+     VALUES (?, ?, NOW())
+     ON DUPLICATE KEY UPDATE resolved_at = NOW()`,
+    [item_key, userId]
+  );
+  res.json({ success: true });
 });
 
 export default router;
