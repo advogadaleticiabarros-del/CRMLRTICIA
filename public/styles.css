@@ -195,6 +195,14 @@ body.foco-total .page-header .tab { padding: 5px 10px; font-size: 13px; }
 body.foco-total .page:not(:has(.page-header .tabs)) .tabs { margin: 0 16px 16px; padding-top: 16px; }
 body.foco-total .page:not(:has(.page-header .tabs)) .tab { padding: 9px 18px; }
 
+/* .wa-shell é um "cartão" (borda + cantos arredondados) pensado pra viver
+   dentro do CRM normal, com respiro ao redor — em tela-cheia sobrava uma
+   moldura bege (o --bg do body) em volta do quadro inteiro, sem função
+   nenhuma numa tela que já é dedicada ao WhatsApp. Edge-to-edge aqui; a
+   altura continua vindo de ajustarAltura() (JS, style inline), que já
+   calcula certo — só tira a borda/cantos que sobravam ao redor. */
+body.foco-total .wa-shell { border: none; border-radius: 0; }
+
 /* ── Topbar ── */
 .topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between;
   padding: 0 42px; height: 64px; background: rgba(255,255,255,.85); backdrop-filter: saturate(180%) blur(8px);
