@@ -161,9 +161,10 @@ Object.assign(ROUTES, {
     const shell = async () => {
       if (chatTimer) { clearInterval(chatTimer); chatTimer = null; }
       const st = await api('/api/whatsapp-instance/status').catch(() => ({ connected: false }));
+      const focoTotal = document.body.classList.contains('foco-total');
       page.innerHTML = `
         <div class="page-header"><div><h2>WhatsApp</h2><p class="sub">${st.connected ? `Instância conectada (${esc(st.me || '')}) — envio automático ${st.autoSend ? 'LIGADO' : 'desligado'} · ${st.sentToday || 0}/30 hoje` : 'Instância desconectada — a fila usa o wa.me (1 clique) até você conectar'}</p></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">${document.body.classList.contains('foco-total') ? '' : `<button class="btn-ghost" id="wa-tela-cheia" title="Abre numa aba separada, sem menu lateral">${svgIcon('expand')}Tela cheia</button>`}<button class="btn-ghost" id="wa-gerar">Gerar agora</button><button class="btn-gold" id="wa-nova">+ Nova mensagem</button></div></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">${focoTotal ? '' : `<button class="btn-ghost" id="wa-tela-cheia" title="Abre numa aba separada, sem menu lateral">${svgIcon('expand')}Tela cheia</button>`}<button class="btn-ghost" id="wa-gerar">Gerar agora</button><button class="btn-gold" id="wa-nova">+ Nova mensagem</button></div></div>
         <div class="tabs" style="margin-bottom:14px">
           <button class="tab ${tab === 'fila' ? 'active' : ''}" data-wtab="fila">Fila</button>
           <button class="tab ${tab === 'conversas' ? 'active' : ''}" data-wtab="conversas">Conversas</button>
@@ -171,6 +172,20 @@ Object.assign(ROUTES, {
           <button class="tab ${tab === 'conexao' ? 'active' : ''}" data-wtab="conexao">Conexão</button>
         </div>
         <div id="wa-body"><div class="spinner"></div></div>`;
+      // Modo tela-cheia: cabeçalho denso em 1 linha só — move o botão
+      // "← Voltar ao CRM" (fixed, injetado uma vez pelo app.js) e a barra
+      // de abas para dentro do .page-header, entre o título/status e as
+      // ações. Precisa ser refeito a cada shell() porque page.innerHTML
+      // destrói o .page-header anterior (o .tabs já é recriado no HTML
+      // acima; só falta reposicioná-lo e trazer o .foco-voltar).
+      if (focoTotal) {
+        const header = page.querySelector('.page-header');
+        const tabsEl = page.querySelector('.tabs');
+        const acoesEl = header.querySelector(':scope > div:last-child');
+        const voltarEl = document.querySelector('.foco-voltar');
+        if (voltarEl) header.insertBefore(voltarEl, header.firstChild);
+        if (tabsEl && acoesEl) header.insertBefore(tabsEl, acoesEl);
+      }
       page.querySelectorAll('[data-wtab]').forEach((b) => b.onclick = () => { tab = b.dataset.wtab; shell(); });
       const telaCheiaBtn = $('#wa-tela-cheia');
       if (telaCheiaBtn) telaCheiaBtn.onclick = () => window.open(location.pathname + '?foco=1#whatsapp', '_blank', 'noopener');

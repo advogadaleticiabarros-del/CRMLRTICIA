@@ -156,21 +156,44 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 body.foco-total .sidebar,
 body.foco-total .topbar { display: none; }
 body.foco-total .content { margin-left: 0; padding: 0; }
-/* padding-top maior que os outros lados: reserva espaço pro botão fixo
-   .foco-voltar (que fica em top:8px, ~26px de altura) não sobrepor o
-   título da página logo abaixo — bug real reportado pela usuária. */
-body.foco-total .content > .page { padding: 46px 16px 10px; max-width: none; }
-.foco-voltar { position: fixed; top: 8px; left: 8px; z-index: 500; background: var(--navy); color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 12px; text-decoration: none; opacity: .78; transition: opacity .15s; }
+body.foco-total .content > .page { padding: 0; max-width: none; }
+/* Fallback: páginas cujo módulo não move .foco-voltar pra dentro do
+   .page-header continuam usando o botão fixo — precisam do respiro
+   original no topo pra ele não sobrepor o título (bug real já corrigido
+   nesta área antes). */
+body.foco-total .page:not(:has(.page-header .foco-voltar)) { padding: 46px 16px 10px; }
+/* position:fixed é o comportamento padrão (cobre páginas que não movem
+   o botão para dentro do cabeçalho); o JS do WhatsApp desfaz o fixed ao
+   inserir o elemento dentro de .page-header (ver whatsapp.js). */
+.foco-voltar { position: fixed; top: 8px; left: 8px; z-index: 500; background: var(--navy); color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 12px; text-decoration: none; opacity: .78; transition: opacity .15s; white-space: nowrap; }
 .foco-voltar:hover { opacity: 1; }
-/* Cabeçalho compacto do modo tela-cheia: as media queries de desktop
+body.foco-total .page-header .foco-voltar { position: static; top: auto; left: auto; opacity: .85; }
+
+/* Cabeçalho denso em 1 linha só (Opção A), usado no modo tela-cheia:
+   .page-header vira uma faixa flex de altura fixa com voltar+título+
+   status à esquerda, abas no meio (movidas para dentro via JS quando o
+   módulo suporta) e ações à direita. As media queries de desktop
    (min-width:881px em diante) redefinem .page-header/.tabs pro tamanho
-   "editorial" normal do resto do sistema, sobrescrevendo os valores
-   compactos abaixo mesmo dentro do foco-total. Precisa de escopo
+   "editorial" normal do resto do sistema — precisa de escopo
    body.foco-total explícito pra vencer essas regras em qualquer largura. */
-body.foco-total .page-header { margin-bottom: 18px; }
-body.foco-total .page-header h2 { font-size: 26px; }
-body.foco-total .tabs { margin-bottom: 16px; }
-body.foco-total .tab { padding: 9px 18px; }
+body.foco-total .page-header {
+  display: flex; align-items: center; flex-wrap: nowrap; gap: 14px;
+  margin: 0; padding: 8px 16px;
+  border-bottom: 1px solid var(--border); background: var(--surface);
+  overflow-x: auto;
+}
+body.foco-total .page-header > div:first-child { display: flex; align-items: baseline; gap: 12px; white-space: nowrap; }
+body.foco-total .page-header h2 { font-size: 17px; font-family: 'Spectral', Georgia, serif; }
+body.foco-total .page-header .sub { font-size: 12px; margin: 0; white-space: nowrap; color: var(--text-muted); }
+body.foco-total .page-header > div:last-child { display: flex; gap: 6px; margin-left: auto; white-space: nowrap; }
+body.foco-total .page-header .tabs { display: flex; gap: 2px; margin: 0; padding: 0; border-bottom: none; flex-shrink: 0; }
+body.foco-total .page-header .tab { padding: 5px 10px; font-size: 13px; }
+
+/* Fallback: se o módulo não mover .tabs para dentro do .page-header
+   (páginas que não passaram por esse redesign), mantém as duas barras
+   empilhadas com o respiro compacto de antes. */
+body.foco-total .page:not(:has(.page-header .tabs)) .tabs { margin: 0 16px 16px; padding-top: 16px; }
+body.foco-total .page:not(:has(.page-header .tabs)) .tab { padding: 9px 18px; }
 
 /* ── Topbar ── */
 .topbar { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between;
