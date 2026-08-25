@@ -332,7 +332,11 @@ Object.assign(ROUTES, {
         const shellEl = $('#wa-shell');
         if (!shellEl) return;
         const topo = shellEl.getBoundingClientRect().top;
-        shellEl.style.height = Math.max(480, window.innerHeight - topo - 20) + 'px';
+        // Em tela-cheia o quadro é edge-to-edge (sem moldura/cartão — ver
+        // .foco-total .wa-shell no CSS), então não sobra folga nenhuma no
+        // fundo; fora dela, mantém os 20px de respiro do "cartão" original.
+        const folga = document.body.classList.contains('foco-total') ? 0 : 20;
+        shellEl.style.height = Math.max(480, window.innerHeight - topo - folga) + 'px';
       };
       ajustarAltura();
       window.addEventListener('resize', ajustarAltura);
