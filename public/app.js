@@ -2444,12 +2444,13 @@ async function renderIA(page) {
   await load();
 }
 
-async function iaForm(onSave) {
+async function iaForm(onSave, opts) {
+  const o = opts || {};
   const [templates, clients] = await Promise.all([api('/api/ai/templates'), api('/api/clients?limit=200')]);
   const typeOpts = templates.map((t) => ({ v: t.type, t: t.label }));
   const form = el(`<form class="form-grid">
-    ${field('Tipo de documento', 'type', { options: typeOpts })}
-    ${field('Cliente (opcional)', 'client_id', { options: [{ v: '', t: '—' }].concat(clients.data.map((c) => ({ v: c.id, t: c.name }))) })}
+    ${field('Tipo de documento', 'type', { options: typeOpts, value: o.type || '' })}
+    ${field('Cliente (opcional)', 'client_id', { options: [{ v: '', t: '—' }].concat(clients.data.map((c) => ({ v: c.id, t: c.name }))), value: o.client_id || '' })}
     <div id="ia-fields"></div>
     <button type="submit" class="btn-primary">Gerar</button>
   </form>`);
@@ -2457,7 +2458,7 @@ async function iaForm(onSave) {
   const renderFields = () => {
     const tpl = templates.find((t) => t.type === typeSel.value);
     form.querySelector('#ia-fields').innerHTML = tpl.fields.map((f) =>
-      field(f.label, 'f_' + f.name, f.type === 'textarea' ? { type: 'textarea' } : {})).join('');
+      field(f.label, 'f_' + f.name, f.type === 'textarea' ? { type: 'textarea', value: (o.prefill && o.prefill[f.name]) || '' } : { value: (o.prefill && o.prefill[f.name]) || '' })).join('');
   };
   typeSel.onchange = renderFields; renderFields();
   form.onsubmit = async (e) => {
