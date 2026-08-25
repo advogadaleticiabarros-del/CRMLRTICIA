@@ -485,6 +485,7 @@ Object.assign(ROUTES, {
           html += bloco('Honorários', Number(f.pendentes)
             ? `<strong style="color:${Number(f.vencidas) ? 'var(--red)' : 'var(--navy-deep)'}">${money(f.valor_aberto)}</strong> <small style="color:var(--text-muted)">em aberto (${f.pendentes} parcela${f.pendentes > 1 ? 's' : ''}${Number(f.vencidas) ? ` · ${f.vencidas} vencida${f.vencidas > 1 ? 's' : ''}` : ''})</small>`
             : '<small style="color:var(--green)">✓ Nada em aberto</small>');
+          html += `<div style="padding:12px 14px"><button class="btn-sm" id="wa-gerar-ia" style="width:100%">${svgIcon('ia')}Gerar com IA a partir desta conversa</button></div>`;
         } else if (cx.lead) {
           html += bloco('Lead', `<strong style="color:var(--navy-deep)">${esc(cx.lead.name)}</strong><br><small style="color:var(--text-muted)">${esc(cx.lead.legal_area || '')} · ${esc(cx.lead.status || '')}</small>`);
         } else {
@@ -639,6 +640,19 @@ Object.assign(ROUTES, {
             </div>`));
           } catch (e) { toast(e.message, 'error'); }
           rs.disabled = false; rs.innerHTML = `${svgIcon('ia')}Resumir conversa com IA`;
+        };
+
+        const gerarIaBtn = box.querySelector('#wa-gerar-ia');
+        if (gerarIaBtn) gerarIaBtn.onclick = async () => {
+          gerarIaBtn.disabled = true; gerarIaBtn.textContent = 'Lendo a conversa…';
+          try {
+            const r = await api(`/api/whatsapp-instance/chats/${ativo.phone}/resumo`, { method: 'POST', body: '{}' });
+            // Templates com campo de texto livre único (resumo_intimacao/texto,
+            // parecer/consulta, resumo_cliente/movimentacao) recebem o resumo já
+            // pronto da conversa — a usuária revisa/edita antes de gerar.
+            iaForm(null, { client_id: cx.client.id, prefill: { texto: r.resumo, consulta: r.resumo, movimentacao: r.resumo } });
+          } catch (e) { toast(e.message, 'error'); }
+          gerarIaBtn.disabled = false; gerarIaBtn.innerHTML = `${svgIcon('ia')}Gerar com IA a partir desta conversa`;
         };
       };
 
