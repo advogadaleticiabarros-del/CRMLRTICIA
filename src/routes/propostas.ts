@@ -12,6 +12,7 @@ const PROP_STATUS_PT: Record<string, string> = {
   rascunho: 'Rascunho', enviada: 'Enviada', em_negociacao: 'Em negociação', aceita: 'Aceita', recusada: 'Recusada', expirada: 'Expirada',
 };
 const PAYMENT_GATEWAY_METHODS = ['pix', 'asaas_boleto', 'asaas_cartao_avista', 'asaas_cartao_recorrente'];
+const LEGAL_AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
 
 function addMonths(date: Date, months: number): Date {
   const d = new Date(date);
@@ -81,6 +82,7 @@ router.post('/', async (req: Request, res: Response) => {
   if (!client_id && !lead_id) { res.status(400).json({ error: 'Informe o cliente ou o lead' }); return; }
   const finalTitle = (title && String(title).trim()) || `Proposta — ${contact_name || tipo_causa || 'cliente'}`;
   const finalPaymentGatewayMethod = PAYMENT_GATEWAY_METHODS.includes(payment_gateway_method) ? payment_gateway_method : 'pix';
+  const finalLegalArea = LEGAL_AREAS.includes(legal_area) ? legal_area : null;
   const grantsPaymentConsent = finalPaymentGatewayMethod !== 'pix' && !!payment_consent;
 
   const publicToken = crypto.randomUUID();
@@ -98,7 +100,7 @@ router.post('/', async (req: Request, res: Response) => {
       req.user!.id, client_id ?? null, case_id ?? null, lead_id ?? null,
       finalTitle, Number(valor) || 0, STATUSES.includes(status) ? status : 'rascunho',
       validade || null, description ?? null,
-      legal_area ?? null, tipo_causa ?? null, contact_name ?? null, cpf ?? null, phone ?? null, email ?? null,
+      finalLegalArea, tipo_causa ?? null, contact_name ?? null, cpf ?? null, phone ?? null, email ?? null,
       dependentes ? JSON.stringify(dependentes) : null, honorarios ? JSON.stringify(honorarios) : null, observacoes ?? null,
       ...partnerParams,
       finalPaymentGatewayMethod,
@@ -135,7 +137,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('description', req.body.description);
   setIf('case_id', req.body.case_id);
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
-  setIf('legal_area', req.body.legal_area);
+  setIf('legal_area', req.body.legal_area, LEGAL_AREAS.includes(req.body.legal_area));
   setIf('tipo_causa', req.body.tipo_causa);
   setIf('contact_name', req.body.contact_name);
   setIf('cpf', req.body.cpf);
