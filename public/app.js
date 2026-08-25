@@ -546,7 +546,14 @@ function showApp() {
   const dbn = $('#discover-btn'); if (dbn) dbn.style.display = ['admin', 'advogado', 'staff'].includes(USER?.role) ? '' : 'none';
   resetIdle(); // arma o logout por inatividade
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {}); // PWA
+    // updateViaCache:'none' impede o navegador de aplicar cache HTTP normal
+    // ao PRÓPRIO arquivo sw.js — sem isso, ele podia levar até 24h pra notar
+    // que o service worker mudou, mesmo fechando/reabrindo o navegador (foi
+    // o que fez um deploy de CSS não aparecer pra usuários que já tinham
+    // visitado o CRM antes). .update() força a checagem agora, na hora.
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' })
+      .then((reg) => reg.update().catch(() => {}))
+      .catch(() => {}); // PWA
     if ('Notification' in window && Notification.permission === 'granted') subscribePush();
   }
   setTimeout(maybeWelcome, 900); // boas-vindas no 1º acesso

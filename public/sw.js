@@ -1,6 +1,6 @@
 /* Service worker do CRM — instalação (PWA), Web Push (app fechado) e clique em notificação.
    Estratégia: network-first com fallback ao cache (não serve dado velho quando online). */
-const CACHE = 'crm-cache-v2';
+const CACHE = 'crm-cache-v3';
 const SHELL = ['/', '/index.html', '/styles.css', '/app.js', '/logo.png', '/manifest.json'];
 
 self.addEventListener('install', (e) => {
