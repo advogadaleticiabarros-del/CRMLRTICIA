@@ -428,6 +428,13 @@ Object.assign(ROUTES, {
         $('#wal').scrollTop = scrollAtual;
         $('#wal').querySelectorAll('[data-chat]').forEach((r) => r.onclick = () => {
           ultimaInteracaoLista = Date.now();
+          // Marca o item clicado como ativo na hora — sem isso, o destaque
+          // (.on) só aparecia no próximo renderLista(), que só roda via
+          // polling (a cada 6s, e travado por 1200ms logo após um clique):
+          // clicar num 2º contato logo em seguida do 1º não mudava nada
+          // visualmente por vários segundos.
+          $('#wal').querySelectorAll('.wa-item.on').forEach((el) => el.classList.remove('on'));
+          r.classList.add('on');
           const c = chats.find((x) => x.phone === r.dataset.chat);
           abrirChat(c);
         });
