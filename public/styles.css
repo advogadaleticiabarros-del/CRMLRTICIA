@@ -413,6 +413,22 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .kanban-fases::-webkit-scrollbar-track { background: var(--surface-2); border-radius: 6px; }
 .kanban-fases::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
 .kanban-fases::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+/* Setas fixas: rolar com a roda do mouse sobre uma coluna cheia de cards
+   move os CARDS (scroll vertical próprio de .kf-cards), não desliza o
+   quadro — por isso a barra/roda sozinhas não bastavam pra "ver as
+   laterais". As setas funcionam não importa onde o mouse esteja. */
+.kanban-wrap { position: relative; }
+.kanban-nav {
+  position: absolute; top: 50%; transform: translateY(-50%); z-index: 5;
+  width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);
+  background: #fff; color: var(--navy-deep); cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: var(--shadow-sm); transition: background .15s, border-color .15s;
+}
+.kanban-nav:hover { background: var(--surface-2); border-color: var(--gold); }
+.kanban-nav-esq { left: -8px; }
+.kanban-nav-dir { right: -8px; }
+@media (max-width: 640px) { .kanban-nav { display: none; } }
 .kf-col { min-width: 230px; flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; }
 .kf-head { font-weight: 600; color: var(--navy); display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; font-size: 13px; }
 .kf-count { background: var(--gold); color: #fff; border-radius: 11px; padding: 1px 9px; font-size: 11px; font-weight: 700; }

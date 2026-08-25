@@ -1133,16 +1133,26 @@ Object.assign(ROUTES, {
         <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
           <button class="btn-gold btn-sm" id="wc-nova-etapa">+ Nova etapa</button>
         </div>
-        <div id="wc-board" class="kanban-fases"></div>`;
-      // Com muitas colunas, a barra de rolagem horizontal sozinha não era
-      // óbvia ("não consigo navegar pelas colunas") — a roda do mouse
-      // (scroll vertical) é o gesto mais natural, então redireciona pra
-      // rolagem horizontal, igual o padrão de quadros Kanban/planilhas.
+        <div class="kanban-wrap">
+          <button type="button" class="kanban-nav kanban-nav-esq" id="wc-nav-esq" title="Coluna anterior">${svgIcon('chevronLeft')}</button>
+          <div id="wc-board" class="kanban-fases"></div>
+          <button type="button" class="kanban-nav kanban-nav-dir" id="wc-nav-dir" title="Próxima coluna">${svgIcon('chevronRight')}</button>
+        </div>`;
+      // Rolar com a roda do mouse SOBRE uma coluna move os cards daquela
+      // coluna (scroll vertical próprio de .kf-cards) — não dá pra "ver as
+      // laterais" assim, e foi exatamente esse o problema real reportado
+      // (rolar com o mouse em cima de uma coluna cheia nunca chega a
+      // deslizar o quadro). Por isso as setas fixas abaixo são a forma
+      // principal de navegar; o wheel no fundo do quadro (fora das
+      // colunas) continua funcionando como atalho extra.
       $('#wc-board').addEventListener('wheel', (e) => {
         if (e.deltaY === 0 || e.shiftKey) return;
         e.preventDefault();
         $('#wc-board').scrollLeft += e.deltaY;
       });
+      const larguraColuna = () => (document.querySelector('.kf-col')?.offsetWidth || 240) + 12;
+      $('#wc-nav-esq').onclick = () => $('#wc-board').scrollBy({ left: -larguraColuna(), behavior: 'smooth' });
+      $('#wc-nav-dir').onclick = () => $('#wc-board').scrollBy({ left: larguraColuna(), behavior: 'smooth' });
 
       const load = async () => {
         const [stagesResp, boardResp] = await Promise.all([
