@@ -417,7 +417,13 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
    move os CARDS (scroll vertical próprio de .kf-cards), não desliza o
    quadro — por isso a barra/roda sozinhas não bastavam pra "ver as
    laterais". As setas funcionam não importa onde o mouse esteja. */
-.kanban-wrap { position: relative; }
+/* overflow:hidden no wrap é a salvaguarda: sem ele, right:-8px da seta
+   direita empurrava a PÁGINA inteira 8px além da largura da janela (bug
+   real confirmado: bodyScrollWidth > windowInnerWidth), deixando a seta
+   direita fora da área visível sem rolar a página inteira — por isso só
+   a seta esquerda aparecia. As setas ficam encostadas na borda (0, não
+   -8px) para nunca mais vazar. */
+.kanban-wrap { position: relative; overflow: hidden; }
 .kanban-nav {
   position: absolute; top: 50%; transform: translateY(-50%); z-index: 5;
   width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);
@@ -426,8 +432,8 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
   box-shadow: var(--shadow-sm); transition: background .15s, border-color .15s;
 }
 .kanban-nav:hover { background: var(--surface-2); border-color: var(--gold); }
-.kanban-nav-esq { left: -8px; }
-.kanban-nav-dir { right: -8px; }
+.kanban-nav-esq { left: 4px; }
+.kanban-nav-dir { right: 4px; }
 @media (max-width: 640px) { .kanban-nav { display: none; } }
 .kf-col { min-width: 230px; flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; }
 .kf-head { font-weight: 600; color: var(--navy); display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; font-size: 13px; }
