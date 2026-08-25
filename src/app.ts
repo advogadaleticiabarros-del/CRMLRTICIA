@@ -201,10 +201,19 @@ export function createApp() {
   function indexHtmlVersionado(): string {
     if (!indexHtmlCache) {
       const raw = fs.readFileSync(path.join(publicDir, 'index.html'), 'utf8');
-      indexHtmlCache = raw.replace(
-        /(src="\/(?:app|whatsapp|portal-parceiro)\.js)"/g,
-        `$1?v=${BUILD_ID}"`
-      );
+      indexHtmlCache = raw
+        .replace(
+          /(src="\/(?:app|whatsapp|portal-parceiro)\.js)"/g,
+          `$1?v=${BUILD_ID}"`
+        )
+        // styles.css nunca tinha esse cache-busting — dependia só de
+        // Cache-Control/ETag, que "não bastou" pro JS (comentário acima) e
+        // não bastava pro CSS também: um deploy só de CSS (ex.: redesign
+        // visual) podia nunca chegar em quem já tinha visitado o CRM antes.
+        .replace(
+          /(href="\/styles\.css)"/,
+          `$1?v=${BUILD_ID}"`
+        );
     }
     return indexHtmlCache;
   }
