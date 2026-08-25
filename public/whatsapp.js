@@ -485,7 +485,7 @@ Object.assign(ROUTES, {
           html += bloco('Honorários', Number(f.pendentes)
             ? `<strong style="color:${Number(f.vencidas) ? 'var(--red)' : 'var(--navy-deep)'}">${money(f.valor_aberto)}</strong> <small style="color:var(--text-muted)">em aberto (${f.pendentes} parcela${f.pendentes > 1 ? 's' : ''}${Number(f.vencidas) ? ` · ${f.vencidas} vencida${f.vencidas > 1 ? 's' : ''}` : ''})</small>`
             : '<small style="color:var(--green)">✓ Nada em aberto</small>');
-          html += `<div style="padding:12px 14px"><button class="btn-sm" id="wa-gerar-ia" style="width:100%">${svgIcon('ia')}Gerar com IA a partir desta conversa</button></div>`;
+          html += `<div style="padding:12px 14px"><button class="wa-ctx-primary" id="wa-gerar-ia">${svgIcon('ia')}Gerar com IA a partir desta conversa</button></div>`;
         } else if (cx.lead) {
           html += bloco('Lead', `<strong style="color:var(--navy-deep)">${esc(cx.lead.name)}</strong><br><small style="color:var(--text-muted)">${esc(cx.lead.legal_area || '')} · ${esc(cx.lead.status || '')}</small>`);
         } else {
@@ -502,7 +502,7 @@ Object.assign(ROUTES, {
             <button class="btn-sm" data-conv="compromisso">+ Compromisso</button>
             <button class="btn-sm" data-conv="anotacao" ${cx.client ? '' : 'disabled title="Precisa ser cliente"'}>+ Anotação</button>
           </div>`);
-        html += `<div style="padding:12px 14px"><button class="btn-sm" id="wa-resumo" style="width:100%">${svgIcon('ia')}Resumir conversa com IA</button></div>`;
+        html += `<div style="padding:12px 14px"><button class="wa-ctx-primary" id="wa-resumo">${svgIcon('ia')}Resumir conversa com IA</button></div>`;
         box.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
             <strong style="font-size:13px;color:var(--navy)">Ficha do contato</strong>
             <span style="display:flex;gap:4px">

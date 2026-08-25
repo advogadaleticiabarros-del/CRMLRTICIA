@@ -1543,6 +1543,12 @@ img, svg, video { max-width: 100%; }
 .wa-ctx { display: none; border-left: 1px solid var(--border); overflow-y: auto; background: var(--surface-card, var(--surface)); min-width: 0; min-height: 0; }
 .wa-shell.ctx-open { grid-template-columns: minmax(260px, 320px) 1fr minmax(230px, 280px); }
 .wa-shell.ctx-open .wa-ctx { display: block; }
+/* Ação primária da ficha de contato (ex.: "Resumir com IA", "Gerar com IA")
+   — visualmente maior e mais chamativa que os botões secundários
+   (Tarefa/Prazo/Compromisso/Anotação), que continuam usando .btn-sm. */
+.wa-ctx-primary { width: 100%; background: var(--gold); color: #fff; border: none; border-radius: 9px; padding: 11px 14px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; transition: background .15s, transform .1s; }
+.wa-ctx-primary:hover { background: var(--gold-deep, #a67a34); }
+.wa-ctx-primary:active { transform: scale(.98); }
 @media (max-width: 1099px) { .wa-shell.ctx-open { grid-template-columns: minmax(260px, 320px) 1fr; } .wa-shell.ctx-open .wa-ctx { display: none; } }
 @media (max-width: 760px) {
   .wa-shell.chat-open.ctx-open { grid-template-columns: 1fr; }
