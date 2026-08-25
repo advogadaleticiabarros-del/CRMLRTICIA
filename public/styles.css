@@ -1490,13 +1490,13 @@ img, svg, video { max-width: 100%; }
 .wa-search-chat input { flex: 1; border-radius: 14px; padding: 6px 12px; font-size: 13px; }
 .wa-hl { background: #ffe58a; border-radius: 2px; padding: 0 1px; }
 .wa-hl.cur { background: #ffb74d; }
-.wa-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 8%; display: flex; flex-direction: column; gap: 4px; background: var(--surface); background-image: radial-gradient(var(--border-soft) .8px, transparent .8px); background-size: 22px 22px; }
+.wa-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 8%; display: flex; flex-direction: column; gap: 7px; background: var(--surface); background-image: radial-gradient(var(--border-soft) .8px, transparent .8px); background-size: 22px 22px; }
 .wa-day { align-self: center; font-size: 11px; background: var(--surface-2, #fff); border: 1px solid var(--border-soft); color: var(--text-muted); padding: 3px 12px; border-radius: 10px; margin: 10px 0 6px; }
-.wa-bub { position: relative; max-width: 68%; padding: 7px 11px 5px; border-radius: 9px; font-size: 13.5px; line-height: 1.45; box-shadow: 0 1px 1px rgba(0,0,0,.08); word-wrap: break-word; animation: wa-bub-in 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+.wa-bub { position: relative; max-width: 66%; padding: 10px 14px 7px; border-radius: 11px; font-size: 14px; line-height: 1.5; box-shadow: 0 1px 1px rgba(0,0,0,.08); word-wrap: break-word; animation: wa-bub-in 180ms cubic-bezier(0.23, 1, 0.32, 1); }
 @keyframes wa-bub-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .wa-bub { animation: none; } }
 .wa-bub.in { align-self: flex-start; background: var(--surface-card, #fff); border: 1px solid var(--border-soft); color: var(--text); border-top-left-radius: 2px; }
-.wa-bub.out { align-self: flex-end; background: #d9fdd3; color: #111b21; border-top-right-radius: 2px; }
+.wa-bub.out { align-self: flex-end; background: var(--gold-soft, #efe3c8); color: var(--navy-deep, #16233a); border-top-right-radius: 2px; }
 /* Editar/apagar — só aparece ao passar o mouse, pra não poluir a conversa */
 .wa-msg-acoes { position: absolute; top: -13px; right: 6px; display: flex; gap: 2px; opacity: 0; transition: opacity .12s; }
 .wa-bub:hover .wa-msg-acoes, .wa-bub:focus-within .wa-msg-acoes { opacity: 1; }
