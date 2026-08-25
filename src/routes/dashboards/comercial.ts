@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../../config/database';
+import { CANAIS } from '../../services/leadChannel';
 
 // Etapas ativas do funil (espelha FUNNEL_ORDER do frontend, public/app.js:3841).
 // Não inclui os 4 status de desfecho do ENUM de leads.status — esses são
@@ -138,6 +139,42 @@ router.get('/', async (req: Request, res: Response) => {
   } catch (err) {
     res.status(500).json({ error: 'Erro ao carregar dashboard comercial' });
   }
+});
+
+// POST /api/dashboards/comercial/gasto-marketing — lança/atualiza o gasto de um mês+canal
+router.post('/gasto-marketing', async (req: Request, res: Response) => {
+  const { mes_referencia, canal, valor } = req.body || {};
+  if (!mes_referencia || !CANAIS.includes(canal)) {
+    res.status(400).json({ error: 'Informe mês e um canal válido' });
+    return;
+  }
+  const valorNum = Number(valor);
+  if (!Number.isFinite(valorNum) || valorNum < 0) {
+    res.status(400).json({ error: 'Informe um valor válido' });
+    return;
+  }
+  const userId = (req as any).user.id;
+  await db.query(
+    `INSERT INTO gasto_marketing (mes_referencia, canal, valor, created_by)
+     VALUES (?, ?, ?, ?)
+     ON DUPLICATE KEY UPDATE valor = VALUES(valor), created_by = VALUES(created_by)`,
+    [mes_referencia, canal, valorNum, userId]
+  );
+  res.json({ success: true });
+});
+
+// GET /api/dashboards/comercial/gasto-marketing?mes=YYYY-MM — lançamentos do mês
+router.get('/gasto-marketing', async (req: Request, res: Response) => {
+  const mes = String(req.query.mes || '');
+  if (!/^\d{4}-\d{2}$/.test(mes)) {
+    res.status(400).json({ error: 'Informe o mês no formato YYYY-MM' });
+    return;
+  }
+  const [rows] = await db.query(
+    `SELECT canal, valor FROM gasto_marketing WHERE DATE_FORMAT(mes_referencia, '%Y-%m') = ?`,
+    [mes]
+  ) as any;
+  res.json(rows);
 });
 
 export default router;
