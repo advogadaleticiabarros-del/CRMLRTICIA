@@ -31,6 +31,17 @@ export function calcularFunilConversao(leadsPorStatus: { status: string; total: 
   return { etapas, desfechos };
 }
 
+export function calcularRentabilidadeArea(
+  linhas: { legal_area: string; total_casos: number; receita_total: number }[]
+) {
+  return linhas.map((l) => ({
+    legal_area: l.legal_area,
+    total_casos: l.total_casos,
+    receita_total: l.receita_total,
+    receita_media_caso: l.total_casos > 0 ? Math.round((l.receita_total / l.total_casos) * 100) / 100 : 0,
+  }));
+}
+
 const router = Router();
 
 // GET /api/dashboards/comercial
@@ -55,6 +66,16 @@ router.get('/', async (req: Request, res: Response) => {
       [userId]
     ) as any;
     const funil_conversao = calcularFunilConversao(leadsPorStatus);
+
+    const [rentabilidadeRows] = await db.query(`
+      SELECT c.legal_area, COUNT(DISTINCT c.id) AS total_casos, COALESCE(SUM(i.valor), 0) AS receita_total
+      FROM cases c
+      LEFT JOIN installments i ON i.case_id = c.id AND i.status = 'pago'
+      WHERE c.user_id = ? AND c.legal_area IS NOT NULL
+      GROUP BY c.legal_area
+      ORDER BY receita_total DESC
+    `, [userId]) as any;
+    const rentabilidade_area = calcularRentabilidadeArea(rentabilidadeRows);
 
     const [porOrigem] = await db.query(
       "SELECT COALESCE(NULLIF(source,''),'(sem origem)') AS origem, COUNT(*) AS total FROM leads WHERE user_id = ? GROUP BY origem ORDER BY total DESC",
@@ -93,6 +114,7 @@ router.get('/', async (req: Request, res: Response) => {
       leads_total:         metrics.leads_total,
       leads_por_status:    leadsPorStatus,
       funil_conversao,
+      rentabilidade_area,
       por_origem:          porOrigem,
       por_area:            porArea,
       por_campanha:        porCampanha,
