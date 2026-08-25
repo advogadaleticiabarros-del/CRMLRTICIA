@@ -1134,6 +1134,15 @@ Object.assign(ROUTES, {
           <button class="btn-gold btn-sm" id="wc-nova-etapa">+ Nova etapa</button>
         </div>
         <div id="wc-board" class="kanban-fases"></div>`;
+      // Com muitas colunas, a barra de rolagem horizontal sozinha não era
+      // óbvia ("não consigo navegar pelas colunas") — a roda do mouse
+      // (scroll vertical) é o gesto mais natural, então redireciona pra
+      // rolagem horizontal, igual o padrão de quadros Kanban/planilhas.
+      $('#wc-board').addEventListener('wheel', (e) => {
+        if (e.deltaY === 0 || e.shiftKey) return;
+        e.preventDefault();
+        $('#wc-board').scrollLeft += e.deltaY;
+      });
 
       const load = async () => {
         const [stagesResp, boardResp] = await Promise.all([

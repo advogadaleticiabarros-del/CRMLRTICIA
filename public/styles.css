@@ -403,7 +403,16 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 
 /* ── Responsivo ── */
 /* ── Kanban de fases processuais ── */
-.kanban-fases { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 10px; -webkit-overflow-scrolling: touch; }
+/* overflow-x:auto funcionava tecnicamente, mas com muitas colunas a barra de
+   rolagem ficava fininha/quase invisível (padrão do Chrome/Windows) e não
+   havia nenhum sinal de que dava pra ver mais colunas — reportado como
+   "não consigo navegar pelas colunas". Barra sempre visível e mais grossa
+   resolve isso sem precisar de JS pra saber quando esconder um degradê. */
+.kanban-fases { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 14px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+.kanban-fases::-webkit-scrollbar { height: 10px; }
+.kanban-fases::-webkit-scrollbar-track { background: var(--surface-2); border-radius: 6px; }
+.kanban-fases::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+.kanban-fases::-webkit-scrollbar-thumb:hover { background: var(--gold); }
 .kf-col { min-width: 230px; flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; }
 .kf-head { font-weight: 600; color: var(--navy); display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; font-size: 13px; }
 .kf-count { background: var(--gold); color: #fff; border-radius: 11px; padding: 1px 9px; font-size: 11px; font-weight: 700; }
