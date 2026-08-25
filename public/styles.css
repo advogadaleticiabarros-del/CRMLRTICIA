@@ -155,7 +155,10 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 body.foco-total .sidebar,
 body.foco-total .topbar { display: none; }
 body.foco-total .content { margin-left: 0; padding: 0; }
-body.foco-total .content > .page { padding: 10px 16px; max-width: none; }
+/* padding-top maior que os outros lados: reserva espaço pro botão fixo
+   .foco-voltar (que fica em top:8px, ~26px de altura) não sobrepor o
+   título da página logo abaixo — bug real reportado pela usuária. */
+body.foco-total .content > .page { padding: 46px 16px 10px; max-width: none; }
 .foco-voltar { position: fixed; top: 8px; left: 8px; z-index: 500; background: var(--navy); color: #fff; padding: 4px 12px; border-radius: 6px; font-size: 12px; text-decoration: none; opacity: .78; transition: opacity .15s; }
 .foco-voltar:hover { opacity: 1; }
 
