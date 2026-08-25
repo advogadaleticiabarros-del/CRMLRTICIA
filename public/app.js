@@ -3840,6 +3840,7 @@ function miniList(title, rows) {
 const LEAD_STATUS_PT = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', contrato_assinado: 'Contrato Assinado', fechada: 'Convertido', convertido: 'Convertido', perdida: 'Perdido' };
 
 const LEGAL_AREA_PT = { trabalhista: 'Trabalhista', gestante: 'Gestante/Maternidade', familia: 'Família', civel: 'Cível', previdenciario: 'Previdenciário', consumidor: 'Consumidor', outro: 'Outro' };
+const CANAIS_MKT = ['Meta Ads', 'Google Ads', 'Instagram (orgânico)', 'Facebook (orgânico)', 'Google (orgânico)', 'WhatsApp', 'Indicação', 'Site (direto)', 'E-mail', 'Outro'];
 
 // Cockpit — painel-mãe: dinheiro, prazos, intimações, alertas e agenda num só lugar.
 async function dashCockpit(c) {
@@ -3932,7 +3933,13 @@ async function dashCockpit(c) {
 }
 
 async function dashComercial(c) {
-  const d = await api('/api/dashboards/comercial');
+  const mesAtual = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const [d, gastoLancado, custoAquisicao] = await Promise.all([
+    api('/api/dashboards/comercial'),
+    api(`/api/dashboards/comercial/gasto-marketing?mes=${mesAtual}`).catch(() => []),
+    api(`/api/dashboards/comercial/custo-aquisicao?mes=${mesAtual}`).catch(() => []),
+  ]);
+  const gastoPorCanal = Object.fromEntries((gastoLancado || []).map((g) => [g.canal, g.valor]));
   const funil = d.funil_conversao || { etapas: [], desfechos: { fechados: 0, perdidos: 0, newsletter: 0 } };
   const maxFunnel = Math.max(1, ...funil.etapas.map((e) => e.volume));
   const funnelHTML = funil.etapas.map((e) => {
@@ -3966,7 +3973,37 @@ async function dashComercial(c) {
     ${miniList('Campanhas (leads com utm_campaign)', (d.por_campanha || []).map((cp) =>
       `<div class="mini-row"><span>${esc(cp.campanha)}<br><small>${esc(cp.origem)}</small></span>
         <span>${cp.total} lead${cp.total == 1 ? '' : 's'}${Number(cp.convertidos) ? ` · <strong style="color:var(--green)">${cp.convertidos} convertido${cp.convertidos == 1 ? '' : 's'}</strong>` : ''}</span></div>`
-    ))}`;
+    ))}
+    <div class="card" style="margin-top:20px;padding:18px">
+      <strong style="color:var(--navy)">Custo por cliente adquirido — ${mesAtual}</strong>
+      <form id="gasto-mkt-form" class="form-grid" style="margin-top:12px">
+        <div class="form-row">
+          <label>Canal<select name="canal">${CANAIS_MKT.map((ch) => `<option value="${ch}">${ch}</option>`).join('')}</select></label>
+          <label>Gasto no mês (R$)<input type="number" name="valor" step="0.01" min="0" placeholder="0,00" /></label>
+        </div>
+        <button type="submit" class="btn-sm">Lançar gasto</button>
+      </form>
+      ${miniList('Resultado do mês', (custoAquisicao || []).map((r) =>
+        `<div class="mini-row"><span>${esc(r.canal)}<br><small>${r.clientes} cliente${r.clientes === 1 ? '' : 's'} adquirido${r.clientes === 1 ? '' : 's'}</small></span>
+          <span>${money(r.gasto)}<br><small>${r.custo_por_cliente == null ? 'sem cliente ainda' : `custo ${money(r.custo_por_cliente)}/cliente`}</small></span></div>`
+      ))}
+    </div>`;
+  const gastoForm = c.querySelector('#gasto-mkt-form');
+  if (gastoForm) {
+    gastoForm.onsubmit = async (e) => {
+      e.preventDefault();
+      const canal = gastoForm.querySelector('[name=canal]').value;
+      const valor = gastoForm.querySelector('[name=valor]').value;
+      try {
+        await api('/api/dashboards/comercial/gasto-marketing', {
+          method: 'POST',
+          body: JSON.stringify({ mes_referencia: `${mesAtual}-01`, canal, valor }),
+        });
+        toast('Gasto lançado');
+        dashComercial(c);
+      } catch (err) { toast(err.message, 'error'); }
+    };
+  }
 }
 
 async function dashMonitoramento(c) {
