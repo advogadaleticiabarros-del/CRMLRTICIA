@@ -94,6 +94,14 @@ router.get('/', async (req: Request, res: Response) => {
     ) as any;
     const funil_conversao = calcularFunilConversao(leadsPorStatus);
 
+    const [motivosPerdaRows] = await db.query(
+      `SELECT loss_reason AS motivo, COUNT(*) AS total FROM leads
+        WHERE user_id = ? AND status = 'perdida' AND loss_reason IS NOT NULL AND loss_reason <> ''
+        GROUP BY loss_reason ORDER BY total DESC`,
+      [userId]
+    ) as any;
+    const motivos_perda = motivosPerdaRows.map((r: any) => ({ motivo: r.motivo, total: Number(r.total) }));
+
     const [rentabilidadeRows] = await db.query(`
       SELECT c.legal_area, COUNT(DISTINCT c.id) AS total_casos, COALESCE(SUM(i.valor), 0) AS receita_total
       FROM cases c
@@ -141,6 +149,7 @@ router.get('/', async (req: Request, res: Response) => {
       leads_total:         metrics.leads_total,
       leads_por_status:    leadsPorStatus,
       funil_conversao,
+      motivos_perda,
       rentabilidade_area,
       por_origem:          porOrigem,
       por_area:            porArea,
