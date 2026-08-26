@@ -300,9 +300,16 @@ export function startCronJobs() {
   // ── a cada hora: proposta em análise há 7+ dias → perdida (inativa) ───────
   cron.schedule('30 * * * *', () => {
     runJob('comercial:propostas-expiradas', async () => {
+      // loss_reason = 'sumiu' (proposta em análise 7+ dias sem decisão é
+      // exatamente esse motivo) — COALESCE preserva um motivo que a
+      // advogada já tenha registrado manualmente antes deste job rodar.
+      // Achado da revisão final do sub-projeto "motivo de perda
+      // estruturado": sem isso, todo lead perdido por este cron ficava
+      // com loss_reason NULL, invisível na quebra por motivo do
+      // dashboard comercial — divergindo do total geral de perdidos.
       const [r] = await db.query(`
         UPDATE leads
-        SET status = 'perdida', analise_since = NULL
+        SET status = 'perdida', analise_since = NULL, loss_reason = COALESCE(loss_reason, 'sumiu')
         WHERE status = 'proposta_em_analise'
           AND analise_since IS NOT NULL
           AND analise_since < (NOW() - INTERVAL 7 DAY)
