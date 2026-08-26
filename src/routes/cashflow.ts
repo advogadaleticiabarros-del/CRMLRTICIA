@@ -27,7 +27,39 @@ router.get('/categories', (_req: Request, res: Response) => {
   res.json(CATEGORY_PT);
 });
 
-// ── GET /api/cashflow — lista os lançamentos manuais ────────────────────────
+// ── GET /api/cashflow — lista os lançamentos manuais + repasses pendentes ──
+// Contas a Pagar só lia cashflow_entries (lançamentos manuais) — repasses a
+// parceiros (tabela `repasses`, já usada em outras partes do financeiro,
+// ver src/services/financeSummary.ts) nunca entravam no total de saídas.
+// Quando type=saida, busca repasses pendentes/processando na mesma janela
+// de vencimento e concatena ao resultado (não é UNION SQL — são fontes
+// diferentes, mantidas separadas até aqui). Ver
+// docs/superpowers/specs/2026-08-25-contas-a-pagar-repasses-unificado.md
+//
+// Extraída como função nomeada (e exportada) em vez de ficar inline no
+// handler para que o teste de integração chame a mesma lógica direto,
+// sem precisar de um cliente HTTP — o projeto não usa supertest/HTTP em
+// testes (ver tests/propostaPaymentGatewayPersistencia.test.mjs), testa
+// a lógica de dados diretamente.
+export async function buscarRepassesComoSaida(from?: string, to?: string): Promise<any[]> {
+  const repasseParams: any[] = [];
+  const repasseWhere: string[] = ["r.status IN ('pendente', 'processando')"];
+  if (from) { repasseWhere.push('r.data_vencimento >= ?'); repasseParams.push(from); }
+  if (to) { repasseWhere.push('r.data_vencimento <= ?'); repasseParams.push(to); }
+  const [repasseRows] = await db.query(
+    `SELECT CONCAT('repasse:', r.id) AS id, 'saida' AS type, 'repasse_parceiro' AS category,
+            CONCAT('Repasse a ', r.parceiro, ' — ', r.descricao) AS description,
+            r.valor AS amount, r.data_vencimento AS due_date, 'previsto' AS status,
+            'empresa' AS escopo, NULL AS pagador, NULL AS banco, 1 AS installment_total,
+            NULL AS installment_no, NULL AS recurrence_group
+       FROM repasses r
+      WHERE ${repasseWhere.join(' AND ')}
+      ORDER BY r.data_vencimento ASC LIMIT 500`,
+    repasseParams
+  ) as any;
+  return repasseRows;
+}
+
 router.get('/', async (req: Request, res: Response) => {
   const type = req.query.type as string;
   const from = req.query.from as string;
@@ -43,6 +75,15 @@ router.get('/', async (req: Request, res: Response) => {
   const [rows] = await db.query(
     `SELECT * FROM cashflow_entries WHERE ${where.join(' AND ')} ORDER BY due_date ASC LIMIT 500`, params
   ) as any;
+
+  // Repasses são sempre 'saida' e sempre escopo 'empresa' — só entram
+  // quando a consulta pede saídas e não filtrou explicitamente por
+  // escopo='pessoal'.
+  if (type === 'saida' && escopo !== 'pessoal') {
+    const repasseRows = await buscarRepassesComoSaida(from, to);
+    rows.push(...repasseRows);
+  }
+
   res.json(rows);
 });
 
