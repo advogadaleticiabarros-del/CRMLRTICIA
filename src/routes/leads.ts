@@ -20,6 +20,7 @@ const EXTRA_COLS = ['cpf_cnpj', 'rg', 'birth_date', 'marital_status', 'professio
 const STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado', 'fechada', 'convertido', 'perdida', 'newsletter'];
 const ACTIVE_STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'contrato_assinado'];
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
+const LOSS_REASONS = ['preco', 'sumiu', 'foi_com_outro', 'desistiu', 'fora_area_atuacao', 'sem_perfil', 'outro'];
 
 // leads.state é VARCHAR(2) (sigla de UF) — sem truncar aqui, um valor maior
 // (ex.: nome completo do estado digitado por engano) derruba o INSERT/UPDATE
@@ -234,10 +235,19 @@ router.delete('/:id', async (req: Request, res: Response) => {
 
 router.patch('/:id/status', async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, loss_reason } = req.body;
 
   if (!STATUSES.includes(status)) {
     res.status(400).json({ error: `status deve ser um de: ${STATUSES.join(', ')}` });
+    return;
+  }
+
+  // Motivo de perda estruturado: marcar como 'perdida' exige um motivo
+  // de uma lista fixa — antes disso o campo era texto livre opcional,
+  // então nada impedia a advogada de perder o lead sem nunca registrar
+  // por quê. Validado ANTES de qualquer escrita no banco.
+  if (status === 'perdida' && !LOSS_REASONS.includes(loss_reason)) {
+    res.status(400).json({ error: `loss_reason é obrigatório e deve ser um de: ${LOSS_REASONS.join(', ')}` });
     return;
   }
 
@@ -259,7 +269,14 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     ? ', first_response_at = COALESCE(first_response_at, NOW())'
     : '';
 
-  await db.query(`UPDATE leads SET status = ?${analiseSql}${primeiraRespostaSql} WHERE id = ?`, [status, id]);
+  // loss_reason só é gravado quando o novo status é 'perdida' (já
+  // validado acima) — em qualquer outra transição, o campo é ignorado
+  // nesta rota (não é limpo/resetado; um lead reaberto mantém o motivo
+  // anterior registrado como histórico até ser perdido de novo).
+  const lossReasonSql = status === 'perdida' ? ', loss_reason = ?' : '';
+  const params = status === 'perdida' ? [status, loss_reason, id] : [status, id];
+
+  await db.query(`UPDATE leads SET status = ?${analiseSql}${primeiraRespostaSql}${lossReasonSql} WHERE id = ?`, params);
 
   await logActivity({
     leadId: Number(id), clientId: prev.client_id, actorId: req.user!.id, actorName: req.user!.name,
