@@ -277,10 +277,13 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 // si (first_response_at) já é exibida direto no card do Kanban.
 router.post('/:id/mark-response', async (req: Request, res: Response) => {
   const { id } = req.params;
-  const [r] = await db.query(
-    'UPDATE leads SET first_response_at = COALESCE(first_response_at, NOW()) WHERE id = ?', [id]
-  ) as any;
-  if (!r.affectedRows) { res.status(404).json({ error: 'Lead não encontrado' }); return; }
+  // Existência checada por SELECT, não por affectedRows do UPDATE: como
+  // COALESCE torna o UPDATE idempotente, a 2ª chamada em diante não muda
+  // nada e affectedRows viria 0 mesmo com o lead existindo — daria 404
+  // fantasma pra clique repetido em "Chamar no WhatsApp" (caso comum).
+  const [existing] = await db.query('SELECT id FROM leads WHERE id = ?', [id]) as any;
+  if (!existing.length) { res.status(404).json({ error: 'Lead não encontrado' }); return; }
+  await db.query('UPDATE leads SET first_response_at = COALESCE(first_response_at, NOW()) WHERE id = ?', [id]);
   const [rows] = await db.query('SELECT first_response_at FROM leads WHERE id = ?', [id]) as any;
   res.json({ success: true, id: Number(id), first_response_at: rows[0].first_response_at });
 });
