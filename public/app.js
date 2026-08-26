@@ -5074,7 +5074,7 @@ async function finContasPagar(c) {
               <button class="btn-sm" data-edit="${r.id}">Editar</button>
               <button class="btn-sm" data-del="${r.id}" data-grp="${r.recurrence_group || ''}" data-tot="${r.installment_total || 1}">Excluir</button>`;
           return `<tr class="${r.escopo === 'pessoal' ? 'row-pessoal' : ''}">
-            <td>${r.description}${rec} ${escChip}${quem ? `<br><small style="color:var(--text-muted)">💳 ${esc(quem)}</small>` : ''}</td>
+            <td>${esc(r.description)}${rec} ${escChip}${quem ? `<br><small style="color:var(--text-muted)">💳 ${esc(quem)}</small>` : ''}</td>
             <td>${due ? fmtDate(due) : '—'}</td>
             <td>${money(r.amount)}</td>
             <td>${st}</td>
