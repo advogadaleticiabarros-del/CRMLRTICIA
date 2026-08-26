@@ -217,14 +217,37 @@ export function startCronJobs() {
     }, { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
-  // ── backup diário do banco: 02h (dump comprimido → MEGA) ── CRÍTICO ───────
-  cron.schedule('0 2 * * *', () => {
+  // ── backup 3x/dia: 02h, 09h, 19h (dump comprimido → MEGA + disco local) ───
+  // CRÍTICO só quando os DOIS destinos falham na mesma execução — a falha de
+  // só um deles ainda protege os dados (o outro destino segue funcionando),
+  // mas precisa de aviso específico: foi assim que o bloqueio de uma conta
+  // MEGA (EBLOCKED) passou dias sem ninguém notar, quando havia um único
+  // destino e a rotina inteira "falhava" de forma genérica.
+  const executarBackup = () => {
     runJob('backup:diario', async () => {
-      const r = await runBackup();
-      if (!r.ok) throw new Error(`Backup não realizado: ${r.message}`);
-      return { arquivo: r.file, kb: r.sizeKB };
+      const { mega, local } = await runBackup();
+
+      if (!mega.ok && !local.ok) {
+        throw new Error(`Backup NÃO realizado em nenhum destino — MEGA: ${mega.message} · Local: ${local.message}`);
+      }
+
+      if (!mega.ok || !local.ok) {
+        const falhou = !mega.ok ? 'MEGA' : 'disco local';
+        const motivo = !mega.ok ? mega.message : local.message;
+        await runJob('backup:diario:aviso-destino-parcial', async () => {
+          throw new Error(`Backup rodando em UM destino só — ${falhou} falhou: ${motivo}. O outro destino está protegendo os dados normalmente, mas isto precisa ser corrigido antes que também falhe.`);
+        }, { critica: false });
+      }
+
+      return {
+        mega: mega.ok ? { arquivo: mega.file, kb: mega.sizeKB } : { erro: mega.message },
+        local: local.ok ? { arquivo: local.file, kb: local.sizeKB } : { erro: local.message },
+      };
     }, { critica: true });
-  });
+  };
+  cron.schedule('0 2 * * *', executarBackup, { timezone: 'America/Sao_Paulo' });
+  cron.schedule('0 9 * * *', executarBackup, { timezone: 'America/Sao_Paulo' });
+  cron.schedule('0 19 * * *', executarBackup, { timezone: 'America/Sao_Paulo' });
 
   // ── dia 1 do mês, 03h30: PROVA REAL do backup (restaura num banco temporário)
   // Backup que não restaura não é backup — por isso é CRÍTICO e não pode calar.
