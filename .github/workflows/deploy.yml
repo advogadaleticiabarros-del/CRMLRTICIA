@@ -32,11 +32,14 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             npm install --include=dev
-            if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
-              grep -v '^OPENAI_API_KEY=' .env > .env.tmp || true
-              mv .env.tmp .env
-              echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
-            fi
+            for kv in "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" "MEGA_EMAIL=${{ secrets.MEGA_EMAIL }}" "MEGA_PASSWORD=${{ secrets.MEGA_PASSWORD }}"; do
+              k="${kv%%=*}"; v="${kv#*=}"
+              if [ -n "$v" ]; then
+                grep -v "^${k}=" .env > .env.tmp || true
+                mv .env.tmp .env
+                echo "${k}=${v}" >> .env
+              fi
+            done
             npm run build
             npm run migrate
             pm2 restart crm-juridico
@@ -60,11 +63,14 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             npm install --include=dev
-            if [ -n "${{ secrets.OPENAI_API_KEY }}" ]; then
-              grep -v '^OPENAI_API_KEY=' .env > .env.tmp || true
-              mv .env.tmp .env
-              echo "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" >> .env
-            fi
+            for kv in "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" "MEGA_EMAIL=${{ secrets.MEGA_EMAIL }}" "MEGA_PASSWORD=${{ secrets.MEGA_PASSWORD }}"; do
+              k="${kv%%=*}"; v="${kv#*=}"
+              if [ -n "$v" ]; then
+                grep -v "^${k}=" .env > .env.tmp || true
+                mv .env.tmp .env
+                echo "${k}=${v}" >> .env
+              fi
+            done
             npm run build
             npm run migrate
             pm2 restart crm-juridico
