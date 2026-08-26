@@ -27,14 +27,15 @@ async function buscarExpediente() {
   return parseExpedienteDeOfficeSettings(settings);
 }
 
-// Converte start_datetime/end_datetime UTC (como vêm do banco, formato
-// "YYYY-MM-DD HH:MM:SS") para string local Brasília "YYYY-MM-DDTHH:MM",
-// mesma convenção de entrada/saída de calcularSlotsDisponiveis. Não existe
-// utilitário pronto para esta direção no projeto (só localParaUtcMysql, que
-// é o sentido oposto) — implementado aqui, escopo local à rota de agenda.
-function utcMysqlParaLocalStr(utcMysql: string): string {
-  const d = new Date(utcMysql.replace(' ', 'T') + 'Z');
-  const localMs = d.getTime() - 3 * 60 * 60 * 1000; // Brasília = UTC-3, fixo
+// Converte start_datetime/end_datetime de calendar_events (o driver mysql2
+// devolve DATETIME como objeto Date — src/config/database.ts usa
+// dateStrings:false — nunca como string) para string local Brasília
+// "YYYY-MM-DDTHH:MM", mesma convenção de entrada/saída de
+// calcularSlotsDisponiveis. Não existe utilitário pronto para esta direção
+// no projeto (só localParaUtcMysql, que é o sentido oposto) — implementado
+// aqui, escopo local à rota de agenda.
+export function utcParaLocalStr(v: Date): string {
+  const localMs = v.getTime() - 3 * 60 * 60 * 1000; // Brasília = UTC-3, fixo
   const local = new Date(localMs);
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`;
@@ -47,8 +48,8 @@ async function buscarEventosExistentes(dataInicioStr: string, dataFimStr: string
     [`${dataFimStr} 23:59:59`, `${dataInicioStr} 00:00:00`]
   ) as any;
   return rows.map((r: any) => ({
-    start_datetime: utcMysqlParaLocalStr(String(r.start_datetime).replace('T', ' ').slice(0, 19)),
-    end_datetime: utcMysqlParaLocalStr(String(r.end_datetime).replace('T', ' ').slice(0, 19)),
+    start_datetime: utcParaLocalStr(r.start_datetime),
+    end_datetime: utcParaLocalStr(r.end_datetime),
   }));
 }
 
@@ -127,8 +128,18 @@ router.post('/agenda/agendar', async (req: Request, res: Response) => {
     return;
   }
 
-  const expediente = await buscarExpediente();
+  // Mesma janela que GET /slots publica (hoje..hoje+29) — sem isso, um
+  // start_datetime bem-formado mas arbitrário (passado ou distante) passava
+  // pela revalidação, já que ela só recalcula o dia pedido, não valida se
+  // esse dia está dentro do intervalo divulgado.
+  const hoje = hojeStrBrasilia();
   const dataStr = startDatetime.slice(0, 10);
+  if (dataStr < hoje || dataStr > addDaysToDateStr(hoje, 29)) {
+    res.status(400).json({ error: 'Horário inválido' });
+    return;
+  }
+
+  const expediente = await buscarExpediente();
   const endDatetime = (() => {
     const [datePart, timePart] = startDatetime.split('T');
     const [h, m] = timePart.split(':').map(Number);
@@ -210,7 +221,7 @@ router.post('/agenda/agendar', async (req: Request, res: Response) => {
     } catch { /* best-effort — mesmo padrão de calendar.ts:124 */ }
   }
 
-  await notifyNewLead({ leadId, name, phone, source: 'Agendamento site', area: null, message: message || 'Agendou consulta pelo site' });
+  await notifyNewLead({ leadId, name, phone, source: 'Agendamento site', area: null, message: message || 'Agendou consulta pelo site' }).catch(() => {});
 
   res.status(201).json({ success: true });
 });

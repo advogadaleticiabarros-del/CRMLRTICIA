@@ -1,8 +1,9 @@
+// tests/agendaSlots.test.mjs
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { calcularSlotsDisponiveis, parseExpedienteDeOfficeSettings, Expediente } from './agendaSlots';
+import { calcularSlotsDisponiveis, parseExpedienteDeOfficeSettings } from '../dist/services/agendaSlots.js';
 
-const expedientePadrao: Expediente = {
+const expedientePadrao = {
   diasSemana: [1, 2, 3, 4, 5], // seg-sex
   horaInicio: '09:00',
   horaFim: '12:00', // janela curta pra testes previsíveis: 09,10,11 (3 slots de 60min)
