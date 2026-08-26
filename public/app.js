@@ -2474,7 +2474,25 @@ async function renderIA(page) {
     <div class="page-header"><div><h2>IA Jurídica</h2><p class="sub">${cfg.auto ? 'Geração automática ativa' : 'Assistente — gera o prompt pronto para colar no ChatGPT/Claude'}</p></div>
       <button class="btn-gold" id="new-ia">+ Nova geração</button></div>
     ${cfg.auto ? '' : '<p class="sub" style="margin-bottom:14px">Sem custo de API: o sistema monta o texto pronto, você cola na IA que já assina (ChatGPT/Claude) e traz a resposta de volta. Para gerar automático, adicione uma chave grátis (Gemini/Groq) nas variáveis.</p>'}
+    <div class="card" style="margin-bottom:14px">
+      <p class="sub" style="margin-bottom:8px">Teste da chave OpenAI (em avaliação, antes de créditos pagos)</p>
+      <button class="btn-sm" id="btn-testar-openai">Testar OpenAI</button>
+      <span id="resultado-testar-openai" style="margin-left:10px;font-size:13px"></span>
+    </div>
     <div class="card"><div id="ia-table"></div></div>`;
+  $('#btn-testar-openai').onclick = async () => {
+    const out = $('#resultado-testar-openai');
+    out.textContent = 'Testando…';
+    out.style.color = 'var(--text-muted)';
+    try {
+      const r = await api('/api/ai/testar-openai', { method: 'POST', body: JSON.stringify({}) });
+      out.textContent = `✓ Funcionando — resposta: "${r.text}"`;
+      out.style.color = 'var(--green, #1e6b34)';
+    } catch (e) {
+      out.textContent = `✗ Erro: ${e.message}`;
+      out.style.color = 'var(--danger, #b94a40)';
+    }
+  };
   const load = async () => {
     const rows = await api('/api/ai');
     $('#ia-table').innerHTML = rows.length ? `
