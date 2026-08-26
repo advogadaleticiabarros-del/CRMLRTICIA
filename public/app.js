@@ -4026,6 +4026,10 @@ async function dashComercial(c) {
       ${chartCard('Leads por origem', chartHBars((d.por_origem || []).map((r) => ({ label: r.origem, value: r.total }))))}
       ${chartCard('Leads por área jurídica', chartHBars((d.por_area || []).map((r) => ({ label: r.area, value: r.total }))))}
     </div>
+    ${(d.motivos_perda || []).length ? chartCard('Motivos de perda', chartHBars((d.motivos_perda || []).map((r) => {
+      const opt = LOSS_REASONS_PT.find((o) => o.v === r.motivo);
+      return { label: opt ? opt.t : r.motivo, value: r.total };
+    }))) : ''}
     ${miniList('Rentabilidade por área (receita paga)', (d.rentabilidade_area || []).map((r) =>
       `<div class="mini-row"><span>${LEGAL_AREA_PT[r.legal_area] || r.legal_area}<br><small>${r.total_casos} caso${r.total_casos === 1 ? '' : 's'}</small></span>
         <span>${money(r.receita_total)}<br><small>média ${money(r.receita_media_caso)}/caso</small></span></div>`
@@ -5589,6 +5593,7 @@ function field(label, name, opts = {}) {
   return `<label>${label}<input type="${type}" name="${name}" value="${value ?? ''}"${maxlength ? ` maxlength="${maxlength}"` : ''} /></label>`;
 }
 const AREAS = [['outro','Outro'],['trabalhista','Trabalhista'],['gestante','Gestante/Maternidade'],['familia','Família'],['civel','Cível'],['previdenciario','Previdenciário'],['consumidor','Consumidor']].map(([v,t])=>({v,t}));
+const LOSS_REASONS_PT = [['preco','Achou o preço alto'],['sumiu','Parou de responder'],['foi_com_outro','Fechou com outro escritório'],['desistiu','Desistiu do processo'],['fora_area_atuacao','Fora da área de atuação'],['sem_perfil','Sem perfil pro caso'],['outro','Outro motivo']].map(([v,t])=>({v,t}));
 
 // Checagem de CONFLITO DE INTERESSES: procura o nome/CPF digitado entre
 // clientes, leads, casos (parte contrária citada) e dativas. Aviso, não trava.
@@ -5707,7 +5712,7 @@ async function leadDetail(id, onSave) {
     <div class="form-row">${field('Área', 'legal_area', { value: l.legal_area || 'outro', options: AREAS })}<button class="btn-sm" id="save-area" style="align-self:end">Salvar área</button></div>
     <hr style="border:none;border-top:1px solid var(--border)">
     ${field('Mover no funil', 'status', { value: l.status, options: stages.map(([v,t])=>({v,t})) })}
-    <div id="loss-wrap" style="display:none">${field('Motivo da perda', 'loss_reason', { value: l.loss_reason || '', type: 'textarea' })}</div>
+    <div id="loss-wrap" style="display:none">${field('Motivo da perda', 'loss_reason', { value: l.loss_reason || 'outro', options: LOSS_REASONS_PT })}</div>
     <button class="btn-primary" id="move">Atualizar etapa</button>
     <hr style="border:none;border-top:1px solid var(--border)">
     <button class="btn-gold" id="gen-prop" style="width:100%">Gerar proposta</button>
@@ -5763,10 +5768,9 @@ async function leadDetail(id, onSave) {
   form.querySelector('#move').onclick = async () => {
     try {
       const status = statusSel.value;
-      if (status === 'perdida') {
-        await api('/api/leads/' + id, { method: 'PUT', body: JSON.stringify({ loss_reason: form.querySelector('[name=loss_reason]').value }) });
-      }
-      await api(`/api/leads/${id}/status`, { method: 'PATCH', body: JSON.stringify({ status }) });
+      const body = { status };
+      if (status === 'perdida') body.loss_reason = form.querySelector('[name=loss_reason]').value;
+      await api(`/api/leads/${id}/status`, { method: 'PATCH', body: JSON.stringify(body) });
       closeModal(); toast('Etapa atualizada'); onSave();
     } catch (e) { toast(e.message, 'error'); }
   };
