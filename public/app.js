@@ -919,6 +919,29 @@ async function asaasConfigSection(container) {
   container.appendChild(box);
 }
 
+// Badge de tempo do cronômetro de primeira resposta do lead. Enquanto
+// aguardando (first_response_at null): tempo desde created_at, cor por
+// faixa (verde ≤1h, âmbar 1h-4h, vermelho >4h). Depois de respondido:
+// tempo que levou até a resposta, cor neutra — vira registro histórico,
+// não mais um alerta. Sem setInterval: recalcula a cada load() do board.
+function leadResponseBadge(createdAt, firstResponseAt) {
+  const fmt = (ms) => {
+    const min = Math.floor(ms / 60000);
+    if (min < 60) return `${Math.max(min, 0)}min`;
+    const h = Math.floor(min / 60);
+    if (h < 24) return `${h}h`;
+    return `${Math.floor(h / 24)}d`;
+  };
+  if (firstResponseAt) {
+    const ms = new Date(firstResponseAt) - new Date(createdAt);
+    return `<span class="badge-tempo badge-tempo-neutro" title="Tempo até a 1ª resposta">✓ ${fmt(ms)}</span>`;
+  }
+  const ms = Date.now() - new Date(createdAt);
+  const horas = ms / 3600000;
+  const cor = horas <= 1 ? 'verde' : horas <= 4 ? 'ambar' : 'vermelho';
+  return `<span class="badge-tempo badge-tempo-${cor}" title="Aguardando 1ª resposta">há ${fmt(ms)}</span>`;
+}
+
 // ── Pages ──
 const ROUTES = {
   async dashboard(page) {
@@ -1017,7 +1040,8 @@ const ROUTES = {
       $('#board').innerHTML = Object.entries(cols).map(([k, label]) => `
         <div class="kanban-col" data-stage="${k}"><h4>${label}<span class="count">${(b[k] || []).length}</span></h4>
         ${(b[k] || []).map((l) => `<div class="kanban-card" draggable="true" data-lead="${l.id}" data-stage="${k}">
-          <strong>${esc(l.name)}</strong><small>${l.legal_area || ''} · ${l.source || ''}</small></div>`).join('')}</div>`).join('');
+          <strong>${esc(l.name)}</strong><small>${l.legal_area || ''} · ${l.source || ''}</small>
+          ${leadResponseBadge(l.created_at, l.first_response_at)}</div>`).join('')}</div>`).join('');
 
       const moveLead = async (leadId, stage, from) => {
         if (!leadId || !stage || stage === from) return;
@@ -5709,6 +5733,10 @@ async function leadDetail(id, onSave) {
     const resumo = (l.case_summary || '').replace(/\[[^\]]*\]/g, '').replace(/["“”]/g, '').replace(/\s+/g, ' ').trim();
     // *asterisco* é a sintaxe de negrito do WhatsApp (não é markdown **).
     const texto = `Olá${primeiroNome ? ', ' + primeiroNome : ''}! Recebemos seu contato${resumo ? ` — resumo: "${resumo.slice(0, 300)}"` : ''}. *Em instantes vamos iniciar o seu atendimento, já pode separar os documentos do seu caso.*`;
+    // Fire-and-forget: marca a 1ª resposta do cronômetro sem esperar nem
+    // bloquear a navegação — a ação principal do usuário é ir conversar
+    // com o lead, a instrumentação nunca deve atrapalhar isso.
+    api('/api/leads/' + id + '/mark-response', { method: 'POST', body: '{}' }).catch(() => {});
     sessionStorage.setItem('wa_abrir_pendente', JSON.stringify({ phone: digits, nome: l.name, texto }));
     closeModal();
     location.hash = '#whatsapp';
