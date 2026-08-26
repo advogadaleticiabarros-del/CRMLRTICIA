@@ -140,8 +140,14 @@ router.post('/lead', async (req: Request, res: Response) => {
 
   // Qualificação automática pela IA (fire-and-forget) — só quando há texto
   // real; nunca atrasa nem falha a resposta ao formulário público.
+  // qualificarLead resolve {ok:false} em erro de banco (não rejeita) — um
+  // .catch() sozinho nunca veria essa falha. Loga (não pode lançar) pra
+  // não ficar cega caso a feature quebre silenciosamente, mesmo padrão já
+  // usado por interpretarMovimentacao em monitoringService.ts:209.
   if (message && message.length >= 15) {
-    qualificarLead(ins.insertId, message).catch(() => {});
+    qualificarLead(ins.insertId, message)
+      .then((r) => { if (!r.ok) console.error(`[qualificarLead ${ins.insertId}] ${r.message}`); })
+      .catch((e) => console.error(`[qualificarLead ${ins.insertId}] falha inesperada:`, e?.message || e));
   }
 
   res.status(201).json({ success: true });

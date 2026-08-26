@@ -151,9 +151,15 @@ router.post('/', async (req: Request, res: Response) => {
 
   // Qualificação automática pela IA (fire-and-forget) — case_summary é o
   // texto mais rico disponível no cadastro interno; sem ele, notes.
+  // qualificarLead resolve {ok:false} em erro de banco (não rejeita) — um
+  // .catch() sozinho nunca veria essa falha. Loga (não pode lançar) pra
+  // não ficar cega caso a feature quebre silenciosamente, mesmo padrão já
+  // usado por interpretarMovimentacao em monitoringService.ts:209.
   const textoQualificacao = rows[0].case_summary || rows[0].notes || '';
   if (textoQualificacao.length >= 15) {
-    qualificarLead(result.insertId, textoQualificacao).catch(() => {});
+    qualificarLead(result.insertId, textoQualificacao)
+      .then((r) => { if (!r.ok) console.error(`[qualificarLead ${result.insertId}] ${r.message}`); })
+      .catch((e) => console.error(`[qualificarLead ${result.insertId}] falha inesperada:`, e?.message || e));
   }
 
   res.status(201).json(rows[0]);
