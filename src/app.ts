@@ -61,6 +61,7 @@ import partnerRoutes from './routes/partners';
 import emailIntakeRoutes from './routes/emailIntake';
 import signPublicRoutes from './routes/sign-public';
 import propostaPublicRoutes from './routes/propostas-public';
+import agendaPublicRoutes from './routes/agenda-public';
 import backupRoutes from './routes/backup';
 import briefingRoutes from './routes/briefing';
 import metricsRoutes from './routes/metrics';
@@ -150,6 +151,7 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
   app.use('/api/public', leadPublicRoutes);     // formulário do site/blog → lead no funil
+  app.use('/api/public', agendaPublicRoutes);   // agendamento self-service de consulta
   app.use('/api/public', whatsappWebhookRoutes); // eventos da Uazapi (mensagens recebidas)
   app.use('/api/public', asaasWebhookRoutes);    // eventos de pagamento do Asaas
 
