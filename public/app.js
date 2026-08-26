@@ -942,6 +942,16 @@ function leadResponseBadge(createdAt, firstResponseAt) {
   return `<span class="badge-tempo badge-tempo-${cor}" title="Aguardando 1ª resposta">há ${fmt(ms)}</span>`;
 }
 
+// Badge de urgência comercial sugerida pela IA (sub-projeto "Qualificação
+// automática do lead pela IA"). Silêncio é o padrão: sem badge se baixa/
+// nulo — só chama atenção quando é alto ou médio, igual o resto do
+// sistema evita alarme constante.
+function leadUrgencyBadge(aiUrgency) {
+  if (aiUrgency === 'alta') return '<span class="badge-urgencia badge-urgencia-alta" title="Urgência sugerida pela IA">⚡ Urgente</span>';
+  if (aiUrgency === 'media') return '<span class="badge-urgencia badge-urgencia-media" title="Urgência sugerida pela IA">Atenção</span>';
+  return '';
+}
+
 // ── Pages ──
 const ROUTES = {
   async dashboard(page) {
@@ -1041,7 +1051,7 @@ const ROUTES = {
         <div class="kanban-col" data-stage="${k}"><h4>${label}<span class="count">${(b[k] || []).length}</span></h4>
         ${(b[k] || []).map((l) => `<div class="kanban-card" draggable="true" data-lead="${l.id}" data-stage="${k}">
           <strong>${esc(l.name)}</strong><small>${l.legal_area || ''} · ${l.source || ''}</small>
-          ${leadResponseBadge(l.created_at, l.first_response_at)}</div>`).join('')}</div>`).join('');
+          ${leadResponseBadge(l.created_at, l.first_response_at)}${leadUrgencyBadge(l.ai_urgency)}</div>`).join('')}</div>`).join('');
 
       const moveLead = async (leadId, stage, from) => {
         if (!leadId || !stage || stage === from) return;
@@ -5710,6 +5720,10 @@ async function leadDetail(id, onSave) {
     ${field('Resumo / contexto do caso', 'case_summary', { type: 'textarea', value: l.case_summary || '' })}
     <button class="btn-sm" id="save-summary" style="align-self:start">Salvar resumo/contexto</button>
     <div class="form-row">${field('Área', 'legal_area', { value: l.legal_area || 'outro', options: AREAS })}<button class="btn-sm" id="save-area" style="align-self:end">Salvar área</button></div>
+    ${(l.ai_urgency || l.ai_value_range) ? `<div style="font-size:12.5px;background:var(--surface-2,#f4f1ea);border-radius:8px;padding:8px 12px;color:var(--text-soft)">
+      <strong style="color:var(--navy)">Sugestão da IA:</strong>
+      ${l.ai_urgency ? ` urgência ${l.ai_urgency === 'alta' ? 'alta' : l.ai_urgency === 'media' ? 'média' : 'baixa'}` : ''}${l.ai_urgency && l.ai_value_range ? ' · ' : ''}${l.ai_value_range ? `valor estimado ${l.ai_value_range}` : ''}
+    </div>` : ''}
     <hr style="border:none;border-top:1px solid var(--border)">
     ${field('Mover no funil', 'status', { value: l.status, options: stages.map(([v,t])=>({v,t})) })}
     <div id="loss-wrap" style="display:none">${field('Motivo da perda', 'loss_reason', { value: l.loss_reason || 'outro', options: LOSS_REASONS_PT })}</div>

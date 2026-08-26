@@ -1665,3 +1665,8 @@ img, svg, video { max-width: 100%; }
 .badge-tempo-ambar { background: var(--amber-bg, #fbf1dc); color: var(--amber, #c08a2e); }
 .badge-tempo-vermelho { background: var(--red-bg, #fbe9e7); color: var(--red, #c4453b); }
 .badge-tempo-neutro { background: var(--surface-2, #f4f1ea); color: var(--text-muted, #7c7360); }
+
+/* Badge de urgência sugerida pela IA (Kanban de leads) */
+.badge-urgencia { display: inline-block; margin-top: 4px; margin-left: 4px; padding: 2px 7px; border-radius: 8px; font-size: 11px; font-weight: 600; }
+.badge-urgencia-alta { background: var(--red-bg, #fbe9e7); color: var(--red, #c4453b); }
+.badge-urgencia-media { background: var(--amber-bg, #fbf1dc); color: var(--amber, #c08a2e); }
