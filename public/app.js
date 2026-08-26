@@ -4940,6 +4940,13 @@ const GRUPOS_DESPESA = [
   ['outro_saida', 'Outras saídas'],
 ];
 const GRUPO_PT = Object.fromEntries(GRUPOS_DESPESA);
+// "repasse_parceiro" NÃO entra em GRUPOS_DESPESA de propósito: essa lista
+// também alimenta o <select> de categoria do formulário "+ Conta a pagar"
+// (contaPagarForm, campo 'category') — incluí-la lá deixaria a usuária
+// criar um lançamento manual da mesma categoria, colidindo semanticamente
+// com repasses de verdade (que vêm só da tabela `repasses`, somente-leitura
+// aqui). O rótulo entra direto no dicionário de EXIBIÇÃO.
+GRUPO_PT.repasse_parceiro = 'Repasses a parceiros';
 
 async function finContasPagar(c) {
   const now = new Date();
@@ -5050,6 +5057,7 @@ async function finContasPagar(c) {
           <strong style="color:var(--navy)">${GRUPO_PT[k] || k}</strong><strong>${money(sub)}</strong></div>
         <table><thead><tr><th>Descrição</th><th>Vencimento</th><th>Valor</th><th>Status</th><th></th></tr></thead>
         <tbody>${items.map((r) => {
+          const ehRepasse = String(r.id).startsWith('repasse:');
           const due = (r.due_date || '').split('T')[0];
           const isVenc = r.status !== 'realizado' && due && due < todayStr;
           const st = r.status === 'realizado' ? '<span class="badge ativo">pago</span>'
@@ -5057,19 +5065,31 @@ async function finContasPagar(c) {
           const rec = r.installment_total > 1 ? ` <small style="color:var(--text-muted)">(${r.installment_no}/${r.installment_total})</small>` : '';
           const escChip = r.escopo === 'pessoal' ? '<span class="chip-escopo pessoal">' + svgIcon('users', 'ic-inline') + 'Pessoal</span>' : '<span class="chip-escopo empresa">' + svgIcon('building', 'ic-inline') + 'Empresa</span>';
           const quem = [r.pagador, r.banco].filter(Boolean).join(' · ');
+          // Repasse não é editável aqui: sua mudança de status vive na aba
+          // Repasses (finRepasses) — duplicar Pagar/Editar/Excluir nesta
+          // tela criaria dois caminhos de escrita para o mesmo dado.
+          const acoes = ehRepasse
+            ? `<button class="btn-sm" data-ver-repasse="1">Ver em Repasses</button>`
+            : `${r.status !== 'realizado' ? `<button class="btn-sm" data-pay="${r.id}">Pagar</button>` : `<button class="btn-sm" data-reopen="${r.id}" title="Desfazer pagamento">Reabrir</button>`}
+              <button class="btn-sm" data-edit="${r.id}">Editar</button>
+              <button class="btn-sm" data-del="${r.id}" data-grp="${r.recurrence_group || ''}" data-tot="${r.installment_total || 1}">Excluir</button>`;
           return `<tr class="${r.escopo === 'pessoal' ? 'row-pessoal' : ''}">
             <td>${r.description}${rec} ${escChip}${quem ? `<br><small style="color:var(--text-muted)">💳 ${esc(quem)}</small>` : ''}</td>
             <td>${due ? fmtDate(due) : '—'}</td>
             <td>${money(r.amount)}</td>
             <td>${st}</td>
-            <td style="white-space:nowrap;text-align:right">
-              ${r.status !== 'realizado' ? `<button class="btn-sm" data-pay="${r.id}">Pagar</button>` : `<button class="btn-sm" data-reopen="${r.id}" title="Desfazer pagamento">Reabrir</button>`}
-              <button class="btn-sm" data-edit="${r.id}">Editar</button>
-              <button class="btn-sm" data-del="${r.id}" data-grp="${r.recurrence_group || ''}" data-tot="${r.installment_total || 1}">Excluir</button>
-            </td></tr>`;
+            <td style="white-space:nowrap;text-align:right">${acoes}</td></tr>`;
         }).join('')}</tbody></table></div>`;
     }).join('') : `<div class="empty">${showPagas ? 'Nenhuma conta neste mês.' : 'Nenhuma conta a pagar em aberto neste mês.'} ${!showPagas && rows.some((r) => r.status === 'realizado') ? '<br><small>Há contas pagas — ative "Ver pagas" para exibi-las.</small>' : ''}</div>`;
 
+    $('#cp-groups').querySelectorAll('[data-ver-repasse]').forEach((b) => b.onclick = () => {
+      // Financeiro não navega por hash/URL: as abas trocam de conteúdo via
+      // show(name) local em routes.financeiro, disparado pelo onclick de
+      // cada <button class="tab" data-tab="..."> dentro de #fin-tabs.
+      // Simulamos o clique do usuário na aba "Repasses" em vez de reimplementar
+      // esse roteamento aqui.
+      document.querySelector('#fin-tabs [data-tab="repasses"]')?.click();
+    });
     $('#cp-groups').querySelectorAll('[data-pay]').forEach((b) => b.onclick = async () => {
       try { await api(`/api/cashflow/${b.dataset.pay}/pay`, { method: 'PATCH', body: '{}' }); toast('Marcado como pago'); load(); }
       catch (e) { toast(e.message, 'error'); }
