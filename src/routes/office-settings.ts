@@ -5,7 +5,12 @@ import { setGoalForMonth, currentMonth } from '../services/goalsService';
 const router = Router();
 
 // Chaves conhecidas — usadas no portal do cliente (Pix e contato).
-const KEYS = ['pix_key', 'pix_nome', 'pix_cidade', 'whatsapp', 'multa_percent', 'juros_mes_percent', 'meta_faturamento_mes', 'google_review_url', 'briefing_whatsapp'];
+const KEYS = [
+  'pix_key', 'pix_nome', 'pix_cidade', 'whatsapp', 'multa_percent', 'juros_mes_percent',
+  'meta_faturamento_mes', 'google_review_url', 'briefing_whatsapp',
+  'agenda_dias_semana', 'agenda_hora_inicio', 'agenda_hora_fim',
+  'agenda_duracao_consulta_min', 'agenda_self_service_ativo',
+];
 
 // ── GET /api/office-settings — config do escritório (Pix, WhatsApp) ─────────
 router.get('/', async (_req: Request, res: Response) => {
