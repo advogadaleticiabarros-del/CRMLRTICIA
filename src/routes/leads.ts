@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
 import { notifyNewLead } from '../services/leadAlert';
+import { qualificarLead } from '../services/aiAssistant';
 
 const router = Router();
 
@@ -39,7 +40,7 @@ router.get('/board', async (req: Request, res: Response) => {
   const placeholders = ACTIVE_STATUSES.map(() => '?').join(',');
   const [rows] = await db.query(
     `SELECT id, name, email, phone, source, legal_area, status, created_at, analise_since, first_response_at,
-            estimated_value, close_probability, next_followup
+            estimated_value, close_probability, next_followup, ai_urgency, ai_value_range
      FROM leads
      WHERE user_id = ? AND status IN (${placeholders})
      ORDER BY created_at DESC`,
@@ -147,6 +148,13 @@ router.post('/', async (req: Request, res: Response) => {
     description: `Origem: ${source || '—'} · Área: ${rows[0].legal_area || '—'}`,
     newValue: STATUS_PT[rows[0].status] || rows[0].status,
   });
+
+  // Qualificação automática pela IA (fire-and-forget) — case_summary é o
+  // texto mais rico disponível no cadastro interno; sem ele, notes.
+  const textoQualificacao = rows[0].case_summary || rows[0].notes || '';
+  if (textoQualificacao.length >= 15) {
+    qualificarLead(result.insertId, textoQualificacao).catch(() => {});
+  }
 
   res.status(201).json(rows[0]);
 });

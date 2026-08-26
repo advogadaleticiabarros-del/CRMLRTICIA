@@ -6,6 +6,7 @@ import { normalizeChannel } from '../services/leadChannel';
 import { notifyNewLead } from '../services/leadAlert';
 import { sendEmail, layout } from '../services/EmailService';
 import { sendText } from '../services/uazapiInstance';
+import { qualificarLead } from '../services/aiAssistant';
 
 const router = Router();
 
@@ -135,6 +136,12 @@ router.post('/lead', async (req: Request, res: Response) => {
 
   if (utm_campaign && CAMPANHAS_EBOOK[utm_campaign]) {
     enviarEbook(utm_campaign, name, email, phone).catch(() => {});
+  }
+
+  // Qualificação automática pela IA (fire-and-forget) — só quando há texto
+  // real; nunca atrasa nem falha a resposta ao formulário público.
+  if (message && message.length >= 15) {
+    qualificarLead(ins.insertId, message).catch(() => {});
   }
 
   res.status(201).json({ success: true });
