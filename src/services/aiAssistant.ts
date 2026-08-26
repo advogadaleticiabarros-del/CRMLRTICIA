@@ -12,8 +12,12 @@ import { db } from '../config/database';
  * Cada chamada tenta primeiro o provedor preferido e cai no outro se ele não
  * estiver configurado ou falhar. Sem nenhuma chave, devolve { ok:false } e o
  * fluxo manual (colar resposta) continua valendo.
+ *
+ * 'openai' é um terceiro provedor opcional (em teste) — usado só quando
+ * explicitamente preferido, nunca entra no fallback automático de
+ * gemini/groq (que seguem grátis e são a base padrão do escritório).
  */
-type Provider = 'gemini' | 'groq';
+type Provider = 'gemini' | 'groq' | 'openai';
 
 async function callGemini(prompt: string): Promise<{ ok: boolean; text?: string; message?: string }> {
   const key = process.env.GEMINI_API_KEY;
@@ -45,14 +49,35 @@ async function callGroq(prompt: string): Promise<{ ok: boolean; text?: string; m
   return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
 }
 
+async function callOpenAI(prompt: string): Promise<{ ok: boolean; text?: string; message?: string }> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return { ok: false, message: 'sem_openai' };
+  // gpt-4o-mini: modelo mais barato da OpenAI, usado para teste inicial
+  // (créditos grátis) antes de decidir sobre uso pago em produção.
+  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
+  });
+  const d: any = await r.json();
+  if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro OpenAI' };
+  return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
+}
+
 /**
  * Executa um prompt no provedor preferido, com fallback automático no outro.
- * @param prefer  'gemini' para redigir peças, 'groq' para análise/triagem.
+ * @param prefer  'gemini' para redigir peças, 'groq' para análise/triagem,
+ *                'openai' só quando explicitamente pedido (teste) — sem
+ *                fallback automático de/para gemini/groq nesse caso.
  */
 export async function aiComplete(
   prompt: string,
   prefer: Provider = 'gemini'
 ): Promise<{ ok: boolean; text?: string; message?: string }> {
+  if (prefer === 'openai') {
+    const r = await callOpenAI(prompt);
+    return r;
+  }
   const order: Provider[] = prefer === 'groq' ? ['groq', 'gemini'] : ['gemini', 'groq'];
   let lastMsg = 'sem_chave';
   for (const p of order) {

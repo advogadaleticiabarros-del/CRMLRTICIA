@@ -134,6 +134,16 @@ router.get('/config', (_req: Request, res: Response) => {
   res.json({ auto: !!(process.env.GEMINI_API_KEY || process.env.GROQ_API_KEY) });
 });
 
+// ── POST /api/ai/testar-openai — teste isolado do provedor OpenAI ───────────
+// Não grava nada em ai_generations nem em nenhuma outra tabela — só confirma
+// que a chave/modelo respondem. Usar enquanto se decide sobre créditos pagos.
+router.post('/testar-openai', async (req: Request, res: Response) => {
+  const prompt = String(req.body?.prompt || '').trim() || 'Responda apenas "ok" para confirmar que a chave está funcionando.';
+  const r = await aiComplete(prompt, 'openai');
+  if (!r.ok) { res.status(502).json({ ok: false, error: r.message }); return; }
+  res.json({ ok: true, text: r.text });
+});
+
 router.get('/:id', async (req: Request, res: Response) => {
   const [rows] = await db.query('SELECT * FROM ai_generations WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
   if (!rows.length) { res.status(404).json({ error: 'Geração não encontrada' }); return; }
