@@ -37,7 +37,7 @@ router.get('/board', async (req: Request, res: Response) => {
 
   const placeholders = ACTIVE_STATUSES.map(() => '?').join(',');
   const [rows] = await db.query(
-    `SELECT id, name, email, phone, source, legal_area, status, created_at, analise_since,
+    `SELECT id, name, email, phone, source, legal_area, status, created_at, analise_since, first_response_at,
             estimated_value, close_probability, next_followup
      FROM leads
      WHERE user_id = ? AND status IN (${placeholders})
@@ -250,7 +250,16 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     ? ', analise_since = NOW()'
     : ', analise_since = NULL';
 
-  await db.query(`UPDATE leads SET status = ?${analiseSql} WHERE id = ?`, [status, id]);
+  // Cronômetro de primeira resposta: sair de 'triagem' pela 1ª vez é um
+  // dos 2 sinais que marcam "o escritório respondeu" (o outro é o botão
+  // de WhatsApp — ver POST /:id/mark-response). COALESCE garante que só
+  // a PRIMEIRA transição conta — mudanças de estágio subsequentes não
+  // reiniciam o cronômetro.
+  const primeiraRespostaSql = (prev.status === 'triagem' && status !== 'triagem')
+    ? ', first_response_at = COALESCE(first_response_at, NOW())'
+    : '';
+
+  await db.query(`UPDATE leads SET status = ?${analiseSql}${primeiraRespostaSql} WHERE id = ?`, [status, id]);
 
   await logActivity({
     leadId: Number(id), clientId: prev.client_id, actorId: req.user!.id, actorName: req.user!.name,
@@ -259,6 +268,21 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
   });
 
   res.json({ success: true, id: Number(id), status });
+});
+
+// ── POST /api/leads/:id/mark-response — marca a 1ª resposta ao lead ────────
+// Segundo sinal do cronômetro (o primeiro é sair de 'triagem', acima):
+// chamado pelo frontend quando a usuária clica em "Chamar no WhatsApp" no
+// card do lead. Não muda status, não gera journey_log — a informação em
+// si (first_response_at) já é exibida direto no card do Kanban.
+router.post('/:id/mark-response', async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const [r] = await db.query(
+    'UPDATE leads SET first_response_at = COALESCE(first_response_at, NOW()) WHERE id = ?', [id]
+  ) as any;
+  if (!r.affectedRows) { res.status(404).json({ error: 'Lead não encontrado' }); return; }
+  const [rows] = await db.query('SELECT first_response_at FROM leads WHERE id = ?', [id]) as any;
+  res.json({ success: true, id: Number(id), first_response_at: rows[0].first_response_at });
 });
 
 // ── POST /api/leads/:id/convert-client — converte lead em cliente ───────────
