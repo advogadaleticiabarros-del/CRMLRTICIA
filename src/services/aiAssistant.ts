@@ -322,3 +322,85 @@ ${teor}`;
   await db.query('UPDATE process_movements SET ai_summary = ? WHERE id = ?', [JSON.stringify(summary), movementId]);
   return { ok: true, summary };
 }
+
+// ── Qualificação automática de lead (área, urgência, faixa de valor) ────────
+// Mesmo padrão de interpretarMovimentacao/parseMovementAiResponse acima:
+// prompt com campos rotulados em texto plano, parser tolerante por regex,
+// fallback conservador se o campo não bater no formato esperado.
+const LEGAL_AREAS_VALIDAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
+
+export interface LeadQualification {
+  legal_area: string | null;
+  ai_urgency: 'alta' | 'media' | 'baixa' | null;
+  ai_value_range: 'alto' | 'medio' | 'baixo' | null;
+}
+
+export function parseLeadQualification(texto: string): LeadQualification {
+  const campo = (rotulo: string) => {
+    const m = texto.match(new RegExp(`${rotulo}:\\s*(.+)`, 'i'));
+    return m ? m[1].trim().toLowerCase() : '';
+  };
+
+  const areaRaw = campo('ÁREA').normalize('NFD').replace(/[̀-ͯ]/g, ''); // remove acento
+  const legal_area = LEGAL_AREAS_VALIDAS.includes(areaRaw) ? areaRaw : null;
+
+  const urgenciaRaw = campo('URGÊNCIA');
+  let ai_urgency: LeadQualification['ai_urgency'] = null;
+  if (urgenciaRaw === 'alta') ai_urgency = 'alta';
+  else if (urgenciaRaw === 'média' || urgenciaRaw === 'media') ai_urgency = 'media';
+  else if (urgenciaRaw) ai_urgency = 'baixa'; // qualquer outra coisa dita (inclusive "baixa") vira o default conservador
+
+  const faixaRaw = campo('FAIXA DE VALOR');
+  let ai_value_range: LeadQualification['ai_value_range'] = null;
+  if (faixaRaw === 'alto') ai_value_range = 'alto';
+  else if (faixaRaw === 'médio' || faixaRaw === 'medio') ai_value_range = 'medio';
+  else if (faixaRaw === 'baixo') ai_value_range = 'baixo';
+  // qualquer outra coisa (inclusive vazio) fica null — sem inventar faixa
+
+  return { legal_area, ai_urgency, ai_value_range };
+}
+
+/**
+ * Qualifica um lead novo pela IA: sugere área (só grava se o lead ainda
+ * não tiver uma), urgência comercial e faixa de valor estimado. Nunca
+ * lança exceção — chamado fire-and-forget na criação do lead (ver
+ * src/routes/lead-public.ts e src/routes/leads.ts).
+ */
+export async function qualificarLead(
+  leadId: number,
+  texto: string
+): Promise<{ ok: boolean; qualification?: LeadQualification; message?: string }> {
+  const teor = (texto || '').trim();
+  if (teor.length < 15) return { ok: false, message: 'Texto insuficiente para qualificar' };
+
+  const prompt = `Você é assistente comercial de um escritório de advocacia. Leia o relato de um lead (possível cliente) abaixo e responda EXATAMENTE neste formato, sem texto fora dele:
+ÁREA: <uma destas: trabalhista, gestante, familia, civel, previdenciario, consumidor, outro>
+URGÊNCIA: <Alta, Média ou Baixa — o quão rápido esse lead precisa ser atendido comercialmente>
+FAIXA DE VALOR: <Alto, Médio ou Baixo — estimativa qualitativa do potencial financeiro do caso>
+
+RELATO DO LEAD:
+${teor}`;
+
+  const r = await aiComplete(prompt, 'groq');
+  if (!r.ok || !r.text) return { ok: false, message: r.message || 'IA indisponível' };
+
+  const qualification = parseLeadQualification(r.text);
+
+  try {
+    if (qualification.legal_area) {
+      await db.query(
+        'UPDATE leads SET legal_area = COALESCE(legal_area, ?), ai_urgency = ?, ai_value_range = ? WHERE id = ?',
+        [qualification.legal_area, qualification.ai_urgency, qualification.ai_value_range, leadId]
+      );
+    } else {
+      await db.query(
+        'UPDATE leads SET ai_urgency = ?, ai_value_range = ? WHERE id = ?',
+        [qualification.ai_urgency, qualification.ai_value_range, leadId]
+      );
+    }
+  } catch (e: any) {
+    return { ok: false, message: e.message };
+  }
+
+  return { ok: true, qualification };
+}
