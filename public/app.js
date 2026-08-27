@@ -3046,9 +3046,8 @@ async function renderCorrespondente(page) {
               <option value="paga">Pagas</option>
               <option value="cancelada">Canceladas</option>
             </select></div>
-          <div><div class="section-header" style="margin-bottom:4px">${svgIcon('users', 'ic-inline')} Pagador</div>
-            <select id="corr-pagador" style="min-width:200px">
-              <option value="">Todos</option>
+          <div><div class="section-header" style="margin-bottom:4px">${svgIcon('users', 'ic-inline')} Pagador <small style="color:var(--text-muted);font-weight:400">(Ctrl/Cmd+clique para vários)</small></div>
+            <select id="corr-pagador" multiple style="min-width:200px;min-height:70px">
               ${pagadores.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}
             </select></div>
           <button class="btn-gold btn-sm" type="button" id="corr-guia">${svgIcon('banknote', 'ic-inline')} Guia de cobrança</button>
@@ -3111,14 +3110,14 @@ async function renderCorrespondente(page) {
     };
     const loadHistorico = async () => {
       const filtro = $('#corr-filter').value;
-      const pagador = $('#corr-pagador').value;
+      const pagadoresSel = Array.from($('#corr-pagador').selectedOptions).map((o) => o.value);
       const q = filtro ? '?status=' + filtro : '';
       let rows = await api('/api/correspondente' + q);
       rows = rows.filter((r) => {
         const d = r.hearing_datetime ? String(r.hearing_datetime).slice(0, 10) : '';
         if (corrPeriodo.de && (!d || d < corrPeriodo.de)) return false;
         if (corrPeriodo.ate && (!d || d > corrPeriodo.ate)) return false;
-        if (pagador && r.payer_name !== pagador) return false;
+        if (pagadoresSel.length && !pagadoresSel.includes(r.payer_name)) return false;
         return true;
       });
       rowsCache = rows;
@@ -3145,7 +3144,7 @@ async function renderCorrespondente(page) {
       const pendentes = rowsCache.filter((r) => ['agendada', 'realizada', 'faturada'].includes(r.status));
       if (!pendentes.length) { toast('Nenhuma audiência pendente de recebimento nesse filtro', 'error'); return; }
       const total = pendentes.reduce((s, r) => s + Number(r.value || 0), 0);
-      const pagadorSel = $('#corr-pagador').value;
+      const pagadoresSel = Array.from($('#corr-pagador').selectedOptions).map((o) => o.value);
       const linhas = pendentes.map((r) => `<tr>
         <td>${fmtDateTime(r.hearing_datetime)}</td>
         <td>${esc(r.process_number || '—')}</td>
@@ -3166,7 +3165,7 @@ async function renderCorrespondente(page) {
         </div>
         <p style="margin-top:14px;font-size:10.5pt;color:#6b6252">Favor efetuar o pagamento referente às audiências de correspondente acima. Qualquer dúvida, estamos à disposição.</p>
         <p style="margin-top:8px;font-size:10.5pt;color:#6b6252"><strong>Confira sempre o nome do titular antes de transferir.</strong> Não nos responsabilizamos por valores enviados por engano para contas de terceiros — utilize somente a chave PIX informada acima.</p>`;
-      printBranded('Guia de Recebimento — Correspondente Jurídico', pagadorSel ? `Pagador: ${pagadorSel}` : 'Todos os pagadores', html);
+      printBranded('Guia de Recebimento — Correspondente Jurídico', pagadoresSel.length ? `Pagador(es): ${pagadoresSel.join(', ')}` : 'Todos os pagadores', html);
     };
     await loadHistorico();
   };
