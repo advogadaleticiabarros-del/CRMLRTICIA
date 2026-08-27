@@ -7173,7 +7173,7 @@ async function dativeDocUploadForm(file, { clientId, dativeCaseId }, onSave) {
 // documentos já anexados (Abrir/Baixar/Excluir) e uma zona clicável +
 // arrastar-e-soltar para anexar novos. onSave reabre a tela pra atualizar a lista.
 async function dativeDocsSection(dativeCaseId, clientId, onSave) {
-  const docs = clientId ? await api('/api/documents?dative_case_id=' + dativeCaseId) : [];
+  const docs = await api('/api/documents?dative_case_id=' + dativeCaseId);
   const FOLDER_LABEL = Object.fromEntries(DATIVE_DOC_FOLDERS.map((f) => [f.v, f.t]));
   const list = docs.length ? docs.map((d) => `<div class="mini-row">
       <span>${esc(d.name)}<br><small style="color:var(--text-muted)">${FOLDER_LABEL[d.folder] || d.folder} · ${fmtDate(d.created_at)}</small></span>
