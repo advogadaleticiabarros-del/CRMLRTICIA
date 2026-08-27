@@ -6,7 +6,7 @@ import { logTimeline } from '../services/TimelineService';
 const router = Router();
 
 // Pastas automáticas (GED) por cliente
-export const FOLDERS = ['contratos', 'procuracoes', 'documentos_pessoais', 'processos', 'financeiro', 'audiencias', 'outros'];
+export const FOLDERS = ['contratos', 'procuracoes', 'documentos_pessoais', 'processos', 'financeiro', 'audiencias', 'nomeacao', 'certidao_audiencia', 'comprovante_atuacao', 'outros'];
 const STATUSES = ['pendente', 'recebido', 'assinado', 'arquivado'];
 
 const round = (s: string) => s;
@@ -116,8 +116,9 @@ router.get('/', async (req: Request, res: Response) => {
   const where: string[] = ['1=1']; const params: any[] = [];
   if (req.query.client_id) { where.push('d.client_id = ?'); params.push(req.query.client_id); }
   if (req.query.folder) { where.push('d.folder = ?'); params.push(req.query.folder); }
+  if (req.query.dative_case_id) { where.push('d.dative_case_id = ?'); params.push(req.query.dative_case_id); }
   const [rows] = await db.query(
-    `SELECT d.id, d.client_id, d.case_id, d.name, d.type, d.folder, d.status, d.file_url,
+    `SELECT d.id, d.client_id, d.case_id, d.dative_case_id, d.name, d.type, d.folder, d.status, d.file_url,
             d.visible_to_client, (d.content IS NOT NULL) AS has_content, (d.data IS NOT NULL) AS has_data,
             d.created_at, c.name AS client_name
        FROM documents d LEFT JOIN clients c ON c.id = d.client_id
@@ -138,7 +139,7 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 router.post('/', async (req: Request, res: Response) => {
-  const { client_id, case_id, name, folder, type, file_url, status, content, file_base64, mime } = req.body;
+  const { client_id, case_id, dative_case_id, name, folder, type, file_url, status, content, file_base64, mime } = req.body;
   if (!client_id) { res.status(400).json({ error: 'client_id é obrigatório' }); return; }
   if (!name || !String(name).trim()) { res.status(400).json({ error: 'O nome é obrigatório' }); return; }
 
@@ -153,15 +154,15 @@ router.post('/', async (req: Request, res: Response) => {
   }
 
   const [r] = await db.query(
-    `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, content, data, mime, status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [client_id, case_id ?? null, name.trim(), type ?? null,
+    `INSERT INTO documents (client_id, case_id, dative_case_id, name, type, folder, file_url, content, data, mime, status, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [client_id, case_id ?? null, dative_case_id ?? null, name.trim(), type ?? null,
      FOLDERS.includes(folder) ? folder : 'outros', file_url ?? null, content ?? null,
      data, data ? (mime || 'application/octet-stream') : null,
      STATUSES.includes(status) ? status : 'recebido', req.user!.id]
   ) as any;
   const [rows] = await db.query(
-    'SELECT id, client_id, case_id, name, type, folder, file_url, status, visible_to_client, (data IS NOT NULL) AS has_data, created_at FROM documents WHERE id = ?',
+    'SELECT id, client_id, case_id, dative_case_id, name, type, folder, file_url, status, visible_to_client, (data IS NOT NULL) AS has_data, created_at FROM documents WHERE id = ?',
     [r.insertId]
   ) as any;
   res.status(201).json(rows[0]);

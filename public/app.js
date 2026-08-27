@@ -2587,7 +2587,7 @@ async function iaViewer(id, onSave) {
   openModal(g.title || 'Geração de IA', wrap);
 }
 
-const FOLDER_PT = { contratos: 'Contratos', procuracoes: 'Procurações', documentos_pessoais: 'Documentos pessoais', processos: 'Processos', financeiro: 'Financeiro', audiencias: 'Audiências', outros: 'Outros' };
+const FOLDER_PT = { contratos: 'Contratos', procuracoes: 'Procurações', documentos_pessoais: 'Documentos pessoais', processos: 'Processos', financeiro: 'Financeiro', audiencias: 'Audiências', nomeacao: 'Termo de nomeação', certidao_audiencia: 'Certidão de audiência', comprovante_atuacao: 'Comprovante de atuação', outros: 'Outros' };
 
 async function renderDocumentos(page) {
   page.innerHTML = `
@@ -7122,6 +7122,105 @@ async function portalCaseDetail(id) {
 // ── Módulo Dativo ──
 const DATIVE_AREAS = [['criminal','Criminal'],['familia','Família'],['civel','Cível'],['previdenciario','Previdenciário'],['trabalhista','Trabalhista'],['infancia','Infância'],['outro','Outro']].map(([v,t])=>({v,t}));
 
+const DATIVE_DOC_FOLDERS = [
+  ['nomeacao', 'Termo de nomeação'],
+  ['certidao_audiencia', 'Certidão de audiência'],
+  ['comprovante_atuacao', 'Comprovante de atuação'],
+  ['outros', 'Outros'],
+].map(([v, t]) => ({ v, t }));
+
+// Lê um File do navegador como data URL (base64) — Promise em volta do
+// FileReader, mesmo padrão já usado em uploadDocForm (GED geral).
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+// Envia um arquivo anexado a uma demanda dativa — pede a categoria (pasta)
+// e grava em documents com client_id (assistido) + dative_case_id vinculados.
+async function dativeDocUploadForm(file, { clientId, dativeCaseId }, onSave) {
+  if (file.size > 15 * 1024 * 1024) { toast('Arquivo maior que 15MB', 'error'); return; }
+  const form = el(`<form class="form-grid">
+    ${field('Nome do documento *', 'name', { value: file.name })}
+    ${field('Categoria', 'folder', { value: 'outros', options: DATIVE_DOC_FOLDERS })}
+    <button type="submit" class="btn-primary">Enviar</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Enviando…';
+    try {
+      const g = (n) => form.querySelector(`[name=${n}]`)?.value;
+      const file_base64 = await readFileAsDataUrl(file);
+      await api('/api/documents', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_id: clientId, dative_case_id: dativeCaseId,
+          name: (g('name') && g('name').trim()) || file.name,
+          folder: g('folder'), file_base64, mime: file.type,
+        }),
+      });
+      closeModal(); toast('Documento anexado'); onSave();
+    } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Enviar'; }
+  };
+  openModal('Anexar documento', form);
+}
+
+// Monta a seção "Documentos" da tela de detalhe do dativo: lista os
+// documentos já anexados (Abrir/Baixar/Excluir) e uma zona clicável +
+// arrastar-e-soltar para anexar novos. onSave reabre a tela pra atualizar a lista.
+async function dativeDocsSection(dativeCaseId, clientId, onSave) {
+  const docs = await api('/api/documents?dative_case_id=' + dativeCaseId);
+  const FOLDER_LABEL = Object.fromEntries(DATIVE_DOC_FOLDERS.map((f) => [f.v, f.t]));
+  const list = docs.length ? docs.map((d) => `<div class="mini-row">
+      <span>${esc(d.name)}<br><small style="color:var(--text-muted)">${FOLDER_LABEL[d.folder] || d.folder} · ${fmtDate(d.created_at)}</small></span>
+      <span>${d.has_data == 1 ? `<button type="button" class="btn-sm" data-ddoc-download="${d.id}" data-ddoc-name="${esc(d.name)}">Baixar</button>` : ''} <button type="button" class="btn-sm" data-ddoc-del="${d.id}">×</button></span>
+    </div>`).join('') : '<small style="color:var(--text-muted)">Nenhum documento anexado ainda</small>';
+
+  const section = el(`<div>
+    <strong style="font-size:13px">Documentos</strong>
+    <div id="ddoc-list" style="margin:8px 0">${list}</div>
+    <div id="ddoc-drop" style="border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:13px">
+      Clique ou arraste um arquivo aqui para anexar
+      <input type="file" id="ddoc-input" accept=".pdf,.doc,.docx,image/*" style="display:none">
+    </div>
+  </div>`);
+
+  const refresh = async () => {
+    const parent = section.parentElement;
+    const fresh = await dativeDocsSection(dativeCaseId, clientId, onSave);
+    if (parent) parent.replaceChild(fresh, section);
+    return fresh;
+  };
+
+  section.querySelectorAll('[data-ddoc-download]').forEach((b) => b.onclick = () => downloadDocFile(b.dataset.ddocDownload, b.dataset.ddocName));
+  section.querySelectorAll('[data-ddoc-del]').forEach((b) => b.onclick = async () => {
+    try { await api('/api/documents/' + b.dataset.ddocDel, { method: 'DELETE' }); toast('Documento removido'); refresh(); }
+    catch (e) { toast(e.message, 'error'); }
+  });
+
+  const drop = section.querySelector('#ddoc-drop');
+  const input = section.querySelector('#ddoc-input');
+  const handleFile = (file) => {
+    if (!file) return;
+    if (!clientId) { toast('Informe e salve o assistido antes de anexar documentos', 'error'); return; }
+    dativeDocUploadForm(file, { clientId, dativeCaseId }, refresh);
+  };
+  drop.onclick = () => input.click();
+  input.onchange = () => handleFile(input.files[0]);
+  drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.style.outline = '2px dashed var(--gold)'; });
+  drop.addEventListener('dragleave', () => { drop.style.outline = ''; });
+  drop.addEventListener('drop', (e) => {
+    e.preventDefault(); drop.style.outline = '';
+    handleFile(e.dataTransfer.files[0]);
+  });
+
+  return section;
+}
+
 async function datProjecao(c) {
   const s = await api('/api/dative/summary');
   c.innerHTML = `
@@ -7316,6 +7415,8 @@ async function dativeCaseDetail(id, onSave) {
     <hr style="border:none;border-top:1px solid var(--border)">
     <strong style="font-size:13px">Audiências (clique para editar o valor/data)</strong>
     <div>${hearings}</div>
+    <hr style="border:none;border-top:1px solid var(--border)">
+    <div id="dat-docs-slot"></div>
   </div>`);
 
   form.querySelector('#dat-save').onclick = async () => {
@@ -7383,6 +7484,8 @@ async function dativeCaseDetail(id, onSave) {
     };
     openModal('Gerar aceite de nomeação', gform);
   };
+  const docsSection = await dativeDocsSection(id, d.client_id, () => dativeCaseDetail(id, onSave));
+  form.querySelector('#dat-docs-slot').replaceWith(docsSection);
   openModal('Demanda dativa', form);
 }
 
