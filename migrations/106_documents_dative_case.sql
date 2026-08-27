@@ -4,6 +4,6 @@
 -- documento pode continuar existindo só com client_id/case_id, como hoje.
 -- Ver docs/superpowers/specs/2026-08-27-dativo-documentos-design.md
 ALTER TABLE documents
-  ADD COLUMN dative_case_id INT NULL,
+  ADD COLUMN dative_case_id INT UNSIGNED NULL,
   ADD CONSTRAINT fk_documents_dative_case
-    FOREIGN KEY (dative_case_id) REFERENCES dative_cases(id);
+    FOREIGN KEY (dative_case_id) REFERENCES dative_cases(id) ON DELETE SET NULL;
