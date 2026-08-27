@@ -5,5 +5,6 @@
 -- Ver docs/superpowers/specs/2026-08-27-dativo-documentos-design.md
 ALTER TABLE documents
   ADD COLUMN dative_case_id INT UNSIGNED NULL,
+  ADD INDEX idx_documents_dative_case (dative_case_id),
   ADD CONSTRAINT fk_documents_dative_case
     FOREIGN KEY (dative_case_id) REFERENCES dative_cases(id) ON DELETE SET NULL;
