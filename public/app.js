@@ -2587,7 +2587,7 @@ async function iaViewer(id, onSave) {
   openModal(g.title || 'Geração de IA', wrap);
 }
 
-const FOLDER_PT = { contratos: 'Contratos', procuracoes: 'Procurações', documentos_pessoais: 'Documentos pessoais', processos: 'Processos', financeiro: 'Financeiro', audiencias: 'Audiências', outros: 'Outros' };
+const FOLDER_PT = { contratos: 'Contratos', procuracoes: 'Procurações', documentos_pessoais: 'Documentos pessoais', processos: 'Processos', financeiro: 'Financeiro', audiencias: 'Audiências', nomeacao: 'Termo de nomeação', certidao_audiencia: 'Certidão de audiência', comprovante_atuacao: 'Comprovante de atuação', outros: 'Outros' };
 
 async function renderDocumentos(page) {
   page.innerHTML = `
