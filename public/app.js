@@ -2782,9 +2782,28 @@ async function gerarDocForm(clientId, onSave) {
   openModal('Gerar documento', form);
 }
 
+// Camada de confiança (Fase 5): banner mostrando o que a IA marcou como
+// pendente ("[a conferir]", "[colchete a preencher]" etc. — regra
+// anti-invenção dos prompts de redação) antes da advogada ler o documento
+// inteiro. pending_count/pending_examples vêm calculados pelo servidor
+// (GET /api/documents/:id), direto do texto salvo.
+function docConfiancaBannerHtml(doc) {
+  if (!doc.content) return '';
+  const n = doc.pending_count || 0;
+  if (n === 0) {
+    return `<div style="display:flex;align-items:center;gap:8px;padding:10px 14px;border-radius:8px;background:var(--green-soft,#e3efe4);color:var(--green,#2f7a4f);font-size:13px;margin-bottom:10px">${svgIcon('check', 'ic-xs')}<strong>Sem pendências marcadas</strong> — confira o conteúdo normalmente antes de protocolar.</div>`;
+  }
+  const exemplos = (doc.pending_examples || []).map((e) => `<li>${esc(e)}</li>`).join('');
+  return `<div style="padding:10px 14px;border-radius:8px;background:var(--amber-soft,#f6ecd6);color:var(--amber,#9a6b12);font-size:13px;margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px"><strong>${n} pendência${n > 1 ? 's' : ''} marcada${n > 1 ? 's' : ''} pela IA</strong> — precisa conferir antes de protocolar.</div>
+    ${exemplos ? `<ul style="margin:6px 0 0;padding-left:20px">${exemplos}</ul>` : ''}
+  </div>`;
+}
+
 async function docViewer(id, onSave) {
   const doc = await api('/api/documents/' + id);
   const wrap = el(`<div>
+    ${docConfiancaBannerHtml(doc)}
     <textarea id="doc-content" style="width:100%;min-height:340px;font-family:Georgia,serif;line-height:1.6;white-space:pre-wrap">${doc.content || ''}</textarea>
     <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
       <button class="btn-primary" id="doc-save" style="width:auto">Salvar</button>
@@ -6698,7 +6717,18 @@ async function caseDetail(id, onSave) {
       const histHtml = histItems.length ? histItems.map((h) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft)"><span style="font-size:10px;background:#eef2f8;padding:1px 6px;border-radius:8px">${esc(h.tag)}</span> <span style="font-size:13px">${esc(h.text)}</span><br><small style="color:var(--text-muted)">${esc(h.who || '')} · ${fmtDate(h.when)}</small></div>`).join('') : '<small style="color:var(--text-muted)">Sem registros</small>';
       // Documentos vinculados a este caso (petições, minutas, anexos…).
       const docs = (await api('/api/documents?client_id=' + (c.client_id || '')).catch(() => [])).filter((d) => d.case_id == id);
-      const docsHtml = docs.length ? docs.map((d) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:13px">${esc(d.name)}<br><small style="color:var(--text-muted)">${esc(d.type || 'documento')} · ${esc(d.status || '')} · ${fmtDate(d.created_at)}</small></span><span style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn-sm" type="button" data-vis="${d.id}" data-on="${Number(d.visible_to_client) ? 1 : 0}" title="Mostrar/ocultar no portal do cliente" ${Number(d.visible_to_client) ? 'style="border-color:var(--green);color:var(--green)"' : ''}>${Number(d.visible_to_client) ? 'Visível ao cliente ✓' : 'Liberar p/ cliente'}</button><button class="btn-gold btn-sm" type="button" data-doc="${d.id}">Abrir</button></span></div>`).join('') : '<small style="color:var(--text-muted)">Nenhum documento vinculado a este caso ainda.</small>';
+      // Camada de confiança (Fase 5): pending_count vem calculado pelo servidor
+      // (contagem de "[colchetes]" no conteúdo — regra anti-invenção dos
+      // prompts de redação) — dá pra ver de longe, sem abrir, o que a IA
+      // deixou pendente antes da advogada revisar.
+      const pendBadge = (d) => {
+        if (!d.has_content) return '';
+        const n = Number(d.pending_count) || 0;
+        return n > 0
+          ? `<span class="badge" style="background:var(--amber-soft,#f6ecd6);color:var(--amber,#9a6b12);margin-left:6px">${n} a conferir</span>`
+          : `<span class="badge" style="background:var(--green-soft,#e3efe4);color:var(--green,#2f7a4f);margin-left:6px">sem pendências</span>`;
+      };
+      const docsHtml = docs.length ? docs.map((d) => `<div style="padding:6px 0;border-bottom:1px solid var(--border-soft);display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:13px">${esc(d.name)}${pendBadge(d)}<br><small style="color:var(--text-muted)">${esc(d.type || 'documento')} · ${esc(d.status || '')} · ${fmtDate(d.created_at)}</small></span><span style="display:flex;gap:4px;flex-wrap:wrap"><button class="btn-sm" type="button" data-vis="${d.id}" data-on="${Number(d.visible_to_client) ? 1 : 0}" title="Mostrar/ocultar no portal do cliente" ${Number(d.visible_to_client) ? 'style="border-color:var(--green);color:var(--green)"' : ''}>${Number(d.visible_to_client) ? 'Visível ao cliente ✓' : 'Liberar p/ cliente'}</button><button class="btn-gold btn-sm" type="button" data-doc="${d.id}">Abrir</button></span></div>`).join('') : '<small style="color:var(--text-muted)">Nenhum documento vinculado a este caso ainda.</small>';
       panel.innerHTML = `
         <hr style="border:none;border-top:1px solid var(--border)">
         <strong style="font-size:13px;color:var(--navy)">Produção — acompanhamento</strong>

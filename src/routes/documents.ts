@@ -14,6 +14,20 @@ function dataExtenso(): string {
   return new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
+// ── Fase 5 do roteiro de evolução: camada de confiança ──────────────────────
+// As peças redigidas por IA (petição inicial, minuta do Estagiário IA) usam
+// "[colchetes]" pra marcar tudo que não pôde confirmar nos autos (regra
+// anti-invenção nos prompts de peticaoBuilder.ts/aiAssistant.ts) — em vez de
+// a advogada descobrir isso só lendo o documento inteiro, contamos e
+// mostramos de cara quantas pendências têm e quais são, antes de abrir.
+const PENDENCIA_RE = /\[[^\]\n]{3,140}\]/g;
+function analisarPendencias(texto: string | null | undefined): { count: number; exemplos: string[] } {
+  const t = texto || '';
+  const achados = t.match(PENDENCIA_RE) || [];
+  const exemplos = [...new Set(achados.map((s) => s.slice(1, -1).trim()))].slice(0, 6);
+  return { count: achados.length, exemplos };
+}
+
 // ── TEMPLATES ───────────────────────────────────────────────────────────────
 router.get('/templates', async (_req: Request, res: Response) => {
   const [rows] = await db.query('SELECT id, name, category, content, instructions, applies_to, legal_basis, piece_type, updated_at FROM document_templates ORDER BY category, name') as any;
@@ -122,6 +136,7 @@ router.get('/', async (req: Request, res: Response) => {
   const [rows] = await db.query(
     `SELECT d.id, d.client_id, d.case_id, d.dative_case_id, d.name, d.type, d.folder, d.status, d.file_url,
             d.visible_to_client, (d.content IS NOT NULL) AS has_content, (d.data IS NOT NULL) AS has_data,
+            (LENGTH(d.content) - LENGTH(REPLACE(d.content, '[', ''))) AS pending_count,
             d.created_at, c.name AS client_name
        FROM documents d LEFT JOIN clients c ON c.id = d.client_id
       WHERE ${where.join(' AND ')} ORDER BY d.created_at DESC LIMIT 500`, params
@@ -137,7 +152,9 @@ router.get('/', async (req: Request, res: Response) => {
 router.get('/:id', async (req: Request, res: Response) => {
   const [rows] = await db.query('SELECT * FROM documents WHERE id = ?', [req.params.id]) as any;
   if (!rows.length) { res.status(404).json({ error: 'Documento não encontrado' }); return; }
-  res.json(rows[0]);
+  const doc = rows[0];
+  const { count, exemplos } = analisarPendencias(doc.content);
+  res.json({ ...doc, pending_count: count, pending_examples: exemplos });
 });
 
 router.post('/', async (req: Request, res: Response) => {
