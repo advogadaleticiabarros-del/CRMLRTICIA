@@ -7459,19 +7459,18 @@ async function dativeCaseDetail(id, onSave) {
     // Quando a demanda foi detectada automaticamente (origem = auto_djen), d.juizo/
     // d.decisao_id/d.qualificacao_parte já vêm preenchidos pela extração por IA —
     // o campo só existe pra advogada conferir/corrigir, não pra digitar do zero.
-    const juizoSugerido = d.juizo || [d.vara, d.comarca ? `de ${d.comarca}` : ''].filter(Boolean).join(' ');
+    const juizoBase = d.juizo || [d.vara, d.comarca ? `de ${d.comarca}` : ''].filter(Boolean).join(' ');
+    const juizoSugerido = d.juizo ? d.juizo.replace(/\s+/g, ' ').trim() : (juizoBase ? `DO ${juizoBase.toUpperCase()}` : '');
     const gform = el(`<form class="form-grid">
-      ${field('Juízo (ex.: "DO 1º JUIZADO ESPECIAL CÍVEL DE CARIACICA/ES")', 'dativo_juizo', { value: juizoSugerido ? (d.juizo ? juizoSugerido : `DO ${juizoSugerido.toUpperCase()}`) : '' })}
+      ${field('Juízo (ex.: "DO 1º JUIZADO ESPECIAL CÍVEL DE CARIACICA/ES")', 'dativo_juizo', { value: juizoSugerido })}
       ${field('Id da decisão que fez a nomeação (número do Id do documento nos autos)', 'dativo_decisao_id', { value: d.decisao_id || '' })}
       ${field('Qualificação da parte assistida (ex.: requerente/recorrida, réu, autora)', 'dativo_parte', { value: d.qualificacao_parte || '' })}
-      ${field('O que vem após o prazo (ex.: apresentação de contestação, apresentação de contrarrazões ao Recurso Inominado)', 'dativo_finalidade', { type: 'textarea' })}
       <button type="submit" class="btn-primary">Gerar documento</button>
     </form>`);
     gform.onsubmit = async (e) => {
       e.preventDefault();
       const b = Object.fromEntries(new FormData(gform));
       if (!b.dativo_decisao_id || !b.dativo_decisao_id.trim()) { toast('Informe o Id da decisão de nomeação', 'error'); return; }
-      if (!b.dativo_finalidade || !b.dativo_finalidade.trim()) { toast('Descreva o que vem após o prazo', 'error'); return; }
       try {
         const templates = await api('/api/documents/templates');
         const tpl = templates.find((t) => t.name === 'Aceite de Nomeação Dativa');
@@ -7480,7 +7479,7 @@ async function dativeCaseDetail(id, onSave) {
           method: 'POST',
           body: JSON.stringify({
             template_id: tpl.id, client_id: d.client_id, numero_processo: d.process_number || '',
-            extra: { dativo_juizo: b.dativo_juizo, dativo_decisao_id: b.dativo_decisao_id, dativo_parte: b.dativo_parte, dativo_finalidade: b.dativo_finalidade, dativo_comarca: d.comarca || '' },
+            extra: { dativo_juizo: b.dativo_juizo, dativo_decisao_id: b.dativo_decisao_id, dativo_parte: b.dativo_parte, dativo_comarca: d.comarca || '' },
           }),
         });
         closeModal(); toast('Aceite gerado'); docViewer(doc.id, () => dativeCaseDetail(id, onSave));
