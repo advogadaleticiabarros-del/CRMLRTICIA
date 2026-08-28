@@ -8078,6 +8078,15 @@ function formatDocHtml(text, signatures) {
     // Dentro do bloco de assinatura: nomes/cargos (ignora linhas em branco).
     if (inSig) { if (t) sigBuf.push(t); continue; }
     if (!t) { html += '<div class="sp"></div>'; continue; }
+    // Marcadores opcionais de alinhamento — só existem nos modelos que os
+    // escrevem no próprio texto (ex.: Aceite de Nomeação Dativa), então não
+    // mudam a renderização de nenhum documento que não os use.
+    const mTituloCentro = t.match(/^<<TITULO-CENTRO>>([\s\S]*?)<<TITULO-CENTRO>>$/);
+    if (mTituloCentro) { html += `<h1 class="doc-title">${esc(mTituloCentro[1])}</h1>`; titleDone = true; continue; }
+    const mCentro = t.match(/^<<CENTRO>>([\s\S]*?)<<CENTRO>>$/);
+    if (mCentro) { html += `<p class="centro">${escBold(mCentro[1])}</p>`; continue; }
+    const mDireita = t.match(/^<<DIREITA>>([\s\S]*?)<<DIREITA>>$/);
+    if (mDireita) { html += `<p class="direita">${escBold(mDireita[1])}</p>`; continue; }
     if (!titleDone && /^(CONTRATO|PROCURAÇÃO|DECLARAÇÃO|TERMO|HABILITAÇÃO|NOTIFICAÇÃO|ACEITAÇÃO)/i.test(t) && t === t.toUpperCase()) { html += `<h1 class="doc-title">${esc(t)}</h1>`; titleDone = true; continue; }
     if (/^CL[ÁA]USULA\b/i.test(t)) { html += `<p class="clause">${esc(t)}</p>`; continue; }
     const mp = t.match(/^(PAR[ÁA]GRAFO[^-]*-)\s*([\s\S]*)$/i);
@@ -8238,6 +8247,8 @@ function printDocs(docs) {
       .content .clause { font-weight: bold; margin: 16px 0 5px; }
       .content .section-heading { font-weight: bold; letter-spacing: .3px; margin: 18px 0 6px; }
       .content .para { margin: 8px 0; text-align: justify; }
+      .content .centro { margin: 8px 0; text-align: center; }
+      .content .direita { margin: 8px 0; text-align: right; }
       .content .party { margin: 6px 0; text-align: justify; }
       .content .body { margin: 9px 0; text-align: justify; }
       /* Citação longa/nota — fonte menor (10pt), recuada, como manda o padrão forense */
