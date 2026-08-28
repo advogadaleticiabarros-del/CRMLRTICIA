@@ -425,7 +425,9 @@ const ICONS = {
   activity: '<path d="M3 12h4l2.5 7 4-15L16 12h5"/>',
   branch: '<circle cx="6" cy="6" r="2"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="12" r="2"/><path d="M6 8v8M8 6h4a4 4 0 0 1 4 4M8 18h4a4 4 0 0 0 4-4"/>',
   pie: '<path d="M21 12A9 9 0 1 1 12 3v9z"/><path d="M12 3a9 9 0 0 1 9 9"/>',
-  pin: '<path d="M12 21s7-6.2 7-11a7 7 0 1 0-14 0c0 4.8 7 11 7 11z"/><circle cx="12" cy="10" r="2.5"/>',
+  // Thumbtack (fixar no topo) — não confundir com pino de mapa/localização,
+  // que é outro conceito. Só usado hoje em "Fixar conversa" no WhatsApp.
+  pin: '<path d="M14.5 3.5 20.5 9.5l-2 2-1-1-3.5 3.5.5 4-1.5 1.5-3.5-3.5-4.5 4.5-1-1 4.5-4.5-3.5-3.5 1.5-1.5 4 .5 3.5-3.5-1-1z"/>',
   archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 13h4"/>',
   reply: '<path d="M9 17l-5-5 5-5"/><path d="M4 12h10a6 6 0 0 1 6 6v1"/>',
   scale: '<path d="M12 3v18M7 21h10M4 8h16M4 8l6-2 8 2"/><path d="M4 8l-2.5 5a3 3 0 0 0 6 0zM20 8l2.5 5a3 3 0 0 1-6 0z"/>',
@@ -464,6 +466,7 @@ Object.assign(ICONS, {
   chevronRight: '<path d="M9 6l6 6-6 6"/>',
   trash:       '<path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M8 7l1 13h6l1-13"/>',
   filter:      '<path d="M4 5h16M7 12h10M10 19h4"/>',
+  more:        '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
 });
 
 function svgIcon(name, extra) {

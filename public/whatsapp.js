@@ -19,7 +19,10 @@ function waConectarSocket() {
   waSocket.on('whatsapp:update', (data) => { if (waOnUpdate) waOnUpdate(data); });
 }
 
-const WA_CORES = ['#e17076', '#7bc862', '#65aadd', '#a695e7', '#ee7aae', '#6ec9cb', '#faa774', '#54a3b8'];
+// Paleta de avatar por contato — tons ligados à identidade do escritório
+// (navy/dourado + vizinhos), não os pastéis genéricos de clone de app de
+// chat de consumidor. Mesma função (distinguir contatos por cor).
+const WA_CORES = ['#2a3f5f', '#a67a34', '#2f6b64', '#7a3b3b', '#5c3a63', '#52586b', '#3f5c46', '#8a6a2f'];
 const waCor = (s) => WA_CORES[[...String(s)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % WA_CORES.length];
 const waIniciais = (n) => String(n || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
 const waFmtDia = (d) => {
@@ -295,8 +298,7 @@ Object.assign(ROUTES, {
     // ── Aba CONVERSAS: experiência estilo WhatsApp Web dentro do CRM ──
     const tabConversas = async () => {
       const body = $('#wa-body');
-      const CORES = ['#e17076', '#7bc862', '#65aadd', '#a695e7', '#ee7aae', '#6ec9cb', '#faa774', '#54a3b8'];
-      const cor = (s) => CORES[[...String(s)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % CORES.length];
+      const cor = (s) => WA_CORES[[...String(s)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % WA_CORES.length];
       const iniciais = (n) => String(n || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
       const parseLabels = (l) => { try { const a = JSON.parse(l || '[]'); return Array.isArray(a) ? a : []; } catch { return []; } };
       const fmtHora = (d) => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -314,6 +316,13 @@ Object.assign(ROUTES, {
       let filtro = '';          // etiqueta selecionada no filtro
       let mostrarArquivadas = false;
       let mostrarMeus = false;  // filtro "Meus atendimentos" (assigned_user_id === USER.id)
+      // Preferência da usuária pra Ficha do contato (aberta/fechada) — LEMBRADA
+      // entre conversas, nunca recalculada a cada clique. Antes, abrirChat()
+      // decidia sozinho "abrir se a tela for larga" toda vez que uma conversa
+      // era aberta, o que reabria a ficha mesmo logo depois de a usuária
+      // fechá-la — o grid pulava de 2 pra 3 colunas a cada clique num contato
+      // (o "a tela muda de tamanho" reportado). Agora só muda quando ELA pede.
+      let ctxAberta = window.innerWidth >= 1100;
       let qtdMsgs = 0;          // p/ detectar novidade no polling
       let listaHtmlAtual = '';  // p/ pular re-render quando nada mudou (evita piscar/pesar)
       let ultimaInteracaoLista = 0; // p/ não deixar o polling reordenar a lista embaixo do dedo logo após um clique
@@ -606,7 +615,7 @@ Object.assign(ROUTES, {
               <button class="btn-icon btn-icon-sm" id="wa-ctx-close" title="Fechar">${svgIcon('x', 'ic-xs')}</button>
             </span>
           </div>` + html;
-        box.querySelector('#wa-ctx-close').onclick = () => $('#wa-shell').classList.remove('ctx-open');
+        box.querySelector('#wa-ctx-close').onclick = () => { ctxAberta = false; $('#wa-shell').classList.remove('ctx-open'); $('#wa-info')?.classList.remove('on'); };
         box.querySelector('#wa-ctx-agenda').onclick = () => abrirAgendaForm(
           { name: cx.client?.name || cx.lead?.name || ativo.name || '', phone: ativo.phone, category: cx.client ? 'cliente' : 'outro' },
           () => renderContexto()
@@ -771,12 +780,8 @@ Object.assign(ROUTES, {
             </div>
             <div class="wa-tags" id="wah-tags">${ativo.labels.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>
             <button class="btn-icon" id="wa-buscar-chat" title="Buscar nesta conversa">${svgIcon('search')}</button>
-            <button class="btn-icon ${Number(c.pinned) ? 'on' : ''}" id="wa-pin" title="${Number(c.pinned) ? 'Desfixar conversa' : 'Fixar conversa'}">${svgIcon('pin')}</button>
-            <button class="btn-icon" id="wa-archive" title="${Number(c.archived) ? 'Desarquivar conversa' : 'Arquivar conversa'}">${svgIcon('archive')}</button>
-            <button class="btn-icon" id="wa-label" title="Etiquetas">${svgIcon('tag')}</button>
-            <button class="btn-icon ${c.assigned_user_id ? 'on' : ''}" id="wa-assign" title="Atendente responsável">${svgIcon('users')}</button>
-            <button class="btn-icon" id="wa-pdf" title="Gerar PDF da conversa (juntar ao processo)">${svgIcon('printer')}</button>
-            <button class="btn-icon" id="wa-info" title="Ficha do contato">${svgIcon('info')}</button>
+            <button class="btn-icon ${Number(c.pinned) || Number(c.archived) || c.assigned_user_id ? 'on' : ''}" id="wa-mais" title="Mais ações">${svgIcon('more')}</button>
+            <button class="btn-icon ${ctxAberta ? 'on' : ''}" id="wa-info" title="Ficha do contato">${svgIcon('info')}</button>
           </div>
           <div class="wa-digitando" id="wa-digitando" style="display:none">digitando…</div>
           <div class="wa-search-chat" id="wa-search-chat" style="display:none">
@@ -934,7 +939,7 @@ Object.assign(ROUTES, {
         };
 
         // PDF da conversa — com papel timbrado, pronto para juntar ao processo
-        $('#wa-pdf').onclick = () => {
+        const acaoPdf = () => {
           let dia = '';
           const linhas = msgs.map((m) => {
             const d = fmtDia(m.msg_time);
@@ -950,6 +955,12 @@ Object.assign(ROUTES, {
             `Registro de conversa de WhatsApp — ${ativo.name}`,
             `Contato +${ativo.phone} · ${msgs.length} mensagem(ns) · extraído do CRM em ${new Date().toLocaleString('pt-BR')}`,
             linhas + '<p style="color:#777;font-size:11px;margin-top:16px">Registro gerado pelo sistema de gestão do escritório para fins de documentação e prova. Use "Imprimir → Salvar como PDF".</p>');
+        };
+        // Rótulos do menu "⋯ Mais ações" que mudam de estado (fixar/arquivar) —
+        // atualiza o texto sem precisar reabrir o menu inteiro.
+        const atualizarLabelsMais = () => {
+          const pinOpt = $('#wa-mais-menu [data-acao=pin] span'); if (pinOpt) pinOpt.textContent = Number(c.pinned) ? 'Desfixar conversa' : 'Fixar conversa';
+          const arqOpt = $('#wa-mais-menu [data-acao=archive] span'); if (arqOpt) arqOpt.textContent = Number(c.archived) ? 'Desarquivar conversa' : 'Arquivar conversa';
         };
 
         // Mensagens prontas (modelos jurídicos) — {{nome}} vira o primeiro nome
@@ -1051,28 +1062,44 @@ Object.assign(ROUTES, {
           };
           openModal('Enviar arquivo', wrap);
         };
-        $('#wa-pin').onclick = async () => {
+        const acaoPin = async () => {
           const novo = !Number(c.pinned);
           try {
             await api(`/api/whatsapp-instance/chats/${c.phone}/pin`, { method: 'POST', body: JSON.stringify({ pinned: novo }) });
             c.pinned = novo ? 1 : 0; toast(novo ? 'Conversa fixada' : 'Conversa desfixada');
-            const btn = $('#wa-pin'); btn.classList.toggle('on', novo); btn.title = novo ? 'Desfixar conversa' : 'Fixar conversa';
-            renderFiltros(); renderLista();
+            atualizarLabelsMais(); renderFiltros(); renderLista();
           } catch (e) { toast(e.message, 'error'); }
         };
-        $('#wa-archive').onclick = async () => {
+        const acaoArchive = async () => {
           const novo = !Number(c.archived);
           try {
             await api(`/api/whatsapp-instance/chats/${c.phone}/archive`, { method: 'POST', body: JSON.stringify({ archived: novo }) });
             c.archived = novo ? 1 : 0; toast(novo ? 'Conversa arquivada' : 'Conversa desarquivada');
             if (novo) { ativo = null; $('#wa-shell').classList.remove('chat-open'); }
-            renderFiltros(); renderLista();
+            atualizarLabelsMais(); renderFiltros(); renderLista();
           } catch (e) { toast(e.message, 'error'); }
         };
-        // Painel de contexto: abre sozinho em telas largas; botão ℹ alterna
-        $('#wa-info').onclick = () => { $('#wa-shell').classList.toggle('ctx-open'); if ($('#wa-shell').classList.contains('ctx-open')) renderContexto(); };
-        if (window.innerWidth >= 1100 && !manterInput) { $('#wa-shell').classList.add('ctx-open'); renderContexto(); }
-        else if ($('#wa-shell').classList.contains('ctx-open')) renderContexto();
+        // Painel de contexto (Ficha do contato) — o estado (aberta/fechada) é
+        // uma ESCOLHA da usuária (ctxAberta, declarada lá em cima) que persiste
+        // ao trocar de conversa. Antes disso, abrirChat forçava a reabertura
+        // toda vez que uma conversa era clicada, mesmo logo após fechar — o
+        // grid pulava de 2 pra 3 colunas a cada clique ("a tela muda de
+        // tamanho"). Agora só muda quando a usuária clica no botão ℹ ou no X.
+        // O botão funciona em qualquer largura (no mobile a ficha vira um
+        // painel cheio por cima da tela — ver media query de .ctx-open no
+        // CSS); só a "lembrança" entre conversas (abaixo) é exclusiva de
+        // tela larga, onde a ficha é uma 3ª coluna fixa, não um overlay.
+        $('#wa-info').onclick = () => {
+          const abrir = !$('#wa-shell').classList.contains('ctx-open');
+          ctxAberta = abrir;
+          $('#wa-info').classList.toggle('on', abrir);
+          $('#wa-shell').classList.toggle('ctx-open', abrir);
+          if (abrir) renderContexto();
+        };
+        if (window.innerWidth >= 1100) {
+          $('#wa-shell').classList.toggle('ctx-open', ctxAberta);
+          if (ctxAberta) renderContexto();
+        }
         const limparResposta = () => { respondendoA = null; $('#wa-reply-banner').style.display = 'none'; };
         const iniciarResposta = (id, texto) => {
           respondendoA = { id, texto };
@@ -1101,7 +1128,7 @@ Object.assign(ROUTES, {
             await atualizar(true);
           } catch (e) { toast(e.message, 'error'); inp.value = texto; ajustarAlturaTexto(); }
         };
-        $('#wa-label').onclick = () => {
+        const acaoLabel = () => {
           const existentes = todasEtiquetas();
           const form = el(`<form class="form-grid">
             <p class="sub">Marque as etiquetas desta conversa (ou crie uma nova):</p>
@@ -1126,7 +1153,7 @@ Object.assign(ROUTES, {
         // Atendente responsável — atribuição manual (não é fila automática).
         // Só admin/advogado veem a lista de equipe (mesma regra do
         // "responsável" no Kanban de produção dos processos).
-        $('#wa-assign').onclick = async () => {
+        const acaoAssign = async () => {
           if (!['admin', 'advogado'].includes(USER.role)) { toast('Só admin/advogado podem atribuir atendente', 'error'); return; }
           const users = await api('/api/users').catch(() => []);
           const able = users.filter((u) => u.active);
@@ -1143,6 +1170,31 @@ Object.assign(ROUTES, {
             } catch (e) { toast(e.message, 'error'); }
           };
           openModal('Atendente responsável', form);
+        };
+
+        // Menu "⋯ Mais ações" — reúne fixar/arquivar/etiquetas/atendente/PDF
+        // num único dropdown (mesmo padrão visual do menu de filtro da lista,
+        // #waf-menu/.wa-filter-menu), no lugar de 5 botões-ícone soltos no
+        // cabeçalho — cabeçalho ficou poluído e genérico com tantos ícones.
+        const fecharMenuMais = () => { const m = $('#wa-mais-menu'); if (m) m.remove(); document.removeEventListener('click', onClickForaMais, true); };
+        const onClickForaMais = (e) => { if (!e.target.closest('#wa-mais')) fecharMenuMais(); };
+        $('#wa-mais').onclick = (e) => {
+          e.stopPropagation();
+          if ($('#wa-mais-menu')) { fecharMenuMais(); return; }
+          const item = (acao, icon, label) => `<div class="wa-filter-opt" data-acao="${acao}">${svgIcon(icon, 'ic-xs')}<span>${label}</span></div>`;
+          const menu = document.createElement('div');
+          menu.className = 'wa-filter-menu wa-mais-menu'; menu.id = 'wa-mais-menu';
+          menu.innerHTML = [
+            item('pin', 'pin', Number(c.pinned) ? 'Desfixar conversa' : 'Fixar conversa'),
+            item('archive', 'archive', Number(c.archived) ? 'Desarquivar conversa' : 'Arquivar conversa'),
+            item('label', 'tag', 'Etiquetas'),
+            item('assign', 'users', 'Atendente responsável' + (c.assigned_user_name ? ` (${esc(c.assigned_user_name)})` : '')),
+            item('pdf', 'printer', 'Gerar PDF da conversa'),
+          ].join('');
+          $('#wa-mais').closest('.wa-head').appendChild(menu);
+          const acoes = { pin: acaoPin, archive: acaoArchive, label: acaoLabel, assign: acaoAssign, pdf: acaoPdf };
+          menu.querySelectorAll('[data-acao]').forEach((o) => o.onclick = () => { fecharMenuMais(); acoes[o.dataset.acao](); });
+          document.addEventListener('click', onClickForaMais, true);
         };
       };
 
