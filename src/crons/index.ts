@@ -30,10 +30,10 @@ export function startCronJobs() {
     });
   }, 8000);
 
-  // ── 06:15: monitoramento DJEN adiantado — garante movimentação fresca ANTES
-  // do briefing das 07h. Mantém os horários 08h/16h já existentes (linha ~248);
-  // este é ADICIONAL, não substitui.
-  cron.schedule('15 6 * * *', () => {
+  // ── 06:00: monitoramento adiantado — garante movimentação fresca ANTES do
+  // briefing das 07h. O monitoramento de hora em hora (linha ~285) cobre o
+  // resto do dia; este é só pra não esperar até 07h pra ter a 1ª rodada.
+  cron.schedule('0 6 * * *', () => {
     runJob('monitoramento:processos-pre-briefing', () => runMonitoringJob(), { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
@@ -282,10 +282,13 @@ export function startCronJobs() {
     runJob('monitoramento:descoberta-oab', () => runDiscoveryJob());
   });
 
-  // ── monitoramento processual: 08h e 16h ── CRÍTICO (movimentação perdida) ─
-  cron.schedule('0 8,16 * * *', () => {
+  // ── monitoramento processual: de hora em hora, 07h–20h ── CRÍTICO ─────────
+  // Antes rodava só 08h/16h (+ um extra às 06h, ver linha ~36) — publicação
+  // judicial não costuma sair de madrugada, então concentra a frequência
+  // maior no horário comercial em vez de rodar 24h contra a API pública.
+  cron.schedule('0 7-20 * * *', () => {
     runJob('monitoramento:processos', () => runMonitoringJob(), { critica: true });
-  });
+  }, { timezone: 'America/Sao_Paulo' });
 
   // ── LGPD: expurgo mensal (dia 1, 04h) — elimina dado pessoal sem finalidade.
   // Cirúrgico: NÃO toca em processo, procuração, contrato, documento nem
