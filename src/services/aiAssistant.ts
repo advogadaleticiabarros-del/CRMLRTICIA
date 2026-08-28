@@ -17,7 +17,7 @@ import { db } from '../config/database';
  * explicitamente preferido, nunca entra no fallback automático de
  * gemini/groq (que seguem grátis e são a base padrão do escritório).
  */
-type Provider = 'gemini' | 'groq' | 'openai';
+type Provider = 'gemini' | 'groq' | 'openai' | 'openai-smart';
 
 async function callGemini(prompt: string): Promise<{ ok: boolean; text?: string; message?: string }> {
   const key = process.env.GEMINI_API_KEY;
@@ -49,15 +49,22 @@ async function callGroq(prompt: string): Promise<{ ok: boolean; text?: string; m
   return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
 }
 
-async function callOpenAI(prompt: string): Promise<{ ok: boolean; text?: string; message?: string }> {
+// Dois níveis de modelo OpenAI (GPT-5.6), conforme decidido com a advogada:
+// LUNA é o padrão pra praticamente tudo (US$0,20/US$1,20 por milhão de
+// tokens — barato o bastante pra usar com liberdade); SOL só entra quando
+// alguém pedir explicitamente o nível mais forte pra um caso "muito
+// extremo" (nenhum ponto do sistema escala pra SOL sozinho hoje).
+async function callOpenAI(prompt: string, tier: 'default' | 'smart' = 'default'): Promise<{ ok: boolean; text?: string; message?: string }> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return { ok: false, message: 'sem_openai' };
-  // gpt-4o-mini: modelo mais barato da OpenAI, usado para teste inicial
-  // (créditos grátis) antes de decidir sobre uso pago em produção.
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const model = tier === 'smart'
+    ? (process.env.OPENAI_MODEL_SMART || 'gpt-5.6-sol')
+    : (process.env.OPENAI_MODEL || 'gpt-5.6-luna');
+  const body: Record<string, unknown> = { model, messages: [{ role: 'user', content: prompt }] };
+  if (tier === 'default') body.reasoning_effort = 'low';
   const r = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify(body),
   });
   const d: any = await r.json();
   if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro OpenAI' };
@@ -67,15 +74,15 @@ async function callOpenAI(prompt: string): Promise<{ ok: boolean; text?: string;
 /**
  * Executa um prompt no provedor preferido, com fallback automático no outro.
  * @param prefer  'gemini' para redigir peças, 'groq' para análise/triagem,
- *                'openai' só quando explicitamente pedido (teste) — sem
- *                fallback automático de/para gemini/groq nesse caso.
+ *                'openai' (GPT-5.6 Luna) e 'openai-smart' (GPT-5.6 Sol) —
+ *                sem fallback automático de/para gemini/groq nesses casos.
  */
 export async function aiComplete(
   prompt: string,
   prefer: Provider = 'gemini'
 ): Promise<{ ok: boolean; text?: string; message?: string }> {
-  if (prefer === 'openai') {
-    const r = await callOpenAI(prompt);
+  if (prefer === 'openai' || prefer === 'openai-smart') {
+    const r = await callOpenAI(prompt, prefer === 'openai-smart' ? 'smart' : 'default');
     return r;
   }
   const order: Provider[] = prefer === 'groq' ? ['groq', 'gemini'] : ['gemini', 'groq'];
@@ -243,7 +250,7 @@ export async function runEstagiarioForDeadline(opts: {
 
 INTIMAÇÃO:
 ${teor}`;
-    const analise = await aiComplete(analisePrompt, 'groq');
+    const analise = await aiComplete(analisePrompt, 'openai');
     if (analise.ok && analise.text) {
       await db.query('UPDATE detected_deadlines SET ai_summary = ? WHERE id = ?', [analise.text, detectedDeadlineId]);
     }
@@ -266,7 +273,7 @@ Advogada subscritora: ${adv}
 ${blocoModelo}${contexto ? `\nDOCUMENTOS DO PROCESSO (contexto):\n${contexto}\n` : ''}
 INTIMAÇÃO A RESPONDER:
 ${teor}`;
-    const minuta = await aiComplete(minutaPrompt, 'gemini');
+    const minuta = await aiComplete(minutaPrompt, 'openai');
     if (minuta.ok && minuta.text) {
       const [[admin]] = await db.query(
         "SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1"
@@ -478,7 +485,7 @@ ASSUNTO: <o que deve ser feito após o prazo, breve, ex.: apresentação de cont
 TEXTO:
 ${teor}`;
 
-  const r = await aiComplete(prompt, 'groq');
+  const r = await aiComplete(prompt, 'openai');
   if (!r.ok || !r.text) return { ok: false, message: r.message || 'IA indisponível' };
   return { ok: true, extraction: parseDativeNominationExtraction(r.text) };
 }

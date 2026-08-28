@@ -233,7 +233,7 @@ ${relato || '[Sem relato cadastrado — extraia dos documentos o que for possív
 DOCUMENTOS DO CASO (conteúdo extraído pela IA):
 ${docsTxt || '[Nenhum documento com conteúdo lido — verifique o link da pasta do Drive e as permissões]'}`;
 
-  const out = await aiComplete(prompt, 'gemini');
+  const out = await aiComplete(prompt, 'openai');
   if (!out.ok || !out.text) return { ok: false, imported, docsLidos: (docs || []).length, message: out.message || 'A IA não retornou a análise' };
 
   const name = `Análise do caso (checklist) — ${cl?.name || cf.title || 'Caso'}`;
@@ -270,8 +270,8 @@ export async function buildPeticaoInicial(caseId: number, actorId: number, force
   await extractCaseDocuments(caseId).catch(() => 0);
   const { prompt, clientId, clientName } = await gatherContext(caseId);
 
-  // 3) redige com o Gemini (redação → 'gemini').
-  const out = await aiComplete(prompt, 'gemini');
+  // 3) redige com o GPT-5.6 Luna (redação → 'openai').
+  const out = await aiComplete(prompt, 'openai');
   if (!out.ok || !out.text) return { ok: false, message: out.message || 'A IA não retornou a petição' };
 
   // 4) salva na produção como NOVA VERSÃO (não sobrescreve as anteriores).

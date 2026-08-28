@@ -6,8 +6,8 @@ import { aiComplete } from './aiAssistant';
  *
  *  1) CHECAGENS ESTRUTURAIS (por regra, offline): endereçamento, qualificação,
  *     fatos, direito, base legal, pedidos, valor da causa, provas, fecho e OAB.
- *  2) ANÁLISE DE MÉRITO (IA): usa o aiComplete com preferência 'groq'
- *     (análise/triagem — divisão de trabalho do aiAssistant), fallback Gemini.
+ *  2) ANÁLISE DE MÉRITO (IA): usa o aiComplete com preferência 'openai'
+ *     (GPT-5.6 Luna).
  *
  * Gatilho: ao mover o caso para a etapa "Revisão inicial" (revisao_inicial).
  * O resultado é salvo como DOCUMENTO do caso ("Revisão da Petição — ... (IA)")
@@ -157,7 +157,7 @@ export async function revisarPeticaoDoCaso(caseId: number, actorId: number): Pro
   let iaTexto: string | null = null;
   let iaErro: string | null = null;
   try {
-    const r = await aiComplete(PROMPT_REVISAO(String(peca.content)), 'groq');
+    const r = await aiComplete(PROMPT_REVISAO(String(peca.content)), 'openai');
     if (r.ok && r.text) iaTexto = r.text;
     else iaErro = r.message || null;
   } catch (e: any) { iaErro = e?.message || 'falha na IA'; }
