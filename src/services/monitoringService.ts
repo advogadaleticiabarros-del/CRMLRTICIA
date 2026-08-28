@@ -8,6 +8,7 @@ import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
 import { runIntimacaoPlaybooks } from './automationService';
 import { interpretarMovimentacao, extrairNomeacaoDativa } from './aiAssistant';
+import { sendText } from './uazapiInstance';
 
 // ── Sugestão de fase processual a partir do texto das movimentações ──────────
 const PHASE_RANK: Record<string, number> = { inicial: 1, instrucao: 2, sentenca: 3, recurso: 4, execucao: 5, encerrado: 6 };
@@ -164,6 +165,10 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
 // um "dativo" citado de passagem em outro contexto do processo.
 const DATIVA_NOMEACAO_RE = /nome(?:io|ada|ado|a[çc][ãa]o)[\s\S]{0,150}?dativ|dativ[\s\S]{0,150}?nome(?:io|ada|ado|a[çc][ãa]o)/i;
 
+// Avisa no WhatsApp assim que uma nomeação dativa é detectada e cadastrada —
+// a advogada (44) e a assistente Jessica (27), confirmado por elas.
+const DATIVA_WHATSAPP_NUMEROS = ['5544991011402', '5527988798093'];
+
 /**
  * Detecta, no texto de UMA publicação DJEN já baixada, se é uma decisão de
  * nomeação dativa e — se for, e ainda não existir demanda cadastrada pra esse
@@ -215,6 +220,19 @@ async function maybeRegisterDativeNomination(proc: DjenProcess, clientId: number
       message: `Processo ${proc.process_masked || proc.process_number} (${comarca}) — confira/complete os dados em Dativo.`,
       notificationType: 'dativo_detectado', channel: 'sistema', scheduledAt: new Date(),
     });
+
+    const resumo = [
+      'Olá Dra. Letícia, você foi nomeada novamente, parabéns! 🎉',
+      '',
+      `Processo: ${proc.process_masked || proc.process_number}`,
+      `Comarca: ${comarca}`,
+      proc.client_name ? `Assistido(a): ${proc.client_name}` : null,
+      ext.qualificacao_parte ? `Qualificação: ${ext.qualificacao_parte}` : null,
+      ext.assunto ? `Assunto: ${ext.assunto}` : null,
+    ].filter(Boolean).join('\n');
+    for (const num of DATIVA_WHATSAPP_NUMEROS) {
+      await sendText(num, resumo).catch(() => {});
+    }
 
     await logMonitor(null as any, null, 'nova_movimentacao', 'djen_oab', `Demanda dativa auto-cadastrada (dative_cases id ${ins.insertId}) para o processo ${proc.process_number}`);
   } catch { /* detecção é best-effort — nunca derruba a descoberta */ }

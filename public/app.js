@@ -7398,6 +7398,7 @@ async function dativeCaseDetail(id, onSave) {
         : `<button type="button" class="btn-gold btn-sm" id="dat-mover-esteira">Mover para a esteira de produção</button>`}
       <button type="button" class="btn-sm" id="dat-add-relato">+ Incluir relato</button>
       <button type="button" class="btn-sm" id="dat-gerar-aceite">Gerar aceite de nomeação</button>
+      ${d.process_number ? `<button type="button" class="btn-sm" id="dat-extrair-ia" title="Preenche juízo/Id da decisão/qualificação da parte a partir da movimentação já monitorada — só o que ainda estiver vazio">✨ Extrair da movimentação (IA)</button>` : ''}
     </div>
     <strong style="color:var(--navy);font-size:13px">Dados da demanda — edite o que precisar</strong>
     ${field('Comarca *', 'comarca', { value: d.comarca || '' })}
@@ -7452,6 +7453,15 @@ async function dativeCaseDetail(id, onSave) {
       await api(`/api/dative/cases/${id}/relatos`, { method: 'POST', body: JSON.stringify({ text: texto.trim() }) });
       toast('Relato registrado'); closeModal(); dativeCaseDetail(id, onSave);
     } catch (e) { toast(e.message, 'error'); }
+  };
+  const extrairIaBtn = form.querySelector('#dat-extrair-ia');
+  if (extrairIaBtn) extrairIaBtn.onclick = async () => {
+    extrairIaBtn.disabled = true; extrairIaBtn.textContent = 'Extraindo…';
+    try {
+      const r = await api(`/api/dative/cases/${id}/extrair-ia`, { method: 'POST', body: '{}' });
+      if (r.extraido) { toast('Dados extraídos e preenchidos'); closeModal(); dativeCaseDetail(id, onSave); }
+      else { toast(r.message || 'Nada novo encontrado', 'error'); extrairIaBtn.disabled = false; extrairIaBtn.textContent = '✨ Extrair da movimentação (IA)'; }
+    } catch (e) { toast(e.message, 'error'); extrairIaBtn.disabled = false; extrairIaBtn.textContent = '✨ Extrair da movimentação (IA)'; }
   };
   const gerarAceiteBtn = form.querySelector('#dat-gerar-aceite');
   if (gerarAceiteBtn) gerarAceiteBtn.onclick = async () => {

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
+import { extrairNomeacaoDativa } from '../services/aiAssistant';
 
 const router = Router();
 
@@ -89,6 +90,53 @@ router.get('/cases/:id', async (req: Request, res: Response) => {
     [req.params.id]
   ) as any;
   res.json({ ...rows[0], hearings, relatos });
+});
+
+// ── POST /api/dative/cases/:id/extrair-ia — preenche juízo/decisão/parte a
+// partir da movimentação já monitorada, pra demandas que não passaram pela
+// detecção automática (cadastradas manualmente antes dela existir, ou
+// descobertas antes de haver movimentação suficiente). Só preenche campos
+// que ainda estão vazios — nunca sobrescreve o que já foi digitado à mão.
+router.post('/cases/:id/extrair-ia', async (req: Request, res: Response) => {
+  const [rows] = await db.query('SELECT * FROM dative_cases WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Demanda não encontrada' }); return; }
+  const dc = rows[0];
+  if (!dc.process_number) { res.status(400).json({ error: 'Esta demanda não tem número de processo cadastrado' }); return; }
+
+  const digits = String(dc.process_number).replace(/\D/g, '');
+  const [[proc]] = await db.query(
+    'SELECT id FROM legal_processes WHERE process_number = ? OR REPLACE(REPLACE(REPLACE(process_number,"-",""),".",""),"/","") = ? LIMIT 1',
+    [dc.process_number, digits]
+  ) as any;
+  if (!proc) { res.status(404).json({ error: 'Processo não encontrado no monitoramento — sem movimentação pra extrair' }); return; }
+
+  const [movs] = await db.query(
+    'SELECT title, description FROM process_movements WHERE process_id = ? ORDER BY movement_date DESC LIMIT 20',
+    [proc.id]
+  ) as any;
+  const texto = movs.map((m: any) => `${m.title || ''}\n${m.description || ''}`).join('\n\n').trim();
+  if (!texto) { res.status(400).json({ error: 'Processo monitorado ainda não tem movimentação registrada' }); return; }
+
+  const ai = await extrairNomeacaoDativa(texto);
+  if (!ai.ok || !ai.extraction) { res.status(502).json({ error: ai.message || 'IA indisponível — tente novamente em instantes' }); return; }
+  const ext = ai.extraction;
+
+  const fields: string[] = []; const params: any[] = [];
+  const fillIfEmpty = (col: string, current: any, val: string) => {
+    if (!current && val) { fields.push(`${col} = ?`); params.push(val); }
+  };
+  fillIfEmpty('juizo', dc.juizo, ext.juizo);
+  fillIfEmpty('vara', dc.vara, ext.vara);
+  fillIfEmpty('decisao_id', dc.decisao_id, ext.decisao_id);
+  fillIfEmpty('qualificacao_parte', dc.qualificacao_parte, ext.qualificacao_parte);
+  fillIfEmpty('assunto', dc.assunto, ext.assunto);
+  if (!dc.comarca && ext.comarca) { fields.push('comarca = ?'); params.push(ext.comarca); }
+
+  if (!fields.length) { res.json({ ...dc, extraido: false, message: 'Nada novo encontrado na movimentação (ou os campos já estavam preenchidos)' }); return; }
+  params.push(req.params.id);
+  await db.query(`UPDATE dative_cases SET ${fields.join(', ')} WHERE id = ?`, params);
+  const [[atualizado]] = await db.query('SELECT * FROM dative_cases WHERE id = ?', [req.params.id]) as any;
+  res.json({ ...atualizado, extraido: true });
 });
 
 // ── POST /api/dative/cases/:id/relatos — registra uma atualização (linha do tempo) ─
