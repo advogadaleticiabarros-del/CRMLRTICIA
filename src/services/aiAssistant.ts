@@ -175,23 +175,78 @@ export async function findOfficeModel(rawType: string): Promise<{ id: number; na
 export interface PecaModelo { titulo: string; assunto: string | null; teses: string | null; fundamentos: string | null; conteudo: string | null }
 
 /**
+ * Gera o embedding (vetor de significado) de um texto via OpenAI. Usado pra
+ * comparar o caso com as peças do cofre por SIGNIFICADO, não por palavra
+ * repetida — "erro no INSS" e "problema no benefício previdenciário" batem
+ * mesmo sem nenhuma palavra em comum. Sem OPENAI_API_KEY, devolve null (o
+ * chamador cai no matching por palavra-chave).
+ */
+export async function aiEmbed(text: string): Promise<number[] | null> {
+  const key = process.env.OPENAI_API_KEY;
+  const teor = (text || '').trim();
+  if (!key || !teor) return null;
+  try {
+    const model = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
+    const r = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model, input: teor.slice(0, 8000) }),
+    });
+    const d: any = await r.json();
+    if (!r.ok) return null;
+    return d?.data?.[0]?.embedding || null;
+  } catch { return null; }
+}
+
+function cosineSim(a: number[], b: number[]): number {
+  const len = Math.min(a.length, b.length);
+  if (!len) return 0;
+  let dot = 0, na = 0, nb = 0;
+  for (let i = 0; i < len; i++) { dot += a[i] * b[i]; na += a[i] * a[i]; nb += b[i] * b[i]; }
+  if (!na || !nb) return 0;
+  return dot / (Math.sqrt(na) * Math.sqrt(nb));
+}
+
+// Abaixo do quê a melhor peça por embedding é ignorada (não é parecida o
+// bastante) e o buscador cai no matching por palavra-chave em vez de sugerir
+// uma peça de área/assunto totalmente diferente.
+const EMBEDDING_MIN_SIM = 0.15;
+
+/**
  * Acha, no COFRE DE PEÇAS do escritório (peca_modelos, importado do Obsidian —
  * ver scripts/import-pecas-obsidian.mjs), o modelo que melhor casa com a área
- * e os termos do caso. Pontua por palavras do assunto/título do modelo
- * presentes no texto de busca; sem pontuação, cai no 1º modelo da área.
- * Compartilhado entre a petição inicial (peticaoBuilder) e o Estagiário IA
- * (runEstagiarioForDeadline) — antes só a inicial usava o cofre rico; o
- * restante da esteira (contestação, réplica, recurso) caía num modelo genérico
- * ou numa biblioteca pequena mantida à mão (document_templates/piece_type).
+ * e os termos do caso. Prioriza comparação por SIGNIFICADO (embedding, ver
+ * aiEmbed) quando as peças já têm embedding calculado (scripts/backfill-peca-
+ * embeddings.mjs); sem isso, ou se nada bater bem, cai na pontuação por
+ * palavras do assunto/título presentes no texto de busca, e por fim no 1º
+ * modelo da área. Compartilhado entre a petição inicial (peticaoBuilder) e o
+ * Estagiário IA (runEstagiarioForDeadline).
  */
 export async function findPecaModelo(area: string | null | undefined, termosBusca: string): Promise<PecaModelo | null> {
   try {
     const [modelos] = await db.query(
-      `SELECT titulo, assunto, teses, fundamentos, conteudo FROM peca_modelos
-        WHERE area = ? OR area IS NULL ORDER BY (area = ?) DESC, id ASC LIMIT 20`,
+      `SELECT titulo, assunto, teses, fundamentos, conteudo, embedding FROM peca_modelos
+        WHERE area = ? OR area IS NULL ORDER BY (area = ?) DESC, id ASC LIMIT 40`,
       [area || '', area || '']
     ) as any;
     if (!modelos.length) return null;
+
+    const comEmbedding = modelos.filter((m: any) => m.embedding);
+    if (comEmbedding.length) {
+      const qEmb = await aiEmbed(termosBusca);
+      if (qEmb) {
+        let melhor: any = null; let melhorSim = -1;
+        for (const m of comEmbedding) {
+          let emb: number[];
+          try { emb = JSON.parse(m.embedding); } catch { continue; }
+          const sim = cosineSim(qEmb, emb);
+          if (sim > melhorSim) { melhorSim = sim; melhor = m; }
+        }
+        if (melhor && melhorSim >= EMBEDDING_MIN_SIM) return melhor;
+      }
+    }
+
+    // Fallback: pontuação por palavra-chave (sem embedding calculado, IA
+    // indisponível, ou nenhuma peça passou do limiar mínimo de similaridade).
     const termos = (termosBusca || '').toLowerCase();
     let melhor: any = null; let melhorPts = 0;
     for (const m of modelos) {

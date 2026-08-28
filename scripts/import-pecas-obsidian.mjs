@@ -15,6 +15,26 @@ const cofre = process.argv[2];
 const dbUrl = process.argv[3];
 if (!cofre || !dbUrl) { console.error('Uso: node scripts/import-pecas-obsidian.mjs <cofre> <mysql-url>'); process.exit(1); }
 
+// Embedding (vetor de significado) de cada ficha importada — opcional: sem
+// OPENAI_API_KEY no ambiente, a peça entra sem embedding e o matching cai no
+// modo por palavra-chave (findPecaModelo em src/services/aiAssistant.ts) até
+// alguém rodar scripts/backfill-peca-embeddings.mjs depois.
+const OPENAI_KEY = process.env.OPENAI_API_KEY;
+const EMBEDDING_MODEL = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
+async function embed(texto) {
+  if (!OPENAI_KEY || !texto.trim()) return null;
+  try {
+    const r = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_KEY}` },
+      body: JSON.stringify({ model: EMBEDDING_MODEL, input: texto.slice(0, 8000) }),
+    });
+    const d = await r.json();
+    if (!r.ok) { console.warn(`  ⚠ falha ao gerar embedding: ${d?.error?.message || r.status}`); return null; }
+    return d?.data?.[0]?.embedding || null;
+  } catch (e) { console.warn(`  ⚠ falha ao gerar embedding: ${e.message}`); return null; }
+}
+if (!OPENAI_KEY) console.warn('Aviso: OPENAI_API_KEY não definida — peças entrarão sem embedding (rode backfill-peca-embeddings.mjs depois).');
+
 // Frontmatter simples: chave: valor | chave: [a, b] | chave: "..."
 function parseFrontmatter(md) {
   const m = md.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -90,16 +110,20 @@ for (const vault of vaults) {
     const teses = Array.isArray(fm.teses) ? fm.teses.map((t) => t.replace(/[\[\]]/g, '')).join('; ') : (fm.teses || null);
     const fund = Array.isArray(fm.fundamentos) ? fm.fundamentos.join('; ') : (fm.fundamentos || null);
     const area = AREA_MAP[String(fm.area || '').toLowerCase()] || null;
+    const embTexto = [titulo, fm.assunto, teses, fund].filter(Boolean).join('\n');
+    const embedding = await embed(embTexto);
 
     await conn.query(
-      `INSERT INTO peca_modelos (external_key, titulo, area, assunto, tipo, rito, tribunal, teses, fundamentos, conteudo, fonte)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'obsidian')
+      `INSERT INTO peca_modelos (external_key, titulo, area, assunto, tipo, rito, tribunal, teses, fundamentos, conteudo, embedding, embedded_at, fonte)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'obsidian')
        ON DUPLICATE KEY UPDATE titulo=VALUES(titulo), area=VALUES(area), assunto=VALUES(assunto),
          tipo=VALUES(tipo), rito=VALUES(rito), teses=VALUES(teses), fundamentos=VALUES(fundamentos),
-         conteudo=COALESCE(VALUES(conteudo), conteudo)`,
-      [titulo, titulo, area, fm.assunto || null, fm.tipo || null, fm.rito || null, null, teses, fund, conteudo]
+         conteudo=COALESCE(VALUES(conteudo), conteudo),
+         embedding=COALESCE(VALUES(embedding), embedding), embedded_at=COALESCE(VALUES(embedded_at), embedded_at)`,
+      [titulo, titulo, area, fm.assunto || null, fm.tipo || null, fm.rito || null, null, teses, fund, conteudo,
+       embedding ? JSON.stringify(embedding) : null, embedding ? new Date() : null]
     );
-    console.log(`  ✔ ${titulo}${conteudo ? ` (${Math.round(conteudo.length / 1000)}k chars do docx)` : ' (só ficha, sem docx)'}`);
+    console.log(`  ✔ ${titulo}${conteudo ? ` (${Math.round(conteudo.length / 1000)}k chars do docx)` : ' (só ficha, sem docx)'}${embedding ? ' · embedding ok' : ''}`);
     ok++;
   }
 }
