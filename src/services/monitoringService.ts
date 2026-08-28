@@ -98,6 +98,14 @@ const DEADLINE_TRIGGERS: { re: RegExp; type: string; days: number }[] = [
   { re: /publica[çc][ãa]o/i,    type: 'Manifestação',       days: 15 },
 ];
 
+// Tipos de gatilho que são MARCO do processo (não rotina) — a advogada quer
+// saber na hora, no WhatsApp, e não só como mais um item numa lista de
+// prazos/alertas. "Recurso (apelação)" vem de "sentença", "Recurso" vem de
+// "acórdão" (ver DEADLINE_TRIGGERS acima). Mesmo padrão de aviso da detecção
+// de nomeação dativa — Fase 4 do roteiro de evolução: estender esse
+// tratamento além do dativo pros outros eventos de alto valor.
+const MARCO_PROCESSUAL = new Set(['Recurso (apelação)', 'Recurso']);
+
 /** Cria "prazo a confirmar" (DJEN) ou alerta (DataJud) quando a movimentação contém palavra-gatilho. Nunca derruba o sync. */
 async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string }, processNumber?: string, movementId: number | null = null, source?: string): Promise<void> {
   try {
@@ -107,6 +115,28 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     const start = toDate(m.movement_date) || new Date();
     const DETECT_MAX_AGE_DAYS = 45;
     if ((Date.now() - start.getTime()) / 86_400_000 > DETECT_MAX_AGE_DAYS) return;
+
+    // Marco processual (sentença/acórdão) — avisa no WhatsApp independente da
+    // fonte (DataJud ou DJEN) e do que acontece depois (prazo/alerta). Roda
+    // uma única vez por movimentação de verdade: detectDeadline só é chamado
+    // quando o INSERT da movimentação foi novo (dedupe por unique_hash já
+    // acontece antes, em syncProcess/saveMovements).
+    if (MARCO_PROCESSUAL.has(trig.type)) {
+      const marco = trig.type === 'Recurso (apelação)' ? 'Sentença publicada' : 'Acórdão publicado';
+      let clienteNome: string | null = null;
+      if (clientId) {
+        const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
+        clienteNome = cl?.name || null;
+      }
+      const resumo = [
+        `⚖️ ${marco}`,
+        '',
+        `Processo: ${processNumber || '(sem número)'}`,
+        clienteNome ? `Cliente: ${clienteNome}` : null,
+        (m.description || m.title) ? `Trecho: ${(m.description || m.title || '').replace(/\s+/g, ' ').trim().slice(0, 300)}` : null,
+      ].filter(Boolean).join('\n');
+      for (const num of ESCRITORIO_WHATSAPP_NUMEROS) await sendText(num, resumo).catch(() => {});
+    }
 
     // DataJud: cria ALERTA em vez de falso prazo
     if (!source || isDatajudSource(source)) {
@@ -165,9 +195,10 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
 // um "dativo" citado de passagem em outro contexto do processo.
 const DATIVA_NOMEACAO_RE = /nome(?:io|ada|ado|a[çc][ãa]o)[\s\S]{0,150}?dativ|dativ[\s\S]{0,150}?nome(?:io|ada|ado|a[çc][ãa]o)/i;
 
-// Avisa no WhatsApp assim que uma nomeação dativa é detectada e cadastrada —
-// a advogada (44) e a assistente Jessica (27), confirmado por elas.
-const DATIVA_WHATSAPP_NUMEROS = ['5544991011402', '5527988798093'];
+// Números que recebem os avisos automáticos de eventos de alto valor no
+// WhatsApp (nomeação dativa detectada, sentença/acórdão publicados) — a
+// advogada (44) e a assistente Jessica (27), confirmado por elas.
+const ESCRITORIO_WHATSAPP_NUMEROS = ['5544991011402', '5527988798093'];
 
 /**
  * Detecta, no texto de UMA publicação DJEN já baixada, se é uma decisão de
@@ -230,7 +261,7 @@ async function maybeRegisterDativeNomination(proc: DjenProcess, clientId: number
       ext.qualificacao_parte ? `Qualificação: ${ext.qualificacao_parte}` : null,
       ext.assunto ? `Assunto: ${ext.assunto}` : null,
     ].filter(Boolean).join('\n');
-    for (const num of DATIVA_WHATSAPP_NUMEROS) {
+    for (const num of ESCRITORIO_WHATSAPP_NUMEROS) {
       await sendText(num, resumo).catch(() => {});
     }
 
