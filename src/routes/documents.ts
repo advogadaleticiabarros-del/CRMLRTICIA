@@ -63,7 +63,7 @@ router.post('/generate', async (req: Request, res: Response) => {
 
   let proc: any = null;
   if (case_id) { const [[c]] = await db.query('SELECT * FROM cases WHERE id = ?', [case_id]) as any; proc = c; }
-  const [[lawyer]] = await db.query("SELECT name, oab_number, oab_uf FROM lawyers WHERE active = 1 ORDER BY id LIMIT 1") as any;
+  const [[lawyer]] = await db.query("SELECT name, oab_number, oab_uf, email, phone FROM lawyers WHERE active = 1 ORDER BY id LIMIT 1") as any;
   // O banco guarda só os dígitos (formato usado pelo DJEN) — formata com o
   // ponto de milhar (39948 → 39.948) só na hora de exibir. Mesmo padrão já
   // usado em getEscritorio() para os contratos.
@@ -86,6 +86,8 @@ router.post('/generate', async (req: Request, res: Response) => {
     juizo: (juizo && String(juizo).trim()) || '',
     advogada_nome: lawyer?.name || '',
     advogada_oab: lawyer ? `${oabFormatado || ''}${lawyer.oab_uf ? '/' + lawyer.oab_uf : ''}` : '',
+    advogada_telefone: lawyer?.phone || '',
+    advogada_email: lawyer?.email || '',
     data_extenso: dataExtenso(),
   };
   // Campos extras livres (ex.: dativo_parte, dativo_finalidade) — pra
