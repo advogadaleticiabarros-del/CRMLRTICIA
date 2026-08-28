@@ -8048,8 +8048,8 @@ function formatDocHtml(text, signatures) {
     return (comLinha ? '<div class="sig-line"></div>' : '') + lines.map((l) => `<p class="sig-name">${esc(l)}</p>`).join('');
   };
   const lines = String(text || '').split('\n');
-  let html = ''; let inSig = false; let sigOpen = false; let titleDone = false; let sigBuf = [];
-  const closeSig = () => { if (sigOpen) { html += partyHtml(sigBuf, true) + '</div>'; sigOpen = false; sigBuf = []; } };
+  let html = ''; let inSig = false; let sigOpen = false; let titleDone = false; let sigBuf = []; let sigComLinha = true;
+  const closeSig = () => { if (sigOpen) { html += partyHtml(sigBuf, sigComLinha) + '</div>'; sigOpen = false; sigBuf = []; } };
   // Rodapé de duas colunas SEM espaço de assinatura (ex.: notificante + advogada
   // lado a lado, quando o documento não precisa de assinatura física reservada).
   // Sintaxe no conteúdo: linha "<<LADO-A-LADO>>" abre, "<<COLUNA>>" troca de
@@ -8073,7 +8073,15 @@ function formatDocHtml(text, signatures) {
     if (/^_{5,}$/.test(t)) {
       closeSig();
       html += '<div class="sig-block">';
-      sigOpen = true; inSig = true; sigBuf = []; continue;
+      sigOpen = true; inSig = true; sigBuf = []; sigComLinha = true; continue;
+    }
+    // Variante sem a linha "_____" visível (nome/OAB só centralizados) — usada
+    // quando o documento não reserva espaço físico de assinatura, mas ainda
+    // precisa do bloco especial pra "Enviar para assinatura" (eletrônica) funcionar.
+    if (t === '<<ASSINATURA-SEM-LINHA>>') {
+      closeSig();
+      html += '<div class="sig-block">';
+      sigOpen = true; inSig = true; sigBuf = []; sigComLinha = false; continue;
     }
     // Dentro do bloco de assinatura: nomes/cargos (ignora linhas em branco).
     if (inSig) { if (t) sigBuf.push(t); continue; }
