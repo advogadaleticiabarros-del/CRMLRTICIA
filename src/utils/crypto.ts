@@ -205,3 +205,23 @@ export function decryptFields<T extends Record<string, any>>(row: T | null, camp
   for (const c of campos) if (out[c] != null) out[c] = decrypt(String(out[c]));
   return out;
 }
+
+/**
+ * Compara dois segredos (token de webhook, assinatura HMAC etc.) em tempo
+ * constante — uma comparação `!==` normal vaza, por timing, quantos bytes
+ * do prefixo bateram, o que permite adivinhar o segredo caractere a
+ * caractere num endpoint público. `crypto.timingSafeEqual` exige buffers do
+ * MESMO tamanho, por isso o padding: strings de tamanho diferente já são
+ * sabidamente diferentes, mas ainda comparamos (contra um buffer do mesmo
+ * tamanho de `a`) pra não vazar a diferença de tamanho por um retorno mais
+ * rápido.
+ */
+export function compararSeguro(a: string, b: string): boolean {
+  const bufA = Buffer.from(String(a ?? ''), 'utf8');
+  const bufB = Buffer.from(String(b ?? ''), 'utf8');
+  if (bufA.length !== bufB.length) {
+    crypto.timingSafeEqual(bufA, Buffer.alloc(bufA.length)); // mantém o tempo constante mesmo no caminho de tamanho diferente
+    return false;
+  }
+  return crypto.timingSafeEqual(bufA, bufB);
+}

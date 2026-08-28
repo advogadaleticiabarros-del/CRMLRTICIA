@@ -7,6 +7,18 @@
 
 // Avatar consistente em toda a tela de WhatsApp (Conversas + Kanban + drawer
 // de pré-visualização) — mesma cor/iniciais pro mesmo nome, sempre.
+// Tempo real (Socket.IO) — evita esperar até 6s de polling pra mensagem nova
+// aparecer. Conecta uma vez por sessão (mesmo JWT do `api()`, em auth.token);
+// se cair ou o socket.io.js não carregar (offline, bloqueado), o polling de
+// fallback continua cobrindo — `waOnUpdate` é sempre opcional.
+let waSocket = null;
+let waOnUpdate = null; // reapontado por tabConversas() toda vez que a tela de Conversas é aberta
+function waConectarSocket() {
+  if (waSocket || typeof io === 'undefined' || !TOKEN) return;
+  waSocket = io({ auth: { token: TOKEN } });
+  waSocket.on('whatsapp:update', (data) => { if (waOnUpdate) waOnUpdate(data); });
+}
+
 const WA_CORES = ['#e17076', '#7bc862', '#65aadd', '#a695e7', '#ee7aae', '#6ec9cb', '#faa774', '#54a3b8'];
 const waCor = (s) => WA_CORES[[...String(s)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % WA_CORES.length];
 const waIniciais = (n) => String(n || '?').split(' ').filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
@@ -301,6 +313,7 @@ Object.assign(ROUTES, {
       let busca = '';
       let filtro = '';          // etiqueta selecionada no filtro
       let mostrarArquivadas = false;
+      let mostrarMeus = false;  // filtro "Meus atendimentos" (assigned_user_id === USER.id)
       let qtdMsgs = 0;          // p/ detectar novidade no polling
       let listaHtmlAtual = '';  // p/ pular re-render quando nada mudou (evita piscar/pesar)
       let ultimaInteracaoLista = 0; // p/ não deixar o polling reordenar a lista embaixo do dedo logo após um clique
@@ -363,21 +376,25 @@ Object.assign(ROUTES, {
         fecharMenuFiltro();
         const ets = todasEtiquetas();
         const arquivadasN = chats.filter((c) => Number(c.archived)).length;
-        const ativoLabel = mostrarArquivadas ? `Arquivadas (${arquivadasN})` : (filtro || 'Todas');
-        const nAtivos = (filtro || mostrarArquivadas) ? 1 : 0;
+        const meusN = chats.filter((c) => Number(c.assigned_user_id) === USER.id).length;
+        const ativoLabel = mostrarArquivadas ? `Arquivadas (${arquivadasN})` : mostrarMeus ? `Meus atendimentos (${meusN})` : (filtro || 'Todas');
+        const nAtivos = (filtro || mostrarArquivadas || mostrarMeus) ? 1 : 0;
         $('#waf').innerHTML = `<button type="button" class="wa-filter-btn" id="waf-btn">${svgIcon('filter', 'ic-xs')}<span>${esc(ativoLabel)}</span>${nAtivos ? `<span class="wa-filter-count">${nAtivos}</span>` : ''}${svgIcon('chevronDown', 'ic-xs')}</button>`;
         $('#waf-btn').onclick = (e) => {
           e.stopPropagation();
           if ($('#waf-menu')) { fecharMenuFiltro(); return; }
-          const opts = [`<div class="wa-filter-opt ${!filtro && !mostrarArquivadas ? 'active' : ''}" data-f="">${svgIcon('dot', 'ic-xs')}Todas</div>`,
+          const opts = [`<div class="wa-filter-opt ${!filtro && !mostrarArquivadas && !mostrarMeus ? 'active' : ''}" data-f="">${svgIcon('dot', 'ic-xs')}Todas</div>`,
+            `<div class="wa-filter-opt ${mostrarMeus ? 'active' : ''}" data-meus="1">${svgIcon('users', 'ic-xs')} Meus atendimentos (${meusN})</div>`,
             ...ets.map((t) => `<div class="wa-filter-opt ${filtro === t ? 'active' : ''}" data-f="${esc(t)}"><span class="wa-filter-dot" style="background:${cor(t)}"></span>${esc(t)}</div>`),
             arquivadasN ? `<div class="wa-filter-opt ${mostrarArquivadas ? 'active' : ''}" data-arquivadas="1">${svgIcon('archive', 'ic-xs')} Arquivadas (${arquivadasN})</div>` : ''].join('');
           const menu = document.createElement('div');
           menu.className = 'wa-filter-menu'; menu.id = 'waf-menu'; menu.innerHTML = opts;
           $('#waf').appendChild(menu);
-          menu.querySelectorAll('[data-f]').forEach((o) => o.onclick = () => { filtro = o.dataset.f; mostrarArquivadas = false; fecharMenuFiltro(); renderFiltros(); renderLista(); });
+          menu.querySelectorAll('[data-f]').forEach((o) => o.onclick = () => { filtro = o.dataset.f; mostrarArquivadas = false; mostrarMeus = false; fecharMenuFiltro(); renderFiltros(); renderLista(); });
           const arqOpt = menu.querySelector('[data-arquivadas]');
-          if (arqOpt) arqOpt.onclick = () => { mostrarArquivadas = !mostrarArquivadas; filtro = ''; fecharMenuFiltro(); renderFiltros(); renderLista(); };
+          if (arqOpt) arqOpt.onclick = () => { mostrarArquivadas = !mostrarArquivadas; filtro = ''; mostrarMeus = false; fecharMenuFiltro(); renderFiltros(); renderLista(); };
+          const meusOpt = menu.querySelector('[data-meus]');
+          if (meusOpt) meusOpt.onclick = () => { mostrarMeus = !mostrarMeus; filtro = ''; mostrarArquivadas = false; fecharMenuFiltro(); renderFiltros(); renderLista(); };
           document.addEventListener('click', onClickFora, true);
         };
       };
@@ -423,6 +440,7 @@ Object.assign(ROUTES, {
           if (q && !(String(c.client_name || '').toLowerCase().includes(q) || String(c.phone).includes(q))) return false;
           if (filtro && !parseLabels(c.labels).includes(filtro)) return false;
           if (mostrarArquivadas) return !!Number(c.archived);
+          if (mostrarMeus && Number(c.assigned_user_id) !== USER.id) return false;
           return !Number(c.archived);
         });
         vis = [...vis].sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || (new Date(b.last_time) - new Date(a.last_time)));
@@ -487,6 +505,15 @@ Object.assign(ROUTES, {
         return '<span class="wa-check" title="Enviado">✓</span>';
       };
 
+      // Marcadores de formatação do WhatsApp (*negrito*, _itálico_, ~tachado~,
+      // ```monoespaçado```) — aplicado SEMPRE depois de esc(), nunca antes,
+      // pra não abrir brecha de XSS via corpo de mensagem recebida.
+      const formatarWaTexto = (h) => h
+        .replace(/```([^`\n]+)```/g, '<code>$1</code>')
+        .replace(/(^|[\s(])\*([^\n*]+)\*(?=[\s).,!?]|$)/g, '$1<b>$2</b>')
+        .replace(/(^|[\s(])_([^\n_]+)_(?=[\s).,!?]|$)/g, '$1<i>$2</i>')
+        .replace(/(^|[\s(])~([^\n~]+)~(?=[\s).,!?]|$)/g, '$1<s>$2</s>');
+
       const renderMsgs = (msgs, termoBusca, ativoIdx) => {
         let dia = '';
         let contador = 0;
@@ -495,10 +522,24 @@ Object.assign(ROUTES, {
           const d = fmtDia(m.msg_time);
           const sep = d !== dia ? `<div class="wa-day">${d}</div>` : '';
           dia = d;
-          const ehAudio = m.media_mime && (String(m.media_mime).startsWith('audio/'));
-          const anexo = m.media_id && m.media_url
-            ? `<br><a href="${esc(m.media_url)}" target="_blank" rel="noopener" class="wa-anexo-link">${svgIcon('paperclip', 'ic-inline')}Abrir anexo</a>${ehAudio && !String(m.body).includes('📝 Transcrição:') ? ` <button type="button" class="btn-sm" data-transcrever="${m.media_id}" style="font-size:11px;padding:2px 8px;margin-left:6px">Transcrever áudio</button>` : ''}`
-            : '';
+          const mimeAnexo = m.media_mime ? String(m.media_mime) : '';
+          const ehAudio = mimeAnexo.startsWith('audio/');
+          let anexo = '';
+          if (m.media_id && m.media_url) {
+            const url = esc(m.media_url);
+            if (mimeAnexo.startsWith('image/')) {
+              anexo = `<br><a href="${url}" target="_blank" rel="noopener"><img src="${url}" class="wa-anexo-img" loading="lazy" alt="Imagem recebida"></a>`;
+            } else if (ehAudio) {
+              anexo = `<br><audio controls preload="none" class="wa-anexo-audio" src="${url}"></audio>`;
+            } else if (mimeAnexo.startsWith('video/')) {
+              anexo = `<br><video controls preload="none" class="wa-anexo-video" src="${url}"></video>`;
+            } else {
+              anexo = `<br><a href="${url}" target="_blank" rel="noopener" class="wa-anexo-link">${svgIcon('paperclip', 'ic-inline')}Abrir anexo</a>`;
+            }
+            if (ehAudio && !String(m.body).includes('📝 Transcrição:')) {
+              anexo += ` <button type="button" class="btn-sm" data-transcrever="${m.media_id}" style="font-size:11px;padding:2px 8px;margin-left:6px">Transcrever áudio</button>`;
+            }
+          }
           const autor = Number(m.from_me) && m.sent_by ? `<div style="font-size:9.5px;color:rgba(0,0,0,.45);margin-bottom:2px">${esc(m.sent_by)}</div>` : '';
           let corpo = esc(m.body);
           if (termoEsc) {
@@ -507,6 +548,7 @@ Object.assign(ROUTES, {
               return `<mark class="wa-hl${i === ativoIdx ? ' cur' : ''}" data-hl="${i}">${match}</mark>`;
             });
           }
+          corpo = `<span class="wa-corpo">${formatarWaTexto(corpo)}</span>`;
           // Editar/apagar — só mensagem NOSSA, ainda não apagada (o WhatsApp só
           // deixa mexer no que você mesmo mandou, dentro do prazo dele).
           const podeMexer = Number(m.from_me) && m.body !== '🚫 Mensagem apagada';
@@ -725,16 +767,18 @@ Object.assign(ROUTES, {
             <div class="wa-ava" style="background:${cor(ativo.name)};width:36px;height:36px;flex:0 0 36px;font-size:13px">${iniciais(ativo.name)}</div>
             <div style="flex:1;min-width:0">
               <strong style="color:var(--navy-deep);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ativo.name)}</strong>
-              <small style="color:var(--text-muted)">+${esc(ativo.phone)}${ativo.client_id ? ' · cliente do escritório' : ''}</small>
+              <small style="color:var(--text-muted)">+${esc(ativo.phone)}${ativo.client_id ? ' · cliente do escritório' : ''}${c.assigned_user_name ? ' · atende: ' + esc(c.assigned_user_name) : ''}</small>
             </div>
             <div class="wa-tags" id="wah-tags">${ativo.labels.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>
             <button class="btn-icon" id="wa-buscar-chat" title="Buscar nesta conversa">${svgIcon('search')}</button>
             <button class="btn-icon ${Number(c.pinned) ? 'on' : ''}" id="wa-pin" title="${Number(c.pinned) ? 'Desfixar conversa' : 'Fixar conversa'}">${svgIcon('pin')}</button>
             <button class="btn-icon" id="wa-archive" title="${Number(c.archived) ? 'Desarquivar conversa' : 'Arquivar conversa'}">${svgIcon('archive')}</button>
             <button class="btn-icon" id="wa-label" title="Etiquetas">${svgIcon('tag')}</button>
+            <button class="btn-icon ${c.assigned_user_id ? 'on' : ''}" id="wa-assign" title="Atendente responsável">${svgIcon('users')}</button>
             <button class="btn-icon" id="wa-pdf" title="Gerar PDF da conversa (juntar ao processo)">${svgIcon('printer')}</button>
             <button class="btn-icon" id="wa-info" title="Ficha do contato">${svgIcon('info')}</button>
           </div>
+          <div class="wa-digitando" id="wa-digitando" style="display:none">digitando…</div>
           <div class="wa-search-chat" id="wa-search-chat" style="display:none">
             ${svgIcon('search', 'ic-inline')}
             <input id="wa-busca-chat-input" placeholder="Buscar nesta conversa…" autocomplete="off">
@@ -751,7 +795,7 @@ Object.assign(ROUTES, {
           <form class="wa-input" id="wa-reply">
             <button type="button" class="btn-icon" id="wa-modelos" title="Mensagens prontas">${svgIcon('ia')}</button>
             <button type="button" class="btn-icon" id="wa-anexar" title="Enviar documento ou imagem">${svgIcon('paperclip')}</button>
-            <input name="text" placeholder="Digite uma mensagem" autocomplete="off" value="${esc(textoAtual)}">
+            <textarea name="text" placeholder="Digite uma mensagem" autocomplete="off" rows="1">${esc(textoAtual)}</textarea>
             <button type="button" class="btn-icon" id="wa-gravar" title="Gravar áudio">${svgIcon('mic')}</button>
             <button class="wa-send" type="submit" title="Enviar">${svgIcon('send')}</button>
           </form>`;
@@ -1037,16 +1081,25 @@ Object.assign(ROUTES, {
           $('#wa-reply [name=text]').focus();
         };
         $('#wa-reply-cancel').onclick = limparResposta;
+        // Textarea multilinha: cresce sozinha (até 120px) conforme digita;
+        // Enter envia, Shift+Enter quebra linha (igual ao WhatsApp Web).
+        const taTexto = $('#wa-reply [name=text]');
+        const ajustarAlturaTexto = () => { taTexto.style.height = 'auto'; taTexto.style.height = Math.min(taTexto.scrollHeight, 120) + 'px'; };
+        ajustarAlturaTexto();
+        taTexto.oninput = ajustarAlturaTexto;
+        taTexto.onkeydown = (e) => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#wa-reply').requestSubmit(); }
+        };
         $('#wa-reply').onsubmit = async (ev) => {
           ev.preventDefault();
           const inp = $('#wa-reply [name=text]');
           const texto = inp.value.trim(); if (!texto) return;
-          inp.value = '';
+          inp.value = ''; ajustarAlturaTexto();
           const replyTo = respondendoA?.id; limparResposta();
           try {
             await api(`/api/whatsapp-instance/chats/${ativo.phone}/send`, { method: 'POST', body: JSON.stringify({ text: texto, ...(replyTo ? { reply_to: replyTo } : {}) }) });
             await atualizar(true);
-          } catch (e) { toast(e.message, 'error'); inp.value = texto; }
+          } catch (e) { toast(e.message, 'error'); inp.value = texto; ajustarAlturaTexto(); }
         };
         $('#wa-label').onclick = () => {
           const existentes = todasEtiquetas();
@@ -1069,6 +1122,27 @@ Object.assign(ROUTES, {
             } catch (e) { toast(e.message, 'error'); }
           };
           openModal('Etiquetas da conversa', form);
+        };
+        // Atendente responsável — atribuição manual (não é fila automática).
+        // Só admin/advogado veem a lista de equipe (mesma regra do
+        // "responsável" no Kanban de produção dos processos).
+        $('#wa-assign').onclick = async () => {
+          if (!['admin', 'advogado'].includes(USER.role)) { toast('Só admin/advogado podem atribuir atendente', 'error'); return; }
+          const users = await api('/api/users').catch(() => []);
+          const able = users.filter((u) => u.active);
+          const form = el(`<form class="form-grid">
+            ${field('Atendente responsável', 'user_id', { options: [{ v: '', t: '— sem atendente —' }, ...able.map((u) => ({ v: u.id, t: u.name }))], value: c.assigned_user_id || '' })}
+            <button type="submit" class="btn-primary">Salvar</button>
+          </form>`);
+          form.onsubmit = async (ev) => {
+            ev.preventDefault();
+            const userId = form.querySelector('[name=user_id]').value || null;
+            try {
+              await api(`/api/whatsapp-instance/chats/${ativo.phone}/assign`, { method: 'POST', body: JSON.stringify({ user_id: userId }) });
+              closeModal(); toast('Atendente atualizado'); await atualizar(true);
+            } catch (e) { toast(e.message, 'error'); }
+          };
+          openModal('Atendente responsável', form);
         };
       };
 
@@ -1104,6 +1178,27 @@ Object.assign(ROUTES, {
         } finally { cicloEmAndamento = false; }
       };
 
+      // Liga o tempo real: quando o backend avisa que algo mudou (mensagem
+      // nova/status, via webhook ou envio nosso), reusa o MESMO fluxo do
+      // polling (atualizar) em vez de tentar remontar a mensagem à mão —
+      // menos código, mesma lógica de dedupe/scroll/trava já testada.
+      let waDigitandoTimer = null;
+      waConectarSocket();
+      waOnUpdate = (data) => {
+        if (tab !== 'conversas' || !data?.phone) return;
+        if (data.presence) {
+          if (!ativo || ativo.phone !== data.phone) return;
+          const ind = $('#wa-digitando'); if (!ind) return;
+          clearTimeout(waDigitandoTimer);
+          if (data.presence === 'digitando') {
+            ind.style.display = 'block';
+            waDigitandoTimer = setTimeout(() => { ind.style.display = 'none'; }, 6000);
+          } else ind.style.display = 'none';
+          return;
+        }
+        atualizar(!!(ativo && ativo.phone === data.phone));
+      };
+
       let buscaTimer = null;
       $('#waq').oninput = (e) => {
         busca = e.target.value; renderLista();
@@ -1123,7 +1218,10 @@ Object.assign(ROUTES, {
         // primeira mensagem.
         abrirChat(c || { phone: alvo.phone, client_name: alvo.nome || ('+' + alvo.phone), client_id: null, labels: '[]' }, alvo.texto || '');
       }
-      chatTimer = setInterval(() => { if (tab === 'conversas') atualizar(false); else { clearInterval(chatTimer); chatTimer = null; } }, 6000);
+      // Fallback: o Socket.IO já cobre o tempo real (ver waOnUpdate acima) —
+      // este polling só existe pra não deixar a tela "travada" se o socket
+      // cair (rede instável, servidor sem WebSocket liberado no proxy etc).
+      chatTimer = setInterval(() => { if (tab === 'conversas') atualizar(false); else { clearInterval(chatTimer); chatTimer = null; waOnUpdate = null; } }, 20000);
     };
 
     // ── Aba CONTATOS: quadro Kanban de organização (etapas editáveis) ──

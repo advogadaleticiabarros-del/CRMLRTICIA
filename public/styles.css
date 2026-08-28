@@ -1591,6 +1591,7 @@ img, svg, video { max-width: 100%; }
 .wa-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2, var(--surface)); }
 .wa-search-chat { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border-soft); background: var(--surface-2, var(--surface)); }
 .wa-search-chat input { flex: 1; border-radius: 14px; padding: 6px 12px; font-size: 13px; }
+.wa-digitando { padding: 3px 16px; font-size: 11.5px; font-style: italic; color: var(--text-muted); background: var(--surface-2, var(--surface)); border-bottom: 1px solid var(--border-soft); }
 .wa-hl { background: #ffe58a; border-radius: 2px; padding: 0 1px; }
 .wa-hl.cur { background: #ffb74d; }
 .wa-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 8%; display: flex; flex-direction: column; gap: 7px; background: var(--surface); background-image: radial-gradient(var(--border-soft) .8px, transparent .8px); background-size: 22px 22px; }
@@ -1608,6 +1609,10 @@ img, svg, video { max-width: 100%; }
 .wa-msg-acoes .ic { margin: 0; }
 .wa-bub .wa-time { display: block; font-size: 10px; color: rgba(0,0,0,.4); text-align: right; margin-top: 2px; }
 .wa-bub.in .wa-time { color: var(--text-muted); }
+.wa-corpo { white-space: pre-wrap; }
+.wa-anexo-img { max-width: 260px; max-height: 260px; border-radius: 8px; display: block; margin-top: 4px; object-fit: cover; cursor: pointer; }
+.wa-anexo-audio { display: block; margin-top: 4px; max-width: 260px; height: 40px; }
+.wa-anexo-video { display: block; margin-top: 4px; max-width: 260px; border-radius: 8px; }
 .wa-quote { border-left: 3px solid var(--gold, #c19a4e); background: rgba(0,0,0,.045); border-radius: 4px; padding: 4px 8px; margin-bottom: 4px; font-size: 12px; color: var(--text-soft); max-height: 3em; overflow: hidden; }
 .wa-quote-sumiu { font-style: italic; color: var(--text-muted); }
 .wa-reply-banner { display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--surface-2, rgba(0,0,0,.03)); border-top: 1px solid var(--border-soft); }
@@ -1616,8 +1621,9 @@ img, svg, video { max-width: 100%; }
 .wa-check.lido { color: #53bdeb; }
 .wa-anexo-link { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; }
 .wa-anexo-link .ic { margin-right: 4px; }
-.wa-input { display: flex; align-items: center; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--surface-2, var(--surface)); }
+.wa-input { display: flex; align-items: flex-end; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--surface-2, var(--surface)); }
 .wa-input input { flex: 1; border-radius: 20px; padding: 10px 16px; font-size: 14px; }
+.wa-input textarea { flex: 1; border-radius: 20px; padding: 10px 16px; font-size: 14px; font-family: inherit; line-height: 1.4; resize: none; max-height: 120px; overflow-y: auto; }
 .wa-send { width: 40px; height: 40px; border-radius: 50%; border: none; background: var(--navy); color: #fff; cursor: pointer; flex: 0 0 40px; display: flex; align-items: center; justify-content: center; transition: background .15s, transform .1s; }
 .wa-send:hover { background: var(--navy-deep, var(--navy)); }
 .wa-send:active { transform: scale(.94); }

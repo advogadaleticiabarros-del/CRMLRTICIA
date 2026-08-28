@@ -1,5 +1,6 @@
 import { db } from '../config/database';
 import { uazapi, uazapiConfigured } from './uazapiClient';
+import { emitWaUpdate } from './waSocket';
 
 /**
  * Substitui waInstance.ts (Baileys rodando dentro do CRM) pela Uazapi
@@ -110,7 +111,7 @@ export async function startInstance(): Promise<void> {
   // que reconecta — best-effort, nunca derruba a conexão se falhar.
   try {
     const base = (process.env.APP_BASE_URL || 'https://crm.advogadaleticiabarros.com.br').replace(/\/+$/, '');
-    await uazapi.setWebhook(`${base}/api/public/uazapi-webhook`, ['messages', 'message_status']);
+    await uazapi.setWebhook(`${base}/api/public/uazapi-webhook`, ['messages', 'message_status', 'presence']);
   } catch { /* opcional */ }
 }
 
@@ -152,6 +153,7 @@ export async function sendText(phone: string, text: string, sentBy?: string, rep
        VALUES (?, ?, ?, 1, ?, NOW(), ?, ?, ?, ?)`,
       [r?.messageid || null, digits, await findClientByPhone(digits), String(text).slice(0, 4000), sentBy || null,
        replyToDbId || null, replySnapshot?.body.slice(0, 500) || null, replySnapshot ? replySnapshot.fromMe : null]).catch(() => {});
+    emitWaUpdate(digits);
     return true;
   } catch (e: any) {
     lastError = e?.message || 'Falha ao enviar';
@@ -210,6 +212,7 @@ export async function sendMedia(phone: string, mediaId: number, caption: string,
       `INSERT IGNORE INTO whatsapp_messages (message_id, phone, client_id, from_me, body, msg_time, media_id, sent_by)
        VALUES (?, ?, ?, 1, ?, NOW(), ?, ?)`,
       [r?.messageid || null, digits, await findClientByPhone(digits), caption || `📎 ${m.file_name}`, mediaId, sentBy || null]).catch(() => {});
+    emitWaUpdate(digits);
     return true;
   } catch (e: any) {
     lastError = e?.message || 'Falha ao enviar arquivo';

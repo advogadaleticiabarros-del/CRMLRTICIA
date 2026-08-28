@@ -149,11 +149,14 @@ router.get('/chats', async (req: Request, res: Response) => {
            MAX(m.push_name) AS push_name,
            MAX(m.pinned) AS pinned,
            MAX(m.archived) AS archived,
+           MAX(m.assigned_user_id) AS assigned_user_id,
+           MAX(au.name) AS assigned_user_name,
            MIN(aud.dias) AS proxima_audiencia_dias,
            MIN(parc.dias) AS parcela_vencendo_dias
       FROM whatsapp_messages w
       LEFT JOIN clients cl ON cl.id = w.client_id
       LEFT JOIN whatsapp_chat_meta m ON m.phone = w.phone
+      LEFT JOIN users au ON au.id = m.assigned_user_id
       LEFT JOIN (
         SELECT COALESCE(ce.client_id, c.client_id) AS client_id, DATEDIFF(ce.start_datetime, CURDATE()) AS dias
           FROM calendar_events ce
@@ -189,6 +192,21 @@ router.post('/chats/:phone/archive', async (req: Request, res: Response) => {
     'INSERT INTO whatsapp_chat_meta (phone, archived) VALUES (?, ?) ON DUPLICATE KEY UPDATE archived = VALUES(archived)',
     [phone, archived]);
   res.json({ success: true, archived: !!archived });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/assign — atendente responsável ─
+// Atribuição manual (não é fila automática). user_id null = "sem atendente".
+router.post('/chats/:phone/assign', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const userId = req.body?.user_id ? Number(req.body.user_id) : null;
+  if (userId) {
+    const [[u]] = await db.query("SELECT id FROM users WHERE id = ? AND active = 1", [userId]) as any;
+    if (!u) { res.status(400).json({ error: 'Usuário não encontrado' }); return; }
+  }
+  await db.query(
+    'INSERT INTO whatsapp_chat_meta (phone, assigned_user_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE assigned_user_id = VALUES(assigned_user_id)',
+    [phone, userId]);
+  res.json({ success: true, assigned_user_id: userId });
 });
 
 // ── POST /api/whatsapp-instance/chats/:phone/read — zera as não lidas ───────

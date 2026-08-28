@@ -2,6 +2,8 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { uazapi } from '../services/uazapiClient';
 import { classificarTipoDocumento } from '../services/whatsappTranscricao';
+import { compararSeguro } from '../utils/crypto';
+import { emitWaUpdate } from '../services/waSocket';
 
 // Roteador PÚBLICO (sem autenticação) — a Uazapi entrega os eventos aqui.
 // Substitui o listener 'messages.upsert' do Baileys (waInstance.ts): como a
@@ -135,13 +137,51 @@ async function notifyNewWhatsappContact(phone: string, pushName: string | null, 
   }
 }
 
+// Alerta os admins quando o download de mídia falha (mesmo padrão de
+// `avisarFalhaMigration`, em src/config/migrations.ts) — antes só ficava no
+// console.error, e mudanças no contrato da Uazapi já quebraram isso
+// silenciosamente por meses (ver comentário de diagnóstico acima). Throttled
+// via sent_reminders pra não spammar o sino a cada mensagem se a Uazapi
+// ficar instável — no máximo 1 aviso a cada 30 minutos.
+async function avisarFalhaMidia(tipo: string): Promise<void> {
+  const janela = Math.floor(Date.now() / (30 * 60 * 1000)); // muda a cada 30min
+  const [dup] = await db.query(
+    'INSERT IGNORE INTO sent_reminders (ref_key, channel) VALUES (?, ?)',
+    [`wa_midia_falhou_${janela}`, 'sino']) as any;
+  if (!dup.affectedRows) return;
+  const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+  for (const a of admins) {
+    await db.query(
+      `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+       VALUES (?, ?, ?, 'whatsapp_midia_falhou', 'sistema', NOW(), 'pendente')`,
+      [a.id, '⚠️ Mídia do WhatsApp não baixou',
+       `Uma mídia (tipo: ${tipo}) chegou pelo WhatsApp mas falhou ao baixar — a conversa registrou um aviso no lugar do arquivo. ` +
+       'Se continuar acontecendo, pode ser mudança na integração com a Uazapi; veja os logs do servidor.']
+    ).catch(() => {});
+  }
+}
+
+// Evento de presença (digitando…) — best-effort: a Uazapi pode nunca mandar
+// esse evento (não confirmado na documentação pública), mas se mandar, o
+// front mostra "digitando…" na conversa aberta. Não bloqueia nada se nunca
+// chegar.
+function handlePresence(payload: any): void {
+  const phone = String(payload?.chat?.phone || payload?.phone || '').replace(/\D/g, '');
+  if (!phone) return;
+  const estado = String(payload?.presence || payload?.state || '').toLowerCase();
+  emitWaUpdate(phone, { presence: estado.includes('compos') || estado.includes('typing') ? 'digitando' : 'parou' });
+}
+
 // ── POST /api/public/uazapi-webhook — eventos da Uazapi (mensagens) ─────────
 router.post('/uazapi-webhook', async (req: Request, res: Response) => {
   res.status(200).json({ ok: true }); // confirma recebimento logo — o resto é best-effort
   try {
     const payload = req.body || {};
     // Confere que o evento é da NOSSA instância (o token vem no corpo do webhook).
-    if (String(payload.token || '') !== (process.env.UAZAPI_TOKEN || '')) return;
+    // Comparação em tempo constante — este endpoint é público, sem isso um
+    // `!==` normal vaza por timing quantos caracteres do token bateram.
+    if (!compararSeguro(String(payload.token || ''), process.env.UAZAPI_TOKEN || '')) return;
+    if (payload.EventType === 'presence') { handlePresence(payload); return; }
     if (payload.EventType !== 'messages') return;
 
     const msg = payload.message || {};
@@ -167,13 +207,22 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
     if (!msg.fromMe && msg.mediaType) {
       const media = await storeMedia(msg.messageid || msg.id, phone, clientId, msg.mediaType);
       if (media) { mediaId = media.mediaId; body = body || `📎 ${media.label}`; }
-      else console.error(`[whatsapp-webhook] mídia tipo "${msg.mediaType}" não foi salva (storeMedia devolveu null) — mensagem descartada se não houver legenda.`);
+      else {
+        // Antes descartava a mensagem inteira quando não havia legenda —
+        // a conversa perdia o registro de que algo chegou. Agora mantém um
+        // corpo de aviso, pra pelo menos aparecer na conversa, e alerta os
+        // admins (throttled) em vez de só logar no console.
+        console.error(`[whatsapp-webhook] mídia tipo "${msg.mediaType}" não foi salva (storeMedia devolveu null).`);
+        body = body || `⚠️ Mídia recebida, mas falhou ao baixar (tipo: ${msg.mediaType})`;
+        await avisarFalhaMidia(msg.mediaType).catch(() => {});
+      }
     }
     if (!body) {
       // Evento de só-status (confirmação de entrega/leitura) de uma mensagem
       // que já existe — sem conteúdo novo pra inserir, só atualiza o ✓✓.
       if (statusBruto && msgId) {
         await db.query('UPDATE whatsapp_messages SET status = ? WHERE message_id = ?', [statusBruto, msgId]).catch(() => {});
+        emitWaUpdate(phone);
       }
       return;
     }
@@ -191,6 +240,7 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
        ON DUPLICATE KEY UPDATE status = VALUES(status)`,
       [msgId, phone, clientId, msg.fromMe ? 1 : 0, String(body).slice(0, 4000),
        tsSeconds, mediaId, statusBruto]) as any;
+    if (r.affectedRows > 0) emitWaUpdate(phone);
 
     // affectedRows: 1 = inserção nova; 2 = atualizou uma existente (ON DUPLICATE);
     // 0 = update sem mudança nenhuma. Só trata como mensagem NOVA no caso 1.

@@ -1,7 +1,10 @@
+import { Server as SocketIOServer } from 'socket.io';
+import jwt from 'jsonwebtoken';
 import { createApp } from './app';
 import { env } from './config/env';
 import { assertDatabaseConnection, closeDatabase } from './config/database';
 import { startCronJobs } from './crons';
+import { setIo } from './services/waSocket';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -81,6 +84,22 @@ async function bootstrap() {
     console.log(`🚀 CRM Jurídico rodando em http://localhost:${env.PORT}`);
     console.log(`   Ambiente: ${env.NODE_ENV}`);
   });
+
+  // 4b. Tempo real (Socket.IO) — usado hoje só pela tela de WhatsApp, pra
+  // avisar mensagem nova/status sem esperar o polling de 6s. Mesmo JWT da
+  // API autentica o handshake (o front manda o token de `crm_token` em
+  // `auth.token`); sem token válido, a conexão é recusada.
+  const io = new SocketIOServer(server, { cors: { origin: env.CORS_ORIGIN, credentials: true } });
+  io.use((socket, next) => {
+    try {
+      jwt.verify(String(socket.handshake.auth?.token || ''), env.JWT_SECRET);
+      next();
+    } catch {
+      next(new Error('unauthorized'));
+    }
+  });
+  setIo(io);
+  console.log('🔌 Socket.IO ativo (tempo real do WhatsApp)');
 
   // 5. Inicia as rotinas automáticas (prazos, notificações, sync)
   startCronJobs();
