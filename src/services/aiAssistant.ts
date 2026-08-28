@@ -172,6 +172,44 @@ export async function findOfficeModel(rawType: string): Promise<{ id: number; na
   } catch { return null; /* coluna piece_type pode não existir antes da migration 047 */ }
 }
 
+export interface PecaModelo { titulo: string; assunto: string | null; teses: string | null; fundamentos: string | null; conteudo: string | null }
+
+/**
+ * Acha, no COFRE DE PEÇAS do escritório (peca_modelos, importado do Obsidian —
+ * ver scripts/import-pecas-obsidian.mjs), o modelo que melhor casa com a área
+ * e os termos do caso. Pontua por palavras do assunto/título do modelo
+ * presentes no texto de busca; sem pontuação, cai no 1º modelo da área.
+ * Compartilhado entre a petição inicial (peticaoBuilder) e o Estagiário IA
+ * (runEstagiarioForDeadline) — antes só a inicial usava o cofre rico; o
+ * restante da esteira (contestação, réplica, recurso) caía num modelo genérico
+ * ou numa biblioteca pequena mantida à mão (document_templates/piece_type).
+ */
+export async function findPecaModelo(area: string | null | undefined, termosBusca: string): Promise<PecaModelo | null> {
+  try {
+    const [modelos] = await db.query(
+      `SELECT titulo, assunto, teses, fundamentos, conteudo FROM peca_modelos
+        WHERE area = ? OR area IS NULL ORDER BY (area = ?) DESC, id ASC LIMIT 20`,
+      [area || '', area || '']
+    ) as any;
+    if (!modelos.length) return null;
+    const termos = (termosBusca || '').toLowerCase();
+    let melhor: any = null; let melhorPts = 0;
+    for (const m of modelos) {
+      const chaves = `${m.assunto || ''} ${m.titulo || ''}`.toLowerCase()
+        .split(/[^a-zà-ú0-9]+/).filter((w: string) => w.length > 4);
+      const pts = chaves.reduce((s: number, w: string) => s + (termos.includes(w) ? 1 : 0), 0);
+      if (pts > melhorPts) { melhorPts = pts; melhor = m; }
+    }
+    return melhor || modelos[0];
+  } catch { return null; /* cofre vazio ou indisponível */ }
+}
+
+/** Monta o bloco "MODELO DO ESCRITÓRIO" (peça do cofre) para entrar no prompt de redação. */
+export function pecaModeloBloco(m: PecaModelo): string {
+  return `\n\nMODELO DO ESCRITÓRIO (referência de estrutura, teses e estilo — ADAPTE aos fatos deste caso; NUNCA copie dados do modelo):
+Título: ${m.titulo}${m.assunto ? `\nAssunto: ${m.assunto}` : ''}${m.teses ? `\nTeses da casa: ${m.teses}` : ''}${m.fundamentos ? `\nFundamentos usados: ${m.fundamentos}` : ''}${m.conteudo ? `\nTrecho do modelo:\n${String(m.conteudo).slice(0, 9000)}` : ''}`;
+}
+
 /**
  * Reúne o CONTEXTO do processo para alimentar a redação da peça: descrição do
  * caso + trechos dos documentos do GED vinculados (petições, decisões, provas).
@@ -234,11 +272,17 @@ export async function runEstagiarioForDeadline(opts: {
       ? `${lawyer.name}, OAB ${lawyer.oab_number || ''}${lawyer.oab_uf ? '/' + lawyer.oab_uf : ''}`
       : 'a advogada responsável';
 
-    // Resolve o caso (para puxar documentos do processo).
+    // Resolve o caso (para puxar documentos do processo e a área — usada
+    // para achar o modelo certo no cofre de peças).
     let caseId = opts.caseId ?? null;
     if (!caseId && opts.processId) {
       const [[lp]] = await db.query('SELECT case_id FROM legal_processes WHERE id = ?', [opts.processId]) as any;
       caseId = lp?.case_id ?? null;
+    }
+    let caseArea: string | null = null;
+    if (caseId) {
+      const [[cs]] = await db.query('SELECT legal_area FROM cases WHERE id = ?', [caseId]) as any;
+      caseArea = cs?.legal_area || null;
     }
 
     // 1) ANÁLISE / triagem — Groq (o "outro"): leitura rápida da intimação.
@@ -255,17 +299,25 @@ ${teor}`;
       await db.query('UPDATE detected_deadlines SET ai_summary = ? WHERE id = ?', [analise.text, detectedDeadlineId]);
     }
 
-    // 2) MINUTA — Gemini: redige a peça lendo os documentos do processo e,
-    //    quando houver, SEGUINDO O MODELO DO ESCRITÓRIO para o tipo de peça.
+    // 2) MINUTA — redige a peça lendo os documentos do processo e, quando
+    //    houver, SEGUINDO O MODELO DO ESCRITÓRIO. Prioriza o COFRE DE PEÇAS
+    //    (peca_modelos/Obsidian — 386 peças reais, com tese e fundamento) e só
+    //    cai na biblioteca pequena (document_templates/piece_type) se o cofre
+    //    não tiver nada pra essa área — antes só a petição inicial bebia do
+    //    cofre; contestação/réplica/recurso ficavam sempre no genérico.
     const contexto = await coletarContextoDoCaso(caseId, clientId);
-    const modelo = await findOfficeModel(suggestedType);
-    const blocoModelo = modelo
-      ? `\nMODELO DO ESCRITÓRIO — "${modelo.name}" (SIGA fielmente esta estrutura, estilo e cláusulas; substitua os campos {{...}} e adapte ao caso concreto):\n${modelo.content}\n`
-      : '';
+    const pecaCofre = await findPecaModelo(caseArea, `${suggestedType} ${teor}`);
+    const modeloOffice = !pecaCofre ? await findOfficeModel(suggestedType) : null;
+    const temModelo = !!(pecaCofre || modeloOffice);
+    const blocoModelo = pecaCofre
+      ? pecaModeloBloco(pecaCofre)
+      : modeloOffice
+        ? `\nMODELO DO ESCRITÓRIO — "${modeloOffice.name}" (SIGA fielmente esta estrutura, estilo e cláusulas; substitua os campos {{...}} e adapte ao caso concreto):\n${modeloOffice.content}\n`
+        : '';
     const minutaPrompt = `Você é advogado(a) brasileiro(a) redigindo uma peça para protocolo. Sua tarefa:
 1) Leia a intimação e os DOCUMENTOS DO PROCESSO abaixo.
 2) Identifique fatos relevantes, pedidos e fundamentos jurídicos aplicáveis.
-3) ${modelo ? 'Redija a MINUTA SEGUINDO O MODELO DO ESCRITÓRIO abaixo (mesma estrutura e estilo), preenchendo-o com os dados do caso.' : `Redija a MINUTA de ${suggestedType}, em português jurídico formal, bem estruturada (endereçamento, síntese fática, fundamentação com base legal pertinente, pedidos e fecho).`} Deixe fundamentada e pronta para REVISÃO FINAL antes do protocolo.
+3) ${temModelo ? 'Redija a MINUTA SEGUINDO O MODELO DO ESCRITÓRIO abaixo (mesma estrutura e estilo), preenchendo-o com os dados do caso.' : `Redija a MINUTA de ${suggestedType}, em português jurídico formal, bem estruturada (endereçamento, síntese fática, fundamentação com base legal pertinente, pedidos e fecho).`} Deixe fundamentada e pronta para REVISÃO FINAL antes do protocolo.
 REGRAS ANTI-INVENÇÃO (obrigatórias): use SOMENTE o que está no texto/autos. É PROIBIDO inventar, inferir ou completar dados. NUNCA crie/complete CPF, CNPJ, RG, nº de processo/benefício, endereços, valores ou datas — se não constar, escreva [colchete a preencher]. Dados da parte contrária só se afirmam se constarem de documento; caso contrário, "[a comprovar]". Número que pareça inválido/incompleto → "[conferir]". Na dúvida, prefira o [colchete] a afirmar.
 
 Cliente: ${client?.name || '[cliente]'}${client?.cpf_cnpj ? ', CPF/CNPJ ' + client.cpf_cnpj : ''}

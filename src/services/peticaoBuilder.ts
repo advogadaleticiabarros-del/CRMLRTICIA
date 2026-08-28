@@ -1,5 +1,5 @@
 import { db } from '../config/database';
-import { aiComplete, aiExtractFromFile } from './aiAssistant';
+import { aiComplete, aiExtractFromFile, findPecaModelo, pecaModeloBloco } from './aiAssistant';
 import { driveFileId, downloadDriveFile, driveFolderId, listDriveFolderFiles } from './partnerInboxService';
 
 /**
@@ -109,31 +109,10 @@ async function gatherContext(caseId: number): Promise<{ prompt: string; clientId
   const relato = lead?.case_summary || cs?.description || '';
 
   // ── CÉREBRO: modelo do COFRE do escritório que melhor casa com o caso ──────
-  // Busca por área + palavras do título/relato. O modelo entra no prompt como
-  // referência de estrutura, teses e fundamentos — a peça sai com a cara do
-  // escritório, não genérica.
-  let modeloTxt = '';
-  try {
-    const termos = `${cs?.title || ''} ${relato}`.toLowerCase();
-    const [modelos] = await db.query(
-      `SELECT titulo, assunto, teses, fundamentos, conteudo FROM peca_modelos
-        WHERE area = ? OR area IS NULL ORDER BY (area = ?) DESC, id ASC LIMIT 20`,
-      [cs?.legal_area || '', cs?.legal_area || '']
-    ) as any;
-    // Pontua por palavras do assunto/título do modelo presentes no caso
-    let melhor: any = null; let melhorPts = 0;
-    for (const m of modelos) {
-      const chaves = `${m.assunto || ''} ${m.titulo || ''}`.toLowerCase()
-        .split(/[^a-zà-ú0-9]+/).filter((w: string) => w.length > 4);
-      const pts = chaves.reduce((s: number, w: string) => s + (termos.includes(w) ? 1 : 0), 0);
-      if (pts > melhorPts) { melhorPts = pts; melhor = m; }
-    }
-    if (!melhor && modelos.length) melhor = modelos[0]; // fallback: 1º da área
-    if (melhor) {
-      modeloTxt = `\n\nMODELO DO ESCRITÓRIO (referência de estrutura, teses e estilo — ADAPTE aos fatos deste caso; NUNCA copie dados do modelo):
-Título: ${melhor.titulo}${melhor.assunto ? `\nAssunto: ${melhor.assunto}` : ''}${melhor.teses ? `\nTeses da casa: ${melhor.teses}` : ''}${melhor.fundamentos ? `\nFundamentos usados: ${melhor.fundamentos}` : ''}${melhor.conteudo ? `\nTrecho do modelo:\n${String(melhor.conteudo).slice(0, 9000)}` : ''}`;
-    }
-  } catch { /* cofre vazio ou indisponível — segue sem modelo */ }
+  // Mesmo buscador usado pelo Estagiário IA (runEstagiarioForDeadline) — um
+  // só lugar decide "qual peça do cofre casa com este caso".
+  const melhor = await findPecaModelo(cs?.legal_area, `${cs?.title || ''} ${relato}`);
+  const modeloTxt = melhor ? pecaModeloBloco(melhor) : '';
 
   const prompt = `Você é advogado(a) brasileiro(a), redator(a) de peças, minucioso(a). Redija uma PETIÇÃO INICIAL completa e profissional, pronta para revisão final, com base EXCLUSIVAMENTE no relato e nos documentos abaixo.
 
