@@ -7255,7 +7255,7 @@ async function datDemandas(c) {
     $('#dcase-table').innerHTML = rows.length ? `
       <table><thead><tr><th>Comarca</th><th>Assistido</th><th>Assunto</th><th>Área</th><th>Nomeação</th><th>Estimado</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.map((d) => `<tr>
-        <td><strong>${d.comarca}</strong><br><small style="color:var(--text-muted)">${d.process_number || ''}</small></td>
+        <td><strong>${d.comarca}</strong>${d.origem === 'auto_djen' ? '<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy);margin-left:6px;font-size:10px">Auto</span>' : ''}<br><small style="color:var(--text-muted)">${d.process_number || ''}</small></td>
         <td>${d.assisted_name || '—'}</td>
         <td>${d.assunto ? `<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">${esc(d.assunto)}</span>` : '<small style="color:var(--text-muted)">—</small>'}</td>
         <td><small style="color:var(--text-muted)">${esc(d.area)}</small></td><td>${fmtDate(d.nomeacao_date)}</td>
@@ -7456,11 +7456,14 @@ async function dativeCaseDetail(id, onSave) {
   const gerarAceiteBtn = form.querySelector('#dat-gerar-aceite');
   if (gerarAceiteBtn) gerarAceiteBtn.onclick = async () => {
     if (!d.client_id) { toast('Informe e salve o assistido antes de gerar o aceite', 'error'); return; }
-    const juizoSugerido = [d.vara, d.comarca ? `de ${d.comarca}` : ''].filter(Boolean).join(' ');
+    // Quando a demanda foi detectada automaticamente (origem = auto_djen), d.juizo/
+    // d.decisao_id/d.qualificacao_parte já vêm preenchidos pela extração por IA —
+    // o campo só existe pra advogada conferir/corrigir, não pra digitar do zero.
+    const juizoSugerido = d.juizo || [d.vara, d.comarca ? `de ${d.comarca}` : ''].filter(Boolean).join(' ');
     const gform = el(`<form class="form-grid">
-      ${field('Juízo (ex.: "DO 1º JUIZADO ESPECIAL CÍVEL DE CARIACICA/ES")', 'dativo_juizo', { value: juizoSugerido ? `DO ${juizoSugerido.toUpperCase()}` : '' })}
-      ${field('Id da decisão que fez a nomeação (número do Id do documento nos autos)', 'dativo_decisao_id', { value: '' })}
-      ${field('Qualificação da parte assistida (ex.: requerente/recorrida, réu, autora)', 'dativo_parte', { value: '' })}
+      ${field('Juízo (ex.: "DO 1º JUIZADO ESPECIAL CÍVEL DE CARIACICA/ES")', 'dativo_juizo', { value: juizoSugerido ? (d.juizo ? juizoSugerido : `DO ${juizoSugerido.toUpperCase()}`) : '' })}
+      ${field('Id da decisão que fez a nomeação (número do Id do documento nos autos)', 'dativo_decisao_id', { value: d.decisao_id || '' })}
+      ${field('Qualificação da parte assistida (ex.: requerente/recorrida, réu, autora)', 'dativo_parte', { value: d.qualificacao_parte || '' })}
       ${field('O que vem após o prazo (ex.: apresentação de contestação, apresentação de contrarrazões ao Recurso Inominado)', 'dativo_finalidade', { type: 'textarea' })}
       <button type="submit" class="btn-primary">Gerar documento</button>
     </form>`);

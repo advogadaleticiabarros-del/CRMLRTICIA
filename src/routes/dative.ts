@@ -63,7 +63,7 @@ router.get('/cases', async (req: Request, res: Response) => {
   if (status && CASE_STATUS.includes(status)) { where.push('status = ?'); params.push(status); }
 
   const [rows] = await db.query(
-    `SELECT id, process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, status
+    `SELECT id, process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, status, origem
      FROM dative_cases WHERE ${where.join(' AND ')} ORDER BY nomeacao_date DESC, created_at DESC`,
     params
   ) as any;
@@ -186,6 +186,9 @@ router.put('/cases/:id', async (req: Request, res: Response) => {
   setIf('process_number', req.body.process_number);
   setIf('comarca', req.body.comarca?.trim?.());
   setIf('vara', req.body.vara);
+  setIf('juizo', req.body.juizo);
+  setIf('decisao_id', req.body.decisao_id);
+  setIf('qualificacao_parte', req.body.qualificacao_parte);
   setIf('assisted_name', req.body.assisted_name);
   setIf('area', req.body.area, AREAS.includes(req.body.area));
   setIf('assunto', req.body.assunto !== undefined ? (String(req.body.assunto).trim() || null) : undefined);

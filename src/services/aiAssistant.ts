@@ -429,3 +429,56 @@ ${teor}`;
 
   return { ok: true, qualification };
 }
+
+// ── Extração de dados de nomeação dativa a partir do teor da publicação ────
+// Mesmo padrão de interpretarMovimentacao/qualificarLead: prompt com campos
+// rotulados em texto plano, parser tolerante por regex. Usado quando o
+// monitoramento (DJEN/OAB) encontra uma publicação com termos de nomeação
+// dativa (ver DATIVA_NOMEACAO_RE em monitoringService.ts) — a IA só EXTRAI o
+// que já está escrito na decisão, nunca decide se é ou não uma nomeação.
+export interface DativeNominationExtraction {
+  juizo: string;
+  comarca: string;
+  vara: string;
+  qualificacao_parte: string;
+  decisao_id: string;
+  assunto: string;
+}
+
+export function parseDativeNominationExtraction(texto: string): DativeNominationExtraction {
+  const campo = (rotulo: string) => {
+    const m = texto.match(new RegExp(`${rotulo}:\\s*(.+)`, 'i'));
+    const v = m ? m[1].trim() : '';
+    return /^(vazio|n\/?a|nenhum|n[ãa]o informad[oa])$/i.test(v) ? '' : v;
+  };
+  return {
+    juizo: campo('JUIZO'),
+    comarca: campo('COMARCA'),
+    vara: campo('VARA'),
+    qualificacao_parte: campo('QUALIFICACAO_PARTE'),
+    decisao_id: campo('DECISAO_ID'),
+    assunto: campo('ASSUNTO'),
+  };
+}
+
+export async function extrairNomeacaoDativa(
+  texto: string
+): Promise<{ ok: boolean; extraction?: DativeNominationExtraction; message?: string }> {
+  const teor = (texto || '').trim().slice(0, 8000);
+  if (!teor) return { ok: false, message: 'Sem texto da publicação' };
+
+  const prompt = `Você é assistente jurídico(a). O texto abaixo é uma decisão/publicação judicial que nomeia a advogada como defensora dativa. Extraia SOMENTE o que estiver escrito no texto e responda EXATAMENTE neste formato, sem texto fora dele (use "vazio" quando não encontrar):
+JUIZO: <cabeçalho do juízo em maiúsculas, ex.: DO 1º JUIZADO ESPECIAL CÍVEL DE CARIACICA/ES>
+COMARCA: <cidade/UF, ex.: Cariacica/ES>
+VARA: <nome da vara/juízo, ex.: 1º Juizado Especial Cível>
+QUALIFICACAO_PARTE: <papel processual da parte assistida em maiúsculas, ex.: REQUERIDA, RÉU, RECORRIDA>
+DECISAO_ID: <número do Id do documento da decisão nos autos, se mencionado>
+ASSUNTO: <o que deve ser feito após o prazo, breve, ex.: apresentação de contestação>
+
+TEXTO:
+${teor}`;
+
+  const r = await aiComplete(prompt, 'groq');
+  if (!r.ok || !r.text) return { ok: false, message: r.message || 'IA indisponível' };
+  return { ok: true, extraction: parseDativeNominationExtraction(r.text) };
+}

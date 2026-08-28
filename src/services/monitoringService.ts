@@ -2,12 +2,12 @@ import crypto from 'crypto';
 import { db } from '../config/database';
 import { getActiveProvider, getProvider } from './processProviders';
 import { aliasFromProcessNumber } from './datajud';
-import { fetchDjenByOAB, groupPublicationsByProcess, DjenPublication } from './djen';
+import { fetchDjenByOAB, groupPublicationsByProcess, DjenPublication, DjenProcess } from './djen';
 import { notificationService } from './NotificationService';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
 import { runIntimacaoPlaybooks } from './automationService';
-import { interpretarMovimentacao } from './aiAssistant';
+import { interpretarMovimentacao, extrairNomeacaoDativa } from './aiAssistant';
 
 // ── Sugestão de fase processual a partir do texto das movimentações ──────────
 const PHASE_RANK: Record<string, number> = { inicial: 1, instrucao: 2, sentenca: 3, recurso: 4, execucao: 5, encerrado: 6 };
@@ -156,6 +156,68 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
       });
     }
   } catch { /* detecção é best-effort */ }
+}
+
+// Termos que indicam nomeação de defensor(a) dativo(a) — precisa achar "nome*"
+// e "dativ*" a uma distância curta um do outro, nas duas ordens possíveis
+// ("nomeio... dativa" ou "dativa... nomeação"), pra não disparar em falso com
+// um "dativo" citado de passagem em outro contexto do processo.
+const DATIVA_NOMEACAO_RE = /nome(?:io|ada|ado|a[çc][ãa]o)[\s\S]{0,150}?dativ|dativ[\s\S]{0,150}?nome(?:io|ada|ado|a[çc][ãa]o)/i;
+
+/**
+ * Detecta, no texto de UMA publicação DJEN já baixada, se é uma decisão de
+ * nomeação dativa e — se for, e ainda não existir demanda cadastrada pra esse
+ * processo — extrai os dados (IA) e já cria a demanda em dative_cases.
+ * Nunca lança: é chamado dentro da descoberta por OAB, best-effort.
+ */
+async function maybeRegisterDativeNomination(proc: DjenProcess, clientId: number | null): Promise<void> {
+  try {
+    const texto = proc.movements.map((m) => m.description).join('\n\n');
+    if (!DATIVA_NOMEACAO_RE.test(texto)) return;
+
+    const [existing] = await db.query('SELECT id FROM dative_cases WHERE process_number = ? LIMIT 1', [proc.process_number]) as any;
+    if (existing.length) return; // já cadastrada — não duplica
+
+    const [[owner]] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
+    if (!owner) return; // sem usuário dono, não há como cadastrar (user_id é NOT NULL)
+
+    const trecho = proc.movements.find((m) => DATIVA_NOMEACAO_RE.test(m.description))?.description || texto;
+    const ai = await extrairNomeacaoDativa(trecho);
+    const ext = ai.extraction || { juizo: '', comarca: '', vara: '', qualificacao_parte: '', decisao_id: '', assunto: '' };
+
+    // comarca é NOT NULL no schema — sem extração da IA, cai pro nome do órgão/tribunal.
+    const comarca = ext.comarca || proc.orgao || proc.court || 'Não identificada';
+    const nomeacaoDate = dateOnly(proc.last_date);
+
+    const [ins] = await db.query(
+      `INSERT INTO dative_cases
+         (user_id, client_id, process_number, comarca, vara, juizo, assisted_name, area, assunto,
+          decisao_id, qualificacao_parte, nomeacao_date, estimated_value, notes, status, origem)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'outro', ?, ?, ?, ?, 0, ?, 'nomeada', 'auto_djen')`,
+      [
+        owner.id, clientId, proc.process_number, comarca, ext.vara || proc.orgao || null, ext.juizo || null,
+        proc.client_name || null, ext.assunto || null, ext.decisao_id || null, ext.qualificacao_parte || null,
+        nomeacaoDate,
+        `Nomeação dativa detectada automaticamente via DJEN/OAB (processo ${proc.process_masked || proc.process_number}).`,
+      ]
+    ) as any;
+
+    if (clientId) {
+      await db.query('UPDATE clients SET is_dative = 1 WHERE id = ?', [clientId]);
+      await logTimeline({
+        clientId, eventType: 'demanda_dativa_detectada',
+        description: `Nomeação dativa detectada e cadastrada automaticamente — processo ${proc.process_number}.`, userId: null,
+      });
+    }
+
+    await notificationService.create({
+      userId: owner.id, clientId: clientId ?? undefined, title: 'Nomeação dativa detectada e cadastrada',
+      message: `Processo ${proc.process_masked || proc.process_number} (${comarca}) — confira/complete os dados em Dativo.`,
+      notificationType: 'dativo_detectado', channel: 'sistema', scheduledAt: new Date(),
+    });
+
+    await logMonitor(null as any, null, 'nova_movimentacao', 'djen_oab', `Demanda dativa auto-cadastrada (dative_cases id ${ins.insertId}) para o processo ${proc.process_number}`);
+  } catch { /* detecção é best-effort — nunca derruba a descoberta */ }
 }
 
 interface SyncResult {
@@ -404,6 +466,8 @@ export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublicatio
         }
       }
     }
+
+    await maybeRegisterDativeNomination(p, clientId);
   }
 
   await db.query('UPDATE lawyers SET last_sync_at = NOW() WHERE id = ?', [lawyerId]);
