@@ -564,7 +564,7 @@ Object.assign(ROUTES, {
           const podeResponder = m.body !== '🚫 Mensagem apagada';
           const botoesMexer = podeMexer ? `${!m.media_id ? `<button type="button" data-editar-msg="${m.id}" title="Editar">${svgIcon('edit', 'ic-xs')}</button>` : ''}<button type="button" data-apagar-msg="${m.id}" title="Apagar">${svgIcon('trash', 'ic-xs')}</button>` : '';
           const acoes = (podeResponder || botoesMexer)
-            ? `<span class="wa-msg-acoes">${podeResponder ? `<button type="button" data-responder-msg="${m.id}" title="Responder">${svgIcon('reply', 'ic-xs')}</button>` : ''}${botoesMexer}</span>`
+            ? `<span class="wa-msg-acoes">${podeResponder ? `<button type="button" data-reagir-msg="${m.id}" data-phone="${ativo.phone}" title="Reagir">${svgIcon('smile', 'ic-xs')}</button><button type="button" data-responder-msg="${m.id}" title="Responder">${svgIcon('reply', 'ic-xs')}</button>` : ''}${botoesMexer}</span>`
             : '';
           const citacao = m.reply_to_body
             ? `<div class="wa-quote">${esc(String(m.reply_to_body).slice(0, 120))}</div>`
@@ -827,6 +827,28 @@ Object.assign(ROUTES, {
           $('#wam').querySelectorAll('[data-responder-msg]').forEach((b) => b.onclick = () => {
             const atual = msgs.find((m) => String(m.id) === b.dataset.responderMsg);
             if (atual) iniciarResposta(atual.id, atual.body);
+          });
+          // Reagir com emoji — mesma bolha de emojis rápidos do WhatsApp de verdade.
+          const REACOES_RAPIDAS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
+          $('#wam').querySelectorAll('[data-reagir-msg]').forEach((b) => b.onclick = (e) => {
+            e.stopPropagation();
+            document.querySelector('.wa-reagir-menu')?.remove();
+            const menu = document.createElement('div');
+            menu.className = 'wa-filter-menu wa-reagir-menu';
+            menu.style.padding = '6px 8px'; menu.style.display = 'flex'; menu.style.gap = '4px';
+            menu.innerHTML = REACOES_RAPIDAS.map((emoji) => `<span style="cursor:pointer;font-size:19px;padding:2px" data-emoji="${emoji}">${emoji}</span>`).join('');
+            const rect = b.getBoundingClientRect();
+            menu.style.position = 'fixed'; menu.style.left = rect.left + 'px'; menu.style.top = (rect.bottom + 4) + 'px'; menu.style.zIndex = 50;
+            document.body.appendChild(menu);
+            const fechar = () => { menu.remove(); document.removeEventListener('click', fechar, true); };
+            menu.querySelectorAll('[data-emoji]').forEach((s) => s.onclick = async (ev) => {
+              ev.stopPropagation(); fechar();
+              try {
+                await api(`/api/whatsapp-instance/messages/${b.dataset.reagirMsg}/react`, { method: 'POST', body: JSON.stringify({ emoji: s.dataset.emoji, phone: b.dataset.phone }) });
+                toast('Reação enviada');
+              } catch (err) { toast(err.message, 'error'); }
+            });
+            setTimeout(() => document.addEventListener('click', fechar, true), 0);
           });
           $('#wam').querySelectorAll('[data-editar-msg]').forEach((b) => b.onclick = async () => {
             const msgId = b.dataset.editarMsg;
@@ -1172,9 +1194,20 @@ Object.assign(ROUTES, {
           openModal('Atendente responsável', form);
         };
 
-        // Menu "⋯ Mais ações" — reúne fixar/arquivar/etiquetas/atendente/PDF
+        // Bloquear/desbloquear contato — ele para de conseguir mandar mensagem
+        // pra instância (chamada real na Uazapi, não é só filtro local).
+        const acaoBlock = async () => {
+          const bloqueando = !ativo.blocked;
+          if (bloqueando && !await uiConfirm(`Bloquear ${ativo.name || ativo.phone}? Ele(a) não vai conseguir mandar mensagem pra este número até você desbloquear.`)) return;
+          try {
+            await api(`/api/whatsapp-instance/chats/${ativo.phone}/block`, { method: 'POST', body: JSON.stringify({ block: bloqueando }) });
+            ativo.blocked = bloqueando; toast(bloqueando ? 'Contato bloqueado' : 'Contato desbloqueado');
+          } catch (e) { toast(e.message, 'error'); }
+        };
+
+        // Menu "⋯ Mais ações" — reúne fixar/arquivar/etiquetas/atendente/PDF/bloqueio
         // num único dropdown (mesmo padrão visual do menu de filtro da lista,
-        // #waf-menu/.wa-filter-menu), no lugar de 5 botões-ícone soltos no
+        // #waf-menu/.wa-filter-menu), no lugar de botões-ícone soltos no
         // cabeçalho — cabeçalho ficou poluído e genérico com tantos ícones.
         const fecharMenuMais = () => { const m = $('#wa-mais-menu'); if (m) m.remove(); document.removeEventListener('click', onClickForaMais, true); };
         const onClickForaMais = (e) => { if (!e.target.closest('#wa-mais')) fecharMenuMais(); };
@@ -1190,9 +1223,10 @@ Object.assign(ROUTES, {
             item('label', 'tag', 'Etiquetas'),
             item('assign', 'users', 'Atendente responsável' + (c.assigned_user_name ? ` (${esc(c.assigned_user_name)})` : '')),
             item('pdf', 'printer', 'Gerar PDF da conversa'),
+            item('block', 'x', ativo.blocked ? 'Desbloquear contato' : 'Bloquear contato'),
           ].join('');
           $('#wa-mais').closest('.wa-head').appendChild(menu);
-          const acoes = { pin: acaoPin, archive: acaoArchive, label: acaoLabel, assign: acaoAssign, pdf: acaoPdf };
+          const acoes = { pin: acaoPin, archive: acaoArchive, label: acaoLabel, assign: acaoAssign, pdf: acaoPdf, block: acaoBlock };
           menu.querySelectorAll('[data-acao]').forEach((o) => o.onclick = () => { fecharMenuMais(); acoes[o.dataset.acao](); });
           document.addEventListener('click', onClickForaMais, true);
         };

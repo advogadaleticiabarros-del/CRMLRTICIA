@@ -283,6 +283,49 @@ function scheduleAutoSend(): void {
   autoTimer.unref?.();
 }
 
+/** Reage (emoji) a uma mensagem específica da conversa — text vazio remove a reação. */
+export async function reagirMensagem(phone: string, dbId: number, emoji: string): Promise<boolean> {
+  try {
+    const [[m]] = await db.query('SELECT message_id FROM whatsapp_messages WHERE id = ?', [dbId]) as any;
+    if (!m?.message_id) return false;
+    await uazapi.react(phone.replace(/\D/g, ''), m.message_id, emoji);
+    return true;
+  } catch (e: any) { lastError = e?.message || 'Falha ao reagir'; return false; }
+}
+
+/** Marca mensagens (da própria conversa, recebidas) como lidas do lado do WhatsApp. */
+export async function marcarComoLida(dbIds: number[]): Promise<boolean> {
+  try {
+    const [rows] = await db.query('SELECT message_id FROM whatsapp_messages WHERE id IN (?)', [dbIds]) as any;
+    const ids = rows.map((r: any) => r.message_id).filter(Boolean);
+    if (!ids.length) return false;
+    await uazapi.markRead(ids);
+    return true;
+  } catch (e: any) { lastError = e?.message || 'Falha ao marcar como lida'; return false; }
+}
+
+/** Bloqueia/desbloqueia um contato — ele para de conseguir mandar mensagem pra instância. */
+export async function bloquearContato(phone: string, block: boolean): Promise<boolean> {
+  try { await uazapi.blockChat(phone.replace(/\D/g, ''), block); return true; }
+  catch (e: any) { lastError = e?.message || 'Falha ao bloquear/desbloquear'; return false; }
+}
+
+/** Nota interna do chat (nativa do WhatsApp Business, sincroniza com o celular) — complementa os "relatos" do CRM. */
+export async function obterNotaDoChat(phone: string): Promise<string> {
+  try { const r = await uazapi.getChatNotes(phone.replace(/\D/g, '')); return r?.wa_notes || ''; }
+  catch { return ''; }
+}
+export async function salvarNotaDoChat(phone: string, notas: string): Promise<boolean> {
+  try { await uazapi.editChatNotes(phone.replace(/\D/g, ''), notas); return true; }
+  catch (e: any) { lastError = e?.message || 'Falha ao salvar nota'; return false; }
+}
+
+/** Mostra "digitando…"/"gravando áudio…" pro contato antes da resposta chegar. */
+export async function enviarPresenca(phone: string, tipo: 'composing' | 'recording', delayMs?: number): Promise<boolean> {
+  try { await uazapi.sendPresence(phone.replace(/\D/g, ''), tipo, delayMs); return true; }
+  catch { return false; /* cosmético — nunca deve travar o envio real */ }
+}
+
 export function setAutoSend(on: boolean): void {
   autoSend = on;
   if (on) scheduleAutoSend();

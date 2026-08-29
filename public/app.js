@@ -430,6 +430,7 @@ const ICONS = {
   pin: '<path d="M14.5 3.5 20.5 9.5l-2 2-1-1-3.5 3.5.5 4-1.5 1.5-3.5-3.5-4.5 4.5-1-1 4.5-4.5-3.5-3.5 1.5-1.5 4 .5 3.5-3.5-1-1z"/>',
   archive: '<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8"/><path d="M10 13h4"/>',
   reply: '<path d="M9 17l-5-5 5-5"/><path d="M4 12h10a6 6 0 0 1 6 6v1"/>',
+  smile: '<circle cx="12" cy="12" r="9"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><path d="M9 9h.01M15 9h.01"/>',
   scale: '<path d="M12 3v18M7 21h10M4 8h16M4 8l6-2 8 2"/><path d="M4 8l-2.5 5a3 3 0 0 0 6 0zM20 8l2.5 5a3 3 0 0 1-6 0z"/>',
   cap: '<path d="M2 9l10-4 10 4-10 4z"/><path d="M6 11v5c0 1 2.7 2.5 6 2.5s6-1.5 6-2.5v-5"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',

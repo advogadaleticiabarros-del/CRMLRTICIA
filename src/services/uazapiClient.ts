@@ -51,9 +51,17 @@ export const uazapi = {
   status(): Promise<UazapiStatusResponse> {
     return request('GET', '/instance/status');
   },
+  /** GET /instance/wa_messages_limits — diagnóstico de limite/restrição do WhatsApp pra iniciar conversas novas (útil pra entender um erro 463). */
+  getMessageLimits(): Promise<any> {
+    return request('GET', '/instance/wa_messages_limits');
+  },
   /** POST /instance/logout — desconecta e apaga a sessão (pede novo QR depois). */
   logout(): Promise<void> {
     return request('POST', '/instance/logout');
+  },
+  /** POST /instance/reset — reset controlado do runtime, sem apagar a sessão (usar quando o envio trava sem motivo aparente). */
+  resetRuntime(): Promise<any> {
+    return request('POST', '/instance/reset');
   },
   /** POST /send/text — envia mensagem de texto. replyid (opcional) cita outra mensagem. */
   sendText(number: string, text: string, replyid?: string): Promise<{ messageid: string; status: string }> {
@@ -92,5 +100,103 @@ export const uazapi = {
   // mas mantém o webhook DESLIGADO (confirmado testando direto).
   setWebhook(url: string, events: string[]): Promise<void> {
     return request('POST', '/webhook', { url, events, enabled: true });
+  },
+  /** GET /webhook/errors — últimos 20 erros de entrega do NOSSO webhook (diagnóstico, fica só em memória do lado da Uazapi). */
+  getWebhookErrors(): Promise<any[]> {
+    return request('GET', '/webhook/errors');
+  },
+
+  // ── Ações em mensagem ──────────────────────────────────────────────────
+  /** POST /message/markread — marca uma ou mais mensagens como lidas. */
+  markRead(ids: string[]): Promise<any> {
+    return request('POST', '/message/markread', { id: ids });
+  },
+  /** POST /message/react — reage (emoji) a uma mensagem; text: '' remove a reação. */
+  react(number: string, messageId: string, emoji: string): Promise<any> {
+    return request('POST', '/message/react', { number, id: messageId, text: emoji });
+  },
+  /** POST /message/pin — fixa/desafixa uma mensagem específica na conversa (não confundir com fixar a conversa). */
+  pinMessage(messageId: string, pin: boolean, durationDays: 1 | 7 | 30 = 7): Promise<any> {
+    return request('POST', '/message/pin', { id: messageId, pin, duration: durationDays });
+  },
+  /** POST /message/find — busca mensagens por chat, id ou rastreamento. */
+  findMessages(params: { chatid?: string; id?: string; limit?: number; offset?: number }): Promise<any> {
+    return request('POST', '/message/find', params);
+  },
+  /** POST /message/presence — envia indicador de "digitando…"/"gravando áudio…" (composing/recording/paused). */
+  sendPresence(number: string, presence: 'composing' | 'recording' | 'paused', delayMs?: number): Promise<any> {
+    return request('POST', '/message/presence', { number, presence, ...(delayMs ? { delay: delayMs } : {}) });
+  },
+
+  // ── Mensagens interativas e outras ─────────────────────────────────────
+  /** POST /send/contact — envia cartão de contato (vCard). */
+  sendContact(number: string, fullName: string, phoneNumber: string, extra?: { organization?: string; email?: string; url?: string }): Promise<any> {
+    return request('POST', '/send/contact', { number, fullName, phoneNumber, ...extra });
+  },
+  /** POST /send/location — envia localização geográfica. */
+  sendLocation(number: string, latitude: number, longitude: number, extra?: { name?: string; address?: string }): Promise<any> {
+    return request('POST', '/send/location', { number, latitude, longitude, ...extra });
+  },
+  /** POST /send/location-button — pede que o contato compartilhe a localização dele. */
+  sendLocationButton(number: string, text: string): Promise<any> {
+    return request('POST', '/send/location-button', { number, text });
+  },
+  /**
+   * POST /send/menu — botões/lista/enquete/carrossel num único endpoint.
+   * choices segue a sintaxe da Uazapi (ver docs.uazapi.com) — "texto|id",
+   * "[Título da Seção]" pra listas, etc.
+   */
+  sendMenu(number: string, type: 'button' | 'list' | 'poll' | 'carousel', text: string, choices: string[], extra?: { footerText?: string; listButton?: string; selectableCount?: number; imageButton?: string }): Promise<any> {
+    return request('POST', '/send/menu', { number, type, text, choices, ...extra });
+  },
+
+  // ── Chats ────────────────────────────────────────────────────────────
+  /** POST /chat/block — bloqueia/desbloqueia um contato. */
+  blockChat(number: string, block: boolean): Promise<any> {
+    return request('POST', '/chat/block', { number, block });
+  },
+  /** GET /chat/blocklist — lista de contatos bloqueados. */
+  getBlocklist(): Promise<{ blockList: string[] }> {
+    return request('GET', '/chat/blocklist');
+  },
+  /** POST /chat/notes — lê a nota interna (wa_notes) já persistida do chat. */
+  getChatNotes(number: string): Promise<any> {
+    return request('POST', '/chat/notes', { number });
+  },
+  /** POST /chat/notes/edit — grava a nota interna do chat (nativa do WhatsApp Business, sincroniza entre dispositivos). */
+  editChatNotes(number: string, notes: string): Promise<any> {
+    return request('POST', '/chat/notes/edit', { number, notes });
+  },
+  /** POST /chat/details — ficha completa do contato/chat (mais de 60 campos). */
+  getChatDetails(number: string, preview = false): Promise<any> {
+    return request('POST', '/chat/details', { number, preview });
+  },
+  /** POST /chat/check — confirma se números estão no WhatsApp (antes de mandar mensagem em massa, por exemplo). */
+  checkChat(numbers: string[]): Promise<any> {
+    return request('POST', '/chat/check', { numbers });
+  },
+  /** POST /chat/find — busca avançada de conversas com filtros (~, !~, >=, etc.). */
+  findChats(filtro: Record<string, unknown>): Promise<any> {
+    return request('POST', '/chat/find', filtro);
+  },
+
+  // ── Etiquetas ────────────────────────────────────────────────────────
+  /** GET /labels — lista as etiquetas cadastradas na instância. */
+  listLabels(): Promise<any> {
+    return request('GET', '/labels');
+  },
+  /** POST /label/edit — cria ("new"), edita ou apaga (delete:true) uma etiqueta. */
+  editLabel(labelId: string, opts: { name?: string; color?: number; delete?: boolean }): Promise<any> {
+    return request('POST', '/label/edit', { labelid: labelId, ...opts });
+  },
+
+  // ── Contatos ─────────────────────────────────────────────────────────
+  /** POST /contact/add — adiciona um número à agenda do celular conectado. */
+  addContact(number: string, name: string): Promise<any> {
+    return request('POST', '/contact/add', { number, name });
+  },
+  /** POST /contact/remove — remove um número da agenda do celular conectado. */
+  removeContact(number: string): Promise<any> {
+    return request('POST', '/contact/remove', { number });
   },
 };

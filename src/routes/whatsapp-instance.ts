@@ -2,7 +2,8 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { db } from '../config/database';
 import { env } from '../config/env';
-import { startInstance, disconnectInstance, sendText, sendMedia, getStatus, setAutoSend, editarMensagem, apagarMensagem } from '../services/uazapiInstance';
+import { startInstance, disconnectInstance, sendText, sendMedia, getStatus, setAutoSend, editarMensagem, apagarMensagem, reagirMensagem, marcarComoLida, bloquearContato, obterNotaDoChat, salvarNotaDoChat, enviarPresenca } from '../services/uazapiInstance';
+import { uazapi } from '../services/uazapiClient';
 
 const router = Router();
 
@@ -227,6 +228,57 @@ router.post('/chats/:phone/labels', async (req: Request, res: Response) => {
     'INSERT INTO whatsapp_chat_meta (phone, labels) VALUES (?, ?) ON DUPLICATE KEY UPDATE labels = VALUES(labels)',
     [phone, JSON.stringify(labels)]);
   res.json({ success: true, labels });
+});
+
+// ── POST /api/whatsapp-instance/messages/:id/react — reage com emoji (ou remove) ─
+router.post('/messages/:id/react', async (req: Request, res: Response) => {
+  const emoji = String(req.body?.emoji ?? '');
+  const phone = String(req.body?.phone || '').replace(/\D/g, '');
+  if (!phone) { res.status(400).json({ error: 'Informe o telefone da conversa' }); return; }
+  const ok = await reagirMensagem(phone, Number(req.params.id), emoji);
+  if (!ok) { res.status(400).json({ error: 'Não deu pra reagir a essa mensagem' }); return; }
+  res.json({ success: true });
+});
+
+// ── POST /api/whatsapp-instance/messages/markread — confirma leitura no WhatsApp ─
+router.post('/messages/markread', async (req: Request, res: Response) => {
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Boolean) : [];
+  if (!ids.length) { res.status(400).json({ error: 'Informe os ids das mensagens' }); return; }
+  const ok = await marcarComoLida(ids);
+  res.json({ success: ok });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/block — bloqueia/desbloqueia contato ─
+router.post('/chats/:phone/block', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const block = !!req.body?.block;
+  const ok = await bloquearContato(phone, block);
+  if (!ok) { res.status(400).json({ error: 'Não deu pra bloquear/desbloquear — confira se o WhatsApp está conectado' }); return; }
+  res.json({ success: true, blocked: block });
+});
+
+// ── Nota interna do chat (nativa do WhatsApp Business) ──────────────────────
+router.get('/chats/:phone/notes', async (req: Request, res: Response) => {
+  const notes = await obterNotaDoChat(String(req.params.phone));
+  res.json({ notes });
+});
+router.post('/chats/:phone/notes', async (req: Request, res: Response) => {
+  const ok = await salvarNotaDoChat(String(req.params.phone), String(req.body?.notes || ''));
+  if (!ok) { res.status(400).json({ error: 'Não deu pra salvar a nota' }); return; }
+  res.json({ success: true });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/presence — "digitando…"/"gravando…" ─
+router.post('/chats/:phone/presence', async (req: Request, res: Response) => {
+  const tipo = req.body?.tipo === 'recording' ? 'recording' : 'composing';
+  await enviarPresenca(String(req.params.phone), tipo, req.body?.delay ? Number(req.body.delay) : undefined);
+  res.json({ success: true });
+});
+
+// ── GET /api/whatsapp-instance/message-limits — diagnóstico de restrição de envio ─
+router.get('/message-limits', async (_req: Request, res: Response) => {
+  try { res.json(await uazapi.getMessageLimits()); }
+  catch (e: any) { res.status(500).json({ error: e?.message || 'Falha ao consultar limites' }); }
 });
 
 // ── POST /api/whatsapp-instance/chats/:phone/vincular-cliente — liga a um
