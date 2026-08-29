@@ -394,6 +394,27 @@ interface MovimentacaoBriefing {
   prazoInterno: string; severity: Severity;
 }
 
+/**
+ * Conta quantos itens do dia são "crítica" (mesma classificação usada dentro
+ * de buildHtml) — usado só pra decidir o assunto do e-mail (mostrar a
+ * contagem de urgência em vez de um "Bom dia!" genérico todo dia).
+ */
+export function contarCriticosDoDia(
+  agenda3d: AgendaItem[],
+  prazosPorFaixa: { diasParaVencer: number }[],
+  movimentacoes: MovimentacaoBriefing[],
+  financeiro: FinanceiroGranular,
+  esteira: { pecasAProduzir: PecaPendente[] }
+): number {
+  let n = 0;
+  n += agenda3d.filter((a) => a.severity === 'critica').length;
+  n += prazosPorFaixa.filter((p) => classificarPrazo(p.diasParaVencer) === 'critica').length;
+  n += movimentacoes.filter((m) => m.severity === 'critica').length;
+  if (financeiro.aReceberHoje > 0 && classificarPagamento(0) === 'critica') n += 1;
+  n += esteira.pecasAProduzir.filter((p) => p.severity === 'critica').length;
+  return n;
+}
+
 export function buildHtml(
   name: string, weather: Weather | null, agenda: any, pulso: any, meta: GoalProgress,
   agenda3d: AgendaItem[], financeiro: FinanceiroGranular,
@@ -511,17 +532,9 @@ export function buildHtml(
 
   const body = `
     <div style="font-size:12px;color:${GOLD};text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:2px">${hoje}</div>
-    <p style="font-size:19px;font-weight:700;color:${NAVY};margin:0 0 16px">Bom dia, Dra. ${name}! ☀️</p>
+    <p style="font-size:19px;font-weight:700;color:${NAVY};margin:0 0 10px">Bom dia, Dra. ${name}!</p>
 
-    <div style="background:${GOLD_SOFT};border-radius:8px;padding:16px 18px;margin-bottom:16px">
-      <div style="font-size:9px;color:#8a6d1a;text-transform:uppercase;letter-spacing:1px;font-weight:700;margin-bottom:6px">Frase de força do dia</div>
-      <p style="margin:0;font-size:14.5px;line-height:1.6;color:#4a3d1d;font-style:italic">"${fraseDoDia()}"</p>
-    </div>
-
-    <p style="font-size:14.5px;color:#232323">${weather ? `A previsão para <strong>${weather.city}</strong> hoje é de <strong>${weather.tmin}°C a ${weather.tmax}°C</strong>, com ${weather.desc}.` : '(Não consegui obter a previsão do tempo agora.)'}</p>
-    <div style="background:${NAVY_SOFT};border-radius:8px;padding:12px 16px;margin:12px 0 18px;font-size:13.5px;color:#232323">
-      <strong style="color:${NAVY}">💡 Dica do dia:</strong> ${weatherTip(weather)}
-    </div>
+    <p style="font-size:14.5px;color:#232323;margin:0 0 22px">${weather ? `A previsão para <strong>${weather.city}</strong> hoje é de <strong>${weather.tmin}°C a ${weather.tmax}°C</strong>, com ${weather.desc}.` : '(Não consegui obter a previsão do tempo agora.)'}</p>
 
     ${criticos.length || atencao.length || acompanhamento.length ? `
     <div style="display:flex;gap:8px;margin:0 0 26px">
@@ -536,15 +549,15 @@ export function buildHtml(
 
     <hr style="border:none;border-top:1px solid #e2ddd1;margin:26px 0">
 
-    <h3 style="color:${NAVY};font-size:15px;margin:0 0 8px;font-family:Georgia,serif">🎯 Meta do mês</h3>
+    <h3 style="color:${NAVY};font-size:15px;margin:0 0 8px;font-family:Georgia,serif">Meta do mês</h3>
     ${metaHtml(meta)}
 
-    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">📅 Agenda — hoje e próximos 3 dias</h3>
+    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">Agenda — hoje e próximos 3 dias</h3>
     ${agendaListaHtml}
 
     ${documentosPendentesHtml}
 
-    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">💰 Financeiro</h3>
+    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">Financeiro</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:6px 0 4px">
       <div style="background:${NAVY_SOFT};border-radius:8px;padding:12px 14px;border-left:3px solid ${CRITICAL}"><div style="font-size:16px;font-weight:700;color:${NAVY}">${money(financeiro.aReceberHoje)}</div><div style="font-size:11px;color:#6b6252">a receber vencendo hoje</div></div>
       <div style="background:${NAVY_SOFT};border-radius:8px;padding:12px 14px;border-left:3px solid ${NAVY}"><div style="font-size:16px;font-weight:700;color:${NAVY}">${money(financeiro.rpvSemana)}</div><div style="font-size:11px;color:#6b6252">RPV prevista esta semana</div></div>
@@ -552,17 +565,17 @@ export function buildHtml(
       <div style="background:${NAVY_SOFT};border-radius:8px;padding:12px 14px;border-left:3px solid ${NAVY}"><div style="font-size:16px;font-weight:700;color:${NAVY}">${financeiro.alvarasAguardando}</div><div style="font-size:11px;color:#6b6252">alvarás aguardando conferência</div></div>
     </div>
 
-    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">📲 Comercial</h3>
+    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">Comercial</h3>
     ${comercialHtml}
 
     ${podeEsperarHtml}
     ${top3Html}
 
-    <div style="border:1px solid #e2ddd1;border-radius:8px;padding:16px 18px;margin-top:20px;text-align:center">
-      <p style="margin:0;font-size:13px;color:#6b6252">🧘 Antes de começar: já bebeu água hoje? Um alongamento de 2 minutos também conta.</p>
-    </div>
+    <p style="margin-top:26px;text-align:center"><a href="https://crm.advogadaleticiabarros.com.br" style="display:inline-block;background:${GOLD};color:#231e17;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:bold;font-family:Arial,sans-serif">Abrir o CRM</a></p>
 
-    <p style="margin-top:22px;text-align:center"><a href="https://crm.advogadaleticiabarros.com.br" style="display:inline-block;background:${GOLD};color:#231e17;text-decoration:none;padding:11px 22px;border-radius:8px;font-weight:bold;font-family:Arial,sans-serif">Abrir o CRM</a></p>`;
+    <div style="margin-top:28px;padding-top:16px;border-top:1px solid #ece7db;text-align:center">
+      <p style="margin:0;font-size:12px;line-height:1.6;color:#a39c8c;font-style:italic">"${fraseDoDia()}"</p>
+    </div>`;
 
   return layout(`Resumo de ${hoje}`, body);
 }
@@ -637,9 +650,13 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
     await salvarSnapshotDoDia(u.id, { tarefas: tarefasHoje }).catch((e) => console.error('[briefing] falha ao salvar snapshot:', e?.message || e));
     const agenda3d = await getAgenda3Dias(u.id);
     const prazosPorFaixa = await getPrazosPorFaixa(u.id);
+    const criticosHoje = contarCriticosDoDia(agenda3d, prazosPorFaixa, movimentacoes, financeiro, esteira);
+    const subject = criticosHoje > 0
+      ? `⚠️ ${criticosHoje} item${criticosHoje > 1 ? 's' : ''} urgente${criticosHoje > 1 ? 's' : ''} hoje`
+      : 'Bom dia! Sua agenda de hoje';
     const r = await sendEmail({
       to: u.email,
-      subject: `☀️ Bom dia! Sua agenda de hoje`,
+      subject,
       html: buildHtml(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes, prazosPorFaixa),
     });
     if (r.ok) sent++; else failed++;
