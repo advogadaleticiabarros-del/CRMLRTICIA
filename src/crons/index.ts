@@ -47,6 +47,16 @@ export function startCronJobs() {
     runJob('briefing:matinal-whatsapp', () => sendMorningBriefingWhatsapp());
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── Jornal Jurídico (STJ/STF/CNJ, filtrado por IA) — mesmo horário do
+  // resumo matinal, mas em e-mail separado (substitui o antigo "Radar
+  // Jurídico" que ficava sempre vazio dentro do resumo principal).
+  cron.schedule('0 7 * * *', () => {
+    runJob('briefing:jornal-juridico', async () => {
+      const { sendLegalNewsDigest } = await import('../services/legalNewsService');
+      return await sendLegalNewsDigest();
+    });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── Fechamento do dia às 18:30 (Brasília) ──────────────────────────────────
   cron.schedule('30 18 * * *', () => {
     runJob('briefing:fechamento-dia', async () => {

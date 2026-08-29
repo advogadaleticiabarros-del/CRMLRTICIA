@@ -555,9 +555,6 @@ export function buildHtml(
     <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">📲 Comercial</h3>
     ${comercialHtml}
 
-    <h3 style="color:${NAVY};font-size:15px;margin:22px 0 8px;font-family:Georgia,serif">⚖️ Radar jurídico</h3>
-    <div style="border:1px dashed #e2ddd1;border-radius:8px;padding:12px 16px;font-size:12.5px;color:#6b6252">Em construção — só vai trazer algo quando houver Informativo do STJ relevante às suas áreas. Nada aqui hoje.</div>
-
     ${podeEsperarHtml}
     ${top3Html}
 
@@ -725,8 +722,6 @@ export function buildWhatsappText(
     ...comercial.aniversariantes.map((a) => `🎂 Aniversário hoje: ${a.nome}`),
   ];
   if (comercialLinhas.length) blocos.push(`📲 *Comercial*\n${comercialLinhas.join('\n')}`);
-
-  blocos.push(`⚖️ *Radar jurídico*\nEm construção — nada relevante hoje.`);
 
   // Correção (mesma da Task 7 em buildHtml): inclui prazo e pagamento no
   // cálculo do top3 — PESO_KIND.prazo é o de maior prioridade em
