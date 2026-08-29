@@ -2,7 +2,12 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { db } from '../config/database';
 import { env } from '../config/env';
-import { startInstance, disconnectInstance, sendText, sendMedia, getStatus, setAutoSend, editarMensagem, apagarMensagem, reagirMensagem, marcarComoLida, bloquearContato, obterNotaDoChat, salvarNotaDoChat, enviarPresenca } from '../services/uazapiInstance';
+import {
+  startInstance, disconnectInstance, sendText, sendMedia, getStatus, setAutoSend, editarMensagem, apagarMensagem,
+  reagirMensagem, marcarComoLida, bloquearContato, obterNotaDoChat, salvarNotaDoChat, enviarPresenca,
+  arquivarConversaNativo, fixarConversaNativo, marcarChatLido, silenciarChat, apagarConversaWhatsapp,
+  configurarMensagensEfemeras, solicitarHistoricoAntigo, listarRespostasRapidas, salvarRespostaRapida, excluirRespostaRapida,
+} from '../services/uazapiInstance';
 import { uazapi } from '../services/uazapiClient';
 
 const router = Router();
@@ -150,6 +155,8 @@ router.get('/chats', async (req: Request, res: Response) => {
            MAX(m.push_name) AS push_name,
            MAX(m.pinned) AS pinned,
            MAX(m.archived) AS archived,
+           MAX(m.blocked) AS blocked,
+           MAX(m.muted_until) AS muted_until,
            MAX(m.assigned_user_id) AS assigned_user_id,
            MAX(au.name) AS assigned_user_name,
            MIN(aud.dias) AS proxima_audiencia_dias,
@@ -176,12 +183,15 @@ router.get('/chats', async (req: Request, res: Response) => {
 });
 
 // ── POST /api/whatsapp-instance/chats/:phone/pin — fixa/desfixa a conversa ──
+// Sincroniza com o WhatsApp de verdade (best-effort — se a Uazapi falhar,
+// o estado local abaixo já garante o comportamento na tela do CRM).
 router.post('/chats/:phone/pin', async (req: Request, res: Response) => {
   const phone = String(req.params.phone).replace(/\D/g, '');
   const pinned = req.body?.pinned ? 1 : 0;
   await db.query(
     'INSERT INTO whatsapp_chat_meta (phone, pinned) VALUES (?, ?) ON DUPLICATE KEY UPDATE pinned = VALUES(pinned)',
     [phone, pinned]);
+  fixarConversaNativo(phone, !!pinned).catch(() => {});
   res.json({ success: true, pinned: !!pinned });
 });
 
@@ -192,7 +202,58 @@ router.post('/chats/:phone/archive', async (req: Request, res: Response) => {
   await db.query(
     'INSERT INTO whatsapp_chat_meta (phone, archived) VALUES (?, ?) ON DUPLICATE KEY UPDATE archived = VALUES(archived)',
     [phone, archived]);
+  arquivarConversaNativo(phone, !!archived).catch(() => {});
   res.json({ success: true, archived: !!archived });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/mute — silencia notificações ───
+router.post('/chats/:phone/mute', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const horas = [0, 8, 168, -1].includes(Number(req.body?.hours)) ? Number(req.body.hours) as 0 | 8 | 168 | -1 : 0;
+  const mutedUntil = horas === 0 ? null : (horas === -1 ? -1 : Date.now() + horas * 3600_000);
+  const ok = await silenciarChat(phone, horas);
+  if (!ok) { res.status(400).json({ error: 'Não deu pra silenciar — confira se o WhatsApp está conectado' }); return; }
+  await db.query(
+    'INSERT INTO whatsapp_chat_meta (phone, muted_until) VALUES (?, ?) ON DUPLICATE KEY UPDATE muted_until = VALUES(muted_until)',
+    [phone, mutedUntil]);
+  res.json({ success: true, muted_until: mutedUntil });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/delete — apaga/limpa a conversa ─
+// Sempre limpa (não deleta) o chat NO WHATSAPP por padrão — deletar de fato
+// exigiria confirmar de novo do lado da usuária; "limpar" já resolve o caso
+// de uso real (conversa de teste, dado sujo) sem correr risco de some sem querer.
+router.post('/chats/:phone/delete', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const apagarNoWhatsapp = !!req.body?.deleteChatWhatsApp;
+  const ok = await apagarConversaWhatsapp(phone, {
+    clearChatWhatsApp: !apagarNoWhatsapp,
+    deleteChatWhatsApp: apagarNoWhatsapp,
+    deleteChatDB: true,
+    deleteMessagesDB: true,
+  });
+  await db.query('DELETE FROM whatsapp_messages WHERE phone = ?', [phone]).catch(() => {});
+  await db.query('DELETE FROM whatsapp_media WHERE phone = ?', [phone]).catch(() => {});
+  await db.query('DELETE FROM whatsapp_chat_meta WHERE phone = ?', [phone]).catch(() => {});
+  if (!ok) { res.status(400).json({ error: 'A conversa foi removida do CRM, mas não deu pra limpar do lado do WhatsApp (confira a conexão)' }); return; }
+  res.json({ success: true });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/ephemeral — mensagens temporárias ─
+router.post('/chats/:phone/ephemeral', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const duration = ['off', '1d', '7d', '90d'].includes(req.body?.duration) ? req.body.duration : 'off';
+  const ok = await configurarMensagensEfemeras(phone, duration);
+  if (!ok) { res.status(400).json({ error: 'Não deu pra configurar — confira se o WhatsApp está conectado' }); return; }
+  res.json({ success: true, duration });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/historico — pede mensagens antigas ─
+router.post('/chats/:phone/historico', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const ok = await solicitarHistoricoAntigo(phone, req.body?.count ? Number(req.body.count) : 50);
+  if (!ok) { res.status(400).json({ error: 'Não deu pra pedir o histórico — confira se o WhatsApp está conectado' }); return; }
+  res.json({ success: true, aviso: 'As mensagens antigas chegam aos poucos pelo webhook — pode levar alguns segundos' });
 });
 
 // ── POST /api/whatsapp-instance/chats/:phone/assign — atendente responsável ─
@@ -215,6 +276,7 @@ router.post('/chats/:phone/read', async (req: Request, res: Response) => {
   const phone = String(req.params.phone).replace(/\D/g, '');
   await db.query(
     'INSERT INTO whatsapp_chat_meta (phone, unread) VALUES (?, 0) ON DUPLICATE KEY UPDATE unread = 0', [phone]);
+  marcarChatLido(phone, true).catch(() => {});
   res.json({ success: true });
 });
 
@@ -254,6 +316,9 @@ router.post('/chats/:phone/block', async (req: Request, res: Response) => {
   const block = !!req.body?.block;
   const ok = await bloquearContato(phone, block);
   if (!ok) { res.status(400).json({ error: 'Não deu pra bloquear/desbloquear — confira se o WhatsApp está conectado' }); return; }
+  await db.query(
+    'INSERT INTO whatsapp_chat_meta (phone, blocked) VALUES (?, ?) ON DUPLICATE KEY UPDATE blocked = VALUES(blocked)',
+    [phone, block ? 1 : 0]);
   res.json({ success: true, blocked: block });
 });
 
@@ -580,6 +645,35 @@ ${texto}`, 'groq');
     const j = JSON.parse(clean.slice(clean.indexOf('{'), clean.lastIndexOf('}') + 1));
     res.json({ nome: j.nome || '', area: j.area || '', cidade: j.cidade || '', resumo: j.resumo || '', faltantes: Array.isArray(j.faltantes) ? j.faltantes : [] });
   } catch { res.status(400).json({ error: 'A IA não devolveu um formato válido — tente de novo' }); }
+});
+
+// ── Respostas rápidas (templates de atalho, ex: digitar "/saudacao") ────────
+// Guardadas na própria Uazapi (POST /quickreply/edit) — não duplicamos numa
+// tabela local, ela já é a fonte da verdade e sincroniza com o app oficial
+// do WhatsApp Business quando marcado onWhatsApp.
+router.get('/quickreplies', async (_req: Request, res: Response) => {
+  res.json(await listarRespostasRapidas());
+});
+router.post('/quickreplies', async (req: Request, res: Response) => {
+  const shortCut = String(req.body?.shortCut || '').trim();
+  const text = String(req.body?.text || '').trim();
+  if (!shortCut || !text) { res.status(400).json({ error: 'Informe o atalho e o texto' }); return; }
+  const r = await salvarRespostaRapida({ shortCut, type: 'text', text });
+  if (!r.ok) { res.status(400).json({ error: r.error || 'Não deu pra salvar' }); return; }
+  res.status(201).json({ success: true });
+});
+router.put('/quickreplies/:id', async (req: Request, res: Response) => {
+  const shortCut = String(req.body?.shortCut || '').trim();
+  const text = String(req.body?.text || '').trim();
+  if (!shortCut || !text) { res.status(400).json({ error: 'Informe o atalho e o texto' }); return; }
+  const r = await salvarRespostaRapida({ id: req.params.id, shortCut, type: 'text', text });
+  if (!r.ok) { res.status(400).json({ error: r.error || 'Não deu pra salvar' }); return; }
+  res.json({ success: true });
+});
+router.delete('/quickreplies/:id', async (req: Request, res: Response) => {
+  const ok = await excluirRespostaRapida(req.params.id);
+  if (!ok) { res.status(400).json({ error: 'Não deu pra excluir' }); return; }
+  res.json({ success: true });
 });
 
 export default router;

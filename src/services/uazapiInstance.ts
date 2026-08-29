@@ -326,6 +326,60 @@ export async function enviarPresenca(phone: string, tipo: 'composing' | 'recordi
   catch { return false; /* cosmético — nunca deve travar o envio real */ }
 }
 
+// Ações abaixo espelham no WhatsApp de verdade (celular) o que já é feito
+// localmente em whatsapp_chat_meta — best-effort: se a Uazapi falhar (ex:
+// desconectada), o estado local continua valendo pra UI do CRM.
+export async function arquivarConversaNativo(phone: string, archive: boolean): Promise<boolean> {
+  try { await uazapi.archiveChat(phone.replace(/\D/g, ''), archive); return true; }
+  catch { return false; /* best-effort — o estado local (whatsapp_chat_meta) já reflete a ação na UI */ }
+}
+export async function fixarConversaNativo(phone: string, pin: boolean): Promise<boolean> {
+  try { await uazapi.pinChat(phone.replace(/\D/g, ''), pin); return true; }
+  catch { return false; }
+}
+export async function marcarChatLido(phone: string, read: boolean): Promise<boolean> {
+  try { await uazapi.readChat(phone.replace(/\D/g, ''), read); return true; }
+  catch { return false; }
+}
+
+/** Silencia notificações do chat. horas: 0 remove, 8 = 8h, 168 = 1 semana, -1 = permanente. */
+export async function silenciarChat(phone: string, horas: 0 | 8 | 168 | -1): Promise<boolean> {
+  try { await uazapi.muteChat(phone.replace(/\D/g, ''), horas); return true; }
+  catch (e: any) { lastError = e?.message || 'Falha ao silenciar conversa'; return false; }
+}
+
+/** Apaga e/ou limpa a conversa (WhatsApp de verdade e/ou só o registro local da Uazapi). */
+export async function apagarConversaWhatsapp(phone: string, opts: { deleteChatWhatsApp?: boolean; clearChatWhatsApp?: boolean; deleteChatDB?: boolean; deleteMessagesDB?: boolean }): Promise<boolean> {
+  try { await uazapi.deleteChat(phone.replace(/\D/g, ''), opts); return true; }
+  catch (e: any) { lastError = e?.message || 'Falha ao apagar conversa'; return false; }
+}
+
+/** Mensagens temporárias (disappearing messages) num chat privado. */
+export async function configurarMensagensEfemeras(phone: string, duration: '0' | 'off' | '1d' | '7d' | '90d'): Promise<boolean> {
+  try { await uazapi.setEphemeral(phone.replace(/\D/g, ''), duration); return true; }
+  catch (e: any) { lastError = e?.message || 'Falha ao configurar mensagens temporárias'; return false; }
+}
+
+/** Pede ao WhatsApp mensagens antigas de um chat (sob demanda — "carregar mais" no topo da conversa). */
+export async function solicitarHistoricoAntigo(phone: string, count = 50): Promise<boolean> {
+  try { await uazapi.requestHistorySync(phone.replace(/\D/g, ''), { count }); return true; }
+  catch (e: any) { lastError = e?.message || 'Falha ao solicitar histórico'; return false; }
+}
+
+// ── Respostas rápidas (templates de atalho, ex: "/saudacao") ────────────────
+export async function listarRespostasRapidas(): Promise<any[]> {
+  try { return await uazapi.listQuickReplies() || []; }
+  catch { return []; }
+}
+export async function salvarRespostaRapida(opts: { id?: string; shortCut: string; type: 'text'; text: string }): Promise<{ ok: boolean; error?: string }> {
+  try { await uazapi.editQuickReply(opts); return { ok: true }; }
+  catch (e: any) { return { ok: false, error: e?.message || 'Falha ao salvar resposta rápida' }; }
+}
+export async function excluirRespostaRapida(id: string): Promise<boolean> {
+  try { await uazapi.editQuickReply({ id, shortCut: '', type: 'text', delete: true }); return true; }
+  catch (e: any) { lastError = e?.message || 'Falha ao excluir resposta rápida'; return false; }
+}
+
 export function setAutoSend(on: boolean): void {
   autoSend = on;
   if (on) scheduleAutoSend();

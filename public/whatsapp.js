@@ -762,7 +762,7 @@ Object.assign(ROUTES, {
       };
 
       const abrirChat = async (c, manterInput) => {
-        ativo = { phone: c.phone, name: c.client_name || c.push_name || '+' + c.phone, client_id: c.client_id, labels: parseLabels(c.labels) };
+        ativo = { phone: c.phone, name: c.client_name || c.push_name || '+' + c.phone, client_id: c.client_id, labels: parseLabels(c.labels), blocked: !!Number(c.blocked), muted_until: c.muted_until };
         $('#wa-shell').classList.add('chat-open');
         const msgs = await api('/api/whatsapp-instance/chats/' + c.phone).catch(() => []);
         qtdMsgs = msgs.length;
@@ -792,7 +792,12 @@ Object.assign(ROUTES, {
             <button type="button" class="btn-icon btn-icon-sm" id="wa-busca-chat-next" title="Próxima">${svgIcon('chevronDown', 'ic-xs')}</button>
             <button type="button" class="btn-icon btn-icon-sm" id="wa-busca-chat-fechar" title="Fechar busca">${svgIcon('x', 'ic-xs')}</button>
           </div>
-          <div class="wa-msgs" id="wam">${renderMsgs(msgs)}</div>
+          <div class="wa-msgs" id="wam">
+            <div style="text-align:center;padding:4px 0 10px">
+              <button type="button" class="btn-sm" id="wa-carregar-antigas">Carregar mensagens antigas</button>
+            </div>
+            ${renderMsgs(msgs)}
+          </div>
           <div class="wa-reply-banner" id="wa-reply-banner" style="display:none">
             <div class="wa-quote" id="wa-reply-banner-txt"></div>
             <button type="button" class="btn-icon btn-icon-sm" id="wa-reply-cancel" title="Cancelar resposta">${svgIcon('x', 'ic-xs')}</button>
@@ -806,6 +811,15 @@ Object.assign(ROUTES, {
           </form>`;
         const box = $('#wam'); box.scrollTop = box.scrollHeight;
         if (window.innerWidth < 760) { const bk = $('#wa-back'); bk.style.display = ''; bk.onclick = () => { ativo = null; $('#wa-shell').classList.remove('chat-open'); renderLista(); }; }
+        const btnAntigas = $('#wa-carregar-antigas');
+        if (btnAntigas) btnAntigas.onclick = async () => {
+          btnAntigas.disabled = true; btnAntigas.textContent = 'Pedindo ao WhatsApp…';
+          try {
+            await api(`/api/whatsapp-instance/chats/${c.phone}/historico`, { method: 'POST', body: JSON.stringify({ count: 50 }) });
+            toast('Pedido enviado — as mensagens antigas chegam aos poucos');
+          } catch (e) { toast(e.message, 'error'); }
+          btnAntigas.disabled = false; btnAntigas.textContent = 'Carregar mensagens antigas';
+        };
 
         // Transcrever áudio (Whisper) — a transcrição fica gravada na mensagem.
         // Função à parte porque a busca dentro da conversa (abaixo) redesenha
@@ -1194,6 +1208,61 @@ Object.assign(ROUTES, {
           openModal('Atendente responsável', form);
         };
 
+        // Menu suspenso simples de opções (silenciar/temporárias) — mesmo
+        // visual do menu rápido de emoji de reação, ancorado no item clicado.
+        const abrirSubmenu = (anchorEl, opcoes, onEscolher) => {
+          document.querySelector('.wa-sub-menu')?.remove();
+          const menu = document.createElement('div');
+          menu.className = 'wa-filter-menu wa-sub-menu';
+          menu.innerHTML = opcoes.map((o) => `<div class="wa-filter-opt" data-v="${o.v}">${esc(o.t)}</div>`).join('');
+          const rect = anchorEl.getBoundingClientRect();
+          menu.style.position = 'fixed'; menu.style.left = rect.left + 'px'; menu.style.top = (rect.bottom + 4) + 'px'; menu.style.zIndex = 60;
+          document.body.appendChild(menu);
+          const fechar = () => { menu.remove(); document.removeEventListener('click', fechar, true); };
+          menu.querySelectorAll('[data-v]').forEach((o) => o.onclick = (ev) => { ev.stopPropagation(); fechar(); onEscolher(o.dataset.v); });
+          setTimeout(() => document.addEventListener('click', fechar, true), 0);
+        };
+
+        // Silenciar notificações da conversa — sincroniza com o WhatsApp real.
+        const acaoMute = (anchorEl) => {
+          abrirSubmenu(anchorEl, [
+            { v: '0', t: 'Remover silêncio' },
+            { v: '8', t: 'Silenciar por 8 horas' },
+            { v: '168', t: 'Silenciar por 1 semana' },
+            { v: '-1', t: 'Silenciar sempre' },
+          ], async (v) => {
+            try {
+              const r = await api(`/api/whatsapp-instance/chats/${ativo.phone}/mute`, { method: 'POST', body: JSON.stringify({ hours: Number(v) }) });
+              ativo.muted_until = r.muted_until; toast(v === '0' ? 'Silêncio removido' : 'Conversa silenciada');
+            } catch (e) { toast(e.message, 'error'); }
+          });
+        };
+
+        // Mensagens temporárias (somem sozinhas depois de um tempo) — só chats privados.
+        const acaoEphemeral = (anchorEl) => {
+          abrirSubmenu(anchorEl, [
+            { v: 'off', t: 'Desativar mensagens temporárias' },
+            { v: '1d', t: 'Ativar — 24 horas' },
+            { v: '7d', t: 'Ativar — 7 dias' },
+            { v: '90d', t: 'Ativar — 90 dias' },
+          ], async (v) => {
+            try {
+              await api(`/api/whatsapp-instance/chats/${ativo.phone}/ephemeral`, { method: 'POST', body: JSON.stringify({ duration: v }) });
+              toast(v === 'off' ? 'Mensagens temporárias desativadas' : 'Mensagens temporárias ativadas');
+            } catch (e) { toast(e.message, 'error'); }
+          });
+        };
+
+        // Limpa a conversa (mensagens somem do WhatsApp e do CRM) — não deleta
+        // o contato do WhatsApp, só o histórico. Ação destrutiva, pede confirmação.
+        const acaoDelete = async () => {
+          if (!await uiConfirm(`Limpar TODO o histórico da conversa com ${ativo.name || ativo.phone}? Isso apaga as mensagens do WhatsApp e do CRM — não dá pra desfazer.`)) return;
+          try {
+            await api(`/api/whatsapp-instance/chats/${ativo.phone}/delete`, { method: 'POST', body: JSON.stringify({}) });
+            toast('Conversa limpa'); ativo = null; $('#wa-shell').classList.remove('chat-open'); await atualizar(true);
+          } catch (e) { toast(e.message, 'error'); }
+        };
+
         // Bloquear/desbloquear contato — ele para de conseguir mandar mensagem
         // pra instância (chamada real na Uazapi, não é só filtro local).
         const acaoBlock = async () => {
@@ -1223,11 +1292,21 @@ Object.assign(ROUTES, {
             item('label', 'tag', 'Etiquetas'),
             item('assign', 'users', 'Atendente responsável' + (c.assigned_user_name ? ` (${esc(c.assigned_user_name)})` : '')),
             item('pdf', 'printer', 'Gerar PDF da conversa'),
+            item('mute', 'bell', ativo.muted_until ? 'Alterar silêncio…' : 'Silenciar conversa…'),
+            item('ephemeral', 'clock', 'Mensagens temporárias…'),
             item('block', 'x', ativo.blocked ? 'Desbloquear contato' : 'Bloquear contato'),
+            item('delete', 'trash', 'Limpar conversa'),
           ].join('');
           $('#wa-mais').closest('.wa-head').appendChild(menu);
-          const acoes = { pin: acaoPin, archive: acaoArchive, label: acaoLabel, assign: acaoAssign, pdf: acaoPdf, block: acaoBlock };
-          menu.querySelectorAll('[data-acao]').forEach((o) => o.onclick = () => { fecharMenuMais(); acoes[o.dataset.acao](); });
+          const acoes = {
+            pin: acaoPin, archive: acaoArchive, label: acaoLabel, assign: acaoAssign, pdf: acaoPdf, block: acaoBlock,
+            mute: (el) => acaoMute(el), ephemeral: (el) => acaoEphemeral(el), delete: acaoDelete,
+          };
+          menu.querySelectorAll('[data-acao]').forEach((o) => o.onclick = (ev) => {
+            const rect = ev.currentTarget.getBoundingClientRect();
+            const ancoraFantasma = { getBoundingClientRect: () => rect };
+            fecharMenuMais(); acoes[o.dataset.acao](ancoraFantasma);
+          });
           document.addEventListener('click', onClickForaMais, true);
         };
       };

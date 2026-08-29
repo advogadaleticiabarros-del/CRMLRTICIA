@@ -81,6 +81,10 @@ export const uazapi = {
   sendPixButton(number: string, pixKey: string, pixName: string, pixType: 'CPF' | 'CNPJ' | 'EMAIL' | 'PHONE' | 'EVP'): Promise<any> {
     return request('POST', '/send/pix-button', { number, pixKey, pixName, pixType });
   },
+  /** POST /send/request-payment — botão nativo "Revisar e pagar" (PIX/boleto/link/cartão num só). */
+  sendPaymentRequest(number: string, amount: number, extra?: { title?: string; text?: string; pixKey?: string; pixType?: string; pixName?: string; paymentLink?: string; boletoCode?: string; fileUrl?: string; fileName?: string }): Promise<any> {
+    return request('POST', '/send/request-payment', { number, amount, ...extra });
+  },
   /** POST /message/download — baixa mídia de uma mensagem recebida. */
   downloadMessage(messageId: string): Promise<{ base64?: string; url?: string }> {
     return request('POST', '/message/download', { id: messageId, return_base64: true });
@@ -126,6 +130,22 @@ export const uazapi = {
   /** POST /message/presence — envia indicador de "digitando…"/"gravando áudio…" (composing/recording/paused). */
   sendPresence(number: string, presence: 'composing' | 'recording' | 'paused', delayMs?: number): Promise<any> {
     return request('POST', '/message/presence', { number, presence, ...(delayMs ? { delay: delayMs } : {}) });
+  },
+  /** POST /message/history-sync — pede ao WhatsApp mensagens antigas de um chat (sob demanda). */
+  requestHistorySync(number: string, opts?: { messageid?: string; count?: number }): Promise<any> {
+    return request('POST', '/message/history-sync', { number, mode: 'history', ...opts });
+  },
+  /** GET /message/async — status da fila interna de envio assíncrono (diagnóstico). */
+  getAsyncQueueStatus(): Promise<any> {
+    return request('GET', '/message/async');
+  },
+  /** DELETE /message/async — cancela toda a fila de envio assíncrono pendente. */
+  clearAsyncQueue(): Promise<any> {
+    return request('DELETE', '/message/async');
+  },
+  /** POST /instance/updateDelaySettings — delay mín/máx (segundos) entre mensagens enviadas com async:true. */
+  updateDelaySettings(msgDelayMin: number, msgDelayMax: number): Promise<any> {
+    return request('POST', '/instance/updateDelaySettings', { msg_delay_min: msgDelayMin, msg_delay_max: msgDelayMax });
   },
 
   // ── Mensagens interativas e outras ─────────────────────────────────────
@@ -179,6 +199,34 @@ export const uazapi = {
   findChats(filtro: Record<string, unknown>): Promise<any> {
     return request('POST', '/chat/find', filtro);
   },
+  /** POST /chat/archive — arquiva/desarquiva o chat no WhatsApp de verdade (sincroniza com o celular). */
+  archiveChat(number: string, archive: boolean): Promise<any> {
+    return request('POST', '/chat/archive', { number, archive });
+  },
+  /** POST /chat/pin — fixa/desafixa o chat no topo da lista do WhatsApp de verdade. */
+  pinChat(number: string, pin: boolean): Promise<any> {
+    return request('POST', '/chat/pin', { number, pin });
+  },
+  /** POST /chat/read — marca o chat inteiro como lido/não lido no WhatsApp de verdade. */
+  readChat(number: string, read: boolean): Promise<any> {
+    return request('POST', '/chat/read', { number, read });
+  },
+  /** POST /chat/mute — silencia notificações do chat (0=remove, 8=8h, 168=1 semana, -1=permanente). */
+  muteChat(number: string, muteEndTime: 0 | 8 | 168 | -1): Promise<any> {
+    return request('POST', '/chat/mute', { number, muteEndTime });
+  },
+  /** POST /chat/delete — apaga/limpa o chat no WhatsApp e/ou no banco local da Uazapi. */
+  deleteChat(number: string, opts: { deleteChatDB?: boolean; deleteMessagesDB?: boolean; deleteChatWhatsApp?: boolean; clearChatWhatsApp?: boolean }): Promise<any> {
+    return request('POST', '/chat/delete', { number, ...opts });
+  },
+  /** POST /chat/ephemeral — mensagens temporárias num chat privado ('0'/'off', '1d', '7d', '90d'). */
+  setEphemeral(number: string, duration: '0' | 'off' | '1d' | '7d' | '90d'): Promise<any> {
+    return request('POST', '/chat/ephemeral', { number, duration });
+  },
+  /** POST /chat/labels — define/adiciona/remove etiquetas NATIVAS do WhatsApp Business num chat (por labelid). */
+  setChatLabelsNative(number: string, opts: { labelids?: string[]; add_labelid?: string; remove_labelid?: string }): Promise<any> {
+    return request('POST', '/chat/labels', { number, ...opts });
+  },
 
   // ── Etiquetas ────────────────────────────────────────────────────────
   /** GET /labels — lista as etiquetas cadastradas na instância. */
@@ -189,6 +237,10 @@ export const uazapi = {
   editLabel(labelId: string, opts: { name?: string; color?: number; delete?: boolean }): Promise<any> {
     return request('POST', '/label/edit', { labelid: labelId, ...opts });
   },
+  /** POST /labels/refresh — força releitura das etiquetas nativas direto do WhatsApp (assíncrono). */
+  refreshLabels(force = false): Promise<any> {
+    return request('POST', '/labels/refresh', { force });
+  },
 
   // ── Contatos ─────────────────────────────────────────────────────────
   /** POST /contact/add — adiciona um número à agenda do celular conectado. */
@@ -198,5 +250,29 @@ export const uazapi = {
   /** POST /contact/remove — remove um número da agenda do celular conectado. */
   removeContact(number: string): Promise<any> {
     return request('POST', '/contact/remove', { number });
+  },
+  /** POST /contacts/list — lista contatos do WhatsApp conectado, paginado. */
+  listContacts(opts?: { limit?: number; offset?: number; contactScope?: 'address_book' | 'outside_address_book' | 'all' }): Promise<any> {
+    return request('POST', '/contacts/list', opts || {});
+  },
+
+  // ── Lead / campos personalizados (CRM nativo da Uazapi) ─────────────────
+  /** POST /instance/updateFieldsMap — define os rótulos dos 20 campos livres de lead (lead_field01-20). */
+  updateFieldsMap(fields: Record<string, string>): Promise<any> {
+    return request('POST', '/instance/updateFieldsMap', fields);
+  },
+  /** POST /chat/editLead — edita dados de lead do chat (status, atendente, kanban, tags, campos custom). */
+  editLead(id: string, fields: Record<string, unknown>): Promise<any> {
+    return request('POST', '/chat/editLead', { id, ...fields });
+  },
+
+  // ── Respostas rápidas ────────────────────────────────────────────────
+  /** GET /quickreply/showall — lista todos os templates de resposta rápida cadastrados. */
+  listQuickReplies(): Promise<any[]> {
+    return request('GET', '/quickreply/showall');
+  },
+  /** POST /quickreply/edit — cria (sem id), atualiza (com id) ou apaga (delete:true) um template. */
+  editQuickReply(opts: { id?: string; delete?: boolean; shortCut: string; type: 'text' | 'audio' | 'myaudio' | 'ptt' | 'document' | 'video' | 'image'; text?: string; file?: string; docName?: string }): Promise<any> {
+    return request('POST', '/quickreply/edit', opts);
   },
 };
