@@ -2866,6 +2866,10 @@ async function docViewer(id, onSave) {
   // timbrado, em vez de mostrar só o texto com espaço em branco.
   const printSignedBtn = wrap.querySelector('#doc-print-signed');
   if (printSignedBtn) printSignedBtn.onclick = async () => {
+    // Abre a janela já no clique (síncrono) — no Safari do iPhone, window.open()
+    // depois de um await de rede é bloqueado silenciosamente.
+    const w = window.open('', '_blank');
+    if (!w) { toast('Permita pop-ups para gerar o PDF', 'error'); return; }
     try {
       const sigs = await api(`/api/documents/${id}/signatures`);
       const sigMap = {};
@@ -2875,8 +2879,8 @@ async function docViewer(id, onSave) {
           sigMap[s.signer_name.trim().toUpperCase()] = { image: s.signature_image, signedAt: s.signed_at, code: s.verification_code };
         }
       }
-      printDocs([{ title: doc.name, content: wrap.querySelector('#doc-content').value, signatures: sigMap, authSigners: assinados }]);
-    } catch (e) { toast(e.message, 'error'); }
+      printDocs([{ title: doc.name, content: wrap.querySelector('#doc-content').value, signatures: sigMap, authSigners: assinados }], w);
+    } catch (e) { toast(e.message, 'error'); try { w.close(); } catch {} }
   };
   openModal(doc.name, wrap);
 }
@@ -4460,8 +4464,12 @@ async function finVisaoGeral(c) {
 
   // Relatório EXECUTIVO — o escritório inteiro num documento (imprimir → PDF)
   $('#fin-executivo').onclick = async () => {
+    // Abre a janela já no clique, de forma síncrona (antes de qualquer await) —
+    // no Safari do iPhone, window.open() depois de um await é bloqueado silenciosamente.
+    const w = window.open('', '_blank');
+    if (!w) { toast('Permita pop-ups para gerar o PDF', 'error'); return; }
     const mes = await uiPrompt('Mês do relatório (AAAA-MM):', new Date().toISOString().slice(0, 7));
-    if (!mes) return;
+    if (!mes) { try { w.close(); } catch {} return; }
     try {
       const d = await api('/api/dashboards/relatorio-mensal?month=' + encodeURIComponent(mes.trim()));
       const linha = (t, v, forte) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${t}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;${forte ? 'font-weight:700' : ''}">${typeof v === 'number' && String(t).indexOf('%') === -1 ? money(v) : v}</td></tr>`;
@@ -4553,8 +4561,8 @@ async function finVisaoGeral(c) {
             ${d.narrativa.dicas.map((t) => `<li style="margin-bottom:6px">${esc(t)}</li>`).join('')}
           </ul>
         </div>
-        <p style="color:#777;font-size:12px;margin-top:12px">Gerado automaticamente pelo CRM. Use "Imprimir → Salvar como PDF" para arquivar.</p>`);
-    } catch (e) { toast(e.message, 'error'); }
+        <p style="color:#777;font-size:12px;margin-top:12px">Gerado automaticamente pelo CRM. Use "Imprimir → Salvar como PDF" para arquivar.</p>`, w);
+    } catch (e) { toast(e.message, 'error'); try { w.close(); } catch {} }
   };
 
   // Reenvia o relatório executivo por e-mail sob demanda (o automático roda todo dia 1)
@@ -4571,8 +4579,12 @@ async function finVisaoGeral(c) {
 
   // Relatório do contador — DRE simplificada do mês (imprimir → salvar como PDF)
   $('#fin-dre').onclick = async () => {
+    // Abre a janela já no clique, de forma síncrona (antes de qualquer await) —
+    // no Safari do iPhone, window.open() depois de um await é bloqueado silenciosamente.
+    const w = window.open('', '_blank');
+    if (!w) { toast('Permita pop-ups para gerar o PDF', 'error'); return; }
     const mes = await uiPrompt('Mês do fechamento (AAAA-MM):', new Date().toISOString().slice(0, 7));
-    if (!mes) return;
+    if (!mes) { try { w.close(); } catch {} return; }
     try {
       const d = await api('/api/financial/dre?month=' + encodeURIComponent(mes.trim()));
       const linha = (t, v, forte) => `<tr><td style="padding:6px 8px;border-bottom:1px solid #eee">${t}</td><td style="padding:6px 8px;text-align:right;border-bottom:1px solid #eee;${forte ? 'font-weight:700' : ''}">${money(v)}</td></tr>`;
@@ -4602,11 +4614,15 @@ async function finVisaoGeral(c) {
           ${linha('Total a pagar (despesas + repasses)', d.pendencias.a_pagar)}
         </table>
         ${Number(d.despesas_vencidas) ? `<p style="color:#c0392b;font-size:12px;margin-top:6px"><strong>Atenção:</strong> ${money(d.despesas_vencidas)} em despesas vencidas e ainda não pagas.</p>` : ''}
-        <p style="color:#777;font-size:12px;margin-top:12px">Resultado do mês em regime de caixa (o que efetivamente entrou e saiu). Pendências são a posição de hoje, não do mês fechado. Use "Imprimir → Salvar como PDF" para enviar ao contador.</p>`);
-    } catch (e) { toast(e.message, 'error'); }
+        <p style="color:#777;font-size:12px;margin-top:12px">Resultado do mês em regime de caixa (o que efetivamente entrou e saiu). Pendências são a posição de hoje, não do mês fechado. Use "Imprimir → Salvar como PDF" para enviar ao contador.</p>`, w);
+    } catch (e) { toast(e.message, 'error'); try { w.close(); } catch {} }
   };
   const printParc = $('#print-parcerias-receber');
   if (printParc) printParc.onclick = async () => {
+    // Abre a janela já no clique, de forma síncrona (antes de qualquer await) —
+    // no Safari do iPhone, window.open() depois de um await é bloqueado silenciosamente.
+    const w = window.open('', '_blank');
+    if (!w) { toast('Permita pop-ups para gerar o PDF', 'error'); return; }
     try {
       const d = await api('/api/financial/parcerias/a-receber');
       const linhas = d.rows.map((r) => `<tr>
@@ -4628,8 +4644,8 @@ async function finVisaoGeral(c) {
         <div style="margin-top:18px;padding:12px 14px;border:2px solid #0d1b2e;border-radius:8px;display:flex;justify-content:space-between;font-size:16px">
           <strong>TOTAL A RECEBER</strong><strong>${money(d.total)}</strong>
         </div>
-        <p style="color:#777;font-size:12px;margin-top:12px">Inclui valores vencidos ainda não recebidos. Use "Imprimir → Salvar como PDF".</p>`);
-    } catch (e) { toast(e.message, 'error'); }
+        <p style="color:#777;font-size:12px;margin-top:12px">Inclui valores vencidos ainda não recebidos. Use "Imprimir → Salvar como PDF".</p>`, w);
+    } catch (e) { toast(e.message, 'error'); try { w.close(); } catch {} }
   };
   await loadFin(); await loadInst();
 }
@@ -5499,7 +5515,7 @@ async function acordoForm(onSave, existing = null) {
 async function acordoRepassesModal(agreementId) {
   const rows = await api(`/api/acordos/${agreementId}/repasses`);
   const wrap = el(`<div>
-    ${rows.length ? `<table><thead><tr><th>Tranche</th><th>Bruto</th><th>Honorários</th><th>Líquido</th><th>Status</th><th></th></tr></thead>
+    ${rows.length ? `<div class="table-scroll"><table><thead><tr><th>Tranche</th><th>Bruto</th><th>Honorários</th><th>Líquido</th><th>Status</th><th></th></tr></thead>
     <tbody>${rows.map((r) => `<tr>
       <td>${r.tranche_label}</td>
       <td>${money(r.valor_bruto)}</td>
@@ -5507,7 +5523,7 @@ async function acordoRepassesModal(agreementId) {
       <td>${money(r.valor_liquido)}</td>
       <td>${badge(r.status === 'repassado' ? 'Repassado' : 'Pendente')}</td>
       <td>${r.status === 'pendente' ? `<button class="btn-sm" data-payout-mark="${r.id}">Marcar como repassado</button>` : ''}</td>
-    </tr>`).join('')}</tbody></table>`
+    </tr>`).join('')}</tbody></table></div>`
     : '<div class="empty">Nenhum repasse gerado para este acordo.</div>'}
   </div>`);
   wrap.querySelectorAll('[data-payout-mark]').forEach((b) => b.onclick = async () => {
@@ -6246,8 +6262,8 @@ async function propostaDetail(id, onSave) {
   const p = await api('/api/propostas/' + id);
   const parcelasHtml = (p.installments || []).length
     ? `<div style="margin-top:8px"><strong style="font-size:13px">Parcelas</strong>
-       <table style="margin-top:6px"><tbody>${p.installments.map((i) =>
-        `<tr><td>${i.numero}ª</td><td>${money(i.valor)}</td><td>${fmtDate(i.due_date)}</td><td>${badge(i.status)}</td><td>${i.invoice_url ? `<a href="${esc(i.invoice_url)}" target="_blank" rel="noopener" class="btn-sm">Link de pagamento</a>` : ''}</td></tr>`).join('')}</tbody></table></div>`
+       <div class="table-scroll"><table style="margin-top:6px"><tbody>${p.installments.map((i) =>
+        `<tr><td>${i.numero}ª</td><td>${money(i.valor)}</td><td>${fmtDate(i.due_date)}</td><td>${badge(i.status)}</td><td>${i.invoice_url ? `<a href="${esc(i.invoice_url)}" target="_blank" rel="noopener" class="btn-sm">Link de pagamento</a>` : ''}</td></tr>`).join('')}</tbody></table></div></div>`
     : '';
   const isAceita = p.status === 'aceita';
   const form = el(`<div class="form-grid">
@@ -8223,8 +8239,11 @@ function dataExtensoHoje() {
 }
 
 // Impressão com papel timbrado da marca (fichas/relatórios) — elegante e consistente
-function printBranded(docTitle, subtitle, innerHtml) {
-  const w = window.open('', '_blank');
+// `w`, se informado, é uma janela já aberta (window.open síncrono, no clique,
+// antes de qualquer await) — necessário no Safari do iPhone, que bloqueia
+// window.open() quando chamado depois de uma busca de dados assíncrona.
+function printBranded(docTitle, subtitle, innerHtml, w) {
+  w = w || window.open('', '_blank');
   if (!w) { toast('Permita pop-ups para imprimir', 'error'); return; }
   const clean = String(innerHtml || '').replace(/var\(--[a-z0-9-]+\)/gi, '#33475b');
   const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
@@ -8259,8 +8278,9 @@ function printBranded(docTitle, subtitle, innerHtml) {
 
 function printDoc(title, content) { printDocs([{ title, content }]); }
 
-function printDocs(docs) {
-  const w = window.open('', '_blank');
+// `w`, se informado, é uma janela já aberta sincronamente no clique (ver nota em printBranded).
+function printDocs(docs, w) {
+  w = w || window.open('', '_blank');
   if (!w) { toast('Permita pop-ups para gerar o PDF', 'error'); return; }
   const logo = location.origin + '/logo.png';
   const titulo = docs.length > 1 ? 'Documentos' : (docs[0] && docs[0].title) || 'Documento';

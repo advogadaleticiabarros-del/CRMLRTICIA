@@ -315,6 +315,12 @@ tbody tr:hover { background: var(--surface-2); }
 .modal { position: fixed; inset: 0; background: rgba(31,48,71,.5); backdrop-filter: blur(2px); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 20px; }
 .modal-card { background: #fff; border-radius: 16px; width: 100%; max-width: 500px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); }
 .modal-card.wide { max-width: 840px; }
+/* Tabelas dentro de modal não rolam sozinhas (o mecanismo de "cartão" só
+   cobre .page table) — esse wrapper garante rolagem horizontal em vez de
+   a tabela estourar a largura do modal, mesmo fora do breakpoint mobile
+   (um modal também pode ficar estreito em telas de laptop pequenas). */
+.modal-card .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.modal-card .table-scroll table { min-width: 420px; }
 /* Stepper da esteira de produção */
 .prod-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0 4px; }
 .prod-step { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 22px; border: 1px solid transparent; }
@@ -507,6 +513,10 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
   .modal-card { max-width: 100%; width: 100%; max-height: 94vh; border-radius: 18px 18px 0 0; }
   .modal-header { padding: 16px 18px; }
   .modal-header h3 { font-size: 19px; }
+
+  /* Tabelas dentro de modal (não cobertas pelo mecanismo .page table → cartão)
+     rolam de lado em vez de cortar/estourar a largura da tela. */
+  .modal-card .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 }
 
 /* ════════════════════════════════════════════════════════
