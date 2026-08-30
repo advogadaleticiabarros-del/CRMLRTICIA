@@ -596,3 +596,56 @@ ${teor}`;
   if (!r.ok || !r.text) return { ok: false, message: r.message || 'IA indisponível' };
   return { ok: true, extraction: parseDativeNominationExtraction(r.text) };
 }
+
+// ── Extração do valor arbitrado de honorários dativos ──────────────────────
+// Evento SEPARADO da nomeação: a decisão que fixa/arbitra o valor dos
+// honorários dativos sai depois, num andamento posterior do processo. Mesmo
+// padrão de prompt/parser das outras extrações acima, mas com um prompt
+// próprio — não reaproveita o de nomeação, os campos são outros. Usado
+// quando o monitoramento (DJEN/OAB) encontra publicação com termos de
+// arbitramento de honorários dativos (ver HONOR_DATIVO_ARBITRAMENTO_RE em
+// monitoringService.ts) — a IA só EXTRAI o que já está escrito na decisão.
+export interface DativeArbitramentoExtraction {
+  valor: number | null;
+  beneficiario: string;
+  process_number: string;
+}
+
+export function parseDativeArbitramentoExtraction(texto: string): DativeArbitramentoExtraction {
+  const campo = (rotulo: string) => {
+    const m = texto.match(new RegExp(`${rotulo}:\\s*(.+)`, 'i'));
+    const v = m ? m[1].trim() : '';
+    return /^(vazio|n\/?a|nenhum|n[ãa]o informad[oa])$/i.test(v) ? '' : v;
+  };
+  const valorStr = campo('VALOR');
+  // Normaliza "1.500,00" / "1500,00" / "R$ 1.500,00" para número.
+  const valorNum = valorStr
+    ? Number(valorStr.replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}(?:\D|$))/g, '').replace(',', '.'))
+    : NaN;
+  return {
+    valor: Number.isFinite(valorNum) && valorNum > 0 ? valorNum : null,
+    beneficiario: campo('BENEFICIARIO'),
+    process_number: campo('PROCESSO'),
+  };
+}
+
+export async function extrairArbitramentoDativo(
+  texto: string
+): Promise<{ ok: boolean; extraction?: DativeArbitramentoExtraction; message?: string }> {
+  const teor = (texto || '').trim().slice(0, 8000);
+  if (!teor) return { ok: false, message: 'Sem texto da publicação' };
+
+  const prompt = `Você é assistente jurídico(a). O texto abaixo é uma decisão/publicação judicial que ARBITRA (fixa) o valor dos honorários advocatícios de um(a) defensor(a) dativo(a). Extraia SOMENTE o que estiver escrito no texto e responda EXATAMENTE neste formato, sem texto fora dele (use "vazio" quando não encontrar):
+VALOR: <valor em reais arbitrado/fixado para os honorários dativos, formato 1.500,00, sem "R$">
+BENEFICIARIO: <nome do(a) advogado(a)/defensor(a) dativo(a) a quem os honorários se referem, se mencionado>
+PROCESSO: <número do processo, se mencionado no texto, no formato CNJ>
+
+Atenção: se houver mais de um valor monetário no texto, extraia especificamente o valor dos HONORÁRIOS DATIVOS arbitrados/fixados, não outros valores (como valor da causa, indenização, etc).
+
+TEXTO:
+${teor}`;
+
+  const r = await aiComplete(prompt, 'openai');
+  if (!r.ok || !r.text) return { ok: false, message: r.message || 'IA indisponível' };
+  return { ok: true, extraction: parseDativeArbitramentoExtraction(r.text) };
+}

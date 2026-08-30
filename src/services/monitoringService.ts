@@ -7,7 +7,7 @@ import { notificationService } from './NotificationService';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
 import { runIntimacaoPlaybooks } from './automationService';
-import { interpretarMovimentacao, extrairNomeacaoDativa } from './aiAssistant';
+import { interpretarMovimentacao, extrairNomeacaoDativa, extrairArbitramentoDativo } from './aiAssistant';
 import { sendText } from './uazapiInstance';
 
 // ── Sugestão de fase processual a partir do texto das movimentações ──────────
@@ -195,6 +195,16 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
 // um "dativo" citado de passagem em outro contexto do processo.
 const DATIVA_NOMEACAO_RE = /nome(?:io|ada|ado|a[çc][ãa]o)[\s\S]{0,150}?dativ|dativ[\s\S]{0,150}?nome(?:io|ada|ado|a[çc][ãa]o)/i;
 
+// Termos que indicam a decisão que ARBITRA (fixa) o valor dos honorários
+// dativos — evento SEPARADO da nomeação, publicado depois no andamento do
+// processo (a nomeação vem primeiro, o arbitramento do valor só sai quando o
+// juízo decide o montante). Exige "arbitr*"/"fix*" perto de "honorário" e
+// "dativ" perto disso (nas várias ordens possíveis de redação), MAIS um
+// valor em R$ em algum lugar do texto — sem valor não há o que extrair.
+const HONOR_DATIVO_ARBITRAMENTO_RE =
+  /(?:arbitr\w*|fix\w*)[\s\S]{0,150}?honor[aá]rio[\s\S]{0,150}?dativ|dativ[\s\S]{0,150}?(?:arbitr\w*|fix\w*)[\s\S]{0,150}?honor[aá]rio|honor[aá]rio[\s\S]{0,150}?dativ[\s\S]{0,150}?(?:arbitr\w*|fix\w*)|(?:arbitr\w*|fix\w*)[\s\S]{0,150}?dativ[\s\S]{0,150}?honor[aá]rio|honor[aá]rio[\s\S]{0,150}?(?:arbitr\w*|fix\w*)[\s\S]{0,150}?dativ|dativ[\s\S]{0,150}?honor[aá]rio[\s\S]{0,150}?(?:arbitr\w*|fix\w*)/i;
+const VALOR_REAIS_RE = /R\$\s*\d{1,3}(?:\.\d{3})*,\d{2}/;
+
 // Números que recebem os avisos automáticos de eventos de alto valor no
 // WhatsApp (nomeação dativa detectada, sentença/acórdão publicados) — a
 // advogada (44) e a assistente Jessica (27), confirmado por elas.
@@ -266,6 +276,76 @@ async function maybeRegisterDativeNomination(proc: DjenProcess, clientId: number
     }
 
     await logMonitor(null as any, null, 'nova_movimentacao', 'djen_oab', `Demanda dativa auto-cadastrada (dative_cases id ${ins.insertId}) para o processo ${proc.process_number}`);
+  } catch { /* detecção é best-effort — nunca derruba a descoberta */ }
+}
+
+/**
+ * Detecta, no texto de UMA publicação DJEN já baixada, se é a decisão que
+ * ARBITRA (fixa) o valor dos honorários dativos — e, se for, extrai o valor
+ * (IA) e grava em dative_cases. É um evento separado da nomeação (chega
+ * depois, no andamento do processo): pode achar o dative_case já cadastrado
+ * pela nomeação, ou não achar nenhum (processo antigo, nomeação anterior à
+ * automação) — nesse caso não inventa um caso do zero, só notifica pra não
+ * perder a informação. Nunca sobrescreve estimated_value já preenchido
+ * manualmente pela usuária. Nunca lança: best-effort, igual à nomeação.
+ */
+async function maybeRegisterDativeArbitramento(proc: DjenProcess, clientId: number | null): Promise<void> {
+  try {
+    const texto = proc.movements.map((m) => m.description).join('\n\n');
+    if (!HONOR_DATIVO_ARBITRAMENTO_RE.test(texto) || !VALOR_REAIS_RE.test(texto)) return;
+
+    const [[owner]] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
+    if (!owner) return;
+
+    const trecho = proc.movements.find((m) => HONOR_DATIVO_ARBITRAMENTO_RE.test(m.description) && VALOR_REAIS_RE.test(m.description))?.description || texto;
+    const ai = await extrairArbitramentoDativo(trecho);
+    if (!ai.ok || !ai.extraction || !ai.extraction.valor) return; // sem valor extraído, nada a gravar
+
+    const { valor, beneficiario } = ai.extraction;
+    const processNumber = ai.extraction.process_number || proc.process_number;
+
+    const [existing] = await db.query('SELECT id, estimated_value, arbitrated_value FROM dative_cases WHERE process_number = ? LIMIT 1', [processNumber]) as any;
+
+    if (existing.length) {
+      const c = existing[0];
+      if (c.arbitrated_value != null) return; // já tem valor arbitrado registrado — não sobrescreve (best-effort, evita duplicar aviso a cada nova sincronização)
+      // estimated_value é preenchido manualmente pela usuária: só espelha o valor
+      // arbitrado ali se ela ainda não tiver preenchido nada (0/NULL).
+      const estimatedUpdate = !c.estimated_value || Number(c.estimated_value) === 0 ? ', estimated_value = ?' : '';
+      const params = estimatedUpdate ? [valor, valor, c.id] : [valor, c.id];
+      await db.query(
+        `UPDATE dative_cases SET arbitrated_value = ?, arbitrated_value_detected_at = NOW()${estimatedUpdate} WHERE id = ?`,
+        params
+      );
+      await notificationService.create({
+        userId: owner.id, clientId: clientId ?? undefined, title: 'Valor arbitrado de honorários dativos identificado',
+        message: `Processo ${proc.process_masked || processNumber} — R$ ${valor.toFixed(2)} arbitrado(s). Confira em Dativo.`,
+        notificationType: 'dativo_valor_arbitrado', channel: 'sistema', scheduledAt: new Date(),
+      });
+    } else {
+      // Decisão de arbitramento chegou sem o caso cadastrado (processo antigo,
+      // nomeação anterior à automação). Não inventa o caso — só avisa, pra não
+      // perder a informação.
+      await notificationService.create({
+        userId: owner.id, clientId: clientId ?? undefined, title: 'Valor arbitrado de honorários dativos identificado (sem demanda cadastrada)',
+        message: `Processo ${proc.process_masked || processNumber} — R$ ${valor.toFixed(2)} arbitrado(s)${beneficiario ? ` para ${beneficiario}` : ''}. Não há demanda dativa cadastrada pra esse processo — confira e cadastre manualmente se for o caso.`,
+        notificationType: 'dativo_valor_arbitrado', channel: 'sistema', scheduledAt: new Date(),
+      });
+    }
+
+    const resumo = [
+      'Valor arbitrado de honorários dativos identificado 💰',
+      '',
+      `Processo: ${proc.process_masked || processNumber}`,
+      beneficiario ? `Dativo(a): ${beneficiario}` : null,
+      `Valor arbitrado: R$ ${valor.toFixed(2)}`,
+      !existing.length ? 'Obs.: não há demanda dativa cadastrada pra esse processo ainda — confira em Dativo.' : null,
+    ].filter(Boolean).join('\n');
+    for (const num of ESCRITORIO_WHATSAPP_NUMEROS) {
+      await sendText(num, resumo).catch(() => {});
+    }
+
+    await logMonitor(null as any, null, 'nova_movimentacao', 'djen_oab', `Valor arbitrado de honorários dativos detectado (R$ ${valor.toFixed(2)}) para o processo ${processNumber}`);
   } catch { /* detecção é best-effort — nunca derruba a descoberta */ }
 }
 
@@ -517,6 +597,7 @@ export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublicatio
     }
 
     await maybeRegisterDativeNomination(p, clientId);
+    await maybeRegisterDativeArbitramento(p, clientId);
   }
 
   await db.query('UPDATE lawyers SET last_sync_at = NOW() WHERE id = ?', [lawyerId]);

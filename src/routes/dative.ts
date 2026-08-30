@@ -115,7 +115,7 @@ router.get('/cases', async (req: Request, res: Response) => {
   if (status && CASE_STATUS.includes(status)) { where.push('status = ?'); params.push(status); }
 
   const [rows] = await db.query(
-    `SELECT id, process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, status, origem
+    `SELECT id, process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, arbitrated_value, status, origem
      FROM dative_cases WHERE ${where.join(' AND ')} ORDER BY nomeacao_date DESC, created_at DESC`,
     params
   ) as any;
