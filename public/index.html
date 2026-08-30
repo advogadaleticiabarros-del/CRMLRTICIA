@@ -110,6 +110,13 @@
 
   <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
+  <!-- Aviso "Adicionar à Tela de Início" (só Safari iOS, fora do modo instalado) -->
+  <div id="ios-install-banner" class="ios-install-banner hidden" role="status">
+    <span class="iib-ic"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg></span>
+    <span class="iib-txt">Instale o CRM na Tela de Início para usar Face ID e notificações: toque em <strong>Compartilhar</strong> e depois em <strong>Adicionar à Tela de Início</strong>.</span>
+    <button type="button" id="ios-install-close" class="iib-close" aria-label="Fechar aviso">✕</button>
+  </div>
+
   <script src="/app.js"></script>
   <script src="/portal-parceiro.js"></script>
   <script src="/socket.io/socket.io.js"></script>

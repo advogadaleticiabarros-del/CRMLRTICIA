@@ -357,6 +357,25 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .toast.success { background: var(--green); }
 .toast.error { background: var(--red); }
 
+/* ── Aviso "Adicionar à Tela de Início" (iOS Safari) ── */
+.ios-install-banner {
+  position: fixed; left: 14px; right: 14px; bottom: 14px; z-index: 210;
+  display: flex; align-items: flex-start; gap: 10px;
+  background: var(--navy-deep); color: #fff; padding: 13px 14px;
+  border-radius: 12px; box-shadow: var(--shadow-lg);
+  font-size: 13px; line-height: 1.4;
+  animation: toastIn .26s cubic-bezier(.16,.8,.3,1);
+}
+.ios-install-banner.hidden { display: none; }
+.ios-install-banner .iib-ic { flex: 0 0 auto; color: var(--gold-soft); margin-top: 1px; }
+.ios-install-banner .iib-txt { flex: 1 1 auto; }
+.ios-install-banner .iib-txt strong { color: var(--gold-soft); font-weight: 700; }
+.ios-install-banner .iib-close {
+  flex: 0 0 auto; background: none; border: none; color: #fff; opacity: .7;
+  cursor: pointer; font-size: 14px; padding: 2px 4px; line-height: 1;
+}
+.ios-install-banner .iib-close:hover { opacity: 1; }
+
 /* ── Calendário ── */
 .cal-header { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; }
 .cal-header h3 { font-size: 22px; min-width: 200px; text-transform: capitalize; }
@@ -774,6 +793,9 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
     left: 14px; right: 14px; bottom: calc(82px + env(safe-area-inset-bottom));
     text-align: center; justify-content: center;
   }
+
+  /* Aviso de instalação também acima da barra de abas */
+  .ios-install-banner { bottom: calc(82px + env(safe-area-inset-bottom)); }
 
   /* ── Barra de abas inferior estilo iOS ───────────────────── */
   .bottom-nav {

@@ -491,7 +491,7 @@ const NAV_SHORT = {
   ppcases: 'Indicados', ppclients: 'Fichas', ppupdates: 'Novidades', ppagenda: 'Audiências', ppfin: 'Financeiro',
 };
 // Ordem de preferência das abas inferiores (as 4 primeiras disponíveis para o papel)
-const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'cases', 'prazos', 'clients', 'financeiro', 'propostas', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppagenda', 'ppfin'];
+const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'prazos', 'dativo', 'propostas', 'cases', 'clients', 'financeiro', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppagenda', 'ppfin'];
 
 function buildNav() {
   const items = navForRole();
@@ -592,6 +592,35 @@ function maybeWelcome() {
   </div>`);
   wrap.querySelector('#wl-ok').onclick = () => { localStorage.setItem('crm_welcomed', '1'); closeModal(); };
   openModal('Bem-vinda ao seu CRM', wrap);
+}
+
+// ── Aviso "Adicionar à Tela de Início" (iOS Safari) ────────────────────────
+// Face ID (WebAuthn/Passkey) e notificações push só funcionam no Safari do
+// iPhone depois que o site foi instalado na Tela de Início — no Safari
+// "normal" (aba de navegador), mesmo com tudo certo no servidor, essas duas
+// coisas simplesmente não funcionam. iOS não expõe o evento padrão
+// `beforeinstallprompt` (isso é coisa de Chrome/Android), então a detecção
+// aqui é: iPhone/iPad + Safari + `navigator.standalone === false` (só existe
+// no Safari iOS; já instalado, vira `true`).
+const IOS_INSTALL_DISMISS_KEY = 'crm_ios_install_dismissed_at';
+const IOS_INSTALL_REMIND_MS = 7 * 24 * 60 * 60 * 1000; // reaparece depois de 1 semana
+function isIosSafariNotInstalled() {
+  const isIos = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1); // iPad em modo desktop
+  if (!isIos) return false;
+  if (typeof navigator.standalone === 'undefined') return false; // só existe no Safari iOS
+  return navigator.standalone === false;
+}
+function maybeShowIosInstallBanner() {
+  const el = $('#ios-install-banner');
+  if (!el || !isIosSafariNotInstalled()) return;
+  const last = Number(localStorage.getItem(IOS_INSTALL_DISMISS_KEY) || 0);
+  if (last && Date.now() - last < IOS_INSTALL_REMIND_MS) return;
+  el.classList.remove('hidden');
+  $('#ios-install-close').onclick = () => {
+    localStorage.setItem(IOS_INSTALL_DISMISS_KEY, String(Date.now()));
+    el.classList.add('hidden');
+  };
 }
 
 async function refreshBell() {
@@ -8518,6 +8547,7 @@ if (new URLSearchParams(location.search).get('foco') === '1') {
 // deveria bastar mas na prática não resolveu.
 function bootApp() {
   if (TOKEN && USER) showApp(); else { $('#login-view').classList.remove('hidden'); }
+  setTimeout(maybeShowIosInstallBanner, 1500);
 }
 if (document.readyState === 'complete') bootApp();
 else window.addEventListener('load', bootApp);
