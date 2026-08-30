@@ -17,6 +17,43 @@ interface CalendarEventPayload {
   endDatetime: string | Date;
   location?: string;
   generateMeet?: boolean;
+  /**
+   * Cor do evento no Google (1–11, ver `colorId` da API). Normalmente
+   * calculada a partir do status de negócio com `statusToGoogleColorId`
+   * — não é livre, o Google só aceita esse conjunto fixo de IDs.
+   */
+  colorId?: string;
+}
+
+/**
+ * Status de negócio "agendado/realizado/cancelado" (calendar_events.status)
+ * — e os equivalentes de `dative_hearings.status` ('agendada'/'realizada'/
+ * 'adiada'/'cancelada'), que usa outro enum mas deve mapear para a mesma
+ * cor. Pedido da cliente: ela se organiza na agenda do Google por cor
+ * (verde = já realizado, vermelho = cancelado, azul = agendado) e quer que
+ * o CRM reproduza isso automaticamente.
+ *
+ * `colorId` da API do Google Calendar é fechado (1–11, ver
+ * https://developers.google.com/calendar/api/v3/reference/colors) — não dá
+ * pra mandar uma cor livre. IDs escolhidos:
+ *   '10' Basil (verde)   — realizado/realizada
+ *   '11' Tomato (vermelho) — cancelado/cancelada/adiada
+ *   '9'  Blueberry (azul) — agendado/agendada (default)
+ */
+export function statusToGoogleColorId(status: string | null | undefined): string {
+  switch (status) {
+    case 'realizado':
+    case 'realizada':
+      return '10'; // Basil — verde
+    case 'cancelado':
+    case 'cancelada':
+    case 'adiada':
+      return '11'; // Tomato — vermelho
+    case 'agendado':
+    case 'agendada':
+    default:
+      return '9'; // Blueberry — azul
+  }
 }
 
 /** Fuso de referência do escritório. Pode ser sobrescrito por env. */
@@ -125,6 +162,7 @@ export class GoogleCalendarService {
       location: payload.location,
       start: { dateTime: toNaiveLocalDateTime(payload.startDatetime), timeZone: CRM_TIMEZONE },
       end:   { dateTime: toNaiveLocalDateTime(payload.endDatetime),   timeZone: CRM_TIMEZONE },
+      ...(payload.colorId && { colorId: payload.colorId }),
       reminders: {
         useDefault: false,
         overrides: [
@@ -168,6 +206,7 @@ export class GoogleCalendarService {
     if (payload.description !== undefined) patch.description = payload.description;
     if (payload.startDatetime) patch.start = { dateTime: toNaiveLocalDateTime(payload.startDatetime), timeZone: CRM_TIMEZONE };
     if (payload.endDatetime)   patch.end   = { dateTime: toNaiveLocalDateTime(payload.endDatetime),   timeZone: CRM_TIMEZONE };
+    if (payload.colorId)       patch.colorId = payload.colorId;
 
     await calendar.events.patch({ calendarId: 'primary', eventId: googleEventId, requestBody: patch });
   }

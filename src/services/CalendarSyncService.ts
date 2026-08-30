@@ -1,5 +1,5 @@
 import { db } from '../config/database';
-import { googleCalendarService } from './GoogleCalendarService';
+import { googleCalendarService, statusToGoogleColorId } from './GoogleCalendarService';
 
 /**
  * Converte o dateTime do Google (RFC3339 com offset, ex. "2026-08-25T14:00:00-03:00",
@@ -107,12 +107,19 @@ export class CalendarSyncService {
 
     for (const event of pending) {
       try {
+        // Recalcula a cor a cada envio: se o status mudou desde a última
+        // sincronização (ex.: compromisso marcado como realizado/cancelado),
+        // o próximo push precisa refletir isso no evento já existente no
+        // Google, não só na criação inicial.
+        const colorId = statusToGoogleColorId(event.status);
+
         if (event.google_event_id) {
           await googleCalendarService.updateEvent(userId, event.google_event_id, {
             title: event.title,
             description: event.description,
             startDatetime: event.start_datetime,
             endDatetime: event.end_datetime,
+            colorId,
           });
           result.updated++;
         } else {
@@ -123,6 +130,7 @@ export class CalendarSyncService {
             endDatetime: event.end_datetime,
             location: event.location,
             generateMeet: event.event_type === 'reuniao',
+            colorId,
           });
           await db.query(
             'UPDATE calendar_events SET google_event_id = ?, video_link = ? WHERE id = ?',

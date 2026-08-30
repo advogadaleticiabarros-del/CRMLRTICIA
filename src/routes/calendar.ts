@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { db } from '../config/database';
 import { env } from '../config/env';
-import { googleCalendarService } from '../services/GoogleCalendarService';
+import { googleCalendarService, statusToGoogleColorId } from '../services/GoogleCalendarService';
 import { calendarSyncService } from '../services/CalendarSyncService';
 import { notificationService } from '../services/NotificationService';
 import { telegramNotificationService } from '../services/TelegramNotificationService';
@@ -95,6 +95,7 @@ router.post('/events', async (req: Request, res: Response) => {
       const { googleEventId, videoLink } = await googleCalendarService.createEvent(userId, {
         title, description, startDatetime: start_datetime,
         endDatetime: end_datetime, location, generateMeet: generate_meet,
+        colorId: statusToGoogleColorId('agendado'),
       });
       await db.query(
         "UPDATE calendar_events SET google_event_id = ?, video_link = ?, sync_status = 'sincronizado' WHERE id = ?",
@@ -194,6 +195,54 @@ router.get('/events/:id', async (req: Request, res: Response) => {
   ) as any;
   if (!rows.length) { res.status(404).json({ error: 'Evento não encontrado' }); return; }
   res.json(rows[0]);
+});
+
+// ── PATCH /api/calendar/events/:id/status — agendado/realizado/cancelado ──────
+// Muda o status de negócio do compromisso e, se já existe no Google, atualiza
+// a cor do evento por lá também (verde/vermelho/azul, pedido da cliente).
+// Não usa a fila do cron (pushToGoogle só reprocessa eventos futuros) porque
+// "realizado" normalmente é marcado DEPOIS que o compromisso já aconteceu —
+// a atualização de cor precisa ir na hora, senão nunca seria reenviada.
+const EVENT_STATUS = ['agendado', 'realizado', 'cancelado'];
+
+router.patch('/events/:id/status', async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const { status } = req.body;
+  if (!EVENT_STATUS.includes(status)) {
+    res.status(400).json({ error: `status deve ser: ${EVENT_STATUS.join(', ')}` });
+    return;
+  }
+
+  const [rows] = await db.query(
+    'SELECT google_event_id FROM calendar_events WHERE id = ? AND user_id = ?',
+    [req.params.id, userId]
+  ) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Evento não encontrado' }); return; }
+
+  await db.query(
+    'UPDATE calendar_events SET status = ? WHERE id = ? AND user_id = ?',
+    [status, req.params.id, userId]
+  );
+
+  const googleEventId = rows[0].google_event_id;
+  if (googleEventId) {
+    try {
+      await googleCalendarService.updateEvent(userId, googleEventId, {
+        colorId: statusToGoogleColorId(status),
+      });
+      await db.query("UPDATE calendar_events SET sync_status = 'sincronizado' WHERE id = ?", [req.params.id]);
+    } catch (e: any) {
+      // Status já foi salvo no CRM; a cor no Google fica pra próxima
+      // sincronização (pushToGoogle não reprocessa isso automaticamente
+      // pra eventos passados — marcamos erro pra visibilidade no admin).
+      await db.query(
+        "UPDATE calendar_events SET sync_status = 'erro', sync_error = ? WHERE id = ?",
+        [String(e?.message || 'falha ao atualizar cor no Google').slice(0, 500), req.params.id]
+      );
+    }
+  }
+
+  res.json({ success: true, status });
 });
 
 // ── DELETE /api/calendar/events/:id — exclui (também no Google) ────────────────
