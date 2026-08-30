@@ -314,8 +314,15 @@ Object.assign(ROUTES, {
       let ativo = null;         // { phone, name, client_id, labels }
       let busca = '';
       let filtro = '';          // etiqueta selecionada no filtro
-      let mostrarArquivadas = false;
       let mostrarMeus = false;  // filtro "Meus atendimentos" (assigned_user_id === USER.id)
+      // Pastas horizontais acima da lista — "amei essa parte" (pedido explícito
+      // da usuária pra reduzir ruído visual quando há muitas conversas abertas).
+      // Deriva 100% do que já vinha em cada conversa (archived + quem mandou a
+      // última mensagem) — sem coluna nova no banco, sem migration:
+      //   fechados     → conversa arquivada
+      //   aguardando   → a última mensagem foi do CONTATO (ainda sem resposta nossa)
+      //   atendimento  → a última mensagem foi NOSSA (conversa em andamento)
+      let pasta = 'atendimento';
       // Preferência da usuária pra Ficha do contato (aberta/fechada) — LEMBRADA
       // entre conversas, nunca recalculada a cada clique. Antes, abrirChat()
       // decidia sozinho "abrir se a tela for larga" toda vez que uma conversa
@@ -333,7 +340,8 @@ Object.assign(ROUTES, {
             <span class="wa-head-col-title">Conversas</span>
             <span class="wa-head-col-unread" id="wa-unread-total"></span>
           </div>
-          <div class="wa-search" style="display:flex;gap:6px;align-items:center">${svgIcon('search', 'ic-inline')}<input id="waq" placeholder="Buscar conversa…" autocomplete="off"><button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button><button type="button" class="btn-icon btn-icon-sm" id="wa-auditoria-btn" title="Auditoria de mensagens apagadas">${svgIcon('info', 'ic-xs')}</button></div>
+          <div class="wa-search" style="display:flex;gap:6px;align-items:center">${svgIcon('search', 'ic-inline')}<input id="waq" placeholder="Buscar por cliente ou processo…" autocomplete="off"><button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button><button type="button" class="btn-icon btn-icon-sm" id="wa-auditoria-btn" title="Auditoria de mensagens apagadas">${svgIcon('info', 'ic-xs')}</button></div>
+          <div class="wa-pastas" id="wap-tabs"></div>
           <div class="wa-filters" id="waf"></div>
           <div class="wa-list" id="wal"></div>
         </div>
@@ -383,27 +391,24 @@ Object.assign(ROUTES, {
         // #waf-menu do DOM sem passar por fecharMenuFiltro(), deixando o
         // listener onClickFora pendurado no document. Fecha primeiro.
         fecharMenuFiltro();
+        renderPastas();
         const ets = todasEtiquetas();
-        const arquivadasN = chats.filter((c) => Number(c.archived)).length;
         const meusN = chats.filter((c) => Number(c.assigned_user_id) === USER.id).length;
-        const ativoLabel = mostrarArquivadas ? `Arquivadas (${arquivadasN})` : mostrarMeus ? `Meus atendimentos (${meusN})` : (filtro || 'Todas');
-        const nAtivos = (filtro || mostrarArquivadas || mostrarMeus) ? 1 : 0;
+        const ativoLabel = mostrarMeus ? `Meus atendimentos (${meusN})` : (filtro || 'Todas');
+        const nAtivos = (filtro || mostrarMeus) ? 1 : 0;
         $('#waf').innerHTML = `<button type="button" class="wa-filter-btn" id="waf-btn">${svgIcon('filter', 'ic-xs')}<span>${esc(ativoLabel)}</span>${nAtivos ? `<span class="wa-filter-count">${nAtivos}</span>` : ''}${svgIcon('chevronDown', 'ic-xs')}</button>`;
         $('#waf-btn').onclick = (e) => {
           e.stopPropagation();
           if ($('#waf-menu')) { fecharMenuFiltro(); return; }
-          const opts = [`<div class="wa-filter-opt ${!filtro && !mostrarArquivadas && !mostrarMeus ? 'active' : ''}" data-f="">${svgIcon('dot', 'ic-xs')}Todas</div>`,
+          const opts = [`<div class="wa-filter-opt ${!filtro && !mostrarMeus ? 'active' : ''}" data-f="">${svgIcon('dot', 'ic-xs')}Todas</div>`,
             `<div class="wa-filter-opt ${mostrarMeus ? 'active' : ''}" data-meus="1">${svgIcon('users', 'ic-xs')} Meus atendimentos (${meusN})</div>`,
-            ...ets.map((t) => `<div class="wa-filter-opt ${filtro === t ? 'active' : ''}" data-f="${esc(t)}"><span class="wa-filter-dot" style="background:${cor(t)}"></span>${esc(t)}</div>`),
-            arquivadasN ? `<div class="wa-filter-opt ${mostrarArquivadas ? 'active' : ''}" data-arquivadas="1">${svgIcon('archive', 'ic-xs')} Arquivadas (${arquivadasN})</div>` : ''].join('');
+            ...ets.map((t) => `<div class="wa-filter-opt ${filtro === t ? 'active' : ''}" data-f="${esc(t)}"><span class="wa-filter-dot" style="background:${cor(t)}"></span>${esc(t)}</div>`)].join('');
           const menu = document.createElement('div');
           menu.className = 'wa-filter-menu'; menu.id = 'waf-menu'; menu.innerHTML = opts;
           $('#waf').appendChild(menu);
-          menu.querySelectorAll('[data-f]').forEach((o) => o.onclick = () => { filtro = o.dataset.f; mostrarArquivadas = false; mostrarMeus = false; fecharMenuFiltro(); renderFiltros(); renderLista(); });
-          const arqOpt = menu.querySelector('[data-arquivadas]');
-          if (arqOpt) arqOpt.onclick = () => { mostrarArquivadas = !mostrarArquivadas; filtro = ''; mostrarMeus = false; fecharMenuFiltro(); renderFiltros(); renderLista(); };
+          menu.querySelectorAll('[data-f]').forEach((o) => o.onclick = () => { filtro = o.dataset.f; mostrarMeus = false; fecharMenuFiltro(); renderFiltros(); renderLista(); });
           const meusOpt = menu.querySelector('[data-meus]');
-          if (meusOpt) meusOpt.onclick = () => { mostrarMeus = !mostrarMeus; filtro = ''; mostrarArquivadas = false; fecharMenuFiltro(); renderFiltros(); renderLista(); };
+          if (meusOpt) meusOpt.onclick = () => { mostrarMeus = !mostrarMeus; filtro = ''; fecharMenuFiltro(); renderFiltros(); renderLista(); };
           document.addEventListener('click', onClickFora, true);
         };
       };
@@ -442,15 +447,49 @@ Object.assign(ROUTES, {
         const texto = d < 0 ? 'Parcela atrasada' : d === 0 ? 'Parcela vence hoje' : `Parcela vence em ${d} dia${d === 1 ? '' : 's'}`;
         return { icone: 'banknote', texto };
       };
+      const pastaDaConversa = (c) => Number(c.archived) ? 'fechados' : (Number(c.last_from_me) ? 'atendimento' : 'aguardando');
+
+      // Cartão inline no topo do fluxo de mensagens — a informação crítica
+      // (prazo de audiência perto, parcela vencendo) aparece NO MEIO da
+      // conversa, no momento em que ela vai responder, em vez de só escondida
+      // na Ficha do contato (que pode estar fechada). Reusa a mesma
+      // severidade já calculada pra lista, sem chamada nova ao servidor.
+      const cartaoInlinePendencia = (c) => {
+        const sev = severidadeConversa(c);
+        if (sev === 'neutra') return '';
+        const et = etiquetaPendencia(c);
+        if (!et) return '';
+        return `<div class="wa-inline-card wa-inline-card-${sev}">
+          <span class="wa-inline-card-icon">${svgIcon(et.icone)}</span>
+          <span class="wa-inline-card-txt"><strong>${esc(et.texto)}</strong><br><small>Fique de olho antes de responder — veja os detalhes na ficha do contato.</small></span>
+          <button type="button" class="btn-sm" id="wa-inline-card-ficha">Ver ficha</button>
+        </div>`;
+      };
+
+      // Pastas horizontais — 1 botão único por pasta, com contador. Refeito a
+      // cada renderFiltros() (mesmos pontos de chamada já cobrem todo lugar
+      // que muda `chats`, incl. o polling), então os contadores nunca ficam
+      // desatualizados.
+      const renderPastas = () => {
+        const box = $('#wap-tabs'); if (!box) return;
+        const cont = { atendimento: 0, aguardando: 0, fechados: 0 };
+        chats.forEach((c) => cont[pastaDaConversa(c)]++);
+        const PASTAS = [['atendimento', 'Em atendimento'], ['aguardando', 'Aguardando'], ['fechados', 'Fechados']];
+        box.innerHTML = PASTAS.map(([v, t]) => `<button type="button" class="wa-pasta-tab ${pasta === v ? 'active' : ''}" data-pasta="${v}">${t}<span class="wa-pasta-count">${cont[v]}</span></button>`).join('');
+        box.querySelectorAll('[data-pasta]').forEach((b) => b.onclick = () => {
+          if (pasta === b.dataset.pasta) return;
+          pasta = b.dataset.pasta; renderPastas(); renderLista();
+        });
+      };
 
       const renderLista = () => {
         const q = busca.toLowerCase();
         let vis = chats.filter((c) => {
           if (q && !(String(c.client_name || '').toLowerCase().includes(q) || String(c.phone).includes(q))) return false;
+          if (pastaDaConversa(c) !== pasta) return false;
           if (filtro && !parseLabels(c.labels).includes(filtro)) return false;
-          if (mostrarArquivadas) return !!Number(c.archived);
           if (mostrarMeus && Number(c.assigned_user_id) !== USER.id) return false;
-          return !Number(c.archived);
+          return true;
         });
         vis = [...vis].sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || (new Date(b.last_time) - new Date(a.last_time)));
         const html = vis.length ? vis.map((c) => {
@@ -471,7 +510,7 @@ Object.assign(ROUTES, {
               ${Number(c.unread) ? `<span class="wa-unread">${c.unread}</span>` : ''}
             </div>
           </div>`;
-        }).join('') : `<div class="wa-empty">${mostrarArquivadas ? 'Nenhuma conversa arquivada' : 'Nenhuma conversa encontrada'}</div>`;
+        }).join('') : `<div class="wa-empty">${pasta === 'fechados' ? 'Nenhuma conversa fechada' : 'Nenhuma conversa encontrada'}</div>`;
         const totalNaoLidas = chats.reduce((s, c) => s + Number(c.unread || 0), 0);
         const elUnread = $('#wa-unread-total');
         if (elUnread) elUnread.textContent = totalNaoLidas ? `${totalNaoLidas} não lida${totalNaoLidas > 1 ? 's' : ''}` : '';
@@ -582,15 +621,41 @@ Object.assign(ROUTES, {
         const STG = { separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguard. protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
         const bloco = (t, inner) => `<div style="padding:12px 14px;border-bottom:1px solid var(--border-soft)"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px">${t}</div>${inner}</div>`;
         let html = '';
+        // Linha do card padrão de dados ("rótulo: valor"), usada nos cards
+        // PROCESSO e FINANCEIRO abaixo — mesmo formato nos dois, só muda a cor
+        // quando `alerta` é true (prazo perto / parcela vencida).
+        const linha = (rotulo, valor, alerta) => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:3px 0"><span style="color:var(--text-muted)">${rotulo}</span><strong style="color:${alerta ? 'var(--red)' : 'var(--navy-deep)'}">${valor}</strong></div>`;
         if (cx.client) {
-          html += bloco('Cliente', `<strong style="color:var(--navy-deep)">${esc(cx.client.name)}</strong>${cx.client.cpf_cnpj ? `<br><small style="color:var(--text-muted)">CPF: ${esc(cx.client.cpf_cnpj)}</small>` : ''}`);
-          html += bloco('Processos', (cx.cases || []).length ? cx.cases.map((c) => `<div style="font-size:12.5px;margin-bottom:6px"><strong>${esc(c.title || '—')}</strong><br><small style="color:var(--text-muted)">${c.case_number ? 'nº ' + esc(c.case_number) + ' · ' : ''}${STG[c.production_stage] || c.production_stage || c.status || ''}</small></div>`).join('') : '<small style="color:var(--text-muted)">Nenhum processo</small>');
-          html += bloco('Próxima audiência', cx.audiencia ? `<strong style="font-size:13px">${fmtDateTime(cx.audiencia.start_datetime)}</strong><br><small style="color:var(--text-muted)">${cx.audiencia.video_link ? 'ONLINE' : esc(cx.audiencia.location || 'presencial')}</small>` : '<small style="color:var(--text-muted)">Nenhuma marcada</small>');
+          const area = (cx.cases || []).map((c) => c.legal_area).find(Boolean);
+          html += bloco('Cliente', `<strong style="color:var(--navy-deep);font-size:13.5px">${esc(cx.client.name)}</strong>
+            <div style="margin-top:6px">${linha('CPF', esc(cx.client.cpf_cnpj || '—'))}${linha('Área do direito', esc(area || '—'))}</div>`);
+
+          // ── PROCESSO — nº, etapa e audiência, nesta ordem exata (pedido
+          // explícito da usuária). Mostra o processo mais recente; se houver
+          // mais de um, o restante fica listado embaixo sem tirar o destaque
+          // dos 3 dados principais.
+          const casoPrincipal = (cx.cases || [])[0] || null;
+          const diasAud = cx.audiencia ? Math.ceil((new Date(cx.audiencia.start_datetime) - new Date()) / 86400000) : null;
+          const audAlerta = diasAud !== null && diasAud <= 3;
+          const audTexto = cx.audiencia
+            ? (diasAud <= 0 ? 'hoje' : diasAud === 1 ? 'amanhã' : `em ${diasAud} dias`) + ` · ${fmtDateTime(cx.audiencia.start_datetime)}`
+            : 'nenhuma marcada';
+          html += bloco('Processo', casoPrincipal
+            ? linha('Nº', esc(casoPrincipal.case_number || '—')) + linha('Etapa', esc(STG[casoPrincipal.production_stage] || casoPrincipal.production_stage || casoPrincipal.status || '—')) + linha('Audiência', audTexto, audAlerta)
+              + ((cx.cases || []).length > 1 ? `<div style="margin-top:6px"><small style="color:var(--text-muted)">+ ${cx.cases.length - 1} outro${cx.cases.length - 1 > 1 ? 's' : ''} processo${cx.cases.length - 1 > 1 ? 's' : ''}</small></div>` : '')
+            : '<small style="color:var(--text-muted)">Nenhum processo cadastrado</small>');
+
+          // ── FINANCEIRO — parcelas em aberto e vencidas, nesta ordem exata.
           const f = cx.financeiro || {};
-          html += bloco('Honorários', Number(f.pendentes)
-            ? `<strong style="color:${Number(f.vencidas) ? 'var(--red)' : 'var(--navy-deep)'}">${money(f.valor_aberto)}</strong> <small style="color:var(--text-muted)">em aberto (${f.pendentes} parcela${f.pendentes > 1 ? 's' : ''}${Number(f.vencidas) ? ` · ${f.vencidas} vencida${f.vencidas > 1 ? 's' : ''}` : ''})</small>`
-            : '<small style="color:var(--green)">✓ Nada em aberto</small>');
+          html += bloco('Financeiro',
+            linha('Parcelas em aberto', Number(f.pendentes) ? `${f.pendentes}${Number(f.valor_aberto) ? ' · ' + money(f.valor_aberto) : ''}` : '0')
+            + linha('Vencida', Number(f.vencidas) || 0, Number(f.vencidas) > 0));
+
           html += `<div style="padding:12px 14px"><button class="wa-ctx-primary" id="wa-gerar-ia">${svgIcon('ia')}Gerar com IA a partir desta conversa</button></div>`;
+          // ── Linha do tempo do caso (documentos, audiências, petições…) —
+          // simplificada: reusa o mesmo endpoint da ficha do cliente
+          // (/api/clients/:id/timeline), sem duplicar lógica no backend.
+          html += `<div id="wa-ctx-timeline">${bloco('Linha do tempo', '<div class="spinner" style="margin:4px 0"></div>')}</div>`;
         } else if (cx.lead) {
           html += bloco('Lead', `<strong style="color:var(--navy-deep)">${esc(cx.lead.name)}</strong><br><small style="color:var(--text-muted)">${esc(cx.lead.legal_area || '')} · ${esc(cx.lead.status || '')}</small>`);
         } else {
@@ -616,6 +681,25 @@ Object.assign(ROUTES, {
             </span>
           </div>` + html;
         box.querySelector('#wa-ctx-close').onclick = () => { ctxAberta = false; $('#wa-shell').classList.remove('ctx-open'); $('#wa-info')?.classList.remove('on'); };
+        if (cx.client) {
+          const TL_ICONE = { documento: 'file', audiencia: 'scale', peticao: 'file', prazo: 'calendar', pagamento: 'banknote' };
+          api(`/api/clients/${cx.client.id}/timeline`).then((eventos) => {
+            const slot = box.querySelector('#wa-ctx-timeline');
+            if (!slot) return; // usuária já trocou de conversa/fechou a ficha
+            const itens = (eventos || []).slice(0, 8);
+            slot.innerHTML = bloco('Linha do tempo', itens.length ? `
+              <div style="display:flex;flex-direction:column;gap:10px">
+                ${itens.map((e) => `<div style="display:flex;gap:8px;align-items:flex-start">
+                  <span style="flex:0 0 auto;margin-top:1px;color:var(--gold)">${svgIcon(TL_ICONE[e.event_type] || 'dot', 'ic-xs')}</span>
+                  <div style="min-width:0"><div style="font-size:12px;line-height:1.4">${esc(String(e.description || '').slice(0, 140))}</div>
+                    <small style="color:var(--text-muted)">${fmtDateTime(e.created_at)}${e.case_number ? ' · nº ' + esc(e.case_number) : ''}</small></div>
+                </div>`).join('')}
+              </div>` : '<small style="color:var(--text-muted)">Sem eventos registrados ainda</small>');
+          }).catch(() => {
+            const slot = box.querySelector('#wa-ctx-timeline');
+            if (slot) slot.innerHTML = '';
+          });
+        }
         box.querySelector('#wa-ctx-agenda').onclick = () => abrirAgendaForm(
           { name: cx.client?.name || cx.lead?.name || ativo.name || '', phone: ativo.phone, category: cx.client ? 'cliente' : 'outro' },
           () => renderContexto()
@@ -781,7 +865,7 @@ Object.assign(ROUTES, {
             <div class="wa-tags" id="wah-tags">${ativo.labels.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>
             <button class="btn-icon" id="wa-buscar-chat" title="Buscar nesta conversa">${svgIcon('search')}</button>
             <button class="btn-icon ${Number(c.pinned) || Number(c.archived) || c.assigned_user_id ? 'on' : ''}" id="wa-mais" title="Mais ações">${svgIcon('more')}</button>
-            <button class="btn-icon ${ctxAberta ? 'on' : ''}" id="wa-info" title="Ficha do contato">${svgIcon('info')}</button>
+            <button class="btn-ghost btn-sm wa-ficha-btn ${ctxAberta ? 'on' : ''}" id="wa-info" title="Mostrar/ocultar a ficha do contato">👤 Ficha</button>
           </div>
           <div class="wa-digitando" id="wa-digitando" style="display:none">digitando…</div>
           <div class="wa-search-chat" id="wa-search-chat" style="display:none">
@@ -796,6 +880,7 @@ Object.assign(ROUTES, {
             <div style="text-align:center;padding:4px 0 10px">
               <button type="button" class="btn-sm" id="wa-carregar-antigas">Carregar mensagens antigas</button>
             </div>
+            ${cartaoInlinePendencia(c)}
             ${renderMsgs(msgs)}
           </div>
           <div class="wa-reply-banner" id="wa-reply-banner" style="display:none">
@@ -803,7 +888,7 @@ Object.assign(ROUTES, {
             <button type="button" class="btn-icon btn-icon-sm" id="wa-reply-cancel" title="Cancelar resposta">${svgIcon('x', 'ic-xs')}</button>
           </div>
           <form class="wa-input" id="wa-reply">
-            <button type="button" class="btn-icon" id="wa-modelos" title="Mensagens prontas">${svgIcon('ia')}</button>
+            <button type="button" class="btn-icon" id="wa-modelos" title="Respostas prontas">⚡</button>
             <button type="button" class="btn-icon" id="wa-anexar" title="Enviar documento ou imagem">${svgIcon('paperclip')}</button>
             <textarea name="text" placeholder="Digite uma mensagem" autocomplete="off" rows="1">${esc(textoAtual)}</textarea>
             <button type="button" class="btn-icon" id="wa-gravar" title="Gravar áudio">${svgIcon('mic')}</button>
@@ -999,64 +1084,68 @@ Object.assign(ROUTES, {
           const arqOpt = $('#wa-mais-menu [data-acao=archive] span'); if (arqOpt) arqOpt.textContent = Number(c.archived) ? 'Desarquivar conversa' : 'Arquivar conversa';
         };
 
-        // Mensagens prontas (modelos jurídicos) — {{nome}} vira o primeiro nome
+        // Respostas prontas (macros) — atalhos nativos da Uazapi
+        // (/quickreply/*, ver src/services/uazapiInstance.ts), não uma tabela
+        // à parte no CRM: assim o mesmo atalho digitado ("/saudacao") também
+        // funciona no app oficial do WhatsApp Business, sincronizado.
+        // {{nome}} no texto vira o primeiro nome do contato ao usar.
         $('#wa-modelos').onclick = async () => {
-          const tpls = await api('/api/whatsapp-instance/templates').catch(() => []);
+          const tpls = await api('/api/whatsapp-instance/quickreplies').catch(() => []);
           const primeiroNome = (ativo.name.startsWith('+') ? '' : ativo.name).split(' ')[0] || '';
           const wrap = el(`<div>
             <div style="display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow:auto">
               ${tpls.map((t) => `<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px">
                 <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
-                  <strong style="font-size:13px;color:var(--navy-deep)">${esc(t.title)}</strong>
+                  <strong style="font-size:13px;color:var(--navy-deep)">/${esc(t.shortCut || t.shortcut || '')}</strong>
                   <span style="white-space:nowrap"><button class="btn-gold btn-sm" data-usar="${t.id}">Usar</button> <button class="btn-ghost btn-sm" data-editar-tpl="${t.id}">${svgIcon('edit', 'ic-xs')}</button> <button class="btn-ghost btn-sm" data-apagar="${t.id}">${svgIcon('x', 'ic-xs')}</button></span>
                 </div>
-                <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${esc(t.body.slice(0, 110))}…</div>
-              </div>`).join('') || '<div class="empty">Nenhum modelo ainda</div>'}
+                <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${esc(String(t.text || '').slice(0, 110))}…</div>
+              </div>`).join('') || '<div class="empty">Nenhuma resposta pronta ainda</div>'}
             </div>
             <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
             <form id="tpl-novo" class="form-grid">
-              ${field('Título do novo modelo', 'title')}
-              ${field('Mensagem (use {{nome}} para o nome do cliente)', 'body', { type: 'textarea' })}
-              <button type="submit" class="btn-sm">+ Salvar novo modelo</button>
+              ${field('Atalho (sem a barra, ex.: saudacao)', 'shortCut')}
+              ${field('Mensagem (use {{nome}} para o nome do cliente)', 'text', { type: 'textarea' })}
+              <button type="submit" class="btn-sm">+ Salvar resposta pronta</button>
             </form>
           </div>`);
           wrap.querySelectorAll('[data-usar]').forEach((b) => b.onclick = () => {
             const t = tpls.find((x) => x.id == b.dataset.usar);
             const inp = $('#wa-reply [name=text]');
-            inp.value = t.body.replace(/\{\{nome\}\}/g, primeiroNome || 'cliente');
+            inp.value = String(t.text || '').replace(/\{\{nome\}\}/g, primeiroNome || 'cliente');
             closeModal(); inp.focus();
           });
           wrap.querySelectorAll('[data-apagar]').forEach((b) => b.onclick = async () => {
-            if (!(await uiConfirm('Apagar este modelo?'))) return;
-            await api('/api/whatsapp-instance/templates/' + b.dataset.apagar, { method: 'DELETE' }).catch(() => {});
+            if (!(await uiConfirm('Apagar esta resposta pronta?'))) return;
+            await api('/api/whatsapp-instance/quickreplies/' + b.dataset.apagar, { method: 'DELETE' }).catch(() => {});
             closeModal(); $('#wa-modelos').click();
           });
           wrap.querySelectorAll('[data-editar-tpl]').forEach((b) => b.onclick = () => {
             const t = tpls.find((x) => x.id == b.dataset.editarTpl);
             const ef = el(`<form class="form-grid">
-              ${field('Título', 'title', { value: t.title })}
-              ${field('Mensagem (use {{nome}} para o nome do cliente)', 'body', { type: 'textarea', value: t.body })}
+              ${field('Atalho', 'shortCut', { value: t.shortCut || t.shortcut || '' })}
+              ${field('Mensagem (use {{nome}} para o nome do cliente)', 'text', { type: 'textarea', value: t.text || '' })}
               <button type="submit" class="btn-primary">Salvar alterações</button>
             </form>`);
             ef.onsubmit = async (ev) => {
               ev.preventDefault();
               const b2 = Object.fromEntries(new FormData(ev.target));
-              if (!b2.title || !b2.body) { toast('Preencha título e mensagem', 'error'); return; }
+              if (!b2.shortCut || !b2.text) { toast('Preencha o atalho e a mensagem', 'error'); return; }
               try {
-                await api('/api/whatsapp-instance/templates/' + t.id, { method: 'PUT', body: JSON.stringify(b2) });
-                toast('Modelo atualizado'); closeModal(); $('#wa-modelos').click();
+                await api('/api/whatsapp-instance/quickreplies/' + t.id, { method: 'PUT', body: JSON.stringify(b2) });
+                toast('Resposta pronta atualizada'); closeModal(); $('#wa-modelos').click();
               } catch (e) { toast(e.message, 'error'); }
             };
-            openModal('Editar modelo', ef);
+            openModal('Editar resposta pronta', ef);
           });
           wrap.querySelector('#tpl-novo').onsubmit = async (ev) => {
             ev.preventDefault();
             const b2 = Object.fromEntries(new FormData(ev.target));
-            if (!b2.title || !b2.body) { toast('Preencha título e mensagem', 'error'); return; }
-            try { await api('/api/whatsapp-instance/templates', { method: 'POST', body: JSON.stringify(b2) }); toast('Modelo salvo'); closeModal(); $('#wa-modelos').click(); }
+            if (!b2.shortCut || !b2.text) { toast('Preencha o atalho e a mensagem', 'error'); return; }
+            try { await api('/api/whatsapp-instance/quickreplies', { method: 'POST', body: JSON.stringify(b2) }); toast('Resposta pronta salva'); closeModal(); $('#wa-modelos').click(); }
             catch (e) { toast(e.message, 'error'); }
           };
-          openModal('Mensagens prontas', wrap);
+          openModal('Respostas prontas', wrap);
         };
 
         // Enviar documento/imagem — do GED do cliente ou upload do computador
@@ -1131,6 +1220,11 @@ Object.assign(ROUTES, {
           $('#wa-info').classList.toggle('on', abrir);
           $('#wa-shell').classList.toggle('ctx-open', abrir);
           if (abrir) renderContexto();
+        };
+        const cartaoFichaBtn = $('#wa-inline-card-ficha');
+        if (cartaoFichaBtn) cartaoFichaBtn.onclick = () => {
+          if ($('#wa-shell').classList.contains('ctx-open')) return; // já aberta
+          $('#wa-info').click();
         };
         if (window.innerWidth >= 1100) {
           $('#wa-shell').classList.toggle('ctx-open', ctxAberta);

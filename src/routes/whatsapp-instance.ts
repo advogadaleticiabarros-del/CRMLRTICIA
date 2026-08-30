@@ -141,6 +141,7 @@ router.get('/chats', async (req: Request, res: Response) => {
   const whereQ = q
     ? `WHERE (w.phone LIKE ?
           OR w.client_id IN (SELECT id FROM clients WHERE name LIKE ?)
+          OR w.client_id IN (SELECT client_id FROM cases WHERE case_number LIKE ?)
           OR w.phone IN (SELECT DISTINCT phone FROM whatsapp_messages WHERE body LIKE ?))`
     : '';
   const [rows] = await db.query(`
@@ -178,7 +179,7 @@ router.get('/chats', async (req: Request, res: Response) => {
       ) parc ON parc.client_id = w.client_id
      ${whereQ}
      GROUP BY w.phone
-     ORDER BY last_time DESC LIMIT 100`, q ? [like, like, like] : []) as any;
+     ORDER BY last_time DESC LIMIT 100`, q ? [like, like, like, like] : []) as any;
   res.json(rows);
 });
 

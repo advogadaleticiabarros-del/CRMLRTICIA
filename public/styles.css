@@ -1547,6 +1547,18 @@ img, svg, video { max-width: 100%; }
 .wa-search .ic-inline { position: absolute; left: 24px; margin: 0; opacity: .5; pointer-events: none; }
 .wa-search input { width: 100%; border-radius: 18px; padding: 8px 14px 8px 34px; font-size: 13px; background: var(--surface-2, #f0f2f5); border-color: transparent; }
 .wa-search input:focus { background: var(--surface-card, #fff); border-color: var(--gold); }
+/* Pastas horizontais (Em atendimento / Aguardando / Fechados) — "amei essa
+   parte", pedido explícito da usuária pra reduzir ruído visual quando há
+   muitas conversas abertas ao mesmo tempo. 3 abas fixas, sempre visíveis,
+   com contador — nada de menu suspenso aqui (é o filtro PRINCIPAL da tela,
+   diferente do filtro secundário por etiqueta logo abaixo). */
+.wa-pastas { display: flex; gap: 4px; padding: 8px 12px 0; border-bottom: 1px solid var(--border-soft); overflow-x: auto; }
+.wa-pasta-tab { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; font-weight: 600; font-family: inherit; color: var(--text-muted); background: none; border: none; border-bottom: 2px solid transparent; padding: 6px 6px 9px; cursor: pointer; white-space: nowrap; transition: color .12s; }
+.wa-pasta-tab:hover { color: var(--navy-deep); }
+.wa-pasta-tab.active { color: var(--navy-deep); border-bottom-color: var(--gold); }
+.wa-pasta-count { background: var(--surface-2, #f0f2f5); color: var(--text-muted); font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 9px; line-height: 1.5; }
+.wa-pasta-tab.active .wa-pasta-count { background: var(--gold-soft, #efe3c8); color: var(--navy-deep); }
+
 /* Botão único "Filtrar" + menu suspenso — pedido explícito da usuária pra
    ficar "mais organizado, menos coisas" no lugar da fileira de chips
    sempre visível (mesmo em 1 linha com scroll horizontal, ainda ocupava
@@ -1589,6 +1601,22 @@ img, svg, video { max-width: 100%; }
 .wa-etapa-editar .ic { opacity: .55; }
 .wa-etapa-editar:hover .ic { opacity: 1; }
 .wa-head { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2, var(--surface)); }
+/* Botão "Ficha" — abre/fecha a 3ª coluna (painel de contexto). Fica em
+   destaque (dourado) quando aberta, pra ficar óbvio qual é o estado atual;
+   fechada, ganha mais espaço a thread pra atendimento rápido sem distração. */
+.wa-ficha-btn { flex: 0 0 auto; white-space: nowrap; font-size: 12.5px; }
+.wa-ficha-btn.on { background: var(--gold-soft, #efe3c8); border-color: var(--gold); color: var(--navy-deep); }
+/* Cartão inline no fluxo de mensagens — prazo de audiência/parcela vencendo
+   aparecendo no momento certo (antes de responder), não só escondido na
+   ficha do contato. */
+.wa-inline-card { display: flex; align-items: flex-start; gap: 10px; align-self: center; max-width: 92%; margin: 4px 0 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--surface-card, #fff); box-shadow: var(--shadow-sm, 0 1px 1px rgba(0,0,0,.08)); }
+.wa-inline-card-icon { flex: 0 0 auto; margin-top: 1px; }
+.wa-inline-card-txt { flex: 1; min-width: 0; font-size: 12.5px; line-height: 1.45; }
+.wa-inline-card-txt small { color: var(--text-muted); }
+.wa-inline-card-critica { border-color: #b3432f; background: #fdf1ee; }
+.wa-inline-card-critica .wa-inline-card-icon { color: #b3432f; }
+.wa-inline-card-atencao { border-color: var(--gold); background: #fbf6ea; }
+.wa-inline-card-atencao .wa-inline-card-icon { color: #a67626; }
 .wa-mais-menu { left: auto; right: 12px; min-width: 230px; max-width: 280px; }
 .wa-mais-menu .wa-filter-opt { text-transform: none; white-space: normal; }
 .wa-search-chat { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-bottom: 1px solid var(--border-soft); background: var(--surface-2, var(--surface)); }
