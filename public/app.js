@@ -1337,19 +1337,28 @@ const ROUTES = {
         <div class="card" style="margin-bottom:20px;border:1px solid var(--gold)">
           <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--gold)">⚠ Prazos detectados no monitoramento (${rows.length})</strong>
             <p class="sub" style="margin:2px 0 0">Movimentações que podem iniciar prazo — confirme a data (o sistema não chuta).</p></div>
-          <table><thead><tr><th>Cliente / Parte</th><th>Movimentação</th><th>Processo</th><th>Sugestão</th><th></th></tr></thead>
-          <tbody>${rows.map((d) => { const full = d.movement_full || d.movement_text || ''; return `<tr>
-            <td><strong>${d.client_name || '<span style=\"color:var(--text-muted)\">a vincular</span>'}</strong></td>
-            <td>${esc(full.slice(0, 110))}${full.length > 110 ? '…' : ''}
-                <br><small style="color:var(--text-muted)">movimentação ${fmtDate(d.movement_date || d.start_date)}</small>
-                ${full.length > 110 ? `<br><button class="btn-sm" data-full-dd="${d.id}" style="margin-top:6px">${svgIcon('file')}Ver na íntegra</button>` : ''}
-                ${d.ai_summary ? `<div style="margin-top:8px;padding:8px 10px;border-left:3px solid var(--gold);background:var(--surface);font-size:12px;line-height:1.5"><strong>🧑‍🎓 Estagiário IA:</strong><br>${esc(d.ai_summary.slice(0, 400))}${d.ai_summary.length > 400 ? '…' : ''}</div>` : ''}
-                ${d.ai_draft_id
-                  ? `<button class="btn-sm" data-draft-dd="${d.ai_draft_id}" style="margin-top:6px">${svgIcon('edit')}Ver minuta</button> <button class="btn-sm" data-gen-dd="${d.id}" style="margin-top:6px">${svgIcon('ia')} Refazer com IA</button>`
-                  : `<button class="btn-gold btn-sm" data-gen-dd="${d.id}" style="margin-top:6px">${svgIcon('ia')} Gerar minuta (IA)</button>`}</td>
-            <td>${d.process_number || '—'}</td>
-            <td>${d.suggested_type || '—'} · ${d.suggested_days || '?'} dias</td>
-            <td style="white-space:nowrap"><button class="btn-gold btn-sm" data-conf-dd="${d.id}">Confirmar</button> <button class="btn-sm" data-disc-dd="${d.id}">Descartar</button></td></tr>`; }).join('')}</tbody></table>
+          <div class="dd-list">${rows.map((d) => { const full = d.movement_full || d.movement_text || ''; return `
+            <div class="dd-item">
+              <div class="dd-item-head">
+                <strong class="dd-item-who">${d.client_name || '<span style=\"color:var(--text-muted);font-weight:500\">a vincular</span>'}</strong>
+                <span class="dd-item-meta">movimentação ${fmtDate(d.movement_date || d.start_date)}${d.process_number ? ` · processo ${esc(d.process_number)}` : ''}</span>
+              </div>
+              <p class="dd-item-text">${esc(full.slice(0, 110))}${full.length > 110 ? '…' : ''}</p>
+              ${full.length > 110 ? `<button class="btn-sm" data-full-dd="${d.id}">${svgIcon('file')}Ver na íntegra</button>` : ''}
+              ${d.ai_summary ? `<div class="dd-item-ai"><strong>🧑‍🎓 Estagiário IA:</strong><br>${esc(d.ai_summary.slice(0, 400))}${d.ai_summary.length > 400 ? '…' : ''}</div>` : ''}
+              <div class="dd-item-suggest">Sugestão: <strong>${d.suggested_type || '—'}</strong> · ${d.suggested_days || '?'} dias</div>
+              <div class="dd-item-actions">
+                <div class="dd-item-actions-ai">
+                  ${d.ai_draft_id
+                    ? `<button class="btn-sm" data-draft-dd="${d.ai_draft_id}">${svgIcon('edit')}Ver minuta</button><button class="btn-sm" data-gen-dd="${d.id}">${svgIcon('ia')} Refazer com IA</button>`
+                    : `<button class="btn-gold btn-sm" data-gen-dd="${d.id}">${svgIcon('ia')} Gerar minuta (IA)</button>`}
+                </div>
+                <div class="dd-item-actions-main">
+                  <button class="btn-gold btn-sm" data-conf-dd="${d.id}">Confirmar</button>
+                  <button class="btn-sm" data-disc-dd="${d.id}">Descartar</button>
+                </div>
+              </div>
+            </div>`; }).join('')}</div>
         </div>` : '';
       document.querySelectorAll('[data-conf-dd]').forEach((b) => b.onclick = () => {
         const d = rows.find((x) => x.id == b.dataset.confDd);
