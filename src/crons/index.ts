@@ -303,6 +303,18 @@ export function startCronJobs() {
     runJob('monitoramento:processos', () => runMonitoringJob(), { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── monitoramento por E-MAIL (item 7 — plano B do DJEN): 08h e 19h ────────
+  // Só roda de verdade depois que a Dra. Letícia conectar a caixa de e-mail
+  // em Configurações — se não houver conexão ativa, o serviço não faz nada
+  // (ver runCourtEmailScan). Frequência mais baixa que o DJEN de propósito:
+  // é um plano B, não a via principal.
+  cron.schedule('0 8,19 * * *', () => {
+    runJob('monitoramento:processos-email', async () => {
+      const { runCourtEmailScan } = await import('../services/courtEmailMonitorService');
+      return await runCourtEmailScan();
+    });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── LGPD: expurgo mensal (dia 1, 04h) — elimina dado pessoal sem finalidade.
   // Cirúrgico: NÃO toca em processo, procuração, contrato, documento nem
   // financeiro (dever de guarda / podem ser prova). Ver retentionService.

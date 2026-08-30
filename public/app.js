@@ -1574,6 +1574,11 @@ const ROUTES = {
         <button class="btn-gold btn-sm" id="os-save" style="margin-top:12px">Salvar</button>
       </div>
       <div class="card" style="padding:20px;margin-bottom:20px">
+        <h3 style="color:var(--navy);margin-bottom:2px">📧 Monitoramento processual por e-mail (plano B)</h3>
+        <p class="sub" style="margin:0 0 12px">Além do monitoramento normal (DJEN, de hora em hora), o CRM pode conferir 2x por dia se alguma movimentação chegou por e-mail de tribunal/PJe — útil quando o DJEN não pega. <strong>Experimental:</strong> os critérios de "isso parece e-mail de tribunal" são uma heurística e vão precisar de ajuste com o tempo. Conecte a conta de e-mail que RECEBE notificação de tribunal (a sua ou uma dedicada — a escolha é sua).</p>
+        <div id="court-email-panel"><div class="spinner"></div></div>
+      </div>
+      <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:6px">Automações</h3>
         <p class="sub" style="margin-bottom:12px">Regras que rodam sozinhas. Ligue ou desligue conforme o fluxo do escritório.</p>
         <div id="automation-list"><div class="spinner"></div></div>
@@ -1850,6 +1855,7 @@ const ROUTES = {
     await load();
     await loadAutomations();
     await loadBackups();
+    await loadCourtEmailPanel();
     await asaasConfigSection(page);
   },
 
@@ -3619,6 +3625,44 @@ async function loadInboxPanel(onChange) {
   $('#inbox-disc').onclick = async () => {
     if (!await uiConfirm('Desconectar o Gmail da parceria?')) return;
     try { await api('/api/email-intake/integration/disconnect', { method: 'POST', body: '{}' }); toast('Desconectado'); onChange(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+}
+
+// Painel de conexão do e-mail de monitoramento processual (item 7 — plano B
+// do DJEN). Mesmo padrão visual/fluxo do painel do Gmail da parceria acima
+// (loadInboxPanel), mas conta OAuth separada e dedicada — a escolha de QUAL
+// e-mail conectar é da Dra. Letícia, não é assumida pelo sistema.
+async function loadCourtEmailPanel() {
+  const box = $('#court-email-panel');
+  if (!box) return;
+  const st = await api('/api/court-email-monitor').catch(() => ({ connected: false }));
+  if (!st.connected) {
+    box.innerHTML = `<button class="btn-gold btn-sm" id="ce-connect">Conectar e-mail de monitoramento judicial</button>`;
+    $('#ce-connect').onclick = async () => {
+      try { const { url } = await api('/api/court-email-monitor/auth-url'); window.location.href = url; }
+      catch (e) { toast(e.message, 'error'); }
+    };
+    return;
+  }
+  const last = st.last_check_at ? new Date(st.last_check_at).toLocaleString('pt-BR') : 'ainda não rodou';
+  box.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+      <div style="font-size:13px">Conectado: <strong>${esc(st.google_email || '—')}</strong> · última checagem: ${last}${typeof st.last_check_found === 'number' ? ` (${st.last_check_found} nova(s) na última vez)` : ''} ${st.active ? '' : '<span style="color:var(--red)">(pausado)</span>'}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-gold btn-sm" id="ce-scan">${svgIcon('refresh')} Verificar agora</button><button class="btn-sm" id="ce-disc">Desconectar</button></div>
+    </div>`;
+  $('#ce-scan').onclick = async () => {
+    const b = $('#ce-scan'); b.disabled = true; b.textContent = 'Verificando...';
+    try {
+      const r = await api('/api/court-email-monitor/scan-now', { method: 'POST', body: '{}' });
+      toast(`Verificação concluída · ${r.novos} nova(s) movimentação(ões) · ${r.verificados} e-mail(is) analisado(s)`);
+      loadCourtEmailPanel();
+    } catch (e) { toast(e.message, 'error'); }
+    finally { b.disabled = false; b.textContent = 'Verificar agora'; }
+  };
+  $('#ce-disc').onclick = async () => {
+    if (!await uiConfirm('Desconectar o e-mail de monitoramento judicial?')) return;
+    try { await api('/api/court-email-monitor/disconnect', { method: 'POST', body: '{}' }); toast('Desconectado'); loadCourtEmailPanel(); }
     catch (e) { toast(e.message, 'error'); }
   };
 }
@@ -8630,6 +8674,16 @@ if (gParam) {
   setTimeout(() => {
     if (gParam === 'connected') { toast('Google Agenda conectado!'); location.hash = '#agenda'; }
     else toast('Falha ao conectar o Google', 'error');
+  }, 500);
+}
+
+// Retorno do OAuth do e-mail de monitoramento judicial (item 7)
+const ceParam = new URLSearchParams(location.search).get('court_email');
+if (ceParam) {
+  history.replaceState({}, '', location.pathname);
+  setTimeout(() => {
+    if (ceParam === 'connected') { toast('E-mail de monitoramento judicial conectado!'); location.hash = '#config'; }
+    else toast('Falha ao conectar o e-mail de monitoramento', 'error');
   }, 500);
 }
 

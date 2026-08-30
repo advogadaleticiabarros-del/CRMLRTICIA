@@ -43,6 +43,19 @@ export async function googleOAuthCallback(req: Request, res: Response): Promise<
     return;
   }
 
+  // Fluxo do e-mail de monitoramento judicial (item 7 — plano B do DJEN) —
+  // conta dedicada, separada da caixa da parceria e da Agenda.
+  if (purpose === 'court_email') {
+    try {
+      const { saveCourtEmailTokens } = await import('../services/courtEmailMonitorService');
+      await saveCourtEmailTokens(code);
+      res.redirect('/?court_email=connected#config');
+    } catch {
+      res.redirect('/?court_email=error#config');
+    }
+    return;
+  }
+
   try {
     const tokens = await googleCalendarService.exchangeCode(code);
 

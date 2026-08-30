@@ -635,6 +635,47 @@ export async function runDiscoveryJob(): Promise<{ lawyers: number; totalNovos: 
   return { lawyers: lawyers.length, totalNovos };
 }
 
+/**
+ * Registra (se for realmente novidade) uma movimentação encontrada pelo
+ * monitoramento por E-MAIL (item 7 do plano — plano B do DJEN/DataJud, ver
+ * courtEmailMonitorService.ts). Reaproveita o MESMO pipeline de dedupe/
+ * prazo/aviso de `saveMovements` — só muda a fonte (`email_monitoramento`
+ * em vez de `djen_oab`/`datajud`).
+ *
+ * CROSS-CHECK: antes de registrar, verifica se já existe QUALQUER
+ * movimentação (de outra fonte) para esse processo numa janela de ±3 dias
+ * da data do e-mail. Não compara o texto — o texto de um e-mail de
+ * notificação raramente bate palavra por palavra com a publicação do DJEN
+ * (redações diferentes para o mesmo evento) — se já há algo próximo dessa
+ * data, assume que o caminho normal (DJEN) já capturou e NÃO duplica.
+ */
+export async function registrarMovimentacaoDeEmail(
+  processId: number, processNumber: string, clientId: number | null,
+  m: { movement_date: string | null; title: string; description: string }
+): Promise<{ novo: boolean; jaCapturadoPeloDjen: boolean }> {
+  const alvo = toDate(m.movement_date) || new Date();
+  const [existing] = await db.query(
+    `SELECT id FROM process_movements
+      WHERE process_id = ? AND source != 'email_monitoramento'
+        AND movement_date IS NOT NULL
+        AND ABS(DATEDIFF(movement_date, ?)) <= 3
+      LIMIT 1`,
+    [processId, alvo]
+  ) as any;
+  if (existing.length) return { novo: false, jaCapturadoPeloDjen: true };
+
+  const novas = await saveMovements(processId, processNumber, [m], 'email_monitoramento', clientId);
+  if (novas > 0) {
+    await db.query(
+      'UPDATE legal_processes SET last_movement_at = (SELECT MAX(movement_date) FROM process_movements WHERE process_id = ?) WHERE id = ?',
+      [processId, processId]
+    );
+    await recomputeSuggestedPhase(processId);
+    await logMonitor(processId, null, 'nova_movimentacao', 'email_monitoramento', 'Movimentação encontrada por e-mail (fora do DJEN)');
+  }
+  return { novo: novas > 0, jaCapturadoPeloDjen: false };
+}
+
 /** Roda o monitoramento de todos os processos ativos com monitoring_enabled. */
 export async function runMonitoringJob(): Promise<{ processed: number; withNews: number }> {
   const [procs] = await db.query(
