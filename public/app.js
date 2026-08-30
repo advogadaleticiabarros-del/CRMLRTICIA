@@ -3924,6 +3924,31 @@ function tableToRows(tableEl) {
   return { headers, rows };
 }
 
+// Barra fixa "← Voltar ao CRM" no topo de toda janela de relatório/PDF aberta
+// via window.open() + document.write(). No navegador comum dá pra trocar de
+// aba pra voltar, mas no app instalado como PWA no iPhone (modo standalone,
+// sem barra de abas do Safari) a pessoa ficava presa na janela do relatório,
+// só conseguindo sair fechando o app inteiro. window.close() funciona sem
+// aviso do navegador porque a janela foi aberta por script (window.open()),
+// não digitada pelo usuário. A barra some na impressão (@media print) — o
+// PDF gerado não deve trazer o botão.
+function voltarBarCss() {
+  return `
+    .voltar-bar { position: fixed; top: 0; left: 0; right: 0; z-index: 999; display: flex; gap: 10px; align-items: center; justify-content: center; background: #0d1b2e; padding: 10px 14px; box-shadow: 0 2px 10px rgba(0,0,0,.25); }
+    .voltar-bar button { border: none; border-radius: 8px; padding: 12px 20px; font-size: 15px; font-weight: 600; cursor: pointer; line-height: 1.2; }
+    .voltar-bar .vb-voltar { background: transparent; color: #fff; border: 1.5px solid #c19a4e; }
+    .voltar-bar .vb-imprimir { background: #c19a4e; color: #fff; }
+    .voltar-bar-spacer { height: 58px; }
+    @media print { .voltar-bar, .voltar-bar-spacer { display: none !important; } }
+  `;
+}
+function voltarBarHtml(imprimirLabel) {
+  return `<div class="voltar-bar no-print">
+      <button type="button" class="vb-voltar" onclick="window.close()">← Voltar ao CRM</button>
+      <button type="button" class="vb-imprimir" onclick="window.print()">${imprimirLabel || 'Imprimir / Salvar PDF'}</button>
+    </div><div class="voltar-bar-spacer"></div>`;
+}
+
 // PDF em papel timbrado (mesmo cabeçalho/rodapé do contrato) — tabela +
 // total da coluna de valor (se houver), com o período selecionado no título.
 function printTablePDF(title, tableEl, periodo) {
@@ -3967,7 +3992,9 @@ function printTablePDF(title, tableEl, periodo) {
       table.fin td.num, table.fin th.num { text-align: right; }
       table.fin tr.tot td { border-top: 2px solid #B8943F; border-bottom: 0; font-weight: bold; padding-top: 8px; }
       @media print { .no-print { display: none; } thead { display: table-header-group; } }
+      ${voltarBarCss()}
     </style></head><body>
+    ${voltarBarHtml()}
     <img class="watermark" style="position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:12cm;opacity:.035;z-index:-1" src="${location.origin}/logo-sem-fundo.png" onerror="this.onerror=null;this.src='${logo}'">
     <div class="lh-footer-fixed">(27) 99515-1402 | (44) 99101-1402<span class="sep">·</span>advogadaleticia.barros@gmail.com<span class="sep">·</span>@adv.leticiabarros2</div>
     <table class="page">
@@ -3985,7 +4012,6 @@ function printTablePDF(title, tableEl, periodo) {
         <table class="fin"><thead>${theadHtml}</thead><tbody>${tbodyHtml}${totalHtml}</tbody></table>
       </td></tr></tbody>
     </table>
-    <div class="no-print" style="text-align:center;margin:20px 0"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
     </body></html>`);
   w.document.close();
   setTimeout(() => w.focus(), 400);
@@ -6994,7 +7020,7 @@ async function caseDetail(id, onSave) {
           </div>`);
           openModal(g.name || 'Documento', body);
           const cpy = body.querySelector('#doc-copy2'); if (cpy) cpy.onclick = () => { try { navigator.clipboard.writeText(g.content || ''); toast('Copiado'); } catch { toast('Copie manualmente', 'error'); } };
-          const prt = body.querySelector('#doc-print2'); if (prt) prt.onclick = () => { const w = window.open('', '_blank'); w.document.write(`<html><head><title>${esc(g.name || 'Documento')}</title></head><body style="font-family:Georgia,serif;line-height:1.7;max-width:720px;margin:48px auto;padding:0 24px;white-space:pre-wrap;color:#231E1A">${(g.content || '').replace(/</g, '&lt;')}</body></html>`); w.document.close(); w.focus(); setTimeout(() => w.print(), 300); };
+          const prt = body.querySelector('#doc-print2'); if (prt) prt.onclick = () => { const w = window.open('', '_blank'); w.document.write(`<html><head><title>${esc(g.name || 'Documento')}</title><style>${voltarBarCss()}</style></head><body style="font-family:Georgia,serif;line-height:1.7;max-width:720px;margin:48px auto;padding:0 24px;white-space:pre-wrap;color:#231E1A">${voltarBarHtml()}${(g.content || '').replace(/</g, '&lt;')}</body></html>`); w.document.close(); w.focus(); setTimeout(() => w.print(), 300); };
         } catch (e) { toast(e.message, 'error'); }
       });
     };
@@ -8418,13 +8444,14 @@ function printBranded(docTitle, subtitle, innerHtml, w) {
     .ft { margin-top: 26px; border-top: 1px solid #ddd; padding-top: 8px; font-size: 8.5pt; color: #8a8271; display: flex; justify-content: space-between; }
     .no-print { text-align: center; margin: 18px 0; }
     @media print { .no-print, button { display: none !important; } h3, .lh { page-break-after: avoid; } }
+    ${voltarBarCss()}
   </style></head>
   <body>
+    ${voltarBarHtml()}
     <div class="lh"><img src="${location.origin}/logo.png" alt=""><div><div class="nm">Letícia Barros</div><div class="sb">Advocacia &amp; Consultoria</div></div></div>
     <h1>${esc(docTitle)}</h1>${subtitle ? `<div class="sub">${esc(subtitle)}</div>` : ''}
     ${clean}
     <div class="ft"><span>Documento gerado em ${today}</span><span>Advocacia Letícia Barros</span></div>
-    <div class="no-print"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer;background:#c19a4e;color:#fff;border:none;border-radius:8px;font-weight:600">Imprimir / Salvar PDF</button></div>
   </body></html>`);
   w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch {} }, 500);
 }
@@ -8501,11 +8528,12 @@ function printDocs(docs, w) {
       .auth-hash { font-family: monospace; font-size: 8.5pt; word-break: break-all; color: #555; }
       .docwrap + .docwrap { page-break-before: always; }
       @media print { .no-print { display: none; } .content .clause, .content .sig-line { page-break-inside: avoid; } }
+      ${voltarBarCss()}
     </style></head><body>
+    ${voltarBarHtml()}
     <img class="watermark" src="${location.origin}/logo-sem-fundo.png" onerror="this.onerror=null;this.src='${logo}'">
     <div class="lh-footer-fixed">(27) 99515-1402 | (44) 99101-1402<span class="sep">·</span>advogadaleticia.barros@gmail.com<span class="sep">·</span>@adv.leticiabarros2</div>
     ${blocks}
-    <div class="no-print" style="text-align:center;margin:20px 0"><button onclick="window.print()" style="padding:10px 24px;font-size:14px;cursor:pointer">Imprimir / Salvar PDF</button></div>
     </body></html>`);
   w.document.close();
   setTimeout(() => w.focus(), 400);
