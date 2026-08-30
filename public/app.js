@@ -6964,6 +6964,8 @@ async function taskForm(onSave) {
   openModal('Nova tarefa', form);
 }
 
+const EVT_STATUS_PT = { agendado: 'Agendado', realizado: 'Realizado', cancelado: 'Cancelado' };
+
 async function eventDetail(item, onSave) {
   const isEvent = ['reuniao', 'audiencia', 'compromisso'].includes(item.type);
   const labels = { reuniao: 'Reunião', audiencia: 'Audiência', compromisso: 'Compromisso', prazo: 'Prazo', tarefa: 'Tarefa' };
@@ -6973,6 +6975,7 @@ async function eventDetail(item, onSave) {
   const fim = full.end_datetime ? new Date(full.end_datetime) : null;
   const hh = (d) => d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   const line = (lbl, val) => val ? `<div class="evt-line"><span>${lbl}</span><strong>${val}</strong></div>` : '';
+  const status = full.status || 'agendado';
 
   const body = el(`<div class="evt-detail">
     <div class="evt-type ${item.type}">${labels[item.type] || item.type}</div>
@@ -6981,16 +6984,33 @@ async function eventDetail(item, onSave) {
     ${line('Horário', hh(ini) + (fim ? ` – ${hh(fim)}` : ''))}
     ${line('Cliente', full.client_name || item.client_name)}
     ${line('Local', full.location)}
+    ${isEvent ? line('Status', EVT_STATUS_PT[status] || status) : ''}
     ${full.description ? `<div class="evt-desc">${full.description}</div>` : ''}
     ${full.video_link ? `<a class="btn-gold" href="${full.video_link}" target="_blank" rel="noopener" style="display:inline-block;margin-top:10px">Entrar na reunião</a>` : ''}
-    ${isEvent ? `<div class="evt-actions"><button class="btn-sm" id="evt-del">Excluir evento</button></div>` : '<p class="sub" style="margin-top:12px">Gerencie prazos e tarefas na tela Prazos &amp; Tarefas.</p>'}
+    ${isEvent ? `<div class="evt-actions" style="display:flex;gap:8px;flex-wrap:wrap">
+        ${status !== 'realizado' ? `<button class="btn-sm" id="evt-st-realizado">Marcar como realizado</button>` : ''}
+        ${status !== 'cancelado' ? `<button class="btn-sm" id="evt-st-cancelado">Cancelar compromisso</button>` : ''}
+        ${status !== 'agendado' ? `<button class="btn-sm" id="evt-st-agendado">Reabrir (agendado)</button>` : ''}
+        <button class="btn-sm" id="evt-del">Excluir evento</button>
+      </div>` : '<p class="sub" style="margin-top:12px">Gerencie prazos e tarefas na tela Prazos &amp; Tarefas.</p>'}
   </div>`);
 
-  if (isEvent) body.querySelector('#evt-del').onclick = async () => {
-    if (!await uiConfirm('Excluir este evento? Ele também sai do Google Agenda.')) return;
-    try { await api(`/api/calendar/events/${item.id}`, { method: 'DELETE' }); closeModal(); toast('Evento excluído'); onSave && onSave(); }
-    catch (e) { toast(e.message, 'error'); }
-  };
+  if (isEvent) {
+    const setStatus = async (novoStatus) => {
+      try {
+        await api(`/api/calendar/events/${item.id}/status`, { method: 'PATCH', body: JSON.stringify({ status: novoStatus }) });
+        closeModal(); toast(`Compromisso marcado como ${(EVT_STATUS_PT[novoStatus] || novoStatus).toLowerCase()}`); onSave && onSave();
+      } catch (e) { toast(e.message, 'error'); }
+    };
+    body.querySelector('#evt-st-realizado')?.addEventListener('click', () => setStatus('realizado'));
+    body.querySelector('#evt-st-cancelado')?.addEventListener('click', () => setStatus('cancelado'));
+    body.querySelector('#evt-st-agendado')?.addEventListener('click', () => setStatus('agendado'));
+    body.querySelector('#evt-del').onclick = async () => {
+      if (!await uiConfirm('Excluir este evento? Ele também sai do Google Agenda.')) return;
+      try { await api(`/api/calendar/events/${item.id}`, { method: 'DELETE' }); closeModal(); toast('Evento excluído'); onSave && onSave(); }
+      catch (e) { toast(e.message, 'error'); }
+    };
+  }
   openModal('Detalhes', body);
 }
 

@@ -9,6 +9,57 @@ const AREAS = ['criminal', 'familia', 'civel', 'previdenciario', 'trabalhista', 
 const HEARING_STATUS = ['agendada', 'realizada', 'adiada', 'cancelada'];
 const PAY_STATUS = ['previsto', 'recebido'];
 
+// ── Agenda: audiência dativa × Google Calendar ───────────────────────────────
+// dative_hearings tem o próprio enum de status (agendada/realizada/adiada/
+// cancelada) — mapeia para o status de negócio de calendar_events
+// (agendado/realizado/cancelado, migration 118) que decide a cor no Google.
+// "Adiada" não vira cor própria: continua "agendado" (a nova data já reflete
+// isso em hearing_date), igual à regra já adotada para calendar_events.status.
+function dativeStatusToCalendarStatus(status: string): 'agendado' | 'realizado' | 'cancelado' {
+  if (status === 'realizada') return 'realizado';
+  if (status === 'cancelada') return 'cancelado';
+  return 'agendado'; // agendada, adiada
+}
+
+/**
+ * Cria/atualiza o evento da agenda da audiência dativa (para sincronizar com
+ * o Google Calendar, incluindo a cor por status). Segue o mesmo padrão já
+ * usado para correspondent_hearings (ver src/routes/correspondente.ts) — só
+ * marca `sync_status = 'pendente'`, quem efetivamente envia pro Google é o
+ * cron (`calendarSyncService.pushToGoogle`, roda a cada poucos minutos).
+ */
+async function syncDativeHearingToCalendar(hearingId: number, userId: number): Promise<void> {
+  const [[h]] = await db.query(
+    `SELECT h.*, dc.process_number, dc.assisted_name
+       FROM dative_hearings h
+       JOIN dative_cases dc ON dc.id = h.dative_case_id
+      WHERE h.id = ?`,
+    [hearingId]
+  ) as any;
+  if (!h) return;
+
+  const title = `Audiência dativa — ${h.comarca || h.assisted_name || 'Estado'}`;
+  const desc = `Assistido: ${h.assisted_name || '—'}. Processo: ${h.process_number || '—'}. Tipo: ${h.type || '—'}. Valor do ato: ${h.act_value}.`;
+  const status = dativeStatusToCalendarStatus(h.status);
+
+  const [ex] = await db.query('SELECT id FROM calendar_events WHERE dative_hearing_id = ?', [hearingId]) as any;
+  if (ex.length) {
+    await db.query(
+      `UPDATE calendar_events SET title = ?, description = ?, event_type = 'audiencia',
+         start_datetime = ?, end_datetime = DATE_ADD(?, INTERVAL 1 HOUR), location = ?, status = ?, sync_status = 'pendente'
+       WHERE dative_hearing_id = ?`,
+      [title, desc, h.hearing_date, h.hearing_date, h.comarca ?? null, status, hearingId]
+    );
+  } else {
+    await db.query(
+      `INSERT INTO calendar_events
+         (user_id, title, description, event_type, start_datetime, end_datetime, location, source, sync_status, status, dative_hearing_id)
+       VALUES (?, ?, ?, 'audiencia', ?, DATE_ADD(?, INTERVAL 1 HOUR), ?, 'crm', 'pendente', ?, ?)`,
+      [userId, title, desc, h.hearing_date, h.hearing_date, h.comarca ?? null, status, hearingId]
+    );
+  }
+}
+
 // ── GET /api/dative/summary — projeção financeira do Estado ─────────────────
 router.get('/summary', async (req: Request, res: Response) => {
   const userId = req.user!.id;
@@ -284,6 +335,7 @@ router.post('/hearings', async (req: Request, res: Response) => {
     [dative_case_id, req.user!.id, hearing_date, comarca || c[0].comarca, type ?? null,
      Number(act_value) || 0, HEARING_STATUS.includes(status) ? status : 'agendada']
   ) as any;
+  await syncDativeHearingToCalendar(result.insertId, req.user!.id).catch(() => {});
   const [rows] = await db.query('SELECT * FROM dative_hearings WHERE id = ?', [result.insertId]) as any;
   res.status(201).json(rows[0]);
 });
@@ -314,6 +366,7 @@ router.put('/hearings/:id', async (req: Request, res: Response) => {
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo valido para atualizar' }); return; }
   params.push(id, req.user!.id);
   await db.query(`UPDATE dative_hearings SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, params);
+  await syncDativeHearingToCalendar(Number(id), req.user!.id).catch(() => {});
   const [rows] = await db.query('SELECT * FROM dative_hearings WHERE id = ?', [id]) as any;
   res.json(rows[0]);
 });
@@ -328,6 +381,7 @@ router.patch('/hearings/:id/status', async (req: Request, res: Response) => {
     [status, req.params.id, req.user!.id]
   ) as any;
   if (!result.affectedRows) { res.status(404).json({ error: 'Audiência não encontrada' }); return; }
+  await syncDativeHearingToCalendar(Number(req.params.id), req.user!.id).catch(() => {});
   res.json({ success: true, status });
 });
 
@@ -348,6 +402,7 @@ router.put('/hearings/:id', async (req: Request, res: Response) => {
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido' }); return; }
   params.push(req.params.id);
   await db.query(`UPDATE dative_hearings SET ${fields.join(', ')} WHERE id = ?`, params);
+  await syncDativeHearingToCalendar(Number(req.params.id), req.user!.id).catch(() => {});
   const [rows] = await db.query('SELECT * FROM dative_hearings WHERE id = ?', [req.params.id]) as any;
   res.json(rows[0]);
 });
