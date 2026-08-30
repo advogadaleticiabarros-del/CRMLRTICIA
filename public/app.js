@@ -1537,6 +1537,17 @@ const ROUTES = {
           <span id="tfa-status" style="font-size:12.5px;color:var(--text-muted)"></span>
         </div>
       </div>
+
+      <div class="card" style="padding:20px;margin-bottom:20px" id="passkey-card">
+        <h3 style="color:var(--navy);margin-bottom:2px">Entrar com Face ID</h3>
+        <p class="sub" style="margin:0 0 12px">Cadastre este aparelho para entrar sem digitar e-mail e senha. Só funciona depois de <strong>instalar o CRM na Tela de Início do iPhone</strong> (Adicionar à Tela de Início) — no Safari aberto normalmente, a Apple bloqueia o Face ID por segurança.</p>
+        <div id="passkey-unsupported" class="empty hidden">Este navegador não suporta login por Face ID/biometria (ou o CRM ainda não foi instalado na Tela de Início).</div>
+        <div id="passkey-body">
+          <button class="btn-sm" id="passkey-register-btn">+ Cadastrar este aparelho</button>
+          <div id="passkey-list" style="margin-top:12px"></div>
+        </div>
+      </div>
+
       <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:6px">Aparência</h3>
         <p class="sub" style="margin-bottom:14px">Escolha o visual do sistema. A preferência fica salva neste aparelho.</p>
@@ -1723,6 +1734,46 @@ const ROUTES = {
       openModal('Desativar verificação em 2 etapas', form);
     };
     tfaRefresh();
+
+    // ── Passkey (Face ID no iPhone) — gerenciar aparelhos cadastrados ──
+    const pkRefresh = async () => {
+      const box = $('#passkey-list'); if (!box) return;
+      try {
+        const list = await api('/api/auth/passkey');
+        box.innerHTML = list.length ? list.map((p) => `
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border-soft)">
+            <div><strong>${esc(p.device_name || 'Aparelho sem nome')}</strong><br>
+              <small style="color:var(--text-muted)">cadastrado em ${fmtDate(p.created_at)}${p.last_used_at ? ' · último uso em ' + fmtDate(p.last_used_at) : ' · nunca usado'}</small></div>
+            <button class="btn-sm" data-pk-del="${p.id}">Remover</button>
+          </div>`).join('') : '<div class="empty">Nenhum aparelho cadastrado ainda.</div>';
+        document.querySelectorAll('[data-pk-del]').forEach((b) => b.onclick = async () => {
+          if (!await uiConfirm('Remover este aparelho? Ele deixará de entrar com Face ID — o e-mail/senha continua funcionando normalmente.')) return;
+          try { await api('/api/auth/passkey/' + b.dataset.pkDel, { method: 'DELETE' }); toast('Aparelho removido'); pkRefresh(); }
+          catch (e) { toast(e.message, 'error'); }
+        });
+      } catch (e) { box.innerHTML = `<div class="empty">${e.message}</div>`; }
+    };
+    const pkRegister = async () => {
+      try {
+        const { options, regToken } = await api('/api/auth/passkey/register/options', { method: 'POST', body: '{}' });
+        const response = await window.SimpleWebAuthnBrowser.startRegistration({ optionsJSON: options });
+        const deviceName = await uiPrompt('Dê um nome para este aparelho (ex.: iPhone da Letícia):', navigator.platform || '');
+        if (deviceName === null) return; // cancelou o nome — não cadastra sem confirmar
+        await api('/api/auth/passkey/register/verify', { method: 'POST', body: JSON.stringify({ regToken, response, deviceName }) });
+        toast('Aparelho cadastrado! Já pode entrar com Face ID na tela de login.');
+        pkRefresh();
+      } catch (e) {
+        if (e && e.name === 'NotAllowedError') return; // cancelou o Face ID no próprio aparelho
+        toast(e.message || 'Não foi possível cadastrar este aparelho', 'error');
+      }
+    };
+    if (webauthnSupported()) {
+      $('#passkey-register-btn').onclick = pkRegister;
+      pkRefresh();
+    } else {
+      $('#passkey-body').classList.add('hidden');
+      $('#passkey-unsupported').classList.remove('hidden');
+    }
 
     // ── Proteção de dados (LGPD): prova verificável, sem precisar de DevTools ──
     const loadSeguranca = async () => {
@@ -8418,6 +8469,42 @@ document.addEventListener('click', (e) => {
   try { navigator.clipboard.writeText(b.dataset.copy); toast('Copiado: ' + b.dataset.copy); } catch { toast('Copie manualmente', 'error'); }
 });
 $('#login-form').onsubmit = login;
+
+// ── Passkey (Face ID no iPhone) — login ─────────────────────────────────
+// Método ADICIONAL: some sem quebrar nada se o navegador não suportar
+// WebAuthn (ex.: Safari fora do modo instalado/PWA em versões antigas) —
+// o formulário normal de e-mail/senha continua do lado, sempre visível.
+function webauthnSupported() {
+  return !!(window.PublicKeyCredential && window.SimpleWebAuthnBrowser);
+}
+async function passkeyLogin() {
+  const btn = $('#passkey-login-btn');
+  const errBox = $('#login-error');
+  if (errBox) errBox.textContent = '';
+  if (btn) btn.disabled = true;
+  try {
+    const { options, loginToken } = await api('/api/auth/passkey/login/options', { method: 'POST', body: '{}' });
+    const response = await window.SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options });
+    const data = await api('/api/auth/passkey/login/verify', { method: 'POST', body: JSON.stringify({ loginToken, response }) });
+    TOKEN = data.token; USER = data.user;
+    localStorage.setItem('crm_token', TOKEN);
+    localStorage.setItem('crm_user', JSON.stringify(USER));
+    showApp();
+  } catch (err) {
+    // Usuária cancelou o Face ID (ex.: apertou "Cancelar") — não é um erro
+    // de verdade, não precisa assustar com mensagem vermelha.
+    if (err && err.name !== 'NotAllowedError' && errBox) {
+      errBox.textContent = err.message || 'Não foi possível entrar com Face ID. Use e-mail e senha abaixo.';
+    }
+  } finally { if (btn) btn.disabled = false; }
+}
+(function initPasskeyLoginButton() {
+  const btn = $('#passkey-login-btn'); const hint = $('#passkey-login-hint');
+  if (!btn || !webauthnSupported()) return;
+  btn.classList.remove('hidden');
+  if (hint) hint.classList.remove('hidden');
+  btn.onclick = passkeyLogin;
+})();
 
 // Mostrar/ocultar a senha digitada (olho mágico)
 const eyeBtn = $('#login-eye');

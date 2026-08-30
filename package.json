@@ -26,6 +26,8 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "^13.3.0",
+    "@simplewebauthn/server": "^13.3.3",
     "@types/pdfkit": "^0.17.6",
     "@types/web-push": "^3.6.4",
     "bcryptjs": "^2.4.3",

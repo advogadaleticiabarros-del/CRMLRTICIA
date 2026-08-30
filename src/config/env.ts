@@ -32,6 +32,14 @@ const envSchema = z.object({
   // Telegram (opcionais)
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),
+
+  // WebAuthn / Passkey (Face ID no iPhone) — opcionais: se ausentes, o
+  // sistema usa um padrão de produção (domínio real) ou 'localhost' em dev.
+  // Ver src/config/webauthn.ts. Errar o domínio aqui é a causa nº 1 de
+  // Face ID "não funcionar" (o navegador recusa silenciosamente).
+  WEBAUTHN_RP_ID: z.string().optional(),
+  WEBAUTHN_RP_NAME: z.string().optional(),
+  WEBAUTHN_ORIGIN: z.string().optional(),
 });
 
 // Railway expõe o MySQL como MYSQLHOST/MYSQLPORT/... — usamos como fallback

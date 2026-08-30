@@ -229,6 +229,14 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   // (barato, sem corpo), então continua evitando rebaixar ~175KB à toa.
   app.use(express.static(publicDir, { etag: true, lastModified: true, maxAge: 0, index: false }));
 
+  // Biblioteca cliente do WebAuthn (helper fino sobre navigator.credentials,
+  // usada no login/cadastro por Face ID) — servida direto do pacote instalado
+  // em vez de copiada pra /public, pra ficar em sincronia com o npm install.
+  app.use('/vendor/simplewebauthn', express.static(
+    path.join(__dirname, '..', 'node_modules', '@simplewebauthn', 'browser', 'dist', 'bundle'),
+    { etag: true, maxAge: '7d' }
+  ));
+
   // BUILD_ID muda a cada deploy (o processo reinicia) — usado como ?v= nos
   // <script src> do index.html. Isso é o que garante de verdade que uma
   // aba nova NUNCA rode JS de um deploy anterior: cada deploy vira uma URL

@@ -2,8 +2,20 @@ import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { verifySync as totpVerify } from 'otplib';
+import {
+  generateRegistrationOptions,
+  verifyRegistrationResponse,
+  generateAuthenticationOptions,
+  verifyAuthenticationResponse,
+} from '@simplewebauthn/server';
+import type {
+  RegistrationResponseJSON,
+  AuthenticationResponseJSON,
+  WebAuthnCredential,
+} from '@simplewebauthn/server';
 import { db } from '../config/database';
 import { env } from '../config/env';
+import { WEBAUTHN_RP_ID, WEBAUTHN_RP_NAME, WEBAUTHN_ORIGIN } from '../config/webauthn';
 import { decrypt } from '../utils/crypto';
 import { signToken, authenticate, authorize, AuthPayload } from '../middleware/auth';
 
@@ -276,6 +288,250 @@ router.patch('/password', authenticate, async (req: Request, res: Response) => {
   const hash = await bcrypt.hash(new_password, 10);
   await db.query('UPDATE users SET password = ? WHERE id = ?', [hash, req.user!.id]);
   res.json({ success: true });
+});
+
+// ═════════════════════════════════════════════════════════════════════════
+// Passkey / WebAuthn (Face ID no iPhone) — item 5 do plano de autenticação
+// biométrica. MÉTODO ADICIONAL: e-mail/senha (+2FA) continua funcionando
+// normalmente; isto só oferece um atalho a mais.
+//
+// Só funciona depois que o CRM foi instalado na Tela de Início do iPhone
+// como PWA (Face ID via navegador comum do Safari é bloqueado pela Apple) —
+// dependência já resolvida no item 2 do plano (aviso de instalação).
+//
+// O desafio (challenge) do WebAuthn é stateless: guardamos ele dentro de um
+// JWT de vida curta (mesmo padrão já usado no "tmp" do login com 2FA acima)
+// em vez de sessão/tabela — não há servidor com estado compartilhado aqui.
+// ═════════════════════════════════════════════════════════════════════════
+
+interface PasskeyChallengeToken {
+  purpose: 'passkey_reg' | 'passkey_login';
+  challenge: string;
+  userId?: number;
+}
+
+function signChallenge(payload: PasskeyChallengeToken, expiresIn: string): string {
+  return jwt.sign(payload, env.JWT_SECRET, { expiresIn } as jwt.SignOptions);
+}
+function readChallenge(token: string, purpose: PasskeyChallengeToken['purpose']): PasskeyChallengeToken | null {
+  try {
+    const decoded = jwt.verify(String(token), env.JWT_SECRET) as PasskeyChallengeToken;
+    if (decoded.purpose !== purpose) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+// Rate limit dedicado para a rota de login por passkey (superfície de auth
+// nova — sem isso daria pra floodar/enumerar). Mesmo esquema do login normal
+// (5 tentativas por 15 min), mas por IP, já que aqui não se digita e-mail.
+const passkeyAttempts = new Map<string, { count: number; first: number }>();
+function passkeyKey(req: Request): string { return `passkey|${req.ip || 'ip'}`; }
+function passkeyBlocked(req: Request): number {
+  const a = passkeyAttempts.get(passkeyKey(req));
+  if (!a) return 0;
+  if (Date.now() - a.first > LOGIN_WINDOW_MS) { passkeyAttempts.delete(passkeyKey(req)); return 0; }
+  return a.count >= LOGIN_MAX ? Math.ceil((a.first + LOGIN_WINDOW_MS - Date.now()) / 60000) : 0;
+}
+function passkeyRegisterFail(req: Request): void {
+  const k = passkeyKey(req);
+  const a = passkeyAttempts.get(k);
+  if (!a || Date.now() - a.first > LOGIN_WINDOW_MS) passkeyAttempts.set(k, { count: 1, first: Date.now() });
+  else a.count++;
+  if (passkeyAttempts.size > 5000) passkeyAttempts.clear();
+}
+
+// ── POST /api/auth/passkey/register/options — cadastro (usuária já logada) ──
+router.post('/passkey/register/options', authenticate, async (req: Request, res: Response) => {
+  const [existing] = await db.query(
+    'SELECT credential_id, transports FROM user_passkeys WHERE user_id = ?',
+    [req.user!.id]
+  ) as any;
+
+  const options = await generateRegistrationOptions({
+    rpName: WEBAUTHN_RP_NAME,
+    rpID: WEBAUTHN_RP_ID,
+    userID: Buffer.from(String(req.user!.id)),
+    userName: req.user!.email,
+    userDisplayName: req.user!.name,
+    attestationType: 'none',
+    excludeCredentials: existing.map((p: any) => ({
+      id: p.credential_id,
+      transports: p.transports ? JSON.parse(p.transports) : undefined,
+    })),
+    authenticatorSelection: {
+      residentKey: 'preferred',
+      userVerification: 'preferred', // pede Face ID/Touch ID quando disponível, sem travar em aparelhos sem biometria
+    },
+  });
+
+  const regToken = signChallenge({ purpose: 'passkey_reg', challenge: options.challenge, userId: req.user!.id }, '5m');
+  res.json({ options, regToken });
+});
+
+// ── POST /api/auth/passkey/register/verify — confirma e salva a credencial ──
+router.post('/passkey/register/verify', authenticate, async (req: Request, res: Response) => {
+  const { regToken, response, deviceName } = req.body || {};
+  if (!regToken || !response) { res.status(400).json({ error: 'Dados de cadastro incompletos' }); return; }
+
+  const decoded = readChallenge(regToken, 'passkey_reg');
+  if (!decoded || decoded.userId !== req.user!.id) {
+    res.status(401).json({ error: 'Cadastro expirado — tente novamente' });
+    return;
+  }
+
+  let verification;
+  try {
+    verification = await verifyRegistrationResponse({
+      response: response as RegistrationResponseJSON,
+      expectedChallenge: decoded.challenge,
+      expectedOrigin: WEBAUTHN_ORIGIN,
+      expectedRPID: WEBAUTHN_RP_ID,
+    });
+  } catch (err) {
+    res.status(400).json({ error: 'Não foi possível validar este aparelho: ' + (err as Error).message });
+    return;
+  }
+
+  if (!verification.verified || !verification.registrationInfo) {
+    res.status(400).json({ error: 'Cadastro do Face ID não confirmado' });
+    return;
+  }
+
+  const { credential } = verification.registrationInfo;
+  try {
+    await db.query(
+      `INSERT INTO user_passkeys (user_id, credential_id, public_key, counter, device_name, transports)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        req.user!.id,
+        credential.id,
+        Buffer.from(credential.publicKey).toString('base64'),
+        credential.counter,
+        String(deviceName || '').trim().slice(0, 120) || null,
+        JSON.stringify(credential.transports || []),
+      ]
+    );
+  } catch (err: any) {
+    if (err?.code === 'ER_DUP_ENTRY') { res.status(409).json({ error: 'Este aparelho já está cadastrado' }); return; }
+    throw err;
+  }
+
+  // eslint-disable-next-line no-console
+  console.log(`[auth] Passkey cadastrada — usuário #${req.user!.id} (${req.user!.email}), aparelho "${deviceName || 's/ nome'}"`);
+  res.status(201).json({ success: true });
+});
+
+// ── GET /api/auth/passkey — lista as passkeys da própria conta ──────────────
+router.get('/passkey', authenticate, async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    'SELECT id, device_name, created_at, last_used_at FROM user_passkeys WHERE user_id = ? ORDER BY created_at DESC',
+    [req.user!.id]
+  ) as any;
+  res.json(rows);
+});
+
+// ── DELETE /api/auth/passkey/:id — remove uma passkey da própria conta ──────
+router.delete('/passkey/:id', authenticate, async (req: Request, res: Response) => {
+  const [result] = await db.query(
+    'DELETE FROM user_passkeys WHERE id = ? AND user_id = ?',
+    [req.params.id, req.user!.id]
+  ) as any;
+  if (!result.affectedRows) { res.status(404).json({ error: 'Passkey não encontrada' }); return; }
+  // eslint-disable-next-line no-console
+  console.log(`[auth] Passkey removida — usuário #${req.user!.id} (${req.user!.email}), id ${req.params.id}`);
+  res.json({ success: true });
+});
+
+// ── POST /api/auth/passkey/login/options — login (não-autenticado) ──────────
+// Fluxo "usernameless"/discoverable: não pede e-mail antes, o próprio
+// aparelho já mostra a lista de passkeys salvas nele para este site.
+router.post('/passkey/login/options', async (req: Request, res: Response) => {
+  const bloqueado = passkeyBlocked(req);
+  if (bloqueado) { res.status(429).json({ error: `Muitas tentativas. Aguarde ${bloqueado} minuto(s).` }); return; }
+
+  const options = await generateAuthenticationOptions({
+    rpID: WEBAUTHN_RP_ID,
+    userVerification: 'preferred',
+  });
+  const loginToken = signChallenge({ purpose: 'passkey_login', challenge: options.challenge }, '2m');
+  res.json({ options, loginToken });
+});
+
+// ── POST /api/auth/passkey/login/verify — confere a assinatura e loga ───────
+router.post('/passkey/login/verify', async (req: Request, res: Response) => {
+  const { loginToken, response } = req.body || {};
+  if (!loginToken || !response) { res.status(400).json({ error: 'Dados de login incompletos' }); return; }
+
+  const bloqueado = passkeyBlocked(req);
+  if (bloqueado) { res.status(429).json({ error: `Muitas tentativas. Aguarde ${bloqueado} minuto(s).` }); return; }
+
+  const decoded = readChallenge(loginToken, 'passkey_login');
+  if (!decoded) {
+    passkeyRegisterFail(req);
+    res.status(401).json({ error: 'Sessão de login expirada — tente novamente' });
+    return;
+  }
+
+  const credentialId = (response as AuthenticationResponseJSON)?.id;
+  const [rows] = await db.query(
+    `SELECT p.id, p.credential_id, p.public_key, p.counter, p.transports, p.user_id,
+            u.name, u.email, u.role, u.active
+       FROM user_passkeys p JOIN users u ON u.id = p.user_id
+      WHERE p.credential_id = ?`,
+    [credentialId]
+  ) as any;
+  const row = rows[0];
+  if (!row || !row.active) {
+    passkeyRegisterFail(req);
+    res.status(401).json({ error: 'Passkey não reconhecida' });
+    return;
+  }
+
+  const credential: WebAuthnCredential = {
+    id: row.credential_id,
+    publicKey: new Uint8Array(Buffer.from(row.public_key, 'base64')),
+    counter: Number(row.counter),
+    transports: row.transports ? JSON.parse(row.transports) : undefined,
+  };
+
+  let verification;
+  try {
+    verification = await verifyAuthenticationResponse({
+      response: response as AuthenticationResponseJSON,
+      expectedChallenge: decoded.challenge,
+      expectedOrigin: WEBAUTHN_ORIGIN,
+      expectedRPID: WEBAUTHN_RP_ID,
+      credential,
+    });
+  } catch (err) {
+    // Cobre inclusive o caso do contador vir igual/menor que o salvo (sinal
+    // de credencial clonada) — a biblioteca recusa e cai aqui.
+    passkeyRegisterFail(req);
+    // eslint-disable-next-line no-console
+    console.warn(`[auth] Falha ao validar passkey — usuário #${row.user_id}: ${(err as Error).message}`);
+    res.status(401).json({ error: 'Não foi possível confirmar o Face ID' });
+    return;
+  }
+
+  if (!verification.verified) {
+    passkeyRegisterFail(req);
+    res.status(401).json({ error: 'Não foi possível confirmar o Face ID' });
+    return;
+  }
+  passkeyAttempts.delete(passkeyKey(req));
+
+  await db.query(
+    'UPDATE user_passkeys SET counter = ?, last_used_at = NOW() WHERE id = ?',
+    [verification.authenticationInfo.newCounter, row.id]
+  );
+
+  // eslint-disable-next-line no-console
+  console.log(`[auth] Login por passkey (Face ID) — usuário #${row.user_id} (${row.email})`);
+
+  const payload: AuthPayload = { id: row.user_id, email: row.email, name: row.name, role: row.role };
+  res.json({ token: signToken(payload), user: payload });
 });
 
 export default router;
