@@ -489,7 +489,7 @@ const dateOnly = (val: string | null): string | null => {
   return d ? d.toISOString().split('T')[0] : null;
 };
 
-interface DiscoveryResult { lawyerId: number; oab: string; found: number; novos: number; tribunais: number; clientesNovos?: number; clientesVinculados?: number; }
+interface DiscoveryResult { lawyerId: number; oab: string; found: number; novos: number; tribunais: number; clientesNovos?: number; clientesVinculados?: number; blocked?: boolean; }
 
 /**
  * Descobre por OAB todos os processos de UM advogado e cadastra os novos (source = djen_oab).
@@ -505,8 +505,13 @@ export async function discoverProcessesByOAB(lawyerId: number, _scope: 'national
     return { lawyerId, oab: '', found: 0, novos: 0, tribunais: 0 };
   }
 
-  const pubs = await fetchDjenByOAB(lawyer.oab_number, lawyer.oab_uf || 'ES', { maxPages: 15 });
-  return ingestDjenForLawyer(lawyerId, pubs, lawyer);
+  const { publications, blocked } = await fetchDjenByOAB(lawyer.oab_number, lawyer.oab_uf || 'ES', { maxPages: 15 });
+  const result = await ingestDjenForLawyer(lawyerId, publications, lawyer);
+  if (blocked) {
+    await logMonitor(null as any, lawyerId, 'erro', 'djen_oab',
+      `DJEN bloqueou as requisições (429/403 persistente) para a OAB ${lawyer.oab_number}/${lawyer.oab_uf} — busca interrompida, dados parciais.`);
+  }
+  return { ...result, blocked };
 }
 
 /**
@@ -618,19 +623,59 @@ export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublicatio
   return { lawyerId, oab: `${lawyer.oab_number}/${lawyer.oab_uf}`, found: processes.length, novos, tribunais: tribunais.size, clientesNovos, clientesVinculados: vinculados };
 }
 
-/** Roda a descoberta por OAB para todos os advogados ativos com monitoramento ligado. */
-export async function runDiscoveryJob(): Promise<{ lawyers: number; totalNovos: number }> {
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** Atraso entre uma OAB e outra na descoberta — evita rajada de requisições
+ *  saindo todas juntas para o DJEN, que poderia parecer padrão de bot pro WAF
+ *  do CloudFront. Fixo com uma pequena variação aleatória (1-3s). */
+const staggerDelay = () => sleep(1000 + Math.floor(Math.random() * 2000));
+
+/**
+ * Avisa os admins que o DJEN bloqueou as requisições nesta rodada — best-effort,
+ * nunca derruba a rotina. Reaproveita o padrão de notificação já usado abaixo
+ * para "novos processos encontrados".
+ */
+async function avisarBloqueioDjen(oab: string): Promise<void> {
+  try {
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+    for (const a of admins) {
+      await notificationService.create({
+        userId: a.id, title: '⚠️ DJEN bloqueou o monitoramento temporariamente',
+        message: `O DJEN (comunica.pje.jus.br) começou a responder 429/403 durante a busca por OAB ${oab}. ` +
+          'O monitoramento foi pausado nesta rodada para não insistir contra o bloqueio — ele volta a tentar normalmente na próxima janela.',
+        notificationType: 'djen_bloqueado', channel: 'sistema', scheduledAt: new Date(),
+      });
+    }
+  } catch { /* aviso é best-effort */ }
+}
+
+/**
+ * Roda a descoberta por OAB para todos os advogados ativos com monitoramento ligado.
+ * Circuit breaker simples: se o DJEN sinalizar bloqueio (429/403 persistente,
+ * ver fetchDjenByOAB) para uma OAB, a rotina PARA nesta rodada em vez de seguir
+ * batendo nas demais OABs contra um bloqueio já detectado — evita piorar a
+ * situação — e avisa os admins. Volta a tentar normalmente na próxima execução
+ * do cron.
+ */
+export async function runDiscoveryJob(): Promise<{ lawyers: number; totalNovos: number; blocked?: boolean }> {
   const [lawyers] = await db.query(
-    "SELECT id FROM lawyers WHERE active = 1 AND monitoring_enabled = 1 AND oab_number IS NOT NULL AND oab_number <> ''"
+    "SELECT id, oab_number, oab_uf FROM lawyers WHERE active = 1 AND monitoring_enabled = 1 AND oab_number IS NOT NULL AND oab_number <> ''"
   ) as any;
   let totalNovos = 0;
-  for (const l of lawyers) {
+  for (let i = 0; i < lawyers.length; i++) {
+    const l = lawyers[i];
     try {
       const r = await discoverProcessesByOAB(l.id, 'national');
       totalNovos += r.novos;
+      if (r.blocked) {
+        console.warn(`[monitoramento] DJEN bloqueado na OAB ${l.oab_number}/${l.oab_uf} — interrompendo a rodada de descoberta (${lawyers.length - i - 1} OAB(s) não verificada(s) desta vez).`);
+        await avisarBloqueioDjen(`${l.oab_number}/${l.oab_uf}`);
+        return { lawyers: lawyers.length, totalNovos, blocked: true };
+      }
     } catch (e: any) {
-      await logMonitor(null as any, l.id, 'erro', 'datajud_oab', e.message);
+      await logMonitor(null as any, l.id, 'erro', 'djen_oab', e.message);
     }
+    // Stagger: pequena pausa entre OABs (menos a última) para não sair em rajada.
+    if (i < lawyers.length - 1) await staggerDelay();
   }
   return { lawyers: lawyers.length, totalNovos };
 }

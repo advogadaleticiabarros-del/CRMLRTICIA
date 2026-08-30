@@ -51,18 +51,39 @@ export interface DjenPublication {
   adv_count: number;        // nº de advogados destinatários (1 = advogada é a única)
 }
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Status HTTP que indicam bloqueio/limitação (WAF do CloudFront ou rate limit),
+// distintos de "acabaram as páginas" (200 com lista vazia) ou erro comum.
+const BLOCKED_STATUSES = new Set([429, 403]);
+// Backoff curto entre tentativas na MESMA página antes de desistir — poucas
+// tentativas de propósito: se persistir, é melhor sinalizar bloqueio e parar
+// (ver runDiscoveryJob) do que insistir e piorar a situação com o tribunal.
+const BACKOFF_MS = [2000, 5000, 15000];
+
+export interface DjenFetchResult {
+  publications: DjenPublication[];
+  /** true quando o DJEN devolveu 429/403 de forma persistente (mesmo após backoff) —
+   *  diferente de "não há mais páginas". Quem chama deve tratar como bloqueio, não
+   *  como fim normal da busca (ver monitoringService.discoverProcessesByOAB). */
+  blocked: boolean;
+}
+
 /**
  * Busca as publicações dos últimos meses dirigidas a uma OAB.
- * Pagina até maxPages (100/página). Retorna a lista crua de publicações.
+ * Pagina até maxPages (100/página). Se o DJEN responder 429/403 de forma
+ * persistente (mesmo após backoff), para e sinaliza `blocked: true` — quem
+ * chama decide o que fazer (não insistir, avisar, etc.), em vez do código
+ * simplesmente devolver uma lista parcial sem dizer por quê.
  */
 export async function fetchDjenByOAB(
   oabNumber: string,
   oabUf: string,
   opts: { maxPages?: number; sinceDays?: number } = {}
-): Promise<DjenPublication[]> {
+): Promise<DjenFetchResult> {
   const num = onlyDigits(oabNumber);
   const uf = (oabUf || 'ES').toUpperCase();
-  if (!num) return [];
+  if (!num) return { publications: [], blocked: false };
 
   const itens = 100;
   const maxPages = opts.maxPages ?? 10; // até ~1000 publicações
@@ -77,24 +98,48 @@ export async function fetchDjenByOAB(
 
   for (let pagina = 1; pagina <= maxPages; pagina++) {
     const url = `${DJEN_BASE}/api/v1/comunicacao?pagina=${pagina}&itensPorPagina=${itens}&numeroOab=${num}&ufOab=${uf}${dateParams}`;
-    let data: any;
-    try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 20000);
-      const res = await fetch(url, { headers: DJEN_HEADERS, signal: controller.signal });
-      clearTimeout(timer);
-      if (!res.ok) break;
-      data = await res.json();
-    } catch {
-      break; // erro de rede / timeout: devolve o que já tem
+    let data: any = null;
+    let pageBlocked = false;
+
+    for (let attempt = 0; attempt <= BACKOFF_MS.length; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 20000);
+        const res = await fetch(url, { headers: DJEN_HEADERS, signal: controller.signal });
+        clearTimeout(timer);
+
+        if (BLOCKED_STATUSES.has(res.status)) {
+          if (attempt < BACKOFF_MS.length) {
+            console.warn(`[DJEN] HTTP ${res.status} na página ${pagina} (tentativa ${attempt + 1}/${BACKOFF_MS.length + 1}) — aguardando ${BACKOFF_MS[attempt]}ms antes de tentar de novo.`);
+            await sleep(BACKOFF_MS[attempt]);
+            continue;
+          }
+          console.error(`[DJEN] Bloqueado (HTTP ${res.status}) na página ${pagina} mesmo após ${BACKOFF_MS.length} tentativas com backoff — desistindo desta busca.`);
+          pageBlocked = true;
+          break;
+        }
+        if (!res.ok) { data = null; break; } // outro erro HTTP: fim normal da busca, não bloqueio
+        data = await res.json();
+        break;
+      } catch {
+        // erro de rede / timeout — vale uma nova tentativa com backoff também
+        if (attempt < BACKOFF_MS.length) {
+          await sleep(BACKOFF_MS[attempt]);
+          continue;
+        }
+        data = null; // desiste por erro de rede: devolve o que já tem, sem marcar bloqueio
+      }
     }
+
+    if (pageBlocked) return { publications: out, blocked: true };
+    if (!data) break;
 
     const items: any[] = Array.isArray(data?.items) ? data.items : [];
     if (!items.length) break;
     out.push(...normalizeDjenItems(items));
     if (items.length < itens) break; // última página
   }
-  return out;
+  return { publications: out, blocked: false };
 }
 
 /** Converte itens crus da API DJEN (ou versão enxuta vinda do navegador) em publicações. */

@@ -290,15 +290,28 @@ export function startCronJobs() {
     });
   }, { timezone: 'America/Sao_Paulo' });
 
-  // ── descoberta por OAB: diário 06h (varre tribunais e cadastra novos) ─────
-  cron.schedule('0 6 * * *', () => {
+  // ── descoberta por OAB (DJEN/Comunica): antes rodava só 1x/dia às 06h.
+  // Pesquisamos e NÃO existe limite de requisições oficialmente documentado
+  // para essa API específica (comunicaapi.pje.jus.br — diferente da DataJud,
+  // que documenta 120 req/min). Sem esse número, o caminho seguro é subir a
+  // frequência aos poucos, não de uma vez: 06h → 07h/13h/19h (3x no horário
+  // comercial) é um primeiro passo moderado, não agressivo. A proteção contra
+  // bloqueio (backoff 429/403 em fetchDjenByOAB + circuit breaker + aviso aos
+  // admins + stagger entre OABs em runDiscoveryJob, ver src/services/djen.ts
+  // e src/services/monitoringService.ts) foi implementada ANTES de aumentar
+  // a frequência, de propósito. Se rodar um tempo sem nenhum aviso de
+  // "DJEN bloqueou" no sino, dá pra apertar mais (ex.: a cada 2h). Se
+  // aparecer aviso de bloqueio, é sinal de recuar, não de insistir.
+  cron.schedule('0 7,13,19 * * *', () => {
     runJob('monitoramento:descoberta-oab', () => runDiscoveryJob());
-  });
+  }, { timezone: 'America/Sao_Paulo' });
 
-  // ── monitoramento processual: de hora em hora, 07h–20h ── CRÍTICO ─────────
+  // ── monitoramento processual (DataJud, por processo): de hora em hora, 07h–20h ── CRÍTICO
   // Antes rodava só 08h/16h (+ um extra às 06h, ver linha ~36) — publicação
   // judicial não costuma sair de madrugada, então concentra a frequência
   // maior no horário comercial em vez de rodar 24h contra a API pública.
+  // (Fonte diferente do DJEN acima — DataJud documenta 120 req/min por chave,
+  // não é a API que preocupava aqui; mantido sem alteração.)
   cron.schedule('0 7-20 * * *', () => {
     runJob('monitoramento:processos', () => runMonitoringJob(), { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
