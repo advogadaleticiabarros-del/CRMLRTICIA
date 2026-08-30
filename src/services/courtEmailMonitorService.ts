@@ -116,7 +116,7 @@ export async function disconnectCourtEmail(): Promise<void> {
 //  - assunto/corpo contendo termos típicos de notificação processual
 //    (intimação, movimentação processual, publicação, PJe, andamento
 //    processual, distribuição, citação).
-const GMAIL_QUERY =
+export const GMAIL_QUERY =
   '(from:*.jus.br OR subject:(intimação OR intimacao OR "movimentação processual" OR "movimentacao processual" ' +
   'OR publicação OR publicacao OR PJe OR "andamento processual" OR distribuição OR distribuicao OR citação OR citacao))';
 
@@ -167,30 +167,75 @@ ${teor}`;
   return resumo;
 }
 
-interface CandidateEmail {
+export interface CandidateEmail {
   gmailMessageId: string; fromEmail: string; subject: string; body: string; date: string | null;
 }
 
-async function fetchCandidateEmails(maxResults = 30): Promise<CandidateEmail[]> {
+/**
+ * Busca+baixa (paginando pelo Gmail) os e-mails candidatos a movimentação de
+ * tribunal na caixa conectada, usando a heurística de GMAIL_QUERY (ou uma
+ * query customizada, se passada). Núcleo de busca/paginação REUTILIZADO por:
+ *  - fetchCandidateEmails (abaixo) — o scan RECORRENTE (cron 2x/dia, item 7),
+ *    que passa `excludeGmailId` para pular o que já varreu (idempotência via
+ *    court_email_messages) — comportamento inalterado;
+ *  - src/scripts/backfillClientesEmailMovimentacao.ts — a varredura ÚNICA/
+ *    retroativa de pré-cadastro de clientes pedida pela Dra. Letícia
+ *    (30/08/2026): NÃO passa `excludeGmailId` (quer TODO o histórico
+ *    disponível na caixa, não só o que o cron ainda não viu) e, de propósito,
+ *    nunca grava em court_email_messages nem em process_movements — quem
+ *    registra a movimentação de verdade continua sendo só o scan recorrente,
+ *    a partir de amanhã, como combinado com a cliente.
+ *
+ * `maxResults`: teto de mensagens a EXAMINAR no total (não por página) —
+ * omitido/Infinity percorre todas as páginas que a query devolver.
+ */
+export async function fetchCourtEmailCandidates(opts?: {
+  maxResults?: number;
+  query?: string;
+  excludeGmailId?: (gmailMessageId: string) => Promise<boolean>;
+}): Promise<CandidateEmail[]> {
   const auth = await authedClient();
   const gmail = google.gmail({ version: 'v1', auth });
-  const list = await gmail.users.messages.list({ userId: 'me', q: GMAIL_QUERY, maxResults });
+  const query = opts?.query ?? GMAIL_QUERY;
+  const cap = opts?.maxResults ?? Infinity;
   const out: CandidateEmail[] = [];
-  for (const m of list.data.messages || []) {
-    if (!m.id) continue;
-    const [[already]] = await db.query('SELECT id FROM court_email_messages WHERE gmail_message_id = ?', [m.id]) as any;
-    if (already) continue; // já varrido nesta ou em rodada anterior — idempotência do scan
-    try {
-      const full = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'full' });
-      const headers = full.data.payload?.headers || [];
-      const from = headers.find((h) => h.name?.toLowerCase() === 'from')?.value || '';
-      const subject = headers.find((h) => h.name?.toLowerCase() === 'subject')?.value || '';
-      const date = headers.find((h) => h.name?.toLowerCase() === 'date')?.value || null;
-      const body = extractBody(full.data.payload) || full.data.snippet || '';
-      out.push({ gmailMessageId: m.id, fromEmail: from, subject, body, date });
-    } catch { /* um e-mail com erro não trava o scan dos demais */ }
+  let pageToken: string | undefined;
+  while (out.length < cap) {
+    const pageSize = Math.min(500, cap - out.length);
+    const list = await gmail.users.messages.list({
+      userId: 'me', q: query, maxResults: Number.isFinite(pageSize) ? pageSize : 500, pageToken,
+    });
+    const ids = list.data.messages || [];
+    if (!ids.length) break;
+    for (const m of ids) {
+      if (!m.id) continue;
+      if (opts?.excludeGmailId && (await opts.excludeGmailId(m.id))) continue;
+      try {
+        const full = await gmail.users.messages.get({ userId: 'me', id: m.id, format: 'full' });
+        const headers = full.data.payload?.headers || [];
+        const from = headers.find((h) => h.name?.toLowerCase() === 'from')?.value || '';
+        const subject = headers.find((h) => h.name?.toLowerCase() === 'subject')?.value || '';
+        const date = headers.find((h) => h.name?.toLowerCase() === 'date')?.value || null;
+        const body = extractBody(full.data.payload) || full.data.snippet || '';
+        out.push({ gmailMessageId: m.id, fromEmail: from, subject, body, date });
+      } catch { /* um e-mail com erro não trava a varredura dos demais */ }
+      if (out.length >= cap) break;
+    }
+    pageToken = list.data.nextPageToken || undefined;
+    if (!pageToken) break;
   }
   return out;
+}
+
+async function fetchCandidateEmails(maxResults = 30): Promise<CandidateEmail[]> {
+  return fetchCourtEmailCandidates({
+    maxResults,
+    // já varrido nesta ou em rodada anterior — idempotência do scan recorrente
+    excludeGmailId: async (id) => {
+      const [[already]] = await db.query('SELECT id FROM court_email_messages WHERE gmail_message_id = ?', [id]) as any;
+      return !!already;
+    },
+  });
 }
 
 async function logScan(msg: CandidateEmail, status: string, detail: string | null, processNumber: string | null, processId: number | null): Promise<void> {
