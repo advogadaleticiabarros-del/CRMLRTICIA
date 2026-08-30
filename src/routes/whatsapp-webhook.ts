@@ -4,6 +4,12 @@ import { uazapi } from '../services/uazapiClient';
 import { classificarTipoDocumento } from '../services/whatsappTranscricao';
 import { compararSeguro } from '../utils/crypto';
 import { emitWaUpdate } from '../services/waSocket';
+import { sendText } from '../services/uazapiInstance';
+import { msgNewsletterConfirmado, msgNewsletterRecusado } from '../services/propostaFollowupService';
+import { logActivity } from '../services/JourneyService';
+import {
+  findOpenPendingReply, interpretarResposta, resolvePendingReply, PendingReply,
+} from '../services/pendingWhatsappReplyService';
 
 // Roteador PÚBLICO (sem autenticação) — a Uazapi entrega os eventos aqui.
 // Substitui o listener 'messages.upsert' do Baileys (waInstance.ts): como a
@@ -161,6 +167,61 @@ async function avisarFalhaMidia(tipo: string): Promise<void> {
   }
 }
 
+// Resolve a resposta ao "newsletter_opt_in" disparado na recusa de proposta
+// (ver src/routes/propostas.ts, PATCH /:id/status): move o lead para
+// status='newsletter', ou — quando a proposta só tem client_id (cliente já
+// convertido, sem registro de lead) — marca newsletter_opt_in em clients,
+// já que leads.status='newsletter' é conceito de LEAD, não de cliente.
+async function processarRespostaNewsletter(pending: PendingReply, resposta: 'sim' | 'nao'): Promise<void> {
+  if (resposta === 'sim') {
+    if (pending.lead_id) {
+      await db.query("UPDATE leads SET status = 'newsletter' WHERE id = ?", [pending.lead_id]).catch(() => {});
+    } else if (pending.client_id) {
+      await db.query(
+        'UPDATE clients SET newsletter_opt_in = 1, newsletter_opt_in_at = NOW() WHERE id = ?',
+        [pending.client_id]
+      ).catch(() => {});
+    }
+    await logActivity({
+      leadId: pending.lead_id, clientId: pending.client_id, caseId: null,
+      actorId: null, actorName: 'Sistema (WhatsApp)',
+      eventType: 'newsletter_optin', title: 'Cliente aceitou receber os informativos',
+      description: `Confirmado por WhatsApp após recusa da proposta #${pending.proposta_id ?? '-'}`,
+    });
+    await sendText(pending.phone, msgNewsletterConfirmado(''), 'Automático — confirmação newsletter').catch(() => {});
+  } else {
+    // Não cadastra nada — só audita, pra saber que a pessoa não teve
+    // interesse e não repetir a pergunta (ver findOpenPendingReply/janela de 7 dias).
+    await logActivity({
+      leadId: pending.lead_id, clientId: pending.client_id, caseId: null,
+      actorId: null, actorName: 'Sistema (WhatsApp)',
+      eventType: 'newsletter_recusado', title: 'Cliente não quis receber os informativos',
+      description: `Respondido por WhatsApp após recusa da proposta #${pending.proposta_id ?? '-'}`,
+    });
+    await sendText(pending.phone, msgNewsletterRecusado(), 'Automático — recusa newsletter').catch(() => {});
+  }
+}
+
+// Confere se há uma pergunta de botão em aberto (ex.: newsletter na recusa
+// de proposta) esperando resposta daquele telefone. Retorna true quando
+// EXISTE uma pendência (mesmo que o texto não tenha sido reconhecido como
+// sim/não) — nesse caso o chamador deve tratar a mensagem como resposta a
+// essa pergunta, não como um contato novo qualquer.
+async function tratarPendenciaWhatsapp(phone: string, texto: string): Promise<boolean> {
+  try {
+    const pending = await findOpenPendingReply(phone);
+    if (!pending) return false;
+    const resposta = interpretarResposta(texto, pending);
+    if (!resposta) return true; // não reconhecido — mantém pendente pra próxima mensagem
+    await resolvePendingReply(pending.id, resposta);
+    if (pending.tipo === 'newsletter_opt_in') await processarRespostaNewsletter(pending, resposta);
+    return true;
+  } catch (e: any) {
+    console.error('[whatsapp-webhook] falha ao tratar pendência de confirmação:', e?.message || e);
+    return false;
+  }
+}
+
 // Evento de presença (digitando…) — best-effort: a Uazapi pode nunca mandar
 // esse evento (não confirmado na documentação pública), mas se mandar, o
 // front mostra "digitando…" na conversa aberta. Não bloqueia nada se nunca
@@ -245,13 +306,19 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
     // affectedRows: 1 = inserção nova; 2 = atualizou uma existente (ON DUPLICATE);
     // 0 = update sem mudança nenhuma. Só trata como mensagem NOVA no caso 1.
     if (r.affectedRows === 1 && !msg.fromMe) {
+      // Resposta a uma pergunta de botão em aberto (ex.: newsletter na recusa
+      // de proposta) tem prioridade: se houver pendência para este telefone,
+      // essa mensagem É a resposta — não é um contato novo qualquer, então
+      // não deve cair no fluxo de "possível lead" abaixo.
+      const respondeuPendencia = await tratarPendenciaWhatsapp(phone, String(body)).catch(() => false);
+
       const pushName = (msg.senderName || chat.wa_name || null) as string | null;
       await db.query(
         `INSERT INTO whatsapp_chat_meta (phone, unread, push_name) VALUES (?, 1, ?)
          ON DUPLICATE KEY UPDATE unread = unread + 1, push_name = COALESCE(VALUES(push_name), push_name)`,
         [phone, pushName ? pushName.trim().slice(0, 255) : null]).catch(() => {});
 
-      if (!clientId) {
+      if (!clientId && !respondeuPendencia) {
         await notifyNewWhatsappContact(phone, pushName, String(body).slice(0, 500)).catch(() => {});
       }
     }

@@ -12,11 +12,11 @@ import { sendText } from './uazapiInstance';
  * contato antigo do nada quando a rotina entra no ar.
  */
 
-const INSTAGRAM_URL = 'https://www.instagram.com/adv.leticiabarros2/';
+export const INSTAGRAM_URL = 'https://www.instagram.com/adv.leticiabarros2/';
 const BLOG_URL = 'https://advogadaleticiabarros.com.br/blog/index.html';
 const LINK_BASE = 'https://crm.advogadaleticiabarros.com.br/proposta.html?t=';
 
-function primeiroNome(nome: string): string {
+export function primeiroNome(nome: string): string {
   return (nome || '').trim().split(' ')[0] || '';
 }
 
@@ -46,10 +46,35 @@ function msg7d(nome: string): string {
   ].join('\n\n');
 }
 
-function digitsOf(phone: string): string {
+export function digitsOf(phone: string): string {
   let d = String(phone || '').replace(/\D/g, '');
   if (d.length <= 11) d = '55' + d;
   return d;
+}
+
+// ── Mensagem de recusa de proposta (PATCH /:id/status, status='recusada') ──
+// Objetivo: manter o contato próximo mesmo sem fechar negócio dessa vez —
+// se coloca à disposição, pede pra salvar o contato e seguir o Instagram, e
+// pergunta (com botões nativos Sim/Não) se a pessoa quer continuar recebendo
+// os informativos jurídicos do escritório.
+export const NEWSLETTER_BOTAO_SIM_ID = 'newsletter_sim';
+export const NEWSLETTER_BOTAO_NAO_ID = 'newsletter_nao';
+
+export function msgPropostaRecusada(nome: string): string {
+  return [
+    `Olá${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Vi que a proposta não seguiu adiante dessa vez — de todo modo, muito obrigada pelo seu tempo e pela confiança em nos procurar.`,
+    `Se surgir qualquer dúvida ou outra situação em que possamos ajudar, seguimos à disposição — é só chamar por aqui.`,
+    `Aproveita e salva nosso contato, assim fica mais fácil nos encontrar quando precisar. E para acompanhar o dia a dia do escritório, nos siga no Instagram:\n📷 ${INSTAGRAM_URL}`,
+    `Por último: quer continuar recebendo nossos informativos e ficar por dentro dos seus direitos?`,
+  ].join('\n\n');
+}
+
+export function msgNewsletterConfirmado(nome: string): string {
+  return `Prontinho${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Você está cadastrada nos nossos informativos. 🎉 Qualquer dúvida, estamos por aqui.`;
+}
+
+export function msgNewsletterRecusado(): string {
+  return `Tudo bem, obrigada pelo retorno! Qualquer coisa, estamos à disposição.`;
 }
 
 export async function runPropostaFollowups(): Promise<{ enviados48h: number; enviados5d: number; enviados7d: number; backfill: number }> {
