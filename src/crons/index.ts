@@ -38,8 +38,11 @@ export function startCronJobs() {
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── Resumo matinal por e-mail às 07:00 (horário de Brasília) ──────────────
+  // janelaIdempotenciaMin: pula se já mandou com sucesso nos últimos 10 min —
+  // protege contra e-mail duplicado se 2 processos do servidor rodarem juntos
+  // por um instante (ex.: durante deploy). Ver comentário em crons/runner.ts.
   cron.schedule('0 7 * * *', () => {
-    runJob('briefing:matinal', () => sendMorningBriefings());
+    runJob('briefing:matinal', () => sendMorningBriefings(), { janelaIdempotenciaMin: 10 });
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── Mesmo resumo matinal, organizado por seções, no WhatsApp às 08:00 ─────
@@ -54,7 +57,7 @@ export function startCronJobs() {
     runJob('briefing:jornal-juridico', async () => {
       const { sendLegalNewsDigest } = await import('../services/legalNewsService');
       return await sendLegalNewsDigest();
-    });
+    }, { janelaIdempotenciaMin: 10 });
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── Fechamento do dia às 18:30 (Brasília) ──────────────────────────────────
@@ -62,7 +65,7 @@ export function startCronJobs() {
     runJob('briefing:fechamento-dia', async () => {
       const { sendEveningClosing } = await import('../services/eveningClosingService');
       return await sendEveningClosing();
-    });
+    }, { janelaIdempotenciaMin: 10 });
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── Follow-up automático de propostas enviadas (48h / 5 dias / 7 dias) ────

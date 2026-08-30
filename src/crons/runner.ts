@@ -53,17 +53,65 @@ async function avisarAdmins(job: string, erro: string, critica: boolean): Promis
 }
 
 /**
+ * Checa se essa rotina já rodou com sucesso dentro da janela — proteção contra
+ * a rotina disparar 2x seguidas (ex.: dois processos do servidor de pé ao
+ * mesmo tempo por alguns instantes durante um deploy no Railway).
+ *
+ * BUG QUE RESOLVE: Dra. Letícia reportou o e-mail de resumo matinal e o de
+ * fechamento do dia chegando 2x seguidas. `startCronJobs` só é chamado 1x por
+ * processo e cada `cron.schedule` só tem 1 linha — não há duplicação dentro
+ * de um processo. A causa mais provável é infraestrutura: se por um instante
+ * 2 cópias do processo Node estiverem rodando (deploy trocando a instância
+ * antiga pela nova, ou réplicas > 1 no painel do Railway), CADA uma dispara
+ * seu próprio cron.schedule e manda o e-mail de forma independente. Isso não
+ * aparece no código-fonte (não há gerenciador de processos/cluster aqui —
+ * `npm start` roda 1 processo Node só) — é uma condição do ambiente de deploy.
+ *
+ * Esta trava não elimina a causa raiz (isso está fora do código, é config de
+ * infra), mas neutraliza o SINTOMA: mesmo que 2 processos dessa rotina
+ * disparem quase juntos, só o primeiro que gravar em job_runs efetivamente
+ * roda e manda e-mail — o segundo vê o registro 'ok' recente e pula.
+ *
+ * Ainda existe uma corrida teórica (os dois podem checar job_runs ao mesmo
+ * tempo, antes de qualquer um ter gravado) — não é 100% à prova de corrida
+ * sem uma constraint de unicidade no banco, mas cobre o caso prático real
+ * (processos que sobem alguns segundos/minutos separados um do outro).
+ */
+async function jaRodouComSucessoNaJanela(job: string, janelaMin: number): Promise<boolean> {
+  try {
+    const [[r]] = await db.query(
+      `SELECT COUNT(*) AS n FROM job_runs
+        WHERE job = ? AND status = 'ok' AND ran_at >= NOW() - INTERVAL ? MINUTE`,
+      [job, janelaMin]
+    ) as any;
+    return Number(r?.n) > 0;
+  } catch {
+    return false; // tabela pode não existir ainda — não bloqueia a rotina
+  }
+}
+
+/**
  * Roda uma rotina com registro e alerta. Nunca lança.
  * @param job     nome legível (aparece no log, no painel e no aviso)
  * @param fn      a rotina
  * @param opts.critica  prazos/backup/financeiro → alerta com prioridade
  * @param opts.silencioso  não loga o sucesso (para rotinas de 5 em 5 min)
+ * @param opts.janelaIdempotenciaMin  se definido, pula a execução caso já
+ *   exista um registro 'ok' desta MESMA rotina nos últimos N minutos — usado
+ *   nas rotinas de e-mail (matinal/fechamento) para não mandar 2x seguidas se
+ *   2 processos do servidor rodarem ao mesmo tempo por um instante. NÃO use
+ *   em rotinas que já rodam com frequência menor que a janela (ex.: a cada
+ *   5 min) — bloquearia a execução legítima seguinte.
  */
 export async function runJob(
   job: string,
   fn: () => Promise<any>,
-  opts: { critica?: boolean; silencioso?: boolean } = {}
+  opts: { critica?: boolean; silencioso?: boolean; janelaIdempotenciaMin?: number } = {}
 ): Promise<void> {
+  if (opts.janelaIdempotenciaMin && await jaRodouComSucessoNaJanela(job, opts.janelaIdempotenciaMin)) {
+    console.warn(`⏭️ [cron] ${job} pulado — já rodou com sucesso nos últimos ${opts.janelaIdempotenciaMin} min (provável 2º processo/instância rodando em paralelo).`);
+    return;
+  }
   const t0 = Date.now();
   try {
     const r = await fn();
