@@ -15,12 +15,12 @@ const moneyBR = (v: number) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { 
 function mensagemAceite(nome: string, entrada: number): string {
   const primeiroNome = (nome || '').trim().split(' ')[0] || '';
   const bloco = [
-    `Olá${primeiroNome ? ', ' + primeiroNome : ''}! Você aceitou nossa proposta — muito obrigada pela confiança. Já estamos formalizando o contrato, a procuração e os demais documentos.`,
+    `Olá${primeiroNome ? ', ' + primeiroNome : ''}! Você aceitou nossa proposta, muito obrigada pela confiança. Já estamos formalizando o contrato, a procuração e os demais documentos.`,
   ];
   if (entrada > 0) {
     bloco.push(
       `*Pagamento da entrada*\nValor: ${moneyBR(entrada)}\nChave PIX (CPF): 13451070723\nBanco: Nubank\nTitular: Leticia Elias Barros`,
-      `*Confira sempre o nome do titular antes de transferir.* Não nos responsabilizamos por valores enviados por engano para contas de terceiros — usamos somente a chave PIX informada aqui.`
+      `*Confira sempre o nome do titular antes de transferir.* Não nos responsabilizamos por valores enviados por engano para contas de terceiros, usamos somente a chave PIX informada aqui.`
     );
   }
   bloco.push(

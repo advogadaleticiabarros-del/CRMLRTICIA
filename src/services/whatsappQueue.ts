@@ -55,10 +55,10 @@ export async function generateWhatsappQueue(): Promise<number> {
     const primeiroNome = String(p.name || '').split(' ')[0];
     const marco = Number(p.dias) === 3 ? 'd3' : Number(p.dias) === 0 ? 'venc' : 'd3pos';
     const texto = Number(p.dias) === 3
-      ? `Olá, ${primeiroNome}! Tudo bem? Passando para lembrar que sua parcela de ${fmtValor(p.valor)} vence em ${fmtData(p.due_date)}. Você pode pagar com Pix pelo portal: https://crm.advogadaleticiabarros.com.br — qualquer dúvida, estou à disposição. 🙏`
+      ? `Olá, ${primeiroNome}! Tudo bem? Passando para lembrar que sua parcela de ${fmtValor(p.valor)} vence em ${fmtData(p.due_date)}. Você pode pagar com Pix pelo portal: https://crm.advogadaleticiabarros.com.br. Qualquer dúvida, estou à disposição. 🙏`
       : Number(p.dias) === 0
-        ? `Olá, ${primeiroNome}! Sua parcela de ${fmtValor(p.valor)} vence hoje (${fmtData(p.due_date)}). Para facilitar, o pagamento por Pix está no portal: https://crm.advogadaleticiabarros.com.br — obrigada!`
-        : `Olá, ${primeiroNome}! Notamos que a parcela de ${fmtValor(p.valor)} venceu em ${fmtData(p.due_date)} e segue em aberto. Se já pagou, desconsidere e nos avise. Se preferir, o Pix está no portal: https://crm.advogadaleticiabarros.com.br — podemos conversar sobre qualquer dificuldade. 🙏`;
+        ? `Olá, ${primeiroNome}! Sua parcela de ${fmtValor(p.valor)} vence hoje (${fmtData(p.due_date)}). Para facilitar, o pagamento por Pix está no portal: https://crm.advogadaleticiabarros.com.br. Obrigada!`
+        : `Olá, ${primeiroNome}! Notamos que a parcela de ${fmtValor(p.valor)} venceu em ${fmtData(p.due_date)} e segue em aberto. Se já pagou, desconsidere e nos avise. Se preferir, o Pix está no portal: https://crm.advogadaleticiabarros.com.br. Podemos conversar sobre qualquer dificuldade. 🙏`;
     if (await enqueueWhatsapp({
       clientId: p.client_id, name: p.name, phone: p.phone, message: texto,
       context: 'cobranca', refKey: `cobr_${p.id}_${marco}`,

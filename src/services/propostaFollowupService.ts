@@ -24,14 +24,14 @@ function msg48h(nome: string, link: string): string {
   return [
     `Olá${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Passando para lembrar que sua proposta de honorários já está disponível:`,
     link,
-    `Qualquer dúvida sobre as condições, é só responder por aqui — estou à disposição.`,
+    `Qualquer dúvida sobre as condições, é só responder por aqui, estou à disposição.`,
   ].join('\n\n');
 }
 
 function msg5d(nome: string, link: string): string {
   return [
     `Olá${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Sua proposta de honorários está próxima do vencimento.`,
-    `Se tiver alguma dúvida ou quiser conversar sobre as condições, este é um bom momento — *podemos negociar* para encontrar o melhor caminho para você buscar seus direitos.`,
+    `Se tiver alguma dúvida ou quiser conversar sobre as condições, este é um bom momento. *Podemos negociar* para encontrar o melhor caminho para você buscar seus direitos.`,
     `Acesse a proposta aqui: ${link}`,
   ].join('\n\n');
 }
@@ -62,8 +62,8 @@ export const NEWSLETTER_BOTAO_NAO_ID = 'newsletter_nao';
 
 export function msgPropostaRecusada(nome: string): string {
   return [
-    `Olá${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Vi que a proposta não seguiu adiante dessa vez — de todo modo, muito obrigada pelo seu tempo e pela confiança em nos procurar.`,
-    `Se surgir qualquer dúvida ou outra situação em que possamos ajudar, seguimos à disposição — é só chamar por aqui.`,
+    `Olá${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Vi que a proposta não seguiu adiante dessa vez. De todo modo, muito obrigada pelo seu tempo e pela confiança em nos procurar.`,
+    `Se surgir qualquer dúvida ou outra situação em que possamos ajudar, seguimos à disposição, é só chamar por aqui.`,
     `Aproveita e salva nosso contato, assim fica mais fácil nos encontrar quando precisar. E para acompanhar o dia a dia do escritório, nos siga no Instagram:\n📷 ${INSTAGRAM_URL}`,
     `Por último: quer continuar recebendo nossos informativos e ficar por dentro dos seus direitos?`,
   ].join('\n\n');

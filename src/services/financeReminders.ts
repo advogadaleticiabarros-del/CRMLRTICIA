@@ -51,7 +51,7 @@ export async function sendBillingReminders(): Promise<number> {
       ? `<p>Olá, ${nome}! Passando para lembrar com carinho: sua parcela vence em <strong>${fmtData(p.due_date)}</strong>.</p>`
       : atraso === 0
         ? `<p>Olá, ${nome}! Sua parcela vence <strong>hoje</strong>. Para facilitar, o pagamento por Pix leva menos de um minuto no portal.</p>`
-        : `<p>Olá, ${nome}. Notamos que a parcela abaixo venceu em <strong>${fmtData(p.due_date)}</strong> e segue em aberto. Se você já pagou, desconsidere este aviso e nos comunique. Se estiver passando por alguma dificuldade, fale com a gente — encontramos juntos uma solução.</p>`;
+        : `<p>Olá, ${nome}. Notamos que a parcela abaixo venceu em <strong>${fmtData(p.due_date)}</strong> e segue em aberto. Se você já pagou, desconsidere este aviso e nos comunique. Se estiver passando por alguma dificuldade, fale com a gente, encontramos juntos uma solução.</p>`;
 
     const r = await sendEmail({
       to: p.email,
