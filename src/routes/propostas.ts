@@ -4,11 +4,7 @@ import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
 import { sendProposalLink, isEmailConfigured } from '../services/EmailService';
 import { ensurePartnerLawyersColumn } from '../services/propostaSchema';
-import { uazapi } from '../services/uazapiClient';
-import {
-  digitsOf, msgPropostaRecusada, NEWSLETTER_BOTAO_SIM_ID, NEWSLETTER_BOTAO_NAO_ID,
-} from '../services/propostaFollowupService';
-import { createPendingReply } from '../services/pendingWhatsappReplyService';
+import { dispararRecusaProposta } from '../services/propostaFollowupService';
 
 const router = Router();
 
@@ -208,26 +204,19 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
 
   // Recusa → dispara a mensagem de "não fechamos dessa vez" com pergunta de
   // newsletter (botões Sim/Não). Best-effort: falha no WhatsApp não pode
-  // impedir a atualização de status, que já foi persistida acima.
+  // impedir a atualização de status, que já foi persistida acima. Função
+  // compartilhada (dispararRecusaProposta) — o mesmo fluxo também dispara a
+  // partir do botão "Recusar" da proposta expirada e do fechamento
+  // definitivo da 2ª janela (ver src/routes/whatsapp-webhook.ts e
+  // runFechamentoDefinitivoPropostas em propostaFollowupService.ts).
   if (status === 'recusada' && p.phone) {
-    try {
-      const number = digitsOf(p.phone);
-      await uazapi.sendMenu(number, 'button', msgPropostaRecusada(p.contact_name), [
-        `Sim|${NEWSLETTER_BOTAO_SIM_ID}`,
-        `Não|${NEWSLETTER_BOTAO_NAO_ID}`,
-      ]);
-      await createPendingReply({
-        phone: number,
-        tipo: 'newsletter_opt_in',
-        leadId: p.lead_id,
-        clientId: p.client_id,
-        propostaId: Number(req.params.id),
-        expectedYes: NEWSLETTER_BOTAO_SIM_ID,
-        expectedNo: NEWSLETTER_BOTAO_NAO_ID,
-      });
-    } catch (e: any) {
-      console.error(`[proposta ${req.params.id}] falha ao enviar mensagem de recusa/newsletter:`, e?.message || e);
-    }
+    await dispararRecusaProposta({
+      propostaId: Number(req.params.id),
+      leadId: p.lead_id,
+      clientId: p.client_id,
+      phone: p.phone,
+      contactName: p.contact_name,
+    });
   }
 
   res.json({ success: true, id: Number(req.params.id), status });

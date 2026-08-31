@@ -5,7 +5,10 @@ import { classificarTipoDocumento } from '../services/whatsappTranscricao';
 import { compararSeguro } from '../utils/crypto';
 import { emitWaUpdate } from '../services/waSocket';
 import { sendText } from '../services/uazapiInstance';
-import { msgNewsletterConfirmado, msgNewsletterRecusado } from '../services/propostaFollowupService';
+import {
+  msgNewsletterConfirmado, msgNewsletterRecusado, msgPropostaMaisTempoConfirmado,
+  msgPropostaMaisTempoJaUsada, concederExtensaoPrazo, dispararRecusaProposta,
+} from '../services/propostaFollowupService';
 import { logActivity } from '../services/JourneyService';
 import {
   findOpenPendingReply, interpretarResposta, resolvePendingReply, PendingReply,
@@ -202,6 +205,53 @@ async function processarRespostaNewsletter(pending: PendingReply, resposta: 'sim
   }
 }
 
+// Resolve a resposta ao "proposta_expirada" disparado pelo cron de 7 dias
+// (ver runPropostaFollowups/dispararPropostaExpirada em
+// propostaFollowupService.ts). Dois caminhos:
+//  - "sim" (botão "Preciso de mais tempo"): concede a extensão única via
+//    concederExtensaoPrazo (UPDATE atômico, guarda contra conceder 2x).
+//    Se já tinha sido usada antes (defensivo — não deveria acontecer no
+//    fluxo normal), NÃO estende de novo nem trata como recusa (a pessoa
+//    não disse não): só confirma educadamente.
+//  - "nao" (botão "Recusar"): mesmo caminho da recusa manual —
+//    status='recusada' + dispararRecusaProposta (mensagem calorosa +
+//    pergunta de newsletter), reaproveitando a função compartilhada.
+async function processarRespostaPropostaExpirada(pending: PendingReply, resposta: 'sim' | 'nao'): Promise<void> {
+  if (!pending.proposta_id) return; // defensivo — pendência sem proposta associada não deveria existir
+  const [[prop]] = await db.query(
+    'SELECT id, contact_name FROM propostas WHERE id = ?', [pending.proposta_id]
+  ) as any;
+  if (!prop) return;
+
+  if (resposta === 'sim') {
+    const concedeu = await concederExtensaoPrazo(pending.proposta_id);
+    await logActivity({
+      leadId: pending.lead_id, clientId: pending.client_id, caseId: null,
+      actorId: null, actorName: 'Sistema (WhatsApp)',
+      eventType: concedeu ? 'proposta_prazo_estendido' : 'proposta_extensao_negada',
+      title: concedeu ? 'Prazo da proposta estendido (única vez)' : 'Pedido de mais tempo negado (extensão já usada)',
+      description: `Proposta #${pending.proposta_id} pediu mais tempo pelo WhatsApp`,
+    });
+    const msg = concedeu
+      ? msgPropostaMaisTempoConfirmado(prop.contact_name || '')
+      : msgPropostaMaisTempoJaUsada(prop.contact_name || '');
+    await sendText(pending.phone, msg, 'Automático — resposta pedido de mais tempo').catch(() => {});
+  } else {
+    await db.query("UPDATE propostas SET status = 'recusada' WHERE id = ?", [pending.proposta_id]);
+    await logActivity({
+      leadId: pending.lead_id, clientId: pending.client_id, caseId: null,
+      actorId: null, actorName: 'Sistema (WhatsApp)',
+      eventType: 'proposal_status', title: 'Status da proposta atualizado',
+      oldValue: 'Expirada', newValue: 'Recusada',
+      description: `Proposta #${pending.proposta_id} recusada pelo WhatsApp (botão da proposta expirada)`,
+    });
+    await dispararRecusaProposta({
+      propostaId: pending.proposta_id, leadId: pending.lead_id, clientId: pending.client_id,
+      phone: pending.phone, contactName: prop.contact_name || '',
+    });
+  }
+}
+
 // Confere se há uma pergunta de botão em aberto (ex.: newsletter na recusa
 // de proposta) esperando resposta daquele telefone. Retorna true quando
 // EXISTE uma pendência (mesmo que o texto não tenha sido reconhecido como
@@ -215,6 +265,7 @@ async function tratarPendenciaWhatsapp(phone: string, texto: string): Promise<bo
     if (!resposta) return true; // não reconhecido — mantém pendente pra próxima mensagem
     await resolvePendingReply(pending.id, resposta);
     if (pending.tipo === 'newsletter_opt_in') await processarRespostaNewsletter(pending, resposta);
+    else if (pending.tipo === 'proposta_expirada') await processarRespostaPropostaExpirada(pending, resposta);
     return true;
   } catch (e: any) {
     console.error('[whatsapp-webhook] falha ao tratar pendência de confirmação:', e?.message || e);

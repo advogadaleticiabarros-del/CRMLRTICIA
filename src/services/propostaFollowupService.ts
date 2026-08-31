@@ -1,5 +1,7 @@
 import { db } from '../config/database';
 import { sendText } from './uazapiInstance';
+import { uazapi } from './uazapiClient';
+import { createPendingReply } from './pendingWhatsappReplyService';
 
 /**
  * Follow-up automático de propostas enviadas — 3 estágios, cada um dispara
@@ -36,14 +38,86 @@ function msg5d(nome: string, link: string): string {
   ].join('\n\n');
 }
 
-function msg7d(nome: string): string {
+// ── Proposta expirada (7 dias) — mensagem com botões (PATCH /:id/status não
+// participa aqui: é o cron runPropostaFollowups que dispara isso sozinho) ──
+// Em vez de só avisar que encerrou, oferece 2 botões: "Preciso de mais
+// tempo" (concede uma ÚNICA extensão, ver concederExtensaoPrazo) e
+// "Recusar" (segue o mesmo caminho de dispararRecusaProposta). Decisão
+// comercial: sem desconto/pressão, uma extensão só — evita ficar
+// perguntando de novo indefinidamente, o que afasta o cliente.
+export const PROPOSTA_EXPIRADA_BOTAO_MAIS_TEMPO_ID = 'proposta_mais_tempo';
+export const PROPOSTA_EXPIRADA_BOTAO_RECUSAR_ID = 'proposta_recusar';
+
+export function msgPropostaExpirada(nome: string): string {
   return [
-    `Olá${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Sua proposta de honorários chegou ao prazo final e foi encerrada.`,
-    `Se ainda tiver interesse, é só me chamar por aqui que providenciamos uma nova proposta.`,
-    `Enquanto isso, nos siga no Instagram para acompanhar o dia a dia do escritório:\n📷 ${INSTAGRAM_URL}`,
-    `E acompanhe nosso blog, onde mostramos seus direitos:\n🔗 ${BLOG_URL}`,
-    `Continuamos à disposição sempre que precisar.`,
+    `Olá${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! O prazo da sua proposta chegou ao fim.`,
+    `Isso não fecha a porta: se ainda estiver avaliando e precisar de mais alguns dias, é só avisar. Se não for mais o momento, também tudo bem, nos diga.`,
   ].join('\n\n');
+}
+
+export function msgPropostaMaisTempoConfirmado(nome: string): string {
+  return `Sem problema${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Vou aguardar você com calma. Qualquer coisa é só me chamar por aqui.`;
+}
+
+// Defensivo: só deveria disparar se alguém clicar "Preciso de mais tempo"
+// numa proposta que já tinha usado a extensão única antes (não acontece no
+// fluxo normal, já que a 2ª janela não oferece essa pergunta de novo).
+// Decisão: não concede outra extensão nem trata como recusa (a pessoa não
+// disse não) — só confirma educadamente, sem reabrir o prazo.
+export function msgPropostaMaisTempoJaUsada(nome: string): string {
+  return `Entendido${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Já tínhamos ampliado seu prazo antes, então vamos seguir por aqui mesmo. Qualquer novidade, é só me chamar.`;
+}
+
+/**
+ * Envia a mensagem de proposta expirada com os 2 botões e grava a
+ * pendência (`whatsapp_pending_replies`, tipo 'proposta_expirada') pra o
+ * webhook casar a resposta depois. Best-effort: nunca lança, só loga —
+ * quem chama decide o que fazer com o retorno (ex.: só marcar
+ * followup_7d_at se `ok`, pra tentar de novo amanhã em caso de falha).
+ */
+export async function dispararPropostaExpirada(p: {
+  propostaId: number; leadId: number | null; clientId: number | null; phone: string; contactName: string;
+}): Promise<boolean> {
+  try {
+    const number = digitsOf(p.phone);
+    await uazapi.sendMenu(number, 'button', msgPropostaExpirada(p.contactName), [
+      `Preciso de mais tempo|${PROPOSTA_EXPIRADA_BOTAO_MAIS_TEMPO_ID}`,
+      `Recusar|${PROPOSTA_EXPIRADA_BOTAO_RECUSAR_ID}`,
+    ]);
+    await createPendingReply({
+      phone: number,
+      tipo: 'proposta_expirada',
+      leadId: p.leadId,
+      clientId: p.clientId,
+      propostaId: p.propostaId,
+      expectedYes: PROPOSTA_EXPIRADA_BOTAO_MAIS_TEMPO_ID,
+      expectedNo: PROPOSTA_EXPIRADA_BOTAO_RECUSAR_ID,
+    });
+    return true;
+  } catch (e: any) {
+    console.error(`[proposta ${p.propostaId}] falha ao enviar mensagem de expiração com botões:`, e?.message || e);
+    return false;
+  }
+}
+
+/**
+ * Concede a extensão única de prazo (botão "Preciso de mais tempo").
+ * UPDATE atômico com guarda `prazo_estendido_em IS NULL` no WHERE — evita
+ * condição de corrida e serve de fonte da verdade pra "já foi usada":
+ * `affectedRows > 0` só acontece na 1ª vez. Retorna false (sem concender
+ * nada) se a extensão já tinha sido usada antes.
+ */
+export async function concederExtensaoPrazo(propostaId: number): Promise<boolean> {
+  const [r] = await db.query(
+    "UPDATE propostas SET status = 'enviada', prazo_estendido_em = NOW() WHERE id = ? AND prazo_estendido_em IS NULL",
+    [propostaId]
+  ) as any;
+  return r.affectedRows > 0;
+}
+
+/** Fecha a proposta definitivamente (cron de 2ª janela, ver runFechamentoDefinitivoPropostas). */
+export async function fecharPropostaDefinitivamente(propostaId: number): Promise<void> {
+  await db.query("UPDATE propostas SET status = 'expirada' WHERE id = ?", [propostaId]);
 }
 
 export function digitsOf(phone: string): string {
@@ -69,6 +143,41 @@ export function msgPropostaRecusada(nome: string): string {
   ].join('\n\n');
 }
 
+/**
+ * Dispara o fluxo completo de "não fechamos dessa vez": mensagem calorosa
+ * (msgPropostaRecusada) + pergunta de newsletter com botões Sim/Não,
+ * gravando a pendência pro webhook casar a resposta depois. Compartilhado
+ * entre 3 chamadores: PATCH /:id/status (recusa manual), o botão "Recusar"
+ * da proposta expirada, e o fechamento definitivo da 2ª janela (cron) —
+ * mesmo texto, mesma mecânica, sem duplicar em nenhum dos três.
+ * Best-effort: nunca lança, só loga — quem chama decide se precisa do
+ * retorno (hoje nenhum chamador trava a mudança de status por causa disso).
+ */
+export async function dispararRecusaProposta(p: {
+  propostaId: number; leadId: number | null; clientId: number | null; phone: string; contactName: string;
+}): Promise<boolean> {
+  try {
+    const number = digitsOf(p.phone);
+    await uazapi.sendMenu(number, 'button', msgPropostaRecusada(p.contactName), [
+      `Sim|${NEWSLETTER_BOTAO_SIM_ID}`,
+      `Não|${NEWSLETTER_BOTAO_NAO_ID}`,
+    ]);
+    await createPendingReply({
+      phone: number,
+      tipo: 'newsletter_opt_in',
+      leadId: p.leadId,
+      clientId: p.clientId,
+      propostaId: p.propostaId,
+      expectedYes: NEWSLETTER_BOTAO_SIM_ID,
+      expectedNo: NEWSLETTER_BOTAO_NAO_ID,
+    });
+    return true;
+  } catch (e: any) {
+    console.error(`[proposta ${p.propostaId}] falha ao enviar mensagem de recusa/newsletter:`, e?.message || e);
+    return false;
+  }
+}
+
 export function msgNewsletterConfirmado(nome: string): string {
   return `Prontinho${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Você está cadastrada nos nossos informativos. 🎉 Qualquer dúvida, estamos por aqui.`;
 }
@@ -89,7 +198,8 @@ export async function runPropostaFollowups(): Promise<{ enviados48h: number; env
   // Só propostas em 'enviada' — se ela já marcou 'em_negociacao' manualmente,
   // está conduzindo a conversa por conta própria e o automático dá um passo atrás.
   const [rows] = await db.query(`
-    SELECT id, contact_name, phone, public_token, enviada_em, followup_48h_at, followup_5d_at, followup_7d_at
+    SELECT id, lead_id, client_id, contact_name, phone, public_token, enviada_em,
+           followup_48h_at, followup_5d_at, followup_7d_at
       FROM propostas
      WHERE status = 'enviada'
        AND aceito_em IS NULL
@@ -118,7 +228,10 @@ export async function runPropostaFollowups(): Promise<{ enviados48h: number; env
     }
 
     if (!p.followup_7d_at && horasDesdeEnvio >= 7 * 24) {
-      const ok = await sendText(digitsOf(p.phone), msg7d(p.contact_name), 'Automático — follow-up proposta 7 dias').catch(() => false);
+      const ok = await dispararPropostaExpirada({
+        propostaId: p.id, leadId: p.lead_id ?? null, clientId: p.client_id ?? null,
+        phone: p.phone, contactName: p.contact_name,
+      });
       if (ok) {
         await db.query("UPDATE propostas SET followup_7d_at = NOW(), status = 'expirada' WHERE id = ?", [p.id]);
         enviados7d++;
@@ -133,4 +246,39 @@ export async function runPropostaFollowups(): Promise<{ enviados48h: number; env
   }
 
   return { enviados48h, enviados5d, enviados7d, backfill };
+}
+
+/**
+ * Fechamento definitivo da 2ª janela: proposta que usou a extensão única
+ * de prazo (prazo_estendido_em preenchido) e sumiu de novo — mais 7 dias
+ * sem responder nada, ainda em 'enviada'. Fecha com status = 'expirada'
+ * (ela nunca disse não, só sumiu de novo — NÃO é 'recusada') e manda a
+ * MESMA mensagem calorosa de fechamento (dispararRecusaProposta), sem
+ * oferecer uma 3ª chance de prazo. Silencioso do lado da Letícia — só
+ * fecha o ciclo com o cliente.
+ */
+export async function runFechamentoDefinitivoPropostas(): Promise<{ fechadas: number }> {
+  const [rows] = await db.query(`
+    SELECT id, lead_id, client_id, contact_name, phone
+      FROM propostas
+     WHERE status = 'enviada'
+       AND prazo_estendido_em IS NOT NULL
+       AND prazo_estendido_em <= NOW() - INTERVAL 7 DAY
+  `) as any;
+
+  let fechadas = 0;
+  for (const p of rows) {
+    // Fecha o status sempre — mesmo se o WhatsApp falhar, a proposta não
+    // pode continuar "em aberto" pra sempre depois de já ter usado a
+    // extensão e sumido de novo.
+    await fecharPropostaDefinitivamente(p.id);
+    if (p.phone) {
+      await dispararRecusaProposta({
+        propostaId: p.id, leadId: p.lead_id ?? null, clientId: p.client_id ?? null,
+        phone: p.phone, contactName: p.contact_name,
+      });
+    }
+    fechadas++;
+  }
+  return { fechadas };
 }

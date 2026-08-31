@@ -7,7 +7,7 @@ import { telegramNotificationService } from '../services/TelegramNotificationSer
 import { runMonitoringJob, runDiscoveryJob } from '../services/monitoringService';
 import { runBackup } from '../services/backupService';
 import { sendMorningBriefings, sendMorningBriefingWhatsapp } from '../services/morningBriefingService';
-import { runPropostaFollowups } from '../services/propostaFollowupService';
+import { runPropostaFollowups, runFechamentoDefinitivoPropostas } from '../services/propostaFollowupService';
 import { captureDailyMetrics } from '../services/metricsSnapshotService';
 import { runJob } from './runner';
 
@@ -71,6 +71,15 @@ export function startCronJobs() {
   // ── Follow-up automático de propostas enviadas (48h / 5 dias / 7 dias) ────
   cron.schedule('0 10 * * *', () => {
     runJob('propostas:followup', () => runPropostaFollowups());
+  }, { timezone: 'America/Sao_Paulo' });
+
+  // ── Fechamento definitivo da 2ª janela: proposta que já usou a extensão
+  // única de prazo (botão "Preciso de mais tempo" na expiração de 7 dias) e
+  // sumiu de novo por mais 7 dias — fecha como 'expirada' (não 'recusada',
+  // ela nunca disse não) e manda a mesma mensagem calorosa de fechamento,
+  // sem oferecer 3ª chance. Silencioso do lado da Letícia.
+  cron.schedule('30 10 * * *', () => {
+    runJob('propostas:fechamento-definitivo', () => runFechamentoDefinitivoPropostas(), { silencioso: true });
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── Dia 1º às 08:00: manda o relatório executivo do mês que fechou por e-mail
