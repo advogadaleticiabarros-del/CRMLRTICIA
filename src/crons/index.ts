@@ -361,6 +361,17 @@ export function startCronJobs() {
     }, { silencioso: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── a cada hora: lembrete de 24h pra pendência de WhatsApp sem resposta
+  // (hoje só o opt-in de newsletter na recusa de proposta) — pedido da
+  // Dra. Letícia: se não respondeu Sim/Não em 24h, manda UM lembrete antes
+  // de desistir de vez na janela de 7 dias que já existia.
+  cron.schedule('0 * * * *', () => {
+    runJob('whatsapp:lembrete-pendencia', async () => {
+      const { sendPendingReplyReminders } = await import('../services/pendingWhatsappReminderService');
+      return await sendPendingReplyReminders();
+    });
+  });
+
   // ── a cada hora: proposta em análise há 7+ dias → perdida (inativa) ───────
   cron.schedule('30 * * * *', () => {
     runJob('comercial:propostas-expiradas', async () => {

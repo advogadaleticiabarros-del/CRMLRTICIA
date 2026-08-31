@@ -73,6 +73,14 @@ export function msgNewsletterConfirmado(nome: string): string {
   return `Prontinho${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Você está cadastrada nos nossos informativos. 🎉 Qualquer dúvida, estamos por aqui.`;
 }
 
+// ── Lembrete de 24h sem resposta ao opt-in de newsletter (ver
+// src/services/pendingWhatsappReminderService.ts). Só é mandado uma vez,
+// reforçando a mesma pergunta, com os mesmos botões Sim/Não da mensagem
+// original — nunca gera um novo /send/menu do zero.
+export function msgLembreteNewsletterOptIn(nome: string): string {
+  return `Oi${primeiroNome(nome) ? ', ' + primeiroNome(nome) : ''}! Só passando pra saber: você ainda quer continuar recebendo nossos informativos jurídicos? 😊`;
+}
+
 export function msgNewsletterRecusado(): string {
   return `Tudo bem, obrigada pelo retorno! Qualquer coisa, estamos à disposição.`;
 }

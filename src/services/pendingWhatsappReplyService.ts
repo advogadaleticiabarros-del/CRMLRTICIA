@@ -28,6 +28,13 @@ export interface PendingReply {
   expected_no: string;
 }
 
+/** Pendência retornada por findPendingRepliesNeedingReminder — inclui o nome
+ * pra compor a mensagem de lembrete (proposta.contact_name > lead.name >
+ * client.name, o que existir). */
+export interface PendingReplyForReminder extends PendingReply {
+  nome: string | null;
+}
+
 export interface CreatePendingReplyInput {
   phone: string;
   tipo: string;
@@ -91,5 +98,43 @@ export async function resolvePendingReply(id: number, resposta: 'sim' | 'nao'): 
   await db.query(
     `UPDATE whatsapp_pending_replies SET resposta = ?, resolved_at = NOW() WHERE id = ?`,
     [resposta, id]
+  );
+}
+
+const JANELA_LEMBRETE_HORAS = 24;
+
+/**
+ * Pendências (de QUALQUER `tipo` — não hardcoda 'newsletter_opt_in', outros
+ * tipos de pergunta com botão podem existir no futuro) ainda sem resposta,
+ * criadas há 24h+, que ainda não receberam lembrete, e ainda dentro da
+ * janela de 7 dias que findOpenPendingReply respeita (pendência que o
+ * webhook já não vai mais considerar não ganha lembrete — não adianta
+ * cobrar resposta pra algo que, se vier, não vai mais ser processado).
+ *
+ * Usada pelo cron de lembrete (ver src/services/pendingWhatsappReminderService.ts).
+ */
+export async function findPendingRepliesNeedingReminder(): Promise<PendingReplyForReminder[]> {
+  const [rows] = await db.query(
+    `SELECT pr.id, pr.phone, pr.tipo, pr.lead_id, pr.client_id, pr.proposta_id,
+            pr.expected_yes, pr.expected_no,
+            COALESCE(p.contact_name, l.name, c.name) AS nome
+       FROM whatsapp_pending_replies pr
+       LEFT JOIN propostas p ON p.id = pr.proposta_id
+       LEFT JOIN leads     l ON l.id = pr.lead_id
+       LEFT JOIN clients   c ON c.id = pr.client_id
+      WHERE pr.resolved_at IS NULL
+        AND pr.reminder_sent_at IS NULL
+        AND pr.created_at <= NOW() - INTERVAL ${JANELA_LEMBRETE_HORAS} HOUR
+        AND pr.created_at >= NOW() - INTERVAL ${JANELA_DIAS} DAY
+      ORDER BY pr.id ASC`
+  ) as any;
+  return rows;
+}
+
+/** Marca que o lembrete de 24h já foi tentado (enviado ou não) — nunca manda 2x. */
+export async function markReminderSent(id: number): Promise<void> {
+  await db.query(
+    `UPDATE whatsapp_pending_replies SET reminder_sent_at = NOW() WHERE id = ?`,
+    [id]
   );
 }
