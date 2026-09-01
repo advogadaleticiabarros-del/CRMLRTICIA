@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import {
-  importStatement, getConsolidatedSummary, getMonthlySeries, getPendentes,
+  importStatement, getConsolidatedSummary, getMonthlySeries, getPendentes, getEntries,
   saveRuleFromReview, RuleConflictError,
 } from '../services/bankStatementService';
 import { db } from '../config/database';
@@ -29,20 +29,32 @@ router.post('/import', async (req: Request, res: Response) => {
   }
 });
 
-// ── GET /api/bank-statement/summary?month=&category=&escopo=&counterparty=&months= ──
-router.get('/summary', async (req: Request, res: Response) => {
-  const month = (req.query.month as string) || currentMonth();
-  const filters = {
+function filtersFromQuery(req: Request) {
+  return {
+    type: (req.query.type as string) || undefined,
     category: (req.query.category as string) || undefined,
     escopo: (req.query.escopo as string) || undefined,
     counterparty: (req.query.counterparty as string) || undefined,
   };
-  const summary = await getConsolidatedSummary(month, filters);
+}
+
+// ── GET /api/bank-statement/summary?month=&type=&category=&escopo=&counterparty=&months= ──
+router.get('/summary', async (req: Request, res: Response) => {
+  const month = (req.query.month as string) || currentMonth();
+  const summary = await getConsolidatedSummary(month, filtersFromQuery(req));
   const months = Math.min(24, Math.max(1, parseInt(req.query.months as string) || 6));
   const from = new Date(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 1 - (months - 1), 1);
   const fromYm = `${from.getFullYear()}-${String(from.getMonth() + 1).padStart(2, '0')}`;
   const por_mes = await getMonthlySeries(fromYm, months);
   res.json({ ...summary, por_mes });
+});
+
+// ── GET /api/bank-statement/entries?month=&type=&category=&escopo=&counterparty= ──
+// O extrato de fato: cada lançamento do mês, um por linha.
+router.get('/entries', async (req: Request, res: Response) => {
+  const month = (req.query.month as string) || currentMonth();
+  const rows = await getEntries(month, filtersFromQuery(req));
+  res.json(rows);
 });
 
 // ── GET /api/bank-statement/pendentes?month= ─────────────────────────────────

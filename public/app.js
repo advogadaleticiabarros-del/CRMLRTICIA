@@ -5542,9 +5542,15 @@ async function finExtratoConsolidado(c) {
   const catOptions = (type, sel) => (type === 'entrada' ? EXT_CATS_ENTRADA : GRUPOS_DESPESA)
     .map(([v, t]) => `<option value="${v}"${v === sel ? ' selected' : ''}>${t}</option>`).join('');
 
+  const allCatOptions = (sel) => `<option value="">Todas</option>`
+    + `<optgroup label="Entradas">${EXT_CATS_ENTRADA.map(([v, t]) => `<option value="${v}"${v === sel ? ' selected' : ''}>${t}</option>`).join('')}</optgroup>`
+    + `<optgroup label="Saídas">${GRUPOS_DESPESA.map(([v, t]) => `<option value="${v}"${v === sel ? ' selected' : ''}>${t}</option>`).join('')}</optgroup>`;
+
   c.innerHTML = `
     <div class="toolbar">
       <input type="month" id="ext-month" value="${curMonth}" />
+      <select id="ext-tipo"><option value="">Entradas e saídas</option><option value="entrada">Só entradas</option><option value="saida">Só saídas</option></select>
+      <select id="ext-cat">${allCatOptions()}</select>
       <select id="ext-escopo"><option value="">Todos</option><option value="empresa">Empresa</option><option value="pessoal">Pessoal</option></select>
       <input type="text" id="ext-cp" placeholder="Filtrar por pessoa/empresa…" style="max-width:220px" />
       <span class="spacer"></span>
@@ -5554,6 +5560,13 @@ async function finExtratoConsolidado(c) {
     <div class="card" id="ext-pend-card" style="margin-bottom:20px;display:none">
       <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Pendências de categorização</strong> <small style="color:var(--text-muted)">novo ou ambíguo — confirme a categoria certa</small></div>
       <div id="ext-pend"></div>
+    </div>
+    <div class="card" style="margin-bottom:20px;overflow-x:auto">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <strong style="color:var(--navy)">Extrato do mês</strong>
+        <small id="ext-count" style="color:var(--text-muted)"></small>
+      </div>
+      <div id="ext-table"></div>
     </div>
     <div class="card" style="margin-bottom:20px;overflow-x:auto"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Saída por categoria</strong></div><div id="ext-hbars" style="padding:14px 18px"></div></div>
     <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Entradas x Saídas — últimos meses</strong></div><div id="ext-cols" style="padding:14px 18px"></div></div>`;
@@ -5595,12 +5608,18 @@ async function finExtratoConsolidado(c) {
 
   const load = async () => {
     const month = $('#ext-month').value || curMonth;
+    const tipo = $('#ext-tipo').value;
+    const categoria = $('#ext-cat').value;
     const escopo = $('#ext-escopo').value;
     const counterparty = $('#ext-cp').value.trim();
-    const qs = new URLSearchParams({ month, ...(escopo ? { escopo } : {}), ...(counterparty ? { counterparty } : {}) });
-    const [summary, pendentes] = await Promise.all([
+    const qs = new URLSearchParams({
+      month, ...(tipo ? { type: tipo } : {}), ...(categoria ? { category: categoria } : {}),
+      ...(escopo ? { escopo } : {}), ...(counterparty ? { counterparty } : {}),
+    });
+    const [summary, pendentes, entries] = await Promise.all([
       api(`/api/bank-statement/summary?${qs}`),
       api(`/api/bank-statement/pendentes?month=${month}`),
+      api(`/api/bank-statement/entries?${qs}`),
     ]);
 
     $('#ext-kpis').innerHTML =
@@ -5619,6 +5638,18 @@ async function finExtratoConsolidado(c) {
     } else {
       pendCard.style.display = 'none';
     }
+
+    $('#ext-count').textContent = entries.length ? `${entries.length} lançamento(s)` : '';
+    $('#ext-table').innerHTML = entries.length ? `
+      <table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Escopo</th><th style="text-align:right">Valor</th></tr></thead>
+      <tbody>${entries.map((r) => `<tr${r.is_transferencia_interna ? ' style="opacity:.6"' : ''}>
+        <td>${fmtDate(r.due_date)}</td>
+        <td><strong>${esc(r.counterparty || r.description)}</strong>${r.counterparty ? `<br><small style="color:var(--text-muted)">${esc(r.description)}</small>` : ''}${r.review_status === 'pendente' ? ' <span class="badge vencido">pendente</span>' : ''}</td>
+        <td>${esc(r.label)}${r.is_transferencia_interna ? ' <small style="color:var(--text-muted)">(reserva)</small>' : ''}</td>
+        <td>${r.escopo === 'pessoal' ? 'Pessoal' : 'Empresa'}</td>
+        <td style="text-align:right;color:${r.type === 'entrada' ? 'var(--green)' : 'var(--red)'}"><strong>${r.type === 'entrada' ? '+' : '−'}${money(r.amount)}</strong></td>
+      </tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhum lançamento nesse período/filtro</div>';
 
     const saidaCats = summary.por_categoria.filter((c) => c.type === 'saida').map((c) => ({ label: c.label, value: c.total }));
     $('#ext-hbars').innerHTML = chartHBars(saidaCats, { fmt: money, color: 'var(--red)' });
@@ -5642,6 +5673,8 @@ async function finExtratoConsolidado(c) {
     ev.target.value = '';
   };
   $('#ext-month').onchange = load;
+  $('#ext-tipo').onchange = load;
+  $('#ext-cat').onchange = load;
   $('#ext-escopo').onchange = load;
   $('#ext-cp').onchange = load;
   await load();

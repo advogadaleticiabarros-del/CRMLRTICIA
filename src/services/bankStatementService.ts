@@ -263,15 +263,38 @@ function monthBounds(month: string): { start: string; end: string } {
   return { start, end };
 }
 
-export interface SummaryFilters { category?: string; escopo?: string; counterparty?: string; }
+export interface SummaryFilters { category?: string; escopo?: string; counterparty?: string; type?: string; }
 
-export async function getConsolidatedSummary(month: string, filters: SummaryFilters = {}) {
+function buildFilterWhere(month: string, filters: SummaryFilters): { where: string[]; params: any[] } {
   const { start, end } = monthBounds(month);
   const where: string[] = ["origin = 'extrato_nubank'", 'due_date >= ?', 'due_date < ?'];
   const params: any[] = [start, end];
+  if (filters.type === 'entrada' || filters.type === 'saida') { where.push('type = ?'); params.push(filters.type); }
   if (filters.category) { where.push('category = ?'); params.push(filters.category); }
   if (filters.escopo === 'empresa' || filters.escopo === 'pessoal') { where.push('escopo = ?'); params.push(filters.escopo); }
   if (filters.counterparty) { where.push('counterparty LIKE ?'); params.push(`%${filters.counterparty}%`); }
+  return { where, params };
+}
+
+// Lista os lançamentos do mês um a um — o extrato de fato (data, descrição,
+// contraparte, categoria, valor), não só o resumo agregado. É o que a tela
+// mostra quando ela clica num mês específico.
+export async function getEntries(month: string, filters: SummaryFilters = {}) {
+  const { where, params } = buildFilterWhere(month, filters);
+  const [rows] = await db.query(
+    `SELECT id, due_date, description, counterparty, category, type, escopo,
+            amount, is_transferencia_interna, review_status
+       FROM cashflow_entries
+      WHERE ${where.join(' AND ')}
+      ORDER BY due_date ASC, id ASC
+      LIMIT 1000`,
+    params
+  ) as any;
+  return rows.map((r: any) => ({ ...r, amount: Number(r.amount), label: CATEGORY_PT[r.category] || r.category }));
+}
+
+export async function getConsolidatedSummary(month: string, filters: SummaryFilters = {}) {
+  const { where, params } = buildFilterWhere(month, filters);
 
   const [rows] = await db.query(
     `SELECT category, type, escopo, counterparty, is_transferencia_interna, review_status,
