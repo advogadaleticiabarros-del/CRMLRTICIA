@@ -154,7 +154,7 @@ export function msgPropostaRecusada(nome: string): string {
  * retorno (hoje nenhum chamador trava a mudança de status por causa disso).
  */
 export async function dispararRecusaProposta(p: {
-  propostaId: number; leadId: number | null; clientId: number | null; phone: string; contactName: string;
+  propostaId: number | null; leadId: number | null; clientId: number | null; phone: string; contactName: string;
 }): Promise<boolean> {
   try {
     const number = digitsOf(p.phone);

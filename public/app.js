@@ -1077,7 +1077,7 @@ const ROUTES = {
       <div class="page-header"><div><h2>Leads</h2><p class="sub">Funil comercial</p></div>
         <button class="btn-gold" id="new-lead">+ Novo lead</button></div>
       <div id="board" class="kanban"></div>`;
-    const cols = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', contrato_assinado: 'Contrato Assinado' };
+    const cols = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', proposta_recusada: 'Proposta Recusada', contrato_assinado: 'Contrato Assinado' };
     const load = async () => {
       const b = await api('/api/leads/board');
       $('#board').innerHTML = Object.entries(cols).map(([k, label]) => `
@@ -4093,7 +4093,7 @@ function miniList(title, rows) {
   }</div></div>`;
 }
 
-const LEAD_STATUS_PT = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', contrato_assinado: 'Contrato Assinado', fechada: 'Convertido', convertido: 'Convertido', perdida: 'Perdido' };
+const LEAD_STATUS_PT = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', proposta_recusada: 'Proposta Recusada', contrato_assinado: 'Contrato Assinado', fechada: 'Convertido', convertido: 'Convertido', perdida: 'Perdido' };
 
 const LEGAL_AREA_PT = { trabalhista: 'Trabalhista', gestante: 'Gestante/Maternidade', familia: 'Família', civel: 'Cível', previdenciario: 'Previdenciário', consumidor: 'Consumidor', outro: 'Outro' };
 const CANAIS_MKT = ['Meta Ads', 'Google Ads', 'Instagram (orgânico)', 'Facebook (orgânico)', 'Google (orgânico)', 'WhatsApp', 'Indicação', 'Site (direto)', 'E-mail', 'Outro'];
@@ -6231,7 +6231,7 @@ async function leadForm(onSave) {
 
 async function leadDetail(id, onSave) {
   const l = await api('/api/leads/' + id);
-  const stages = [['triagem','Novo Lead'],['atendimento_inicial','Primeiro Contato'],['reuniao','Atendimento Realizado'],['documentacao_pendente','Documentação Pendente'],['proposta','Proposta Enviada'],['proposta_em_analise','Negociação'],['contrato_assinado','Contrato Assinado'],['perdida','Perdido']];
+  const stages = [['triagem','Novo Lead'],['atendimento_inicial','Primeiro Contato'],['reuniao','Atendimento Realizado'],['documentacao_pendente','Documentação Pendente'],['proposta','Proposta Enviada'],['proposta_em_analise','Negociação'],['proposta_recusada','Proposta Recusada'],['contrato_assinado','Contrato Assinado'],['perdida','Perdido']];
   const info = [
     l.cpf_cnpj ? 'CPF/CNPJ: ' + l.cpf_cnpj : '',
     l.city ? l.city + (l.state ? '/' + l.state : '') : '',
