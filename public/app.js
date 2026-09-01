@@ -1502,10 +1502,11 @@ const ROUTES = {
         <button class="tab" data-tab="inadimplencia">Inadimplência</button>
         <button class="tab" data-tab="fluxo">Fluxo de Caixa</button>
         <button class="tab" data-tab="extrato">Extrato Consolidado</button>
+        <button class="tab" data-tab="fatura">Fatura do Cartão</button>
         <button class="tab" data-tab="auditoria">Auditoria</button>
       </div>
       <div id="fin-content"></div>`;
-    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, pagar: finContasPagar, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa, extrato: finExtratoConsolidado, auditoria: finAuditoria };
+    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, pagar: finContasPagar, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa, extrato: finExtratoConsolidado, fatura: finFaturaCartao, auditoria: finAuditoria };
     const show = async (name) => {
       document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#fin-content'); c.innerHTML = '<div class="spinner"></div>';
@@ -5691,6 +5692,109 @@ async function finExtratoConsolidado(c) {
   $('#ext-cat').onchange = load;
   $('#ext-escopo').onchange = load;
   $('#ext-cp').onchange = load;
+  await load();
+}
+
+// ── Fatura do Cartão — detalhamento da fatura por comerciante/categoria.
+// NÃO soma no saldo real (o valor da fatura já é uma saída no Extrato
+// Consolidado, "Pagamento de fatura") — isso aqui é só "no que foi gasto".
+const CARD_CATS = [
+  ['mercado', 'Mercado'], ['farmacia', 'Farmácia'], ['alimentacao', 'Alimentação'],
+  ['compras_online', 'Compras online'], ['vestuario', 'Vestuário'], ['combustivel', 'Combustível'],
+  ['transporte', 'Transporte'], ['viagem', 'Viagem'], ['assinaturas', 'Assinaturas'],
+  ['pet', 'Pet'], ['outro', 'Outros'],
+];
+async function finFaturaCartao(c) {
+  const now = new Date();
+  const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const catOptions = (sel) => CARD_CATS.map(([v, t]) => `<option value="${v}"${v === sel ? ' selected' : ''}>${t}</option>`).join('');
+
+  c.innerHTML = `
+    <div class="toolbar">
+      <input type="month" id="card-month" value="${curMonth}" />
+      <span class="spacer"></span>
+      <label class="btn-gold" style="cursor:pointer">Importar fatura do cartão<input type="file" id="card-file" accept=".csv,text/csv" style="display:none" /></label>
+    </div>
+    <div id="card-kpis" class="kpi-grid"></div>
+    <div class="card" id="card-pend-card" style="margin-bottom:20px;display:none">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Pendências de categorização</strong> <small style="color:var(--text-muted)">comerciante novo — escolha a categoria</small></div>
+      <div id="card-pend"></div>
+    </div>
+    <div class="card" style="margin-bottom:20px;overflow-x:auto"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Gasto por categoria</strong></div><div id="card-hbars" style="padding:14px 18px"></div></div>
+    <div class="card" style="overflow-x:auto">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <strong style="color:var(--navy)">Lançamentos da fatura</strong>
+        <small id="card-count" style="color:var(--text-muted)"></small>
+      </div>
+      <div id="card-table"></div>
+    </div>`;
+
+  const renderPendRow = (p) => `<div class="ext-pend-row" data-id="${p.id}" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--border-soft)">
+      <div style="min-width:90px"><small style="color:var(--text-muted)">${fmtDate(p.purchase_date)}</small></div>
+      <div style="flex:1;min-width:180px"><strong>${esc(p.title)}</strong>${p.installment_no ? ` <small style="color:var(--text-muted)">(${p.installment_no}/${p.installment_total})</small>` : ''}</div>
+      <div style="min-width:90px;text-align:right"><strong style="color:var(--red)">${money(p.amount)}</strong></div>
+      <select class="card-pend-cat">${catOptions('outro')}</select>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" class="card-pend-rule" checked />salvar como regra</label>
+      <button class="btn-sm card-pend-confirm">Confirmar</button>
+    </div>`;
+
+  const load = async () => {
+    const month = $('#card-month').value || curMonth;
+    const [summary, pendentes, entries] = await Promise.all([
+      api(`/api/card-statement/summary?month=${month}`),
+      api(`/api/card-statement/pendentes?month=${month}`),
+      api(`/api/card-statement/entries?month=${month}`),
+    ]);
+
+    $('#card-kpis').innerHTML =
+      kpi('Total gasto na fatura', money(summary.total_gasto), 'money') +
+      kpi('Pagamentos/estornos', money(summary.total_pago_estornado), 'money');
+
+    const pendCard = $('#card-pend-card');
+    if (pendentes.length) {
+      pendCard.style.display = '';
+      $('#card-pend').innerHTML = pendentes.map(renderPendRow).join('');
+      document.querySelectorAll('.card-pend-confirm').forEach((btn) => {
+        btn.onclick = async () => {
+          const row = btn.closest('.ext-pend-row');
+          const id = row.dataset.id;
+          const category = row.querySelector('.card-pend-cat').value;
+          const saveRule = row.querySelector('.card-pend-rule').checked;
+          try {
+            await api(`/api/card-statement/${id}/review`, { method: 'PATCH', body: JSON.stringify({ category, save_as_rule: saveRule }) });
+            toast('Categoria confirmada'); await load();
+          } catch (e) { toast(e.message, 'error'); }
+        };
+      });
+    } else { pendCard.style.display = 'none'; }
+
+    $('#card-hbars').innerHTML = chartHBars(summary.por_categoria.map((c) => ({ label: c.label, value: c.total })), { fmt: money, color: 'var(--red)' });
+
+    $('#card-count').textContent = entries.length ? `${entries.length} lançamento(s)` : '';
+    $('#card-table').innerHTML = entries.length ? `
+      <table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th style="text-align:right">Valor</th></tr></thead>
+      <tbody>${entries.map((r) => `<tr>
+        <td>${fmtDate(r.purchase_date)}</td>
+        <td><strong>${esc(r.title)}</strong>${r.installment_no ? ` <small style="color:var(--text-muted)">(${r.installment_no}/${r.installment_total})</small>` : ''}${r.review_status === 'pendente' ? ' <span class="badge vencido">pendente</span>' : ''}</td>
+        <td>${esc(r.label)}</td>
+        <td style="text-align:right;color:${r.is_payment_or_refund ? 'var(--green)' : 'var(--red)'}"><strong>${r.is_payment_or_refund ? '−' : '+'}${money(r.amount)}</strong></td>
+      </tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhum lançamento nesse período</div>';
+  };
+
+  $('#card-file').onchange = async (ev) => {
+    const f = ev.target.files[0];
+    if (!f) return;
+    try {
+      const csv_text = await f.text();
+      const r = await api('/api/card-statement/import', { method: 'POST', body: JSON.stringify({ csv_text, filename: f.name }) });
+      toast(`${r.imported} importados, ${r.duplicates} já existiam, ${r.pending} para revisar`);
+      if (r.bill_ref_month) $('#card-month').value = r.bill_ref_month;
+      await load();
+    } catch (e) { toast(e.message, 'error'); }
+    ev.target.value = '';
+  };
+  $('#card-month').onchange = load;
   await load();
 }
 

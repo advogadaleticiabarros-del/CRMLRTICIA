@@ -37,6 +37,7 @@ import inadimplenciaRoutes from './routes/inadimplencias';
 import auditoriaFinanceiraRoutes from './routes/auditoria-financeira';
 import cashflowRoutes from './routes/cashflow';
 import bankStatementRoutes from './routes/bankStatement';
+import cardStatementRoutes from './routes/cardStatement';
 import awardsRoutes from './routes/awards';
 import leadPublicRoutes from './routes/lead-public';
 import userRoutes from './routes/users';
@@ -190,6 +191,7 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.use('/api/inadimplencias',        authenticate, requireStaff, inadimplenciaRoutes);
   app.use('/api/cashflow',              authenticate, requireStaff, cashflowRoutes);
   app.use('/api/bank-statement',        authenticate, requireStaff, bankStatementRoutes);
+  app.use('/api/card-statement',        authenticate, requireStaff, cardStatementRoutes);
   app.use('/api/awards',                authenticate, requireStaff, awardsRoutes);
   app.use('/api/auditoria-financeira',  authenticate, requireStaff, auditoriaFinanceiraRoutes);
   app.use('/api/dative',                authenticate, requireStaff, dativeRoutes);
