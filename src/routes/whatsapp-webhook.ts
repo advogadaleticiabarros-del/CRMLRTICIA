@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { uazapi } from '../services/uazapiClient';
-import { classificarTipoDocumento } from '../services/whatsappTranscricao';
+import { classificarTipoDocumento, garantirMidiaTranscrita } from '../services/whatsappTranscricao';
 import { compararSeguro } from '../utils/crypto';
 import { emitWaUpdate } from '../services/waSocket';
 import { sendText } from '../services/uazapiInstance';
@@ -30,6 +30,16 @@ const ROTULOS: Record<string, { rotulo: string; mime: string; ext: string }> = {
   sticker: { rotulo: 'Figurinha', mime: 'image/webp', ext: 'webp' },
 };
 
+// O campo do payload já mudou de nome uma vez sem aviso (era "mediaType",
+// a Uazapi manda "messageType" — ver uazapi-openapi-spec.yaml, schema
+// Message). Pra não quebrar de novo do mesmo jeito silencioso, normaliza
+// o valor (minúsculo, sem sufixo "message") antes de bater com ROTULOS —
+// assim "image", "Image", "imageMessage" etc. resolvem igual.
+export function normalizeMediaType(raw: string | undefined | null): string | null {
+  const s = String(raw || '').trim().toLowerCase().replace(/message$/, '');
+  return s || null;
+}
+
 async function findClientByPhone(phone: string): Promise<number | null> {
   const tail = phone.replace(/\D/g, '').slice(-8);
   if (tail.length < 8) return null;
@@ -42,16 +52,20 @@ async function findClientByPhone(phone: string): Promise<number | null> {
 }
 
 /** Baixa a mídia via /message/download (a Uazapi já decripta), guarda no banco e registra em Documentos. */
-async function storeMedia(messageId: string, phone: string, clientId: number | null, mediaType: string): Promise<{ mediaId: number; label: string } | null> {
-  const info = ROTULOS[mediaType];
-  if (!info) return null;
+async function storeMedia(messageId: string, phone: string, clientId: number | null, mediaTypeRaw: string): Promise<{ mediaId: number; label: string } | null> {
+  const mediaType = normalizeMediaType(mediaTypeRaw);
+  const info = mediaType ? ROTULOS[mediaType] : null;
+  if (!info) {
+    console.error(`[whatsapp-webhook] tipo de mídia não reconhecido (messageId=${messageId}, messageType="${mediaTypeRaw}", normalizado="${mediaType}")`);
+    return null;
+  }
   try {
     const dl = await uazapi.downloadMessage(messageId);
-    if (!dl?.base64) {
-      console.error(`[whatsapp-webhook] download sem base64 (messageId=${messageId}, tipo=${mediaType}) — resposta:`, JSON.stringify(dl).slice(0, 500));
+    if (!dl?.base64Data) {
+      console.error(`[whatsapp-webhook] download sem base64Data (messageId=${messageId}, tipo=${mediaType}) — resposta:`, JSON.stringify(dl).slice(0, 500));
       return null;
     }
-    const buffer = Buffer.from(dl.base64, 'base64');
+    const buffer = Buffer.from(dl.base64Data, 'base64');
     if (!buffer.length || buffer.length > MEDIA_MAX) {
       console.error(`[whatsapp-webhook] buffer inválido (messageId=${messageId}, tipo=${mediaType}) — tamanho: ${buffer.length}`);
       return null;
@@ -309,24 +323,26 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
 
     let mediaId: number | null = null;
     let body = msg.text || (typeof msg.content === 'string' ? msg.content : '') || '';
-    // DIAGNÓSTICO (17/08): nenhuma mídia recebida jamais foi salva no CRM —
-    // pode ser falha no download OU o nome do campo de tipo de mídia ter
-    // mudado do lado da Uazapi (já aconteceu antes com "id"/"messageId").
-    // Loga as chaves da mensagem quando não há mediaType, pra comparar.
-    if (!msg.fromMe && !msg.mediaType && !msg.text && !msg.content) {
-      console.error('[whatsapp-webhook] mensagem sem texto/mediaType — payload de msg:', JSON.stringify(msg).slice(0, 1500));
+    // O campo certo é "messageType" (não "mediaType" — ver normalizeMediaType
+    // acima). Ele vem preenchido em TODA mensagem, inclusive texto puro
+    // ("conversation") — por isso só entra no fluxo de mídia quando o valor
+    // normalizado bate com um tipo conhecido em ROTULOS, não só "existe".
+    const mediaTypeNorm = normalizeMediaType(msg.messageType);
+    const isMedia = !msg.fromMe && !!mediaTypeNorm && !!ROTULOS[mediaTypeNorm];
+    if (!msg.fromMe && !isMedia && !msg.text && !msg.content) {
+      console.error(`[whatsapp-webhook] mensagem sem texto e sem tipo de mídia reconhecido (messageType="${msg.messageType}") — payload de msg:`, JSON.stringify(msg).slice(0, 1500));
     }
-    if (!msg.fromMe && msg.mediaType) {
-      const media = await storeMedia(msg.messageid || msg.id, phone, clientId, msg.mediaType);
+    if (isMedia) {
+      const media = await storeMedia(msg.messageid || msg.id, phone, clientId, msg.messageType);
       if (media) { mediaId = media.mediaId; body = body || `📎 ${media.label}`; }
       else {
         // Antes descartava a mensagem inteira quando não havia legenda —
         // a conversa perdia o registro de que algo chegou. Agora mantém um
         // corpo de aviso, pra pelo menos aparecer na conversa, e alerta os
         // admins (throttled) em vez de só logar no console.
-        console.error(`[whatsapp-webhook] mídia tipo "${msg.mediaType}" não foi salva (storeMedia devolveu null).`);
-        body = body || `⚠️ Mídia recebida, mas falhou ao baixar (tipo: ${msg.mediaType})`;
-        await avisarFalhaMidia(msg.mediaType).catch(() => {});
+        console.error(`[whatsapp-webhook] mídia tipo "${msg.messageType}" não foi salva (storeMedia devolveu null).`);
+        body = body || `⚠️ Mídia recebida, mas falhou ao baixar (tipo: ${msg.messageType})`;
+        await avisarFalhaMidia(msg.messageType).catch(() => {});
       }
     }
     if (!body) {
@@ -354,6 +370,17 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
        tsSeconds, mediaId, statusBruto]) as any;
     if (r.affectedRows > 0) emitWaUpdate(phone);
 
+    // Transcreve áudio / descreve imagem já na chegada, sem esperar alguém
+    // pedir o "resumo" da conversa — reaproveita garantirMidiaTranscrita
+    // (mesma função usada lá) para não duplicar a lógica. Webhook já
+    // respondeu 200 no topo, então isso roda em segundo plano; emite um
+    // 2º update pro chat quando terminar, pra transcrição aparecer sem
+    // precisar recarregar a tela.
+    if (r.affectedRows === 1 && mediaId) {
+      garantirMidiaTranscrita(phone).then(() => emitWaUpdate(phone)).catch((e) =>
+        console.error('[whatsapp-webhook] falha ao transcrever mídia recebida:', e?.message || e));
+    }
+
     // affectedRows: 1 = inserção nova; 2 = atualizou uma existente (ON DUPLICATE);
     // 0 = update sem mudança nenhuma. Só trata como mensagem NOVA no caso 1.
     if (r.affectedRows === 1 && !msg.fromMe) {
@@ -373,7 +400,12 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
         await notifyNewWhatsappContact(phone, pushName, String(body).slice(0, 500)).catch(() => {});
       }
     }
-  } catch { /* inbox é best-effort — nunca derruba o webhook */ }
+  } catch (e: any) {
+    // Best-effort: nunca derruba o webhook — mas logar é essencial, senão um
+    // erro aqui desaparece sem deixar rastro (foi assim que a mídia ficou
+    // quebrada sem ninguém perceber por semanas — ver normalizeMediaType).
+    console.error('[whatsapp-webhook] erro não tratado processando evento:', e?.message || e);
+  }
 });
 
 export default router;

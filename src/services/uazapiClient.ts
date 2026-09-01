@@ -86,7 +86,10 @@ export const uazapi = {
     return request('POST', '/send/request-payment', { number, amount, ...extra });
   },
   /** POST /message/download — baixa mídia de uma mensagem recebida. */
-  downloadMessage(messageId: string): Promise<{ base64?: string; url?: string }> {
+  // A resposta traz o arquivo em "base64Data" (confirmado na doc oficial —
+  // uazapi-openapi-spec.yaml, endpoint /message/download), não "base64"
+  // como o código lia antes — por isso NENHUMA mídia recebida era salva.
+  downloadMessage(messageId: string): Promise<{ base64Data?: string; fileURL?: string; mimetype?: string }> {
     return request('POST', '/message/download', { id: messageId, return_base64: true });
   },
   // Campo é "id", não "messageId" como a doc da SDK sugere — confirmado
