@@ -64,7 +64,11 @@ router.get('/', async (req: Request, res: Response) => {
   const type = req.query.type as string;
   const from = req.query.from as string;
   const to = req.query.to as string;
-  const where: string[] = ['1=1'];
+  // is_transferencia_interna=0: RDB e outras transferências internas
+  // importadas do Extrato Consolidado não são entrada/saída real — elas
+  // têm tela própria (aba Extrato Consolidado, bloco "Reserva RDB"); aqui
+  // (A Receber, Contas a Pagar) só o dinheiro que de fato entrou/saiu.
+  const where: string[] = ['is_transferencia_interna = 0'];
   const params: any[] = [];
   if (type && TYPES.includes(type)) { where.push('type = ?'); params.push(type); }
   if (from) { where.push('due_date >= ?'); params.push(from); }
