@@ -171,8 +171,14 @@ test('RDB fica fora de entradas/saídas reais, mas entra na Reserva RDB', async 
     ]);
     await importStatement(text, 'e.csv', 1);
 
-    const [testRows] = await db.query('SELECT amount, type, is_transferencia_interna FROM cashflow_entries WHERE bank_ref IN (?, ?)', [refAporte, refResgate]);
+    const [testRows] = await db.query('SELECT amount, type, is_transferencia_interna, review_status FROM cashflow_entries WHERE bank_ref IN (?, ?)', [refAporte, refResgate]);
     assert.ok(testRows.every((r) => r.is_transferencia_interna === 1), 'linhas de RDB devem estar marcadas como transferência interna');
+    // Regressão: "Aplicação RDB" e "Resgate RDB" contêm "RDB" nos dois
+    // sentidos — sem filtrar a regra pela direção (entrada/saída) real da
+    // transação, as duas regras colidiam e TODO lançamento de RDB virava
+    // "pendente" em vez de categorizar automaticamente (aconteceu em
+    // produção antes desse teste existir).
+    assert.ok(testRows.every((r) => r.review_status === 'ok'), 'RDB deveria categorizar automaticamente (regra sem ambiguidade), não cair em pendências');
 
     // Filtra pelo marcador único "RDB" no counterparty pra isolar só essas
     // 2 linhas de teste, mesmo num banco com outros dados no mesmo mês.

@@ -105,14 +105,21 @@ export function normalizeCounterparty(s: string): string {
 export interface RuleCandidate { type: 'entrada' | 'saida'; category: string; escopo: string; is_transferencia_interna: boolean; label_override: string | null; }
 export interface RuleMatch { status: 'matched' | 'ambiguous' | 'unmatched'; rule?: RuleCandidate; candidates?: RuleCandidate[]; }
 
-export async function matchRule(counterparty: string, descricaoCrua: string): Promise<RuleMatch> {
+export async function matchRule(counterparty: string, descricaoCrua: string, type?: 'entrada' | 'saida'): Promise<RuleMatch> {
   const norm = normalizeCounterparty(counterparty);
+
+  // A direção (entrada/saída) já é conhecida com certeza pelo sinal do valor
+  // no CSV — filtrar por ela aqui evita colisão entre regras "opostas" do
+  // mesmo texto (ex.: "Aplicação RDB" e "Resgate RDB" contêm "RDB" nas
+  // duas direções; sem esse filtro, toda transação de RDB virava ambígua).
+  const typeFilter = type ? ' AND type = ?' : '';
+  const typeParams = type ? [type] : [];
 
   const [exact] = await db.query(
     `SELECT type, category, escopo, is_transferencia_interna, label_override
        FROM bank_statement_rules
-      WHERE active = 1 AND match_type = 'counterparty' AND UPPER(match_value) = ?`,
-    [norm]
+      WHERE active = 1 AND match_type = 'counterparty' AND UPPER(match_value) = ?${typeFilter}`,
+    [norm, ...typeParams]
   ) as any;
 
   let candidates: any[] = exact;
@@ -120,7 +127,8 @@ export async function matchRule(counterparty: string, descricaoCrua: string): Pr
     const [contains] = await db.query(
       `SELECT type, category, escopo, is_transferencia_interna, label_override, match_value
          FROM bank_statement_rules
-        WHERE active = 1 AND match_type = 'contains'`
+        WHERE active = 1 AND match_type = 'contains'${typeFilter}`,
+      typeParams
     ) as any;
     candidates = contains.filter((r: any) => descricaoCrua.toUpperCase().includes(String(r.match_value).toUpperCase()));
   }
@@ -169,7 +177,7 @@ export async function importStatement(csvText: string, filename: string | null, 
 
     const counterparty = extractCounterparty(row.descricao);
     const type: 'entrada' | 'saida' = row.valor < 0 ? 'saida' : 'entrada';
-    const match = await matchRule(counterparty, row.descricao);
+    const match = await matchRule(counterparty, row.descricao, type);
 
     let category: string; let escopo: string; let isTransf = 0; let reviewStatus: 'ok' | 'pendente'; let description: string;
     if (match.status === 'matched' && match.rule) {
@@ -373,7 +381,7 @@ export async function getPendentes(month?: string): Promise<PendenteRow[]> {
   for (const r of rows) {
     let candidates: RuleCandidate[] = [];
     if (r.counterparty) {
-      const match = await matchRule(r.counterparty, r.description);
+      const match = await matchRule(r.counterparty, r.description, r.type);
       if (match.status === 'ambiguous') candidates = match.candidates || [];
     }
     out.push({ ...r, amount: Number(r.amount), candidates });
