@@ -1740,6 +1740,21 @@ img, svg, video { max-width: 100%; }
 .wa-bub.in .wa-time { color: var(--text-muted); }
 .wa-corpo { white-space: pre-wrap; }
 .wa-anexo-img { max-width: 260px; max-height: 260px; border-radius: 8px; display: block; margin-top: 4px; object-fit: cover; cursor: pointer; }
+
+/* Visualizador de imagem em tela cheia (dentro da própria janela) — clicar
+   no fundo escurecido fecha; imagem/barra de ações não propagam o clique
+   pro fundo (ver abrirImagemLightbox em whatsapp.js). */
+.wa-lightbox {
+  position: fixed; inset: 0; z-index: 9999; background: rgba(10,14,20,.88);
+  display: flex; align-items: center; justify-content: center; padding: 40px 20px;
+  animation: wa-lightbox-in .16s ease backwards; cursor: zoom-out;
+}
+@keyframes wa-lightbox-in { from { opacity: 0; } to { opacity: 1; } }
+.wa-lightbox-img { max-width: min(90vw, 1100px); max-height: 82vh; object-fit: contain; border-radius: 6px; box-shadow: 0 20px 60px rgba(0,0,0,.5); cursor: default; }
+.wa-lightbox-bar { position: absolute; top: 18px; right: 22px; display: flex; gap: 10px; }
+.wa-lightbox-bar .btn-icon { background: rgba(255,255,255,.12); color: #fff; border: 1px solid rgba(255,255,255,.25); width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s; }
+.wa-lightbox-bar .btn-icon:hover { background: rgba(255,255,255,.24); }
+@media (prefers-reduced-motion: reduce) { .wa-lightbox { animation: none; } }
 .wa-anexo-audio { display: block; margin-top: 4px; max-width: 260px; height: 40px; }
 .wa-anexo-video { display: block; margin-top: 4px; max-width: 260px; border-radius: 8px; }
 .wa-quote { border-left: 3px solid var(--gold, #c19a4e); background: rgba(0,0,0,.045); border-radius: 4px; padding: 4px 8px; margin-bottom: 4px; font-size: 12px; color: var(--text-soft); max-height: 3em; overflow: hidden; }

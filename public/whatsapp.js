@@ -5,6 +5,27 @@
 // toast, closeModal, fileHref) e registra a rota em ROUTES.
 // ============================================================================
 
+// Visualizador de imagem na própria janela — pedido explícito pra parar de
+// abrir anexo de foto numa aba nova do navegador. Clicar fora (no fundo
+// escurecido) ou Esc fecha e volta pra mensagem; botão de baixar usa o
+// atributo download (mesma origem — funciona direto, sem popup bloqueado).
+function abrirImagemLightbox(url) {
+  const ov = document.createElement('div');
+  ov.className = 'wa-lightbox';
+  ov.innerHTML = `
+    <img src="${esc(url)}" alt="Imagem" class="wa-lightbox-img">
+    <div class="wa-lightbox-bar">
+      <a href="${esc(url)}" download class="btn-icon" title="Baixar imagem">${svgIcon('download')}</a>
+      <button type="button" class="btn-icon" id="wa-lightbox-close" title="Fechar (Esc)">${svgIcon('x')}</button>
+    </div>`;
+  document.body.appendChild(ov);
+  const fechar = () => { ov.remove(); document.removeEventListener('keydown', onEsc); };
+  ov.addEventListener('click', (e) => { if (e.target === ov) fechar(); }); // só o fundo, não a imagem/barra
+  ov.querySelector('#wa-lightbox-close').onclick = fechar;
+  const onEsc = (e) => { if (e.key === 'Escape') fechar(); };
+  document.addEventListener('keydown', onEsc);
+}
+
 // Avatar consistente em toda a tela de WhatsApp (Conversas + Kanban + drawer
 // de pré-visualização) — mesma cor/iniciais pro mesmo nome, sempre.
 // Tempo real (Socket.IO) — evita esperar até 6s de polling pra mensagem nova
@@ -572,7 +593,10 @@ Object.assign(ROUTES, {
           if (m.media_id && m.media_url) {
             const url = esc(m.media_url);
             if (mimeAnexo.startsWith('image/')) {
-              anexo = `<br><a href="${url}" target="_blank" rel="noopener"><img src="${url}" class="wa-anexo-img" loading="lazy" alt="Imagem recebida"></a>`;
+              // Sem <a target="_blank"> de propósito: abre no visualizador da
+              // própria janela (ver abrirImagemLightbox/ligarLightbox), não
+              // numa aba nova — pedido explícito.
+              anexo = `<br><img src="${url}" class="wa-anexo-img" loading="lazy" alt="Imagem recebida" style="cursor:pointer">`;
             } else if (ehAudio) {
               anexo = `<br><audio controls preload="none" class="wa-anexo-audio" src="${url}"></audio>`;
             } else if (mimeAnexo.startsWith('video/')) {
@@ -917,6 +941,14 @@ Object.assign(ROUTES, {
         };
         ligarTranscricao();
 
+        // Imagem recebida/enviada — abre num visualizador na própria janela
+        // (clique fora fecha e volta pra mensagem) em vez de nova aba, com
+        // botão de baixar. Religada junto de ligarAcoesMsg() logo abaixo,
+        // mesma razão: precisa rodar de novo depois de cada redesenho de #wam.
+        const ligarLightbox = () => {
+          $('#wam').querySelectorAll('.wa-anexo-img').forEach((img) => img.onclick = () => abrirImagemLightbox(img.src));
+        };
+
         // Editar/apagar mensagem enviada — mesma razão da função acima (precisa
         // religar depois de cada redesenho de #wam).
         const ligarAcoesMsg = () => {
@@ -967,6 +999,7 @@ Object.assign(ROUTES, {
           });
         };
         ligarAcoesMsg();
+        ligarLightbox();
 
         // Busca dentro da conversa aberta — filtra as mensagens já carregadas
         // em memória, sem ir ao servidor. Realça cada ocorrência e navega
@@ -984,7 +1017,7 @@ Object.assign(ROUTES, {
           if (buscaChatIdx >= total) buscaChatIdx = Math.max(0, total - 1);
           $('#wam').innerHTML = renderMsgs(msgs, buscaChatTermo, buscaChatTermo ? buscaChatIdx : -1);
           $('#wa-busca-chat-cont').textContent = total ? `${buscaChatIdx + 1}/${total}` : '0/0';
-          ligarTranscricao(); ligarAcoesMsg();
+          ligarTranscricao(); ligarAcoesMsg(); ligarLightbox();
           if (buscaChatTermo && total) {
             const alvo = $('#wam').querySelector('mark.cur');
             if (alvo) alvo.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -995,7 +1028,7 @@ Object.assign(ROUTES, {
           const abrindo = bar.style.display === 'none';
           bar.style.display = abrindo ? 'flex' : 'none';
           if (abrindo) { $('#wa-busca-chat-input').focus(); }
-          else { buscaChatTermo = ''; buscaChatIdx = 0; $('#wam').innerHTML = renderMsgs(msgs); ligarTranscricao(); ligarAcoesMsg(); }
+          else { buscaChatTermo = ''; buscaChatIdx = 0; $('#wam').innerHTML = renderMsgs(msgs); ligarTranscricao(); ligarAcoesMsg(); ligarLightbox(); }
         };
         $('#wa-busca-chat-fechar').onclick = () => { $('#wa-buscar-chat').click(); };
         $('#wa-busca-chat-input').oninput = (e) => { buscaChatTermo = e.target.value.trim(); buscaChatIdx = 0; redesenharBusca(); };
