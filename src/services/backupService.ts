@@ -63,6 +63,19 @@ async function gerarDumpCifrado(stamp: string): Promise<{ buffer: Buffer; filena
         user: env.DB_USER, password: env.DB_PASSWORD,
       },
       dumpToFile: tmpPath,
+      // format:false na seção de dados — BUG da lib "mysqldump": ela embrulha
+      // valores binários grandes (BLOB de PDF, mídia do WhatsApp) num marcador
+      // interno NOFORMAT_WRAP("##...##") e desembrulha via regex DEPOIS de
+      // formatar o SQL (deixar bonito/indentado); o formatador quebra linha
+      // no meio de blobs grandes, o regex (sem função multilinha) não casa
+      // mais, e o marcador cru vaza pro dump final — restauração falha com
+      // "FUNCTION ... NOFORMAT_WRAP does not exist" (achado rodando a prova
+      // mensal de restauração manualmente, 01/09/2026: todo backup com
+      // documento/mídia grande estava, na prática, irrestaurável). Sem
+      // formatação, o valor nunca é quebrado em várias linhas — bug nunca
+      // aparece. Dump fica menos legível a olho nu, mas ninguém lê 60MB de
+      // INSERT à mão; o que importa é restaurar.
+      dump: { data: { format: false } },
     });
 
     // LGPD: cifra o dump ANTES de sair daqui. O arquivo carrega CPF, laudos
