@@ -169,7 +169,14 @@ body.foco-total { height: 100%; }
    — era exatamente esse o "some no primeiro momento, depois volta"
    reportado. 100dvh acompanha a área visível real, sempre. */
 body.foco-total .content { margin-left: 0; padding: 0; display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
-body.foco-total .content > .page { padding: 0; max-width: none; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+/* margin:0 é essencial aqui, não só max-width/padding: em telas ultra-largas
+   (@media min-width:1750px, mais abaixo) ".content > .page" ganha
+   margin-left/right:auto pra centralizar a leitura. Sem resetar isso
+   também, o item (dentro de ".content", que é flex column) para de esticar
+   e passa a encolher pro tamanho do CONTEÚDO — cada conversa do WhatsApp
+   tem texto de tamanho diferente, então a caixa ficava com uma largura
+   diferente a cada conversa aberta (bug real, reportado com vídeo). */
+body.foco-total .content > .page { padding: 0; margin: 0; max-width: none; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 body.foco-total #wa-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 body.foco-total .wa-shell { flex: 1; min-height: 0; height: auto !important; }
 /* Fallback: páginas cujo módulo não cria seu próprio .foco-voltar dentro
