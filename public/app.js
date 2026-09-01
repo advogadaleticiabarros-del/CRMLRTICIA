@@ -1524,6 +1524,14 @@ const ROUTES = {
 
       <div class="card" style="padding:20px;margin-bottom:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div><h3 style="color:var(--navy);margin-bottom:2px">${svgIcon('chat','ic-title')}Conexão do WhatsApp</h3>
+            <p class="sub" style="margin:0">Escaneie o QR code pra conectar a instância — sem ela, a fila de envio usa o link wa.me (1 clique manual) em vez de mandar sozinha</p></div>
+        </div>
+        <div id="wa-conexao-status" style="margin-top:14px"><div class="spinner"></div></div>
+      </div>
+
+      <div class="card" style="padding:20px;margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div><h3 style="color:var(--navy);margin-bottom:2px">${svgIcon('shield','ic-title')}Proteção de dados (LGPD)</h3>
             <p class="sub" style="margin:0">Tokens do Google e backups cifrados · dados sem finalidade são expurgados</p></div>
           <button class="btn-sm" id="sec-reload">Atualizar</button>
@@ -1790,6 +1798,65 @@ const ROUTES = {
       $('#passkey-body').classList.add('hidden');
       $('#passkey-unsupported').classList.remove('hidden');
     }
+
+    // ── Conexão do WhatsApp — movida de dentro do módulo WhatsApp (era uma
+    // aba própria "Conexão") pra cá: pedido explícito de deixar a barra do
+    // WhatsApp só com Contatos + Conversas (uso do dia a dia), e conexão é
+    // configuração de conta, não atendimento. ──
+    let waConexaoTimer = null;
+    const renderWaConexao = (s) => {
+      const box = $('#wa-conexao-status'); if (!box) return;
+      box.innerHTML = `
+        ${s.connected ? `
+          <div style="display:flex;align-items:center;gap:10px"><span class="badge pago">conectado</span><strong style="color:var(--navy-deep)">${esc(s.me || '')}</strong></div>
+          <p class="sub" style="margin-top:10px">A fila é enviada automaticamente com pausa de segurança (1 mensagem a cada 1–2 min, máx. 30/dia). Hoje: <strong>${s.sentToday || 0}/30</strong>.</p>
+          <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+            <button class="btn-sm" id="wac-auto">${s.autoSend ? 'Pausar envio automático' : 'Ligar envio automático'}</button>
+            <button class="btn-ghost btn-sm" id="wac-off" style="color:var(--red)">Desconectar (apaga a sessão)</button>
+          </div>`
+        : s.qr ? `
+          <strong style="color:var(--navy-deep)">Escaneie para conectar</strong>
+          <p class="sub" style="margin:8px 0 14px">No celular: WhatsApp → Configurações → <strong>Aparelhos conectados</strong> → Conectar aparelho. Vale para qualquer número (principal ou chip dedicado).</p>
+          <div style="text-align:center"><img src="${s.qr}" alt="QR Code" style="width:220px;max-width:100%;border:1px solid var(--border);border-radius:8px"></div>
+          <p class="sub" style="margin-top:10px;text-align:center">O código renova sozinho — aguarde nesta tela após escanear.</p>`
+        : `
+          <strong style="color:var(--navy-deep)">Instância desconectada</strong>
+          <p class="sub" style="margin:8px 0 14px">Conecte seu WhatsApp por QR code para: enviar a fila automaticamente, receber e responder conversas aqui no CRM. <strong>Atenção:</strong> conexão não-oficial (protocolo do WhatsApp Web) — use com moderação; um chip dedicado é o mais seguro.</p>
+          <button class="btn-gold" id="wac-on">${s.connecting ? 'Gerando QR…' : 'Conectar (gerar QR code)'}</button>
+          ${s.lastError ? `<p class="sub" style="color:var(--red);margin-top:8px">${esc(s.lastError)}</p>` : ''}`}`;
+      const on = box.querySelector('#wac-on');
+      if (on) on.onclick = async () => { on.disabled = true; on.textContent = 'Gerando QR…'; await api('/api/whatsapp-instance/connect', { method: 'POST', body: '{}' }).catch(() => {}); };
+      const off = box.querySelector('#wac-off');
+      if (off) off.onclick = async () => {
+        if (!(await uiConfirm('Desconectar a instância? Será preciso escanear o QR de novo.'))) return;
+        await api('/api/whatsapp-instance/disconnect', { method: 'POST', body: '{}' }).catch(() => {});
+      };
+      const auto = box.querySelector('#wac-auto');
+      if (auto) auto.onclick = async () => { await api('/api/whatsapp-instance/auto', { method: 'POST', body: JSON.stringify({ on: !s.autoSend }) }).catch(() => {}); };
+    };
+    const loadWaConexao = async () => {
+      const s = await api('/api/whatsapp-instance/status').catch(() => ({ connected: false }));
+      renderWaConexao(s);
+      let lastShape = s.connected ? 'connected' : s.qr ? 'qr' : 'off';
+      if (waConexaoTimer) clearInterval(waConexaoTimer);
+      // Para sozinho quando ela sai de Configurações — sem isso, o polling
+      // ficaria rodando pra sempre em segundo plano (o container some do
+      // DOM ao navegar, mas o setInterval não sabe disso sozinho).
+      waConexaoTimer = setInterval(async () => {
+        if (!document.body.contains($('#wa-conexao-status'))) { clearInterval(waConexaoTimer); waConexaoTimer = null; return; }
+        const s2 = await api('/api/whatsapp-instance/status').catch(() => null);
+        if (!s2) return;
+        const shape = s2.connected ? 'connected' : s2.qr ? 'qr' : 'off';
+        if (shape === 'qr' && lastShape === 'qr') {
+          const img = $('#wa-conexao-status img[alt="QR Code"]');
+          if (img && s2.qr && img.src !== s2.qr) img.src = s2.qr;
+        } else {
+          renderWaConexao(s2);
+        }
+        lastShape = shape;
+      }, 3000);
+    };
+    loadWaConexao();
 
     // ── Proteção de dados (LGPD): prova verificável, sem precisar de DevTools ──
     const loadSeguranca = async () => {

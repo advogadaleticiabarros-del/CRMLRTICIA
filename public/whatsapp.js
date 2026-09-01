@@ -109,55 +109,115 @@ function abrirAgendaForm(prefill, onSave) {
   openModal(editing ? 'Editar contato' : 'Novo contato na agenda', form);
 }
 
-// Auditoria de mensagens apagadas — quem, quando, o texto original e o motivo.
+// Auditoria — 2 seções: mensagens apagadas (quem/quando/texto/motivo) e a
+// fila de envio (antes uma aba própria "Fila" no topo do módulo — reunida
+// aqui porque as duas são "conferência do que aconteceu/vai acontecer",
+// não atendimento do dia a dia; ver pedido explícito de simplificar a
+// barra do WhatsApp pra só Contatos + Conversas).
+const AUD_CTX = { cobranca: ['Cobrança', 'var(--amber)'], audiencia: ['Audiência', 'var(--red)'], protocolo: ['Protocolo', 'var(--green)'], avulsa: ['Avulsa', 'var(--text-muted)'] };
 async function abrirAuditoriaModal() {
-  const body = el('<div><div class="spinner"></div></div>');
-  openModal('Auditoria — mensagens apagadas', body, { wide: true });
-  const rows = await api('/api/whatsapp-instance/messages/deletions').catch(() => []);
-  body.innerHTML = rows.length ? `
-    <table><thead><tr><th>Quando</th><th>Telefone</th><th>Quem apagou</th><th>Texto original</th><th>Motivo</th></tr></thead>
-    <tbody>${rows.map((r) => `<tr>
-      <td style="white-space:nowrap">${fmtDateTime(r.deleted_at)}</td>
-      <td>+${esc(r.phone)}</td>
-      <td>${esc(r.deleted_by_name || '—')}</td>
-      <td>${esc(r.body_original || '—')}</td>
-      <td>${esc(r.reason)}</td>
-    </tr>`).join('')}</tbody></table>`
-    : '<div class="empty">Nenhuma mensagem apagada ainda.</div>';
-}
-
-// Pré-visualização de um contato a partir do Kanban — mostra avatar, nome e
-// as últimas mensagens juntos, sem sair da tela de etapas. "Abrir conversa
-// completa" leva pra aba Conversas de fato, quando ela quiser responder.
-async function abrirPreviaContato(phone, nome, onAbrirConversa) {
+  let secao = 'apagadas';
   const body = el(`<div>
-    <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
-      <div class="wc-ava" style="width:48px;height:48px;font-size:16px;background:${waCor(nome)}">${waIniciais(nome)}</div>
-      <div><strong style="font-size:15px;color:var(--navy-deep)">${esc(nome)}</strong><br><small style="color:var(--text-muted)">+${esc(phone)}</small></div>
+    <div class="tabs" id="aud-tabs" style="margin-bottom:14px">
+      <button type="button" class="tab active" data-sec="apagadas">Mensagens apagadas</button>
+      <button type="button" class="tab" data-sec="fila">Fila de envio</button>
     </div>
-    <div id="wcp-msgs" style="max-height:360px;overflow-y:auto;border:1px solid var(--border-soft);border-radius:8px;padding:10px;background:var(--surface-2)"><div class="spinner"></div></div>
-    <button class="btn-gold" id="wcp-abrir" style="width:100%;margin-top:14px">${svgIcon('chat')} Abrir conversa completa</button>
+    <div id="aud-body"><div class="spinner"></div></div>
   </div>`);
-  openModal('Pré-visualização', body);
-  body.querySelector('#wcp-abrir').onclick = () => { closeModal(); onAbrirConversa(); };
+  openModal('Auditoria', body, { wide: true });
 
-  const msgs = await api('/api/whatsapp-instance/chats/' + phone).catch(() => []);
-  const ultimas = msgs.slice(-8);
-  const box = body.querySelector('#wcp-msgs');
-  box.innerHTML = ultimas.length ? ultimas.map((m) => `
-    <div style="display:flex;${Number(m.from_me) ? 'justify-content:flex-end' : ''};margin-bottom:6px">
-      <div style="max-width:80%;padding:6px 10px;border-radius:8px;font-size:12.5px;line-height:1.4;background:${Number(m.from_me) ? '#d9fdd3' : '#fff'};border:1px solid var(--border-soft)">
-        ${esc(String(m.body || '').slice(0, 200))}
+  const renderApagadas = async () => {
+    const box = $('#aud-body');
+    box.innerHTML = '<div class="spinner"></div>';
+    const rows = await api('/api/whatsapp-instance/messages/deletions').catch(() => []);
+    box.innerHTML = rows.length ? `
+      <table><thead><tr><th>Quando</th><th>Telefone</th><th>Quem apagou</th><th>Texto original</th><th>Motivo</th></tr></thead>
+      <tbody>${rows.map((r) => `<tr>
+        <td style="white-space:nowrap">${fmtDateTime(r.deleted_at)}</td>
+        <td>+${esc(r.phone)}</td>
+        <td>${esc(r.deleted_by_name || '—')}</td>
+        <td>${esc(r.body_original || '—')}</td>
+        <td>${esc(r.reason)}</td>
+      </tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhuma mensagem apagada ainda.</div>';
+  };
+
+  const renderFila = async () => {
+    const box = $('#aud-body');
+    box.innerHTML = '<div class="spinner"></div>';
+    const [d, st] = await Promise.all([
+      api('/api/whatsapp-queue'),
+      api('/api/whatsapp-instance/status').catch(() => ({ connected: false })),
+    ]);
+    box.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:8px;flex-wrap:wrap">
+        <div class="kpi-grid" style="margin:0"><div class="kpi"><div class="label">Aguardando envio</div><div class="value ${d.pendentes.length ? 'money' : ''}">${d.pendentes.length}</div></div></div>
+        <button class="btn-gold btn-sm" id="aud-gerar">Gerar agora</button>
       </div>
-    </div>`).join('') : '<div class="empty">Sem mensagens</div>';
-  box.scrollTop = box.scrollHeight;
+      <div id="aud-fila-list"></div>
+      ${d.enviadas.length ? `<div class="card" style="margin-top:16px"><div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Enviadas recentemente</strong></div>
+        ${d.enviadas.map((e) => `<div class="mini-row" style="padding:8px 16px"><span>${esc(e.recipient_name)} <span class="badge">${(AUD_CTX[e.context] || AUD_CTX.avulsa)[0]}</span></span><small style="color:var(--text-muted)">${fmtDateTime(e.sent_at)}</small></div>`).join('')}</div>` : ''}`;
+
+    box.querySelector('#aud-gerar').onclick = async () => {
+      try { const r = await api('/api/whatsapp-queue/gerar', { method: 'POST', body: '{}' }); toast(r.created ? `${r.created} mensagem(ns) preparadas` : 'Nada novo para preparar'); renderFila(); }
+      catch (e) { toast(e.message, 'error'); }
+    };
+
+    $('#aud-fila-list').innerHTML = d.pendentes.length ? d.pendentes.map((m) => {
+      const [ctxLabel, ctxColor] = AUD_CTX[m.context] || AUD_CTX.avulsa;
+      return `<div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:3px solid ${ctxColor}">
+        <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
+          <span><strong style="color:var(--navy-deep)">${esc(m.recipient_name)}</strong> <small style="color:var(--text-muted)">· ${esc(m.phone)}</small></span>
+          <span class="badge" style="color:${ctxColor}">${ctxLabel}</span>
+        </div>
+        <textarea data-msg="${m.id}" style="width:100%;margin-top:10px;min-height:74px;font-size:13.5px;line-height:1.5">${esc(m.message)}</textarea>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+          <button class="btn-gold btn-sm" data-send="${m.id}" data-phone="${esc(m.phone)}">${svgIcon('chat', 'ic-xs')} Enviar no WhatsApp</button>
+          <button class="btn-sm" data-done="${m.id}">Já enviei ✓</button>
+          <button class="btn-ghost btn-sm" data-skip="${m.id}">Descartar</button>
+        </div>
+      </div>`;
+    }).join('') : '<div class="empty">Nenhuma mensagem aguardando. O sistema prepara cobranças e lembretes de audiência todo dia às 07h15 — ou clique em "Gerar agora".</div>';
+
+    box.querySelectorAll('[data-send]').forEach((b) => b.onclick = async () => {
+      const texto = box.querySelector(`[data-msg="${b.dataset.send}"]`).value;
+      try {
+        if (st && st.connected) {
+          await api(`/api/whatsapp-instance/chats/${b.dataset.phone}/send`, { method: 'POST', body: JSON.stringify({ text: texto }) });
+          await api(`/api/whatsapp-queue/${b.dataset.send}/enviada`, { method: 'POST', body: '{}' });
+          toast('Enviada pela instância ✓');
+        } else {
+          window.open(`https://wa.me/${b.dataset.phone}?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
+          await api(`/api/whatsapp-queue/${b.dataset.send}/enviada`, { method: 'POST', body: '{}' });
+        }
+        renderFila();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+    box.querySelectorAll('[data-done]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/whatsapp-queue/${b.dataset.done}/enviada`, { method: 'POST', body: '{}' }); toast('Marcada como enviada'); renderFila(); } catch (e) { toast(e.message, 'error'); }
+    });
+    box.querySelectorAll('[data-skip]').forEach((b) => b.onclick = async () => {
+      try { await api(`/api/whatsapp-queue/${b.dataset.skip}/descartar`, { method: 'POST', body: '{}' }); renderFila(); } catch (e) { toast(e.message, 'error'); }
+    });
+  };
+
+  body.querySelectorAll('[data-sec]').forEach((btn) => btn.onclick = () => {
+    if (secao === btn.dataset.sec) return;
+    secao = btn.dataset.sec;
+    body.querySelectorAll('[data-sec]').forEach((b) => b.classList.toggle('active', b.dataset.sec === secao));
+    secao === 'apagadas' ? renderApagadas() : renderFila();
+  });
+
+  await renderApagadas();
 }
 
 Object.assign(ROUTES, {
-  // ── WhatsApp — módulo completo: fila, conversas (instância) e conexão QR ──
+  // ── WhatsApp — módulo completo: conversas (instância) e contatos (Kanban).
+  // Fila de envio e Conexão viraram Auditoria → "Fila de envio" e
+  // Configurações → "Conexão do WhatsApp", respectivamente — pedido
+  // explícito pra deixar só o essencial do dia a dia aqui na frente.
   async whatsapp(page) {
-    const CTX = { cobranca: ['Cobrança', 'var(--amber)'], audiencia: ['Audiência', 'var(--red)'], protocolo: ['Protocolo', 'var(--green)'], avulsa: ['Avulsa', 'var(--text-muted)'] };
-    let tab = 'fila';
+    let tab = 'contatos';
     let chatTimer = null;
     let abrirFonePendente = null; // { phone, texto? } a abrir ao entrar em Conversas (clique num card do quadro, ou vindo de outra tela)
 
@@ -178,13 +238,11 @@ Object.assign(ROUTES, {
       const st = await api('/api/whatsapp-instance/status').catch(() => ({ connected: false }));
       const focoTotal = document.body.classList.contains('foco-total');
       page.innerHTML = `
-        <div class="page-header">${focoTotal ? '<a href="' + esc(location.pathname) + '" class="foco-voltar">← Voltar ao CRM</a>' : ''}<div><h2>WhatsApp</h2><span class="wa-status-dot ${st.connected ? 'on' : ''}" title="${st.connected ? `Instância conectada (${esc(st.me || '')}) — envio automático ${st.autoSend ? 'LIGADO' : 'desligado'} · ${st.sentToday || 0}/30 hoje` : 'Instância desconectada — a fila usa o wa.me (1 clique) até você conectar'}"></span></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">${focoTotal ? '' : `<button class="btn-ghost" id="wa-tela-cheia" title="Abre numa aba separada, sem menu lateral">${svgIcon('expand')}Tela cheia</button>`}<button class="btn-ghost" id="wa-gerar">Gerar agora</button><button class="btn-gold" id="wa-nova">+ Nova mensagem</button></div></div>
+        <div class="page-header">${focoTotal ? '<a href="' + esc(location.pathname) + '" class="foco-voltar">← Voltar ao CRM</a>' : ''}<div><h2>WhatsApp</h2><span class="wa-status-dot ${st.connected ? 'on' : ''}" title="${st.connected ? `Instância conectada (${esc(st.me || '')}) — envio automático ${st.autoSend ? 'LIGADO' : 'desligado'} · ${st.sentToday || 0}/30 hoje` : 'Instância desconectada — conecte em Configurações'}"></span></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">${focoTotal ? '' : `<button class="btn-ghost" id="wa-tela-cheia" title="Abre numa aba separada, sem menu lateral">${svgIcon('expand')}Tela cheia</button>`}<button class="btn-gold" id="wa-nova">+ Nova mensagem</button></div></div>
         <div class="tabs" style="margin-bottom:14px">
-          <button class="tab ${tab === 'fila' ? 'active' : ''}" data-wtab="fila">Fila</button>
-          <button class="tab ${tab === 'conversas' ? 'active' : ''}" data-wtab="conversas">Conversas</button>
           <button class="tab ${tab === 'contatos' ? 'active' : ''}" data-wtab="contatos">Contatos</button>
-          <button class="tab ${tab === 'conexao' ? 'active' : ''}" data-wtab="conexao">Conexão</button>
+          <button class="tab ${tab === 'conversas' ? 'active' : ''}" data-wtab="conversas">Conversas</button>
         </div>
         <div id="wa-body"><div class="spinner"></div></div>`;
       // Modo tela-cheia: cabeçalho denso em 1 linha só — o link "← Voltar
@@ -206,10 +264,6 @@ Object.assign(ROUTES, {
       page.querySelectorAll('[data-wtab]').forEach((b) => b.onclick = () => { tab = b.dataset.wtab; shell(); });
       const telaCheiaBtn = $('#wa-tela-cheia');
       if (telaCheiaBtn) telaCheiaBtn.onclick = () => window.open(location.pathname + '?foco=1#whatsapp', '_blank', 'noopener');
-      $('#wa-gerar').onclick = async () => {
-        try { const r = await api('/api/whatsapp-queue/gerar', { method: 'POST', body: '{}' }); toast(r.created ? `${r.created} mensagem(ns) preparadas` : 'Nada novo para preparar'); shell(); }
-        catch (e) { toast(e.message, 'error'); }
-      };
       $('#wa-nova').onclick = async () => {
         const clients = await api('/api/clients?limit=100').catch(() => ({ data: [] }));
         const form = el(`<form class="form-grid">
@@ -234,67 +288,9 @@ Object.assign(ROUTES, {
         };
         openModal('Nova mensagem de WhatsApp', form);
       };
-      if (tab === 'fila') await tabFila(st);
-      else if (tab === 'conversas') await tabConversas();
-      else if (tab === 'contatos') await tabContatos();
-      else await tabConexao(st);
+      if (tab === 'conversas') await tabConversas();
+      else await tabContatos();
     };
-
-    // ── Aba CONEXÃO: QR code / status / auto-envio ──
-    const tabConexao = async (st) => {
-      const body = $('#wa-body');
-      const render = (s) => {
-        body.innerHTML = `<div class="card" style="padding:22px;max-width:560px">
-          ${s.connected ? `
-            <div style="display:flex;align-items:center;gap:10px"><span class="badge pago">conectado</span><strong style="color:var(--navy-deep)">${esc(s.me || '')}</strong></div>
-            <p class="sub" style="margin-top:10px">A fila é enviada automaticamente com pausa de segurança (1 mensagem a cada 1–2 min, máx. 30/dia). Hoje: <strong>${s.sentToday || 0}/30</strong>.</p>
-            <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-              <button class="btn-sm" id="wac-auto">${s.autoSend ? 'Pausar envio automático' : 'Ligar envio automático'}</button>
-              <button class="btn-ghost btn-sm" id="wac-off" style="color:var(--red)">Desconectar (apaga a sessão)</button>
-            </div>`
-          : s.qr ? `
-            <strong style="color:var(--navy-deep)">Escaneie para conectar</strong>
-            <p class="sub" style="margin:8px 0 14px">No celular: WhatsApp → Configurações → <strong>Aparelhos conectados</strong> → Conectar aparelho. Vale para qualquer número (principal ou chip dedicado).</p>
-            <div style="text-align:center"><img src="${s.qr}" alt="QR Code" style="width:260px;max-width:100%;border:1px solid var(--border);border-radius:8px"></div>
-            <p class="sub" style="margin-top:10px;text-align:center">O código renova sozinho — aguarde nesta tela após escanear.</p>`
-          : `
-            <strong style="color:var(--navy-deep)">Instância desconectada</strong>
-            <p class="sub" style="margin:8px 0 14px">Conecte seu WhatsApp por QR code para: enviar a fila automaticamente, receber e responder conversas aqui no CRM. <strong>Atenção:</strong> conexão não-oficial (protocolo do WhatsApp Web) — use com moderação; um chip dedicado é o mais seguro.</p>
-            <button class="btn-gold" id="wac-on">${s.connecting ? 'Gerando QR…' : 'Conectar (gerar QR code)'}</button>
-            ${s.lastError ? `<p class="sub" style="color:var(--red);margin-top:8px">${esc(s.lastError)}</p>` : ''}`}
-        </div>`;
-        const on = body.querySelector('#wac-on');
-        if (on) on.onclick = async () => { on.disabled = true; on.textContent = 'Gerando QR…'; await api('/api/whatsapp-instance/connect', { method: 'POST', body: '{}' }).catch(() => {}); };
-        const off = body.querySelector('#wac-off');
-        if (off) off.onclick = async () => {
-          if (!(await uiConfirm('Desconectar a instância? Será preciso escanear o QR de novo.'))) return;
-          await api('/api/whatsapp-instance/disconnect', { method: 'POST', body: '{}' }).catch(() => {});
-        };
-        const auto = body.querySelector('#wac-auto');
-        if (auto) auto.onclick = async () => { await api('/api/whatsapp-instance/auto', { method: 'POST', body: JSON.stringify({ on: !s.autoSend }) }).catch(() => {}); };
-      };
-      render(st);
-      // Atualiza status/QR a cada 3s enquanto estiver nesta aba. Só refaz a
-      // tela inteira quando o "formato" muda (conectou, desconectou, QR
-      // apareceu pela 1ª vez) — se já está mostrando QR e o novo status
-      // também é QR, só troca a imagem no lugar. Sem isso, a tela inteira
-      // piscava a cada 3s (recriava tudo, mesmo o QR sendo o mesmo).
-      let lastShape = st.connected ? 'connected' : st.qr ? 'qr' : 'off';
-      chatTimer = setInterval(async () => {
-        if (tab !== 'conexao') { clearInterval(chatTimer); chatTimer = null; return; }
-        const s = await api('/api/whatsapp-instance/status').catch(() => null);
-        if (!s) return;
-        const shape = s.connected ? 'connected' : s.qr ? 'qr' : 'off';
-        if (shape === 'qr' && lastShape === 'qr') {
-          const img = body.querySelector('img[alt="QR Code"]');
-          if (img && s.qr && img.src !== s.qr) img.src = s.qr;
-        } else {
-          render(s);
-        }
-        lastShape = shape;
-      }, 3000);
-    };
-
     // ── Aba CONVERSAS: experiência estilo WhatsApp Web dentro do CRM ──
     const tabConversas = async () => {
       const body = $('#wa-body');
@@ -1603,9 +1599,10 @@ Object.assign(ROUTES, {
           card.addEventListener('dragend', () => { card.style.opacity = ''; });
           card.onclick = (e) => {
             if (e.target.closest('.kf-move')) return;
-            abrirPreviaContato(card.dataset.phone, card.dataset.nome, () => {
-              abrirFonePendente = { phone: card.dataset.phone }; tab = 'conversas'; shell();
-            });
+            // Ia pra uma prévia (modal pequeno) e só depois — com mais um
+            // clique — abria a conversa de fato. Pedido explícito: clicar no
+            // card já deve abrir a janela completa direto, sem passo do meio.
+            abrirFonePendente = { phone: card.dataset.phone }; tab = 'conversas'; shell();
           };
         });
         // Mover pelo menu (mais confiável que arrastar — funciona em qualquer navegador/trackpad).
@@ -1637,55 +1634,6 @@ Object.assign(ROUTES, {
 
       await load();
     };
-
-    // ── Aba FILA (comportamento original + envio direto quando conectado) ──
-    const tabFila = async (st) => {
-      const d = await api('/api/whatsapp-queue');
-      const body = $('#wa-body');
-      body.innerHTML = `
-        <div class="kpi-grid">${kpi('Aguardando envio', d.pendentes.length, d.pendentes.length ? 'money' : '')}</div>
-        <div id="wa-list"></div>
-        ${d.enviadas.length ? `<div class="card" style="margin-top:16px"><div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Enviadas recentemente</strong></div>
-          ${d.enviadas.map((e) => `<div class="mini-row" style="padding:8px 16px"><span>${esc(e.recipient_name)} <span class="badge">${(CTX[e.context] || CTX.avulsa)[0]}</span></span><small style="color:var(--text-muted)">${fmtDateTime(e.sent_at)}</small></div>`).join('')}</div>` : ''}`;
-      $('#wa-list').innerHTML = d.pendentes.length ? d.pendentes.map((m) => {
-        const [ctxLabel, ctxColor] = CTX[m.context] || CTX.avulsa;
-        return `<div class="card" style="padding:16px 18px;margin-bottom:12px;border-left:3px solid ${ctxColor}">
-          <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">
-            <span><strong style="color:var(--navy-deep)">${esc(m.recipient_name)}</strong> <small style="color:var(--text-muted)">· ${esc(m.phone)}</small></span>
-            <span class="badge" style="color:${ctxColor}">${ctxLabel}</span>
-          </div>
-          <textarea data-msg="${m.id}" style="width:100%;margin-top:10px;min-height:74px;font-size:13.5px;line-height:1.5">${esc(m.message)}</textarea>
-          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
-            <button class="btn-gold btn-sm" data-send="${m.id}" data-phone="${esc(m.phone)}">${svgIcon('chat', 'ic-xs')} Enviar no WhatsApp</button>
-            <button class="btn-sm" data-done="${m.id}">Já enviei ✓</button>
-            <button class="btn-ghost btn-sm" data-skip="${m.id}">Descartar</button>
-          </div>
-        </div>`;
-      }).join('') : '<div class="empty">Nenhuma mensagem aguardando. O sistema prepara cobranças e lembretes de audiência todo dia às 07h15 — ou clique em "Gerar agora".</div>';
-
-      // Envia: pela INSTÂNCIA se conectada; senão abre o wa.me (1 clique)
-      body.querySelectorAll('[data-send]').forEach((b) => b.onclick = async () => {
-        const texto = body.querySelector(`[data-msg="${b.dataset.send}"]`).value;
-        try {
-          if (st && st.connected) {
-            await api(`/api/whatsapp-instance/chats/${b.dataset.phone}/send`, { method: 'POST', body: JSON.stringify({ text: texto }) });
-            await api(`/api/whatsapp-queue/${b.dataset.send}/enviada`, { method: 'POST', body: '{}' });
-            toast('Enviada pela instância ✓');
-          } else {
-            window.open(`https://wa.me/${b.dataset.phone}?text=${encodeURIComponent(texto)}`, '_blank', 'noopener');
-            await api(`/api/whatsapp-queue/${b.dataset.send}/enviada`, { method: 'POST', body: '{}' });
-          }
-          shell();
-        } catch (e) { toast(e.message, 'error'); }
-      });
-      body.querySelectorAll('[data-done]').forEach((b) => b.onclick = async () => {
-        try { await api(`/api/whatsapp-queue/${b.dataset.done}/enviada`, { method: 'POST', body: '{}' }); toast('Marcada como enviada'); shell(); } catch (e) { toast(e.message, 'error'); }
-      });
-      body.querySelectorAll('[data-skip]').forEach((b) => b.onclick = async () => {
-        try { await api(`/api/whatsapp-queue/${b.dataset.skip}/descartar`, { method: 'POST', body: '{}' }); shell(); } catch (e) { toast(e.message, 'error'); }
-      });
-    };
-
     await shell();
   },
 });
