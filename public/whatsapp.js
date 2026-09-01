@@ -1499,6 +1499,7 @@ Object.assign(ROUTES, {
 
     // ── Aba CONTATOS: quadro Kanban de organização (etapas editáveis) ──
     const tabContatos = async () => {
+      const corEtiquetaKanban = (s) => WA_CORES[[...String(s)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % WA_CORES.length];
       const body = $('#wa-body');
       body.innerHTML = `
         <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
@@ -1557,6 +1558,7 @@ Object.assign(ROUTES, {
                     <span class="wc-time">${c.last_time ? waFmtDia(c.last_time) : ''}</span>
                   </div>
                   <div class="wc-prev">${Number(c.last_from_me) ? '✓ ' : ''}${esc(String(c.last_body || '').slice(0, 60))}</div>
+                  ${(c.labels || []).length ? `<div class="wa-tags">${c.labels.map((t) => `<span class="wa-tag" style="background:${corEtiquetaKanban(t)}">${esc(t)}</span>`).join('')}</div>` : ''}
                   <select class="kf-move" draggable="false" data-phone="${esc(c.phone)}" data-from="${s.id}" title="Mover para outra etapa">
                     ${stages.map((s2) => `<option value="${s2.id}" ${s2.id === s.id ? 'selected' : ''}>${esc(s2.name)}</option>`).join('')}
                   </select>

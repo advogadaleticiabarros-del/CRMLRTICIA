@@ -555,7 +555,7 @@ router.get('/board', async (_req: Request, res: Response) => {
   const [rows] = await db.query(`
     SELECT w.phone, MAX(w.client_id) AS client_id, MAX(cl.name) AS client_name,
            MAX(m.stage_id) AS stage_id, MAX(w.msg_time) AS last_time, MAX(m.push_name) AS push_name,
-           MAX(m.unread) AS unread,
+           MAX(m.unread) AS unread, MAX(m.labels) AS labels,
            SUBSTRING_INDEX(GROUP_CONCAT(w.body ORDER BY w.msg_time DESC, w.id DESC SEPARATOR '\\n§§'), '\\n§§', 1) AS last_body,
            SUBSTRING_INDEX(GROUP_CONCAT(w.from_me ORDER BY w.msg_time DESC, w.id DESC), ',', 1) AS last_from_me
       FROM whatsapp_messages w
@@ -569,9 +569,11 @@ router.get('/board', async (_req: Request, res: Response) => {
   for (const r of rows) {
     const sid = r.stage_id ?? primeiraEtapa;
     if (sid == null || !board[sid]) continue;
+    let labels: string[] = [];
+    try { labels = JSON.parse(r.labels || '[]'); } catch { /* mantém vazio */ }
     board[sid].push({
       phone: r.phone, name: r.client_name || r.push_name || ('+' + r.phone), client_id: r.client_id,
-      last_time: r.last_time, last_body: r.last_body, last_from_me: r.last_from_me, unread: r.unread,
+      last_time: r.last_time, last_body: r.last_body, last_from_me: r.last_from_me, unread: r.unread, labels,
     });
   }
   res.json({ stages, board });
