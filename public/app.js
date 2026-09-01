@@ -5569,6 +5569,10 @@ async function finExtratoConsolidado(c) {
       </div>
       <div id="ext-table"></div>
     </div>
+    <div class="card" style="margin-bottom:20px;overflow-x:auto">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Total por pessoa/empresa</strong> <small style="color:var(--text-muted)">"quanto gastei com X" — sem misturar categorias diferentes</small></div>
+      <div id="ext-contrapartes"></div>
+    </div>
     <div class="card" style="margin-bottom:20px;overflow-x:auto"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Saída por categoria</strong></div><div id="ext-hbars" style="padding:14px 18px"></div></div>
     <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Entradas x Saídas — últimos meses</strong></div><div id="ext-cols" style="padding:14px 18px"></div></div>`;
 
@@ -5651,6 +5655,15 @@ async function finExtratoConsolidado(c) {
         <td style="text-align:right;color:${r.type === 'entrada' ? 'var(--green)' : 'var(--red)'}"><strong>${r.type === 'entrada' ? '+' : '−'}${money(r.amount)}</strong></td>
       </tr>`).join('')}</tbody></table>`
       : '<div class="empty">Nenhum lançamento nesse período/filtro</div>';
+
+    $('#ext-contrapartes').innerHTML = summary.por_contraparte.length ? `
+      <table><thead><tr><th>Pessoa/empresa</th><th>Lançamentos</th><th style="text-align:right">Total</th></tr></thead>
+      <tbody>${summary.por_contraparte.map((c) => `<tr>
+        <td><strong>${esc(c.counterparty)}</strong></td>
+        <td>${c.n}${c.n > 1 ? '×' : ''}</td>
+        <td style="text-align:right;color:${c.type === 'entrada' ? 'var(--green)' : 'var(--red)'}"><strong>${c.type === 'entrada' ? '+' : '−'}${money(c.total)}</strong></td>
+      </tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Sem dados no período</div>';
 
     const saidaCats = summary.por_categoria.filter((c) => c.type === 'saida').map((c) => ({ label: c.label, value: c.total }));
     $('#ext-hbars').innerHTML = chartHBars(saidaCats, { fmt: money, color: 'var(--red)' });

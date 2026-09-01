@@ -316,6 +316,10 @@ export async function getConsolidatedSummary(month: string, filters: SummaryFilt
   const round2 = (n: number) => Math.round(n * 100) / 100;
   let entradasReais = 0, saidasReais = 0, rdbAportes = 0, rdbResgates = 0;
   const porCategoria = new Map<string, { category: string; label: string; type: string; total: number }>();
+  // Categoria é um grupo largo (ex.: "Pessoal" junta Tecgold, PIX, débito
+  // em bar...) — por contraparte é o "quanto gastei com X" que ela pediu,
+  // sem misturar nomes/empresas diferentes debaixo da mesma categoria.
+  const porContraparte = new Map<string, { counterparty: string; type: string; total: number; n: number }>();
 
   for (const r of rows) {
     const total = Number(r.total) || 0;
@@ -328,6 +332,13 @@ export async function getConsolidatedSummary(month: string, filters: SummaryFilt
     const cur = porCategoria.get(key) || { category: r.category, label: CATEGORY_PT[r.category] || r.category, type: r.type, total: 0 };
     cur.total += total;
     porCategoria.set(key, cur);
+
+    if (r.counterparty) {
+      const cpKey = `${r.type}|${r.counterparty}`;
+      const cp = porContraparte.get(cpKey) || { counterparty: r.counterparty, type: r.type, total: 0, n: 0 };
+      cp.total += total; cp.n += Number(r.n) || 1;
+      porContraparte.set(cpKey, cp);
+    }
   }
 
   const [pendCount] = await db.query(
@@ -348,6 +359,7 @@ export async function getConsolidatedSummary(month: string, filters: SummaryFilt
       reserva_rdb: { aportes: round2(rdbAportes), resgates: round2(rdbResgates), saldo: round2(rdbAportes - rdbResgates) },
     },
     por_categoria: [...porCategoria.values()].map((c) => ({ ...c, total: round2(c.total) })).sort((a, b) => b.total - a.total),
+    por_contraparte: [...porContraparte.values()].map((c) => ({ ...c, total: round2(c.total) })).sort((a, b) => b.total - a.total),
     pendentes: pendCount[0]?.n || 0,
   };
 }
