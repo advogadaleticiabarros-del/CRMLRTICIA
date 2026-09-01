@@ -1501,10 +1501,11 @@ const ROUTES = {
         <button class="tab" data-tab="acordos">Acordos</button>
         <button class="tab" data-tab="inadimplencia">Inadimplência</button>
         <button class="tab" data-tab="fluxo">Fluxo de Caixa</button>
+        <button class="tab" data-tab="extrato">Extrato Consolidado</button>
         <button class="tab" data-tab="auditoria">Auditoria</button>
       </div>
       <div id="fin-content"></div>`;
-    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, pagar: finContasPagar, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa, auditoria: finAuditoria };
+    const tabs = { geral: finVisaoGeral, acordos: finAcordos, receitas: finReceitas, pagar: finContasPagar, repasses: finRepasses, inadimplencia: finInadimplencia, fluxo: finFluxoCaixa, extrato: finExtratoConsolidado, auditoria: finAuditoria };
     const show = async (name) => {
       document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#fin-content'); c.innerHTML = '<div class="spinner"></div>';
@@ -5519,6 +5520,130 @@ async function finFluxoCaixa(c) {
   };
   $('#cf-months').onchange = load;
   $('#cf-new').onclick = () => cashflowForm(load);
+  await load();
+}
+
+// ── Extrato Consolidado — upload mensal do CSV do banco, categorização
+// automática por regras aprendidas + fila de revisão para o que for novo/
+// ambíguo (ver migrations/126_bank_statement_import.sql). Reaproveita os
+// mesmos gráficos (chartHBars/chartColumns) e categorias do Fluxo de Caixa.
+const EXT_CATS_ENTRADA = [
+  ['honorario_inicial', 'Honorários iniciais'], ['honorario_total', 'Honorários (totais)'],
+  ['exito', 'Êxito / decisão'], ['acordo', 'Acordos'], ['dativo', 'Dativo (Estado)'],
+  ['correspondente', 'Correspondente jurídico'], ['salario_conjuge', 'Salário cônjuge / familiar'],
+  ['contribuicao_familiar', 'Contribuição familiar'], ['salario_proprio', 'Salário próprio'],
+  ['freelance', 'Freelance / bico'], ['aluguel_recebido', 'Aluguel recebido'],
+  ['investimento', 'Rendimento / investimento'], ['outro_entrada', 'Outras entradas'],
+];
+async function finExtratoConsolidado(c) {
+  const mesLabel = (ym) => { const [y, m] = ym.split('-'); return ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'][Number(m) - 1] + '/' + y.slice(2); };
+  const now = new Date();
+  const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const catOptions = (type, sel) => (type === 'entrada' ? EXT_CATS_ENTRADA : GRUPOS_DESPESA)
+    .map(([v, t]) => `<option value="${v}"${v === sel ? ' selected' : ''}>${t}</option>`).join('');
+
+  c.innerHTML = `
+    <div class="toolbar">
+      <input type="month" id="ext-month" value="${curMonth}" />
+      <select id="ext-escopo"><option value="">Todos</option><option value="empresa">Empresa</option><option value="pessoal">Pessoal</option></select>
+      <input type="text" id="ext-cp" placeholder="Filtrar por pessoa/empresa…" style="max-width:220px" />
+      <span class="spacer"></span>
+      <label class="btn-gold" style="cursor:pointer">Importar extrato do mês<input type="file" id="ext-file" accept=".csv,text/csv" style="display:none" /></label>
+    </div>
+    <div id="ext-kpis" class="kpi-grid"></div>
+    <div class="card" id="ext-pend-card" style="margin-bottom:20px;display:none">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Pendências de categorização</strong> <small style="color:var(--text-muted)">novo ou ambíguo — confirme a categoria certa</small></div>
+      <div id="ext-pend"></div>
+    </div>
+    <div class="card" style="margin-bottom:20px;overflow-x:auto"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Saída por categoria</strong></div><div id="ext-hbars" style="padding:14px 18px"></div></div>
+    <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Entradas x Saídas — últimos meses</strong></div><div id="ext-cols" style="padding:14px 18px"></div></div>`;
+
+  const renderPendRow = (p) => {
+    const hasCandidates = p.candidates && p.candidates.length > 0;
+    const optsFor = (type) => catOptions(type, p.category);
+    return `<div class="ext-pend-row" data-id="${p.id}" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 18px;border-bottom:1px solid var(--border-soft)">
+      <div style="min-width:90px"><small style="color:var(--text-muted)">${fmtDate(p.due_date)}</small></div>
+      <div style="flex:1;min-width:180px"><strong>${esc(p.counterparty || p.description)}</strong><br><small style="color:var(--text-muted)">${esc(p.description)}</small></div>
+      <div style="min-width:90px;text-align:right"><strong style="color:${p.type === 'entrada' ? 'var(--green)' : 'var(--red)'}">${money(p.amount)}</strong></div>
+      <select class="ext-pend-cat">${optsFor(p.type)}</select>
+      <select class="ext-pend-escopo"><option value="empresa"${p.escopo === 'empresa' ? ' selected' : ''}>Empresa</option><option value="pessoal"${p.escopo === 'pessoal' ? ' selected' : ''}>Pessoal</option></select>
+      <label style="display:flex;align-items:center;gap:5px;font-size:12.5px;cursor:pointer"><input type="checkbox" class="ext-pend-rule" ${hasCandidates ? '' : 'checked'} />salvar como regra</label>
+      <button class="btn-sm ext-pend-confirm">Confirmar</button>
+    </div>`;
+  };
+
+  const confirmPend = async (row) => {
+    const id = row.dataset.id;
+    const category = row.querySelector('.ext-pend-cat').value;
+    const escopo = row.querySelector('.ext-pend-escopo').value;
+    const saveRule = row.querySelector('.ext-pend-rule').checked;
+    const doPatch = async (force) => api(`/api/bank-statement/${id}/review`, {
+      method: 'PATCH', body: JSON.stringify({ category, escopo, save_as_rule: saveRule, force_ambiguous: force }),
+    });
+    try {
+      await doPatch(false);
+      toast('Categoria confirmada');
+      await load();
+    } catch (e) {
+      if (e.status === 409) {
+        if (confirm('Já existe outra categoria cadastrada para esse nome — adicionar mais uma opção (fica ambíguo, sempre vai pedir revisão)?')) {
+          await doPatch(true); toast('Regra adicionada'); await load();
+        }
+      } else { toast(e.message, 'error'); }
+    }
+  };
+
+  const load = async () => {
+    const month = $('#ext-month').value || curMonth;
+    const escopo = $('#ext-escopo').value;
+    const counterparty = $('#ext-cp').value.trim();
+    const qs = new URLSearchParams({ month, ...(escopo ? { escopo } : {}), ...(counterparty ? { counterparty } : {}) });
+    const [summary, pendentes] = await Promise.all([
+      api(`/api/bank-statement/summary?${qs}`),
+      api(`/api/bank-statement/pendentes?month=${month}`),
+    ]);
+
+    $('#ext-kpis').innerHTML =
+      kpi('Entradas reais', money(summary.kpis.entradas_reais), 'money') +
+      kpi('Saídas reais', money(summary.kpis.saidas_reais), 'money') +
+      kpi('Saldo real', money(summary.kpis.saldo_real), 'money') +
+      kpi('Reserva RDB (saldo do mês)', money(summary.kpis.reserva_rdb.saldo), 'money');
+
+    const pendCard = $('#ext-pend-card');
+    if (pendentes.length) {
+      pendCard.style.display = '';
+      $('#ext-pend').innerHTML = pendentes.map(renderPendRow).join('');
+      document.querySelectorAll('.ext-pend-confirm').forEach((btn) => {
+        btn.onclick = () => confirmPend(btn.closest('.ext-pend-row'));
+      });
+    } else {
+      pendCard.style.display = 'none';
+    }
+
+    const saidaCats = summary.por_categoria.filter((c) => c.type === 'saida').map((c) => ({ label: c.label, value: c.total }));
+    $('#ext-hbars').innerHTML = chartHBars(saidaCats, { fmt: money, color: 'var(--red)' });
+
+    $('#ext-cols').innerHTML = chartColumns(
+      summary.por_mes.map((m) => ({ label: mesLabel(m.label), a: m.a, b: m.b })),
+      { aLabel: 'Entradas', bLabel: 'Saídas', aColor: 'var(--green)', bColor: 'var(--red)', fmt: money }
+    );
+  };
+
+  $('#ext-file').onchange = async (ev) => {
+    const f = ev.target.files[0];
+    if (!f) return;
+    try {
+      const csv_text = await f.text();
+      const r = await api('/api/bank-statement/import', { method: 'POST', body: JSON.stringify({ csv_text, filename: f.name }) });
+      toast(`${r.imported} importados, ${r.duplicates} já existiam, ${r.pending} para revisar`);
+      if (r.ref_month) $('#ext-month').value = r.ref_month;
+      await load();
+    } catch (e) { toast(e.message, 'error'); }
+    ev.target.value = '';
+  };
+  $('#ext-month').onchange = load;
+  $('#ext-escopo').onchange = load;
+  $('#ext-cp').onchange = load;
   await load();
 }
 

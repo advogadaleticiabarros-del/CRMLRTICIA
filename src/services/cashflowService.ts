@@ -102,13 +102,16 @@ export async function getMonthlyCashflow(fromYM: string, months: number) {
   }
 
   // Lançamentos manuais do fluxo de caixa (por categoria/tipo)
+  // is_transferencia_interna=0: exclui RDB e outras transferências internas
+  // importadas do Extrato Consolidado — elas só trocam de bolso dentro da
+  // própria conta e não são entrada/saída real (ver migration 126).
   const [cfPrev] = await db.query(
     `SELECT DATE_FORMAT(due_date,'%Y-%m') mes, type, category, SUM(amount) total FROM cashflow_entries
-     WHERE due_date >= ? AND due_date < ? GROUP BY mes, type, category`, [start, end]) as any;
+     WHERE due_date >= ? AND due_date < ? AND is_transferencia_interna = 0 GROUP BY mes, type, category`, [start, end]) as any;
   for (const r of cfPrev) { addBucket(r.mes, `${r.type}_previsto` as keyof MonthBucket, r.total); addCat(r.category, r.type, r.total, 0); }
   const [cfReal] = await db.query(
     `SELECT DATE_FORMAT(COALESCE(paid_at,due_date),'%Y-%m') mes, type, category, SUM(amount) total FROM cashflow_entries
-     WHERE status='realizado' AND COALESCE(paid_at,due_date) >= ? AND COALESCE(paid_at,due_date) < ? GROUP BY mes, type, category`, [start, end]) as any;
+     WHERE status='realizado' AND COALESCE(paid_at,due_date) >= ? AND COALESCE(paid_at,due_date) < ? AND is_transferencia_interna = 0 GROUP BY mes, type, category`, [start, end]) as any;
   for (const r of cfReal) { addBucket(r.mes, `${r.type}_realizado` as keyof MonthBucket, r.total); addCat(r.category, r.type, 0, r.total); }
 
   // Monta a série mensal com saldo e acumulado
