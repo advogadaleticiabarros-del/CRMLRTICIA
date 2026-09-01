@@ -100,23 +100,35 @@ function addDaysToDateStr(dateStr: string, days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** "Agora" em Brasília, como string local "YYYY-MM-DDTHH:MM" — mesmo offset
+ * fixo -03:00 usado no resto deste arquivo (Brasil não observa horário de
+ * verão desde 2019). Usado só pra filtrar slot de hoje que já passou. */
+export function agoraLocalStr(): string {
+  const localMs = Date.now() - 3 * 60 * 60 * 1000;
+  return new Date(localMs).toISOString().slice(0, 16);
+}
+
 /**
  * Gera todos os slots de agenda_duracao_consulta_min dentro do expediente
  * configurado, nos dias úteis configurados, entre dataInicioStr e
  * dataFimStr (inclusive), removendo os que colidem com qualquer evento em
  * eventosExistentes (checagem de sobreposição de intervalo, não só mesmo
- * horário exato).
+ * horário exato) e os que já passaram — sem isso, pedir slots "de hoje"
+ * às 18h da tarde sugeria horário das 9h da manhã do mesmo dia (bug real,
+ * achado testando a sugestão automática de horário no chat do WhatsApp).
  */
 export function calcularSlotsDisponiveis(
   expediente: Expediente,
   eventosExistentes: IntervaloEvento[],
-  dataInicioStr: string, // "YYYY-MM-DD"
-  dataFimStr: string     // "YYYY-MM-DD"
+  dataInicioStr: string,  // "YYYY-MM-DD"
+  dataFimStr: string,     // "YYYY-MM-DD"
+  agoraStr: string = agoraLocalStr() // injetável nos testes; produção usa o relógio real
 ): Slot[] {
   const slots: Slot[] = [];
   const inicioMin = toMinutes(expediente.horaInicio);
   const fimMin = toMinutes(expediente.horaFim);
   const duracao = expediente.duracaoConsultaMin;
+  const agora = agoraStr;
 
   let dia = dataInicioStr;
   while (dia <= dataFimStr) {
@@ -124,6 +136,7 @@ export function calcularSlotsDisponiveis(
       for (let cursor = inicioMin; cursor + duracao <= fimMin; cursor += duracao) {
         const start = addMinutesToLocalStr(dia, cursor);
         const end = addMinutesToLocalStr(dia, cursor + duracao);
+        if (start <= agora) continue;
         const colide = eventosExistentes.some((ev) =>
           overlaps(start, end, ev.start_datetime, ev.end_datetime)
         );
