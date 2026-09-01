@@ -440,7 +440,11 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
    havia nenhum sinal de que dava pra ver mais colunas — reportado como
    "não consigo navegar pelas colunas". Barra sempre visível e mais grossa
    resolve isso sem precisar de JS pra saber quando esconder um degradê. */
-.kanban-fases { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 14px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+/* padding-right generoso (não só gap): cards maiores deixaram o quadro
+   mais largo no total — sem essa folga, a última coluna encostava exata
+   na borda direita do wrap (que é overflow:hidden de propósito, ver
+   comentário abaixo) e parecia "cortada" mesmo depois de rolar até o fim. */
+.kanban-fases { display: flex; gap: 12px; overflow-x: auto; padding: 0 44px 14px 0; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
 .kanban-fases::-webkit-scrollbar { height: 10px; }
 .kanban-fases::-webkit-scrollbar-track { background: var(--surface-2); border-radius: 6px; }
 .kanban-fases::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
