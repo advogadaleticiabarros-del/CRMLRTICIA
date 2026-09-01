@@ -467,36 +467,52 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .kanban-nav-esq { left: 4px; }
 .kanban-nav-dir { right: 4px; }
 @media (max-width: 640px) { .kanban-nav { display: none; } }
-.kf-col { min-width: 230px; flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; }
-.kf-head { font-weight: 600; color: var(--navy); display: flex; justify-content: space-between; align-items: center; margin-bottom: 9px; font-size: 13px; }
-.kf-count { background: var(--gold); color: #fff; border-radius: 11px; padding: 1px 9px; font-size: 11px; font-weight: 700; }
-.kf-cards { display: flex; flex-direction: column; gap: 8px; max-height: 62vh; min-height: 70px; overflow-y: auto; }
-.kf-card { background: #fff; border: 1px solid var(--border); border-radius: 10px; padding: 9px 11px; cursor: grab; display: flex; flex-direction: column; gap: 2px; transition: box-shadow .15s, transform .12s; user-select: none; -webkit-user-drag: element; }
+.kf-col { min-width: 272px; flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; }
+.kf-head { font-weight: 700; color: var(--navy); display: flex; justify-content: space-between; align-items: center; margin-bottom: 11px; font-size: 14.5px; }
+.kf-count { background: var(--gold); color: #fff; border-radius: 11px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+.kf-cards { display: flex; flex-direction: column; gap: 10px; max-height: 66vh; min-height: 70px; overflow-y: auto; }
+/* Hover com "movimento" pedido: sobe, ganha sombra mais funda e um leve
+   respiro (scale) — cubic-bezier com um tiquinho de overshoot pra parecer
+   vivo, não só um translate linear. O anel dourado (box-shadow em vez de
+   border, que mudaria o layout) reforça sem deslocar nada ao redor. */
+.kf-card {
+  background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 13px 14px;
+  cursor: grab; display: flex; flex-direction: column; gap: 3px; user-select: none; -webkit-user-drag: element;
+  transition: transform .22s cubic-bezier(.34,1.56,.64,1), box-shadow .22s ease, border-color .22s ease;
+}
 .kf-card:active { cursor: grabbing; }
-.kf-card:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); border-color: var(--gold); }
-.kf-card strong { font-size: 12.5px; color: var(--text); }
-.kf-card small { font-size: 11px; color: var(--text-soft); }
+.kf-card:hover {
+  transform: translateY(-3px) scale(1.015);
+  box-shadow: 0 10px 22px -8px rgba(20,30,45,.22), 0 0 0 1.5px var(--gold);
+  border-color: transparent;
+}
+.kf-card strong { font-size: 14.5px; color: var(--text); }
+.kf-card small { font-size: 12.5px; color: var(--text-soft); }
 .kf-card-locked { cursor: default; border-color: var(--red, #c0392b); background: #fffaf9; }
-.kf-card-locked:hover { transform: none; border-color: var(--red, #c0392b); }
-.kf-move { margin-top: 7px; font-size: 11px; padding: 5px 7px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-soft); }
-.kf-sug { margin-top: 6px; font-size: 10.5px; color: var(--gold-2, #B8943F); background: rgba(201,169,98,.1); border: 1px solid rgba(201,169,98,.3); border-radius: 7px; padding: 5px 7px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.kf-card-locked:hover { transform: none; box-shadow: none; border-color: var(--red, #c0392b); }
+.kf-move { margin-top: 8px; font-size: 12.5px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); color: var(--text-soft); }
+.kf-sug { margin-top: 6px; font-size: 11.5px; color: var(--gold-2, #B8943F); background: rgba(201,169,98,.1); border: 1px solid rgba(201,169,98,.3); border-radius: 7px; padding: 5px 7px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .kf-sug strong { color: var(--gold-2, #B8943F); }
-.kf-apply { margin-left: auto; font-size: 10.5px; padding: 3px 8px; border: none; border-radius: 6px; background: var(--gold); color: #fff; font-weight: 600; cursor: pointer; }
+.kf-apply { margin-left: auto; font-size: 11.5px; padding: 3px 8px; border: none; border-radius: 6px; background: var(--gold); color: #fff; font-weight: 600; cursor: pointer; }
 .kf-apply:hover { background: #b08c44; }
-.kf-empty { color: var(--text-muted); font-size: 12px; text-align: center; padding: 12px; }
+.kf-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 14px; }
 
 /* Cartão de contato do WhatsApp (Kanban da aba "Contatos") — usa a base de
    .kf-card (compartilhada com o board de Produção) mas com sua própria
    estrutura interna, pra não colidir com o outro board. */
-.wc-card { padding: 10px 11px; gap: 6px; }
-.wc-card-top { display: flex; align-items: center; gap: 8px; }
-.wc-ava { width: 32px; height: 32px; border-radius: 50%; flex: 0 0 32px; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 12px; }
-.wc-info { min-width: 0; flex: 1; display: flex; flex-direction: column; }
-.wc-info strong { font-size: 12.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wc-info small { font-size: 10.5px; color: var(--text-soft); }
-.wc-time { font-size: 10px; color: var(--text-muted); flex: 0 0 auto; align-self: flex-start; }
-.wc-prev { font-size: 11.5px; color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 40px; }
-.wc-unread { position: absolute; top: 9px; right: 11px; background: var(--gold); color: #fff; border-radius: 10px; min-width: 17px; height: 17px; padding: 0 5px; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.wc-card { padding: 13px 14px; gap: 7px; }
+.wc-card-top { display: flex; align-items: center; gap: 10px; }
+.wc-ava {
+  width: 38px; height: 38px; border-radius: 50%; flex: 0 0 38px; display: flex; align-items: center;
+  justify-content: center; color: #fff; font-weight: 700; font-size: 13.5px; transition: transform .22s cubic-bezier(.34,1.56,.64,1);
+}
+.kf-card:hover .wc-ava { transform: scale(1.08); }
+.wc-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
+.wc-info strong { font-size: 14.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc-info small { font-size: 12px; color: var(--text-soft); }
+.wc-time { font-size: 11.5px; color: var(--text-muted); flex: 0 0 auto; align-self: flex-start; }
+.wc-prev { font-size: 13px; color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 48px; }
+.wc-unread { position: absolute; top: 11px; right: 13px; background: var(--gold); color: #fff; border-radius: 10px; min-width: 19px; height: 19px; padding: 0 6px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(184,140,50,.4); }
 .wc-card { position: relative; }
 
 /* Hambúrguer e overlay da gaveta (só aparecem no mobile) */
@@ -1145,10 +1161,10 @@ a:focus-visible, button:focus-visible, .nav-item:focus-visible, .bottom-item:foc
 .kanban-card { border-radius: 11px; border: 1px solid var(--border); box-shadow: var(--shadow-sm); transition: box-shadow .18s, border-color .18s, transform .15s; }
 .kanban-card:hover { box-shadow: var(--shadow); border-color: #e4dcc9; transform: translateY(-1px); }
 
-/* Kanban de fases/produção: cartões e colunas coerentes */
+/* Kanban de fases/produção: colunas coerentes com o resto do sistema
+   (raio de borda) — hover do card já é tratado por completo mais acima,
+   não repete aqui pra não competir com o anel dourado + o "levantar". */
 .kf-col { border-radius: 14px; }
-.kf-card { border-radius: 11px; }
-.kf-card:hover { border-color: #e4dcc9; }
 
 /* Calendário: moldura arredondada + "hoje" com brilho dourado sutil */
 #cal-body { border-radius: 14px; }
@@ -1665,8 +1681,8 @@ img, svg, video { max-width: 100%; }
 .wa-item-right { text-align: right; flex: 0 0 auto; }
 .wa-item-time { font-size: 11px; color: var(--text-muted); }
 .wa-unread { display: inline-flex; min-width: 19px; height: 19px; border-radius: 10px; background: var(--gold); color: #fff; font-size: 11px; font-weight: 700; align-items: center; justify-content: center; padding: 0 5px; margin-top: 4px; }
-.wa-tags { display: flex; gap: 4px; margin-top: 4px; flex-wrap: wrap; }
-.wa-tag { font-size: 9.5px; padding: 1px 7px; border-radius: 9px; color: #fff; font-weight: 600; letter-spacing: .2px; text-transform: capitalize; }
+.wa-tags { display: flex; gap: 5px; margin-top: 5px; flex-wrap: wrap; }
+.wa-tag { font-size: 11px; padding: 2px 8px; border-radius: 9px; color: #fff; font-weight: 600; letter-spacing: .2px; text-transform: capitalize; }
 .wa-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .wa-empty-inicial { flex-direction: column; gap: 10px; max-width: 320px; margin: 0 auto; }
 .wa-empty-badge { width: 64px; height: 64px; border-radius: 50%; background: rgba(193,154,78,.14); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
