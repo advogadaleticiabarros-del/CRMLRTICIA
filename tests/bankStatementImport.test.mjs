@@ -187,7 +187,7 @@ test('RDB fica fora de entradas/saídas reais, mas entra na Reserva RDB', async 
     assert.strictEqual(summary.kpis.saidas_reais, 0, 'aplicação RDB não deveria contar em saídas reais');
     assert.strictEqual(summary.kpis.reserva_rdb.aportes, 500);
     assert.strictEqual(summary.kpis.reserva_rdb.resgates, 300);
-    assert.strictEqual(summary.kpis.reserva_rdb.saldo, -200);
+    assert.strictEqual(summary.kpis.reserva_rdb.saldo, 200, 'saldo = quanto a reserva cresceu (aportes − resgates); 500 aportado − 300 resgatado = guardou 200 a mais');
     assert.strictEqual(summary.por_categoria.length, 0, 'RDB não deveria aparecer em por_categoria');
   } catch (err) {
     if (isDbUnavailable(err)) { t.skip(`banco indisponível: ${err.message}`); return; }

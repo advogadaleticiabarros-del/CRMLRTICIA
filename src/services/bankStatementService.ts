@@ -341,7 +341,11 @@ export async function getConsolidatedSummary(month: string, filters: SummaryFilt
       entradas_reais: round2(entradasReais),
       saidas_reais: round2(saidasReais),
       saldo_real: round2(entradasReais - saidasReais),
-      reserva_rdb: { aportes: round2(rdbAportes), resgates: round2(rdbResgates), saldo: round2(rdbResgates - rdbAportes) },
+      // saldo = quanto a reserva CRESCEU no mês (aportes − resgates). Positivo
+      // = guardou mais do que tirou. É o oposto do efeito na conta corrente
+      // (aportes saem da conta) — de propósito: aqui o número é sobre a
+      // reserva, não sobre o caixa do dia a dia.
+      reserva_rdb: { aportes: round2(rdbAportes), resgates: round2(rdbResgates), saldo: round2(rdbAportes - rdbResgates) },
     },
     por_categoria: [...porCategoria.values()].map((c) => ({ ...c, total: round2(c.total) })).sort((a, b) => b.total - a.total),
     pendentes: pendCount[0]?.n || 0,
