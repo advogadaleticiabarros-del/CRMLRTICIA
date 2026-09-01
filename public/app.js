@@ -5666,8 +5666,14 @@ async function finExtratoConsolidado(c) {
       </tr>`).join('')}</tbody></table>`
       : '<div class="empty">Sem dados no período</div>';
 
-    const saidaCats = summary.por_categoria.filter((c) => c.type === 'saida').map((c) => ({ label: c.label, value: c.total }));
-    $('#ext-hbars').innerHTML = chartHBars(saidaCats, { fmt: money, color: 'var(--red)' });
+    const saidaCatsRaw = summary.por_categoria.filter((c) => c.type === 'saida');
+    const saidaCatsSorted = [...saidaCatsRaw].sort((a, b) => b.total - a.total).slice(0, 12);
+    $('#ext-hbars').innerHTML = chartHBars(saidaCatsSorted.map((c) => ({ label: c.label, value: c.total })), { fmt: money, color: 'var(--red)' });
+    document.querySelectorAll('#ext-hbars .hbar-row').forEach((row, i) => {
+      row.style.cursor = 'pointer';
+      row.title += ' — clique pra filtrar a lista acima';
+      row.onclick = () => { $('#ext-cat').value = saidaCatsSorted[i].category; load(); };
+    });
 
     $('#ext-cols').innerHTML = chartColumns(
       summary.por_mes.map((m) => ({ label: mesLabel(m.label), a: m.a, b: m.b })),
