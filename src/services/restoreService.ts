@@ -3,6 +3,7 @@ import mysql from 'mysql2/promise';
 import { env } from '../config/env';
 import { db } from '../config/database';
 import { decryptBuffer, isEncryptedBuffer } from '../utils/crypto';
+import { dividirStatements } from '../config/migrations';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { Storage } = require('megajs');
@@ -69,7 +70,11 @@ export async function verifyLatestBackup(): Promise<RestoreReport> {
     await conn.query(`CREATE DATABASE ${TEST_DB} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
     await conn.query(`USE ${TEST_DB}`);
     await conn.query('SET FOREIGN_KEY_CHECKS=0');
-    await conn.query(sql);
+    // Executa statement por statement (não o dump inteiro numa query só) —
+    // um dump de dezenas de MB estoura o max_allowed_packet do MySQL numa
+    // query única. Reaproveita o mesmo splitter (respeita aspas/comentários)
+    // já usado pras migrations em vez de duplicar a lógica.
+    for (const stmt of dividirStatements(sql)) await conn.query(stmt);
     await conn.query('SET FOREIGN_KEY_CHECKS=1');
 
     // 4. Prova real: tabelas e linhas-chave existem?
