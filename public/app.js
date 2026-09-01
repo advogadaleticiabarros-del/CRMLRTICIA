@@ -5191,6 +5191,7 @@ const GRUPOS_DESPESA = [
   ['marketing', 'Marketing'],
   ['transporte', 'Transporte & Deslocamento'],
   ['extraordinaria', 'Despesas extraordinárias'],
+  ['repasse_cliente', 'Repasse a cliente (acordo)'],
   ['outro_saida', 'Outras saídas'],
 ];
 const GRUPO_PT = Object.fromEntries(GRUPOS_DESPESA);

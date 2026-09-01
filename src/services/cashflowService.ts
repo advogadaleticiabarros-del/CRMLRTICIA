@@ -13,6 +13,7 @@ export const CATEGORY_PT: Record<string, string> = {
   acordo: 'Acordos', dativo: 'Dativo (Estado)', correspondente: 'Correspondente jurídico',
   outro_entrada: 'Outras entradas', lanc_receita: 'Lançamentos (receita)',
   despesa_fixa: 'Despesas fixas', despesa_variavel: 'Despesas variáveis', repasse: 'Repasses',
+  repasse_cliente: 'Repasse a cliente (acordo)',
   imposto: 'Impostos', salario: 'Salários', outro_saida: 'Outras saídas', lanc_despesa: 'Lançamentos (despesa)',
   // Grupos de despesa (contas a pagar)
   empresa: 'Empresa / Escritório', pessoal: 'Pessoal', cartao: 'Cartão de crédito', moradia: 'Moradia',
