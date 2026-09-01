@@ -32,6 +32,38 @@ let lastError: string | null = null;
  * chutar uma mensagem genérica ("confira a conexão") quando a conexão
  * está ok e o problema foi outra coisa (ex.: arquivo inválido). */
 export function getLastError(): string | null { return lastError; }
+
+/**
+ * Avisa os admins no sino quando um envio AUTOMÁTICO de WhatsApp falha
+ * (monitoramento de processo, lembrete, cobrança...). sendText() nunca
+ * lança — ele resolve pra `false` em erro — e até agora os crons faziam
+ * `.catch(() => {})` em cima disso, o que não pega nada (a promise nunca
+ * rejeita): a falha ficava só no console do servidor, ninguém via.
+ * Chamar isso quando `await sendText(...)` volta `false`.
+ *
+ * Throttle de 30min por chave (mesma tabela/padrão de avisarFalhaMidia em
+ * whatsapp-webhook.ts) — evita 1 notificação por mensagem se a instância
+ * cair no meio de um lote de lembretes.
+ */
+export async function avisarFalhaEnvioWhatsapp(contexto: string, telefone: string): Promise<void> {
+  try {
+    const janela = Math.floor(Date.now() / (30 * 60 * 1000));
+    const [dup] = await db.query(
+      'INSERT IGNORE INTO sent_reminders (ref_key, channel) VALUES (?, ?)',
+      [`wa_envio_falhou_${contexto}_${janela}`, 'sino']) as any;
+    if (!dup.affectedRows) return;
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+    for (const a of admins) {
+      await db.query(
+        `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+         VALUES (?, ?, ?, 'whatsapp_envio_falhou', 'sistema', NOW(), 'pendente')`,
+        [a.id, '⚠️ Envio automático de WhatsApp falhou',
+         `Contexto: ${contexto}. Telefone: ${telefone}. Motivo: ${lastError || 'desconhecido'}. Confira se a instância está conectada (Configurações → Conexão do WhatsApp).`]
+      ).catch(() => {});
+    }
+  } catch { /* aviso é best-effort — nunca deve derrubar o cron que chamou */ }
+}
+
 let autoSend = true;
 let autoTimer: NodeJS.Timeout | null = null;
 

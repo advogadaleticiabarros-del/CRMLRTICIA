@@ -8,7 +8,7 @@ import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
 import { runIntimacaoPlaybooks } from './automationService';
 import { interpretarMovimentacao, extrairNomeacaoDativa, extrairArbitramentoDativo } from './aiAssistant';
-import { sendText } from './uazapiInstance';
+import { sendText, avisarFalhaEnvioWhatsapp } from './uazapiInstance';
 
 // ── Sugestão de fase processual a partir do texto das movimentações ──────────
 const PHASE_RANK: Record<string, number> = { inicial: 1, instrucao: 2, sentenca: 3, recurso: 4, execucao: 5, encerrado: 6 };
@@ -135,7 +135,10 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
         clienteNome ? `Cliente: ${clienteNome}` : null,
         (m.description || m.title) ? `Trecho: ${(m.description || m.title || '').replace(/\s+/g, ' ').trim().slice(0, 300)}` : null,
       ].filter(Boolean).join('\n');
-      for (const num of ESCRITORIO_WHATSAPP_NUMEROS) await sendText(num, resumo).catch(() => {});
+      for (const num of ESCRITORIO_WHATSAPP_NUMEROS) {
+        const ok = await sendText(num, resumo).catch(() => false);
+        if (!ok) await avisarFalhaEnvioWhatsapp('prazo_processual', num);
+      }
     }
 
     // DataJud: cria ALERTA em vez de falso prazo
@@ -272,7 +275,8 @@ async function maybeRegisterDativeNomination(proc: DjenProcess, clientId: number
       ext.assunto ? `Assunto: ${ext.assunto}` : null,
     ].filter(Boolean).join('\n');
     for (const num of ESCRITORIO_WHATSAPP_NUMEROS) {
-      await sendText(num, resumo).catch(() => {});
+      const ok = await sendText(num, resumo).catch(() => false);
+      if (!ok) await avisarFalhaEnvioWhatsapp('nomeacao_dativo', num);
     }
 
     await logMonitor(null as any, null, 'nova_movimentacao', 'djen_oab', `Demanda dativa auto-cadastrada (dative_cases id ${ins.insertId}) para o processo ${proc.process_number}`);
@@ -342,7 +346,8 @@ async function maybeRegisterDativeArbitramento(proc: DjenProcess, clientId: numb
       !existing.length ? 'Obs.: não há demanda dativa cadastrada pra esse processo ainda — confira em Dativo.' : null,
     ].filter(Boolean).join('\n');
     for (const num of ESCRITORIO_WHATSAPP_NUMEROS) {
-      await sendText(num, resumo).catch(() => {});
+      const ok = await sendText(num, resumo).catch(() => false);
+      if (!ok) await avisarFalhaEnvioWhatsapp('arbitramento_dativo', num);
     }
 
     await logMonitor(null as any, null, 'nova_movimentacao', 'djen_oab', `Valor arbitrado de honorários dativos detectado (R$ ${valor.toFixed(2)}) para o processo ${processNumber}`);

@@ -2,7 +2,7 @@ import { google } from 'googleapis';
 import { db } from '../config/database';
 import { env } from '../config/env';
 import { encrypt, decryptFields } from '../utils/crypto';
-import { sendText } from './uazapiInstance';
+import { sendText, avisarFalhaEnvioWhatsapp } from './uazapiInstance';
 import { aiComplete } from './aiAssistant';
 
 /**
@@ -332,7 +332,10 @@ export async function runCourtEmailScan(): Promise<ScanResult> {
       `Processo: ${proc.process_number}`,
       `Trecho: ${descricao.replace(/\s+/g, ' ').trim().slice(0, 300)}`,
     ].join('\n');
-    for (const num of ESCRITORIO_WHATSAPP_NUMEROS) await sendText(num, resumo).catch(() => {});
+    for (const num of ESCRITORIO_WHATSAPP_NUMEROS) {
+      const ok = await sendText(num, resumo).catch(() => false);
+      if (!ok) await avisarFalhaEnvioWhatsapp('email_judicial', num);
+    }
   }
 
   await db.query(

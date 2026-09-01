@@ -7747,12 +7747,58 @@ function readFileAsDataUrl(file) {
   });
 }
 
-// Envia um arquivo anexado a uma demanda dativa — pede a categoria (pasta)
-// e grava em documents com client_id (assistido) + dative_case_id vinculados.
-async function dativeDocUploadForm(file, { clientId, dativeCaseId }, onSave) {
-  if (file.size > 15 * 1024 * 1024) { toast('Arquivo maior que 15MB', 'error'); return; }
+function loadImageEl(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// Combina várias fotos (uma por página) em um único PDF, pra ela poder
+// fotografar um documento de várias páginas e anexar/classificar uma vez só,
+// em vez de uma classificação por foto. Redimensiona pro maior lado caber em
+// 1600px e recomprime em JPEG — foto de celular sem isso (3-8MB cada) estoura
+// o limite de 15MB do upload já com 3-4 páginas.
+async function imagesToPdfDataUrl(files) {
+  const { jsPDF } = window.jspdf;
+  let doc = null;
+  for (const file of files) {
+    const img = await loadImageEl(file);
+    const MAX = 1600;
+    const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+    const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+    const jpeg = canvas.toDataURL('image/jpeg', 0.82);
+    const orientation = w >= h ? 'l' : 'p';
+    if (!doc) doc = new jsPDF({ orientation, unit: 'px', format: [w, h] });
+    else doc.addPage([w, h], orientation);
+    doc.addImage(jpeg, 'JPEG', 0, 0, w, h);
+  }
+  return doc.output('datauristring');
+}
+
+// Envia documento(s) anexado(s) a uma demanda dativa — pede a categoria (pasta)
+// uma única vez e grava em documents com client_id (assistido) + dative_case_id
+// vinculados. Aceita 1 File (anexo normal) ou um array de Files só de imagens
+// (várias fotos do mesmo documento, combinadas em 1 PDF antes do envio).
+async function dativeDocUploadForm(fileOrFiles, { clientId, dativeCaseId }, onSave) {
+  const files = Array.isArray(fileOrFiles) ? fileOrFiles : [fileOrFiles];
+  const multi = files.length > 1;
+  for (const f of files) {
+    if (f.size > 15 * 1024 * 1024) { toast(`"${f.name}" maior que 15MB`, 'error'); return; }
+  }
+  const defaultName = multi ? `Documento (${files.length} páginas)` : files[0].name;
+  const previewRow = multi
+    ? `<div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:10px">${files.map((f) => `<img src="${URL.createObjectURL(f)}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex:none">`).join('')}</div>
+       <small style="color:var(--text-muted)">${files.length} fotos serão combinadas em 1 documento (PDF)</small>`
+    : '';
   const form = el(`<form class="form-grid">
-    ${field('Nome do documento *', 'name', { value: file.name })}
+    ${previewRow}
+    ${field('Nome do documento *', 'name', { value: defaultName })}
     ${field('Categoria', 'folder', { value: 'outros', options: DATIVE_DOC_FOLDERS })}
     <button type="submit" class="btn-primary">Enviar</button>
   </form>`);
@@ -7761,19 +7807,28 @@ async function dativeDocUploadForm(file, { clientId, dativeCaseId }, onSave) {
     const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Enviando…';
     try {
       const g = (n) => form.querySelector(`[name=${n}]`)?.value;
-      const file_base64 = await readFileAsDataUrl(file);
+      const nameTyped = g('name') && g('name').trim();
+      let file_base64, mime, name;
+      if (multi) {
+        file_base64 = await imagesToPdfDataUrl(files);
+        mime = 'application/pdf';
+        name = (nameTyped || defaultName) + (/\.pdf$/i.test(nameTyped || '') ? '' : '.pdf');
+      } else {
+        file_base64 = await readFileAsDataUrl(files[0]);
+        mime = files[0].type;
+        name = nameTyped || files[0].name;
+      }
       await api('/api/documents', {
         method: 'POST',
         body: JSON.stringify({
           client_id: clientId, dative_case_id: dativeCaseId,
-          name: (g('name') && g('name').trim()) || file.name,
-          folder: g('folder'), file_base64, mime: file.type,
+          name, folder: g('folder'), file_base64, mime,
         }),
       });
-      closeModal(); toast('Documento anexado'); onSave();
+      closeModal(); toast(multi ? `Documento com ${files.length} páginas anexado` : 'Documento anexado'); onSave();
     } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Enviar'; }
   };
-  openModal('Anexar documento', form);
+  openModal(multi ? 'Anexar documento (várias fotos)' : 'Anexar documento', form);
 }
 
 // Monta a seção "Documentos" da tela de detalhe do dativo: lista os
@@ -7791,8 +7846,9 @@ async function dativeDocsSection(dativeCaseId, clientId, onSave) {
     <strong style="font-size:13px">Documentos</strong>
     <div id="ddoc-list" style="margin:8px 0">${list}</div>
     <div id="ddoc-drop" style="border:2px dashed var(--border);border-radius:8px;padding:16px;text-align:center;cursor:pointer;color:var(--text-muted);font-size:13px">
-      Clique ou arraste um arquivo aqui para anexar
-      <input type="file" id="ddoc-input" accept=".pdf,.doc,.docx,image/*" style="display:none">
+      Clique ou arraste arquivos aqui para anexar<br>
+      <small>Várias fotos selecionadas juntas viram 1 documento só</small>
+      <input type="file" id="ddoc-input" accept=".pdf,.doc,.docx,image/*" multiple style="display:none">
     </div>
   </div>`);
 
@@ -7811,18 +7867,29 @@ async function dativeDocsSection(dativeCaseId, clientId, onSave) {
 
   const drop = section.querySelector('#ddoc-drop');
   const input = section.querySelector('#ddoc-input');
-  const handleFile = (file) => {
-    if (!file) return;
+  // Várias fotos selecionadas de uma vez viram 1 documento (PDF combinado,
+  // 1 classificação); qualquer arquivo que não seja imagem (pdf/doc) vira
+  // documento à parte, um modal por vez, sem se perder no meio da fila.
+  const handleFiles = (fileList) => {
+    const files = Array.from(fileList || []).filter(Boolean);
+    if (!files.length) return;
     if (!clientId) { toast('Informe e salve o assistido antes de anexar documentos', 'error'); return; }
-    dativeDocUploadForm(file, { clientId, dativeCaseId }, refresh);
+    const images = files.filter((f) => f.type.startsWith('image/'));
+    const others = files.filter((f) => !f.type.startsWith('image/'));
+    const units = [...(images.length > 1 ? [images] : images), ...others];
+    const next = () => {
+      if (!units.length) { refresh(); return; }
+      dativeDocUploadForm(units.shift(), { clientId, dativeCaseId }, next);
+    };
+    next();
   };
   drop.onclick = () => input.click();
-  input.onchange = () => handleFile(input.files[0]);
+  input.onchange = () => handleFiles(input.files);
   drop.addEventListener('dragover', (e) => { e.preventDefault(); drop.style.outline = '2px dashed var(--gold)'; });
   drop.addEventListener('dragleave', () => { drop.style.outline = ''; });
   drop.addEventListener('drop', (e) => {
     e.preventDefault(); drop.style.outline = '';
-    handleFile(e.dataTransfer.files[0]);
+    handleFiles(e.dataTransfer.files);
   });
 
   return section;
