@@ -28,6 +28,10 @@ const DAILY_CAP = 30;
 let cachedQr: string | null = null;
 let connecting = false;
 let lastError: string | null = null;
+/** Motivo real do último envio/ação que falhou — pra rota não precisar
+ * chutar uma mensagem genérica ("confira a conexão") quando a conexão
+ * está ok e o problema foi outra coisa (ex.: arquivo inválido). */
+export function getLastError(): string | null { return lastError; }
 let autoSend = true;
 let autoTimer: NodeJS.Timeout | null = null;
 

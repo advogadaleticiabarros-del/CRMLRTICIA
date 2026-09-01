@@ -3,6 +3,7 @@ import { db } from '../config/database';
 import { logFinancialAudit } from '../services/FinancialAuditService';
 import { logTimeline } from '../services/TimelineService';
 import { syncAgreementFinanceLaunches, syncAgreementClientPayouts, montarCronogramaAcordo, cronogramaAcordoTexto } from '../services/agreementFinance';
+import { stripDataUrlPrefix } from '../utils/dataUrl';
 
 const router = Router();
 
@@ -160,7 +161,7 @@ router.post('/:id/minuta', async (req: Request, res: Response) => {
   const [[a]] = await db.query('SELECT * FROM agreements WHERE id = ?', [req.params.id]) as any;
   if (!a) { res.status(404).json({ error: 'Acordo não encontrado' }); return; }
 
-  const buffer = Buffer.from(String(file_base64).replace(/^data:[^;]+;base64,/, ''), 'base64');
+  const buffer = Buffer.from(stripDataUrlPrefix(file_base64), 'base64');
   const MAX = 15 * 1024 * 1024;
   if (buffer.length > MAX) { res.status(400).json({ error: 'Arquivo maior que 15MB' }); return; }
 

@@ -3,12 +3,13 @@ import crypto from 'crypto';
 import { db } from '../config/database';
 import { env } from '../config/env';
 import {
-  startInstance, disconnectInstance, sendText, sendMedia, getStatus, setAutoSend, editarMensagem, apagarMensagem,
+  startInstance, disconnectInstance, sendText, sendMedia, getStatus, getLastError, setAutoSend, editarMensagem, apagarMensagem,
   reagirMensagem, marcarComoLida, bloquearContato, obterNotaDoChat, salvarNotaDoChat, enviarPresenca,
   arquivarConversaNativo, fixarConversaNativo, marcarChatLido, silenciarChat, apagarConversaWhatsapp,
   configurarMensagensEfemeras, solicitarHistoricoAntigo, listarRespostasRapidas, salvarRespostaRapida, excluirRespostaRapida,
 } from '../services/uazapiInstance';
 import { uazapi } from '../services/uazapiClient';
+import { stripDataUrlPrefix } from '../utils/dataUrl';
 
 const router = Router();
 
@@ -473,7 +474,7 @@ router.post('/chats/:phone/send-media', async (req: Request, res: Response) => {
   } else if (file_base64) {
     const nome = String(req.body?.file_name || 'arquivo').slice(0, 255);
     const m = String(req.body?.mime || 'application/octet-stream');
-    const buf = Buffer.from(String(file_base64).replace(/^data:[^;]+;base64,/, ''), 'base64');
+    const buf = Buffer.from(stripDataUrlPrefix(file_base64), 'base64');
     if (!buf.length) { res.status(400).json({ error: 'Arquivo vazio' }); return; }
     if (buf.length > MEDIA_ENVIO_MAX) { res.status(400).json({ error: 'Arquivo maior que 15MB' }); return; }
     fileName = nome; mime = m; data = buf;
@@ -490,7 +491,7 @@ router.post('/chats/:phone/send-media', async (req: Request, res: Response) => {
     [phone.replace(/\D/g, ''), cli?.id ?? null, fileName.slice(0, 255), mime, data]) as any;
 
   const ok = await sendMedia(phone, ins.insertId, text, req.user!.name, !!req.body?.as_voice);
-  if (!ok) { res.status(400).json({ error: 'Falha ao enviar — confira a conexão na aba Conexão' }); return; }
+  if (!ok) { res.status(400).json({ error: getLastError() || 'Falha ao enviar — confira a conexão na aba Conexão' }); return; }
   res.json({ success: true });
 });
 

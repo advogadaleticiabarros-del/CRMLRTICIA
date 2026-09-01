@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import crypto from 'crypto';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
+import { stripDataUrlPrefix } from '../utils/dataUrl';
 
 const router = Router();
 
@@ -167,7 +168,7 @@ router.post('/', async (req: Request, res: Response) => {
   // no projeto), guardado como blob em documents.data.
   let data: Buffer | null = null;
   if (file_base64) {
-    data = Buffer.from(String(file_base64).replace(/^data:[^;]+;base64,/, ''), 'base64');
+    data = Buffer.from(stripDataUrlPrefix(file_base64), 'base64');
     const MAX = 15 * 1024 * 1024;
     if (data.length > MAX) { res.status(400).json({ error: 'Arquivo maior que 15MB' }); return; }
   }
