@@ -889,6 +889,7 @@ Object.assign(ROUTES, {
           </div>
           <form class="wa-input" id="wa-reply">
             <button type="button" class="btn-icon" id="wa-modelos" title="Respostas prontas">⚡</button>
+            <button type="button" class="btn-icon" id="wa-sugerir-horario" title="Sugerir próximos horários livres da agenda">📅</button>
             <button type="button" class="btn-icon" id="wa-anexar" title="Enviar documento ou imagem">${svgIcon('paperclip')}</button>
             <textarea name="text" placeholder="Digite uma mensagem" autocomplete="off" rows="1">${esc(textoAtual)}</textarea>
             <button type="button" class="btn-icon" id="wa-gravar" title="Gravar áudio">${svgIcon('mic')}</button>
@@ -1089,6 +1090,19 @@ Object.assign(ROUTES, {
         // à parte no CRM: assim o mesmo atalho digitado ("/saudacao") também
         // funciona no app oficial do WhatsApp Business, sincronizado.
         // {{nome}} no texto vira o primeiro nome do contato ao usar.
+        $('#wa-sugerir-horario').onclick = async () => {
+          const btn = $('#wa-sugerir-horario');
+          btn.disabled = true;
+          try {
+            const r = await api('/api/whatsapp-instance/proximos-horarios?n=2');
+            if (!r.texto_sugerido) { toast('Nenhum horário livre encontrado nos próximos dias — confira a agenda', 'error'); return; }
+            const inp = $('#wa-reply [name=text]');
+            inp.value = r.texto_sugerido;
+            inp.dispatchEvent(new Event('input')); // reajusta a altura da caixa de texto
+            inp.focus();
+          } catch (e) { toast(e.message, 'error'); }
+          finally { btn.disabled = false; }
+        };
         $('#wa-modelos').onclick = async () => {
           const tpls = await api('/api/whatsapp-instance/quickreplies').catch(() => []);
           const primeiroNome = (ativo.name.startsWith('+') ? '' : ativo.name).split(' ')[0] || '';

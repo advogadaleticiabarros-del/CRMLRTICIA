@@ -17,7 +17,7 @@ async function agendaAtiva(): Promise<boolean> {
   return row?.setting_value === '1';
 }
 
-async function buscarExpediente() {
+export async function buscarExpediente() {
   const [rows] = await db.query(
     `SELECT setting_key, setting_value FROM office_settings
      WHERE setting_key IN ('agenda_dias_semana','agenda_hora_inicio','agenda_hora_fim','agenda_duracao_consulta_min')`
@@ -41,7 +41,7 @@ export function utcParaLocalStr(v: Date): string {
   return `${local.getUTCFullYear()}-${pad(local.getUTCMonth() + 1)}-${pad(local.getUTCDate())}T${pad(local.getUTCHours())}:${pad(local.getUTCMinutes())}`;
 }
 
-async function buscarEventosExistentes(dataInicioStr: string, dataFimStr: string): Promise<IntervaloEvento[]> {
+export async function buscarEventosExistentes(dataInicioStr: string, dataFimStr: string): Promise<IntervaloEvento[]> {
   const [rows] = await db.query(
     `SELECT start_datetime, end_datetime FROM calendar_events
      WHERE start_datetime < ? AND end_datetime > ?`,
@@ -53,13 +53,13 @@ async function buscarEventosExistentes(dataInicioStr: string, dataFimStr: string
   }));
 }
 
-function addDaysToDateStr(dateStr: string, days: number): string {
+export function addDaysToDateStr(dateStr: string, days: number): string {
   const d = new Date(`${dateStr}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 }
 
-function hojeStrBrasilia(): string {
+export function hojeStrBrasilia(): string {
   // "Hoje" em Brasília, não em UTC — evita virar o dia errado perto da
   // meia-noite (mesmo cuidado de fuso do resto deste arquivo).
   const nowUtc = new Date();

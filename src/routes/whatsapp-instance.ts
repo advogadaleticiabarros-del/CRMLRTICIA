@@ -10,6 +10,8 @@ import {
 } from '../services/uazapiInstance';
 import { uazapi } from '../services/uazapiClient';
 import { stripDataUrlPrefix } from '../utils/dataUrl';
+import { buscarExpediente, buscarEventosExistentes, hojeStrBrasilia, addDaysToDateStr } from './agenda-public';
+import { calcularSlotsDisponiveis } from '../services/agendaSlots';
 
 const router = Router();
 
@@ -676,6 +678,35 @@ router.delete('/quickreplies/:id', async (req: Request, res: Response) => {
   const ok = await excluirRespostaRapida(req.params.id);
   if (!ok) { res.status(400).json({ error: 'Não deu pra excluir' }); return; }
   res.json({ success: true });
+});
+
+// ── GET /api/whatsapp-instance/proximos-horarios?n=2 ─────────────────────────
+// Puxa os próximos N horários livres de verdade na agenda (mesmo cálculo do
+// agendamento público — ver agenda-public.ts) pra sugerir no chat, pronto
+// pra colar e mandar. Endpoint AUTENTICADO e independente do toggle
+// "agenda_self_service_ativo": ela quer sugerir horário manualmente pelo
+// WhatsApp mesmo que o link de auto-agendamento esteja desligado.
+const DIAS_SEMANA_PT = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
+function fmtSlotPt(startLocalStr: string): string {
+  const [dataStr, horaStr] = startLocalStr.split('T');
+  const [y, m, d] = dataStr.split('-').map(Number);
+  const diaSemana = DIAS_SEMANA_PT[new Date(Date.UTC(y, m - 1, d)).getUTCDay()];
+  return `${diaSemana}, ${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')} às ${horaStr}`;
+}
+router.get('/proximos-horarios', async (req: Request, res: Response) => {
+  const n = Math.min(5, Math.max(1, parseInt(String(req.query.n || '2'), 10) || 2));
+  const dataInicioStr = hojeStrBrasilia();
+  const dataFimStr = addDaysToDateStr(dataInicioStr, 20); // janela maior que os 14 dias públicos — garante achar N livres mesmo com agenda cheia
+  const expediente = await buscarExpediente();
+  const eventosExistentes = await buscarEventosExistentes(dataInicioStr, dataFimStr);
+  const slots = calcularSlotsDisponiveis(expediente, eventosExistentes, dataInicioStr, dataFimStr).slice(0, n);
+
+  if (!slots.length) { res.json({ slots: [], texto_sugerido: null }); return; }
+  const formatados = slots.map((s) => fmtSlotPt(s.start_datetime));
+  const texto_sugerido = slots.length === 1
+    ? `Tenho disponibilidade em ${formatados[0]}. Esse horário funciona pra você?`
+    : `Tenho disponibilidade em ${formatados.slice(0, -1).join(', ')} ou ${formatados[formatados.length - 1]}. Qual dessas opções funciona melhor para você?`;
+  res.json({ slots, formatados, texto_sugerido });
 });
 
 export default router;
