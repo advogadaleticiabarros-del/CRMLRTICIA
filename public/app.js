@@ -5720,11 +5720,17 @@ async function finFaturaCartao(c) {
       <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Pendências de categorização</strong> <small style="color:var(--text-muted)">comerciante novo — escolha a categoria</small></div>
       <div id="card-pend"></div>
     </div>
-    <div class="card" style="margin-bottom:20px;overflow-x:auto"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Gasto por categoria</strong></div><div id="card-hbars" style="padding:14px 18px"></div></div>
+    <div class="card" style="margin-bottom:20px;overflow-x:auto">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Gasto por categoria</strong> <small style="color:var(--text-muted)">clique numa categoria pra ver só ela na lista abaixo</small></div>
+      <div id="card-hbars" style="padding:14px 18px"></div>
+    </div>
     <div class="card" style="overflow-x:auto">
-      <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
         <strong style="color:var(--navy)">Lançamentos da fatura</strong>
-        <small id="card-count" style="color:var(--text-muted)"></small>
+        <span style="display:flex;align-items:center;gap:8px">
+          <span id="card-filter-chip" style="display:none"></span>
+          <small id="card-count" style="color:var(--text-muted)"></small>
+        </span>
       </div>
       <div id="card-table"></div>
     </div>`;
@@ -5738,13 +5744,39 @@ async function finFaturaCartao(c) {
       <button class="btn-sm card-pend-confirm">Confirmar</button>
     </div>`;
 
+  let categoryFilter = null; // { category, label } ou null
+  let lastEntries = [];
+
+  const renderTable = () => {
+    const list = categoryFilter ? lastEntries.filter((r) => r.category === categoryFilter.category) : lastEntries;
+    const chip = $('#card-filter-chip');
+    if (categoryFilter) {
+      chip.style.display = '';
+      chip.innerHTML = `<span class="badge ativo" style="cursor:pointer" id="card-filter-clear">${esc(categoryFilter.label)} ✕</span>`;
+      $('#card-filter-clear').onclick = () => { categoryFilter = null; renderTable(); };
+    } else { chip.style.display = 'none'; chip.innerHTML = ''; }
+
+    $('#card-count').textContent = list.length ? `${list.length} lançamento(s)` : '';
+    $('#card-table').innerHTML = list.length ? `
+      <table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th style="text-align:right">Valor</th></tr></thead>
+      <tbody>${list.map((r) => `<tr>
+        <td>${fmtDate(r.purchase_date)}</td>
+        <td><strong>${esc(r.title)}</strong>${r.installment_no ? ` <small style="color:var(--text-muted)">(${r.installment_no}/${r.installment_total})</small>` : ''}${r.review_status === 'pendente' ? ' <span class="badge vencido">pendente</span>' : ''}</td>
+        <td>${esc(r.label)}</td>
+        <td style="text-align:right;color:${r.is_payment_or_refund ? 'var(--green)' : 'var(--red)'}"><strong>${r.is_payment_or_refund ? '−' : '+'}${money(r.amount)}</strong></td>
+      </tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhum lançamento nesse período/categoria</div>';
+  };
+
   const load = async () => {
     const month = $('#card-month').value || curMonth;
+    categoryFilter = null;
     const [summary, pendentes, entries] = await Promise.all([
       api(`/api/card-statement/summary?month=${month}`),
       api(`/api/card-statement/pendentes?month=${month}`),
       api(`/api/card-statement/entries?month=${month}`),
     ]);
+    lastEntries = entries;
 
     $('#card-kpis').innerHTML =
       kpi('Total gasto na fatura', money(summary.total_gasto), 'money') +
@@ -5768,18 +5800,16 @@ async function finFaturaCartao(c) {
       });
     } else { pendCard.style.display = 'none'; }
 
-    $('#card-hbars').innerHTML = chartHBars(summary.por_categoria.map((c) => ({ label: c.label, value: c.total })), { fmt: money, color: 'var(--red)' });
+    // Mesma ordenação (desc por valor) que chartHBars usa internamente —
+    // precisamos saber qual categoria cada barra representa pra ligar o clique.
+    const catsSorted = [...summary.por_categoria].sort((a, b) => b.total - a.total).slice(0, 12);
+    $('#card-hbars').innerHTML = chartHBars(catsSorted.map((c) => ({ label: c.label, value: c.total })), { fmt: money, color: 'var(--red)' });
+    document.querySelectorAll('#card-hbars .hbar-row').forEach((row, i) => {
+      row.style.cursor = 'pointer';
+      row.onclick = () => { categoryFilter = { category: catsSorted[i].category, label: catsSorted[i].label }; renderTable(); };
+    });
 
-    $('#card-count').textContent = entries.length ? `${entries.length} lançamento(s)` : '';
-    $('#card-table').innerHTML = entries.length ? `
-      <table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th style="text-align:right">Valor</th></tr></thead>
-      <tbody>${entries.map((r) => `<tr>
-        <td>${fmtDate(r.purchase_date)}</td>
-        <td><strong>${esc(r.title)}</strong>${r.installment_no ? ` <small style="color:var(--text-muted)">(${r.installment_no}/${r.installment_total})</small>` : ''}${r.review_status === 'pendente' ? ' <span class="badge vencido">pendente</span>' : ''}</td>
-        <td>${esc(r.label)}</td>
-        <td style="text-align:right;color:${r.is_payment_or_refund ? 'var(--green)' : 'var(--red)'}"><strong>${r.is_payment_or_refund ? '−' : '+'}${money(r.amount)}</strong></td>
-      </tr>`).join('')}</tbody></table>`
-      : '<div class="empty">Nenhum lançamento nesse período</div>';
+    renderTable();
   };
 
   $('#card-file').onchange = async (ev) => {
