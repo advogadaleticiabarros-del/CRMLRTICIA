@@ -1698,6 +1698,14 @@ img, svg, video { max-width: 100%; }
 .wa-view-opt:hover { color: var(--navy-deep); }
 .wa-view-opt.active { background: var(--gold); color: #fff; }
 .wa-shell { display: grid; grid-template-columns: minmax(300px, 380px) 1fr; grid-template-rows: minmax(0, 1fr); height: calc(100vh - 210px); min-height: 560px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface-card, var(--surface)); }
+/* "Foco na conversa" — pedido explícito da usuária: esconder a coluna da
+   lista (não só encolher) pra sobrar mais espaço só pro histórico da
+   conversa aberta, em qualquer largura de tela (o comportamento em
+   .chat-open no mobile, logo abaixo, já fazia isso só abaixo de 760px —
+   aqui é escolha manual, independente de tamanho de tela). */
+.wa-shell.foco-conversa { grid-template-columns: 1fr; }
+.wa-shell.foco-conversa.ctx-open { grid-template-columns: 1fr minmax(230px, 280px); }
+.wa-shell.foco-conversa .wa-side { display: none; }
 .wa-head-col { background: var(--navy, #0d1b2e); border-bottom: 3px solid var(--gold); padding: 14px 16px 12px; display: flex; justify-content: space-between; align-items: center; }
 .wa-head-col-title { font-family: 'Spectral', Georgia, serif; font-size: 17px; font-weight: 700; color: #fff; letter-spacing: .2px; }
 .wa-head-col-unread { font-size: 11px; color: var(--gold); letter-spacing: .3px; font-weight: 600; }
@@ -1715,8 +1723,14 @@ img, svg, video { max-width: 100%; }
    muitas conversas abertas ao mesmo tempo. 3 abas fixas, sempre visíveis,
    com contador — nada de menu suspenso aqui (é o filtro PRINCIPAL da tela,
    diferente do filtro secundário por etiqueta logo abaixo). */
-.wa-pastas { display: flex; gap: 4px; padding: 8px 12px 0; border-bottom: 1px solid var(--border-soft); overflow-x: auto; }
-.wa-pasta-tab { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 12px; font-weight: 600; font-family: inherit; color: var(--text-muted); background: none; border: none; border-bottom: 2px solid transparent; padding: 6px 6px 9px; cursor: pointer; white-space: nowrap; transition: color .12s; }
+/* Grade 2×2 (não fileira com scroll horizontal): "Em atendimento" é longo
+   demais pras 4 abas caberem numa linha só na largura mínima da coluna
+   (300px) — sobrava aba cortada e barra de rolagem horizontal (bug real,
+   visto em print: "Finaliza[das]" cortado). Em grade, cada aba trunca com
+   "…" se precisar, mas nunca fica escondida atrás de uma barra de rolagem. */
+.wa-pastas { display: grid; grid-template-columns: repeat(2, 1fr); gap: 2px 4px; padding: 8px 12px; border-bottom: 1px solid var(--border-soft); }
+.wa-pasta-tab { min-width: 0; display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 12px; font-weight: 600; font-family: inherit; color: var(--text-muted); background: none; border: none; border-bottom: 2px solid transparent; padding: 5px 4px; border-radius: 6px; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; transition: color .12s, background .12s; }
+.wa-pasta-tab:hover { background: var(--surface-2, rgba(0,0,0,.03)); }
 .wa-pasta-tab:hover { color: var(--navy-deep); }
 .wa-pasta-tab.active { color: var(--navy-deep); border-bottom-color: var(--gold); }
 .wa-pasta-count { background: var(--surface-2, #f0f2f5); color: var(--text-muted); font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 9px; line-height: 1.5; }

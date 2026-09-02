@@ -389,6 +389,17 @@ Object.assign(ROUTES, {
       // fechá-la — o grid pulava de 2 pra 3 colunas a cada clique num contato
       // (o "a tela muda de tamanho" reportado). Agora só muda quando ELA pede.
       let ctxAberta = window.innerWidth >= 1100;
+      // Foco na conversa — esconde a lista à esquerda (a coluna toda, não só
+      // colapsa) pra sobrar mais espaço só pro histórico de mensagens.
+      // Pedido explícito: "ajustar essa parte pra maior ou menor e até
+      // minimizar, deixar só a tela da conversa". Persiste entre trocas de
+      // conversa igual ctxAberta, pelo mesmo motivo (escolha da usuária, não
+      // recalculada a cada clique).
+      let focoConversa = false;
+      // Barra de busca/filtros — colapsável (mesmo pedido acima, "maior ou
+      // menor"). Persiste entre sessões (localStorage), não só na aba atual.
+      let toolbarColapsada = false;
+      try { toolbarColapsada = localStorage.getItem('wa_toolbar_colapsada') === '1'; } catch { /* opcional */ }
       let qtdMsgs = 0;          // p/ detectar novidade no polling
       let listaHtmlAtual = '';  // p/ pular re-render quando nada mudou (evita piscar/pesar)
       let ultimaInteracaoLista = 0; // p/ não deixar o polling reordenar a lista embaixo do dedo logo após um clique
@@ -401,23 +412,29 @@ Object.assign(ROUTES, {
       const equipeAtiva = equipe.filter((u) => u.active);
 
       body.innerHTML = `
-        <div class="toolbar">
-          <input id="waq" placeholder="Buscar por nome, telefone ou assunto…" autocomplete="off" style="min-width:220px;flex:1 1 220px">
-          <select id="waf-status" title="Filtrar por status">
-            <option value="todas">Status: Todas</option>
-            <option value="naolidas">Não lidas</option>
-            <option value="atendimento">Em atendimento</option>
-            <option value="finalizadas">Finalizadas</option>
-          </select>
-          <select id="waf-resp" title="Filtrar por responsável">
-            <option value="">Responsável: Todos</option>
-            <option value="${USER.id}">Meus atendimentos</option>
-            ${equipeAtiva.filter((u) => u.id !== USER.id).map((u) => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}
-          </select>
-          <select id="waf-etq" title="Filtrar por etiqueta/setor"><option value="">Etiqueta: Todas</option></select>
+        <div class="toolbar" id="wa-toolbar">
+          <div class="wa-toolbar-fields" id="wa-toolbar-fields" style="${toolbarColapsada ? 'display:none' : 'display:contents'}">
+            <input id="waq" placeholder="Buscar por nome, telefone ou assunto…" autocomplete="off" style="min-width:220px;flex:1 1 220px">
+            <select id="waf-status" title="Filtrar por status">
+              <option value="todas">Status: Todas</option>
+              <option value="naolidas">Não lidas</option>
+              <option value="atendimento">Em atendimento</option>
+              <option value="finalizadas">Finalizadas</option>
+            </select>
+            <select id="waf-resp" title="Filtrar por responsável">
+              <option value="">Responsável: Todos</option>
+              <option value="${USER.id}">Meus atendimentos</option>
+              ${equipeAtiva.filter((u) => u.id !== USER.id).map((u) => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}
+            </select>
+            <select id="waf-etq" title="Filtrar por etiqueta/setor"><option value="">Etiqueta: Todas</option></select>
+          </div>
           <span class="spacer"></span>
-          <button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button>
-          <button type="button" class="btn-icon btn-icon-sm" id="wa-auditoria-btn" title="Auditoria de mensagens apagadas">${svgIcon('info', 'ic-xs')}</button>
+          <small id="wa-toolbar-label" style="color:var(--text-muted);display:${toolbarColapsada ? 'inline' : 'none'}">Busca e filtros minimizados</small>
+          <span class="wa-toolbar-fields" id="wa-toolbar-fields-2" style="${toolbarColapsada ? 'display:none' : 'display:contents'}">
+            <button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button>
+            <button type="button" class="btn-icon btn-icon-sm" id="wa-auditoria-btn" title="Auditoria de mensagens apagadas">${svgIcon('info', 'ic-xs')}</button>
+          </span>
+          <button type="button" class="btn-icon btn-icon-sm" id="wa-toolbar-toggle" title="${toolbarColapsada ? 'Mostrar busca e filtros' : 'Minimizar busca e filtros'}">${svgIcon(toolbarColapsada ? 'chevronDown' : 'chevronUp', 'ic-xs')}</button>
         </div>
         <div class="wa-shell" id="wa-shell">
         <div class="wa-side">
@@ -1024,6 +1041,7 @@ Object.assign(ROUTES, {
       const abrirChat = async (c, manterInput) => {
         ativo = { phone: c.phone, name: c.client_name || c.push_name || '+' + c.phone, client_id: c.client_id, labels: parseLabels(c.labels), blocked: !!Number(c.blocked), muted_until: c.muted_until };
         $('#wa-shell').classList.add('chat-open');
+        $('#wa-shell').classList.toggle('foco-conversa', focoConversa);
         const msgs = await api('/api/whatsapp-instance/chats/' + c.phone).catch(() => []);
         qtdMsgs = msgs.length;
         api(`/api/whatsapp-instance/chats/${c.phone}/read`, { method: 'POST', body: '{}' }).catch(() => {});
@@ -1041,6 +1059,7 @@ Object.assign(ROUTES, {
             <div class="wa-tags" id="wah-tags">${ativo.labels.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>
             <button class="btn-icon" id="wa-buscar-chat" title="Buscar nesta conversa">${svgIcon('search')}</button>
             <button class="btn-icon ${Number(c.pinned) || Number(c.archived) || c.assigned_user_id ? 'on' : ''}" id="wa-mais" title="Mais ações">${svgIcon('more')}</button>
+            <button class="btn-icon ${focoConversa ? 'on' : ''}" id="wa-foco-conversa" title="${focoConversa ? 'Mostrar a lista de conversas' : 'Minimizar lista — ver só esta conversa'}">${svgIcon(focoConversa ? 'minimize' : 'expand', 'ic-xs')}</button>
             <button class="btn-ghost btn-sm wa-ficha-btn ${ctxAberta ? 'on' : ''}" id="wa-info" title="Mostrar/ocultar a ficha do contato">👤 Ficha</button>
           </div>
           <div class="wa-digitando" id="wa-digitando" style="display:none">digitando…</div>
@@ -1432,6 +1451,17 @@ Object.assign(ROUTES, {
           $('#wa-shell').classList.toggle('ctx-open', abrir);
           if (abrir) renderContexto();
         };
+        // Foco na conversa — esconde a coluna da lista (não só recolhe:
+        // some de vez, sobrando só a conversa, e a ficha se ainda estiver
+        // aberta). Pedido explícito da usuária pra "deixar apenas a tela
+        // da conversa". Igual ctxAberta, é lembrado entre conversas.
+        $('#wa-foco-conversa').onclick = () => {
+          focoConversa = !focoConversa;
+          $('#wa-foco-conversa').classList.toggle('on', focoConversa);
+          $('#wa-foco-conversa').title = focoConversa ? 'Mostrar a lista de conversas' : 'Minimizar lista — ver só esta conversa';
+          $('#wa-foco-conversa').innerHTML = svgIcon(focoConversa ? 'minimize' : 'expand', 'ic-xs');
+          $('#wa-shell').classList.toggle('foco-conversa', focoConversa);
+        };
         const cartaoFichaBtn = $('#wa-inline-card-ficha');
         if (cartaoFichaBtn) cartaoFichaBtn.onclick = () => {
           if ($('#wa-shell').classList.contains('ctx-open')) return; // já aberta
@@ -1681,6 +1711,18 @@ Object.assign(ROUTES, {
       $('#waf-etq').onchange = (e) => { filtroEtiqueta = e.target.value; renderLista(); };
       $('#wa-agenda-btn').onclick = () => abrirAgendaModal((phone) => { abrirFonePendente = { phone }; shell(); });
       $('#wa-auditoria-btn').onclick = () => abrirAuditoriaModal();
+      $('#wa-toolbar-toggle').onclick = () => {
+        toolbarColapsada = !toolbarColapsada;
+        try { localStorage.setItem('wa_toolbar_colapsada', toolbarColapsada ? '1' : '0'); } catch { /* opcional */ }
+        const modoTexto = toolbarColapsada ? 'none' : 'contents';
+        $('#wa-toolbar-fields').style.display = modoTexto;
+        $('#wa-toolbar-fields-2').style.display = modoTexto;
+        $('#wa-toolbar-label').style.display = toolbarColapsada ? 'inline' : 'none';
+        const btn = $('#wa-toolbar-toggle');
+        btn.title = toolbarColapsada ? 'Mostrar busca e filtros' : 'Minimizar busca e filtros';
+        btn.innerHTML = svgIcon(toolbarColapsada ? 'chevronDown' : 'chevronUp', 'ic-xs');
+        ajustarAltura(); // a barra mudou de altura — o quadro precisa recalcular o espaço que sobra
+      };
       await atualizar(false);
       if (!chats.length) $('#wal').innerHTML = '<div class="wa-empty">Nenhuma conversa ainda.<br>Com a instância conectada, tudo que chegar e sair aparece aqui.</div>';
       if (abrirFonePendente) {
