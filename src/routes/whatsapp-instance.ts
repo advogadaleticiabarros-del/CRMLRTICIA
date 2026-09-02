@@ -405,7 +405,7 @@ router.get('/chats/:phone/context', async (req: Request, res: Response) => {
   let lead: any = null;
   if (!client) {
     const [leadRows] = await db.query(
-      `SELECT id, name, legal_area, status FROM leads
+      `SELECT id, name, legal_area, status, source FROM leads
         WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''),'(',''),')',''),'-',''),' ','') LIKE ? LIMIT 1`,
       [`%${tail}`]).catch(() => [[]]) as any;
     lead = leadRows[0] || null;

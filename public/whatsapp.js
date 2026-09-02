@@ -238,7 +238,12 @@ Object.assign(ROUTES, {
   // Configurações → "Conexão do WhatsApp", respectivamente — pedido
   // explícito pra deixar só o essencial do dia a dia aqui na frente.
   async whatsapp(page) {
-    let tab = 'contatos';
+    // Padrão passa a ser a central de atendimento (3 painéis) — o quadro
+    // Kanban de etapas ("Contatos") continua existindo, mas só como 2ª
+    // visualização acessível pelo botão de alternância no cabeçalho, não
+    // mais a aba que abre primeiro (pedido explícito: "não quero Kanban"
+    // como tela principal).
+    let tab = 'conversas';
     let chatTimer = null;
     let abrirFonePendente = null; // { phone, texto? } a abrir ao entrar em Conversas (clique num card do quadro, ou vindo de outra tela)
 
@@ -295,12 +300,14 @@ Object.assign(ROUTES, {
       const st = await api('/api/whatsapp-instance/status').catch(() => ({ connected: false }));
       const focoTotal = document.body.classList.contains('foco-total');
       page.innerHTML = `
-        <div class="page-header">${focoTotal ? '<a href="' + esc(location.pathname) + '" class="foco-voltar">← Voltar ao CRM</a>' : ''}<div><h2>WhatsApp</h2><span class="wa-status-dot ${st.connected ? 'on' : ''}" title="${st.connected ? `Instância conectada (${esc(st.me || '')}) — envio automático ${st.autoSend ? 'LIGADO' : 'desligado'} · ${st.sentToday || 0}/30 hoje` : 'Instância desconectada — conecte em Configurações'}"></span></div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">${focoTotal ? '' : `<button class="btn-ghost" id="wa-tela-cheia" title="Abre numa aba separada, sem menu lateral">${svgIcon('expand')}Tela cheia</button>`}<button class="btn-gold" id="wa-nova">+ Nova mensagem</button></div></div>
-        <div class="tabs" style="margin-bottom:14px">
-          <button class="tab ${tab === 'contatos' ? 'active' : ''}" data-wtab="contatos">Contatos</button>
-          <button class="tab ${tab === 'conversas' ? 'active' : ''}" data-wtab="conversas">Conversas</button>
-        </div>
+        <div class="page-header">${focoTotal ? '<a href="' + esc(location.pathname) + '" class="foco-voltar">← Voltar ao CRM</a>' : ''}<div><h2>Central de Atendimento<span class="wa-status-dot ${st.connected ? 'on' : ''}" style="display:inline-block;vertical-align:middle;margin-left:9px" title="${st.connected ? `Instância conectada (${esc(st.me || '')}) — envio automático ${st.autoSend ? 'LIGADO' : 'desligado'} · ${st.sentToday || 0}/30 hoje` : 'Instância desconectada — conecte em Configurações'}"></span></h2><p class="sub" id="wa-contagem">WhatsApp</p></div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${focoTotal ? '' : `<button class="btn-ghost" id="wa-tela-cheia" title="Abre numa aba separada, sem menu lateral">${svgIcon('expand')}Tela cheia</button>`}
+            <div class="wa-view-toggle" id="wa-view-toggle" role="tablist" aria-label="Alternar visualização">
+              <button type="button" class="wa-view-opt ${tab === 'conversas' ? 'active' : ''}" data-wtab="conversas" title="Lista de conversas">${svgIcon('chat', 'ic-xs')}Lista</button>
+              <button type="button" class="wa-view-opt ${tab === 'contatos' ? 'active' : ''}" data-wtab="contatos" title="Quadro por etapas">${svgIcon('kanban', 'ic-xs')}Quadro</button>
+            </div>
+            <button class="btn-gold" id="wa-nova">+ Nova conversa</button>
+          </div></div>
         <div id="wa-body"><div class="spinner"></div></div>`;
       // Modo tela-cheia: cabeçalho denso em 1 linha só — o link "← Voltar
       // ao CRM" é criado DIRETO no template acima (não movido de fora),
@@ -311,13 +318,10 @@ Object.assign(ROUTES, {
       // fallback (body.foco-total .page:not(:has(.page-header
       // .foco-voltar))), empurrando a página inteira pra baixo dali em
       // diante. O .foco-voltar original (fixed, em document.body) fica
-      // escondido via CSS quando .page-header já tem o seu próprio.
-      if (focoTotal) {
-        const header = page.querySelector('.page-header');
-        const tabsEl = page.querySelector('.tabs');
-        const acoesEl = header.querySelector(':scope > div:last-child');
-        if (tabsEl && acoesEl) header.insertBefore(tabsEl, acoesEl);
-      }
+      // escondido via CSS quando .page-header já tem o seu próprio. O
+      // botão de alternância (#wa-view-toggle) já nasce dentro da faixa de
+      // ações do cabeçalho — diferente do antigo `.tabs`, não precisa mais
+      // ser movido pra lá em tela-cheia.
       page.querySelectorAll('[data-wtab]').forEach((b) => b.onclick = () => { tab = b.dataset.wtab; shell(); });
       const telaCheiaBtn = $('#wa-tela-cheia');
       if (telaCheiaBtn) telaCheiaBtn.onclick = () => window.open(location.pathname + '?foco=1#whatsapp', '_blank', 'noopener');
@@ -343,7 +347,7 @@ Object.assign(ROUTES, {
             closeModal(); toast('Mensagem adicionada à fila'); shell();
           } catch (e) { toast(e.message, 'error'); }
         };
-        openModal('Nova mensagem de WhatsApp', form);
+        openModal('Nova conversa de WhatsApp', form);
       };
       if (tab === 'conversas') await tabConversas();
       else await tabContatos();
@@ -366,16 +370,17 @@ Object.assign(ROUTES, {
       let chats = [];
       let ativo = null;         // { phone, name, client_id, labels }
       let busca = '';
-      let filtro = '';          // etiqueta selecionada no filtro
-      let mostrarMeus = false;  // filtro "Meus atendimentos" (assigned_user_id === USER.id)
-      // Pastas horizontais acima da lista — "amei essa parte" (pedido explícito
+      let filtroEtiqueta = '';  // etiqueta/setor selecionado na barra de ações
+      let filtroResp = '';      // id do responsável selecionado (vazio = todos)
+      // Abas horizontais acima da lista — "amei essa parte" (pedido explícito
       // da usuária pra reduzir ruído visual quando há muitas conversas abertas).
-      // Deriva 100% do que já vinha em cada conversa (archived + quem mandou a
-      // última mensagem) — sem coluna nova no banco, sem migration:
-      //   fechados     → conversa arquivada
-      //   aguardando   → a última mensagem foi do CONTATO (ainda sem resposta nossa)
-      //   atendimento  → a última mensagem foi NOSSA (conversa em andamento)
-      let pasta = 'atendimento';
+      // Deriva 100% do que já vinha em cada conversa (archived, não-lidas e
+      // quem mandou a última mensagem) — sem coluna nova no banco:
+      //   todas        → tudo, incl. arquivadas
+      //   naolidas     → unread > 0
+      //   atendimento  → não arquivada (em andamento, respondida ou não)
+      //   finalizadas  → conversa arquivada
+      let aba = 'atendimento';
       // Preferência da usuária pra Ficha do contato (aberta/fechada) — LEMBRADA
       // entre conversas, nunca recalculada a cada clique. Antes, abrirChat()
       // decidia sozinho "abrir se a tela for larga" toda vez que uma conversa
@@ -387,15 +392,39 @@ Object.assign(ROUTES, {
       let listaHtmlAtual = '';  // p/ pular re-render quando nada mudou (evita piscar/pesar)
       let ultimaInteracaoLista = 0; // p/ não deixar o polling reordenar a lista embaixo do dedo logo após um clique
 
-      body.innerHTML = `<div class="wa-shell" id="wa-shell">
+      // Equipe (pro filtro "Responsável" da barra de ações) — só quem pode
+      // atribuir atendente (admin/advogado) teria motivo pra ver essa lista
+      // completa, mas o FILTRO em si é só leitura, então mostra pra todo
+      // mundo (mesma regra de "Meus atendimentos", que qualquer um usava).
+      const equipe = await api('/api/users').catch(() => []);
+      const equipeAtiva = equipe.filter((u) => u.active);
+
+      body.innerHTML = `
+        <div class="toolbar">
+          <input id="waq" placeholder="Buscar por nome, telefone ou assunto…" autocomplete="off" style="min-width:220px;flex:1 1 220px">
+          <select id="waf-status" title="Filtrar por status">
+            <option value="todas">Status: Todas</option>
+            <option value="naolidas">Não lidas</option>
+            <option value="atendimento">Em atendimento</option>
+            <option value="finalizadas">Finalizadas</option>
+          </select>
+          <select id="waf-resp" title="Filtrar por responsável">
+            <option value="">Responsável: Todos</option>
+            <option value="${USER.id}">Meus atendimentos</option>
+            ${equipeAtiva.filter((u) => u.id !== USER.id).map((u) => `<option value="${u.id}">${esc(u.name)}</option>`).join('')}
+          </select>
+          <select id="waf-etq" title="Filtrar por etiqueta/setor"><option value="">Etiqueta: Todas</option></select>
+          <span class="spacer"></span>
+          <button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button>
+          <button type="button" class="btn-icon btn-icon-sm" id="wa-auditoria-btn" title="Auditoria de mensagens apagadas">${svgIcon('info', 'ic-xs')}</button>
+        </div>
+        <div class="wa-shell" id="wa-shell">
         <div class="wa-side">
           <div class="wa-head-col">
             <span class="wa-head-col-title">Conversas</span>
             <span class="wa-head-col-unread" id="wa-unread-total"></span>
           </div>
-          <div class="wa-search" style="display:flex;gap:6px;align-items:center">${svgIcon('search', 'ic-inline')}<input id="waq" placeholder="Buscar por cliente ou processo…" autocomplete="off"><button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button><button type="button" class="btn-icon btn-icon-sm" id="wa-auditoria-btn" title="Auditoria de mensagens apagadas">${svgIcon('info', 'ic-xs')}</button></div>
           <div class="wa-pastas" id="wap-tabs"></div>
-          <div class="wa-filters" id="waf"></div>
           <div class="wa-list" id="wal"></div>
         </div>
         <div class="wa-pane" id="wap">
@@ -428,45 +457,26 @@ Object.assign(ROUTES, {
 
       const todasEtiquetas = () => [...new Set(chats.flatMap((c) => parseLabels(c.labels)))];
 
-      // Botão único "Filtrar" + menu suspenso, no lugar da fileira de chips
-      // sempre visível (ficava confusa: quebrava em várias linhas dentro de
-      // uma caixa apertada com scroll vertical sem nenhum sinal de que dava
-      // pra rolar — pedido explícito da usuária pra ficar "mais organizado,
-      // menos coisas"). Mantém a mesma lógica de estado (filtro/arquivadas).
-      const fecharMenuFiltro = () => {
-        const m = $('#waf-menu'); if (m) m.remove();
-        document.removeEventListener('click', onClickFora, true);
-      };
-      const onClickFora = (e) => { if (!e.target.closest('#waf')) fecharMenuFiltro(); };
+      // Selects de filtro da barra de ações (Status/Responsável/Etiqueta) —
+      // o de Etiqueta precisa ser reconstruído a cada renderFiltros() porque
+      // a lista de etiquetas existentes muda conforme as conversas chegam;
+      // Status/Responsável já vêm prontos no HTML inicial (opções fixas).
       const renderFiltros = () => {
-        // renderFiltros() também roda no polling (atualizar(), a cada 6s) —
-        // se o menu estiver aberto nesse momento, o innerHTML abaixo apaga
-        // #waf-menu do DOM sem passar por fecharMenuFiltro(), deixando o
-        // listener onClickFora pendurado no document. Fecha primeiro.
-        fecharMenuFiltro();
-        renderPastas();
+        renderAbas();
+        const sel = $('#waf-etq'); if (!sel) return;
+        const atual = sel.value;
         const ets = todasEtiquetas();
-        const meusN = chats.filter((c) => Number(c.assigned_user_id) === USER.id).length;
-        const ativoLabel = mostrarMeus ? `Meus atendimentos (${meusN})` : (filtro || 'Todas');
-        const nAtivos = (filtro || mostrarMeus) ? 1 : 0;
-        $('#waf').innerHTML = `<button type="button" class="wa-filter-btn" id="waf-btn">${svgIcon('filter', 'ic-xs')}<span>${esc(ativoLabel)}</span>${nAtivos ? `<span class="wa-filter-count">${nAtivos}</span>` : ''}${svgIcon('chevronDown', 'ic-xs')}</button>`;
-        $('#waf-btn').onclick = (e) => {
-          e.stopPropagation();
-          if ($('#waf-menu')) { fecharMenuFiltro(); return; }
-          const opts = [`<div class="wa-filter-opt ${!filtro && !mostrarMeus ? 'active' : ''}" data-f="">${svgIcon('dot', 'ic-xs')}Todas</div>`,
-            `<div class="wa-filter-opt ${mostrarMeus ? 'active' : ''}" data-meus="1">${svgIcon('users', 'ic-xs')} Meus atendimentos (${meusN})</div>`,
-            ...ets.map((t) => `<div class="wa-filter-opt ${filtro === t ? 'active' : ''}" data-f="${esc(t)}"><span class="wa-filter-dot" style="background:${cor(t)}"></span>${esc(t)}</div>`)].join('');
-          const menu = document.createElement('div');
-          menu.className = 'wa-filter-menu'; menu.id = 'waf-menu'; menu.innerHTML = opts;
-          $('#waf').appendChild(menu);
-          menu.querySelectorAll('[data-f]').forEach((o) => o.onclick = () => { filtro = o.dataset.f; mostrarMeus = false; fecharMenuFiltro(); renderFiltros(); renderLista(); });
-          const meusOpt = menu.querySelector('[data-meus]');
-          if (meusOpt) meusOpt.onclick = () => { mostrarMeus = !mostrarMeus; filtro = ''; fecharMenuFiltro(); renderFiltros(); renderLista(); };
-          document.addEventListener('click', onClickFora, true);
-        };
+        sel.innerHTML = `<option value="">Etiqueta: Todas</option>${ets.map((t) => `<option value="${esc(t)}">${esc(t)}</option>`).join('')}`;
+        if (ets.includes(atual)) sel.value = atual; // preserva a seleção entre polls
       };
 
-      const pastaDaConversa = (c) => Number(c.archived) ? 'fechados' : (Number(c.last_from_me) ? 'atendimento' : 'aguardando');
+      const correspondeAba = (c, ab) => {
+        const arquivada = !!Number(c.archived);
+        if (ab === 'naolidas') return Number(c.unread) > 0;
+        if (ab === 'atendimento') return !arquivada;
+        if (ab === 'finalizadas') return arquivada;
+        return true; // 'todas'
+      };
 
       // Cartão inline no topo do fluxo de mensagens — a informação crítica
       // (prazo de audiência perto, parcela vencendo) aparece NO MEIO da
@@ -485,29 +495,37 @@ Object.assign(ROUTES, {
         </div>`;
       };
 
-      // Pastas horizontais — 1 botão único por pasta, com contador. Refeito a
+      // Abas horizontais — 1 botão único por aba, com contador. Refeito a
       // cada renderFiltros() (mesmos pontos de chamada já cobrem todo lugar
       // que muda `chats`, incl. o polling), então os contadores nunca ficam
-      // desatualizados.
-      const renderPastas = () => {
+      // desatualizados. O select "Status" da barra de ações controla a MESMA
+      // variável `aba` — os dois são só 2 entradas pro mesmo estado.
+      const mudarAba = (nova) => {
+        if (aba === nova) return;
+        aba = nova;
+        const selStatus = $('#waf-status'); if (selStatus) selStatus.value = aba;
+        renderAbas(); renderLista();
+      };
+      const renderAbas = () => {
         const box = $('#wap-tabs'); if (!box) return;
-        const cont = { atendimento: 0, aguardando: 0, fechados: 0 };
-        chats.forEach((c) => cont[pastaDaConversa(c)]++);
-        const PASTAS = [['atendimento', 'Em atendimento'], ['aguardando', 'Aguardando'], ['fechados', 'Fechados']];
-        box.innerHTML = PASTAS.map(([v, t]) => `<button type="button" class="wa-pasta-tab ${pasta === v ? 'active' : ''}" data-pasta="${v}">${t}<span class="wa-pasta-count">${cont[v]}</span></button>`).join('');
-        box.querySelectorAll('[data-pasta]').forEach((b) => b.onclick = () => {
-          if (pasta === b.dataset.pasta) return;
-          pasta = b.dataset.pasta; renderPastas(); renderLista();
+        const cont = { todas: chats.length, naolidas: 0, atendimento: 0, finalizadas: 0 };
+        chats.forEach((c) => {
+          if (Number(c.unread) > 0) cont.naolidas++;
+          if (Number(c.archived)) cont.finalizadas++; else cont.atendimento++;
         });
+        const ABAS = [['todas', 'Todas'], ['naolidas', 'Não lidas'], ['atendimento', 'Em atendimento'], ['finalizadas', 'Finalizadas']];
+        box.innerHTML = ABAS.map(([v, t]) => `<button type="button" class="wa-pasta-tab ${aba === v ? 'active' : ''}" data-pasta="${v}">${t}<span class="wa-pasta-count">${cont[v]}</span></button>`).join('');
+        box.querySelectorAll('[data-pasta]').forEach((b) => b.onclick = () => mudarAba(b.dataset.pasta));
+        const selStatus = $('#waf-status'); if (selStatus) selStatus.value = aba;
       };
 
       const renderLista = () => {
         const q = busca.toLowerCase();
         let vis = chats.filter((c) => {
-          if (q && !(String(c.client_name || '').toLowerCase().includes(q) || String(c.phone).includes(q))) return false;
-          if (pastaDaConversa(c) !== pasta) return false;
-          if (filtro && !parseLabels(c.labels).includes(filtro)) return false;
-          if (mostrarMeus && Number(c.assigned_user_id) !== USER.id) return false;
+          if (q && !(String(c.client_name || '').toLowerCase().includes(q) || String(c.phone).includes(q) || String(c.last_body || '').toLowerCase().includes(q))) return false;
+          if (!correspondeAba(c, aba)) return false;
+          if (filtroEtiqueta && !parseLabels(c.labels).includes(filtroEtiqueta)) return false;
+          if (filtroResp && Number(c.assigned_user_id) !== Number(filtroResp)) return false;
           return true;
         });
         vis = [...vis].sort((a, b) => (Number(b.pinned) - Number(a.pinned)) || (new Date(b.last_time) - new Date(a.last_time)));
@@ -529,10 +547,12 @@ Object.assign(ROUTES, {
               ${Number(c.unread) ? `<span class="wa-unread">${c.unread}</span>` : ''}
             </div>
           </div>`;
-        }).join('') : `<div class="wa-empty">${pasta === 'fechados' ? 'Nenhuma conversa fechada' : 'Nenhuma conversa encontrada'}</div>`;
+        }).join('') : `<div class="wa-empty">${aba === 'finalizadas' ? 'Nenhuma conversa finalizada' : 'Nenhuma conversa encontrada'}</div>`;
         const totalNaoLidas = chats.reduce((s, c) => s + Number(c.unread || 0), 0);
         const elUnread = $('#wa-unread-total');
         if (elUnread) elUnread.textContent = totalNaoLidas ? `${totalNaoLidas} não lida${totalNaoLidas > 1 ? 's' : ''}` : '';
+        const elContagem = $('#wa-contagem');
+        if (elContagem) elContagem.textContent = `${vis.length} conversa${vis.length === 1 ? '' : 's'} encontrada${vis.length === 1 ? '' : 's'}`;
         // Nada mudou desde o último render (comum no polling de 6s) — pula a
         // reconstrução do DOM. Isso é o que causava a piscada/oscilação e o
         // peso: a lista inteira era refeita mesmo sem mudança nenhuma.
@@ -638,7 +658,10 @@ Object.assign(ROUTES, {
       const renderContexto = async () => {
         const box = $('#wa-ctx'); if (!box || !ativo) return;
         box.innerHTML = '<div class="spinner"></div>';
-        const cx = await api(`/api/whatsapp-instance/chats/${ativo.phone}/context`).catch(() => null);
+        const [cx, notasResp] = await Promise.all([
+          api(`/api/whatsapp-instance/chats/${ativo.phone}/context`).catch(() => null),
+          api(`/api/whatsapp-instance/chats/${ativo.phone}/notes`).catch(() => ({ notes: '' })),
+        ]);
         if (!cx) { box.innerHTML = '<div class="wa-empty">—</div>'; return; }
         const STG = { separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguard. protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
         const bloco = (t, inner) => `<div style="padding:8px 14px;border-bottom:1px solid var(--border-soft)"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px">${t}</div>${inner}</div>`;
@@ -647,11 +670,28 @@ Object.assign(ROUTES, {
         // PROCESSO e FINANCEIRO abaixo — mesmo formato nos dois, só muda a cor
         // quando `alerta` é true (prazo perto / parcela vencida).
         const linha = (rotulo, valor, alerta) => `<div style="display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:3px 0"><span style="color:var(--text-muted)">${rotulo}</span><strong style="color:${alerta ? 'var(--red)' : 'var(--navy-deep)'}">${valor}</strong></div>`;
-        if (cx.client) {
-          const area = (cx.cases || []).map((c) => c.legal_area).find(Boolean);
-          html += bloco('Cliente', `<strong style="color:var(--navy-deep);font-size:13.5px">${esc(cx.client.name)}</strong>
-            <div style="margin-top:6px">${linha('CPF', esc(cx.client.cpf_cnpj || '—'))}${linha('Área do direito', esc(area || '—'))}</div>`);
+        // ── Identificação — nome, telefone, e-mail, tipo de contato, área
+        // jurídica, responsável, origem (lead), status do atendimento e
+        // última interação, tudo num bloco só no topo da ficha (pedido
+        // explícito do redesign — antes ficava espalhado/faltando).
+        const cChat = chats.find((x) => x.phone === ativo.phone) || {};
+        const tipoContato = cx.client ? 'Cliente' : (cx.lead ? 'Lead' : 'Contato não cadastrado');
+        const statusAtendimento = Number(cChat.archived) ? 'Finalizada' : (Number(cChat.unread) > 0 ? 'Não lida' : 'Em atendimento');
+        const areaJuridica = cx.client ? (cx.cases || []).map((k) => k.legal_area).find(Boolean) : cx.lead?.legal_area;
+        html += bloco('Identificação', `<strong style="color:var(--navy-deep);font-size:13.5px">${esc(cx.client?.name || cx.lead?.name || ativo.name)}</strong>
+          <div style="margin-top:6px">
+            ${linha('Telefone', '+' + esc(ativo.phone))}
+            ${cx.client?.email ? linha('E-mail', esc(cx.client.email)) : ''}
+            ${cx.client?.cpf_cnpj ? linha('CPF/CNPJ', esc(cx.client.cpf_cnpj)) : ''}
+            ${linha('Tipo de contato', tipoContato)}
+            ${areaJuridica ? linha('Área jurídica', esc(areaJuridica)) : ''}
+            ${cChat.assigned_user_name ? linha('Responsável', esc(cChat.assigned_user_name)) : ''}
+            ${!cx.client && cx.lead?.source ? linha('Origem do lead', esc(cx.lead.source)) : ''}
+            ${linha('Status do atendimento', statusAtendimento)}
+            ${linha('Última interação', cx.ultima_resposta ? fmtDateTime(cx.ultima_resposta) : 'nunca respondeu')}
+          </div>`);
 
+        if (cx.client) {
           // ── PROCESSO — nº, etapa e audiência, nesta ordem exata (pedido
           // explícito da usuária). Mostra o processo mais recente; se houver
           // mais de um, o restante fica listado embaixo sem tirar o destaque
@@ -678,15 +718,40 @@ Object.assign(ROUTES, {
           // simplificada: reusa o mesmo endpoint da ficha do cliente
           // (/api/clients/:id/timeline), sem duplicar lógica no backend.
           html += `<div id="wa-ctx-timeline">${bloco('Linha do tempo', '<div class="spinner" style="margin:4px 0"></div>')}</div>`;
-        } else if (cx.lead) {
-          html += bloco('Lead', `<strong style="color:var(--navy-deep)">${esc(cx.lead.name)}</strong><br><small style="color:var(--text-muted)">${esc(cx.lead.legal_area || '')} · ${esc(cx.lead.status || '')}</small>`);
         } else {
           const sug = cx.lead_sugerido;
-          html += bloco('Contato', `<small style="color:var(--text-muted)">Número não cadastrado.</small>
+          html += bloco('Cadastro', `<small style="color:var(--text-muted)">Número não cadastrado.</small>
             ${sug ? `<div style="margin-top:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--gold);border-radius:6px;font-size:12.5px"><strong style="color:var(--navy);display:flex;align-items:center">${svgIcon('ia', 'ic-inline')}Parece um caso novo</strong><br>${esc(sug.resumo)}</div>` : ''}
             <div style="margin-top:8px;display:flex;flex-direction:column;gap:6px"><button class="btn-gold btn-sm" id="wa-mklead">+ Cadastrar como lead</button><button class="btn-sm" id="wa-vincular-cliente">Vincular a cliente existente</button></div>`);
         }
-        html += bloco('Última resposta do contato', cx.ultima_resposta ? `<small>${fmtDateTime(cx.ultima_resposta)}</small>` : '<small style="color:var(--text-muted)">nunca respondeu</small>');
+
+        // ── Etiquetas — chips editáveis direto na ficha (antes só dava pra
+        // editar pelo menu "⋯ Mais ações"; a lógica de salvar é a mesma).
+        const etiquetasAtuais = parseLabels(cChat.labels);
+        html += bloco('Etiquetas', `<div class="wa-chip-row" id="wa-ctx-chips">
+          ${etiquetasAtuais.map((t) => `<span class="wa-tag wa-tag-removable" style="background:${cor(t)}">${esc(t)}<button type="button" data-rm-tag="${esc(t)}" aria-label="Remover etiqueta ${esc(t)}">×</button></span>`).join('')}
+          <button type="button" class="wa-chip-add" id="wa-ctx-add-tag">+ etiqueta</button>
+        </div>`);
+
+        // ── Notas internas — nota nativa do WhatsApp Business (sincroniza lá
+        // também), já existia o endpoint no backend, só faltava esta tela.
+        html += bloco('Notas internas', `
+          <textarea id="wa-ctx-notas" rows="3" style="width:100%;font-size:12.5px;line-height:1.5;font-family:inherit;resize:vertical" placeholder="Anotações internas da equipe sobre este contato…">${esc(notasResp?.notes || '')}</textarea>
+          <button type="button" class="btn-sm" id="wa-ctx-notas-salvar" style="margin-top:6px">Salvar nota</button>`);
+
+        // ── Vínculos no CRM — todos os processos do cliente (o card
+        // "Processo" acima só destaca o mais recente).
+        html += bloco('Vínculos no CRM', (cx.cases || []).length ? `
+          <div style="display:flex;flex-direction:column;gap:5px">
+            ${cx.cases.map((k) => `<div style="font-size:12.5px;color:var(--navy-deep)">${svgIcon('briefcase', 'ic-xs')} ${esc(k.title || 'Processo')}${k.case_number ? ' · nº ' + esc(k.case_number) : ''}</div>`).join('')}
+          </div>` : '<small style="color:var(--text-muted)">Nenhum processo vinculado ainda</small>');
+
+        html += `<div style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+          <button type="button" class="btn-sm" id="wa-ctx-abrir-cadastro" ${(cx.client || cx.lead) ? '' : 'disabled title="Ainda não é cliente nem lead"'}>${svgIcon('file', 'ic-xs')}Abrir cadastro</button>
+          <button type="button" class="btn-sm" data-conv="tarefa">${svgIcon('clock', 'ic-xs')}Criar tarefa</button>
+          <button type="button" class="btn-sm" id="wa-ctx-vincular-processo" ${cx.client ? '' : 'disabled title="Vincule a um cliente primeiro"'}>${svgIcon('briefcase', 'ic-xs')}Vincular processo</button>
+        </div>`;
+
         html += bloco('Converter conversa em…', `
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
             <button class="btn-sm" data-conv="tarefa">+ Tarefa</button>
@@ -707,7 +772,7 @@ Object.assign(ROUTES, {
           </div>
           <button type="button" class="wa-ctx-final" data-quick="archive">${svgIcon('archive', 'ic-xs')}${Number(chats.find((x) => x.phone === ativo.phone)?.archived) ? 'Desarquivar conversa' : 'Arquivar conversa'}</button>`;
         box.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
-            <strong style="font-size:13px;color:var(--navy)">Ficha do contato</strong>
+            <strong style="font-size:13px;color:var(--navy)">Detalhes do contato</strong>
             <button class="btn-icon btn-icon-sm" id="wa-ctx-agenda" title="Salvar na agenda telefônica">${svgIcon('users', 'ic-xs')}</button>
           </div>` + html;
         // Simula o clique no item correspondente do menu "⋯ Mais ações" (mesmo
@@ -739,6 +804,64 @@ Object.assign(ROUTES, {
           { name: cx.client?.name || cx.lead?.name || ativo.name || '', phone: ativo.phone, category: cx.client ? 'cliente' : 'outro' },
           () => renderContexto()
         );
+
+        // Etiquetas — chips editáveis inline, reaproveita a mesma rota já
+        // usada pelo menu "⋯ Mais ações → Etiquetas".
+        const salvarEtiquetas = async (lista) => {
+          try {
+            await api(`/api/whatsapp-instance/chats/${ativo.phone}/labels`, { method: 'POST', body: JSON.stringify({ labels: lista }) });
+            renderContexto(); await atualizar(true);
+          } catch (e) { toast(e.message, 'error'); }
+        };
+        box.querySelector('#wa-ctx-add-tag').onclick = async () => {
+          const nova = await uiPrompt('Nova etiqueta:');
+          if (!nova || !nova.trim()) return;
+          if (etiquetasAtuais.includes(nova.trim())) { toast('Essa etiqueta já existe nesta conversa', 'error'); return; }
+          await salvarEtiquetas([...etiquetasAtuais, nova.trim()]);
+        };
+        box.querySelectorAll('[data-rm-tag]').forEach((b) => b.onclick = () => salvarEtiquetas(etiquetasAtuais.filter((t) => t !== b.dataset.rmTag)));
+
+        // Notas internas — nota nativa do WhatsApp Business (endpoint já existia).
+        box.querySelector('#wa-ctx-notas-salvar').onclick = async (e) => {
+          const btn = e.currentTarget;
+          const texto = box.querySelector('#wa-ctx-notas').value;
+          btn.disabled = true; btn.textContent = 'Salvando…';
+          try {
+            await api(`/api/whatsapp-instance/chats/${ativo.phone}/notes`, { method: 'POST', body: JSON.stringify({ notes: texto }) });
+            toast('Nota salva');
+          } catch (err) { toast(err.message, 'error'); }
+          btn.disabled = false; btn.textContent = 'Salvar nota';
+        };
+
+        // Abrir cadastro — cliente já tem ficha própria (reaproveitada de
+        // Clientes); lead ainda não tem modal dedicado, então leva pra tela.
+        box.querySelector('#wa-ctx-abrir-cadastro').onclick = () => {
+          if (cx.client) { fichaCliente(cx.client.id); return; }
+          if (cx.lead) { location.hash = '#leads'; toast('Abra o card deste lead no Funil de Leads para editar'); }
+        };
+
+        // Vincular processo — cria um processo novo já vinculado ao cliente
+        // desta conversa (reusa POST /api/cases, mesmo endpoint da tela
+        // Processos), sem duplicar o formulário completo de lá.
+        const vp = box.querySelector('#wa-ctx-vincular-processo');
+        if (vp && cx.client) vp.onclick = () => {
+          const form = el(`<form class="form-grid">
+            ${field('Título *', 'title', { value: `Processo — ${cx.client.name}` })}
+            ${field('Nº do processo', 'case_number')}
+            ${field('Área jurídica', 'legal_area', { options: [['trabalhista','Trabalhista'],['previdenciario','Previdenciário'],['consumidor','Consumidor'],['familia','Família'],['civel','Cível'],['gestante','Gestante'],['outro','Outro']].map(([v, t]) => ({ v, t })) })}
+            <button type="submit" class="btn-primary">Vincular processo</button>
+          </form>`);
+          form.onsubmit = async (ev) => {
+            ev.preventDefault();
+            const b = Object.fromEntries(new FormData(form));
+            if (!b.title.trim()) { toast('Informe o título', 'error'); return; }
+            try {
+              await api('/api/cases', { method: 'POST', body: JSON.stringify({ ...b, client_id: cx.client.id }) });
+              closeModal(); toast('Processo vinculado'); renderContexto();
+            } catch (e) { toast(e.message, 'error'); }
+          };
+          openModal('Vincular processo desta conversa', form);
+        };
 
         const mk = box.querySelector('#wa-mklead');
         if (mk) mk.onclick = () => {
@@ -1522,6 +1645,10 @@ Object.assign(ROUTES, {
         clearTimeout(buscaTimer);
         buscaTimer = setTimeout(() => atualizar(false), 400); // busca no conteúdo (servidor)
       };
+      $('#waf-status').value = aba;
+      $('#waf-status').onchange = (e) => mudarAba(e.target.value);
+      $('#waf-resp').onchange = (e) => { filtroResp = e.target.value; renderLista(); };
+      $('#waf-etq').onchange = (e) => { filtroEtiqueta = e.target.value; renderLista(); };
       $('#wa-agenda-btn').onclick = () => abrirAgendaModal((phone) => { abrirFonePendente = { phone }; shell(); });
       $('#wa-auditoria-btn').onclick = () => abrirAuditoriaModal();
       await atualizar(false);
@@ -1545,6 +1672,7 @@ Object.assign(ROUTES, {
     const tabContatos = async () => {
       const corEtiquetaKanban = (s) => WA_CORES[[...String(s)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % WA_CORES.length];
       const body = $('#wa-body');
+      const elContagem = $('#wa-contagem'); if (elContagem) elContagem.textContent = 'Quadro por etapas de atendimento';
       body.innerHTML = `
         <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
           <button class="btn-gold btn-sm" id="wc-nova-etapa">+ Nova etapa</button>
