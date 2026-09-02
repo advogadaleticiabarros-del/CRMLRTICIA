@@ -1607,11 +1607,13 @@ Object.assign(ROUTES, {
                   ${(c.labels || []).length ? `<div class="wa-tags">${c.labels.map((t) => `<span class="wa-tag" style="background:${corEtiquetaKanban(t)}">${esc(t)}</span>`).join('')}</div>` : ''}
                   <div class="wc-foot">
                     <span class="wc-time">${svgIcon('clock', 'ic-xs')}${c.last_time ? waFmtDia(c.last_time) : ''}</span>
-                    ${Number(c.unread) ? `<span class="wc-unread">${c.unread}</span>` : ''}
+                    <span class="wc-foot-right">
+                      ${Number(c.unread) ? `<span class="wc-unread">${c.unread}</span>` : ''}
+                      <select class="kf-move" draggable="false" data-phone="${esc(c.phone)}" data-from="${s.id}" title="Mover para outra etapa">
+                        ${stages.map((s2) => `<option value="${s2.id}" ${s2.id === s.id ? 'selected' : ''}>${esc(s2.name)}</option>`).join('')}
+                      </select>
+                    </span>
                   </div>
-                  <select class="kf-move" draggable="false" data-phone="${esc(c.phone)}" data-from="${s.id}" title="Mover para outra etapa">
-                    ${stages.map((s2) => `<option value="${s2.id}" ${s2.id === s.id ? 'selected' : ''}>${esc(s2.name)}</option>`).join('')}
-                  </select>
                 </div>`;
               }).join('') || ''}
             </div>

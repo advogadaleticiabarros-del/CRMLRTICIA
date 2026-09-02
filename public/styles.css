@@ -506,6 +506,7 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
    estrutura interna: etiqueta de urgência em vez de avatar, seguindo a
    referência aprovada (print do Prosystem, cores do CRM). */
 .wc-head { gap: 8px; }
+.wc-head .kf-count { background: transparent; color: var(--text-muted); padding: 0; font-weight: 700; }
 .wc-head-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .wc-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 .wc-card { padding: 12px 13px; gap: 0; }
@@ -518,6 +519,19 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .wc-time { font-size: 10.5px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
 .wc-time svg { width: 11px; height: 11px; }
 .wc-unread { background: var(--gold); color: #fff; border-radius: 9px; min-width: 17px; height: 17px; padding: 0 5px; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+.wc-foot-right { display: flex; align-items: center; gap: 6px; }
+/* Mover etapa sem arrastar: no board de Produção (.kf-move ali) é um select
+   grande e visível de propósito; aqui vira um controle discreto (só a seta),
+   porque a referência aprovada não tem NENHUM controle de mover visível no
+   card — só um detalhe utilitário no rodapé, não um bloco cheio repetindo o
+   nome da própria coluna. */
+.wc-card .kf-move {
+  appearance: none; -webkit-appearance: none; width: 20px; height: 18px; padding: 0; border: none;
+  background: transparent; color: transparent; font-size: 0; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237c7360' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: center; background-size: 13px;
+}
+.wc-card .kf-move:hover, .wc-card .kf-move:focus { background-color: var(--surface-2); border-radius: 5px; }
 
 /* Hambúrguer e overlay da gaveta (só aparecem no mobile) */
 .nav-toggle { display: none; background: none; border: none; font-size: 22px; color: var(--text-soft); cursor: pointer; padding: 4px 8px; margin-right: 4px; line-height: 1; }
