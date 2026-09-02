@@ -495,13 +495,16 @@ const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'prazos', 'dativo', 'propostas'
 
 function buildNav() {
   const items = navForRole();
-  // WhatsApp aparece no menu lateral como qualquer outra tela — pedido
-  // explícito da usuária pra manter o menu/topo sempre visíveis (referência:
-  // print do sistema Prosystem). O ícone dedicado no topbar (#whatsapp-btn)
-  // continua existindo, só não força mais tela cheia por padrão.
-  $('#nav').innerHTML = items.map((r) =>
+  // WhatsApp NÃO entra na lista do menu lateral (nem no menu mobile "Mais")
+  // — pedido explícito da usuária: o ícone dedicado no topbar (#whatsapp-btn,
+  // ver mais abaixo) já leva pra tela normal do WhatsApp (menu/topo
+  // visíveis), então repetir como item de menu também era redundante.
+  // `items` (com 'whatsapp' dentro) continua sendo usado pra permissão —
+  // navForRole().includes('whatsapp') decide se o botão do topbar aparece —
+  // só a renderização do menu em si filtra.
+  $('#nav').innerHTML = items.filter((r) => r !== 'whatsapp').map((r) =>
     `<a href="#${r}" class="nav-item ${r === 'intakes' ? 'nav-highlight' : ''}" data-route="${r}" title="${NAV_LABELS[r]}">${svgIcon(NAV_ICONS[r], 'nav-ic')}<span>${NAV_LABELS[r]}</span></a>`).join('');
-  buildBottomNav(items);
+  buildBottomNav(items.filter((r) => r !== 'whatsapp'));
 }
 
 function buildBottomNav(items) {
