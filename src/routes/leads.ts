@@ -22,7 +22,10 @@ const EXTRA_COLS = ['cpf_cnpj', 'rg', 'birth_date', 'marital_status', 'professio
   'next_followup', 'loss_reason'];
 
 const STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'proposta_recusada', 'contrato_assinado', 'fechada', 'convertido', 'perdida', 'newsletter'];
-const ACTIVE_STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'proposta_recusada', 'contrato_assinado'];
+// 'perdida' entrou aqui pra ganhar coluna própria no board (antes o lead
+// marcado como perdido simplesmente sumia da tela, sem nenhuma coluna que
+// o mostrasse — pedido explícito: coluna de "Recusado").
+const ACTIVE_STATUSES = ['triagem', 'atendimento_inicial', 'reuniao', 'documentacao_pendente', 'proposta', 'proposta_em_analise', 'proposta_recusada', 'contrato_assinado', 'perdida'];
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
 const LOSS_REASONS = ['preco', 'sumiu', 'foi_com_outro', 'desistiu', 'fora_area_atuacao', 'sem_perfil', 'outro'];
 

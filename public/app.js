@@ -1079,7 +1079,7 @@ const ROUTES = {
       <div class="page-header"><div><h2>Leads</h2><p class="sub">Funil comercial</p></div>
         <button class="btn-gold" id="new-lead">+ Novo lead</button></div>
       <div id="board" class="kanban"></div>`;
-    const cols = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', proposta_recusada: 'Proposta Recusada', contrato_assinado: 'Contrato Assinado' };
+    const cols = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', proposta_recusada: 'Proposta Recusada', contrato_assinado: 'Contrato Assinado', perdida: 'Perdido' };
     const load = async () => {
       const b = await api('/api/leads/board');
       $('#board').innerHTML = Object.entries(cols).map(([k, label]) => `
@@ -1090,6 +1090,10 @@ const ROUTES = {
 
       const moveLead = async (leadId, stage, from) => {
         if (!leadId || !stage || stage === from) return;
+        // A coluna "Perdido" exige motivo da perda (o backend recusa sem
+        // isso) — pergunta antes de mover, em vez de deixar o card cair na
+        // coluna e o card voltar sozinho com um erro genérico.
+        if (stage === 'perdida') { pedirMotivoPerda(leadId, load); return; }
         try { await api(`/api/leads/${leadId}/status`, { method: 'PATCH', body: JSON.stringify({ status: stage }) }); toast('Etapa do lead atualizada'); load(); }
         catch (e) { toast(e.message, 'error'); load(); }
       };
@@ -6200,6 +6204,26 @@ function field(label, name, opts = {}) {
 }
 const AREAS = [['outro','Outro'],['trabalhista','Trabalhista'],['gestante','Gestante/Maternidade'],['familia','Família'],['civel','Cível'],['previdenciario','Previdenciário'],['consumidor','Consumidor']].map(([v,t])=>({v,t}));
 const LOSS_REASONS_PT = [['preco','Achou o preço alto'],['sumiu','Parou de responder'],['foi_com_outro','Fechou com outro escritório'],['desistiu','Desistiu do processo'],['fora_area_atuacao','Fora da área de atuação'],['sem_perfil','Sem perfil pro caso'],['outro','Outro motivo']].map(([v,t])=>({v,t}));
+
+// Modal curto só pro motivo da perda — usado ao mover um lead pra "Perdido"
+// no quadro (arrastar ou pelo select de mover coluna), que exige motivo no
+// backend (PATCH /api/leads/:id/status). O formulário completo (leadDetail)
+// já tem esse campo; isso cobre o caminho rápido do quadro.
+function pedirMotivoPerda(leadId, onSave) {
+  const form = el(`<form class="form-grid">
+    ${field('Motivo da perda', 'loss_reason', { value: 'outro', options: LOSS_REASONS_PT })}
+    <button type="submit" class="btn-primary">Mover para Perdido</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const loss_reason = form.querySelector('[name=loss_reason]').value;
+    try {
+      await api(`/api/leads/${leadId}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'perdida', loss_reason }) });
+      closeModal(); toast('Lead movido para Perdido'); onSave();
+    } catch (err) { toast(err.message, 'error'); }
+  };
+  openModal('Por que este lead foi perdido?', form);
+}
 
 // Checagem de CONFLITO DE INTERESSES: procura o nome/CPF digitado entre
 // clientes, leads, casos (parte contrária citada) e dativas. Aviso, não trava.
