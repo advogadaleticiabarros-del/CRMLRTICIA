@@ -641,7 +641,7 @@ Object.assign(ROUTES, {
         const cx = await api(`/api/whatsapp-instance/chats/${ativo.phone}/context`).catch(() => null);
         if (!cx) { box.innerHTML = '<div class="wa-empty">—</div>'; return; }
         const STG = { separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguard. protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
-        const bloco = (t, inner) => `<div style="padding:12px 14px;border-bottom:1px solid var(--border-soft)"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:6px">${t}</div>${inner}</div>`;
+        const bloco = (t, inner) => `<div style="padding:8px 14px;border-bottom:1px solid var(--border-soft)"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px">${t}</div>${inner}</div>`;
         let html = '';
         // Linha do card padrão de dados ("rótulo: valor"), usada nos cards
         // PROCESSO e FINANCEIRO abaixo — mesmo formato nos dois, só muda a cor
