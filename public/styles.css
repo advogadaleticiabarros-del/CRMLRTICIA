@@ -503,21 +503,21 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 
 /* Cartão de contato do WhatsApp (Kanban da aba "Contatos") — usa a base de
    .kf-card (compartilhada com o board de Produção) mas com sua própria
-   estrutura interna, pra não colidir com o outro board. */
-.wc-card { padding: 13px 14px; gap: 7px; }
-.wc-card-top { display: flex; align-items: center; gap: 10px; }
-.wc-ava {
-  width: 38px; height: 38px; border-radius: 50%; flex: 0 0 38px; display: flex; align-items: center;
-  justify-content: center; color: #fff; font-weight: 700; font-size: 13.5px; transition: transform .22s cubic-bezier(.34,1.56,.64,1);
-}
-.kf-card:hover .wc-ava { transform: scale(1.08); }
-.wc-info { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
-.wc-info strong { font-size: 14.5px; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wc-info small { font-size: 12px; color: var(--text-soft); }
-.wc-time { font-size: 11.5px; color: var(--text-muted); flex: 0 0 auto; align-self: flex-start; }
-.wc-prev { font-size: 13px; color: var(--text-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-left: 48px; }
-.wc-unread { position: absolute; top: 11px; right: 13px; background: var(--gold); color: #fff; border-radius: 10px; min-width: 19px; height: 19px; padding: 0 6px; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(184,140,50,.4); }
-.wc-card { position: relative; }
+   estrutura interna: etiqueta de urgência em vez de avatar, seguindo a
+   referência aprovada (print do Prosystem, cores do CRM). */
+.wc-head { gap: 8px; }
+.wc-head-title { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.wc-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.wc-card { padding: 12px 13px; gap: 0; }
+.wc-row1 { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 7px; }
+.wc-row1 .wa-pill { margin-top: 0; }
+.wc-name { font-size: 12.5px; font-weight: 700; color: var(--navy-deep); text-align: right; }
+.wc-prev { font-size: 12px; color: var(--text-soft); margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.wc-agent { font-size: 11.5px; color: var(--gold-deep); font-weight: 600; margin-bottom: 7px; }
+.wc-foot { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border-soft); padding-top: 7px; margin-top: 2px; }
+.wc-time { font-size: 10.5px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
+.wc-time svg { width: 11px; height: 11px; }
+.wc-unread { background: var(--gold); color: #fff; border-radius: 9px; min-width: 17px; height: 17px; padding: 0 5px; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
 
 /* Hambúrguer e overlay da gaveta (só aparecem no mobile) */
 .nav-toggle { display: none; background: none; border: none; font-size: 22px; color: var(--text-soft); cursor: pointer; padding: 4px 8px; margin-right: 4px; line-height: 1; }
@@ -1802,6 +1802,29 @@ img, svg, video { max-width: 100%; }
 .wa-ctx-primary { width: 100%; background: var(--gold); color: #fff; border: none; border-radius: 9px; padding: 11px 14px; font-size: 13px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px; transition: background .15s, transform .1s; }
 .wa-ctx-primary:hover { background: var(--gold-deep, #a67a34); }
 .wa-ctx-primary:active { transform: scale(.98); }
+/* Grade de ações rápidas (referência: painel do Prosystem, cores do CRM) —
+   cada botão só aciona o item correspondente do menu "⋯ Mais ações", ver
+   whatsapp.js. Botão vermelho cheio embaixo, igual ao "Finalizar" da referência. */
+.wa-ctx-actions { padding: 12px 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.wa-ctx-qbtn {
+  display: flex; align-items: center; gap: 7px; padding: 10px 10px; border-radius: 9px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-soft);
+  font-family: inherit; font-size: 11.5px; font-weight: 600; cursor: pointer;
+  transition: transform .15s, box-shadow .15s, border-color .15s, color .15s;
+}
+.wa-ctx-qbtn:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--gold-soft); color: var(--gold-deep); }
+.wa-ctx-qbtn-danger:hover { border-color: var(--red); color: var(--red); }
+.wa-ctx-final {
+  margin: 0 14px 14px; width: calc(100% - 28px); padding: 10px; border-radius: 9px; border: none;
+  background: var(--red); color: #fff; font-family: inherit; font-weight: 700; font-size: 12.5px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 7px;
+  transition: background .15s, transform .15s;
+}
+.wa-ctx-final:hover { background: #a83a31; transform: translateY(-1px); }
+/* A ficha vira 3ª coluna fixa (sem alternar/fechar) a partir de 1100px —
+   o botão "👤 Ficha" só faz sentido em telas estreitas, onde ela some por
+   falta de espaço (ver .ctx-open abaixo) e precisa de um jeito manual de abrir. */
+@media (min-width: 1100px) { .wa-ficha-btn { display: none; } }
 @media (max-width: 1099px) { .wa-shell.ctx-open { grid-template-columns: minmax(260px, 320px) 1fr; } .wa-shell.ctx-open .wa-ctx { display: none; } }
 @media (max-width: 760px) {
   .wa-shell.chat-open.ctx-open { grid-template-columns: 1fr; }

@@ -552,15 +552,31 @@ router.delete('/stages/:id', async (req: Request, res: Response) => {
 // ── GET /api/whatsapp-instance/board — contatos agrupados por etapa ─────────
 router.get('/board', async (_req: Request, res: Response) => {
   const [stages] = await db.query('SELECT id, name, color, position FROM whatsapp_stages ORDER BY position ASC, id ASC') as any;
+  // Mesmas junções de audiência/parcela do GET /chats (whatsappSeveridade.ts
+  // no front espelha a mesma lógica) — os cards do quadro também mostram a
+  // etiqueta de urgência e o atendente responsável, não só na lista de Conversas.
   const [rows] = await db.query(`
     SELECT w.phone, MAX(w.client_id) AS client_id, MAX(cl.name) AS client_name,
            MAX(m.stage_id) AS stage_id, MAX(w.msg_time) AS last_time, MAX(m.push_name) AS push_name,
-           MAX(m.unread) AS unread, MAX(m.labels) AS labels,
+           MAX(m.unread) AS unread, MAX(m.labels) AS labels, MAX(au.name) AS assigned_user_name,
+           MIN(aud.dias) AS proxima_audiencia_dias, MIN(parc.dias) AS parcela_vencendo_dias,
            SUBSTRING_INDEX(GROUP_CONCAT(w.body ORDER BY w.msg_time DESC, w.id DESC SEPARATOR '\\n§§'), '\\n§§', 1) AS last_body,
            SUBSTRING_INDEX(GROUP_CONCAT(w.from_me ORDER BY w.msg_time DESC, w.id DESC), ',', 1) AS last_from_me
       FROM whatsapp_messages w
       LEFT JOIN clients cl ON cl.id = w.client_id
       LEFT JOIN whatsapp_chat_meta m ON m.phone = w.phone
+      LEFT JOIN users au ON au.id = m.assigned_user_id
+      LEFT JOIN (
+        SELECT COALESCE(ce.client_id, c.client_id) AS client_id, DATEDIFF(ce.start_datetime, CURDATE()) AS dias
+          FROM calendar_events ce
+          LEFT JOIN cases c ON c.id = ce.case_id
+         WHERE ce.event_type = 'audiencia' AND ce.start_datetime >= CURDATE() AND ce.start_datetime < DATE_ADD(CURDATE(), INTERVAL 8 DAY)
+      ) aud ON aud.client_id = w.client_id
+      LEFT JOIN (
+        SELECT client_id, DATEDIFF(due_date, CURDATE()) AS dias
+          FROM installments
+         WHERE status IN ('pendente', 'vencido', 'em_processamento') AND due_date < DATE_ADD(CURDATE(), INTERVAL 4 DAY)
+      ) parc ON parc.client_id = w.client_id
      GROUP BY w.phone
      ORDER BY last_time DESC`) as any;
   const primeiraEtapa = stages[0]?.id ?? null;
@@ -574,6 +590,8 @@ router.get('/board', async (_req: Request, res: Response) => {
     board[sid].push({
       phone: r.phone, name: r.client_name || r.push_name || ('+' + r.phone), client_id: r.client_id,
       last_time: r.last_time, last_body: r.last_body, last_from_me: r.last_from_me, unread: r.unread, labels,
+      assigned_user_name: r.assigned_user_name,
+      proxima_audiencia_dias: r.proxima_audiencia_dias, parcela_vencendo_dias: r.parcela_vencendo_dias,
     });
   }
   res.json({ stages, board });

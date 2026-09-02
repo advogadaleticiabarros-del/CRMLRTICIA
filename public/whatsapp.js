@@ -254,6 +254,42 @@ Object.assign(ROUTES, {
       }
     } catch { /* opcional */ }
 
+    // Mesma lógica/limiares de src/services/whatsappSeveridade.ts — ver spec
+    // docs/superpowers/specs/2026-08-21-whatsapp-conversas-redesign.md. Reescrita aqui
+    // porque este arquivo é servido direto ao navegador, sem build step.
+    // Compartilhada entre a aba Conversas e os cards do quadro Kanban (Contatos).
+    const severidadeAudiencia = (dias) => {
+      if (dias === null || dias === undefined) return 'neutra';
+      if (dias <= 2) return 'critica';
+      if (dias <= 7) return 'atencao';
+      return 'neutra';
+    };
+    const severidadeParcela = (dias) => {
+      if (dias === null || dias === undefined) return 'neutra';
+      if (dias <= 0) return 'critica';
+      if (dias <= 3) return 'atencao';
+      return 'neutra';
+    };
+    const PESO_SEV = { critica: 2, atencao: 1, neutra: 0 };
+    const severidadeConversa = (c) => {
+      const a = severidadeAudiencia(c.proxima_audiencia_dias);
+      const p = severidadeParcela(c.parcela_vencendo_dias);
+      return PESO_SEV[a] >= PESO_SEV[p] ? a : p;
+    };
+    const etiquetaPendencia = (c) => {
+      const a = severidadeAudiencia(c.proxima_audiencia_dias);
+      const p = severidadeParcela(c.parcela_vencendo_dias);
+      if (a === 'neutra' && p === 'neutra') return null;
+      if (PESO_SEV[a] >= PESO_SEV[p]) {
+        const d = c.proxima_audiencia_dias;
+        const texto = d === 0 ? 'Audiência hoje' : d === 1 ? 'Audiência amanhã' : `Audiência em ${d} dias`;
+        return { icone: 'scale', texto };
+      }
+      const d = c.parcela_vencendo_dias;
+      const texto = d < 0 ? 'Parcela atrasada' : d === 0 ? 'Parcela vence hoje' : `Parcela vence em ${d} dia${d === 1 ? '' : 's'}`;
+      return { icone: 'banknote', texto };
+    };
+
     const shell = async () => {
       if (chatTimer) { clearInterval(chatTimer); chatTimer = null; }
       const st = await api('/api/whatsapp-instance/status').catch(() => ({ connected: false }));
@@ -430,40 +466,6 @@ Object.assign(ROUTES, {
         };
       };
 
-      // Mesma lógica/limiares de src/services/whatsappSeveridade.ts — ver spec
-      // docs/superpowers/specs/2026-08-21-whatsapp-conversas-redesign.md. Reescrita aqui
-      // porque este arquivo é servido direto ao navegador, sem build step.
-      const severidadeAudiencia = (dias) => {
-        if (dias === null || dias === undefined) return 'neutra';
-        if (dias <= 2) return 'critica';
-        if (dias <= 7) return 'atencao';
-        return 'neutra';
-      };
-      const severidadeParcela = (dias) => {
-        if (dias === null || dias === undefined) return 'neutra';
-        if (dias <= 0) return 'critica';
-        if (dias <= 3) return 'atencao';
-        return 'neutra';
-      };
-      const PESO_SEV = { critica: 2, atencao: 1, neutra: 0 };
-      const severidadeConversa = (c) => {
-        const a = severidadeAudiencia(c.proxima_audiencia_dias);
-        const p = severidadeParcela(c.parcela_vencendo_dias);
-        return PESO_SEV[a] >= PESO_SEV[p] ? a : p;
-      };
-      const etiquetaPendencia = (c) => {
-        const a = severidadeAudiencia(c.proxima_audiencia_dias);
-        const p = severidadeParcela(c.parcela_vencendo_dias);
-        if (a === 'neutra' && p === 'neutra') return null;
-        if (PESO_SEV[a] >= PESO_SEV[p]) {
-          const d = c.proxima_audiencia_dias;
-          const texto = d === 0 ? 'Audiência hoje' : d === 1 ? 'Audiência amanhã' : `Audiência em ${d} dias`;
-          return { icone: 'scale', texto };
-        }
-        const d = c.parcela_vencendo_dias;
-        const texto = d < 0 ? 'Parcela atrasada' : d === 0 ? 'Parcela vence hoje' : `Parcela vence em ${d} dia${d === 1 ? '' : 's'}`;
-        return { icone: 'banknote', texto };
-      };
       const pastaDaConversa = (c) => Number(c.archived) ? 'fechados' : (Number(c.last_from_me) ? 'atendimento' : 'aguardando');
 
       // Cartão inline no topo do fluxo de mensagens — a informação crítica
@@ -693,14 +695,27 @@ Object.assign(ROUTES, {
             <button class="btn-sm" data-conv="anotacao" ${cx.client ? '' : 'disabled title="Precisa ser cliente"'}>+ Anotação</button>
           </div>`);
         html += `<div style="padding:12px 14px"><button class="wa-ctx-primary" id="wa-resumo">${svgIcon('ia')}Resumir conversa com IA</button></div>`;
+        // Grade de ações rápidas + arquivar — mesma referência visual aprovada
+        // (grade 2x2 + botão vermelho cheio embaixo). Não duplica lógica: cada
+        // botão só aciona o mesmo item do menu "⋯ Mais ações" do cabeçalho,
+        // que já faz a chamada real de API.
+        html += `<div class="wa-ctx-actions">
+            <button type="button" class="wa-ctx-qbtn" data-quick="assign">${svgIcon('users', 'ic-xs')}Atendente</button>
+            <button type="button" class="wa-ctx-qbtn" data-quick="pdf">${svgIcon('printer', 'ic-xs')}Histórico</button>
+            <button type="button" class="wa-ctx-qbtn" data-quick="label">${svgIcon('tag', 'ic-xs')}Etiquetas</button>
+            <button type="button" class="wa-ctx-qbtn wa-ctx-qbtn-danger" data-quick="block">${svgIcon('x', 'ic-xs')}${ativo.blocked ? 'Desbloquear' : 'Bloquear'}</button>
+          </div>
+          <button type="button" class="wa-ctx-final" data-quick="archive">${svgIcon('archive', 'ic-xs')}${Number(chats.find((x) => x.phone === ativo.phone)?.archived) ? 'Desarquivar conversa' : 'Arquivar conversa'}</button>`;
         box.innerHTML = `<div style="padding:10px 14px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center">
             <strong style="font-size:13px;color:var(--navy)">Ficha do contato</strong>
-            <span style="display:flex;gap:4px">
-              <button class="btn-icon btn-icon-sm" id="wa-ctx-agenda" title="Salvar na agenda telefônica">${svgIcon('users', 'ic-xs')}</button>
-              <button class="btn-icon btn-icon-sm" id="wa-ctx-close" title="Fechar">${svgIcon('x', 'ic-xs')}</button>
-            </span>
+            <button class="btn-icon btn-icon-sm" id="wa-ctx-agenda" title="Salvar na agenda telefônica">${svgIcon('users', 'ic-xs')}</button>
           </div>` + html;
-        box.querySelector('#wa-ctx-close').onclick = () => { ctxAberta = false; $('#wa-shell').classList.remove('ctx-open'); $('#wa-info')?.classList.remove('on'); };
+        // Simula o clique no item correspondente do menu "⋯ Mais ações" (mesmo
+        // cabeçalho da conversa) — reusa 100% da lógica de lá, sem reimplementar.
+        box.querySelectorAll('[data-quick]').forEach((btn) => btn.onclick = () => {
+          $('#wa-mais')?.click();
+          requestAnimationFrame(() => $(`#wa-mais-menu [data-acao="${btn.dataset.quick}"]`)?.click());
+        });
         if (cx.client) {
           const TL_ICONE = { documento: 'file', audiencia: 'scale', peticao: 'file', prazo: 'calendar', pagamento: 'banknote' };
           api(`/api/clients/${cx.client.id}/timeline`).then((eventos) => {
@@ -1570,28 +1585,35 @@ Object.assign(ROUTES, {
 
         $('#wc-board').innerHTML = stages.map((s) => `
           <div class="kf-col" data-stage="${s.id}">
-            <div class="kf-head" style="border-top:3px solid ${esc(s.color)}">
-              <span data-editar-etapa="${s.id}" class="wa-etapa-editar" title="Renomear/apagar etapa">${esc(s.name)}${svgIcon('edit', 'ic-xs')}</span>
+            <div class="kf-head wc-head">
+              <span class="wc-head-title">
+                <span class="wc-dot" style="background:${esc(s.color)}"></span>
+                <span data-editar-etapa="${s.id}" class="wa-etapa-editar" title="Renomear/apagar etapa">${esc(s.name)}${svgIcon('edit', 'ic-xs')}</span>
+              </span>
               <span class="kf-count">${(board[s.id] || []).length}</span>
             </div>
             <div class="kf-cards" data-stage="${s.id}">
-              ${(board[s.id] || []).map((c) => `
+              ${(board[s.id] || []).map((c) => {
+                const sev = severidadeConversa(c);
+                const et = etiquetaPendencia(c);
+                return `
                 <div class="kf-card wc-card" draggable="true" data-phone="${esc(c.phone)}" data-nome="${esc(c.name)}" data-cliente="${c.client_id || ''}" data-stage="${s.id}">
-                  ${Number(c.unread) ? `<span class="wc-unread">${c.unread}</span>` : ''}
-                  <div class="wc-card-top">
-                    <div class="wc-ava" style="background:${waCor(c.name)}">${waIniciais(c.name)}</div>
-                    <div class="wc-info">
-                      <strong>${esc(c.name)}</strong>
-                      <small>${c.client_id ? '★ Cliente · ' : ''}+${esc(c.phone)}</small>
-                    </div>
-                    <span class="wc-time">${c.last_time ? waFmtDia(c.last_time) : ''}</span>
+                  <div class="wc-row1">
+                    ${et ? `<span class="wa-pill wa-pill-${sev}">${svgIcon(et.icone, 'ic-xs')}${esc(et.texto)}</span>` : '<span></span>'}
+                    <span class="wc-name">${esc(c.name)}</span>
                   </div>
                   <div class="wc-prev">${Number(c.last_from_me) ? '✓ ' : ''}${esc(String(c.last_body || '').slice(0, 60))}</div>
+                  ${c.assigned_user_name ? `<div class="wc-agent">${esc(c.assigned_user_name)}</div>` : ''}
                   ${(c.labels || []).length ? `<div class="wa-tags">${c.labels.map((t) => `<span class="wa-tag" style="background:${corEtiquetaKanban(t)}">${esc(t)}</span>`).join('')}</div>` : ''}
+                  <div class="wc-foot">
+                    <span class="wc-time">${svgIcon('clock', 'ic-xs')}${c.last_time ? waFmtDia(c.last_time) : ''}</span>
+                    ${Number(c.unread) ? `<span class="wc-unread">${c.unread}</span>` : ''}
+                  </div>
                   <select class="kf-move" draggable="false" data-phone="${esc(c.phone)}" data-from="${s.id}" title="Mover para outra etapa">
                     ${stages.map((s2) => `<option value="${s2.id}" ${s2.id === s.id ? 'selected' : ''}>${esc(s2.name)}</option>`).join('')}
                   </select>
-                </div>`).join('') || ''}
+                </div>`;
+              }).join('') || ''}
             </div>
           </div>`).join('');
 

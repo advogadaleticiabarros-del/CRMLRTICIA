@@ -495,9 +495,11 @@ const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'prazos', 'dativo', 'propostas'
 
 function buildNav() {
   const items = navForRole();
-  // "whatsapp" fica de fora do menu lateral — virou o botão dedicado no
-  // topbar (#whatsapp-btn), que abre direto em tela cheia.
-  $('#nav').innerHTML = items.filter((r) => r !== 'whatsapp').map((r) =>
+  // WhatsApp aparece no menu lateral como qualquer outra tela — pedido
+  // explícito da usuária pra manter o menu/topo sempre visíveis (referência:
+  // print do sistema Prosystem). O ícone dedicado no topbar (#whatsapp-btn)
+  // continua existindo, só não força mais tela cheia por padrão.
+  $('#nav').innerHTML = items.map((r) =>
     `<a href="#${r}" class="nav-item ${r === 'intakes' ? 'nav-highlight' : ''}" data-route="${r}" title="${NAV_LABELS[r]}">${svgIcon(NAV_ICONS[r], 'nav-ic')}<span>${NAV_LABELS[r]}</span></a>`).join('');
   buildBottomNav(items);
 }
@@ -9105,14 +9107,14 @@ if (navOverlay) navOverlay.onclick = () => document.body.classList.remove('nav-o
 const sbCollapse = $('#sidebar-collapse');
 if (sbCollapse) sbCollapse.onclick = () => setSidebarCollapsed(!document.body.classList.contains('sidebar-collapsed'));
 initAppearance();
-// Botão dedicado no topbar (ícone só, ao lado do sino) — pedido da usuária
-// pra tirar "WhatsApp" do menu lateral (ficava um item grande igual aos
-// outros, mas é usado o tempo todo de um jeito diferente: tela cheia) e
-// abrir direto em ?foco=1, sem passar pela tela normal do CRM primeiro.
+// Atalho no topbar (ícone só, ao lado do sino) pro WhatsApp — abre a
+// tela normal (menu/topo visíveis), igual a qualquer outro item do menu.
+// A tela cheia (sem menu/topo) continua disponível, mas como escolha
+// manual dentro da própria tela de WhatsApp, não como entrada forçada.
 const waTopbarBtn = $('#whatsapp-btn');
 if (waTopbarBtn) {
   if (navForRole().includes('whatsapp')) {
-    waTopbarBtn.onclick = () => window.open(location.pathname + '?foco=1#whatsapp', '_blank', 'noopener');
+    waTopbarBtn.onclick = () => { location.hash = '#whatsapp'; };
   } else {
     waTopbarBtn.remove();
   }
