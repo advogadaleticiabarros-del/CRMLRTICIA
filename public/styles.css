@@ -179,6 +179,13 @@ body.foco-total .content { margin-left: 0; padding: 0; display: flex; flex-direc
 body.foco-total .content > .page { padding: 0; margin: 0; max-width: none; flex: 1; min-height: 0; display: flex; flex-direction: column; }
 body.foco-total #wa-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 body.foco-total .wa-shell { flex: 1; min-height: 0; height: auto !important; }
+/* Mesma regra do .wa-shell (acima) — faltava aqui, e por isso o quadro
+   Kanban (aba "Quadro") sobrava espaço na tela-cheia mesmo depois do
+   ajuste de altura em JS: a altura calculada em px (ajustarAlturaQuadro,
+   em whatsapp.js) é só o fallback do modo normal — em tela-cheia,
+   height:auto !important vence o style inline e deixa o flexbox (que se
+   adapta sozinho a qualquer mudança da UI do navegador) mandar de vez. */
+body.foco-total .kanban-wrap { flex: 1; min-height: 0; height: auto !important; }
 /* Fallback: páginas cujo módulo não cria seu próprio .foco-voltar dentro
    do .page-header continuam usando o botão fixo (o único, injetado 1x
    pelo app.js em document.body) — precisam do respiro original no topo

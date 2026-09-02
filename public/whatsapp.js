@@ -306,6 +306,7 @@ Object.assign(ROUTES, {
               <button type="button" class="wa-view-opt ${tab === 'conversas' ? 'active' : ''}" data-wtab="conversas" title="Lista de conversas">${svgIcon('chat', 'ic-xs')}Lista</button>
               <button type="button" class="wa-view-opt ${tab === 'contatos' ? 'active' : ''}" data-wtab="contatos" title="Quadro por etapas">${svgIcon('kanban', 'ic-xs')}Quadro</button>
             </div>
+            ${tab === 'contatos' ? '<button class="btn-gold btn-sm" id="wc-nova-etapa">+ Nova etapa</button>' : ''}
             <button class="btn-gold" id="wa-nova">+ Nova conversa</button>
           </div></div>
         <div id="wa-body"><div class="spinner"></div></div>`;
@@ -1702,10 +1703,12 @@ Object.assign(ROUTES, {
       const corEtiquetaKanban = (s) => WA_CORES[[...String(s)].reduce((a, ch) => a + ch.charCodeAt(0), 0) % WA_CORES.length];
       const body = $('#wa-body');
       const elContagem = $('#wa-contagem'); if (elContagem) elContagem.textContent = 'Quadro por etapas de atendimento';
+      // "+ Nova etapa" mora no cabeçalho da página agora (junto de "+ Nova
+      // conversa"), não numa faixa própria acima do quadro — essa faixa só
+      // continha um botão sozinho alinhado à direita, um vão de espaço
+      // "flutuante" sem função (reportado: "não quero esse espaço
+      // sobrando acima"). O quadro agora começa direto abaixo do cabeçalho.
       body.innerHTML = `
-        <div style="display:flex;justify-content:flex-end;margin-bottom:10px">
-          <button class="btn-gold btn-sm" id="wc-nova-etapa">+ Nova etapa</button>
-        </div>
         <div class="kanban-wrap">
           <button type="button" class="kanban-nav kanban-nav-esq" id="wc-nav-esq" title="Coluna anterior">${svgIcon('chevronLeft')}</button>
           <div id="wc-board" class="kanban-fases"></div>
