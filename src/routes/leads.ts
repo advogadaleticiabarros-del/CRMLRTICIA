@@ -304,13 +304,14 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     oldValue: STATUS_PT[prev.status] || prev.status, newValue: STATUS_PT[status] || status,
   });
 
-  // Mover o lead pra "Proposta Recusada" avisa a pessoa por WhatsApp — mesma
-  // mensagem calorosa (+ pergunta de newsletter) já usada quando uma
-  // proposta formal é marcada como recusada. Se houver uma proposta aberta
+  // Mover o lead pra "Proposta Recusada" OU "Perdido" avisa a pessoa por
+  // WhatsApp — mesma mensagem calorosa (+ pergunta de newsletter) nos dois
+  // casos, pedido explícito da usuária (reaproveitar o texto tal como está,
+  // sem criar uma 2ª versão pra "Perdido"). Se houver uma proposta aberta
   // ligada a este lead, marca ela como recusada também (mesma ação, um só
   // lugar de verdade) em vez de deixar os dois desalinhados. Best-effort:
   // nunca bloqueia a resposta — a etapa já foi salva acima.
-  if (status === 'proposta_recusada' && prev.phone) {
+  if ((status === 'proposta_recusada' || status === 'perdida') && prev.phone) {
     (async () => {
       try {
         const [propRows] = await db.query(
