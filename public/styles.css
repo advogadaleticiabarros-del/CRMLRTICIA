@@ -472,6 +472,11 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .kanban-nav-dir { right: 4px; }
 @media (max-width: 640px) { .kanban-nav { display: none; } }
 .kf-col { min-width: 272px; flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; }
+/* Quadro de Contatos do WhatsApp: colunas mais estreitas que o padrão
+   (cards sem avatar cabem bem mais apertados) — cabe 1 coluna a mais na
+   tela sem rolar/clicar na seta, mesmo com várias etapas abertas. */
+#wc-board.kanban-fases { padding-right: 36px; }
+#wc-board .kf-col { min-width: 224px; }
 .kf-head { font-weight: 700; color: var(--navy); display: flex; justify-content: space-between; align-items: center; margin-bottom: 11px; font-size: 14.5px; }
 .kf-count { background: var(--gold); color: #fff; border-radius: 11px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
 .kf-cards { display: flex; flex-direction: column; gap: 10px; max-height: 66vh; min-height: 70px; overflow-y: auto; }
