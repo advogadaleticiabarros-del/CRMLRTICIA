@@ -4,7 +4,7 @@ import { extrairNomeacaoDativa } from '../services/aiAssistant';
 
 const router = Router();
 
-const CASE_STATUS = ['nomeada', 'em_andamento', 'concluida', 'paga'];
+const CASE_STATUS = ['nomeada', 'em_andamento', 'concluida', 'a_receber', 'paga'];
 const AREAS = ['criminal', 'familia', 'civel', 'previdenciario', 'trabalhista', 'infancia', 'outro'];
 const HEARING_STATUS = ['agendada', 'realizada', 'adiada', 'cancelada'];
 const PAY_STATUS = ['previsto', 'recebido'];
@@ -72,7 +72,7 @@ router.get('/summary', async (req: Request, res: Response) => {
       (SELECT COUNT(*) FROM dative_hearings WHERE user_id = ? AND status = 'realizada')                          AS audiencias_realizadas,
       (SELECT COUNT(*) FROM dative_hearings WHERE user_id = ? AND status = 'agendada' AND hearing_date >= NOW()) AS audiencias_futuras,
       (SELECT COALESCE(SUM(value),0) FROM dative_payments WHERE user_id = ? AND status = 'recebido')             AS recebido,
-      (SELECT COUNT(*) FROM dative_cases WHERE user_id = ? AND status NOT IN ('concluida','paga'))               AS demandas_ativas
+      (SELECT COUNT(*) FROM dative_cases WHERE user_id = ? AND status NOT IN ('concluida','a_receber','paga'))    AS demandas_ativas
   `, Array(7).fill(userId)) as any;
 
   const aReceber = Math.max(0, Number(totais.realizado) - Number(totais.recebido));

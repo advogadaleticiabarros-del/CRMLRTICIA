@@ -290,7 +290,7 @@ tbody tr:hover { background: var(--surface-2); }
 .badge.ativo, .badge.convertido, .badge.aceita, .badge.pago, .badge.fechada, .badge.realizada, .badge.recebido, .badge.assinado, .badge.finalizado { background: var(--green-bg); color: var(--green); }
 .badge.inativo, .badge.perdido, .badge.perdida, .badge.recusada, .badge.vencido, .badge.descartado, .badge.cancelado, .badge.cancelada { background: var(--red-bg); color: var(--red); }
 .badge.novo, .badge.prospecto, .badge.pendente, .badge.rascunho, .badge.nomeada, .badge.previsto, .badge.triagem, .badge.agendada { background: #eef2f8; color: var(--navy); }
-.badge.contatado, .badge.qualificado, .badge.em_negociacao, .badge.em_triagem, .badge.reuniao_marcada, .badge.enviada, .badge.atendimento_inicial, .badge.reuniao, .badge.proposta, .badge.proposta_em_analise, .badge.em_andamento, .badge.em_producao, .badge.adiada { background: var(--amber-bg); color: var(--amber); }
+.badge.contatado, .badge.qualificado, .badge.em_negociacao, .badge.em_triagem, .badge.reuniao_marcada, .badge.enviada, .badge.atendimento_inicial, .badge.reuniao, .badge.proposta, .badge.proposta_em_analise, .badge.em_andamento, .badge.em_producao, .badge.adiada, .badge.a_receber { background: var(--amber-bg); color: var(--amber); }
 .badge.urgente { background: var(--red-bg); color: var(--red); }
 .badge.atencao { background: var(--amber-bg); color: var(--amber); }
 .badge.normal { background: var(--green-bg); color: var(--green); }

@@ -8125,7 +8125,7 @@ async function dativeCaseDetail(id, onSave) {
     ${field('Assistido', 'assisted_name', { value: d.assisted_name || '' })}
     <div class="form-row">${field('Área', 'area', { value: d.area, options: DATIVE_AREAS })}${field('Data da nomeação', 'nomeacao_date', { type: 'date', value: dinput })}</div>
     ${field('Assunto (etiqueta)', 'assunto', { value: d.assunto || '', placeholder: 'ex.: tráfico de drogas, divórcio litigioso, furto' })}
-    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d.estimated_value ?? 0 })}${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
+    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d.estimated_value ?? 0 })}${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
     ${field('Observações', 'notes', { value: d.notes || '', type: 'textarea' })}
     <button class="btn-primary" id="dat-save">Salvar alterações</button>
     <hr style="border:none;border-top:1px solid var(--border)">
@@ -8281,7 +8281,7 @@ async function dativeCaseEditForm(onSave, d) {
     ${field('Comarca *', 'comarca', { value: d?.comarca || '' })}
     <div class="form-row">${field('N&ordm; do processo', 'process_number', { value: d?.process_number || '' })}${field('Vara', 'vara', { value: d?.vara || '' })}</div>
     <div class="form-row">${field('&Aacute;rea', 'area', { value: d?.area || 'outro', options: DATIVE_AREAS })}${field('Data da nomea&ccedil;&atilde;o', 'nomeacao_date', { type: 'date', value: datDateInputValue(d?.nomeacao_date) })}</div>
-    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d?.estimated_value ?? '' })}${field('Status', 'status', { value: d?.status || 'nomeada', options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Conclu&iacute;da'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
+    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d?.estimated_value ?? '' })}${field('Status', 'status', { value: d?.status || 'nomeada', options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Conclu&iacute;da'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
     ${field('Observa&ccedil;&otilde;es', 'notes', { type: 'textarea', value: d?.notes || '' })}
     <button type="submit" class="btn-primary">Salvar altera&ccedil;&otilde;es</button>
   </form>`);
