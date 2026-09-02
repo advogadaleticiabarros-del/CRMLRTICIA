@@ -1270,18 +1270,30 @@ Object.assign(ROUTES, {
           } catch (e) { toast(e.message, 'error'); }
           finally { btn.disabled = false; }
         };
+        // Título amigável + prioridade de exibição pras respostas prontas mais
+        // usadas — a Uazapi (dona dos atalhos) só guarda shortCut/texto, sem
+        // campo de título ou ordem própria, então isso é resolvido aqui, no
+        // front, por atalho conhecido. "documentos" é o pedido de dados pra
+        // montar a proposta — sempre aparece primeiro na lista.
+        const RESPOSTA_TITULO_PT = { documentos: 'Montar proposta' };
+        const RESPOSTA_PRIORIDADE = ['documentos'];
         $('#wa-modelos').onclick = async () => {
-          const tpls = await api('/api/whatsapp-instance/quickreplies').catch(() => []);
+          const tplsBrutos = await api('/api/whatsapp-instance/quickreplies').catch(() => []);
+          const tpls = [...tplsBrutos].sort((a, b) => {
+            const ia = RESPOSTA_PRIORIDADE.indexOf(a.shortCut || a.shortcut || '');
+            const ib = RESPOSTA_PRIORIDADE.indexOf(b.shortCut || b.shortcut || '');
+            return (ia === -1 ? Infinity : ia) - (ib === -1 ? Infinity : ib);
+          });
           const primeiroNome = (ativo.name.startsWith('+') ? '' : ativo.name).split(' ')[0] || '';
           const wrap = el(`<div>
             <div style="display:flex;flex-direction:column;gap:8px;max-height:46vh;overflow:auto">
-              ${tpls.map((t) => `<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px">
+              ${tpls.map((t) => { const sc = t.shortCut || t.shortcut || ''; const titulo = RESPOSTA_TITULO_PT[sc]; return `<div style="border:1px solid var(--border);border-radius:8px;padding:10px 12px">
                 <div style="display:flex;justify-content:space-between;gap:8px;align-items:baseline">
-                  <strong style="font-size:13px;color:var(--navy-deep)">/${esc(t.shortCut || t.shortcut || '')}</strong>
+                  <strong style="font-size:13px;color:var(--navy-deep)">${titulo ? esc(titulo) + ' · ' : ''}/${esc(sc)}</strong>
                   <span style="white-space:nowrap"><button class="btn-gold btn-sm" data-usar="${t.id}">Usar</button> <button class="btn-ghost btn-sm" data-editar-tpl="${t.id}">${svgIcon('edit', 'ic-xs')}</button> <button class="btn-ghost btn-sm" data-apagar="${t.id}">${svgIcon('x', 'ic-xs')}</button></span>
                 </div>
                 <div style="font-size:12px;color:var(--text-muted);margin-top:4px">${esc(String(t.text || '').slice(0, 110))}…</div>
-              </div>`).join('') || '<div class="empty">Nenhuma resposta pronta ainda</div>'}
+              </div>`; }).join('') || '<div class="empty">Nenhuma resposta pronta ainda</div>'}
             </div>
             <hr style="border:none;border-top:1px solid var(--border);margin:12px 0">
             <form id="tpl-novo" class="form-grid">
