@@ -309,6 +309,8 @@ function scheduleAutoSend(): void {
               await db.query(
                 "UPDATE whatsapp_queue SET status = 'enviada', sent_at = NOW(), sent_via = 'instancia' WHERE id = ?",
                 [rows[0].id]);
+            } else {
+              await avisarFalhaEnvioWhatsapp('fila_whatsapp', rows[0].phone);
             }
           }
         }
