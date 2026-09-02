@@ -46,7 +46,7 @@ router.get('/board', async (req: Request, res: Response) => {
   const placeholders = ACTIVE_STATUSES.map(() => '?').join(',');
   const [rows] = await db.query(
     `SELECT id, name, email, phone, source, legal_area, status, created_at, analise_since, first_response_at,
-            estimated_value, close_probability, next_followup, ai_urgency, ai_value_range
+            estimated_value, close_probability, next_followup, ai_urgency, ai_value_range, cpf_cnpj
      FROM leads
      WHERE user_id = ? AND status IN (${placeholders})
      ORDER BY created_at DESC`,

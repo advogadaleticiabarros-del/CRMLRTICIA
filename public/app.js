@@ -987,6 +987,15 @@ function leadUrgencyBadge(aiUrgency) {
   return '';
 }
 
+// Sinaliza no card de "Documentação Pendente" que o CPF já foi preenchido
+// (manualmente ou detectado automaticamente na conversa do WhatsApp — ver
+// detectarDadosParaProposta no webhook) — já dá pra gerar a proposta sem
+// precisar perguntar os dados de novo.
+function leadDadosProntoBadge(status, cpfCnpj) {
+  if (status !== 'documentacao_pendente' || !cpfCnpj) return '';
+  return '<span class="badge-tempo badge-tempo-verde" title="CPF já preenchido — dados prontos pra gerar a proposta">✓ Dados prontos</span>';
+}
+
 // ── Pages ──
 const ROUTES = {
   async dashboard(page) {
@@ -1086,7 +1095,7 @@ const ROUTES = {
         <div class="kanban-col" data-stage="${k}"><h4>${label}<span class="count">${(b[k] || []).length}</span></h4>
         ${(b[k] || []).map((l) => `<div class="kanban-card" draggable="true" data-lead="${l.id}" data-stage="${k}">
           <strong>${esc(l.name)}</strong><small>${l.legal_area || ''} · ${l.source || ''}</small>
-          ${leadResponseBadge(l.created_at, l.first_response_at)}${leadUrgencyBadge(l.ai_urgency)}</div>`).join('')}</div>`).join('');
+          ${leadResponseBadge(l.created_at, l.first_response_at)}${leadUrgencyBadge(l.ai_urgency)}${leadDadosProntoBadge(l.status, l.cpf_cnpj)}</div>`).join('')}</div>`).join('');
 
       const moveLead = async (leadId, stage, from) => {
         if (!leadId || !stage || stage === from) return;
@@ -6203,6 +6212,7 @@ function field(label, name, opts = {}) {
   return `<label>${label}<input type="${type}" name="${name}" value="${value ?? ''}"${maxlength ? ` maxlength="${maxlength}"` : ''} /></label>`;
 }
 const AREAS = [['outro','Outro'],['trabalhista','Trabalhista'],['gestante','Gestante/Maternidade'],['familia','Família'],['civel','Cível'],['previdenciario','Previdenciário'],['consumidor','Consumidor']].map(([v,t])=>({v,t}));
+const MARITAL_PT = { solteiro: 'Solteiro(a)', casado: 'Casado(a)', divorciado: 'Divorciado(a)', viuvo: 'Viúvo(a)', uniao_estavel: 'União estável', outro: 'Estado civil: outro' };
 const LOSS_REASONS_PT = [['preco','Achou o preço alto'],['sumiu','Parou de responder'],['foi_com_outro','Fechou com outro escritório'],['desistiu','Desistiu do processo'],['fora_area_atuacao','Fora da área de atuação'],['sem_perfil','Sem perfil pro caso'],['outro','Outro motivo']].map(([v,t])=>({v,t}));
 
 // Modal curto só pro motivo da perda — usado ao mover um lead pra "Perdido"
@@ -6530,6 +6540,11 @@ async function propostaForm(onSave, lead = null, existing = null) {
     ${field('Nome completo *', 'contact_name', { value: existing?.contact_name || lead?.name || '' })}
     <div class="form-row">${field('CPF', 'cpf', { value: existing?.cpf || lead?.cpf_cnpj || '' })}${field('Telefone / WhatsApp', 'phone', { value: existing?.phone || lead?.phone || '' })}</div>
     ${field('E-mail', 'email', { type: 'email', value: existing?.email || lead?.email || '' })}
+    ${lead && (lead.profession || lead.marital_status || lead.street) ? `<div style="font-size:12.5px;background:var(--surface-2,#f4f1ea);border-radius:8px;padding:8px 12px;color:var(--text-soft)">
+      <strong style="color:var(--navy)">Dados recebidos do lead (pelo WhatsApp/ficha):</strong>
+      ${[lead.marital_status ? MARITAL_PT[lead.marital_status] || lead.marital_status : '', lead.profession].filter(Boolean).map(esc).join(' · ')}
+      ${(lead.street || lead.city) ? `<br>${esc([lead.street, lead.number, lead.neighborhood, lead.city, lead.state].filter(Boolean).join(', '))}${lead.cep ? ' · CEP ' + esc(lead.cep) : ''}` : ''}
+    </div>` : ''}
     ${field('Vincular a cliente existente (opcional)', 'client_id', { options: [{ v: '', t: '—' }].concat(clients.data.map((c) => ({ v: c.id, t: c.name }))) })}
     ${field('Em parceria com (opcional)', 'partner_lawyers', { value: existing?.partner_lawyers || '', placeholder: 'Ex.: Dra. Ana Paula Ribeiro, OAB/ES 12.345' })}
 

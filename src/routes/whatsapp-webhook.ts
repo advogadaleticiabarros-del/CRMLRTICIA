@@ -13,6 +13,7 @@ import { logActivity } from '../services/JourneyService';
 import {
   findOpenPendingReply, interpretarResposta, resolvePendingReply, PendingReply,
 } from '../services/pendingWhatsappReplyService';
+import { normalizeExtraVal } from './leads';
 
 // Roteador PÚBLICO (sem autenticação) — a Uazapi entrega os eventos aqui.
 // Substitui o listener 'messages.upsert' do Baileys (waInstance.ts): como a
@@ -157,6 +158,76 @@ async function notifyNewWhatsappContact(phone: string, pushName: string | null, 
        VALUES (?, ?, ?, 'contato_whatsapp_novo', 'sistema', NOW(), 'pendente')`,
       [a.id, pareceLead ? 'Possível lead novo no WhatsApp' : 'Novo contato no WhatsApp', corpo]
     ).catch(() => {});
+  }
+}
+
+// Detecta quando um lead na etapa "Documentação Pendente" manda os dados
+// pedidos pra montar a proposta (a resposta pronta "/documentos" pede nome
+// completo, CPF, endereço, e-mail, estado civil e profissão). Só roda pra
+// quem está NESSA etapa — não gasta IA em toda mensagem de toda conversa.
+// Best-effort: nunca lança, nunca bloqueia o webhook; se a IA não achar pelo
+// menos nome E CPF na mensagem, não considera "os dados chegaram" (evita
+// disparar em qualquer "oi"/"bom dia" enviado nessa etapa).
+async function detectarDadosParaProposta(phone: string, texto: string): Promise<void> {
+  try {
+    const tail = phone.replace(/\D/g, '').slice(-8);
+    if (tail.length < 8) return;
+    const [[lead]] = await db.query(
+      `SELECT id, name FROM leads
+        WHERE status = 'documentacao_pendente'
+          AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''),'(',''),')',''),'-',''),' ','') LIKE ?
+        ORDER BY id DESC LIMIT 1`,
+      [`%${tail}`]
+    ) as any;
+    if (!lead) return;
+
+    const { aiComplete } = await import('../services/aiAssistant');
+    const r = await aiComplete(`Um escritório de advocacia pediu a um cliente, pelo WhatsApp, os dados abaixo para montar uma proposta de honorários: nome completo, CPF, endereço completo, e-mail, estado civil e profissão.
+
+Leia a mensagem abaixo e devolva APENAS um JSON válido, sem comentários, com o que você conseguir identificar (deixe "" quando a mensagem não trouxer aquele dado — não invente nada):
+{"nome_completo": "", "cpf": "", "cep": "", "street": "", "number": "", "neighborhood": "", "city": "", "state": "", "email": "", "marital_status": "solteiro|casado|divorciado|viuvo|uniao_estavel|outro ou vazio", "profession": ""}
+"state" é a sigla de 2 letras da UF, quando identificável.
+
+MENSAGEM:
+${texto}`, 'groq');
+    if (!r.ok) return;
+    const clean = String(r.text || '').replace(/```json|```/g, '').trim();
+    const j = JSON.parse(clean.slice(clean.indexOf('{'), clean.lastIndexOf('}') + 1));
+
+    // Barreira mínima: só considera "os dados chegaram" com nome E CPF —
+    // o resto (endereço, e-mail, profissão…) entra se vier, mas sozinho
+    // não é sinal confiável o bastante pra avisar a advogada.
+    if (!j.nome_completo || !j.cpf) return;
+
+    // Preenche só o que ainda estiver vazio na ficha — nunca sobrescreve
+    // algo que a advogada já preencheu manualmente.
+    const campos: Record<string, any> = {
+      cpf_cnpj: j.cpf, email: j.email, marital_status: j.marital_status, profession: j.profession,
+      cep: j.cep, street: j.street, number: j.number, neighborhood: j.neighborhood, city: j.city,
+      state: j.state ? normalizeExtraVal('state', j.state) : '',
+    };
+    const sets: string[] = []; const params: any[] = [];
+    for (const [col, val] of Object.entries(campos)) {
+      if (!val) continue;
+      sets.push(`${col} = COALESCE(NULLIF(${col}, ''), ?)`);
+      params.push(val);
+    }
+    if (sets.length) {
+      params.push(lead.id);
+      await db.query(`UPDATE leads SET ${sets.join(', ')} WHERE id = ?`, params);
+    }
+
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+    for (const a of admins) {
+      await db.query(
+        `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+         VALUES (?, ?, ?, 'lead_dados_recebidos', 'sistema', NOW(), 'pendente')`,
+        [a.id, 'Dados recebidos para a proposta',
+         `${j.nome_completo || lead.name} enviou os dados pedidos (CPF, endereço, etc.) — já dá pra montar a proposta.`]
+      ).catch(() => {});
+    }
+  } catch (e: any) {
+    console.error('[whatsapp-webhook] falha ao detectar dados de proposta:', e?.message || e);
   }
 }
 
@@ -398,6 +469,11 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
 
       if (!clientId && !respondeuPendencia) {
         await notifyNewWhatsappContact(phone, pushName, String(body).slice(0, 500)).catch(() => {});
+        // Não roda pra quem já respondeu uma pendência de botão (não é a
+        // mensagem de dados) nem pra quem já é cliente (lead convertido não
+        // fica mais em "documentacao_pendente"). Roda em segundo plano —
+        // não atrasa a resposta do webhook.
+        detectarDadosParaProposta(phone, String(body)).catch(() => {});
       }
     }
   } catch (e: any) {
