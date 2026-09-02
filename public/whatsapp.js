@@ -747,6 +747,7 @@ Object.assign(ROUTES, {
           </div>` : '<small style="color:var(--text-muted)">Nenhum processo vinculado ainda</small>');
 
         html += `<div style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
+          <button type="button" class="btn-gold btn-sm" id="wa-ctx-gerar-proposta" ${cx.lead ? '' : 'disabled title="Só disponível pra quem já é lead — cadastre como lead primeiro"'}>${svgIcon('file', 'ic-xs')}Gerar proposta</button>
           <button type="button" class="btn-sm" id="wa-ctx-abrir-cadastro" ${(cx.client || cx.lead) ? '' : 'disabled title="Ainda não é cliente nem lead"'}>${svgIcon('file', 'ic-xs')}Abrir cadastro</button>
           <button type="button" class="btn-sm" data-conv="tarefa">${svgIcon('clock', 'ic-xs')}Criar tarefa</button>
           <button type="button" class="btn-sm" id="wa-ctx-vincular-processo" ${cx.client ? '' : 'disabled title="Vincule a um cliente primeiro"'}>${svgIcon('briefcase', 'ic-xs')}Vincular processo</button>
@@ -831,6 +832,22 @@ Object.assign(ROUTES, {
             toast('Nota salva');
           } catch (err) { toast(err.message, 'error'); }
           btn.disabled = false; btn.textContent = 'Salvar nota';
+        };
+
+        // Gerar proposta — mesmo formulário/endpoint da tela Leads (reusa
+        // propostaForm, função global de app.js), só que aberto direto da
+        // conversa. Busca o lead completo (GET /api/leads/:id, com
+        // endereço/estado civil/profissão — o /context da conversa só traz
+        // um resumo do lead) pra chegar com o mesmo pré-preenchimento que
+        // já tinha na ficha do lead.
+        const gp = box.querySelector('#wa-ctx-gerar-proposta');
+        if (gp && cx.lead) gp.onclick = async () => {
+          gp.disabled = true;
+          try {
+            const leadCompleto = await api('/api/leads/' + cx.lead.id);
+            propostaForm(() => {}, leadCompleto);
+          } catch (e) { toast(e.message, 'error'); }
+          gp.disabled = false;
         };
 
         // Abrir cadastro — cliente já tem ficha própria (reaproveitada de
