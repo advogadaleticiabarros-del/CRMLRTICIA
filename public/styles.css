@@ -460,8 +460,15 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
    a seta esquerda aparecia. As setas ficam encostadas na borda (0, não
    -8px) para nunca mais vazar. */
 .kanban-wrap { position: relative; overflow: hidden; }
+/* top:8px em vez de top:50% (centralizado na altura do quadro inteiro):
+   como as colunas esticam pra altura da mais alta (align-items:stretch
+   padrão do flex), uma seta centralizada no quadro caía bem no meio de
+   colunas mais curtas — sobrepondo o card ali (bug real, visto quando
+   uma etapa tem poucos contatos e outra tem vários). Alinhada com o topo
+   das colunas, a seta nunca invade o conteúdo dos cards, não importa
+   quantas etapas/cards existam. */
 .kanban-nav {
-  position: absolute; top: 50%; transform: translateY(-50%); z-index: 5;
+  position: absolute; top: 8px; z-index: 5;
   width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border);
   background: #fff; color: var(--navy-deep); cursor: pointer;
   display: flex; align-items: center; justify-content: center;
