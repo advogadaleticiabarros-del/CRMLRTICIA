@@ -488,10 +488,20 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
    sem avatar estranhamente largos e vazios à direita (bug reportado:
    "larguras incorretas"). Coluna sempre com a mesma largura, quadro
    rola horizontalmente se não couber — like Trello. */
-#wc-board.kanban-fases { padding-right: 36px; gap: 8px; }
+/* Altura de verdade (calculada em JS — ver ajustarAlturaQuadro em
+   whatsapp.js), não uma altura de conteúdo qualquer: sem isso o quadro
+   parava na altura da coluna mais cheia e deixava metade da tela em
+   branco embaixo dele, principalmente em monitor grande (reportado:
+   "não usa a tela inteira"). #wc-board.kanban-fases preenche 100% da
+   altura que o JS reserva em .kanban-wrap; cada coluna estica igual
+   (align-items:stretch, padrão do flex) até essa altura, mesmo vazia —
+   e .kf-cards (flex:1, no lugar do max-height:66vh fixo da base
+   compartilhada com o quadro de Produção) ocupa o que sobra da coluna
+   depois do cabeçalho, com scroll interno próprio.  */
+#wc-board.kanban-fases { padding-right: 36px; gap: 8px; height: 100%; }
 #wc-board .kf-col { flex: 0 0 224px; width: 224px; min-width: 224px; padding: 8px; }
 #wc-board .kf-head { margin-bottom: 6px; }
-#wc-board .kf-cards { gap: 6px; }
+#wc-board .kf-cards { gap: 6px; flex: 1; min-height: 0; max-height: none; }
 .kf-head { font-weight: 700; color: var(--navy); display: flex; justify-content: space-between; align-items: center; margin-bottom: 11px; font-size: 14.5px; }
 .kf-count { background: var(--gold); color: #fff; border-radius: 11px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
 .kf-cards { display: flex; flex-direction: column; gap: 10px; max-height: 66vh; min-height: 70px; overflow-y: auto; }

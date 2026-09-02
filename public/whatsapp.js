@@ -1727,6 +1727,25 @@ Object.assign(ROUTES, {
       $('#wc-nav-esq').onclick = () => $('#wc-board').scrollBy({ left: -larguraColuna(), behavior: 'smooth' });
       $('#wc-nav-dir').onclick = () => $('#wc-board').scrollBy({ left: larguraColuna(), behavior: 'smooth' });
 
+      // Altura calculada de verdade (mesmo cálculo da aba Conversas,
+      // ajustarAltura acima) — sem isso o quadro parava numa altura de
+      // conteúdo qualquer, deixando metade da tela em branco embaixo,
+      // mesmo em monitores grandes (reportado: "não usa a tela inteira").
+      // Cada coluna (.kf-col) já estica pra bater com essa altura (flex
+      // padrão), e .kf-cards (flex:1 só dentro de #wc-board — ver CSS)
+      // ocupa o que sobrar depois do cabeçalho da coluna, com scroll
+      // interno próprio.
+      const ajustarAlturaQuadro = () => {
+        if (tab !== 'contatos') { window.removeEventListener('resize', ajustarAlturaQuadro); return; }
+        const wrapEl = $('.kanban-wrap');
+        if (!wrapEl) return;
+        const topo = wrapEl.getBoundingClientRect().top;
+        const folga = document.body.classList.contains('foco-total') ? 10 : 24;
+        wrapEl.style.height = Math.max(360, window.innerHeight - topo - folga) + 'px';
+      };
+      ajustarAlturaQuadro();
+      window.addEventListener('resize', ajustarAlturaQuadro);
+
       const load = async () => {
         const [stagesResp, boardResp] = await Promise.all([
           api('/api/whatsapp-instance/stages').catch(() => []),
@@ -1772,7 +1791,7 @@ Object.assign(ROUTES, {
                     </span>
                   </div>
                 </div>`;
-              }).join('') || ''}
+              }).join('') || '<div class="kf-empty">Nenhum contato nesta etapa</div>'}
             </div>
           </div>`).join('');
 
