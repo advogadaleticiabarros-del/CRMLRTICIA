@@ -68,9 +68,12 @@ router.get('/summary', async (req: Request, res: Response) => {
 
   const [[totais]] = await db.query(`
     SELECT
-      (SELECT COALESCE(SUM(estimated_value),0) FROM dative_cases WHERE user_id = ? AND status <> 'paga')        AS estimado_total,
-      (SELECT COALESCE(SUM(act_value),0) FROM dative_hearings WHERE user_id = ? AND status = 'realizada')        AS realizado,
-      (SELECT COALESCE(SUM(act_value),0) FROM dative_hearings WHERE user_id = ? AND status = 'agendada')         AS agendado,
+      (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
+         FROM dative_cases dc WHERE dc.user_id = ? AND dc.status <> 'paga')                                     AS estimado_total,
+      (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
+         FROM dative_cases dc WHERE dc.user_id = ? AND dc.status IN ('concluida','a_receber'))                  AS realizado,
+      (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
+         FROM dative_cases dc WHERE dc.user_id = ? AND dc.status = 'em_andamento')                              AS agendado,
       (SELECT COUNT(*) FROM dative_hearings WHERE user_id = ? AND status = 'realizada')                          AS audiencias_realizadas,
       (SELECT COUNT(*) FROM dative_hearings WHERE user_id = ? AND status = 'agendada' AND hearing_date >= NOW()) AS audiencias_futuras,
       (SELECT COALESCE(SUM(value),0) FROM dative_payments WHERE user_id = ? AND status = 'recebido')             AS recebido,
@@ -80,18 +83,19 @@ router.get('/summary', async (req: Request, res: Response) => {
   const aReceber = Math.max(0, Number(totais.realizado) - Number(totais.recebido));
 
   const [porComarca] = await db.query(`
-    SELECT comarca,
-      COUNT(*) AS audiencias,
-      COALESCE(SUM(CASE WHEN status='realizada' THEN act_value ELSE 0 END),0) AS valor_realizado
-    FROM dative_hearings WHERE user_id = ?
-    GROUP BY comarca ORDER BY valor_realizado DESC
+    SELECT dc.comarca,
+      COUNT(*) AS demandas,
+      COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0) AS valor_realizado
+    FROM dative_cases dc
+    WHERE dc.user_id = ? AND dc.status <> 'paga'
+    GROUP BY dc.comarca ORDER BY valor_realizado DESC
   `, [userId]) as any;
 
   const [porMes] = await db.query(`
-    SELECT DATE_FORMAT(hearing_date, '%Y-%m') AS mes,
-      COALESCE(SUM(CASE WHEN status='realizada' THEN act_value ELSE 0 END),0) AS realizado,
-      COALESCE(SUM(CASE WHEN status='agendada'  THEN act_value ELSE 0 END),0) AS agendado
-    FROM dative_hearings WHERE user_id = ?
+    SELECT DATE_FORMAT(dc.nomeacao_date, '%Y-%m') AS mes,
+      COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0) AS realizado
+    FROM dative_cases dc
+    WHERE dc.user_id = ? AND dc.status <> 'paga'
     GROUP BY mes ORDER BY mes ASC
   `, [userId]) as any;
 
@@ -122,6 +126,30 @@ router.get('/cases', async (req: Request, res: Response) => {
     params
   ) as any;
   res.json(rows);
+});
+
+// O valor que a demanda "tem a receber": primeiro o arbitrado (decisão), senão
+// o estimado (preenchido à mão). O procedimento de recebimento já foi aberto
+// (status a_receber), mas o dinheiro ainda não caiu na conta.
+router.get('/a-receber-90d', async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const [rows] = await db.query(
+    `SELECT id, comarca, vara, assisted_name, process_number, area, assunto, nomeacao_date,
+            estimated_value, arbitrated_value, status
+       FROM dative_cases
+      WHERE user_id = ? AND status = 'a_receber'
+      ORDER BY nomeacao_date DESC, created_at DESC`,
+    [userId]
+  ) as any;
+  const casos = rows.map((c: any) => ({
+    ...c,
+    valor_receber: Number(c.arbitrated_value ?? c.estimated_value) || 0,
+  }));
+  res.json({
+    total_casos: casos.length,
+    total_valor: casos.reduce((acc: number, c: any) => acc + c.valor_receber, 0),
+    casos,
+  });
 });
 
 router.get('/cases/:id', async (req: Request, res: Response) => {

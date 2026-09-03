@@ -8002,7 +8002,16 @@ async function dativeDocsSection(dativeCaseId, clientId, onSave) {
 }
 
 async function datProjecao(c) {
-  const s = await api('/api/dative/summary');
+  const [s, ar90] = await Promise.all([
+    api('/api/dative/summary'),
+    api('/api/dative/a-receber-90d').catch(() => ({ total_casos: 0, total_valor: 0, casos: [] })),
+  ]);
+  const arRows = (ar90.casos || []).map((d) => `
+    <div class="mini-row" style="cursor:pointer" data-ar90="${d.id}">
+      <span><strong>${esc(d.comarca)}</strong> ${d.assisted_name ? '— ' + esc(d.assisted_name) : ''}<br>
+        <small style="color:var(--text-muted)">${d.process_number ? esc(d.process_number) : 's/ nº'}</small></span>
+      <strong>${money(d.valor_receber)}</strong>
+    </div>`).join('');
   c.innerHTML = `
     <div class="kpi-grid">
       ${kpi('Audiências realizadas', s.audiencias_realizadas)}
@@ -8014,8 +8023,13 @@ async function datProjecao(c) {
       ${kpi('A receber', money(s.a_receber), 'money')}
       ${kpi('Estimado total', money(s.estimado_total), 'money')}
     </div>
-    ${miniList('Por comarca', (s.por_comarca || []).map((x) => `<div class="mini-row"><span>${x.comarca} <small>(${x.audiencias} aud.)</small></span><strong>${money(x.valor_realizado)}</strong></div>`))}
-    ${miniList('Por mês (realizado / agendado)', (s.por_mes || []).map((m) => `<div class="mini-row"><span>${m.mes}</span><span style="color:var(--green)">${money(m.realizado)} <small style="color:var(--amber)">+ ${money(m.agendado)}</small></span></div>`))}`;
+    <div class="dash-section">
+      <h3>A receber nos próximos 90 dias <small style="color:var(--text-muted);font-weight:400">· ${ar90.total_casos} caso(s) · ${money(ar90.total_valor)}</small></h3>
+      <div class="mini-list">${arRows ? arRows : '<div class="mini-row"><small>Nenhum caso em "a receber"</small></div>'}</div>
+    </div>
+    ${miniList('Por comarca (demandas não pagas)', (s.por_comarca || []).map((x) => `<div class="mini-row"><span>${x.comarca} <small>(${x.demandas} dem.)</small></span><strong>${money(x.valor_realizado)}</strong></div>`))}
+    ${miniList('Por mês (nomeação / a faturar)', (s.por_mes || []).map((m) => `<div class="mini-row"><span>${m.mes}</span><strong style="color:var(--green)">${money(m.realizado)}</strong></div>`))}`;
+  c.querySelectorAll('[data-ar90]').forEach((b) => b.onclick = () => dativeCaseDetail(b.dataset.ar90, () => datProjecao(c)));
 }
 
 async function datDemandas(c) {
