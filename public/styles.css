@@ -513,10 +513,16 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
    e .kf-cards (flex:1, no lugar do max-height:66vh fixo da base
    compartilhada com o quadro de Produção) ocupa o que sobra da coluna
    depois do cabeçalho, com scroll interno próprio.  */
-#wc-board.kanban-fases { padding-right: 36px; gap: 8px; height: 100%; }
-#wc-board .kf-col { flex: 0 0 224px; width: 224px; min-width: 224px; padding: 8px; }
-#wc-board .kf-head { margin-bottom: 6px; }
-#wc-board .kf-cards { gap: 6px; flex: 1; min-height: 0; max-height: none; }
+#wc-board.kanban-fases { padding-right: 36px; gap: 12px; height: 100%; }
+/* Coluna branca (não bege), com sombra leve — as referências que a usuária
+   aprovou (Vennda + tela de "Quadros Kanban") usam coluna lisa e deixam o
+   card se destacar; cabeçalho e lista de cards ganham padding PRÓPRIO (a
+   coluna em si fica sem padding) porque o cabeçalho agora tem uma borda
+   inferior separando do conteúdo, coisa que o padding único da base não
+   permitia fazer de forma limpa. */
+#wc-board .kf-col { flex: 0 0 272px; width: 272px; min-width: 272px; padding: 0; background: var(--surface); box-shadow: var(--shadow-sm); border-radius: 12px; }
+#wc-board .kf-head { margin-bottom: 0; padding: 14px 14px 12px; border-bottom: 1px solid var(--border-soft); }
+#wc-board .kf-cards { gap: 10px; flex: 1; min-height: 0; max-height: none; padding: 12px; }
 .kf-head { font-weight: 700; color: var(--navy); display: flex; justify-content: space-between; align-items: center; margin-bottom: 11px; font-size: 14.5px; }
 .kf-count { background: var(--gold); color: #fff; border-radius: 11px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
 .kf-cards { display: flex; flex-direction: column; gap: 10px; max-height: 66vh; min-height: 70px; overflow-y: auto; }
@@ -557,32 +563,43 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .kf-apply:hover { background: #b08c44; }
 .kf-empty { color: var(--text-muted); font-size: 13px; text-align: center; padding: 14px; }
 
-/* Cartão de contato do WhatsApp (Kanban da aba "Contatos") — usa a base de
-   .kf-card (compartilhada com o board de Produção) mas com sua própria
-   estrutura interna: etiqueta de urgência em vez de avatar, seguindo a
-   referência aprovada (print do Prosystem, cores do CRM). */
+/* Cartão de contato do WhatsApp (Kanban da aba "Contatos") — visual
+   revisado a partir de referências que a usuária aprovou (Vennda +
+   tela "Quadros Kanban"), traduzidas pra nossa paleta (navy/dourado/
+   off-white, nunca o verde genérico das referências). Card maior/mais
+   respirado que antes — decisão explícita: menos colunas cabem na
+   tela sem rolar, em troca de legibilidade. */
 .wc-head { gap: 8px; }
-.wc-head .kf-count { background: transparent; color: var(--text-muted); padding: 0; font-weight: 700; flex: none; }
-.wc-head-title { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; }
+.wc-head .kf-count { background: var(--border-soft); color: var(--text-soft); padding: 0; font-weight: 700; flex: none; width: 23px; height: 23px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 12px; }
+.wc-head-title { display: flex; align-items: center; gap: 9px; min-width: 0; overflow: hidden; }
 .wc-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 /* Nome da etapa trunca com "…" em vez de quebrar linha ou empurrar o
-   contador pra fora da coluna — coluna agora é largura fixa (224px), sem
-   isso um nome de etapa comprido "estourava" o cabeçalho. */
-.wa-etapa-editar { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.wc-card { padding: 9px 10px; gap: 0; }
-.wc-row1 { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
-.wc-row1 .wa-pill { margin-top: 0; flex: none; }
-/* Nome do contato: alinhado à esquerda (mais fácil de escanear numa
-   coluna estreita) e truncado — antes ficava à direita e quebrava em
-   2 linhas sem aviso, deixando cards com alturas inconsistentes. */
-.wc-name { font-size: 12.5px; font-weight: 700; color: var(--navy-deep); text-align: left; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wc-prev { font-size: 12px; color: var(--text-soft); margin-bottom: 3px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-.wc-agent { font-size: 11.5px; color: var(--gold-deep); font-weight: 600; margin-bottom: 4px; }
-.wc-foot { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid var(--border-soft); padding-top: 4px; margin-top: 1px; }
-.wc-time { font-size: 10.5px; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
-.wc-time svg { width: 11px; height: 11px; }
-.wc-unread { background: var(--gold); color: #fff; border-radius: 9px; min-width: 17px; height: 17px; padding: 0 5px; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-.wc-foot-right { display: flex; align-items: center; gap: 6px; }
+   contador pra fora da coluna. */
+.wa-etapa-editar { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; font-size: 14.5px; }
+.wc-card { padding: 14px 15px; gap: 0; border-radius: 10px; }
+.wc-row1 { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+/* Avatar circular com iniciais (mesma cor por contato usada na lista de
+   conversas, waCor/waIniciais) — antes o card não tinha avatar nenhum,
+   só texto; a referência aprovada usa avatar como âncora visual do card. */
+.wc-avatar { width: 34px; height: 34px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; font-size: 12.5px; }
+.wc-name { font-size: 13.5px; font-weight: 700; color: var(--navy-deep); text-align: left; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wc-prev { font-size: 13px; color: var(--text-soft); margin-bottom: 10px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.45; }
+/* Pill de urgência mais discreta aqui que na lista de conversas (fundo
+   suave + texto colorido, não bloco sólido) — escopado só ao Kanban pra
+   não mudar a lista, que a usuária não revisou nessa rodada. */
+.wc-card .wa-pill { margin-top: 0; display: inline-flex; margin-bottom: 10px; }
+.wc-card .wa-pill-critica { background: #f6e3df; color: var(--red, #b3432f); }
+.wc-card .wa-pill-atencao { background: var(--amber-bg); color: var(--amber); }
+.wc-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+/* Etiquetas do contato como bolinhas coloridas (nome completo no title,
+   ao passar o mouse) em vez de pills grandes — várias etiquetas juntas
+   ficavam grandes/"barulhentas" antes; a referência aprovada usa
+   indicador compacto pra isso. */
+.wc-tagdots { display: flex; gap: 5px; align-items: center; flex: none; }
+.wc-tagdot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.wc-meta { font-size: 11.5px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wc-unread { background: var(--gold); color: #fff; border-radius: 9px; min-width: 17px; height: 17px; padding: 0 5px; font-size: 10.5px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex: none; }
+.wc-foot-right { display: flex; align-items: center; gap: 6px; min-width: 0; justify-content: flex-end; }
 /* Mover etapa sem arrastar: no board de Produção (.kf-move ali) é um select
    grande e visível de propósito; aqui vira um controle discreto (só a seta),
    porque a referência aprovada não tem NENHUM controle de mover visível no

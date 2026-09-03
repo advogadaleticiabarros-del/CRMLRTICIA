@@ -1859,18 +1859,19 @@ Object.assign(ROUTES, {
               ${(board[s.id] || []).map((c) => {
                 const sev = severidadeConversa(c);
                 const et = etiquetaPendencia(c);
+                const tags = c.labels || [];
                 return `
                 <div class="kf-card wc-card" draggable="true" data-phone="${esc(c.phone)}" data-nome="${esc(c.name)}" data-cliente="${c.client_id || ''}" data-stage="${s.id}">
                   <div class="wc-row1">
-                    ${et ? `<span class="wa-pill wa-pill-${sev}">${svgIcon(et.icone, 'ic-xs')}${esc(et.texto)}</span>` : '<span></span>'}
+                    <span class="wc-avatar" style="background:${waCor(c.name)}">${waIniciais(c.name)}</span>
                     <span class="wc-name">${esc(c.name)}</span>
                   </div>
                   <div class="wc-prev">${Number(c.last_from_me) ? '✓ ' : ''}${esc(String(c.last_body || '').slice(0, 60))}</div>
-                  ${c.assigned_user_name ? `<div class="wc-agent">${esc(c.assigned_user_name)}</div>` : ''}
-                  ${(c.labels || []).length ? `<div class="wa-tags">${c.labels.map((t) => `<span class="wa-tag" style="background:${corEtiquetaKanban(t)}">${esc(t)}</span>`).join('')}</div>` : ''}
+                  ${et ? `<span class="wa-pill wa-pill-${sev}">${svgIcon(et.icone, 'ic-xs')}${esc(et.texto)}</span>` : ''}
                   <div class="wc-foot">
-                    <span class="wc-time">${svgIcon('clock', 'ic-xs')}${c.last_time ? waFmtDia(c.last_time) : ''}</span>
+                    <span class="wc-tagdots">${tags.map((t) => `<span class="wc-tagdot" style="background:${corEtiquetaKanban(t)}" title="${esc(t)}"></span>`).join('')}</span>
                     <span class="wc-foot-right">
+                      <span class="wc-meta">${c.assigned_user_name ? esc(c.assigned_user_name) + ' · ' : ''}${c.last_time ? waFmtDia(c.last_time) : ''}</span>
                       ${Number(c.unread) ? `<span class="wc-unread">${c.unread}</span>` : ''}
                       <select class="kf-move" draggable="false" data-phone="${esc(c.phone)}" data-from="${s.id}" title="Mover para outra etapa">
                         ${stages.map((s2) => `<option value="${s2.id}" ${s2.id === s.id ? 'selected' : ''}>${esc(s2.name)}</option>`).join('')}
