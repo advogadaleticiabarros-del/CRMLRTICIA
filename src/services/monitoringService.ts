@@ -224,7 +224,18 @@ async function maybeRegisterDativeNomination(proc: DjenProcess, clientId: number
     const texto = proc.movements.map((m) => m.description).join('\n\n');
     if (!DATIVA_NOMEACAO_RE.test(texto)) return;
 
-    const [existing] = await db.query('SELECT id FROM dative_cases WHERE process_number = ? LIMIT 1', [proc.process_number]) as any;
+    // Compara só os dígitos dos dois lados: a demanda pode ter sido
+    // cadastrada à mão com o número formatado (0000000-00.0000.0.00.0000,
+    // como aparece na tela) enquanto o DJEN manda proc.process_number sem
+    // pontuação — comparação exata deixava passar duplicata real (bug
+    // reportado: o mesmo processo/cliente entrou 2x, um manual e um 'Auto').
+    const [existing] = await db.query(
+      `SELECT id FROM dative_cases
+        WHERE REPLACE(REPLACE(REPLACE(process_number,'.',''),'-',''),' ','')
+            = REPLACE(REPLACE(REPLACE(?,'.',''),'-',''),' ','')
+        LIMIT 1`,
+      [proc.process_number]
+    ) as any;
     if (existing.length) return; // já cadastrada — não duplica
 
     const [[owner]] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;

@@ -333,6 +333,21 @@ router.put('/cases/:id', async (req: Request, res: Response) => {
   res.json(rows[0]);
 });
 
+// ── DELETE /api/dative/cases/:id — apaga uma demanda cadastrada errada ──────
+// Não existia (só dava pra criar/editar) — pedido explícito ao encontrar uma
+// demanda duplicada (a mesma nomeação entrou 2x: uma cadastrada à mão, outra
+// pela detecção automática do DJEN, com o número do processo em formato
+// diferente — ver o dedup corrigido em monitoringService.ts). Audiências
+// dessa demanda somem junto (ON DELETE CASCADE); recebimentos e documentos
+// vinculados ficam, só perdem a referência (ON DELETE SET NULL) — não some
+// dinheiro nem arquivo já registrado.
+router.delete('/cases/:id', async (req: Request, res: Response) => {
+  const [existing] = await db.query('SELECT id FROM dative_cases WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!existing.length) { res.status(404).json({ error: 'Demanda não encontrada' }); return; }
+  await db.query('DELETE FROM dative_cases WHERE id = ?', [req.params.id]);
+  res.json({ success: true });
+});
+
 // ── AUDIÊNCIAS ──────────────────────────────────────────────────────────────
 router.get('/hearings', async (req: Request, res: Response) => {
   const status = req.query.status as string;

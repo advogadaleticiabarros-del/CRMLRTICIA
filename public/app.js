@@ -8366,11 +8366,17 @@ async function dativeCaseEditForm(onSave, d) {
     <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d?.estimated_value ?? '' })}${field('Status', 'status', { value: d?.status || 'nomeada', options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Conclu&iacute;da'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
     ${field('Observa&ccedil;&otilde;es', 'notes', { type: 'textarea', value: d?.notes || '' })}
     <button type="submit" class="btn-primary">Salvar altera&ccedil;&otilde;es</button>
+    <button type="button" class="btn-sm" id="dcase-del" style="color:var(--red);border-color:var(--red)">Excluir demanda</button>
   </form>`);
   form.onsubmit = async (e) => {
     e.preventDefault();
     try { await api('/api/dative/cases/' + d.id, { method: 'PUT', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
       closeModal(); toast('Demanda atualizada'); onSave(); } catch (err) { toast(err.message, 'error'); }
+  };
+  form.querySelector('#dcase-del').onclick = async () => {
+    if (!(await uiConfirm(`Excluir a demanda de "${d.assisted_name || d.comarca}"? Audiências dela também somem — não dá pra desfazer.`))) return;
+    try { await api('/api/dative/cases/' + d.id, { method: 'DELETE' }); closeModal(); toast('Demanda excluída'); onSave(); }
+    catch (err) { toast(err.message, 'error'); }
   };
   openModal('Editar demanda dativa', form);
 }
