@@ -44,6 +44,24 @@ function isDatajudSource(source: string): boolean {
   return ['datajud', 'api_publica_tjes', 'api_publica_trt17', 'api_publica_trf2', 'api_publica_tjpr', 'api_publica_trt9', 'api_publica_trf4', 'api_publica_stj', 'api_publica_tst'].includes(source) || source.startsWith('api_publica_');
 }
 
+/**
+ * Resume as partes já identificadas na publicação (DJEN manda `parties` por
+ * publicação — src/services/djen.ts) pro aviso de marco processual quando o
+ * processo ainda não tem cliente vinculado no CRM. `client_name` sai null em
+ * casos ambíguos (múltiplas partes, advogada não é a única intimada) — mas o
+ * dado bruto das partes já existe, só não chegava na mensagem de WhatsApp,
+ * que ficava só com o número do processo (pedido: "não existe... nome da
+ * parte, vem apenas o número do processo").
+ */
+export function resumoPartesIdentificadas(parties: Array<{ nome?: string | null }> | null | undefined, max = 3): string | null {
+  if (!parties || !parties.length) return null;
+  const nomes = [...new Set(parties.map((p) => (p.nome || '').trim()).filter(Boolean))];
+  if (!nomes.length) return null;
+  const mostrados = nomes.slice(0, max);
+  const resto = nomes.length - mostrados.length;
+  return mostrados.join(', ') + (resto > 0 ? ` (+${resto})` : '');
+}
+
 /** Cria alerta de movimentação sem intimação (salvaguarda DataJud). */
 async function createMovementAlert(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string }, keyword: string): Promise<void> {
   try {
@@ -107,7 +125,7 @@ const DEADLINE_TRIGGERS: { re: RegExp; type: string; days: number }[] = [
 const MARCO_PROCESSUAL = new Set(['Recurso (apelação)', 'Recurso']);
 
 /** Cria "prazo a confirmar" (DJEN) ou alerta (DataJud) quando a movimentação contém palavra-gatilho. Nunca derruba o sync. */
-async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string }, processNumber?: string, movementId: number | null = null, source?: string): Promise<void> {
+async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string; metadata?: { parties?: Array<{ nome?: string | null }> } | null }, processNumber?: string, movementId: number | null = null, source?: string): Promise<void> {
   try {
     const text = `${m.title || ''} ${m.description || ''}`;
     const trig = DEADLINE_TRIGGERS.find((t) => t.re.test(text));
@@ -117,27 +135,44 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     if ((Date.now() - start.getTime()) / 86_400_000 > DETECT_MAX_AGE_DAYS) return;
 
     // Marco processual (sentença/acórdão) — avisa no WhatsApp independente da
-    // fonte (DataJud ou DJEN) e do que acontece depois (prazo/alerta). Roda
-    // uma única vez por movimentação de verdade: detectDeadline só é chamado
-    // quando o INSERT da movimentação foi novo (dedupe por unique_hash já
-    // acontece antes, em syncProcess/saveMovements).
+    // fonte (DataJud ou DJEN) e do que acontece depois (prazo/alerta).
+    // Deduplicado por (processo, tipo de marco) em marco_processual_avisos —
+    // sem isso, o mesmo evento chegando por DataJud E DJEN como movimentações
+    // tecnicamente distintas (ou republicado pelo tribunal) gerava um novo
+    // WhatsApp a cada vez (reportado: "múltiplas mensagens da mesma
+    // movimentação e/ou processo"). INSERT IGNORE decide atomicamente: só
+    // quem inserir de verdade (afetou 1 linha) manda a mensagem.
     if (MARCO_PROCESSUAL.has(trig.type)) {
-      const marco = trig.type === 'Recurso (apelação)' ? 'Sentença publicada' : 'Acórdão publicado';
-      let clienteNome: string | null = null;
-      if (clientId) {
-        const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
-        clienteNome = cl?.name || null;
-      }
-      const resumo = [
-        `⚖️ ${marco}`,
-        '',
-        `Processo: ${processNumber || '(sem número)'}`,
-        clienteNome ? `Cliente: ${clienteNome}` : null,
-        (m.description || m.title) ? `Trecho: ${(m.description || m.title || '').replace(/\s+/g, ' ').trim().slice(0, 300)}` : null,
-      ].filter(Boolean).join('\n');
-      for (const num of ESCRITORIO_WHATSAPP_NUMEROS) {
-        const ok = await sendText(num, resumo).catch(() => false);
-        if (!ok) await avisarFalhaEnvioWhatsapp('prazo_processual', num);
+      const [marcaResp] = await db.query(
+        'INSERT IGNORE INTO marco_processual_avisos (process_id, marco_type) VALUES (?, ?)',
+        [processId, trig.type]
+      ) as any;
+      if (marcaResp.affectedRows === 1) {
+        const marco = trig.type === 'Recurso (apelação)' ? 'Sentença publicada' : 'Acórdão publicado';
+        let clienteNome: string | null = null;
+        if (clientId) {
+          const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
+          clienteNome = cl?.name || null;
+        }
+        // Sem cliente vinculado: o DJEN já manda as partes da publicação
+        // (metadata.parties) mesmo quando `client_name` sai null por
+        // ambiguidade — antes esse dado ficava só no banco, a mensagem só
+        // trazia o número do processo (pedido: "não existe... nome da
+        // parte").
+        const partesTexto = !clienteNome ? resumoPartesIdentificadas(m.metadata?.parties) : null;
+        const resumo = [
+          `⚖️ ${marco}`,
+          '',
+          `Processo: ${processNumber || '(sem número)'}`,
+          clienteNome ? `Cliente: ${clienteNome}` : null,
+          !clienteNome && partesTexto ? `Partes identificadas: ${partesTexto} (processo ainda não vinculado a um cliente — confira em Processos)` : null,
+          !clienteNome && !partesTexto ? 'Processo ainda não vinculado a um cliente no CRM — confira em Processos.' : null,
+          (m.description || m.title) ? `Trecho: ${(m.description || m.title || '').replace(/\s+/g, ' ').trim().slice(0, 300)}` : null,
+        ].filter(Boolean).join('\n');
+        for (const num of ESCRITORIO_WHATSAPP_NUMEROS) {
+          const ok = await sendText(num, resumo).catch(() => false);
+          if (!ok) await avisarFalhaEnvioWhatsapp('prazo_processual', num);
+        }
       }
     }
 
