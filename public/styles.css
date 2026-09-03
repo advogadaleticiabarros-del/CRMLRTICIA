@@ -335,6 +335,14 @@ tbody tr:hover { background: var(--surface-2); }
    (um modal também pode ficar estreito em telas de laptop pequenas). */
 .modal-card .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
 .modal-card .table-scroll table { min-width: 420px; }
+/* Mesmo wrapper, agora também fora de modal: .card já vira scroll
+   horizontal em telas estreitas (media queries abaixo), mas em notebook
+   (~1280-1366px, ainda acima do breakpoint mobile) uma tabela larga
+   (muitas colunas) ficava com as últimas colunas cortadas — .card usa
+   overflow:hidden nessa largura, sem rolagem nenhuma, pior que uma
+   barra de rolagem: o conteúdo simplesmente não tinha como ser alcançado
+   (achado real da auditoria de telas, ex.: ranking da Controladoria). */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
 /* Stepper da esteira de produção */
 .prod-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0 4px; }
 .prod-step { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 22px; border: 1px solid transparent; }
@@ -512,6 +520,17 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .kf-head { font-weight: 700; color: var(--navy); display: flex; justify-content: space-between; align-items: center; margin-bottom: 11px; font-size: 14.5px; }
 .kf-count { background: var(--gold); color: #fff; border-radius: 11px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
 .kf-cards { display: flex; flex-direction: column; gap: 10px; max-height: 66vh; min-height: 70px; overflow-y: auto; }
+/* Fases dos processos e Produção: essas 2 telas NÃO têm o wrapper de
+   altura travada no viewport que o WhatsApp tem (.kanban-wrap) — aqui a
+   página rola normalmente, como qualquer outra tela do sistema. Nelas, o
+   max-height:66vh da base só limitava a coluna mais cheia a 66% da altura
+   da tela e OBRIGAVA align-items:stretch a encolher TODAS as colunas pra
+   bater com essa altura capada, sobrando fundo vazio abaixo de colunas
+   com poucos cards — mesma família do bug já corrigido no WhatsApp,
+   causa um pouco diferente (aqui não precisa de altura calculada em JS,
+   só remover o teto artificial: cada coluna cresce com o conteúdo dela e
+   a PÁGINA rola, igual o quadro de Leads já faz). */
+#fases-board .kf-cards, #prod-board .kf-cards { max-height: none; }
 /* Hover com "movimento" pedido: sobe, ganha sombra mais funda e um leve
    respiro (scale) — cubic-bezier com um tiquinho de overshoot pra parecer
    vivo, não só um translate linear. O anel dourado (box-shadow em vez de

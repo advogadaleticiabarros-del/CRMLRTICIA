@@ -1964,10 +1964,10 @@ const ROUTES = {
         ${kpi('Repasse realizado', money(r.total_realizado), 'money')}
       </div>
       <div class="card"><div>${r.processos.length ? `
-        <table><thead><tr><th>Processo</th><th>Cliente</th><th>%</th><th>Recebido</th><th>Repasse realizado</th><th>Repasse previsto</th></tr></thead>
+        <div class="table-scroll"><table><thead><tr><th>Processo</th><th>Cliente</th><th>%</th><th>Recebido</th><th>Repasse realizado</th><th>Repasse previsto</th></tr></thead>
         <tbody>${r.processos.map((p) => `<tr>
           <td><strong>${p.title}</strong></td><td>${p.client_name || '—'}</td><td>${p.commission_percent}%</td>
-          <td>${money(p.recebido_caso)}</td><td>${money(p.repasse_realizado)}</td><td>${money(p.repasse_previsto)}</td></tr>`).join('')}</tbody></table>`
+          <td>${money(p.recebido_caso)}</td><td>${money(p.repasse_realizado)}</td><td>${money(p.repasse_previsto)}</td></tr>`).join('')}</tbody></table></div>`
         : '<div class="empty">Você ainda não tem processos com repasse definido</div>'}</div></div>`;
   },
 
@@ -2466,7 +2466,7 @@ const ROUTES = {
         current = filtered();
         $('#pf-count').textContent = `${current.length} caso(s)`;
         $('#parc-rows').innerHTML = current.length ? `
-          <table><thead><tr><th>Cliente</th><th>Processo</th><th>Status</th><th>SLA</th><th>Receita</th><th>Repasse</th><th></th></tr></thead>
+          <div class="table-scroll"><table><thead><tr><th>Cliente</th><th>Processo</th><th>Status</th><th>SLA</th><th>Receita</th><th>Repasse</th><th></th></tr></thead>
           <tbody>${current.map((c) => {
             const proto = ['protocolado', 'concluido'].includes(c.production_stage);
             const atras = !proto && Number(c.sla_days) > 10;
@@ -2479,7 +2479,7 @@ const ROUTES = {
               <td>${money(c.repasse_parceiro)}</td>
               <td style="white-space:nowrap"><button class="btn-sm" data-result="${c.id}" data-name="${esc(c.client_name || '')}">Êxito / Sucumb.</button></td></tr>
             <tr class="parc-drawer" id="drawer-${c.id}" style="display:none"><td colspan="7" style="background:var(--surface-2);padding:0"><div class="dr-body" style="padding:16px"></div></td></tr>`;
-          }).join('')}</tbody></table>` : '<div class="empty">Nenhum caso com esses filtros.</div>';
+          }).join('')}</tbody></table></div>` : '<div class="empty">Nenhum caso com esses filtros.</div>';
         $('#parc-rows').querySelectorAll('[data-result]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); resultadoForm(b.dataset.result, b.dataset.name, loadCases); });
         $('#parc-rows').querySelectorAll('.parc-main').forEach((tr) => tr.onclick = async (e) => {
           if (e.target.closest('[data-result]')) return;
@@ -2535,13 +2535,13 @@ const ROUTES = {
       const q = $('#proc-filter').value === 'stale' ? '?stale=30' : '';
       const rows = await api('/api/processes' + q);
       $('#proc-table').innerHTML = rows.length ? `
-        <table><thead><tr><th>Processo</th><th>Cliente</th><th>Tribunal</th><th>Última movimentação</th><th>Data</th><th></th></tr></thead>
+        <div class="table-scroll"><table><thead><tr><th>Processo</th><th>Cliente</th><th>Tribunal</th><th>Última movimentação</th><th>Data</th><th></th></tr></thead>
         <tbody>${rows.map((p) => { const mv = (p.last_movement_text || p.last_movement_title || '').replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch])); return `<tr>
           <td>${procNumHtml(p.process_number)}<br><small style="color:var(--text-muted)">${p.judicial_area || ''}</small></td>
           <td>${p.client_name || '—'}</td><td>${p.court || '—'}</td>
           <td style="max-width:340px"><span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${mv}">${mv || '—'}</span></td>
           <td style="white-space:nowrap">${p.last_movement_at ? fmtDate(p.last_movement_at) : '—'}</td>
-          <td><button class="btn-sm" data-proc="${p.id}">Abrir</button></td></tr>`; }).join('')}</tbody></table>`
+          <td><button class="btn-sm" data-proc="${p.id}">Abrir</button></td></tr>`; }).join('')}</tbody></table></div>`
         : '<div class="empty">Nenhum processo monitorado</div>';
       document.querySelectorAll('[data-proc]').forEach((b) => b.onclick = () => processDetail(b.dataset.proc, load));
     };
@@ -2585,14 +2585,14 @@ const ROUTES = {
     const load = async () => {
       const rows = await api('/api/lawyers');
       $('#law-table').innerHTML = `
-        <table><thead><tr><th>Nome</th><th>OAB</th><th>Monitoramento</th><th>Última sync</th><th></th></tr></thead>
+        <div class="table-scroll"><table><thead><tr><th>Nome</th><th>OAB</th><th>Monitoramento</th><th>Última sync</th><th></th></tr></thead>
         <tbody>${rows.map((l) => `<tr>
           <td><strong>${l.name}</strong></td><td>${l.oab_number || '—'}/${l.oab_uf || '—'}</td>
           <td>${l.monitoring_enabled ? '<span class="badge ativo">ativo</span>' : '<span class="badge inativo">inativo</span>'}</td>
           <td>${l.last_sync_at ? fmtDate(l.last_sync_at) : 'nunca'}</td>
           <td style="white-space:nowrap">
             ${l.oab_number ? `<button class="btn-gold btn-sm" data-discover="${l.id}" data-oab="${l.oab_number}" data-uf="${l.oab_uf || 'ES'}">Descobrir processos</button> ` : ''}
-            <button class="btn-sm" data-law="${l.id}">Editar</button></td></tr>`).join('')}</tbody></table>`;
+            <button class="btn-sm" data-law="${l.id}">Editar</button></td></tr>`).join('')}</tbody></table></div>`;
       document.querySelectorAll('[data-law]').forEach((b) => b.onclick = () => lawyerForm(b.dataset.law, load));
       document.querySelectorAll('[data-discover]').forEach((b) => b.onclick = () => discover(b.dataset.discover, b.dataset.oab, b.dataset.uf, b));
     };
@@ -3144,14 +3144,14 @@ async function ctrlEquipe(c) {
     const maxPts = users.length ? Math.max(...users.map((x) => x.pontos), 1) : 1;
     $('#eq-out').innerHTML = `
       ${users.length ? `<div class="card"><div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px"><strong style="color:var(--navy)">Ranking do mês — ${r.month}</strong><small style="color:var(--text-muted)">protocolo ${r.pontuacao?.protocolo || 25} pts · prazo cumprido ${r.pontuacao?.prazo_cumprido || 15} · movimento ${r.pontuacao?.movimento || 5} · nota ${r.pontuacao?.nota || 3} · atividade ${r.pontuacao?.evento || 1}</small></div>
-        <table><thead><tr><th>#</th><th>Usuário</th><th>Pontos</th><th>Protocolos</th><th>Prazos cumpridos</th><th>Movimentos</th><th>Notas</th><th>Atividades</th></tr></thead>
+        <div class="table-scroll"><table><thead><tr><th>#</th><th>Usuário</th><th>Pontos</th><th>Protocolos</th><th>Prazos cumpridos</th><th>Movimentos</th><th>Notas</th><th>Atividades</th></tr></thead>
         <tbody>${users.map((x, i) => `<tr>
           <td>${i + 1}º ${medalha(i)}</td>
           <td><strong>${esc(x.usuario)}</strong>
             <div style="height:5px;background:var(--surface-2,#eee);border-radius:3px;margin-top:4px;max-width:160px"><div style="height:100%;width:${Math.round((x.pontos / maxPts) * 100)}%;background:var(--gold);border-radius:3px"></div></div></td>
           <td><strong style="color:var(--navy-deep);font-size:15px">${x.pontos}</strong></td>
           <td>${x.protocolos ? `<strong style="color:var(--green)">${x.protocolos}</strong>` : 0}</td>
-          <td>${x.prazos_cumpridos}</td><td>${x.movimentos_esteira}</td><td>${x.notas_producao}</td><td>${x.eventos_jornada}</td></tr>`).join('')}</tbody></table></div>`
+          <td>${x.prazos_cumpridos}</td><td>${x.movimentos_esteira}</td><td>${x.notas_producao}</td><td>${x.eventos_jornada}</td></tr>`).join('')}</tbody></table></div></div>`
       : '<div class="empty">Nenhuma atividade registrada neste mês</div>'}
       ${(r.gargalos || []).length ? `<div class="card" style="margin-top:14px"><div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Gargalos da esteira (agora)</strong></div>
         <table><thead><tr><th>Etapa</th><th>Casos parados</th><th>Mais antigo</th></tr></thead>
