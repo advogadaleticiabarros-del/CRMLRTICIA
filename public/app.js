@@ -9231,14 +9231,15 @@ if (navOverlay) navOverlay.onclick = () => document.body.classList.remove('nav-o
 const sbCollapse = $('#sidebar-collapse');
 if (sbCollapse) sbCollapse.onclick = () => setSidebarCollapsed(!document.body.classList.contains('sidebar-collapsed'));
 initAppearance();
-// Atalho no topbar (ícone só, ao lado do sino) pro WhatsApp — abre a
-// tela normal (menu/topo visíveis), igual a qualquer outro item do menu.
-// A tela cheia (sem menu/topo) continua disponível, mas como escolha
-// manual dentro da própria tela de WhatsApp, não como entrada forçada.
+// Atalho no topbar (ícone só, ao lado do sino) pro WhatsApp — pedido
+// explícito: sempre abre a tela cheia (sem menu/topo) numa ABA NOVA,
+// deixando a aba atual exatamente onde a usuária estava (ex.: no
+// Dashboard, continua no Dashboard). Mesmo destino que o botão "Tela
+// cheia" de dentro da própria tela de WhatsApp (?foco=1#whatsapp).
 const waTopbarBtn = $('#whatsapp-btn');
 if (waTopbarBtn) {
   if (navForRole().includes('whatsapp')) {
-    waTopbarBtn.onclick = () => { location.hash = '#whatsapp'; };
+    waTopbarBtn.onclick = () => { window.open(location.pathname + '?foco=1#whatsapp', '_blank', 'noopener'); };
   } else {
     waTopbarBtn.remove();
   }
