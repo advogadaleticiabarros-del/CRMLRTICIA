@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
-import { extrairNomeacaoDativa } from '../services/aiAssistant';
+import { extrairNomeacaoDativa, aiExtractFromFile } from '../services/aiAssistant';
+import { stripDataUrlPrefix } from '../utils/dataUrl';
 
 const router = Router();
 
@@ -8,6 +9,7 @@ const CASE_STATUS = ['nomeada', 'em_andamento', 'concluida', 'a_receber', 'paga'
 const AREAS = ['criminal', 'familia', 'civel', 'previdenciario', 'trabalhista', 'infancia', 'outro'];
 const HEARING_STATUS = ['agendada', 'realizada', 'adiada', 'cancelada'];
 const PAY_STATUS = ['previsto', 'recebido'];
+const DOC_FOLDERS = ['nomeacao', 'certidao_audiencia', 'comprovante_atuacao', 'outros'];
 
 // ── Agenda: audiência dativa × Google Calendar ───────────────────────────────
 // dative_hearings tem o próprio enum de status (agendada/realizada/adiada/
@@ -511,6 +513,35 @@ router.put('/payments/:id', async (req: Request, res: Response) => {
   await db.query(`UPDATE dative_payments SET ${fields.join(', ')} WHERE id = ?`, params);
   const [rows] = await db.query('SELECT * FROM dative_payments WHERE id = ?', [req.params.id]) as any;
   res.json(rows[0]);
+});
+
+// ── POST /api/dative/documentos/classificar — sugestão de categoria (IA) ────
+// Pedido explícito: a advogada fotografa muitos documentos físicos (1-10
+// páginas) e escolher a categoria à mão pra cada um é trabalhoso. A IA lê a
+// imagem/PDF e sugere a categoria — a usuária só confirma ou troca no
+// dropdown, nunca é aplicado sem ela ver. Best-effort: qualquer falha (sem
+// GEMINI_API_KEY, erro de rede, resposta fora da lista) devolve folder: null
+// e o front mantém o padrão atual ("outros"), nunca quebra o upload.
+const INSTRUCAO_CLASSIFICACAO_DATIVA = 'Classifique este documento de uma nomeação dativa (defesa pública/dativa) '
+  + 'em UMA destas categorias exatas, respondendo APENAS a palavra da categoria, sem mais nada: '
+  + 'nomeacao, certidao_audiencia, comprovante_atuacao, outros. '
+  + '"nomeacao" é o termo/despacho do juiz nomeando o advogado dativo. '
+  + '"certidao_audiencia" é certidão, ata ou termo de audiência. '
+  + '"comprovante_atuacao" é qualquer prova de que o advogado atuou no processo (petição protocolada, procuração assinada, comprovante de comparecimento). '
+  + 'Se não tiver certeza, responda outros.';
+
+router.post('/documentos/classificar', async (req: Request, res: Response) => {
+  const { file_base64, mime } = req.body || {};
+  if (!file_base64 || !mime) { res.status(400).json({ error: 'Envie file_base64 e mime' }); return; }
+  if (!String(mime).startsWith('image/') && mime !== 'application/pdf') { res.json({ folder: null }); return; }
+  try {
+    const r = await aiExtractFromFile(stripDataUrlPrefix(file_base64), mime, INSTRUCAO_CLASSIFICACAO_DATIVA);
+    if (!r.ok) { res.json({ folder: null }); return; }
+    const valor = String(r.text || '').trim().toLowerCase();
+    res.json({ folder: DOC_FOLDERS.includes(valor) ? valor : null });
+  } catch {
+    res.json({ folder: null });
+  }
 });
 
 export default router;

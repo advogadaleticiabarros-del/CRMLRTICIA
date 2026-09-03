@@ -466,6 +466,7 @@ Object.assign(ICONS, {
   chevronLeft:  '<path d="M15 6l-6 6 6 6"/>',
   chevronRight: '<path d="M9 6l6 6-6 6"/>',
   trash:       '<path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M8 7l1 13h6l1-13"/>',
+  camera:      '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/>',
   filter:      '<path d="M4 5h16M7 12h10M10 19h4"/>',
   more:        '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
 });
@@ -7840,28 +7841,44 @@ async function dativeDocUploadForm(fileOrFiles, { clientId, dativeCaseId }, onSa
     ? `<div style="display:flex;gap:6px;overflow-x:auto;margin-bottom:10px">${files.map((f) => `<img src="${URL.createObjectURL(f)}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex:none">`).join('')}</div>
        <small style="color:var(--text-muted)">${files.length} fotos serão combinadas em 1 documento (PDF)</small>`
     : '';
+
+  // Prepara o arquivo final (combina fotos em PDF, se for o caso) já aqui,
+  // antes do formulário abrir — precisa disso pronto tanto pra enviar quanto
+  // pra já mandar pra IA sugerir a categoria enquanto a usuária confere o nome.
+  let file_base64, mime;
+  if (multi) { file_base64 = await imagesToPdfDataUrl(files); mime = 'application/pdf'; }
+  else { file_base64 = await readFileAsDataUrl(files[0]); mime = files[0].type; }
+
   const form = el(`<form class="form-grid">
     ${previewRow}
     ${field('Nome do documento *', 'name', { value: defaultName })}
     ${field('Categoria', 'folder', { value: 'outros', options: DATIVE_DOC_FOLDERS })}
+    <small id="ddoc-ia-hint" style="color:var(--text-muted);margin-top:-8px">Lendo o documento para sugerir a categoria…</small>
     <button type="submit" class="btn-primary">Enviar</button>
   </form>`);
+
+  // Sugestão de categoria por IA — best-effort: não trava o envio se demorar
+  // ou falhar (sem GEMINI_API_KEY, etc.), só atualiza o dropdown se/quando a
+  // resposta chegar. A usuária sempre pode confirmar ou trocar antes de enviar.
+  api('/api/dative/documentos/classificar', { method: 'POST', body: JSON.stringify({ file_base64, mime }) })
+    .then((r) => {
+      const hint = form.querySelector('#ddoc-ia-hint');
+      if (r?.folder) {
+        form.querySelector('[name=folder]').value = r.folder;
+        if (hint) hint.textContent = 'Categoria sugerida pela IA — confira e troque se precisar.';
+      } else if (hint) hint.remove();
+    })
+    .catch(() => form.querySelector('#ddoc-ia-hint')?.remove());
+
   form.onsubmit = async (e) => {
     e.preventDefault();
     const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Enviando…';
     try {
       const g = (n) => form.querySelector(`[name=${n}]`)?.value;
       const nameTyped = g('name') && g('name').trim();
-      let file_base64, mime, name;
-      if (multi) {
-        file_base64 = await imagesToPdfDataUrl(files);
-        mime = 'application/pdf';
-        name = (nameTyped || defaultName) + (/\.pdf$/i.test(nameTyped || '') ? '' : '.pdf');
-      } else {
-        file_base64 = await readFileAsDataUrl(files[0]);
-        mime = files[0].type;
-        name = nameTyped || files[0].name;
-      }
+      const name = multi
+        ? (nameTyped || defaultName) + (/\.pdf$/i.test(nameTyped || '') ? '' : '.pdf')
+        : (nameTyped || files[0].name);
       await api('/api/documents', {
         method: 'POST',
         body: JSON.stringify({
@@ -7893,6 +7910,19 @@ async function dativeDocsSection(dativeCaseId, clientId, onSave) {
       Clique ou arraste arquivos aqui para anexar<br>
       <small>Várias fotos selecionadas juntas viram 1 documento só</small>
       <input type="file" id="ddoc-input" accept=".pdf,.doc,.docx,image/*" multiple style="display:none">
+    </div>
+    <div style="text-align:center;margin-top:8px">
+      <button type="button" class="btn-sm" id="ddoc-camera-btn">${svgIcon('camera', 'ic-xs')}Tirar foto</button>
+      <input type="file" id="ddoc-camera-input" accept="image/*" capture="environment" style="display:none">
+    </div>
+    <div id="ddoc-camera-batch" style="display:none;margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface-2,#faf8f3)">
+      <div id="ddoc-camera-thumbs" style="display:flex;gap:6px;overflow-x:auto;margin-bottom:8px"></div>
+      <small style="color:var(--text-muted);display:block;margin-bottom:8px">Continue fotografando as páginas deste documento — elas viram 1 PDF só quando você concluir.</small>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn-sm" id="ddoc-camera-add">${svgIcon('camera', 'ic-xs')}+ próxima página</button>
+        <button type="button" class="btn-gold btn-sm" id="ddoc-camera-done">Concluir documento</button>
+        <button type="button" class="btn-ghost btn-sm" id="ddoc-camera-cancel">Cancelar</button>
+      </div>
     </div>
   </div>`);
 
@@ -7935,6 +7965,38 @@ async function dativeDocsSection(dativeCaseId, clientId, onSave) {
     e.preventDefault(); drop.style.outline = '';
     handleFiles(e.dataTransfer.files);
   });
+
+  // "Tirar foto" — abre a câmera direto (capture="environment"), sem passar
+  // pelo seletor de arquivo genérico do celular. Cada foto tirada entra numa
+  // pilha (não some depois de 1 clique): a usuária fotografa página por
+  // página do MESMO documento físico e só classifica 1 vez no fim, em vez de
+  // uma classificação por foto — era esse o trabalho manual reportado.
+  let batch = [];
+  const camBtn = section.querySelector('#ddoc-camera-btn');
+  const camInput = section.querySelector('#ddoc-camera-input');
+  const camBatchBox = section.querySelector('#ddoc-camera-batch');
+  const camThumbs = section.querySelector('#ddoc-camera-thumbs');
+  const renderBatch = () => {
+    camBatchBox.style.display = batch.length ? 'block' : 'none';
+    camThumbs.innerHTML = batch.map((f) => `<img src="${URL.createObjectURL(f)}" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--border);flex:none">`).join('');
+    section.querySelector('#ddoc-camera-done').textContent = `Concluir documento (${batch.length} página${batch.length === 1 ? '' : 's'})`;
+  };
+  const openCamera = () => {
+    if (!clientId) { toast('Informe e salve o assistido antes de anexar documentos', 'error'); return; }
+    camInput.click();
+  };
+  camBtn.onclick = openCamera;
+  camInput.onchange = () => {
+    if (camInput.files?.[0]) batch.push(camInput.files[0]);
+    camInput.value = ''; // permite fotografar a MESMA cena de novo sem o navegador ignorar por "arquivo igual"
+    renderBatch();
+  };
+  section.querySelector('#ddoc-camera-add').onclick = openCamera;
+  section.querySelector('#ddoc-camera-cancel').onclick = () => { batch = []; renderBatch(); };
+  section.querySelector('#ddoc-camera-done').onclick = () => {
+    const fotos = batch; batch = []; renderBatch();
+    dativeDocUploadForm(fotos.length > 1 ? fotos : fotos[0], { clientId, dativeCaseId }, refresh);
+  };
 
   return section;
 }
