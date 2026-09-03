@@ -7957,8 +7957,12 @@ async function datProjecao(c) {
 }
 
 async function datDemandas(c) {
-  c.innerHTML = `<div class="toolbar"><button class="btn-gold" id="new-dcase">+ Nova demanda</button></div><div class="card"><div id="dcase-table"></div></div>`;
+  c.innerHTML = `<div class="toolbar">
+      <button class="btn-gold" id="new-dcase">+ Nova demanda</button>
+      <select id="dcase-status" title="Filtrar por status"><option value="">Todos status</option><option value="nomeada">Nomeada</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="a_receber">A receber</option><option value="paga">Paga</option></select>
+    </div><div class="card"><div id="dcase-table"></div></div>`;
   let periodo = { de: '', ate: '' };
+  let statusFiltro = '';
   tableTools(c.querySelector('.card'), {
     onPeriod: (de, ate) => { periodo = { de, ate }; load(); },
     findTable: () => c.querySelector('#dcase-table table'), filename: 'dativo-demandas',
@@ -7970,7 +7974,8 @@ async function datDemandas(c) {
     return true;
   });
   const load = async () => {
-    const rows = filtraPeriodo(await api('/api/dative/cases'), 'nomeacao_date');
+    const q = statusFiltro ? ('?status=' + statusFiltro) : '';
+    const rows = filtraPeriodo(await api('/api/dative/cases' + q), 'nomeacao_date');
     $('#dcase-table').innerHTML = rows.length ? `
       <table><thead><tr><th>Comarca</th><th>Assistido</th><th>Assunto</th><th>Área</th><th>Nomeação</th><th>Estimado</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.map((d) => `<tr>
@@ -7985,6 +7990,7 @@ async function datDemandas(c) {
     document.querySelectorAll('[data-edit-dcase]').forEach((b) => b.onclick = async () => dativeCaseEditForm(load, await api('/api/dative/cases/' + b.dataset.editDcase)));
   };
   $('#new-dcase').onclick = () => dativeCaseForm(load);
+  $('#dcase-status').onchange = () => { statusFiltro = $('#dcase-status').value; load(); };
   await load();
 }
 
