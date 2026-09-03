@@ -1089,7 +1089,7 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
 
 /* Foco visível e consistente em tudo que é interativo (acessibilidade) */
 a:focus-visible, button:focus-visible, .nav-item:focus-visible, .bottom-item:focus-visible,
-.tab:focus-visible, [data-route]:focus-visible {
+.tab:focus-visible, [data-route]:focus-visible, .wa-item:focus-visible {
   outline: 2px solid var(--gold); outline-offset: 2px; border-radius: 8px;
 }
 

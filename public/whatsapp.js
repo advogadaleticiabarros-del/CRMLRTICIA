@@ -476,7 +476,7 @@ Object.assign(ROUTES, {
             <button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button>
             <button type="button" class="btn-icon btn-icon-sm" id="wa-auditoria-btn" title="Auditoria de mensagens apagadas">${svgIcon('info', 'ic-xs')}</button>
           </span>
-          <button type="button" class="btn-icon btn-icon-sm" id="wa-toolbar-toggle" title="${toolbarColapsada ? 'Mostrar busca e filtros' : 'Minimizar busca e filtros'}">${svgIcon(toolbarColapsada ? 'chevronDown' : 'chevronUp', 'ic-xs')}</button>
+          <button type="button" class="btn-icon btn-icon-sm" id="wa-toolbar-toggle" aria-expanded="${toolbarColapsada ? 'false' : 'true'}" title="${toolbarColapsada ? 'Mostrar busca e filtros' : 'Minimizar busca e filtros'}">${svgIcon(toolbarColapsada ? 'chevronDown' : 'chevronUp', 'ic-xs')}</button>
         </div>
         <div class="wa-shell" id="wa-shell">
         <div class="wa-side">
@@ -594,7 +594,7 @@ Object.assign(ROUTES, {
           const tags = parseLabels(c.labels);
           const sev = severidadeConversa(c);
           const et = etiquetaPendencia(c);
-          return `<div class="wa-item sev-${sev} ${ativo && ativo.phone === c.phone ? 'on' : ''}" data-chat="${esc(c.phone)}">
+          return `<div class="wa-item sev-${sev} ${ativo && ativo.phone === c.phone ? 'on' : ''}" data-chat="${esc(c.phone)}" role="button" tabindex="0" aria-label="Abrir conversa com ${esc(nome)}">
             <div class="wa-ava" style="background:${cor(nome)}">${iniciais(nome)}</div>
             <div class="wa-item-mid">
               <div class="wa-item-name">${Number(c.pinned) ? svgIcon('pin', 'ic-xs') + ' ' : ''}${esc(nome)}</div>
@@ -623,17 +623,23 @@ Object.assign(ROUTES, {
         const scrollAtual = $('#wal').scrollTop;
         $('#wal').innerHTML = html;
         $('#wal').scrollTop = scrollAtual;
-        $('#wal').querySelectorAll('[data-chat]').forEach((r) => r.onclick = () => {
-          ultimaInteracaoLista = Date.now();
-          // Marca o item clicado como ativo na hora — sem isso, o destaque
-          // (.on) só aparecia no próximo renderLista(), que só roda via
-          // polling (a cada 6s, e travado por 1200ms logo após um clique):
-          // clicar num 2º contato logo em seguida do 1º não mudava nada
-          // visualmente por vários segundos.
-          $('#wal').querySelectorAll('.wa-item.on').forEach((el) => el.classList.remove('on'));
-          r.classList.add('on');
-          const c = chats.find((x) => x.phone === r.dataset.chat);
-          abrirChat(c);
+        $('#wal').querySelectorAll('[data-chat]').forEach((r) => {
+          const abrir = () => {
+            ultimaInteracaoLista = Date.now();
+            // Marca o item clicado como ativo na hora — sem isso, o destaque
+            // (.on) só aparecia no próximo renderLista(), que só roda via
+            // polling (a cada 6s, e travado por 1200ms logo após um clique):
+            // clicar num 2º contato logo em seguida do 1º não mudava nada
+            // visualmente por vários segundos.
+            $('#wal').querySelectorAll('.wa-item.on').forEach((el) => el.classList.remove('on'));
+            r.classList.add('on');
+            const c = chats.find((x) => x.phone === r.dataset.chat);
+            abrirChat(c);
+          };
+          r.onclick = abrir;
+          // Item é um <div role="button">, não um <button>/<a> — sem isso,
+          // dá pra chegar nele com Tab mas não dá pra abrir com o teclado.
+          r.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrir(); } };
         });
       };
 
@@ -722,7 +728,7 @@ Object.assign(ROUTES, {
           api(`/api/whatsapp-instance/chats/${ativo.phone}/context`).catch(() => null),
           api(`/api/whatsapp-instance/chats/${ativo.phone}/notes`).catch(() => ({ notes: '' })),
         ]);
-        if (!cx) { box.innerHTML = '<div class="wa-empty">—</div>'; return; }
+        if (!cx) { box.innerHTML = '<div class="wa-empty">Não foi possível carregar os dados deste contato.</div>'; return; }
         const STG = { separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguard. protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
         const bloco = (t, inner) => `<div style="padding:8px 14px;border-bottom:1px solid var(--border-soft)"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px">${t}</div>${inner}</div>`;
         let html = '';
@@ -1762,6 +1768,7 @@ Object.assign(ROUTES, {
         $('#wa-toolbar-label').style.display = toolbarColapsada ? 'inline' : 'none';
         const btn = $('#wa-toolbar-toggle');
         btn.title = toolbarColapsada ? 'Mostrar busca e filtros' : 'Minimizar busca e filtros';
+        btn.setAttribute('aria-expanded', toolbarColapsada ? 'false' : 'true');
         btn.innerHTML = svgIcon(toolbarColapsada ? 'chevronDown' : 'chevronUp', 'ic-xs');
         ajustarAltura(); // a barra mudou de altura — o quadro precisa recalcular o espaço que sobra
       };
