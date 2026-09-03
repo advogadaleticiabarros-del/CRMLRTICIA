@@ -52,6 +52,57 @@ router.get('/status', async (_req: Request, res: Response) => {
   res.json(await getStatus());
 });
 
+// ── GET /api/whatsapp-instance/saude — painel de saúde da integração ────────
+// Junta o que já existe de verdade sobre a saúde do WhatsApp: status ao vivo
+// da conexão (getStatus, igual /status), a última mensagem recebida (proxy
+// honesto pra "o webhook está vivo?" — não existe um heartbeat próprio, mas
+// se chega mensagem, o webhook está funcionando) e o histórico de falhas que
+// JÁ é gravado hoje (mídia que não baixou, envio automático que falhou).
+// IMPORTANTE (mostrar isso na tela, não esconder): esses 2 tipos de falha são
+// throttled a 1 aviso a cada 30min (ver avisarFalhaMidia/avisarFalhaEnvioWhatsapp)
+// — os números aqui são "pelo menos N", não a contagem exata de toda falha
+// que aconteceu. Não existe (ainda) log de falha de transcrição, erro genérico
+// de webhook, ou histórico de queda/reconexão da instância — só o console do
+// servidor, que se perde. Não inventamos número pra essas.
+router.get('/saude', async (_req: Request, res: Response) => {
+  const status = await getStatus();
+
+  const [[ultima]] = await db.query(
+    'SELECT MAX(msg_time) AS t FROM whatsapp_messages WHERE from_me = 0'
+  ) as any;
+
+  const [[contagens]] = await db.query(`
+    SELECT
+      SUM(CASE WHEN notification_type = 'whatsapp_midia_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS midia_7d,
+      SUM(CASE WHEN notification_type = 'whatsapp_midia_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS midia_30d,
+      SUM(CASE WHEN notification_type = 'whatsapp_envio_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS envio_7d,
+      SUM(CASE WHEN notification_type = 'whatsapp_envio_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS envio_30d
+    FROM notifications
+    WHERE notification_type IN ('whatsapp_midia_falhou', 'whatsapp_envio_falhou')
+  `) as any;
+
+  const [recentes] = await db.query(`
+    SELECT notification_type, title, message, created_at
+      FROM notifications
+     WHERE notification_type IN ('whatsapp_midia_falhou', 'whatsapp_envio_falhou')
+     ORDER BY created_at DESC LIMIT 15
+  `) as any;
+
+  res.json({
+    ...status,
+    ultima_mensagem_recebida: ultima?.t || null,
+    falhas: {
+      midia_7d: Number(contagens?.midia_7d) || 0,
+      midia_30d: Number(contagens?.midia_30d) || 0,
+      envio_7d: Number(contagens?.envio_7d) || 0,
+      envio_30d: Number(contagens?.envio_30d) || 0,
+    },
+    recentes: recentes.map((r: any) => ({
+      tipo: r.notification_type, titulo: r.title, mensagem: r.message, quando: r.created_at,
+    })),
+  });
+});
+
 // ── POST /api/whatsapp-instance/connect — inicia (gera QR se sem sessão) ────
 router.post('/connect', async (_req: Request, res: Response) => {
   await startInstance();
