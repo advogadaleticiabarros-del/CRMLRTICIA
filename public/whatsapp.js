@@ -1847,7 +1847,7 @@ Object.assign(ROUTES, {
         }
 
         $('#wc-board').innerHTML = stages.map((s) => `
-          <div class="kf-col" data-stage="${s.id}" style="--stage-color:${esc(s.color)}">
+          <div class="kf-col" data-stage="${s.id}">
             <div class="kf-head wc-head">
               <span class="wc-head-title">
                 <span class="wc-dot" style="background:${esc(s.color)}"></span>
@@ -1860,7 +1860,7 @@ Object.assign(ROUTES, {
                 const sev = severidadeConversa(c);
                 const et = etiquetaPendencia(c);
                 return `
-                <div class="kf-card wc-card sev-${sev}" draggable="true" data-phone="${esc(c.phone)}" data-nome="${esc(c.name)}" data-cliente="${c.client_id || ''}" data-stage="${s.id}">
+                <div class="kf-card wc-card" draggable="true" data-phone="${esc(c.phone)}" data-nome="${esc(c.name)}" data-cliente="${c.client_id || ''}" data-stage="${s.id}">
                   <div class="wc-row1">
                     ${et ? `<span class="wa-pill wa-pill-${sev}">${svgIcon(et.icone, 'ic-xs')}${esc(et.texto)}</span>` : '<span></span>'}
                     <span class="wc-name">${esc(c.name)}</span>
