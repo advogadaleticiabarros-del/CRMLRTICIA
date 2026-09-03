@@ -494,6 +494,13 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .kanban-nav-dir { right: 4px; }
 @media (max-width: 640px) { .kanban-nav { display: none; } }
 .kf-col { min-width: 272px; flex: 1; background: var(--surface-2); border: 1px solid var(--border); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; }
+/* Faixa colorida no topo da coluna (cor da etapa, já usada na bolinha do
+   cabeçalho) — dá pra ela reconhecer a etapa de relance na borda superior
+   do quadro, não só olhando a bolinha pequena. Só o quadro do WhatsApp
+   passa a cor por etapa hoje (--stage-color, setado inline no card da
+   coluna); Fases/Produção não têm cor por etapa ainda, então caem no
+   dourado padrão sem ficar sem nada. */
+#wc-board .kf-col { border-top: 3px solid var(--stage-color, var(--gold)); }
 /* Quadro de Contatos do WhatsApp: colunas mais estreitas que o padrão
    (cards sem avatar cabem bem mais apertados) — cabe 1 coluna a mais na
    tela sem rolar/clicar na seta, mesmo com várias etapas abertas.
@@ -562,14 +569,20 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
    estrutura interna: etiqueta de urgência em vez de avatar, seguindo a
    referência aprovada (print do Prosystem, cores do CRM). */
 .wc-head { gap: 8px; }
-.wc-head .kf-count { background: transparent; color: var(--text-muted); padding: 0; font-weight: 700; flex: none; }
+.wc-head .kf-count { background: var(--gold-soft, #efe3c8); color: var(--navy-deep); padding: 2px 9px; font-weight: 700; flex: none; }
 .wc-head-title { display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; }
 .wc-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
 /* Nome da etapa trunca com "…" em vez de quebrar linha ou empurrar o
    contador pra fora da coluna — coluna agora é largura fixa (224px), sem
    isso um nome de etapa comprido "estourava" o cabeçalho. */
 .wa-etapa-editar { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
-.wc-card { padding: 9px 10px; gap: 0; }
+.wc-card { padding: 11px 12px; gap: 0; }
+/* Faixa de urgência na borda esquerda do card — mesma cor/lógica já usada
+   na lista de conversas (.wa-item.sev-*), só que aqui como acento discreto
+   em vez do card inteiro colorido: dá pra notar o que precisa de atenção
+   sem ler cada card, sem competir com a faixa de cor da coluna no topo. */
+.wc-card.sev-critica { border-left: 3px solid var(--red); }
+.wc-card.sev-atencao { border-left: 3px solid var(--amber); }
 .wc-row1 { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-bottom: 4px; }
 .wc-row1 .wa-pill { margin-top: 0; flex: none; }
 /* Nome do contato: alinhado à esquerda (mais fácil de escanear numa
