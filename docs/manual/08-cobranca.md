@@ -1,6 +1,14 @@
 # 08 · Cobrança e parcelas
 
-Tudo que envolve receber (e projetar) o dinheiro do escritório.
+**Área:** Financeiro · **Autor:** Claude (levantado do código-fonte) · **Última atualização:** 03/09/2026 · **Versão:** 1.0 · **Status:** publicado
+
+## TL;DR
+
+Parcelamento automático, cobrança por Pix/cartão (Asaas) com baixa automática via webhook, conciliação bancária por importação de extrato OFX, projeção de caixa 30/60/90 dias e DRE separando negócio de despesa pessoal. Toda alteração de valor gera log de auditoria financeira.
+
+## Contexto
+
+Consulte pra entender como uma parcela é calculada, como a conciliação bancária decide se um crédito bate com uma cobrança, ou o que entra na projeção/DRE.
 
 ## Receitas e parcelas
 
@@ -30,5 +38,24 @@ Receita menos despesa, separado por mês e por ano — a despesa soma tanto lan�
 
 O sistema calcula inadimplência automaticamente e permite renegociar uma parcela em atraso (gerando novas condições) sem perder o histórico da original.
 
+## FAQ
+
+**A despesa pessoal da família aparece no resultado do escritório?** Não deveria — o sistema guarda despesa pessoal/familiar separada por escopo, e o DRE do escritório filtra só `escopo='empresa'`.
+
+**Preciso importar o extrato toda semana pra conciliação funcionar?** Não é automático — é uma ferramenta sob demanda: você importa o OFX quando quiser conferir, não roda sozinha.
+
+**Renegociar uma parcela apaga a parcela original?** Não — gera novas condições mantendo o histórico da parcela original, pra auditoria.
+
+## Links relacionados
+- [Clientes e cadastro](01-clientes.md) — cada parcela pertence a um cliente
+- [Repasses e parcerias](09-repasses.md) — saídas que entram na projeção de caixa
+- [Dativo](05-dativo.md) — financeiro do dativo é separado deste
+
+## Changelog
+
+| Data | Autor | Mudança |
+|---|---|---|
+| 03/09/2026 | Claude | Criação do documento |
+
 ---
-◀ [Agenda](07-agenda.md) · [Visão geral](00-visao-geral.md) · Próximo: Repasses e parcerias ▶
+◀ [Agenda](07-agenda.md) · [Visão geral](00-visao-geral.md) · Próximo: [Repasses e parcerias](09-repasses.md) ▶

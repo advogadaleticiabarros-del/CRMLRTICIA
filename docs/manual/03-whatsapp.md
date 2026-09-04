@@ -1,6 +1,14 @@
 # 03 · WhatsApp
 
-Central de atendimento — não é um app à parte, é o número real do escritório (via Uazapi) integrado direto no CRM.
+**Área:** Atendimento e captação · **Autor:** Claude (levantado do código-fonte) · **Última atualização:** 03/09/2026 · **Versão:** 1.0 · **Status:** publicado
+
+## TL;DR
+
+O número real do escritório (via Uazapi) integrado direto no CRM, em duas visões (lista de 3 painéis ou Kanban), com painel de saúde da conexão e um monte de avisos automáticos de outros módulos passando por aqui.
+
+## Contexto
+
+Consulte pra entender a estrutura das telas de conversa, o que o painel de saúde mostra, ou de onde vem uma mensagem automática específica (pro escritório ou pro cliente/lead).
 
 ## Duas visões da mesma conversa
 
@@ -33,5 +41,24 @@ Vários módulos usam o mesmo canal de WhatsApp pra avisar o escritório: nomea�
 
 Alguns eventos disparam mensagem automática pro **contato** (não pro escritório): confirmação/recusa de newsletter, aceite de proposta, follow-up de proposta (5 dias e 48h antes de expirar), despedida ao perder um lead (ver [Leads](02-leads.md)).
 
+## FAQ
+
+**Preciso ter o WhatsApp aberto no celular pra funcionar?** Não — a conexão é com o número real via Uazapi, roda no servidor. O painel de Saúde mostra se essa conexão está ativa.
+
+**Dá pra saber se uma mensagem falhou ao enviar?** Sim, pelo painel de Saúde — mas os contadores de falha são "pelo menos N" (throttle contra alerta repetido), não uma contagem perfeita.
+
+**As etapas do Kanban de WhatsApp são as mesmas do funil de Leads?** Não — são etapas de atendimento configuráveis, independentes das etapas do funil comercial.
+
+## Links relacionados
+- [Leads e comercial](02-leads.md) — origem de vários auto-envios
+- [Monitoramento automático](10-monitoramento.md) — avisos que chegam por aqui
+- [Processos e prazos](04-processos.md) — avisos de marco processual
+
+## Changelog
+
+| Data | Autor | Mudança |
+|---|---|---|
+| 03/09/2026 | Claude | Criação do documento |
+
 ---
-◀ [Leads](02-leads.md) · [Visão geral](00-visao-geral.md) · Próximo: Processos e prazos ▶
+◀ [Leads](02-leads.md) · [Visão geral](00-visao-geral.md) · Próximo: [Processos e prazos](04-processos.md) ▶

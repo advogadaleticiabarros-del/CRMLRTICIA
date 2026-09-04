@@ -1,6 +1,14 @@
 # 06 · Documentos e peças
 
-Geração de documentos, modelos de peça e arquivo digital do escritório (GED).
+**Área:** Atuação jurídica · **Autor:** Claude (levantado do código-fonte) · **Última atualização:** 03/09/2026 · **Versão:** 1.0 · **Status:** publicado
+
+## TL;DR
+
+Documentos podem ser gerados por template (preenchimento automático) ou redigidos por IA (com sistema anti-invenção: dado não confirmado nos autos vira `[colchete]` visível e contado antes de abrir). Arquivo digital organizado em pastas por cliente, guardado no MEGA, com assinatura eletrônica integrada.
+
+## Contexto
+
+Consulte pra entender a diferença entre os dois jeitos de gerar documento, como funciona a camada anti-invenção da IA, ou onde um documento fica guardado.
 
 ## Duas formas de gerar um documento
 
@@ -19,5 +27,24 @@ Documentos podem ser enviados pra assinatura eletrônica direto pelo sistema, co
 
 Além dos templates de preenchimento automático, existe um banco de modelos de peça por área jurídica — a IA busca o modelo mais adequado ao caso na hora de montar uma minuta, em vez de escrever do zero toda vez.
 
+## FAQ
+
+**Os colchetes `[assim]` num documento gerado por IA são um erro?** Não — é proposital. Marca exatamente o que a IA não conseguiu confirmar nos autos, pra você revisar antes de protocolar. Quantidade e exemplos aparecem antes de abrir o documento.
+
+**Um documento gerado por template pode ter campo em branco?** Sim — se o dado não existir no cadastro do cliente/caso (ex.: profissão vazia), o marcador simplesmente vira texto vazio no documento final.
+
+**Onde ficam os arquivos de verdade?** No MEGA (armazenamento externo), não no disco do servidor — o CRM guarda a referência e os metadados (pasta, status, cliente vinculado).
+
+## Links relacionados
+- [Clientes e cadastro](01-clientes.md) — dados usados no preenchimento automático
+- [Dativo](05-dativo.md) — pastas específicas e upload por câmera
+- [Leads e comercial](02-leads.md) — propostas comerciais geradas aqui
+
+## Changelog
+
+| Data | Autor | Mudança |
+|---|---|---|
+| 03/09/2026 | Claude | Criação do documento |
+
 ---
-◀ [Dativo](05-dativo.md) · [Visão geral](00-visao-geral.md) · Próximo: Agenda e compromissos ▶
+◀ [Dativo](05-dativo.md) · [Visão geral](00-visao-geral.md) · Próximo: [Agenda e compromissos](07-agenda.md) ▶

@@ -1,6 +1,14 @@
 # 05 · Dativo
 
-Controle das nomeações da Defensoria (dativo) — da detecção da nomeação até o recebimento do honorário arbitrado pelo Estado.
+**Área:** Atuação jurídica · **Autor:** Claude (levantado do código-fonte) · **Última atualização:** 03/09/2026 · **Versão:** 1.0 · **Status:** publicado
+
+## TL;DR
+
+Controle das nomeações da Defensoria (dativo), com detecção automática de nomeação e de valor arbitrado via DJEN, upload de documento por câmera com sugestão de pasta por IA, e projeção financeira separada porque o pagamento vem do Estado, não do cliente.
+
+## Contexto
+
+Consulte pra entender o ciclo de uma demanda dativa, como a detecção automática funciona (e o que fazer se duplicar), ou como o upload por câmera/financeiro do dativo se comporta.
 
 ## Status de uma demanda
 
@@ -36,5 +44,24 @@ Pagamentos previstos e recebidos ficam vinculados à demanda. A tela de resumo m
 
 Uma demanda dativa pode ser movida pra esteira de produção (gera um caso normal, usando o mesmo cliente já vinculado) quando chega a hora de redigir uma peça — não duplica o cliente.
 
+## FAQ
+
+**Uma demanda dativa duplicada pode acontecer?** Já aconteceu (bug corrigido em 03/09/2026) — a comparação de número de processo antes era exata, e um cadastro manual formatado (`0000000-00.0000.8.08.0000`) não batia com o número sem formatação que o DJEN manda. Hoje a comparação ignora pontuação.
+
+**Preciso excluir manualmente uma demanda duplicada se acontecer de novo?** Sim, não há limpeza automática retroativa — exclua a duplicata manualmente (dá pra saber qual é a automática pelo campo "origem": manual × auto_djen).
+
+**A demanda dativa sempre tem cliente vinculado?** Não necessariamente — quando descoberta automaticamente sem nome de parte identificável com segurança, fica sem vínculo até revisão manual.
+
+## Links relacionados
+- [Processos e prazos](04-processos.md) — mecanismo de detecção por trás
+- [Documentos e peças](06-documentos.md) — upload e organização de documentos
+- [Agenda e compromissos](07-agenda.md) — sincronização de audiência
+
+## Changelog
+
+| Data | Autor | Mudança |
+|---|---|---|
+| 03/09/2026 | Claude | Criação do documento; registrada a correção de duplicidade por comparação de número de processo |
+
 ---
-◀ [Processos e prazos](04-processos.md) · [Visão geral](00-visao-geral.md) · Próximo: Documentos e peças ▶
+◀ [Processos e prazos](04-processos.md) · [Visão geral](00-visao-geral.md) · Próximo: [Documentos e peças](06-documentos.md) ▶

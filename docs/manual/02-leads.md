@@ -1,6 +1,14 @@
 # 02 · Leads e comercial
 
-Funil de captação — do primeiro contato até virar cliente (ou ser perdido, de forma registrada).
+**Área:** Atendimento e captação · **Autor:** Claude (levantado do código-fonte) · **Última atualização:** 03/09/2026 · **Versão:** 1.0 · **Status:** publicado
+
+## TL;DR
+
+Funil de captação com 12 etapas, cronômetro automático de primeira resposta, qualificação por IA, e uma regra dura: não dá pra perder um lead sem registrar o motivo. Perder ou recusar dispara mensagem automática de despedida por WhatsApp, uma única vez.
+
+## Contexto
+
+Consulte quando precisar entender uma etapa do funil, por que uma mensagem de recusa foi enviada, como funciona o cronômetro de resposta, ou o que acontece tecnicamente ao converter um lead em cliente.
 
 ## Etapas do funil (Kanban)
 
@@ -41,5 +49,24 @@ Converter um lead em cliente cria um cadastro em Clientes (PF ou PJ) já com nom
 
 Cada lead pode ter propostas comerciais vinculadas (enviada, em negociação, aceita, recusada) — ver módulo de Documentos e peças para como uma proposta é gerada.
 
+## FAQ
+
+**Se eu mover um lead pra "Perdido" duas vezes, manda a mensagem duas vezes?** Não deveria — a mensagem dispara na transição pra "Perdido"/"Proposta Recusada". Mover pra fora e de volta manualmente pode disparar de novo (é best-effort, não há trava contra isso).
+
+**A qualificação por IA é obrigatória?** Não — só roda automaticamente quando há texto suficiente (15+ caracteres) no resumo do caso ou nas observações. Sem isso, os campos de área/urgência/valor ficam vazios até preenchimento manual.
+
+**Um lead pode voltar de "Perdido" pra ativo?** Sim, movendo manualmente pra qualquer outra etapa — o motivo de perda registrado fica como histórico, não é apagado.
+
+## Links relacionados
+- [Clientes e cadastro](01-clientes.md) — o que acontece ao converter
+- [WhatsApp](03-whatsapp.md) — onde as mensagens automáticas de lead chegam
+- [Documentos e peças](06-documentos.md) — como uma proposta comercial é gerada
+
+## Changelog
+
+| Data | Autor | Mudança |
+|---|---|---|
+| 03/09/2026 | Claude | Criação do documento |
+
 ---
-◀ [Clientes](01-clientes.md) · [Visão geral](00-visao-geral.md) · Próximo: WhatsApp ▶
+◀ [Clientes](01-clientes.md) · [Visão geral](00-visao-geral.md) · Próximo: [WhatsApp](03-whatsapp.md) ▶
