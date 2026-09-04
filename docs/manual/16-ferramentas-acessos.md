@@ -56,4 +56,4 @@ Nunca no código-fonte nem no Git — só em variáveis de ambiente na VPS (`.en
 | 04/09/2026 | Claude | Criação do documento |
 
 ---
-◀ [Onboarding](15-onboarding.md) · [Visão geral](00-visao-geral.md) · Próximo: Decision Log (ainda não escrito)
+◀ [Onboarding](15-onboarding.md) · [Visão geral](00-visao-geral.md) · Próximo: [Decision Log](17-decision-log.md) ▶

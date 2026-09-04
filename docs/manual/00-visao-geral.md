@@ -48,7 +48,7 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 14. [Runbook — o que fazer quando algo quebra](14-runbook.md)
 15. [Onboarding](15-onboarding.md)
 16. [Ferramentas e acessos](16-ferramentas-acessos.md)
-17. Decision Log — ainda não escrito
+17. [Decision Log](17-decision-log.md)
 
 ## FAQ
 
@@ -64,6 +64,7 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento — visão geral e mapa dos 13 blocos |
 | 04/09/2026 | Claude | Adicionados fluxograma, Runbook, Onboarding e Ferramentas/acessos; documentação auto-mantida virou regra do projeto (CLAUDE.md) |
+| 04/09/2026 | Claude | Adicionado Decision Log (bloco 17) — documentação completa, 17 de 17 blocos |
 
 ---
 Próximo: [Clientes e cadastro](01-clientes.md) ▶
