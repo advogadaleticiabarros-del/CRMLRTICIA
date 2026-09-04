@@ -4,8 +4,6 @@ Antes de iniciar qualquer tarefa, analise quais skills instaladas são realmente
 
 ### Design e interface
 
-- Use `layout-tela-cheia` **sempre**, em toda tela nova ou alteração de layout/CSS de tela existente — regra de aceite da Dra. Letícia: sem espaço vazio não intencional, sem elemento flutuante desconectado, tela usa 100% do espaço disponível. Rode o checklist da skill antes de dar a tarefa como concluída.
-
 - Use `frontend-design` ao criar ou redesenhar telas, dashboards, kanbans, formulários, tabelas, menus, páginas e componentes visuais. A interface deve ter identidade própria, aparência empresarial e não parecer um template genérico produzido por IA.
 
 - Use `web-design-guidelines` ao criar, revisar ou finalizar qualquer interface. Verifique acessibilidade, contraste, responsividade, hierarquia, espaçamento, formulários, estados de erro, carregamento e interação.
@@ -72,7 +70,7 @@ Antes de iniciar qualquer tarefa, analise quais skills instaladas são realmente
 ### Combinações recomendadas
 
 - Nova tela ou redesign:
-  `layout-tela-cheia` + `frontend-design` + `web-design-guidelines` + `vercel-react-best-practices`.
+  `frontend-design` + `web-design-guidelines` + `vercel-react-best-practices`.
 
 - Componente React complexo:
   `vercel-react-best-practices` + `vercel-composition-patterns`.
