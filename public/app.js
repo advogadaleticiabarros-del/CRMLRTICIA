@@ -4668,7 +4668,27 @@ async function finVisaoGeral(c) {
           <div class="mini-row"><span><small>· repasses a parceiros</small></span><small>${money(s.saidas.repasses.previsto)} · ${money(s.saidas.repasses.realizado)}</small></div>
         </div>` : ''}
     </div>` : '';
+  // Painel de destaque — pedido explícito (04/09/2026): "bater o olho e
+  // enxergar o resultado do mês, a previsão, o que vou receber em breve, a
+  // longo prazo", sem precisar rolar por 5 blocos de KPI diferentes pra
+  // achar o número certo. Os 4 valores já existiam (proj/cx, buscados
+  // acima) — só nunca tinham um lugar de destaque, no topo, antes de tudo.
+  const heroHtml = cx ? `
+    <div class="card" style="padding:20px 22px;margin-bottom:18px;background:var(--navy-deep,var(--navy));color:#fff">
+      <div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;opacity:.75;margin-bottom:14px">Panorama financeiro · ${proj.mes}</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:18px">
+        <div><div style="font-size:11.5px;opacity:.75;margin-bottom:4px">Resultado do mês (já realizado)</div>
+          <div style="font-size:26px;font-weight:700;color:${proj.saldo_realizado >= 0 ? '#7fd9a8' : '#f0968a'}">${money(proj.saldo_realizado)}</div></div>
+        <div><div style="font-size:11.5px;opacity:.75;margin-bottom:4px">Previsão fechada do mês</div>
+          <div style="font-size:26px;font-weight:700;color:${proj.saldo_previsto >= 0 ? '#7fd9a8' : '#f0968a'}">${money(proj.saldo_previsto)}</div></div>
+        <div><div style="font-size:11.5px;opacity:.75;margin-bottom:4px">A receber nos próximos 30 dias</div>
+          <div style="font-size:26px;font-weight:700;color:#e8c887">${money(cx.d30.entradas)}</div></div>
+        <div><div style="font-size:11.5px;opacity:.75;margin-bottom:4px">Projeção acumulada (90 dias)</div>
+          <div style="font-size:26px;font-weight:700;color:${cx.acumulado.d90 >= 0 ? '#7fd9a8' : '#f0968a'}">${money(cx.acumulado.d90)}</div></div>
+      </div>
+    </div>` : '';
   c.innerHTML = `
+    ${heroHtml}
     <div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0;flex-wrap:wrap"><button class="btn-ghost" id="fin-executivo">Relatório executivo (mês)</button><button class="btn-ghost" id="fin-executivo-email">Enviar por e-mail</button><button class="btn-ghost" id="fin-dre">Relatório do contador (mês)</button><button class="btn-gold" id="new-fin">+ Lançamento</button></div>
     <h3 style="color:var(--navy);margin:16px 0 8px">Resumo Geral <small style="font-weight:400;color:var(--text-muted);font-size:12px">· consolida clientes, parcerias, dativas e correspondente</small></h3>
     <div class="kpi-grid">

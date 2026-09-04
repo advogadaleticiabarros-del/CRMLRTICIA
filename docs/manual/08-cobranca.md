@@ -26,6 +26,10 @@ Integração com o Asaas permite gerar cobrança por Pix/cartão e conciliar o r
 
 Dá pra importar o extrato do banco (arquivo OFX, exportado direto no site do banco) e o sistema casa cada crédito recebido com uma parcela: se já tinha baixa registrada perto da mesma data, marca como **conferido**; se achou uma parcela pendente com o mesmo valor, marca como **sugestão** de baixa esquecida; o que sobra fica listado como **sem correspondência**, pra revisão manual.
 
+## Painel de destaque (Financeiro → Visão geral)
+
+O topo da tela mostra 4 números grandes, de relance, sem precisar rolar: **resultado do mês** (já realizado), **previsão fechada do mês**, **a receber nos próximos 30 dias** e **projeção acumulada de 90 dias**. Adicionado 04/09/2026 — os dados já existiam espalhados em blocos de KPI mais abaixo na mesma tela; isso só resume os 4 que mais importam pra decisão do dia a dia, antes de qualquer outro detalhe.
+
 ## Projeção de fluxo de caixa (30/60/90 dias)
 
 Junta entradas previstas de todas as frentes — parcelas normais, avulsos, dativas, correspondente, honorários de êxito — menos saídas previstas (despesas e repasses) — numa projeção de 30, 60 e 90 dias.
@@ -56,6 +60,7 @@ O sistema calcula inadimplência automaticamente e permite renegociar uma parcel
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
+| 04/09/2026 | Claude | Adicionado painel de destaque no topo da Visão Geral — resultado do mês, previsão, a receber 30d, projeção 90d |
 
 ---
 ◀ [Agenda](07-agenda.md) · [Visão geral](00-visao-geral.md) · Próximo: [Repasses e parcerias](09-repasses.md) ▶
