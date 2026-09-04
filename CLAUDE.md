@@ -111,3 +111,15 @@ Ao finalizar, apresente:
 - riscos ou pendências existentes.
 
 Não considere uma tarefa concluída se houver erro de build, teste não executado, migration não validada ou comportamento não verificado.
+
+### Documentação obrigatória (auto-manutenção, sem precisar pedir)
+
+A pasta `docs/manual/` é a documentação viva do sistema (13 blocos de módulo + visão geral, fluxograma, runbook, onboarding, ferramentas/acessos, decision log — ver `docs/manual/00-visao-geral.md` pro mapa completo). A partir de 04/09/2026, ela precisa ser mantida em dia **junto** de qualquer alteração real no sistema, na mesma tarefa, sem que a usuária precise pedir ou invocar a skill de documentação — isso vale pra qualquer sessão, humana ou IA, que mexer neste repositório.
+
+Sempre que uma tarefa:
+- **mudar comportamento** de um módulo (nova regra, novo campo, fluxo alterado) → atualize o bloco correspondente em `docs/manual/` (conteúdo + linha do Changelog daquele arquivo) na mesma sessão, antes de considerar a tarefa concluída.
+- **corrigir um bug ou incidente real** (algo que já estava quebrado em produção, não um ajuste de código ainda não lançado) → registre em `docs/manual/14-runbook.md`: sintoma observado, causa raiz, correção aplicada, e como qualquer pessoa ou IA reconhece e resolve se acontecer de novo. Isso vale mesmo pra correções pequenas — o pedido explícito da usuária foi "qualquer vírgula, erro e correção de erro deve ser documentado".
+- **adicionar/remover uma integração, ferramenta ou acesso externo** → atualize `docs/manual/16-ferramentas-acessos.md`.
+- **envolver uma decisão de arquitetura/produto não óbvia** (por que X em vez de Y) → adicione uma linha em `docs/manual/17-decision-log.md`.
+
+Isso não é uma skill a mais pra ativar — é parte de terminar a tarefa, igual a rodar teste ou build. Ao apresentar o resumo final da tarefa (linha 106-111 acima), inclua também: **documentação atualizada** (qual arquivo, ou "não se aplicava — mudança sem impacto documentável").

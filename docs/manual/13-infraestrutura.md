@@ -1,6 +1,6 @@
 # 13 · Onde tudo roda (infraestrutura)
 
-**Área:** Sistema · **Autor:** Claude (levantado do código-fonte e do servidor real) · **Última atualização:** 03/09/2026 · **Versão:** 1.0 · **Status:** publicado
+**Área:** Sistema · **Autor:** Claude (levantado do código-fonte e do servidor real) · **Última atualização:** 03/09/2026 · **Versão:** 1.0 · **Status:** publicado · **Responsável:** Dra. Letícia Barros (dono do produto) · **Revisão:** atualizar sempre que o módulo mudar de comportamento
 
 ## TL;DR
 
