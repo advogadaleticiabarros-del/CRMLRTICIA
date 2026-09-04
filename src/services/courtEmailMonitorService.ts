@@ -332,10 +332,17 @@ export async function runCourtEmailScan(): Promise<ScanResult> {
     novos++;
     await logScan(msg, 'movimentacao_registrada', null, processNumber, proc.id);
 
+    // Mesma correção já aplicada ao aviso de marco processual (DJEN) em
+    // 03/09/2026 — a mensagem só trazia o número do processo, mesmo quando
+    // o processo já tinha cliente vinculado no CRM (bug reportado de novo,
+    // agora neste fluxo separado de e-mail — ver docs/manual/14-runbook.md).
+    const { buscarNomeCliente } = await import('./monitoringService');
+    const clienteNome = await buscarNomeCliente(proc.client_id ?? null);
     const resumo = [
       '📧 Movimentação encontrada por e-mail (não veio pelo DJEN)',
       '',
       `Processo: ${proc.process_number}`,
+      clienteNome ? `Cliente: ${clienteNome}` : 'Processo ainda não vinculado a um cliente no CRM — confira em Processos.',
       `Trecho: ${descricao.replace(/\s+/g, ' ').trim().slice(0, 300)}`,
     ].join('\n');
     for (const num of ESCRITORIO_WHATSAPP_NUMEROS) {

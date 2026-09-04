@@ -40,6 +40,16 @@ function hashMovement(processNumber: string, date: string | null, description: s
   return crypto.createHash('sha256').update(`${processNumber}|${date || ''}|${description}`).digest('hex');
 }
 
+// Compartilhado entre este arquivo e courtEmailMonitorService.ts — os dois
+// montam aviso de WhatsApp de processo e os dois já tiveram o mesmo bug
+// (mensagem sem nome do cliente mesmo já vinculado, corrigido separadamente
+// em 03 e 04/09/2026). Extraído pra não copiar essa consulta uma 3ª vez.
+export async function buscarNomeCliente(clientId: number | null): Promise<string | null> {
+  if (!clientId) return null;
+  const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
+  return cl?.name || null;
+}
+
 function isDatajudSource(source: string): boolean {
   return ['datajud', 'api_publica_tjes', 'api_publica_trt17', 'api_publica_trf2', 'api_publica_tjpr', 'api_publica_trt9', 'api_publica_trf4', 'api_publica_stj', 'api_publica_tst'].includes(source) || source.startsWith('api_publica_');
 }
@@ -149,11 +159,7 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
       ) as any;
       if (marcaResp.affectedRows === 1) {
         const marco = trig.type === 'Recurso (apelação)' ? 'Sentença publicada' : 'Acórdão publicado';
-        let clienteNome: string | null = null;
-        if (clientId) {
-          const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
-          clienteNome = cl?.name || null;
-        }
+        const clienteNome = await buscarNomeCliente(clientId);
         // Sem cliente vinculado: o DJEN já manda as partes da publicação
         // (metadata.parties) mesmo quando `client_name` sai null por
         // ambiguidade — antes esse dado ficava só no banco, a mensagem só

@@ -77,6 +77,16 @@ pm2 restart crm-juridico && pm2 save
 
 **Correção:** tabela `marco_processual_avisos` (processo + tipo de marco, chave única) — antes de mandar, o sistema tenta inserir uma marca; se já existe, não manda de novo. Ver [Processos e prazos](04-processos.md).
 
+## Incidente: aviso de "movimentação por e-mail" sem nome do cliente
+
+**Sintoma:** WhatsApp "📧 Movimentação encontrada por e-mail (não veio pelo DJEN)" só mostra número do processo e um trecho — mesmo quando o processo já tem cliente vinculado no CRM (confirmado em produção 04/09/2026: 3 processos reportados, os 3 já tinham cliente cadastrado).
+
+**Causa raiz (corrigido 04/09/2026):** a correção de nome de cliente feita em 03/09/2026 (ver incidente de marco processual acima) só cobriu o fluxo do DJEN (`monitoringService.ts`) — o fluxo separado de e-mail (`courtEmailMonitorService.ts`, "Plano B" quando a movimentação não vem pelo DJEN) tem sua própria montagem de mensagem, que nunca buscava o nome do cliente, mesmo já tendo `client_id` disponível.
+
+**Correção:** `courtEmailMonitorService.ts` agora busca `clients.name` pelo `client_id` do processo antes de montar a mensagem, mesmo padrão do DJEN — mostra "Cliente: X" quando vinculado, ou avisa explicitamente que o processo ainda não tem cliente, nunca fica mudo.
+
+**Se acontecer de novo (fluxo de aviso novo):** use `buscarNomeCliente(clientId)`, exportado de `monitoringService.ts` (extraído em 04/09/2026 depois da 2ª vez que essa mesma lógica foi copiada) — nunca reescreva a consulta na mão de novo.
+
 ---
 
 ## Incidente: texto de movimentação bagunçado (HTML, entidades soltas)
@@ -186,6 +196,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: tabelas cortadas em dezenas de telas — regra CSS única (`:has()`) cobre todo `.card`/`.modal-card` com tabela, automaticamente, sem precisar de wrapper manual |
 | 04/09/2026 | Claude | +1 incidente: botões de ação flutuando em telas com abas (Documentos, Controladoria, Financeiro) — slot de ação no cabeçalho + helper `moveTabAction()` únicos para as 3 telas |
 | 04/09/2026 | Claude | +1 incidente: espaço vazio dentro do Kanban — colunas esticavam pra altura da mais cheia (`align-items:stretch` padrão do flex); `align-items:flex-start` corrige Produção/Fases/Leads de uma vez |
+| 04/09/2026 | Claude | +1 incidente: aviso de "movimentação por e-mail" sem nome do cliente — mesmo fix do marco processual, agora extraído em `buscarNomeCliente()` compartilhado |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
