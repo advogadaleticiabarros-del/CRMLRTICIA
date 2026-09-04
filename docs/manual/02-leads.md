@@ -67,6 +67,7 @@ Cada lead pode ter propostas comerciais vinculadas (enviada, em negociação, ac
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
+| 04/09/2026 | Claude | Quadro Kanban corrigido: era grid de 5 colunas fixas, as 4 últimas etapas quebravam pra 2ª linha desalinhada — agora rola horizontalmente com setas de navegação (ver [Runbook](14-runbook.md)) |
 
 ---
 ◀ [Clientes](01-clientes.md) · [Visão geral](00-visao-geral.md) · Próximo: [WhatsApp](03-whatsapp.md) ▶

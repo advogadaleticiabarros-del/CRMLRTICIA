@@ -1091,7 +1091,12 @@ const ROUTES = {
     page.innerHTML = `
       <div class="page-header"><div><h2>Leads</h2><p class="sub">Funil comercial</p></div>
         <button class="btn-gold" id="new-lead">+ Novo lead</button></div>
-      <div id="board" class="kanban"></div>`;
+      <div class="kanban-wrap">
+        <button type="button" class="kanban-nav kanban-nav-esq" title="Etapa anterior">${svgIcon('chevronLeft')}</button>
+        <div id="board" class="kanban"></div>
+        <button type="button" class="kanban-nav kanban-nav-dir" title="Próxima etapa">${svgIcon('chevronRight')}</button>
+      </div>`;
+    wireKanbanNav('board');
     const cols = { triagem: 'Novo Lead', atendimento_inicial: 'Primeiro Contato', reuniao: 'Atendimento Realizado', documentacao_pendente: 'Documentação Pendente', proposta: 'Proposta Enviada', proposta_em_analise: 'Negociação', proposta_recusada: 'Proposta Recusada', contrato_assinado: 'Contrato Assinado', perdida: 'Perdido' };
     const load = async () => {
       const b = await api('/api/leads/board');
@@ -2137,7 +2142,12 @@ const ROUTES = {
       <div class="page-header"><div><h2>Fases dos processos</h2><p class="sub">Quadro por fase processual · a IA sugere a fase pelas movimentações</p></div>
         <button class="btn-gold btn-sm" id="apply-all-sug" style="display:none"></button></div>
       <div id="fases-kpis" class="kpi-grid"></div>
-      <div id="fases-board" class="kanban-fases"></div>`;
+      <div class="kanban-wrap">
+        <button type="button" class="kanban-nav kanban-nav-esq" title="Etapa anterior">${svgIcon('chevronLeft')}</button>
+        <div id="fases-board" class="kanban-fases"></div>
+        <button type="button" class="kanban-nav kanban-nav-dir" title="Próxima etapa">${svgIcon('chevronRight')}</button>
+      </div>`;
+    wireKanbanNav('fases-board');
     const load = async () => {
       const rows = await api('/api/processes');
       const total = rows.length;
@@ -2195,7 +2205,12 @@ const ROUTES = {
       <div class="page-header"><div><h2>Produção</h2><p class="sub">Esteira das peças · SLA ${SLAMAX} dias (produção total) · clique no card para abrir</p></div></div>
       <div id="prod-kpis" class="kpi-grid"></div>
       <div id="prod-procuracao"></div>
-      <div id="prod-board" class="kanban-fases"></div>`;
+      <div class="kanban-wrap">
+        <button type="button" class="kanban-nav kanban-nav-esq" title="Etapa anterior">${svgIcon('chevronLeft')}</button>
+        <div id="prod-board" class="kanban-fases"></div>
+        <button type="button" class="kanban-nav kanban-nav-dir" title="Próxima etapa">${svgIcon('chevronRight')}</button>
+      </div>`;
+    wireKanbanNav('prod-board');
     // Alerta: casos ativos sem procuração no GED nem no contrato de origem
     api('/api/cases/sem-procuracao').then((sp) => {
       if (!sp.length) return;
@@ -6205,6 +6220,31 @@ async function receitaDetail(id, onSave) {
     catch (err) { toast(err.message, 'error'); }
   };
   openModal(`Receita — ${r.descricao}`, wrap);
+}
+
+// Setas fixas de navegação horizontal pro quadro Kanban (Produção, Fases) —
+// mesmo mecanismo já usado no quadro de Contatos do WhatsApp (whatsapp.js).
+// Rolar a roda do mouse EM CIMA de uma coluna move os cards daquela coluna
+// (scroll vertical de .kf-cards), não desliza o quadro inteiro — sem uma
+// forma fixa de navegar, colunas fora da tela (ex.: "Protocolado",
+// "Concluído") ficam simplesmente inacessíveis quando há muitas etapas
+// (bug real reportado 04/09/2026 — ver docs/manual/14-runbook.md). Chamar
+// uma vez, logo depois de montar o HTML do quadro (o wrap com as setas não
+// é recriado a cada load(), só o conteúdo interno do board).
+function wireKanbanNav(boardId) {
+  const board = document.getElementById(boardId);
+  const wrap = board?.closest('.kanban-wrap');
+  if (!board || !wrap) return;
+  board.addEventListener('wheel', (e) => {
+    if (e.deltaY === 0 || e.shiftKey) return;
+    e.preventDefault();
+    board.scrollLeft += e.deltaY;
+  });
+  const larguraColuna = () => (board.querySelector('.kf-col, .kanban-col')?.offsetWidth || 240) + 12;
+  const navEsq = wrap.querySelector('.kanban-nav-esq');
+  const navDir = wrap.querySelector('.kanban-nav-dir');
+  if (navEsq) navEsq.onclick = () => board.scrollBy({ left: -larguraColuna(), behavior: 'smooth' });
+  if (navDir) navDir.onclick = () => board.scrollBy({ left: larguraColuna(), behavior: 'smooth' });
 }
 
 // Todo campo de dinheiro deste projeto tem "R$" ou a palavra "Valor" no

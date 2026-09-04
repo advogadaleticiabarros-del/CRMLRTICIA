@@ -109,6 +109,22 @@ pm2 restart crm-juridico && pm2 save
 
 **Se acontecer de novo (outro componente com "fechar ao clicar fora"):** sempre registrar esse tipo de listener em fase de captura (terceiro argumento `true`) neste projeto — nunca em bubble, por causa do padrão de `stopPropagation()` já espalhado em várias telas.
 
+## Incidente: quadro Kanban com muitas colunas fica ilegível/inacessível
+
+**Sintoma:** num quadro com várias etapas (Produção tem 8, Fases 6, Leads 9), as colunas mais à direita ficam cortadas na borda da tela sem nenhuma forma visível de rolar até elas — ou, no caso do quadro de Leads, quebram pra uma segunda linha desalinhada com os rótulos da primeira. Relatado como "não consigo ver os dados urgentes" e "erro besta que não deveria ter em nenhuma tela".
+
+**Causa raiz (corrigido 04/09/2026):**
+- **Produção e Fases dos processos** (`#prod-board`, `#fases-board`): usam `.kanban-fases` (flex + `overflow-x: auto`, rolagem horizontal real), mas sem nenhuma seta de navegação — e rolar a roda do mouse **sobre uma coluna** move os cards daquela coluna (scroll vertical), não desliza o quadro inteiro. Sem soltar o mouse numa área vazia bem específica, não tinha como descobrir que dava pra rolar. Essa exata combinação de causa já tinha sido resolvida antes, mas só no quadro de Contatos do WhatsApp (`wc-board`) — nunca foi replicada aqui.
+- **Leads** (`#board`): usava `display: grid; grid-template-columns: repeat(5, 1fr)` fixo — com as 9 etapas reais do funil, as 4 últimas ("Negociação" em diante) quebravam pra uma 2ª linha da grade, sem nenhuma relação visual com a coluna de cima. Não é um problema de rolagem, é layout genuinamente quebrado.
+
+**Correção:** as 3 telas agora usam o mesmo padrão — quadro com rolagem horizontal (`overflow-x: auto`, barra sempre visível) **+ duas setas fixas** (`◀ ▶`) que rolam uma coluna inteira por clique, funcionando não importa onde o mouse esteja. Um helper único e reutilizável (`wireKanbanNav(boardId)`, `public/app.js`) liga esse comportamento — qualquer quadro novo no sistema deve chamar essa função em vez de reinventar.
+
+**Se acontecer de novo (quadro novo com muitas colunas):**
+1. O container do quadro precisa da classe `kanban-fases` (ou, pro visual do funil comercial, `kanban`) — ambas já vêm com `overflow-x: auto` e largura de coluna fixa.
+2. Envolva o quadro em `<div class="kanban-wrap"><button class="kanban-nav kanban-nav-esq">◀</button>...board...<button class="kanban-nav kanban-nav-dir">▶</button></div>`.
+3. Chame `wireKanbanNav('id-do-board')` uma vez, logo depois de montar esse HTML — nunca a cada `load()`/recarregamento dos cards.
+4. **Nunca** use `display: grid` com número de colunas fixo pra um quadro cuja quantidade de etapas pode crescer (leads, fases, status configuráveis) — sempre `flex` + rolagem.
+
 ## Incidente: WhatsApp desconectado / mensagem não sai
 
 **Sintoma:** conversas param de atualizar, ou envio falha.
@@ -136,6 +152,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | Criação do documento — 6 incidentes reais registrados a partir dos casos de 03/09/2026 |
 | 04/09/2026 | Claude | +1 incidente: campo de Valor (R$) rejeitando centavos — corrigido no helper `field()` |
 | 04/09/2026 | Claude | +1 incidente: dropdown de multi-seleção preso aberto — listener movido pra fase de captura |
+| 04/09/2026 | Claude | +1 incidente: quadros Kanban (Produção, Fases, Leads) com colunas inacessíveis/quebradas — setas de navegação + rolagem horizontal padronizadas nas 3 telas |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
