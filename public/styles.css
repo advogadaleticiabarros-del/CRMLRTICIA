@@ -279,6 +279,13 @@ body.foco-total .wa-shell { border: none; border-radius: 0; }
 
 /* ── Page header ── */
 .page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 18px; gap: 16px; flex-wrap: wrap; }
+/* Slot de ação por aba (Documentos/Controladoria/Financeiro — ver
+   moveTabAction em app.js): recebe o botão da aba ativa quando ela tem um
+   ("+ Novo modelo" etc.), fica vazio nas abas que não têm nenhum. Sem
+   :empty{display:none}, um slot vazio ainda contaria como item do flex e
+   abriria um gap de 16px do nada ao lado do título — espaço vazio sem
+   função nenhuma, exatamente o que não pode acontecer numa tela. */
+.tab-action-slot:empty { display: none; }
 .page-header h2 { font-size: 26px; }
 .page-header .sub { color: var(--text-muted); font-size: 13.5px; margin-top: 2px; }
 /* Status da instância do WhatsApp: era um texto técnico longo ("Instância

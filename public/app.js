@@ -1305,10 +1305,10 @@ const ROUTES = {
   async prazos(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Prazos & Tarefas</h2><p class="sub">Contagem regressiva e prioridades</p></div>
-        <div style="display:flex;gap:8px"><button class="btn-gold" id="new-deadline">+ Prazo</button>
+        <div style="display:flex;gap:8px"><button class="btn-sm" id="prazos-export">Exportar CSV</button>
+        <button class="btn-gold" id="new-deadline">+ Prazo</button>
         <button class="btn-gold" id="new-task">+ Tarefa</button></div></div>
       <div id="dd-card"></div>
-      <div style="display:flex;justify-content:flex-end;margin-bottom:8px"><button class="btn-sm" id="prazos-export">Exportar CSV</button></div>
       <div class="card" style="margin-bottom:20px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Prazos processuais</strong></div><div id="dl-table"></div></div>
       <div class="card"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">${svgIcon('check', 'ic-t')}Tarefas</strong></div><div id="task-table"></div></div>`;
     $('#prazos-export').onclick = () => exportTableCSV(page, 'prazos-tarefas');
@@ -1516,7 +1516,7 @@ const ROUTES = {
 
   async financeiro(page) {
     page.innerHTML = `
-      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Todas as frentes num só lugar: clientes, parcerias, dativas e correspondente</p></div></div>
+      <div class="page-header"><div><h2>Financeiro</h2><p class="sub">Todas as frentes num só lugar: clientes, parcerias, dativas e correspondente</p></div><div id="fin-action" class="tab-action-slot"></div></div>
       <div class="tabs" id="fin-tabs">
         <button class="tab active" data-tab="geral">Visão geral</button>
         <button class="tab" data-tab="receitas">A Receber</button>
@@ -1535,6 +1535,7 @@ const ROUTES = {
       document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#fin-content'); c.innerHTML = '<div class="spinner"></div>';
       try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
+      moveTabAction(c, $('#fin-action'));
     };
     document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
     await show('geral');
@@ -2644,7 +2645,7 @@ const ROUTES = {
 
   async controladoria(page) {
     page.innerHTML = `
-      <div class="page-header"><div><h2>Controladoria</h2><p class="sub">Rentabilidade, centro de custo e provisionamento</p></div></div>
+      <div class="page-header"><div><h2>Controladoria</h2><p class="sub">Rentabilidade, centro de custo e provisionamento</p></div><div id="ctrl-action" class="tab-action-slot"></div></div>
       <div class="tabs" id="ctrl-tabs">
         <button class="tab active" data-tab="clientes">Rentabilidade · Clientes</button>
         <button class="tab" data-tab="processos">Rentabilidade · Processos</button>
@@ -2658,6 +2659,7 @@ const ROUTES = {
       document.querySelectorAll('#ctrl-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#ctrl-content'); c.innerHTML = '<div class="spinner"></div>';
       try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
+      moveTabAction(c, $('#ctrl-action'));
     };
     document.querySelectorAll('#ctrl-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
     await show('clientes');
@@ -2793,7 +2795,7 @@ const FOLDER_PT = { contratos: 'Contratos', procuracoes: 'Procurações', docume
 
 async function renderDocumentos(page) {
   page.innerHTML = `
-    <div class="page-header"><div><h2>Documentos</h2><p class="sub">GED por cliente, modelos e geração automática</p></div></div>
+    <div class="page-header"><div><h2>Documentos</h2><p class="sub">GED por cliente, modelos e geração automática</p></div><div id="ged-action" class="tab-action-slot"></div></div>
     <div class="tabs" id="ged-tabs">
       <button class="tab active" data-tab="docs">Documentos</button>
       <button class="tab" data-tab="modelos">Modelos</button>
@@ -2804,6 +2806,7 @@ async function renderDocumentos(page) {
     document.querySelectorAll('#ged-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
     const c = $('#ged-content'); c.innerHTML = '<div class="spinner"></div>';
     try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
+    moveTabAction(c, $('#ged-action'));
   };
   document.querySelectorAll('#ged-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
   await show('docs');
@@ -2898,7 +2901,7 @@ async function uploadDocForm(clientId, onSave) {
 
 async function gedModelos(c) {
   c.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-tpl">+ Novo modelo</button></div>
+    <button class="btn-gold tab-action" id="new-tpl">+ Novo modelo</button>
     <div class="card"><div id="tpl-list"></div></div>`;
   const load = async () => {
     const rows = await api('/api/documents/templates');
@@ -3186,7 +3189,7 @@ async function ctrlProvisao(c) {
   ]);
   const cell = (t, l) => `${resumo.matriz[t][l].qtd} · ${money(resumo.matriz[t][l].total)}`;
   c.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-prov">+ Nova provisão</button></div>
+    <button class="btn-gold tab-action" id="new-prov">+ Nova provisão</button>
     <div class="kpi-grid">
       ${kpi('Ganho provisionado', money(resumo.ganho_total), 'money')}
       ${kpi('Perda provisionada', money(resumo.perda_total), 'money')}
@@ -4913,7 +4916,7 @@ async function finVisaoGeral(c) {
 
 async function finAcordos(c) {
   c.innerHTML = `
-    <div style="display:flex;justify-content:flex-end;margin:8px 0"><button class="btn-gold" id="new-acordo">+ Novo acordo</button></div>
+    <button class="btn-gold tab-action" id="new-acordo">+ Novo acordo</button>
     <div class="card"><div id="acordo-table"></div></div>`;
   tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#acordo-table table'), filename: 'acordos', title: 'Acordos' });
   const load = async () => {
@@ -6245,6 +6248,25 @@ function wireKanbanNav(boardId) {
   const navDir = wrap.querySelector('.kanban-nav-dir');
   if (navEsq) navEsq.onclick = () => board.scrollBy({ left: -larguraColuna(), behavior: 'smooth' });
   if (navDir) navDir.onclick = () => board.scrollBy({ left: larguraColuna(), behavior: 'smooth' });
+}
+
+// Telas com abas (Documentos, Controladoria, Financeiro...) às vezes têm um
+// botão de ação que só faz sentido numa aba específica (ex.: "+ Novo
+// modelo" só na aba Modelos). Antes, cada função de aba desenhava esse
+// botão sozinho, numa faixa própria acima do próprio conteúdo — lido como
+// "flutuante", sem ancoragem nenhuma (mesmo problema já corrigido uma vez
+// no "+ Nova etapa" do WhatsApp, ver docs/manual/14-runbook.md). Em vez de
+// mover cada botão um por um pra dentro do cabeçalho (o que exigiria mexer
+// em toda função de aba de novo), este helper faz isso sozinho: a função de
+// aba só precisa marcar seu botão com a classe "tab-action" (em vez de
+// embrulhar numa faixa própria) — chamado depois de render(c) preencher o
+// conteúdo, ele MOVE o botão pro slot do cabeçalho (svelto: encontra .tab-action
+// dentro do conteúdo recém-renderizado e o transplanta; se a aba atual não
+// tiver nenhum, esvazia o slot, escondendo a ação da aba anterior).
+function moveTabAction(contentEl, slotEl) {
+  if (!slotEl) return;
+  const btn = contentEl.querySelector('.tab-action');
+  slotEl.replaceChildren(...(btn ? [btn] : []));
 }
 
 // Todo campo de dinheiro deste projeto tem "R$" ou a palavra "Valor" no

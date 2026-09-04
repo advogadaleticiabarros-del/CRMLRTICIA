@@ -135,6 +135,16 @@ pm2 restart crm-juridico && pm2 save
 
 **Se acontecer de novo:** não deveria — mas se acontecer, confirme que a tabela está dentro de um `.card` ou `.modal-card` (a regra só cobre esses dois containers). Se estiver num container solto sem uma dessas classes, ou dê a ele uma dessas classes, ou adicione o container à lista de seletores desta regra em `public/styles.css`.
 
+## Incidente: botão de ação "flutuando" sozinho numa faixa própria
+
+**Sintoma:** um botão (ex.: "+ Novo modelo", "+ Nova provisão", "+ Novo acordo") aparece isolado, numa faixa própria acima de um card, sem estar dentro de um cabeçalho, barra de ações ou agrupamento real — mesmo padrão do "+ Nova etapa" já corrigido antes na tela do WhatsApp.
+
+**Causa raiz:** em telas com abas (Documentos, Controladoria, Financeiro), cada função de aba desenhava seu próprio botão de ação numa `<div>` separada, porque o cabeçalho da tela (compartilhado entre todas as abas) não tinha um lugar pra recebê-lo.
+
+**Correção definitiva (04/09/2026):** cada cabeçalho de tela-com-abas agora tem um slot de ação (`<div class="tab-action-slot">`, ex.: `#ged-action`, `#ctrl-action`, `#fin-action`) — vazio quando a aba atual não precisa de nenhum botão (`:empty{display:none}`, sem abrir espaço vazio). A função de aba só marca seu botão com a classe `tab-action` em vez de embrulhá-lo numa faixa própria; um helper único (`moveTabAction()`, `public/app.js`) o transplanta pro slot do cabeçalho automaticamente, toda vez que a aba troca.
+
+**Se acontecer de novo (aba nova com botão de ação):** nunca desenhe o botão numa `<div>` própria dentro da função de aba — dê a ele a classe `tab-action` (sem wrapper), e garanta que o cabeçalho da tela-mãe tem um `.tab-action-slot` e chama `moveTabAction(c, slotEl)` depois de renderizar cada aba. Se for uma tela SEM abas (página única), o padrão já era outro: colocar o botão direto dentro do `.page-header` existente (ver o caso "Exportar CSV" em Prazos & Tarefas, corrigido do mesmo jeito).
+
 ## Incidente: WhatsApp desconectado / mensagem não sai
 
 **Sintoma:** conversas param de atualizar, ou envio falha.
@@ -164,6 +174,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: dropdown de multi-seleção preso aberto — listener movido pra fase de captura |
 | 04/09/2026 | Claude | +1 incidente: quadros Kanban (Produção, Fases, Leads) com colunas inacessíveis/quebradas — setas de navegação + rolagem horizontal padronizadas nas 3 telas |
 | 04/09/2026 | Claude | +1 incidente: tabelas cortadas em dezenas de telas — regra CSS única (`:has()`) cobre todo `.card`/`.modal-card` com tabela, automaticamente, sem precisar de wrapper manual |
+| 04/09/2026 | Claude | +1 incidente: botões de ação flutuando em telas com abas (Documentos, Controladoria, Financeiro) — slot de ação no cabeçalho + helper `moveTabAction()` únicos para as 3 telas |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
