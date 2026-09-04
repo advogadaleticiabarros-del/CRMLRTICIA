@@ -3256,14 +3256,13 @@ async function renderCorrespondente(page) {
               <option value="paga">Pagas</option>
               <option value="cancelada">Canceladas</option>
             </select></div>
-          <div><div class="section-header" style="margin-bottom:4px">${svgIcon('users', 'ic-inline')} Pagador <small style="color:var(--text-muted);font-weight:400">(Ctrl/Cmd+clique para vários)</small></div>
-            <select id="corr-pagador" multiple style="min-width:200px;min-height:70px">
-              ${pagadores.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}
-            </select></div>
+          <div><div class="section-header" style="margin-bottom:4px">${svgIcon('users', 'ic-inline')} Pagador</div>
+            <div id="corr-pagador-wrap"></div></div>
           <button class="btn-gold btn-sm" type="button" id="corr-guia">${svgIcon('banknote', 'ic-inline')} Guia de cobrança</button>
         </div>
       </div>
       <div class="card"><div id="corr-table"></div></div>`;
+    $('#corr-pagador-wrap').appendChild(multiSelectDropdown('corr-pagador', pagadores, { placeholder: 'Todos os pagadores' }));
 
     let corrPeriodo = { de: '', ate: '' };
     tableTools(page.querySelector('.card:last-child'), {
@@ -6224,6 +6223,60 @@ function field(label, name, opts = {}) {
   // pela usuária em 04/09/2026 — ver docs/manual/14-runbook.md.
   const stepFinal = step ?? (type === 'number' && LABEL_DINHEIRO_RE.test(label) ? '0.01' : undefined);
   return `<label>${label}<input type="${type}" name="${name}" value="${value ?? ''}"${maxlength ? ` maxlength="${maxlength}"` : ''}${stepFinal ? ` step="${stepFinal}"` : ''} /></label>`;
+}
+
+// Multi-seleção com busca e checkbox, no lugar do <select multiple> nativo
+// (que exige Ctrl/Cmd+clique — ninguém descobre isso sozinho e a lista fica
+// ilegível com muita opção). Mantém um <select multiple id="${nativeId}">
+// de verdade, escondido, sincronizado a cada clique — todo código que já lia
+// `$('#id').selectedOptions` ou escutava `onchange` continua funcionando sem
+// mudar nada além de trocar o HTML que constrói o campo.
+function multiSelectDropdown(nativeId, items, opts = {}) {
+  const { placeholder = 'Todos' } = opts;
+  const box = el(`<div class="msel">
+    <select id="${nativeId}" multiple hidden>
+      ${items.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}
+    </select>
+    <button type="button" class="msel-trigger"><span class="msel-label">${esc(placeholder)}</span>${svgIcon('chevronDown', 'ic-xs')}</button>
+    <div class="msel-panel" hidden>
+      <input type="text" class="msel-search" placeholder="Buscar…" autocomplete="off">
+      <div class="msel-list">
+        ${items.map((p) => `<label class="msel-item"><input type="checkbox" value="${esc(p)}"><span>${esc(p)}</span></label>`).join('')}
+      </div>
+      <div class="msel-empty" hidden>Nada encontrado</div>
+    </div>
+  </div>`);
+  if (!items.length) { box.querySelector('.msel-trigger').disabled = true; }
+  const nativeSel = box.querySelector('select');
+  const label = box.querySelector('.msel-label');
+  const panel = box.querySelector('.msel-panel');
+  const list = box.querySelector('.msel-list');
+  const checks = () => Array.from(list.querySelectorAll('input[type=checkbox]'));
+
+  const syncLabel = () => {
+    const sel = checks().filter((c) => c.checked).map((c) => c.value);
+    label.textContent = !sel.length ? placeholder : sel.length === 1 ? sel[0] : `${sel.length} selecionados`;
+    Array.from(nativeSel.options).forEach((o) => { o.selected = sel.includes(o.value); });
+  };
+  checks().forEach((c) => c.onchange = () => { syncLabel(); nativeSel.dispatchEvent(new Event('change')); });
+
+  box.querySelector('.msel-trigger').onclick = (e) => {
+    e.stopPropagation();
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) box.querySelector('.msel-search').focus();
+  };
+  document.addEventListener('click', (e) => { if (!box.contains(e.target)) panel.hidden = true; });
+  box.querySelector('.msel-search').oninput = (e) => {
+    const q = e.target.value.trim().toLowerCase();
+    let algumVisivel = false;
+    list.querySelectorAll('.msel-item').forEach((item) => {
+      const bate = item.textContent.toLowerCase().includes(q);
+      item.hidden = !bate;
+      if (bate) algumVisivel = true;
+    });
+    box.querySelector('.msel-empty').hidden = algumVisivel;
+  };
+  return box;
 }
 const AREAS = [['outro','Outro'],['trabalhista','Trabalhista'],['gestante','Gestante/Maternidade'],['familia','Família'],['civel','Cível'],['previdenciario','Previdenciário'],['consumidor','Consumidor']].map(([v,t])=>({v,t}));
 const MARITAL_PT = { solteiro: 'Solteiro(a)', casado: 'Casado(a)', divorciado: 'Divorciado(a)', viuvo: 'Viúvo(a)', uniao_estavel: 'União estável', outro: 'Estado civil: outro' };

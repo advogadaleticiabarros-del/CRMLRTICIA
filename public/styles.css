@@ -127,6 +127,30 @@ input::placeholder { color: #b7c0d0; }
 input:focus, select:focus, textarea:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px rgba(184,146,76,.12); }
 .error-msg { color: var(--red); font-size: 13px; text-align: center; min-height: 18px; }
 
+/* ── Multi-seleção com busca (multiSelectDropdown, app.js) — no lugar do
+   <select multiple> nativo, que exige Ctrl/Cmd+clique (ninguém descobre
+   sozinho) e vira uma lista ilegível com muitas opções. ── */
+.msel { position: relative; min-width: 200px; }
+.msel-trigger {
+  width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 11px 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+  color: var(--text); font-size: 14px; font-family: inherit; cursor: pointer; text-align: left; transition: all .16s;
+}
+.msel-trigger:hover { border-color: var(--gold); }
+.msel-trigger:disabled { cursor: default; opacity: .6; }
+.msel-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msel-panel {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 40; width: max(100%, 240px);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
+  padding: 8px; max-height: 280px; display: flex; flex-direction: column;
+}
+.msel-search { margin-bottom: 6px; padding: 8px 11px; font-size: 13px; }
+.msel-list { overflow-y: auto; display: flex; flex-direction: column; }
+.msel-item { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 7px; font-size: 13.5px; color: var(--text); cursor: pointer; }
+.msel-item:hover { background: var(--surface-2); }
+.msel-item input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--gold); flex-shrink: 0; }
+.msel-empty { padding: 10px 8px; font-size: 12.5px; color: var(--text-muted); text-align: center; }
+
 /* ── App layout ── */
 .app-view { display: flex; min-height: 100vh; }
 .sidebar { width: 264px; background: var(--surface); color: var(--text); display: flex; flex-direction: column; position: fixed; height: 100vh; border-right: 1px solid var(--border); }

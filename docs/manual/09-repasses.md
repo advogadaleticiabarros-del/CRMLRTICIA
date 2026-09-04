@@ -14,6 +14,8 @@ Consulte pra entender a diferença entre correspondente, parceiro e repasse, ou 
 
 Quando a Dra. Letícia atua **como correspondente** — indo a uma audiência a pedido de outro advogado/escritório, como advogada ou preposta —, isso é acompanhado à parte do restante do caixa: quem pediu (o "pagador"), o valor combinado, e um status próprio (agendada → realizada → faturada → paga → cancelada). A audiência sincroniza com a agenda/Google Calendar automaticamente, igual às audiências normais e do Dativo.
 
+O histórico de correspondente pode ser filtrado por status e por um ou mais pagadores (seleção múltipla com busca, desde 04/09/2026) antes de emitir a **Guia de cobrança**.
+
 ## Parceiros (indicação/co-atuação)
 
 Um **parceiro** é alguém (outro advogado ou escritório) que indica clientes ou atua junto em um caso, com um percentual de divisão combinado: honorário de êxito, percentual do parceiro e percentual de sucumbência, cada um pode ter seu próprio valor combinado. Parceiros têm **login próprio** (portal do parceiro) e enxergam só o que é deles: casos em andamento, pendências da produção da peça, valores a receber — nunca os dados de outros clientes/parceiros.
@@ -42,6 +44,7 @@ Manter isso em módulos próprios (em vez de misturar com as parcelas dos seus p
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
+| 04/09/2026 | Claude | Filtro de pagador do Correspondente virou multi-seleção com busca (era `<select multiple>` nativo, exigia Ctrl/Cmd+clique) |
 
 ---
 ◀ [Cobrança e parcelas](08-cobranca.md) · [Visão geral](00-visao-geral.md) · Próximo: [Monitoramento automático](10-monitoramento.md) ▶
