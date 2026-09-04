@@ -501,7 +501,14 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
    mais largo no total — sem essa folga, a última coluna encostava exata
    na borda direita do wrap (que é overflow:hidden de propósito, ver
    comentário abaixo) e parecia "cortada" mesmo depois de rolar até o fim. */
-.kanban-fases, .kanban { display: flex; gap: 12px; overflow-x: auto; padding: 0 44px 14px 0; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+/* align-items:flex-start (não o "stretch" padrão do flex) é a causa real
+   do espaço em branco DENTRO do quadro: sem isso, toda coluna esticava pra
+   bater com a altura da coluna mais cheia — uma coluna vazia ("solte um
+   card aqui") ou com 1 card ficava com um vão enorme embaixo, só porque a
+   vizinha tinha 7 cards. Cada coluna agora só cresce até onde o próprio
+   conteúdo dela vai — reportado 04/09/2026, mesma causa em Produção,
+   Fases e Leads (todas usam esta mesma classe base). */
+.kanban-fases, .kanban { display: flex; align-items: flex-start; gap: 12px; overflow-x: auto; padding: 0 44px 14px 0; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
 .kanban-fases::-webkit-scrollbar, .kanban::-webkit-scrollbar { height: 10px; }
 .kanban-fases::-webkit-scrollbar-track, .kanban::-webkit-scrollbar-track { background: var(--surface-2); border-radius: 6px; }
 .kanban-fases::-webkit-scrollbar-thumb, .kanban::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }

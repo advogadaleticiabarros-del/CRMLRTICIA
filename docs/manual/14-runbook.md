@@ -125,6 +125,16 @@ pm2 restart crm-juridico && pm2 save
 3. Chame `wireKanbanNav('id-do-board')` uma vez, logo depois de montar esse HTML — nunca a cada `load()`/recarregamento dos cards.
 4. **Nunca** use `display: grid` com número de colunas fixo pra um quadro cuja quantidade de etapas pode crescer (leads, fases, status configuráveis) — sempre `flex` + rolagem.
 
+## Incidente: espaço vazio DENTRO do quadro Kanban (colunas esticando pra igualar a mais cheia)
+
+**Sintoma:** mesmo depois de corrigir a navegação entre colunas (incidente acima), o quadro de Produção continuava "horrível, cheio de espaço em branco" — uma coluna com poucos cards (ou nenhum, só "solte um card aqui") ficava com um vão enorme embaixo, sem nenhum card ali.
+
+**Causa raiz:** `.kanban-fases`/`.kanban` são `display: flex` sem `align-items` declarado — o padrão do flexbox é `stretch`, que estica TODAS as colunas (`.kf-col`/`.kanban-col`) pra bater com a altura da coluna mais cheia da fileira. Isso já tinha sido notado antes em comentário no código ("como as colunas esticam pra altura da mais alta") mas nunca eliminado — só contornado localmente pro efeito não parecer tão ruim.
+
+**Correção definitiva (04/09/2026):** `align-items: flex-start` na regra base de `.kanban-fases, .kanban` — cada coluna agora só cresce até onde o próprio conteúdo dela vai, independente das vizinhas. Corrige Produção, Fases e Leads de uma vez (as 3 usam essa mesma classe base).
+
+**Se acontecer de novo (quadro Kanban novo):** nunca crie uma classe de quadro nova do zero — reaproveite `.kanban-fases` (ou `.kanban`, se for um funil no estilo comercial), que já vêm com scroll horizontal, largura de coluna e `align-items: flex-start` prontos.
+
 ## Incidente: tabelas cortadas sem rolagem (dezenas de telas, não só uma)
 
 **Sintoma:** mesma família do incidente do Kanban acima — tabela larga (muitas colunas ou conteúdo comprido) fica com as últimas colunas cortadas dentro do card, sem nenhuma forma de rolar até elas. Já tinha acontecido antes (ranking da Controladoria, corrigido isoladamente) e continuava acontecendo de novo em outras telas.
@@ -175,6 +185,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: quadros Kanban (Produção, Fases, Leads) com colunas inacessíveis/quebradas — setas de navegação + rolagem horizontal padronizadas nas 3 telas |
 | 04/09/2026 | Claude | +1 incidente: tabelas cortadas em dezenas de telas — regra CSS única (`:has()`) cobre todo `.card`/`.modal-card` com tabela, automaticamente, sem precisar de wrapper manual |
 | 04/09/2026 | Claude | +1 incidente: botões de ação flutuando em telas com abas (Documentos, Controladoria, Financeiro) — slot de ação no cabeçalho + helper `moveTabAction()` únicos para as 3 telas |
+| 04/09/2026 | Claude | +1 incidente: espaço vazio dentro do Kanban — colunas esticavam pra altura da mais cheia (`align-items:stretch` padrão do flex); `align-items:flex-start` corrige Produção/Fases/Leads de uma vez |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
