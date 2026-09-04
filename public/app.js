@@ -6265,7 +6265,20 @@ function multiSelectDropdown(nativeId, items, opts = {}) {
     panel.hidden = !panel.hidden;
     if (!panel.hidden) box.querySelector('.msel-search').focus();
   };
-  document.addEventListener('click', (e) => { if (!box.contains(e.target)) panel.hidden = true; });
+  // Fase de CAPTURA, não bubble: várias telas do sistema (ex.: botões de
+  // ação em linha de tabela) chamam event.stopPropagation() nos próprios
+  // cliques, o que impedia este listener de sequer ser notificado quando
+  // ligado em bubble — o painel ficava "preso" aberto ao clicar em qualquer
+  // lugar que parasse a propagação antes de chegar em document. Captura roda
+  // ANTES da fase de bubble (de fora pra dentro), então nenhum
+  // stopPropagation() de um descendente consegue blindar contra ela.
+  // Também se auto-remove quando o widget sai do DOM (re-render da tela),
+  // pra não acumular um listener morto a cada vez que a tela recarrega.
+  const onDocClick = (e) => {
+    if (!box.isConnected) { document.removeEventListener('click', onDocClick, true); return; }
+    if (!box.contains(e.target)) panel.hidden = true;
+  };
+  document.addEventListener('click', onDocClick, true);
   box.querySelector('.msel-search').oninput = (e) => {
     const q = e.target.value.trim().toLowerCase();
     let algumVisivel = false;

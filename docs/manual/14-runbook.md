@@ -99,6 +99,16 @@ pm2 restart crm-juridico && pm2 save
 
 **Se acontecer de novo (campo novo, fora do padrão):** confira se o campo usa `field(label, name, { type: 'number' })` — se sim, o label precisa conter "R$" ou "Valor" pra ganhar `step="0.01"` sozinho; senão, passe `step: '0.01'` explicitamente na chamada.
 
+## Incidente: dropdown de multi-seleção não fecha ao clicar fora
+
+**Sintoma:** o painel do filtro de "Pagador" (Correspondente) abre e fica preso aberto — clicar em qualquer outro lugar da tela não fecha.
+
+**Causa raiz (corrigido 04/09/2026):** o listener de "clique fora" do componente (`multiSelectDropdown()`, `public/app.js`) estava registrado na fase de **bubble** (`document.addEventListener('click', fn)`). Várias telas do sistema chamam `event.stopPropagation()` no próprio clique (ex.: botões de ação em linha de tabela) — isso impede o evento de sequer chegar em `document` na fase de bubble, então o listener nunca era notificado quando o clique acontecia num desses lugares.
+
+**Correção:** listener movido pra fase de **captura** (`addEventListener('click', fn, true)`) — captura roda de fora pra dentro, ANTES de qualquer `stopPropagation()` de um elemento descendente, então sempre é notificado. Também passou a se auto-remover quando o widget sai do DOM (evita acumular listener morto a cada re-render da tela).
+
+**Se acontecer de novo (outro componente com "fechar ao clicar fora"):** sempre registrar esse tipo de listener em fase de captura (terceiro argumento `true`) neste projeto — nunca em bubble, por causa do padrão de `stopPropagation()` já espalhado em várias telas.
+
 ## Incidente: WhatsApp desconectado / mensagem não sai
 
 **Sintoma:** conversas param de atualizar, ou envio falha.
@@ -125,6 +135,7 @@ pm2 restart crm-juridico && pm2 save
 |---|---|---|
 | 04/09/2026 | Claude | Criação do documento — 6 incidentes reais registrados a partir dos casos de 03/09/2026 |
 | 04/09/2026 | Claude | +1 incidente: campo de Valor (R$) rejeitando centavos — corrigido no helper `field()` |
+| 04/09/2026 | Claude | +1 incidente: dropdown de multi-seleção preso aberto — listener movido pra fase de captura |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
