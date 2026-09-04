@@ -19,6 +19,12 @@ Consulte pra entender a diferença entre os dois jeitos de gerar documento, como
 
 Pastas automáticas por cliente: contratos, procurações, documentos pessoais, processos, financeiro, audiências, e (específico do Dativo) nomeação, certidão de audiência, comprovante de atuação, outros. Documentos têm status (pendente, recebido, assinado, arquivado) e ficam guardados no MEGA (armazenamento externo, não ocupa disco do servidor).
 
+## Esteira de produção (tela Produção)
+
+Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análise → Separação de docs → Criação inicial → Revisão inicial → Aguardando protocolo → Protocolado → **Concluído** (ou Recusado, que trava o card até reverter). SLA de 10 dias corridos, pausado automaticamente enquanto houver pendência aberta no card.
+
+**Importante — "Concluído" aqui não é o caso encerrado.** Significa só que a peça foi protocolada e o trabalho de produção daquela demanda terminou — o **caso em si continua ativo**, seguindo dali em diante pela esteira processual normal (acompanhamento de movimentação, prazos, audiências — ver [Processos e prazos](04-processos.md)), não pela esteira de produção. "Concluído"/"Protocolado" só tiram o card da contagem de "Em produção" e param o relógio do SLA de redação — não mudam o status do processo.
+
 ## Assinatura
 
 Documentos podem ser enviados pra assinatura eletrônica direto pelo sistema, com acompanhamento de quem já assinou.
@@ -35,6 +41,8 @@ Além dos templates de preenchimento automático, existe um banco de modelos de 
 
 **Onde ficam os arquivos de verdade?** No MEGA (armazenamento externo), não no disco do servidor — o CRM guarda a referência e os metadados (pasta, status, cliente vinculado).
 
+**Um card "Concluído" na esteira de produção significa que o caso foi arquivado?** Não — significa que a peça foi protocolada e o trabalho de redação terminou. O caso continua ativo, só passa a ser acompanhado pela esteira processual normal (Processos e prazos), não mais pela esteira de produção.
+
 ## Links relacionados
 - [Clientes e cadastro](01-clientes.md) — dados usados no preenchimento automático
 - [Dativo](05-dativo.md) — pastas específicas e upload por câmera
@@ -45,6 +53,7 @@ Além dos templates de preenchimento automático, existe um banco de modelos de 
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
+| 04/09/2026 | Claude | Adicionada seção "Esteira de produção" — corrige entendimento: "Concluído" é a peça protocolada, não o caso encerrado |
 
 ---
 ◀ [Dativo](05-dativo.md) · [Visão geral](00-visao-geral.md) · Próximo: [Agenda e compromissos](07-agenda.md) ▶
