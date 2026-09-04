@@ -367,6 +367,17 @@ tbody tr:hover { background: var(--surface-2); }
    barra de rolagem: o conteúdo simplesmente não tinha como ser alcançado
    (achado real da auditoria de telas, ex.: ranking da Controladoria). */
 .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+/* CORREÇÃO DEFINITIVA (04/09/2026), não mais uma-de-cada-vez: até aqui,
+   escapar do corte de tabela dependia de alguém lembrar de embrulhar cada
+   tabela em .table-scroll — só uma fração das telas do sistema tinha isso
+   (achado real: dezenas de <table> no app, a maioria sem proteção nenhuma).
+   Com :has(), TODO .card/.modal-card que contém uma tabela (em qualquer
+   profundidade, não só filho direto) ganha rolagem horizontal sozinho,
+   sem precisar de wrapper nenhum — cobre as tabelas de hoje e as que
+   ainda vão ser criadas, sem depender de ninguém lembrar disso de novo.
+   overflow-y continua "hidden" (herdado da regra base de .card/.modal-card
+   — só o eixo X muda aqui), então não abre rolagem vertical indesejada. */
+.card:has(table), .modal-card:has(table) { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 /* Stepper da esteira de produção */
 .prod-stepper { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 8px 0 4px; }
 .prod-step { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 22px; border: 1px solid transparent; }

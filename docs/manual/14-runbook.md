@@ -125,6 +125,16 @@ pm2 restart crm-juridico && pm2 save
 3. Chame `wireKanbanNav('id-do-board')` uma vez, logo depois de montar esse HTML — nunca a cada `load()`/recarregamento dos cards.
 4. **Nunca** use `display: grid` com número de colunas fixo pra um quadro cuja quantidade de etapas pode crescer (leads, fases, status configuráveis) — sempre `flex` + rolagem.
 
+## Incidente: tabelas cortadas sem rolagem (dezenas de telas, não só uma)
+
+**Sintoma:** mesma família do incidente do Kanban acima — tabela larga (muitas colunas ou conteúdo comprido) fica com as últimas colunas cortadas dentro do card, sem nenhuma forma de rolar até elas. Já tinha acontecido antes (ranking da Controladoria, corrigido isoladamente) e continuava acontecendo de novo em outras telas.
+
+**Causa raiz:** a correção anterior (classe `.table-scroll`) era **opt-in** — cada tela que renderiza uma tabela larga precisava lembrar de embrulhar ela manualmente. Na prática, só uma fração pequena das ~50 tabelas do sistema tinha isso; a maioria ficava exposta ao mesmo bug, um "ajuste de cada vez" sem fim. `.card` (o container mais comum ao redor de tabela) usa `overflow: hidden` por padrão — sem rolagem própria, o conteúdo que passa da largura do card simplesmente não existe pra quem olha a tela.
+
+**Correção definitiva (04/09/2026), não mais uma-de-cada-vez:** regra CSS única usando `:has()` — `.card:has(table), .modal-card:has(table) { overflow-x: auto; }`. Qualquer card ou modal que contenha uma tabela, em qualquer profundidade, ganha rolagem horizontal sozinho, automaticamente — cobre as ~50 tabelas que já existem hoje **e** qualquer tabela nova que for criada depois, sem precisar de wrapper nenhum e sem depender de ninguém lembrar disso de novo.
+
+**Se acontecer de novo:** não deveria — mas se acontecer, confirme que a tabela está dentro de um `.card` ou `.modal-card` (a regra só cobre esses dois containers). Se estiver num container solto sem uma dessas classes, ou dê a ele uma dessas classes, ou adicione o container à lista de seletores desta regra em `public/styles.css`.
+
 ## Incidente: WhatsApp desconectado / mensagem não sai
 
 **Sintoma:** conversas param de atualizar, ou envio falha.
@@ -153,6 +163,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: campo de Valor (R$) rejeitando centavos — corrigido no helper `field()` |
 | 04/09/2026 | Claude | +1 incidente: dropdown de multi-seleção preso aberto — listener movido pra fase de captura |
 | 04/09/2026 | Claude | +1 incidente: quadros Kanban (Produção, Fases, Leads) com colunas inacessíveis/quebradas — setas de navegação + rolagem horizontal padronizadas nas 3 telas |
+| 04/09/2026 | Claude | +1 incidente: tabelas cortadas em dezenas de telas — regra CSS única (`:has()`) cobre todo `.card`/`.modal-card` com tabela, automaticamente, sem precisar de wrapper manual |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
