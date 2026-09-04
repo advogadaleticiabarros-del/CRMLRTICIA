@@ -49,7 +49,44 @@ jobs:
       # de novo automaticamente antes de marcar o workflow como falho e
       # disparar o e-mail de erro do GitHub.
       - name: Nova tentativa (a conexão SSH falhou na primeira vez)
+        id: deploy_2
         if: steps.deploy_1.outcome == 'failure'
+        continue-on-error: true
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          timeout: 90s
+          command_timeout: 15m
+          script: |
+            set -e
+            cd ~/app
+            git fetch origin main
+            git reset --hard origin/main
+            npm install --include=dev
+            for kv in "OPENAI_API_KEY=${{ secrets.OPENAI_API_KEY }}" "MEGA_EMAIL=${{ secrets.MEGA_EMAIL }}" "MEGA_PASSWORD=${{ secrets.MEGA_PASSWORD }}"; do
+              k="${kv%%=*}"; v="${kv#*=}"
+              if [ -n "$v" ]; then
+                grep -v "^${k}=" .env > .env.tmp || true
+                mv .env.tmp .env
+                echo "${k}=${v}" >> .env
+              fi
+            done
+            npm run build
+            npm run migrate
+            pm2 restart crm-juridico
+            pm2 save
+
+      # 3ª tentativa — visto na prática (03/09/2026) que instabilidade de rede
+      # entre o GitHub e a VPS pode acontecer em rajada e derrubar as duas
+      # primeiras tentativas seguidas (3 deploys seguidos falharam assim,
+      # todos com "dial tcp ...:22: i/o timeout" nas duas tentativas, dentro
+      # da mesma janela de ~40min). Cada tentativa já é idempotente (migrate
+      # só aplica o que falta, pm2 restart é seguro repetir), então uma 3ª
+      # tentativa não tem risco de duplicar nada.
+      - name: Última tentativa (as duas primeiras falharam)
+        if: steps.deploy_1.outcome == 'failure' && steps.deploy_2.outcome == 'failure'
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
