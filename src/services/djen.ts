@@ -5,6 +5,8 @@
  * Doc: https://comunica.pje.jus.br  ·  API: https://comunicaapi.pje.jus.br/api/v1/comunicacao
  */
 
+import { limparTextoJudicial } from './textCleanup';
+
 const DJEN_BASE = process.env.DJEN_BASE_URL || 'https://comunicaapi.pje.jus.br';
 
 // Cabeçalhos de navegador — o DJEN fica atrás de CloudFront e bloqueia (403)
@@ -218,7 +220,7 @@ export function groupPublicationsByProcess(pubs: DjenPublication[]): DjenProcess
     proc.movements.push({
       movement_date: p.date,
       title: `${p.type || 'Publicação'}${p.classe ? ` — ${p.classe}` : ''}`,
-      description: (p.texto || '').replace(/\s+/g, ' ').trim().slice(0, 20000),
+      description: limparTextoJudicial(p.texto).slice(0, 20000),
       movement_type: isIntimacao ? 'intimacao' : 'publicacao',
       djen_id: p.id || null,
       is_deadline_trigger: isIntimacao,

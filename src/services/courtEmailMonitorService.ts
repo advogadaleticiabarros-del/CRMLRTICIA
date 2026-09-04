@@ -4,6 +4,7 @@ import { env } from '../config/env';
 import { encrypt, decryptFields } from '../utils/crypto';
 import { sendText, avisarFalhaEnvioWhatsapp } from './uazapiInstance';
 import { aiComplete } from './aiAssistant';
+import { limparTextoJudicial } from './textCleanup';
 
 /**
  * Item 7 do plano — "Plano B" do monitoramento processual: se uma
@@ -273,7 +274,12 @@ export async function runCourtEmailScan(): Promise<ScanResult> {
   const { registrarMovimentacaoDeEmail } = await import('./monitoringService');
 
   for (const msg of emails) {
-    const texto = `${msg.subject}\n${msg.body}`;
+    // Corpo do e-mail às vezes chega como HTML bruto (tags e entidades não
+    // decodificadas — mesmo problema do DJEN, ver textCleanup.ts) — limpa
+    // uma vez aqui e reaproveita tanto pra extrair o nº do processo quanto
+    // pro texto que vai pro resumo/WhatsApp abaixo.
+    const corpoLimpo = limparTextoJudicial(msg.body);
+    const texto = `${msg.subject}\n${corpoLimpo}`;
     const processNumber = extractProcessNumberFromText(texto);
     if (!processNumber) {
       semProcesso++;
@@ -295,7 +301,7 @@ export async function runCourtEmailScan(): Promise<ScanResult> {
     // Extração do texto da movimentação: primeiro tenta um resumo direto do
     // corpo (rápido, sem custo de IA); se o corpo for longo/pouco objetivo,
     // usa IA no mesmo estilo de extrairNomeacaoDativa (aiAssistant.ts).
-    let descricao = msg.body.trim();
+    let descricao = corpoLimpo;
     if (descricao.length > 600 || descricao.length < 20) {
       const resumoIA = await resumirMovimentacaoPorIA(texto);
       if (resumoIA) descricao = resumoIA;
