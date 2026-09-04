@@ -6208,12 +6208,22 @@ async function receitaDetail(id, onSave) {
   openModal(`Receita — ${r.descricao}`, wrap);
 }
 
+// Todo campo de dinheiro deste projeto tem "R$" ou a palavra "Valor" no
+// label (convenção real, conferida em todos os ~40 usos de field() com
+// type:'number') — usado só pra decidir o `step` do input abaixo. Campos de
+// contagem/percentual (parcelas, meses, %, dias) nunca batem nisso.
+const LABEL_DINHEIRO_RE = /r\$|valor/i;
 function field(label, name, opts = {}) {
-  const { type = 'text', value = '', options, maxlength } = opts;
+  const { type = 'text', value = '', options, maxlength, step } = opts;
   if (options) return `<label>${label}<select name="${name}">${options.map((o) =>
     `<option value="${o.v}" ${o.v === value ? 'selected' : ''}>${o.t}</option>`).join('')}</select></label>`;
   if (type === 'textarea') return `<label>${label}<textarea name="${name}" rows="3">${value || ''}</textarea></label>`;
-  return `<label>${label}<input type="${type}" name="${name}" value="${value ?? ''}"${maxlength ? ` maxlength="${maxlength}"` : ''} /></label>`;
+  // Sem step, <input type="number"> só aceita inteiro (step padrão do HTML é
+  // 1) — em campo de dinheiro isso rejeita centavos (ex.: 595.19 vira erro
+  // "os valores válidos mais próximos são 595 e 596"). Bug real reportado
+  // pela usuária em 04/09/2026 — ver docs/manual/14-runbook.md.
+  const stepFinal = step ?? (type === 'number' && LABEL_DINHEIRO_RE.test(label) ? '0.01' : undefined);
+  return `<label>${label}<input type="${type}" name="${name}" value="${value ?? ''}"${maxlength ? ` maxlength="${maxlength}"` : ''}${stepFinal ? ` step="${stepFinal}"` : ''} /></label>`;
 }
 const AREAS = [['outro','Outro'],['trabalhista','Trabalhista'],['gestante','Gestante/Maternidade'],['familia','Família'],['civel','Cível'],['previdenciario','Previdenciário'],['consumidor','Consumidor']].map(([v,t])=>({v,t}));
 const MARITAL_PT = { solteiro: 'Solteiro(a)', casado: 'Casado(a)', divorciado: 'Divorciado(a)', viuvo: 'Viúvo(a)', uniao_estavel: 'União estável', outro: 'Estado civil: outro' };

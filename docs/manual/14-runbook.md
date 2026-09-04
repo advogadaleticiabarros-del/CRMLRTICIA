@@ -89,6 +89,16 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: campo de valor em R$ rejeita centavos ("insira um valor válido")
+
+**Sintoma:** ao digitar um valor com centavos (ex.: `595.19`) num campo de "Valor (R$)", o navegador recusa com a mensagem "Insira um valor válido. Os dois valores válidos mais próximos são 595 e 596" — só aceita número redondo.
+
+**Causa raiz (corrigido 04/09/2026):** o helper compartilhado de formulário (`field()`, em `public/app.js`) gerava `<input type="number">` sem o atributo `step` — o padrão do HTML pra esse atributo é `1`, ou seja, só inteiro. Afetava todo campo de dinheiro construído com esse helper (financeiro, propostas, acordos, dativo, parcerias — qualquer "Valor (R$)" do sistema).
+
+**Correção:** `field()` agora detecta campo de dinheiro pelo próprio texto do label (contém "R$" ou a palavra "Valor") e aplica `step="0.01"` automaticamente — sem precisar listar campo por campo, e sem afetar campos de contagem (nº de parcelas, meses, %, dias), que continuam aceitando só inteiro como antes.
+
+**Se acontecer de novo (campo novo, fora do padrão):** confira se o campo usa `field(label, name, { type: 'number' })` — se sim, o label precisa conter "R$" ou "Valor" pra ganhar `step="0.01"` sozinho; senão, passe `step: '0.01'` explicitamente na chamada.
+
 ## Incidente: WhatsApp desconectado / mensagem não sai
 
 **Sintoma:** conversas param de atualizar, ou envio falha.
@@ -114,6 +124,7 @@ pm2 restart crm-juridico && pm2 save
 | Data | Autor | Mudança |
 |---|---|---|
 | 04/09/2026 | Claude | Criação do documento — 6 incidentes reais registrados a partir dos casos de 03/09/2026 |
+| 04/09/2026 | Claude | +1 incidente: campo de Valor (R$) rejeitando centavos — corrigido no helper `field()` |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
