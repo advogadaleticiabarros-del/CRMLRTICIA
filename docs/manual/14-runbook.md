@@ -173,6 +173,20 @@ pm2 restart crm-juridico && pm2 save
 
 **Correção:** o robô `whatsapp:reconectar` já tenta reconectar sozinho a cada 5 minutos (ver [Monitoramento automático](10-monitoramento.md)). Se persistir além disso, é provável instabilidade do lado da Uazapi (provedor) — não há ação manual documentada além de aguardar/checar o painel da Uazapi.
 
+## Incidente: prova mensal de restauração do backup falhando (sem impacto no backup em si)
+
+**Sintoma:** notificação no sino "Teste de restauração do backup FALHOU" no dia 1 de cada mês, às 03h30 — mensagem: `Access denied for user 'crmapp'@'127.0.0.1' to database 'crm_restore_test'`.
+
+**O que isso NÃO significa:** os backups diários (02h/09h/19h, MEGA + disco local) continuam rodando normalmente e protegendo os dados — este incidente é só na etapa de **prova** (restaurar o backup mais recente num banco temporário pra confirmar que ele de fato funciona), não no backup em si.
+
+**Causa raiz:** o usuário de banco `crmapp` não tinha permissão pra criar/usar o banco temporário `crm_restore_test` — só tinha privilégio sobre `crmjuridico`. Aconteceu em 01/08/2026 e de novo em 01/09/2026 (2 meses seguidos sem prova real de restauração, mesmo com aviso correto no sino nas duas vezes).
+
+**Como confirmar:** `mysql -N -e "SHOW GRANTS FOR 'crmapp'@'127.0.0.1';"` na VPS — precisa aparecer uma linha `GRANT ALL PRIVILEGES ON \`crm_restore_test\`.* TO ...` além da linha de `crmjuridico`.
+
+**Correção:** confirmado em 05/09/2026 que a permissão já está concedida (`GRANT ALL PRIVILEGES ON crm_restore_test.* TO 'crmapp'@'127.0.0.1'` e também `@'localhost'`) — rodei `npm run restore:test:prod` manualmente na VPS pra provar de verdade, e passou: **99 tabelas · 177 clientes · 41 casos · 8 usuários**, restaurados a partir do backup das 05h de hoje. Não achei registro de quando/quem corrigiu a permissão entre 01/09 e 05/09 — pode ter sido um ajuste manual anterior não documentado. O próximo teste automático (01/10, 03h30) deve passar; se falhar de novo com a mesma mensagem, a permissão caiu de novo — reaplique o GRANT acima.
+
+**Prevenção:** se esse GRANT precisar ser reaplicado, adicionar a um script/migration versionado (hoje é só uma permissão manual no MySQL da VPS, fora do controle de versão) evitaria depender de alguém lembrar de novo.
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -197,6 +211,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: botões de ação flutuando em telas com abas (Documentos, Controladoria, Financeiro) — slot de ação no cabeçalho + helper `moveTabAction()` únicos para as 3 telas |
 | 04/09/2026 | Claude | +1 incidente: espaço vazio dentro do Kanban — colunas esticavam pra altura da mais cheia (`align-items:stretch` padrão do flex); `align-items:flex-start` corrige Produção/Fases/Leads de uma vez |
 | 04/09/2026 | Claude | +1 incidente: aviso de "movimentação por e-mail" sem nome do cliente — mesmo fix do marco processual, agora extraído em `buscarNomeCliente()` compartilhado |
+| 05/09/2026 | Claude | +1 incidente: prova mensal de restauração do backup falhando há 2 meses (permissão em `crm_restore_test`) — confirmado corrigido, restauração manual passou (99 tabelas · 177 clientes · 41 casos · 8 usuários) |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
