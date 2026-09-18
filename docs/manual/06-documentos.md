@@ -33,6 +33,14 @@ Documentos podem ser enviados pra assinatura eletrônica direto pelo sistema, co
 
 Além dos templates de preenchimento automático, existe um banco de modelos de peça por área jurídica — a IA busca o modelo mais adequado ao caso na hora de montar uma minuta, em vez de escrever do zero toda vez.
 
+### Contrato padrão fixo — Família, pensão alimentícia
+
+Desde 18/09/2026, toda proposta/contrato de área **família** cujo "Tipo de causa" contenha a palavra "pensão" (com ou sem acento — mesma detecção usada pra sugerir as observações da proposta) usa uma minuta fixa de **19 cláusulas** (`buildTemplateFamiliaPensao` em `src/services/contractTemplates.ts`), em vez do modelo genérico de 14 cláusulas por área. Cobre fixação/majoração de pensão alimentícia + guarda, até sentença em 1º grau.
+
+O que muda por cliente/caso: dados do CONTRATANTE (Cláusula de qualificação) e os valores da Cláusula Segunda (honorários fixos — entrada + parcelas, vindos do parcelamento aceito na proposta) e da Cláusula Terceira (percentual de êxito, padrão 30% se a proposta não definir outro). O restante das 19 cláusulas é texto fixo do escritório e não deve ser reescrito caso a caso — inclusive a Cláusula Terceira, que cobra honorários de êxito **somente sobre as diferenças retroativas obtidas a maior**, nunca sobre o valor de pensão já pago ou sobre as parcelas futuras ordinárias.
+
+Outras causas de família (divórcio, guarda isolada, inventário) continuam no modelo genérico por área.
+
 ## FAQ
 
 **Os colchetes `[assim]` num documento gerado por IA são um erro?** Não — é proposital. Marca exatamente o que a IA não conseguiu confirmar nos autos, pra você revisar antes de protocolar. Quantidade e exemplos aparecem antes de abrir o documento.
@@ -54,6 +62,7 @@ Além dos templates de preenchimento automático, existe um banco de modelos de 
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Adicionada seção "Esteira de produção" — corrige entendimento: "Concluído" é a peça protocolada, não o caso encerrado |
+| 18/09/2026 | Claude | Novo padrão fixo de 19 cláusulas pra contratos de família/pensão alimentícia (`buildTemplateFamiliaPensao`), roteado automaticamente quando área = família e tipo de causa contém "pensão" |
 
 ---
 ◀ [Dativo](05-dativo.md) · [Visão geral](00-visao-geral.md) · Próximo: [Agenda e compromissos](07-agenda.md) ▶

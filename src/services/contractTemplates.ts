@@ -399,7 +399,311 @@ export function montarClausulaValores(opts: { honorarios?: any; value?: number; 
   return { texto, exitoUsado: exitoUsado || 30 };
 }
 
+/** Detecta se a causa de família é pedido de pensão alimentícia (mesmo regex usado no app.js pras observações da proposta). */
+export function isPensaoAlimenticia(area?: string, tipoCausa?: string): boolean {
+  return area === 'familia' && /pens[aã]o/i.test(tipoCausa || '');
+}
+
+/**
+ * Cláusula Segunda no formato a/b/c (entrada + parcelas), conforme o padrão
+ * fixo do contrato de pensão alimentícia — usa o parcelamento aceito na
+ * proposta; sem parcelamento, cai em placeholders pro preenchimento manual.
+ */
+function clausulaSegundaFamiliaPensao(honorarios?: any): string {
+  const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+  const dt = (s?: string) => (s ? new Date(String(s).slice(0, 10) + 'T00:00:00').toLocaleDateString('pt-BR') : '[DATA]');
+  const parc = honorarios?.parcelamento;
+  if (!parc || !Number(parc.total)) {
+    return `Pelos serviços advocatícios descritos na Cláusula Primeira, a CONTRATANTE pagará à CONTRATADA honorários contratuais fixos no valor total de R$ [VALOR TOTAL], da seguinte forma:
+
+a) R$ [VALOR ENTRADA], a título de entrada, com vencimento em [DATA ENTRADA];
+
+b) [Nº] parcela(s) mensal(is) de R$ [VALOR PARCELA];
+
+c) [se houver] 01 (uma) última parcela de R$ [VALOR ÚLTIMA PARCELA].
+
+A primeira parcela terá vencimento em [DATA 1ª PARCELA], vencendo-se as demais no dia [DIA] dos meses subsequentes.`;
+  }
+  const entrada = Number(parc.entrada) || 0;
+  const n = parseInt(parc.parcelas) || 0;
+  const vParc = Number(parc.valor_parcela) || 0;
+  const ult = Number(parc.ultima_parcela) || vParc;
+  const linhas: string[] = [];
+  if (entrada > 0) linhas.push(`a) ${money(entrada)}, a título de entrada, com vencimento em ${dt(parc.entrada_data)};`);
+  if (n > 0) linhas.push(`${entrada > 0 ? 'b' : 'a'}) ${n} parcela(s) mensal(is) de ${money(vParc)};`);
+  if (ult && ult !== vParc) linhas.push(`${entrada > 0 ? 'c' : 'b'}) 01 (uma) última parcela de ${money(ult)}.`);
+  const vencimento = parc.primeiro_vencimento
+    ? `A primeira parcela terá vencimento em ${dt(parc.primeiro_vencimento)}, vencendo-se as demais no dia ${new Date(String(parc.primeiro_vencimento).slice(0, 10) + 'T00:00:00').getDate()} dos meses subsequentes.`
+    : '';
+  return `Pelos serviços advocatícios descritos na Cláusula Primeira, a CONTRATANTE pagará à CONTRATADA honorários contratuais fixos no valor total de ${money(parc.total)}, da seguinte forma:
+
+${linhas.join('\n\n')}
+
+${vencimento}`.trim();
+}
+
+/**
+ * Contrato padrão do escritório para Direito de Família — pensão alimentícia
+ * (fixação/majoração) e guarda: 19 cláusulas, incluindo honorários de êxito
+ * de 30% (padrão) exclusivamente sobre as diferenças retroativas obtidas.
+ * Cláusulas fixas; só mudam dados do cliente e valores (Cláusulas 2ª e 3ª).
+ */
+export function buildTemplateFamiliaPensao(opts: { party?: PartyData; clientName?: string; honorarios?: any; exitoPct?: number; contratada?: ContratadaInfo }): string {
+  const p = f(opts.party || { name: opts.clientName });
+  const adv = opts.contratada || ADVOGADA;
+  let pct = opts.exitoPct || Number(opts.honorarios?.values?.exito) || 30;
+  const pctExtenso = extensoPct(pct);
+
+  return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS
+
+CONTRATANTE: ${qualificacao(p)}.
+
+CONTRATADA: ${contratadaBloco(adv)}.
+
+As partes acima identificadas têm entre si justo e contratado o presente Contrato de Prestação de Serviços Advocatícios, que se regerá pelas cláusulas e condições seguintes:
+
+CLÁUSULA PRIMEIRA – DO OBJETO DO CONTRATO
+
+O presente contrato tem por objeto a prestação de serviços advocatícios para o ajuizamento e acompanhamento de demanda de Direito de Família destinada ao pedido de fixação/majoração de pensão alimentícia e definição de guarda, compreendendo a elaboração da petição inicial, análise documental, manifestações necessárias ao regular andamento do processo, participação em audiências e acompanhamento do feito em primeiro grau de jurisdição.
+
+PARÁGRAFO PRIMEIRO – Os serviços contratados compreendem a atuação até a prolação de sentença em primeiro grau, bem como eventual acordo celebrado no decorrer do processo.
+
+PARÁGRAFO SEGUNDO – Não estão incluídos nos honorários previstos neste contrato a interposição ou acompanhamento de recursos perante o Tribunal de Justiça ou Tribunais Superiores, ações revisionais ou exoneratórias posteriores, execução autônoma de alimentos, cumprimento de sentença que demande atuação extraordinária, modificação futura de guarda, novas ações ou procedimentos que não integrem o objeto originalmente contratado, os quais poderão ser objeto de nova contratação.
+
+CLÁUSULA SEGUNDA – DOS HONORÁRIOS CONTRATUAIS E DA FORMA DE PAGAMENTO
+
+${clausulaSegundaFamiliaPensao(opts.honorarios)}
+
+PARÁGRAFO PRIMEIRO – Os pagamentos poderão ser efetuados por PIX, link de pagamento ou outro meio previamente autorizado pela CONTRATADA.
+
+PARÁGRAFO SEGUNDO – Os honorários fixos previstos nesta cláusula são devidos pela prestação dos serviços profissionais e independem do resultado obtido na demanda, considerando-se que a atividade advocatícia constitui obrigação de meio e não de resultado.
+
+CLÁUSULA TERCEIRA – DOS HONORÁRIOS DE ÊXITO SOBRE AS DIFERENÇAS RETROATIVAS
+
+Além dos honorários fixos estabelecidos na Cláusula Segunda, a CONTRATANTE pagará à CONTRATADA honorários de êxito correspondentes a ${pct}% (${pctExtenso}) exclusivamente sobre o valor total das diferenças retroativas de pensão alimentícia obtidas a mais em decorrência do processo.
+
+PARÁGRAFO PRIMEIRO – Para fins desta cláusula, considera-se diferença retroativa o valor positivo resultante da comparação entre:
+
+I – o valor da pensão alimentícia que vinha sendo efetivamente pago ou anteriormente fixado; e
+
+II – o novo valor de pensão alimentícia fixado pelo Juízo ou estabelecido mediante acordo no processo.
+
+PARÁGRAFO SEGUNDO – Os honorários de ${pct}% incidirão exclusivamente sobre a soma das diferenças retroativas reconhecidas como devidas no período compreendido entre o termo inicial estabelecido judicialmente e a data considerada para apuração dos atrasados.
+
+PARÁGRAFO TERCEIRO – A diferença será apurada mês a mês, considerando-se o valor efetivamente devido em cada competência e, quando aplicável, a alteração do salário mínimo, índice de reajuste ou outro parâmetro utilizado para fixação dos alimentos.
+
+PARÁGRAFO QUARTO – A título exemplificativo, caso estejam sendo pagos R$ 500,00 (quinhentos reais) mensais a título de alimentos e, ao final do processo, seja fixada pensão em valor superior, com determinação de pagamento retroativo, os honorários de êxito de ${pct}% incidirão somente sobre a diferença obtida a maior em cada mês, somadas todas as diferenças relativas ao período retroativo.
+
+Assim, não haverá incidência dos ${pct}% sobre o valor que já vinha sendo regularmente pago, mas somente sobre o valor adicional conquistado em razão da demanda.
+
+PARÁGRAFO QUINTO – Os honorários de êxito serão devidos quando os valores retroativos forem recebidos, levantados, transferidos, depositados, compensados ou disponibilizados em favor da CONTRATANTE ou do beneficiário dos alimentos.
+
+PARÁGRAFO SEXTO – Caso o pagamento dos valores retroativos seja realizado de forma parcelada, os honorários de ${pct}% poderão ser descontados proporcionalmente de cada parcela recebida, salvo ajuste diverso entre as partes.
+
+PARÁGRAFO SÉTIMO – A realização de acordo judicial ou extrajudicial que reconheça ou determine o pagamento das diferenças retroativas não afastará os honorários previstos nesta cláusula, que serão calculados sobre o montante das diferenças reconhecidas em favor da CONTRATANTE.
+
+PARÁGRAFO OITAVO – Os honorários de êxito previstos nesta cláusula não incidirão sobre as parcelas futuras e ordinárias da pensão alimentícia após sua fixação, restringindo-se às diferenças retroativas obtidas a maior no processo.
+
+PARÁGRAFO NONO – A CONTRATANTE autoriza, quando juridicamente possível, o destaque, retenção ou dedução dos honorários contratuais de êxito diretamente dos valores disponibilizados judicialmente, mediante juntada deste contrato aos autos.
+
+CLÁUSULA QUARTA – DOS HONORÁRIOS SUCUMBENCIAIS
+
+Os honorários de sucumbência eventualmente fixados judicialmente pertencem exclusivamente à CONTRATADA, constituindo direito autônomo da advogada.
+
+PARÁGRAFO ÚNICO – Os honorários sucumbenciais não se confundem, não substituem e não serão compensados com os honorários contratuais fixos ou de êxito estabelecidos neste contrato.
+
+CLÁUSULA QUINTA – DO INADIMPLEMENTO
+
+O atraso ou a falta de pagamento de qualquer parcela dos honorários na respectiva data de vencimento acarretará, independentemente de aviso, notificação ou interpelação judicial ou extrajudicial:
+
+a) multa moratória de 2% (dois por cento) sobre o valor da parcela em atraso;
+
+b) juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso; e
+
+c) correção monetária pelo IPCA, ou índice oficial que venha a substituí-lo, desde o vencimento até o efetivo pagamento.
+
+PARÁGRAFO PRIMEIRO – Permanecendo o inadimplemento por período superior a 30 (trinta) dias, a CONTRATADA poderá notificar a CONTRATANTE para regularização da dívida, sem prejuízo das medidas profissionais necessárias à preservação dos interesses processuais da cliente.
+
+PARÁGRAFO SEGUNDO – Permanecendo o inadimplemento por período superior a 60 (sessenta) dias, considerar-se-ão antecipadamente vencidas as parcelas vincendas dos honorários fixos, tornando-se exigível o saldo contratual remanescente.
+
+PARÁGRAFO TERCEIRO – O inadimplemento persistente poderá caracterizar quebra da relação de confiança e ensejar a renúncia ao mandato pela CONTRATADA, observadas as disposições legais e éticas aplicáveis.
+
+PARÁGRAFO QUARTO – O inadimplemento não prejudicará a cobrança dos honorários de êxito eventualmente devidos, das despesas realizadas ou de outros valores previstos neste contrato.
+
+CLÁUSULA SEXTA – DAS DESPESAS JUDICIAIS E ADMINISTRATIVAS
+
+Todas as despesas necessárias à execução dos serviços profissionais que não constituam honorários advocatícios correrão por conta da CONTRATANTE.
+
+PARÁGRAFO PRIMEIRO – Incluem-se entre essas despesas, quando necessárias, custas processuais, taxas, emolumentos, perícias, diligências, despesas cartorárias, autenticações, certidões, deslocamentos extraordinários, correspondências, cópias e outros gastos indispensáveis ao andamento da demanda.
+
+PARÁGRAFO SEGUNDO – Sempre que possível, a CONTRATANTE será previamente comunicada acerca das despesas relevantes.
+
+CLÁUSULA SÉTIMA – DAS OBRIGAÇÕES DA CONTRATANTE
+
+A CONTRATANTE obriga-se a:
+
+I – fornecer informações verdadeiras, completas e atualizadas;
+
+II – entregar todos os documentos solicitados pela CONTRATADA dentro dos prazos informados;
+
+III – informar imediatamente qualquer fato novo relacionado ao processo;
+
+IV – comunicar qualquer contato, proposta, pagamento ou negociação realizada pela parte contrária;
+
+V – manter atualizados telefone, endereço, e-mail e demais meios de contato;
+
+VI – acompanhar as comunicações encaminhadas pela CONTRATADA;
+
+VII – comparecer às audiências e demais atos para os quais sua presença seja solicitada;
+
+VIII – não omitir circunstâncias ou documentos que possam influenciar o andamento ou resultado do processo.
+
+PARÁGRAFO PRIMEIRO – A CONTRATADA não poderá ser responsabilizada por prejuízo decorrente de informações falsas, inexatas, incompletas ou omitidas pela CONTRATANTE, bem como pela entrega tardia de documentos ou pelo descumprimento das orientações profissionais fornecidas.
+
+PARÁGRAFO SEGUNDO – A ausência de fornecimento de documentos ou informações indispensáveis poderá impedir o protocolo ou regular prosseguimento da medida jurídica, sem que tal circunstância possa ser imputada à CONTRATADA.
+
+CLÁUSULA OITAVA – DO COMPARECIMENTO ÀS AUDIÊNCIAS E ATOS PROCESSUAIS
+
+A CONTRATANTE compromete-se a comparecer pontualmente a todas as audiências e atos processuais para os quais sua presença seja necessária, desde que previamente comunicada pela CONTRATADA.
+
+PARÁGRAFO PRIMEIRO – Na hipótese de impossibilidade previsível de comparecimento, a CONTRATANTE deverá comunicar a CONTRATADA, por escrito, com antecedência mínima de 48 (quarenta e oito) horas, informando o motivo da ausência.
+
+PARÁGRAFO SEGUNDO – O não comparecimento injustificado da CONTRATANTE à audiência para a qual tenha sido devidamente comunicada acarretará multa contratual no valor de R$ 1.000,00 (mil reais), por ocorrência, devida à CONTRATADA.
+
+PARÁGRAFO TERCEIRO – Equipara-se ao não comparecimento o atraso injustificado que resulte na perda da audiência ou impossibilite a prática do ato.
+
+PARÁGRAFO QUARTO – Nas audiências realizadas por videoconferência, também será considerado não comparecimento injustificado a ausência decorrente da falta de adoção, pela CONTRATANTE, das providências previamente orientadas e necessárias ao acesso à plataforma, salvo comprovada falha técnica alheia à sua vontade.
+
+PARÁGRAFO QUINTO – A multa prevista nesta cláusula não será aplicada quando a ausência decorrer de caso fortuito, força maior, emergência ou outra circunstância relevante devidamente comprovada.
+
+PARÁGRAFO SEXTO – A multa contratual de R$ 1.000,00 não substitui eventual penalidade processual aplicada pelo Juízo nem eventuais despesas extraordinárias comprovadamente causadas pela ausência da CONTRATANTE.
+
+PARÁGRAFO SÉTIMO – A reincidência em ausência injustificada, bem como comportamento da CONTRATANTE que gere prejuízo relevante à condução do processo, poderá caracterizar quebra da relação de confiança e ensejar a renúncia ao mandato pela CONTRATADA, observadas as disposições legais aplicáveis.
+
+CLÁUSULA NONA – DA REVOGAÇÃO, RENÚNCIA E RESCISÃO
+
+O presente contrato poderá ser alterado mediante acordo escrito entre as partes.
+
+A CONTRATANTE poderá revogar o mandato a qualquer momento, permanecendo, entretanto, responsável pelo pagamento das parcelas vencidas, despesas realizadas e dos honorários correspondentes aos serviços efetivamente prestados até a data do encerramento da relação profissional.
+
+PARÁGRAFO PRIMEIRO – A revogação do mandato ou rescisão deste contrato pela CONTRATANTE não implicará renúncia da CONTRATADA aos honorários já adquiridos ou proporcionalmente devidos pelo trabalho realizado.
+
+PARÁGRAFO SEGUNDO – Caso, após a revogação ou rescisão, venha a ocorrer recebimento de diferenças retroativas diretamente relacionado ao trabalho anteriormente desenvolvido pela CONTRATADA, permanecerá resguardado o direito aos honorários de êxito correspondentes à atuação efetivamente realizada, na forma permitida pela legislação aplicável.
+
+PARÁGRAFO TERCEIRO – A CONTRATADA poderá renunciar ao mandato diante de quebra de confiança, inadimplemento contratual, omissão de informações relevantes, fornecimento de informações falsas, descumprimento reiterado das orientações profissionais ou outras circunstâncias que tornem inviável a continuidade da relação profissional, observados os deveres legais e éticos.
+
+CLÁUSULA DÉCIMA – DA CESSÃO, SUBSTABELECIMENTO E COLABORAÇÃO PROFISSIONAL
+
+A CONTRATANTE não poderá transferir os direitos e obrigações decorrentes deste contrato a terceiros.
+
+PARÁGRAFO ÚNICO – A CONTRATADA poderá substabelecer os poderes recebidos, com ou sem reserva, bem como atuar em conjunto com outros profissionais quando necessário à adequada prestação dos serviços, respeitadas as disposições legais e éticas aplicáveis.
+
+CLÁUSULA DÉCIMA PRIMEIRA – DOS ACORDOS E NEGOCIAÇÕES
+
+A decisão de celebrar ou não acordo caberá à CONTRATANTE, após receber as orientações jurídicas pertinentes.
+
+PARÁGRAFO PRIMEIRO – A CONTRATANTE compromete-se a comunicar imediatamente à CONTRATADA qualquer contato, proposta de acordo, negociação, oferta de pagamento ou composição realizada diretamente pela parte contrária ou por seus representantes.
+
+PARÁGRAFO SEGUNDO – A celebração de acordo diretamente pela CONTRATANTE, ainda que sem participação da CONTRATADA, não afastará os honorários contratuais fixos ou de êxito previstos neste instrumento quando relacionados ao objeto da atuação profissional desenvolvida.
+
+PARÁGRAFO TERCEIRO – Havendo no acordo reconhecimento ou pagamento de diferenças retroativas de pensão alimentícia, os honorários de êxito de ${pct}% incidirão sobre a diferença obtida a maior, na forma estabelecida na Cláusula Terceira.
+
+CLÁUSULA DÉCIMA SEGUNDA – DA NATUREZA DA OBRIGAÇÃO
+
+A CONTRATANTE declara estar ciente de que a prestação dos serviços advocatícios constitui obrigação de meio e não de resultado.
+
+A CONTRATADA compromete-se a empregar os conhecimentos técnicos e diligências profissionais adequadas à defesa dos interesses da CONTRATANTE, não podendo garantir resultado específico, valor de pensão, prazo de duração do processo ou decisão judicial favorável.
+
+CLÁUSULA DÉCIMA TERCEIRA – DA PROTEÇÃO DE DADOS E SIGILO
+
+A CONTRATADA compromete-se a tratar os dados pessoais fornecidos pela CONTRATANTE de acordo com a legislação aplicável, especialmente a Lei Geral de Proteção de Dados Pessoais – LGPD.
+
+PARÁGRAFO PRIMEIRO – A CONTRATANTE autoriza o tratamento dos dados necessários à execução deste contrato, ao exercício da advocacia, à representação judicial ou extrajudicial e ao cumprimento de obrigações legais e regulatórias.
+
+PARÁGRAFO SEGUNDO – Poderão ser compartilhados dados estritamente necessários com órgãos públicos, Poder Judiciário, cartórios, peritos, correspondentes, profissionais parceiros, plataformas processuais e demais terceiros cuja participação seja necessária à execução dos serviços contratados.
+
+PARÁGRAFO TERCEIRO – Permanecerá resguardado o sigilo profissional nos termos da legislação aplicável à advocacia.
+
+CLÁUSULA DÉCIMA QUARTA – DOS CANAIS OFICIAIS E DA PREVENÇÃO A FRAUDES
+
+A CONTRATADA não se responsabiliza por prejuízos decorrentes de golpes praticados por terceiros que se apresentem falsamente como advogados, funcionários, colaboradores ou representantes do escritório.
+
+PARÁGRAFO PRIMEIRO – A CONTRATANTE declara estar ciente de que as comunicações oficiais e solicitações financeiras relacionadas a este contrato ocorrerão exclusivamente pelos seguintes canais:
+
+E-mails autorizados:
+
+${DADOS_PAGAMENTO.emails.replace(' ou ', '\n\n')}
+
+Telefones/WhatsApp autorizados:
+
+${DADOS_PAGAMENTO.telefones.replace(' ou ', '\n\n')}
+
+PARÁGRAFO SEGUNDO – Os pagamentos somente deverão ser efetuados para conta de titularidade da CONTRATADA, observados os seguintes dados:
+
+Beneficiário: ${DADOS_PAGAMENTO.beneficiario}
+Instituição: ${DADOS_PAGAMENTO.instituicao}
+Agência: ${DADOS_PAGAMENTO.agencia}
+Conta Corrente: ${DADOS_PAGAMENTO.conta}
+Chave PIX: ${DADOS_PAGAMENTO.pix}
+
+PARÁGRAFO TERCEIRO – Antes de realizar qualquer pagamento, a CONTRATANTE deverá conferir se o favorecido indicado pela instituição financeira é ${adv.nome}.
+
+PARÁGRAFO QUARTO – A CONTRATADA não se responsabilizará por pagamentos efetuados a conta, PIX ou beneficiário divergente daqueles expressamente indicados neste instrumento.
+
+CLÁUSULA DÉCIMA QUINTA – DAS COMUNICAÇÕES
+
+Serão consideradas válidas as comunicações realizadas pelos canais informados neste contrato ou posteriormente indicados por escrito pelas partes.
+
+PARÁGRAFO PRIMEIRO – A CONTRATANTE obriga-se a informar imediatamente qualquer alteração de telefone, endereço, e-mail ou outro meio de comunicação.
+
+PARÁGRAFO SEGUNDO – Enquanto não comunicada a alteração, serão consideradas válidas as mensagens encaminhadas aos dados anteriormente fornecidos pela CONTRATANTE.
+
+CLÁUSULA DÉCIMA SEXTA – DO TÍTULO EXECUTIVO
+
+O presente contrato escrito de honorários advocatícios constitui título executivo, na forma do Estatuto da Advocacia e da Ordem dos Advogados do Brasil, podendo os valores líquidos, certos e exigíveis dele decorrentes ser objeto de cobrança ou execução na forma da legislação aplicável.
+
+CLÁUSULA DÉCIMA SÉTIMA – DA EXTENSÃO DAS OBRIGAÇÕES
+
+As partes obrigam-se, por si e por seus sucessores, ao integral cumprimento das obrigações assumidas neste contrato, ressalvadas aquelas de natureza personalíssima.
+
+CLÁUSULA DÉCIMA OITAVA – DA ASSINATURA ELETRÔNICA
+
+As partes reconhecem como válida a assinatura deste instrumento por meio físico, digital ou eletrônico, inclusive mediante plataforma eletrônica de assinatura, reconhecendo sua autenticidade, integridade e validade jurídica.
+
+CLÁUSULA DÉCIMA NONA – DO FORO
+
+Fica eleito o Foro da Comarca de ${FORO} para dirimir controvérsias decorrentes da interpretação ou execução deste contrato, observadas as hipóteses legais de competência absoluta.
+
+E, por estarem de acordo com todos os termos e condições estabelecidos, as partes firmam o presente instrumento.
+
+${FORO}, [DATA].
+
+
+
+
+
+_______________________________________
+${adv.nome}
+${adv.oab.replace(' sob o nº ', ' ')}
+CONTRATADA
+
+
+
+
+
+_______________________________________
+${p.nome}
+CONTRATANTE`;
+}
+
 export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number; formaPagamento?: string; exitoPct?: number; honorarios?: any; tipoCausa?: string; descricao?: string; contratada?: ContratadaInfo }): string {
+  // Padrão fixo do escritório: toda causa de família de pensão alimentícia usa
+  // a minuta específica de 19 cláusulas (fixação/majoração + guarda), com
+  // honorários de êxito só sobre as diferenças retroativas — só mudam dados
+  // do cliente e valores (Cláusulas 2ª e 3ª). Ver docs/manual/06-documentos.md.
+  if (isPensaoAlimenticia(opts.area, opts.tipoCausa)) {
+    return buildTemplateFamiliaPensao({ party: opts.party, clientName: opts.clientName, honorarios: opts.honorarios, exitoPct: opts.exitoPct, contratada: opts.contratada });
+  }
   const p = f(opts.party || { name: opts.clientName });
   const adv = opts.contratada || ADVOGADA;
   const obj = AREA_OBJECT[opts.area] ?? AREA_OBJECT.outro;
