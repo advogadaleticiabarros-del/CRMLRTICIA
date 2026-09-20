@@ -74,7 +74,7 @@ export async function getFinanceSummary() {
   const dativoCasos = await one(`
     SELECT COALESCE(SUM(estimated_value),0) AS prev
       FROM dative_cases dc
-     WHERE dc.status <> 'paga'
+     WHERE dc.status NOT IN ('paga','recusada')
        AND NOT EXISTS (SELECT 1 FROM dative_payments dp WHERE dp.dative_case_id = dc.id)`);
   dativo.prev = N(dativo.prev) + N(dativoCasos.prev);
 

@@ -8193,7 +8193,7 @@ async function datProjecao(c) {
 async function datDemandas(c) {
   c.innerHTML = `<div class="toolbar">
       <button class="btn-gold" id="new-dcase">+ Nova demanda</button>
-      <select id="dcase-status" title="Filtrar por status"><option value="">Todos status</option><option value="nomeada">Nomeada</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="a_receber">A receber</option><option value="paga">Paga</option></select>
+      <select id="dcase-status" title="Filtrar por status"><option value="">Todos status</option><option value="nomeada">Nomeada</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="a_receber">A receber</option><option value="paga">Paga</option><option value="recusada">Recusada</option></select>
     </div><div class="card"><div id="dcase-table"></div></div>`;
   let periodo = { de: '', ate: '' };
   let statusFiltro = '';
@@ -8217,7 +8217,7 @@ async function datDemandas(c) {
         <td>${d.assisted_name || '—'}</td>
         <td>${d.assunto ? `<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">${esc(d.assunto)}</span>` : '<small style="color:var(--text-muted)">—</small>'}</td>
         <td><small style="color:var(--text-muted)">${esc(d.area)}</small></td><td>${fmtDate(d.nomeacao_date)}</td>
-        <td>${money(d.estimated_value)}</td><td>${badge(d.status)}</td>
+        <td>${money(d.estimated_value)}</td><td>${badge(d.status)}${d.status === 'recusada' && d.rejection_reason ? `<br><small style="color:var(--text-muted)" title="${esc(d.rejection_reason)}">${esc(d.rejection_reason.length > 40 ? d.rejection_reason.slice(0, 40) + '…' : d.rejection_reason)}</small>` : ''}</td>
         <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-sm" data-dcase="${d.id}">Abrir</button><button class="btn-sm" data-edit-dcase="${d.id}">Editar</button></div></td></tr>`).join('')}</tbody></table>`
       : '<div class="empty">Nenhuma demanda dativa</div>';
     document.querySelectorAll('[data-dcase]').forEach((b) => b.onclick = () => dativeCaseDetail(b.dataset.dcase, load));
@@ -8350,6 +8350,13 @@ async function dativeCaseDetail(id, onSave) {
   const relatos = (d.relatos || []).map((r) => `<div class="mini-row" style="padding:6px 0;display:block"><small style="color:var(--text-muted)">${fmtDate(r.created_at)} · ${esc(r.user_name || '')}</small><div style="font-size:13px;margin-top:2px">${esc(r.text)}</div></div>`).join('') || '<small style="color:var(--text-muted)">Sem relatos ainda</small>';
 
   const dinput = d.nomeacao_date ? String(d.nomeacao_date).slice(0, 10) : '';
+  const recusaHtml = d.status === 'recusada'
+    ? `<div style="border:1px solid var(--red,#c0392b);background:#fdeceb;border-radius:var(--radius);padding:14px 16px">
+        <strong style="color:var(--red,#c0392b)">Nomeação recusada${d.rejected_at ? ' · ' + fmtDate(d.rejected_at) : ''}</strong>
+        <div style="margin-top:8px;font-size:13px"><strong>Motivo:</strong> ${esc(d.rejection_reason || '—')}</div>
+        <button type="button" class="btn-sm" id="dat-revert-rejection" style="margin-top:10px">↩ Reverter recusa</button>
+      </div>`
+    : '';
   const form = el(`<div class="form-grid">
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${d.case_id
@@ -8358,7 +8365,9 @@ async function dativeCaseDetail(id, onSave) {
       <button type="button" class="btn-sm" id="dat-add-relato">+ Incluir relato</button>
       <button type="button" class="btn-sm" id="dat-gerar-aceite">Gerar aceite de nomeação</button>
       ${d.process_number ? `<button type="button" class="btn-sm" id="dat-extrair-ia" title="Preenche juízo/Id da decisão/qualificação da parte a partir da movimentação já monitorada — só o que ainda estiver vazio">✨ Extrair da movimentação (IA)</button>` : ''}
+      ${d.status !== 'recusada' ? `<button type="button" class="btn-sm" id="dat-recusar" style="color:var(--red,#c0392b);border-color:var(--red,#c0392b)">Recusar nomeação</button>` : ''}
     </div>
+    ${recusaHtml}
     <strong style="color:var(--navy);font-size:13px">Dados da demanda — edite o que precisar</strong>
     ${field('Comarca *', 'comarca', { value: d.comarca || '' })}
     <div class="form-row">${field('Nº do processo', 'process_number', { value: d.process_number || '' })}${field('Vara', 'vara', { value: d.vara || '' })}</div>
@@ -8404,6 +8413,33 @@ async function dativeCaseDetail(id, onSave) {
   };
   const verEsteiraBtn = form.querySelector('#dat-ver-esteira');
   if (verEsteiraBtn) verEsteiraBtn.onclick = () => { closeModal(); caseDetail(d.case_id, onSave); };
+  const recusarBtn = form.querySelector('#dat-recusar');
+  if (recusarBtn) recusarBtn.onclick = () => {
+    const rf = el(`<form class="form-grid">
+      <p style="font-size:13px;color:var(--text-muted)">A demanda vai para o status <strong>Recusada</strong> e fica travada — só volta usando "Reverter recusa".</p>
+      <label>Motivo da recusa *<textarea name="reason" rows="3" required placeholder="Por que esta nomeação está sendo recusada?"></textarea></label>
+      <button type="submit" class="btn-primary" style="background:var(--red,#c0392b);border-color:var(--red,#c0392b)">Recusar nomeação</button>
+    </form>`);
+    rf.onsubmit = async (e) => {
+      e.preventDefault();
+      const reason = rf.querySelector('[name=reason]').value.trim();
+      if (!reason) { toast('Informe o motivo da recusa', 'error'); return; }
+      const btn = rf.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Recusando…';
+      try {
+        await api(`/api/dative/cases/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
+        closeModal(); toast('Nomeação recusada'); onSave();
+      } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Recusar nomeação'; }
+    };
+    openModal('Recusar nomeação dativa', rf);
+  };
+  const revertRecusaBtn = form.querySelector('#dat-revert-rejection');
+  if (revertRecusaBtn) revertRecusaBtn.onclick = async () => {
+    if (!await uiConfirm('Reverter a recusa? A demanda volta para o status em que estava antes.')) return;
+    try {
+      await api(`/api/dative/cases/${id}/reject/revert`, { method: 'POST', body: '{}' });
+      toast('Recusa revertida'); closeModal(); onSave();
+    } catch (err) { toast(err.message || 'Erro ao reverter a recusa', 'error'); }
+  };
   const addRelatoBtn = form.querySelector('#dat-add-relato');
   if (addRelatoBtn) addRelatoBtn.onclick = async () => {
     const texto = await uiPrompt('Relato / atualização:');
@@ -8521,7 +8557,9 @@ async function dativeCaseEditForm(onSave, d) {
     ${field('Comarca *', 'comarca', { value: d?.comarca || '' })}
     <div class="form-row">${field('N&ordm; do processo', 'process_number', { value: d?.process_number || '' })}${field('Vara', 'vara', { value: d?.vara || '' })}</div>
     <div class="form-row">${field('&Aacute;rea', 'area', { value: d?.area || 'outro', options: DATIVE_AREAS })}${field('Data da nomea&ccedil;&atilde;o', 'nomeacao_date', { type: 'date', value: datDateInputValue(d?.nomeacao_date) })}</div>
-    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d?.estimated_value ?? '' })}${field('Status', 'status', { value: d?.status || 'nomeada', options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Conclu&iacute;da'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
+    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d?.estimated_value ?? '' })}${d?.status === 'recusada'
+      ? `<label>Status<select disabled><option>Recusada</option></select><small style="color:var(--text-muted)">Nomeação recusada — abra "Abrir" pra ver o motivo ou reverter</small></label>`
+      : field('Status', 'status', { value: d?.status || 'nomeada', options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Conclu&iacute;da'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
     ${field('Observa&ccedil;&otilde;es', 'notes', { type: 'textarea', value: d?.notes || '' })}
     <button type="submit" class="btn-primary">Salvar altera&ccedil;&otilde;es</button>
     <button type="button" class="btn-sm" id="dcase-del" style="color:var(--red);border-color:var(--red)">Excluir demanda</button>
@@ -9047,7 +9085,7 @@ function formatDocHtml(text, signatures) {
     // Linha de assinatura: abre um bloco que NÃO pode quebrar entre páginas.
     if (/^_{5,}$/.test(t)) {
       closeSig();
-      html += '<div class="sig-block">';
+      html += '<div class="sig-block"><div class="sig-spacer"></div>';
       sigOpen = true; inSig = true; sigBuf = []; sigComLinha = true; continue;
     }
     // Variante sem a linha "_____" visível (nome/OAB só centralizados) — usada
@@ -9242,8 +9280,13 @@ function printDocs(docs, w) {
       /* Citação longa/nota — fonte menor (10pt), recuada, como manda o padrão forense */
       .content .citacao { font-size: 10pt; line-height: 1.4; margin: 10px 0 10px 2cm; text-align: justify; color: #000; }
       .content .sp { height: 5px; }
-      .content .sig-block { break-inside: avoid; page-break-inside: avoid; margin-top: 3cm; text-align: center; }
-      .content .sig-block:first-of-type { margin-top: 3cm; }
+      /* Espaço acima da assinatura como altura fixa DENTRO do bloco (não margin-top):
+         margem no topo de um elemento que cai no início de uma página impressa é
+         descartada pelo motor de paginação — some exatamente quando o texto cresce
+         o suficiente pra empurrar a assinatura pra página seguinte. Uma div com
+         height nunca colapsa, então o espaço fica garantido em qualquer cenário. */
+      .content .sig-block { break-inside: avoid; page-break-inside: avoid; text-align: center; }
+      .content .sig-block .sig-spacer { height: 3cm; }
       .content .sig-line { width: 62%; margin: 0 auto 6px; border-bottom: 1px solid #333; }
       .content .sig-name { text-align: center; margin: 0; line-height: 1.5; }
       .content .sig-photo { display: block; max-width: 220px; max-height: 90px; margin: 0 auto 4px; }

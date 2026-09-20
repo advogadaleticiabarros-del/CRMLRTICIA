@@ -5,7 +5,7 @@ import { stripDataUrlPrefix } from '../utils/dataUrl';
 
 const router = Router();
 
-const CASE_STATUS = ['nomeada', 'em_andamento', 'concluida', 'a_receber', 'paga'];
+const CASE_STATUS = ['nomeada', 'em_andamento', 'concluida', 'a_receber', 'paga', 'recusada'];
 const AREAS = ['criminal', 'familia', 'civel', 'previdenciario', 'trabalhista', 'infancia', 'outro'];
 const HEARING_STATUS = ['agendada', 'realizada', 'adiada', 'cancelada'];
 const PAY_STATUS = ['previsto', 'recebido'];
@@ -69,7 +69,7 @@ router.get('/summary', async (req: Request, res: Response) => {
   const [[totais]] = await db.query(`
     SELECT
       (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
-         FROM dative_cases dc WHERE dc.user_id = ? AND dc.status <> 'paga')                                     AS estimado_total,
+         FROM dative_cases dc WHERE dc.user_id = ? AND dc.status NOT IN ('paga','recusada'))                    AS estimado_total,
       (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
          FROM dative_cases dc WHERE dc.user_id = ? AND dc.status IN ('concluida','a_receber'))                  AS realizado,
       (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
@@ -77,7 +77,7 @@ router.get('/summary', async (req: Request, res: Response) => {
       (SELECT COUNT(*) FROM dative_hearings WHERE user_id = ? AND status = 'realizada')                          AS audiencias_realizadas,
       (SELECT COUNT(*) FROM dative_hearings WHERE user_id = ? AND status = 'agendada' AND hearing_date >= NOW()) AS audiencias_futuras,
       (SELECT COALESCE(SUM(value),0) FROM dative_payments WHERE user_id = ? AND status = 'recebido')             AS recebido,
-      (SELECT COUNT(*) FROM dative_cases WHERE user_id = ? AND status NOT IN ('concluida','a_receber','paga'))    AS demandas_ativas
+      (SELECT COUNT(*) FROM dative_cases WHERE user_id = ? AND status NOT IN ('concluida','a_receber','paga','recusada')) AS demandas_ativas
   `, Array(7).fill(userId)) as any;
 
   const aReceber = Math.max(0, Number(totais.realizado) - Number(totais.recebido));
@@ -87,7 +87,7 @@ router.get('/summary', async (req: Request, res: Response) => {
       COUNT(*) AS demandas,
       COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0) AS valor_realizado
     FROM dative_cases dc
-    WHERE dc.user_id = ? AND dc.status <> 'paga'
+    WHERE dc.user_id = ? AND dc.status NOT IN ('paga','recusada')
     GROUP BY dc.comarca ORDER BY valor_realizado DESC
   `, [userId]) as any;
 
@@ -95,7 +95,7 @@ router.get('/summary', async (req: Request, res: Response) => {
     SELECT DATE_FORMAT(dc.nomeacao_date, '%Y-%m') AS mes,
       COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0) AS realizado
     FROM dative_cases dc
-    WHERE dc.user_id = ? AND dc.status <> 'paga'
+    WHERE dc.user_id = ? AND dc.status NOT IN ('paga','recusada')
     GROUP BY mes ORDER BY mes ASC
   `, [userId]) as any;
 
@@ -121,7 +121,8 @@ router.get('/cases', async (req: Request, res: Response) => {
   if (status && CASE_STATUS.includes(status)) { where.push('status = ?'); params.push(status); }
 
   const [rows] = await db.query(
-    `SELECT id, process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, arbitrated_value, status, origem
+    `SELECT id, process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, arbitrated_value, status, origem,
+            rejection_reason, rejected_at
      FROM dative_cases WHERE ${where.join(' AND ')} ORDER BY nomeacao_date DESC, created_at DESC`,
     params
   ) as any;
@@ -323,7 +324,9 @@ router.put('/cases/:id', async (req: Request, res: Response) => {
   setIf('assunto', req.body.assunto !== undefined ? (String(req.body.assunto).trim() || null) : undefined);
   setIf('nomeacao_date', req.body.nomeacao_date);
   setIf('estimated_value', req.body.estimated_value !== undefined ? Number(req.body.estimated_value) : undefined);
-  setIf('status', req.body.status, CASE_STATUS.includes(req.body.status));
+  // "recusada" só é setada via POST /cases/:id/reject (exige motivo) — trava
+  // o status igual à esteira de produção (production_stage = 'recusado').
+  setIf('status', req.body.status, CASE_STATUS.includes(req.body.status) && req.body.status !== 'recusada');
   setIf('notes', req.body.notes);
 
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
@@ -331,6 +334,47 @@ router.put('/cases/:id', async (req: Request, res: Response) => {
   await db.query(`UPDATE dative_cases SET ${fields.join(', ')} WHERE id = ?`, params);
   const [rows] = await db.query('SELECT * FROM dative_cases WHERE id = ?', [id]) as any;
   res.json(rows[0]);
+});
+
+// ── POST /api/dative/cases/:id/reject — recusa a nomeação dativa (motivo
+// obrigatório) — mesmo padrão de cases.production_stage = 'recusado'
+// (migration 072): trava o status, guarda o motivo e de onde veio, e só
+// sai revertendo (POST /reject/revert). Pedido explícito: saber quais
+// nomeações foram recusadas e por quê, sem perder o histórico excluindo.
+router.post('/cases/:id/reject', async (req: Request, res: Response) => {
+  const reason = String(req.body?.reason || '').trim();
+  if (!reason) { res.status(400).json({ error: 'Informe o motivo da recusa' }); return; }
+
+  const [rows] = await db.query('SELECT id, status FROM dative_cases WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Demanda não encontrada' }); return; }
+  const dc = rows[0];
+  if (dc.status === 'recusada') { res.status(400).json({ error: 'Esta demanda já está recusada' }); return; }
+
+  await db.query(
+    `UPDATE dative_cases SET status = 'recusada', status_before_rejection = ?, rejection_reason = ?, rejected_at = NOW() WHERE id = ?`,
+    [dc.status, reason, req.params.id]
+  );
+  await db.query(
+    'INSERT INTO dative_case_notes (dative_case_id, user_id, text) VALUES (?, ?, ?)',
+    [req.params.id, req.user!.id, `Nomeação recusada. Motivo: ${reason}`]
+  ).catch(() => {});
+  res.json({ success: true, status: 'recusada' });
+});
+
+// ── POST /api/dative/cases/:id/reject/revert — reverte a recusa, volta pro
+// status em que a demanda estava antes de ser recusada.
+router.post('/cases/:id/reject/revert', async (req: Request, res: Response) => {
+  const [rows] = await db.query('SELECT id, status, status_before_rejection FROM dative_cases WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Demanda não encontrada' }); return; }
+  const dc = rows[0];
+  if (dc.status !== 'recusada') { res.status(400).json({ error: 'Esta demanda não está recusada' }); return; }
+
+  const back = CASE_STATUS.includes(dc.status_before_rejection) ? dc.status_before_rejection : 'nomeada';
+  await db.query(
+    `UPDATE dative_cases SET status = ?, status_before_rejection = NULL, rejection_reason = NULL, rejected_at = NULL WHERE id = ?`,
+    [back, req.params.id]
+  );
+  res.json({ success: true, status: back });
 });
 
 // ── DELETE /api/dative/cases/:id — apaga uma demanda cadastrada errada ──────

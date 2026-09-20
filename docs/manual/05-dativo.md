@@ -14,6 +14,8 @@ Consulte pra entender o ciclo de uma demanda dativa, como a detecção automáti
 
 `nomeada` → `em_andamento` → `concluida` → `a_receber` → `paga`.
 
+Existe também `recusada`, fora dessa linha principal — usado quando a nomeação (detectada automaticamente ou cadastrada à mão) é recusada. Diferente dos demais, não dá pra setar `recusada` editando o campo Status direto: é preciso usar o botão **Recusar nomeação** na tela de detalhe, que exige o motivo (obrigatório) e trava o status — só sai revertendo pelo botão **Reverter recusa**, que devolve o status anterior à recusa. Isso preserva o histórico de nomeações recusadas e o motivo de cada uma, em vez de excluir a demanda. Uma demanda recusada não entra em nenhum total financeiro do dativo (estimado, a receber, por comarca/mês) nem conta como demanda ativa.
+
 ## Detecção automática
 
 Quando a varredura por OAB (DJEN) encontra uma decisão de nomeação dativa (reconhece o padrão "nomeio... dativa" no texto), o sistema:
@@ -61,6 +63,7 @@ Uma demanda dativa pode ser movida pra esteira de produção (gera um caso norma
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 20/09/2026 | Claude | Adicionado status `recusada` (motivo obrigatório, reversível) — `POST /api/dative/cases/:id/reject` e `/reject/revert`; recusada some dos totais financeiros e de "demandas ativas"; filtro por status na listagem agora inclui Recusada |
 | 03/09/2026 | Claude | Criação do documento; registrada a correção de duplicidade por comparação de número de processo |
 
 ---

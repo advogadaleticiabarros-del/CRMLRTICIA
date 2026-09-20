@@ -187,6 +187,20 @@ pm2 restart crm-juridico && pm2 save
 
 **Prevenção:** se esse GRANT precisar ser reaplicado, adicionar a um script/migration versionado (hoje é só uma permissão manual no MySQL da VPS, fora do controle de versão) evitaria depender de alguém lembrar de novo.
 
+## Incidente: espaço da assinatura sumindo em contrato/documento gerado
+
+**Sintoma:** ao editar/aumentar o texto de um contrato (ou qualquer peça com bloco de assinatura), o espaço reservado acima da linha de assinatura (3cm) desaparece quando o bloco cai no topo de uma página nova — a assinatura fica colada no início da página, sem o respiro que deveria ter.
+
+**Causa raiz (confirmado 20/09/2026):** o espaço era feito com `margin-top: 3cm` no CSS de impressão (`.content .sig-block`). Margem no topo de um elemento que inicia uma página impressa é descartada pelo motor de paginação do navegador (comportamento padrão da especificação de Paged Media, não é bug do navegador) — então o espaço só existia enquanto o bloco de assinatura permanecesse no meio da mesma página do texto anterior.
+
+**Como confirmar:** gerar/editar um documento com bloco de assinatura (contrato, procuração, aceite) até o texto ficar longo o suficiente para empurrar a assinatura pra página seguinte, e ver se ela aparece colada no topo, sem espaço.
+
+**Correção:** o espaço passou a ser uma `<div class="sig-spacer">` com `height: 3cm` **dentro** do próprio `.sig-block` (função `formatDocHtml` em `public/app.js`), em vez de `margin-top` no CSS. Altura de elemento não colapsa com paginação, então o espaço fica garantido não importa em que página o bloco caia.
+
+**Prevenção:** em qualquer bloco que precise de espaço reservado e possa ser empurrado entre páginas na impressão, usar altura de um elemento filho, nunca margin/padding no topo do próprio bloco.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -212,6 +226,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: espaço vazio dentro do Kanban — colunas esticavam pra altura da mais cheia (`align-items:stretch` padrão do flex); `align-items:flex-start` corrige Produção/Fases/Leads de uma vez |
 | 04/09/2026 | Claude | +1 incidente: aviso de "movimentação por e-mail" sem nome do cliente — mesmo fix do marco processual, agora extraído em `buscarNomeCliente()` compartilhado |
 | 05/09/2026 | Claude | +1 incidente: prova mensal de restauração do backup falhando há 2 meses (permissão em `crm_restore_test`) — confirmado corrigido, restauração manual passou (99 tabelas · 177 clientes · 41 casos · 8 usuários) |
+| 20/09/2026 | Claude | +1 incidente: espaço da assinatura sumindo quando o bloco cai no topo de página nova — `margin-top` trocado por altura de elemento filho (`.sig-spacer`), que não colapsa na paginação |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
