@@ -18,7 +18,7 @@ Consulte quando precisar saber COM QUE FREQUÊNCIA algo roda sozinho, o que faze
 | `monitoramento:processos` | de hora em hora, 7h–20h | Sincroniza cada processo já cadastrado com sua fonte (DataJud/API do tribunal) |
 | `monitoramento:processos-email` | 8h, 19h | Varre a caixa de e-mail conectada atrás de movimentação de tribunal fora do DJEN |
 | `monitoramento:processos-pre-briefing` | 6h | Sincronização extra antes do briefing matinal, pra ele sair com dado fresco |
-| `whatsapp:reconectar` | a cada 5 minutos | Verifica e restabelece a conexão do WhatsApp se cair |
+| `whatsapp:reconectar` | uma vez, na subida do servidor | Rearma o auto-envio se a sessão da Uazapi já estiver conectada — **não é um watchdog periódico**: se a conexão cair no meio do dia, nada detecta sozinho até alguém abrir o painel de Saúde ou tentar enviar (correção de 20/09/2026: o texto anterior aqui dizia "a cada 5 minutos", o que não corresponde ao código) |
 | `backup:diario` | 2h, 9h, 19h | Backup criptografado do banco (local + MEGA) |
 
 ## Limpeza de texto na entrada
@@ -56,6 +56,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento; registrada a limpeza de HTML/entidades na entrada |
+| 20/09/2026 | Claude | Corrigida a frequência de `whatsapp:reconectar` — é uma vez no boot, não a cada 5 minutos (achado durante auditoria dos fluxos de WhatsApp) |
 
 ---
 ◀ [Repasses e parcerias](09-repasses.md) · [Visão geral](00-visao-geral.md) · Próximo: [Briefing diário](11-briefing.md) ▶
