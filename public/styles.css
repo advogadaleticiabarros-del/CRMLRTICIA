@@ -144,6 +144,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
   background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow);
   padding: 8px; max-height: 280px; display: flex; flex-direction: column;
 }
+/* Uma declaração de "display" de classe sempre vence o display:none nativo
+   do atributo [hidden] (regra do CSS: qualquer estilo de autor supera o
+   estilo padrão do navegador, não importa a especificidade) — sem isto, o
+   JS marcava panel.hidden = true, mas o painel nunca escondia de verdade. */
+.msel-panel[hidden] { display: none; }
 .msel-search { margin-bottom: 6px; padding: 8px 11px; font-size: 13px; }
 .msel-list { overflow-y: auto; display: flex; flex-direction: column; }
 .msel-item { display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 7px; font-size: 13.5px; color: var(--text); cursor: pointer; }

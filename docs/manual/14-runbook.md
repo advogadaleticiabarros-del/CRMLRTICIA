@@ -119,6 +119,18 @@ pm2 restart crm-juridico && pm2 save
 
 **Se acontecer de novo (outro componente com "fechar ao clicar fora"):** sempre registrar esse tipo de listener em fase de captura (terceiro argumento `true`) neste projeto — nunca em bubble, por causa do padrão de `stopPropagation()` já espalhado em várias telas.
 
+## Incidente: dropdown de multi-seleção (Pagador) continua preso aberto mesmo depois do fix acima
+
+**Sintoma:** mesma tela (filtro de "Pagador" no Correspondente) reportada de novo continuando aberta sem fechar — depois de já ter sido corrigida em 04/09/2026 (listener de clique fora, ver incidente acima). Reportado 22/09/2026.
+
+**Causa raiz:** bug diferente do anterior, puramente CSS — `.msel-panel { ...; display: flex; }` (`public/styles.css`) não tinha nenhuma regra pro estado `[hidden]`. Uma declaração de `display` de uma classe de autor **sempre vence** o `display: none` nativo do navegador pro atributo `hidden`, não importa a especificidade — é assim que a cascata do CSS prioriza origem antes de especificidade (estilo de autor > estilo padrão do navegador). Então `panel.hidden = true` no JavaScript (`multiSelectDropdown()`) marcava o atributo certinho, mas isso nunca teve efeito visual nenhum — o painel sempre esteve, de fato, sempre "aberto" visualmente, só que sem conteúdo selecionado costumava passar despercebido antes de alguém interagir.
+
+**Como confirmar:** inspecionar o elemento `.msel-panel` no navegador — se ele aparece com `display: flex` computado mesmo com o atributo `hidden` presente no HTML, é este bug.
+
+**Correção:** adicionada `.msel-panel[hidden] { display: none; }` — maior especificidade (classe + atributo) que a regra base (só classe), então vence e some de verdade.
+
+**Se acontecer de novo (outro componente com `hidden` que "não esconde"):** toda classe que define `display` num elemento que também é escondido via atributo `hidden` PRECISA de uma regra irmã `.classe[hidden] { display: none; }` — senão o atributo nunca tem efeito nenhum. Conferido neste incidente: `.empty` e `.msel-empty` (as outras 2 classes usadas com `hidden` no projeto) não definem `display`, então não têm este problema.
+
 ## Incidente: quadro Kanban com muitas colunas fica ilegível/inacessível
 
 **Sintoma:** num quadro com várias etapas (Produção tem 8, Fases 6, Leads 9), as colunas mais à direita ficam cortadas na borda da tela sem nenhuma forma visível de rolar até elas — ou, no caso do quadro de Leads, quebram pra uma segunda linha desalinhada com os rótulos da primeira. Relatado como "não consigo ver os dados urgentes" e "erro besta que não deveria ter em nenhuma tela".
@@ -227,6 +239,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: aviso de "movimentação por e-mail" sem nome do cliente — mesmo fix do marco processual, agora extraído em `buscarNomeCliente()` compartilhado |
 | 05/09/2026 | Claude | +1 incidente: prova mensal de restauração do backup falhando há 2 meses (permissão em `crm_restore_test`) — confirmado corrigido, restauração manual passou (99 tabelas · 177 clientes · 41 casos · 8 usuários) |
 | 20/09/2026 | Claude | +1 incidente: espaço da assinatura sumindo quando o bloco cai no topo de página nova — `margin-top` trocado por altura de elemento filho (`.sig-spacer`), que não colapsa na paginação |
+| 22/09/2026 | Claude | +1 incidente: dropdown de Pagador continuava preso aberto mesmo após o fix de 04/09 — causa raiz diferente (CSS: `display` de classe vencendo `[hidden]` nativo), corrigido com `.msel-panel[hidden]{display:none}` |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
