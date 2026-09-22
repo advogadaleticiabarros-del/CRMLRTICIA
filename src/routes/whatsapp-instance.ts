@@ -56,14 +56,19 @@ router.get('/status', async (_req: Request, res: Response) => {
 // Junta o que já existe de verdade sobre a saúde do WhatsApp: status ao vivo
 // da conexão (getStatus, igual /status), a última mensagem recebida (proxy
 // honesto pra "o webhook está vivo?" — não existe um heartbeat próprio, mas
-// se chega mensagem, o webhook está funcionando) e o histórico de falhas que
-// JÁ é gravado hoje (mídia que não baixou, envio automático que falhou).
-// IMPORTANTE (mostrar isso na tela, não esconder): esses 2 tipos de falha são
-// throttled a 1 aviso a cada 30min (ver avisarFalhaMidia/avisarFalhaEnvioWhatsapp)
-// — os números aqui são "pelo menos N", não a contagem exata de toda falha
-// que aconteceu. Não existe (ainda) log de falha de transcrição, erro genérico
-// de webhook, ou histórico de queda/reconexão da instância — só o console do
-// servidor, que se perde. Não inventamos número pra essas.
+// se chega mensagem, o webhook está funcionando) e o histórico de falhas.
+// IMPORTANTE (mostrar isso na tela, não esconder): esses tipos de falha são
+// throttled a 1 aviso a cada 30min (ver avisarFalha* nos respectivos
+// serviços) — os números aqui são "pelo menos N", não a contagem exata de
+// toda falha que aconteceu.
+// Desde 22/09/2026: transcrição/descrição que falha e erro genérico do
+// webhook também ficam registrados aqui (whatsapp_transcricao_falhou,
+// whatsapp_webhook_erro) — antes só existiam no console do servidor, que se
+// perde (achado na auditoria de fluxos do WhatsApp). Queda de conexão
+// detectada pelo watchdog (`whatsapp:verificar-conexao`, a cada 20min)
+// também entra em "recentes" via o mesmo mecanismo de `rotina_falhou`.
+const TIPOS_FALHA_WHATSAPP = ['whatsapp_midia_falhou', 'whatsapp_envio_falhou', 'whatsapp_transcricao_falhou', 'whatsapp_webhook_erro'];
+
 router.get('/saude', async (_req: Request, res: Response) => {
   const status = await getStatus();
 
@@ -76,17 +81,24 @@ router.get('/saude', async (_req: Request, res: Response) => {
       SUM(CASE WHEN notification_type = 'whatsapp_midia_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS midia_7d,
       SUM(CASE WHEN notification_type = 'whatsapp_midia_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS midia_30d,
       SUM(CASE WHEN notification_type = 'whatsapp_envio_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS envio_7d,
-      SUM(CASE WHEN notification_type = 'whatsapp_envio_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS envio_30d
+      SUM(CASE WHEN notification_type = 'whatsapp_envio_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS envio_30d,
+      SUM(CASE WHEN notification_type = 'whatsapp_transcricao_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS transcricao_7d,
+      SUM(CASE WHEN notification_type = 'whatsapp_transcricao_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS transcricao_30d,
+      SUM(CASE WHEN notification_type = 'whatsapp_webhook_erro' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS webhook_7d,
+      SUM(CASE WHEN notification_type = 'whatsapp_webhook_erro' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS webhook_30d,
+      SUM(CASE WHEN notification_type = 'rotina_falhou' AND title LIKE '%whatsapp:verificar-conexao%' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS conexao_7d,
+      SUM(CASE WHEN notification_type = 'rotina_falhou' AND title LIKE '%whatsapp:verificar-conexao%' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS conexao_30d
     FROM notifications
-    WHERE notification_type IN ('whatsapp_midia_falhou', 'whatsapp_envio_falhou')
-  `) as any;
+    WHERE notification_type IN (${TIPOS_FALHA_WHATSAPP.map(() => '?').join(',')}, 'rotina_falhou')
+  `, TIPOS_FALHA_WHATSAPP) as any;
 
   const [recentes] = await db.query(`
     SELECT notification_type, title, message, created_at
       FROM notifications
-     WHERE notification_type IN ('whatsapp_midia_falhou', 'whatsapp_envio_falhou')
+     WHERE notification_type IN (${TIPOS_FALHA_WHATSAPP.map(() => '?').join(',')})
+        OR (notification_type = 'rotina_falhou' AND title LIKE '%whatsapp:verificar-conexao%')
      ORDER BY created_at DESC LIMIT 15
-  `) as any;
+  `, TIPOS_FALHA_WHATSAPP) as any;
 
   res.json({
     ...status,
@@ -96,6 +108,12 @@ router.get('/saude', async (_req: Request, res: Response) => {
       midia_30d: Number(contagens?.midia_30d) || 0,
       envio_7d: Number(contagens?.envio_7d) || 0,
       envio_30d: Number(contagens?.envio_30d) || 0,
+      transcricao_7d: Number(contagens?.transcricao_7d) || 0,
+      transcricao_30d: Number(contagens?.transcricao_30d) || 0,
+      webhook_7d: Number(contagens?.webhook_7d) || 0,
+      webhook_30d: Number(contagens?.webhook_30d) || 0,
+      conexao_7d: Number(contagens?.conexao_7d) || 0,
+      conexao_30d: Number(contagens?.conexao_30d) || 0,
     },
     recentes: recentes.map((r: any) => ({
       tipo: r.notification_type, titulo: r.title, mensagem: r.message, quando: r.created_at,

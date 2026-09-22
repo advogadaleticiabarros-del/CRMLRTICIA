@@ -255,6 +255,28 @@ async function avisarFalhaMidia(tipo: string): Promise<void> {
   }
 }
 
+// Alerta os admins quando o webhook lança um erro não tratado — mesmo padrão
+// throttled de avisarFalhaMidia acima. Antes só ficava no console.error, e o
+// próprio Painel de Saúde avisava explicitamente que "erros genéricos do
+// webhook ainda não ficam registrados aqui" — agora ficam, com throttle de
+// 30min pra não spammar se um problema persistir por várias mensagens seguidas.
+async function avisarErroWebhook(erro: string): Promise<void> {
+  const janela = Math.floor(Date.now() / (30 * 60 * 1000));
+  const [dup] = await db.query(
+    'INSERT IGNORE INTO sent_reminders (ref_key, channel) VALUES (?, ?)',
+    [`wa_webhook_erro_${janela}`, 'sino']) as any;
+  if (!dup.affectedRows) return;
+  const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+  for (const a of admins) {
+    await db.query(
+      `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+       VALUES (?, ?, ?, 'whatsapp_webhook_erro', 'sistema', NOW(), 'pendente')`,
+      [a.id, '⚠️ Erro ao processar evento do WhatsApp',
+       `O webhook do WhatsApp encontrou um erro: ${String(erro).slice(0, 400)}. Uma mensagem pode não ter sido registrada corretamente — veja os logs do servidor.`]
+    ).catch(() => {});
+  }
+}
+
 // Resolve a resposta ao "newsletter_opt_in" disparado na recusa de proposta
 // (ver src/routes/propostas.ts, PATCH /:id/status): move o lead para
 // status='newsletter', ou — quando a proposta só tem client_id (cliente já
@@ -481,6 +503,7 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
     // erro aqui desaparece sem deixar rastro (foi assim que a mídia ficou
     // quebrada sem ninguém perceber por semanas — ver normalizeMediaType).
     console.error('[whatsapp-webhook] erro não tratado processando evento:', e?.message || e);
+    await avisarErroWebhook(e?.message || String(e)).catch(() => {});
   }
 });
 

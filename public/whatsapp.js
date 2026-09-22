@@ -175,12 +175,14 @@ async function abrirAuditoriaModal() {
         <div class="kpi"><div class="label">Envio automático hoje</div><div class="value" style="font-size:16px">${s.sentToday || 0}/30</div></div>
         <div class="kpi"><div class="label">Falhas de mídia (7 dias)</div><div class="value ${s.falhas.midia_7d ? 'money' : ''}">${s.falhas.midia_7d}</div></div>
         <div class="kpi"><div class="label">Falhas de envio (7 dias)</div><div class="value ${s.falhas.envio_7d ? 'money' : ''}">${s.falhas.envio_7d}</div></div>
+        <div class="kpi"><div class="label">Falhas de transcrição (7 dias)</div><div class="value ${s.falhas.transcricao_7d ? 'money' : ''}">${s.falhas.transcricao_7d}</div></div>
+        <div class="kpi"><div class="label">Quedas de conexão (7 dias)</div><div class="value ${s.falhas.conexao_7d ? 'money' : ''}">${s.falhas.conexao_7d}</div></div>
       </div>
       ${!s.connected ? `<div class="card" style="padding:14px 16px;border-left:3px solid var(--red);margin-bottom:16px">
           <strong style="color:var(--red)">Instância desconectada.</strong>
           ${s.lastError ? ` Último erro: ${esc(s.lastError)}` : ' Conecte novamente em Configurações → Conexão do WhatsApp.'}
         </div>` : ''}
-      <p class="sub" style="margin-bottom:12px">Os avisos de falha de mídia e de envio automático são limitados a 1 a cada 30 minutos — os números acima são "pelo menos", não a contagem exata de cada falha. Falha de transcrição de áudio e erros genéricos do webhook ainda não ficam registrados aqui, só no log do servidor.</p>
+      <p class="sub" style="margin-bottom:12px">Os avisos de falha (mídia, envio, transcrição, erro de webhook e queda de conexão) são limitados a 1 a cada 30 minutos por tipo — os números acima são "pelo menos", não a contagem exata de cada falha. Uma checagem automática avisa aqui em até 20 minutos se a conexão cair, sem precisar abrir esta tela pra descobrir.</p>
       ${s.recentes.length ? `<div class="card"><div style="padding:12px 16px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Avisos recentes</strong></div>
         ${s.recentes.map((r) => `<div class="mini-row" style="padding:10px 16px;border-bottom:1px solid var(--border-soft);align-items:flex-start">
           <span><strong style="color:var(--navy-deep)">${esc(r.titulo)}</strong><br><small style="color:var(--text-muted)">${esc(r.mensagem)}</small></span>

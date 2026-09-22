@@ -80,6 +80,29 @@ export async function classificarTipoDocumento(media: MediaRow): Promise<string 
   }
 }
 
+// Alerta os admins quando transcrição de áudio ou descrição de imagem falha —
+// mesmo padrão throttled de avisarFalhaMidia (whatsapp-webhook.ts): antes essa
+// falha só resultava em a mídia ficar sem o texto extraído, sem log nenhum
+// visível pra usuária, nem no Painel de Saúde nem em aviso — só apareceria
+// desconfiando por que uma conversa não tem transcrição. Throttle de 30min
+// pra não spammar se a Groq/Gemini ficar instável por um tempo.
+async function avisarFalhaTranscricao(tipo: 'audio' | 'imagem', erro: string): Promise<void> {
+  const janela = Math.floor(Date.now() / (30 * 60 * 1000));
+  const [dup] = await db.query(
+    'INSERT IGNORE INTO sent_reminders (ref_key, channel) VALUES (?, ?)',
+    [`wa_transcricao_falhou_${janela}`, 'sino']) as any;
+  if (!dup.affectedRows) return;
+  const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+  for (const a of admins) {
+    await db.query(
+      `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+       VALUES (?, ?, ?, 'whatsapp_transcricao_falhou', 'sistema', NOW(), 'pendente')`,
+      [a.id, `⚠️ ${tipo === 'audio' ? 'Transcrição de áudio' : 'Leitura de imagem'} do WhatsApp falhou`,
+       `Motivo: ${erro}. A mensagem ficou sem o texto extraído — confira no Painel de Saúde do WhatsApp.`]
+    ).catch(() => {});
+  }
+}
+
 const LIMITE_MIDIA_POR_CHAMADA = 15;
 
 /**
@@ -108,6 +131,8 @@ export async function garantirMidiaTranscrita(phone: string): Promise<void> {
           await db.query(
             "UPDATE whatsapp_messages SET body = CONCAT(body, '\n📝 Transcrição: ', ?) WHERE id = ? AND body NOT LIKE '%📝 Transcrição:%'",
             [r.texto.slice(0, 3000), row.msg_id]);
+        } else {
+          await avisarFalhaTranscricao('audio', r.erro).catch(() => {});
         }
       } else if (String(row.mime).startsWith('image/')) {
         const r = await descreverImagem(media);
@@ -115,6 +140,8 @@ export async function garantirMidiaTranscrita(phone: string): Promise<void> {
           await db.query(
             "UPDATE whatsapp_messages SET body = CONCAT(body, '\n🖼️ Descrição: ', ?) WHERE id = ? AND body NOT LIKE '%🖼️ Descrição:%'",
             [r.texto, row.msg_id]);
+        } else {
+          await avisarFalhaTranscricao('imagem', r.erro).catch(() => {});
         }
       }
       // outros mimes (pdf, vcard etc.) são ignorados — fora de escopo

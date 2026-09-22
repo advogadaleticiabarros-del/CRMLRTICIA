@@ -30,6 +30,24 @@ export function startCronJobs() {
     });
   }, 8000);
 
+  // ── a cada 20 min: verifica se a conexão do WhatsApp caiu ── CRÍTICO ──────
+  // Antes só existia o religamento único no boot acima — se a sessão caísse
+  // no meio do dia (ex.: WhatsApp deslogado por "outro aparelho", como já
+  // aconteceu), ninguém percebia até alguém abrir o Painel de Saúde ou tentar
+  // enviar algo. Esta checagem NÃO reconecta sozinha (quando a sessão é
+  // invalidada do lado do WhatsApp, só escanear o QR de novo resolve) — só
+  // avisa rápido no sino em vez de depender de alguém notar.
+  cron.schedule('*/20 * * * *', () => {
+    runJob('whatsapp:verificar-conexao', async () => {
+      const { getStatus } = await import('../services/uazapiInstance');
+      const st = await getStatus();
+      if (!st.connected && !st.connecting) {
+        throw new Error(st.lastError || 'Instância do WhatsApp desconectada — reconecte em Configurações → Conexão do WhatsApp.');
+      }
+      return { connected: true };
+    }, { critica: true, silencioso: true });
+  });
+
   // ── 06:00: monitoramento adiantado — garante movimentação fresca ANTES do
   // briefing das 07h. O monitoramento de hora em hora (linha ~285) cobre o
   // resto do dia; este é só pra não esperar até 07h pra ter a 1ª rodada.

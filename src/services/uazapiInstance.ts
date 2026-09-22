@@ -301,8 +301,14 @@ function scheduleAutoSend(): void {
       if (autoSend) {
         const st = await getStatus();
         if (st.connected && st.sentToday < DAILY_CAP) {
+          // Prioridade: audiência (prazo real) > avulsa (ela mandou pra fila de
+          // propósito) > cobrança de rotina — antes era só ORDER BY created_at,
+          // então um lembrete de audiência de amanhã podia esperar atrás de
+          // várias cobranças do dia dentro do teto diário de 30 envios.
           const [rows] = await db.query(
-            "SELECT id, phone, message FROM whatsapp_queue WHERE status = 'pendente' ORDER BY created_at ASC LIMIT 1") as any;
+            `SELECT id, phone, message FROM whatsapp_queue WHERE status = 'pendente'
+             ORDER BY CASE context WHEN 'audiencia' THEN 0 WHEN 'avulsa' THEN 1 ELSE 2 END, created_at ASC
+             LIMIT 1`) as any;
           if (rows.length) {
             const ok = await sendText(rows[0].phone, rows[0].message, 'Envio automático');
             if (ok) {

@@ -31,7 +31,13 @@ Notas internas (visíveis só pra equipe, nunca pro cliente) e etiquetas de conv
 
 ## Painel de Saúde do WhatsApp
 
-Dentro do menu de auditoria da tela: status da conexão em tempo real, hora da última mensagem recebida, contagem de falhas de envio/mídia nos últimos 7 e 30 dias, e a lista das notificações de falha mais recentes. É um painel de diagnóstico — os números de falha são "pelo menos N" (o sistema evita alertar demais pra mesma falha), não uma contagem perfeita.
+Dentro do menu de auditoria da tela: status da conexão em tempo real, hora da última mensagem recebida, e contagem de falhas (envio, mídia, transcrição/descrição por IA, erro de webhook e queda de conexão) nos últimos 7 e 30 dias, com a lista das notificações mais recentes. É um painel de diagnóstico — os números são "pelo menos N" (o sistema evita alertar demais pra mesma falha, no máximo 1 aviso a cada 30min por tipo), não uma contagem perfeita.
+
+Desde 22/09/2026, uma rotina roda a cada 20 minutos só pra checar se a conexão caiu (`whatsapp:verificar-conexao`, ver [Monitoramento automático](10-monitoramento.md)) — antes, uma queda no meio do dia só era percebida abrindo esta tela ou tentando enviar algo.
+
+## Fila de envio automático tem prioridade
+
+A fila (cobrança + lembrete de audiência, `whatsapp:fila`) respeita um teto de 30 mensagens/dia contra bloqueio do número. Desde 22/09/2026, dentro desse teto, lembrete de audiência sai antes de mensagem avulsa, que sai antes de cobrança de rotina — antes era só ordem de chegada (FIFO), e um lembrete de audiência de amanhã podia ficar preso atrás de várias cobranças do dia.
 
 ## Avisos automáticos que chegam por aqui
 
@@ -59,6 +65,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
+| 22/09/2026 | Claude | Fila de envio com prioridade (audiência > avulsa > cobrança); watchdog de conexão a cada 20min; Painel de Saúde ganha falhas de transcrição/webhook/conexão (achados da auditoria de fluxos) |
 
 ---
 ◀ [Leads](02-leads.md) · [Visão geral](00-visao-geral.md) · Próximo: [Processos e prazos](04-processos.md) ▶
