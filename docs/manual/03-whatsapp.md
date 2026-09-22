@@ -10,6 +10,10 @@ O número real do escritório (via Uazapi) integrado direto no CRM, em duas vis�
 
 Consulte pra entender a estrutura das telas de conversa, o que o painel de saúde mostra, ou de onde vem uma mensagem automática específica (pro escritório ou pro cliente/lead).
 
+## Tela larga, sem precisar abrir tela cheia
+
+Toda página do CRM (tabelas, formulários) fica limitada a 1200px de largura — bom pra leitura, ruim pra uma tela de chat de 3 colunas, que sobrava espaço perdido nas laterais em monitor largo mesmo sem estar pequena de verdade. Desde 22/09/2026, só a tela do WhatsApp usa a largura livre da janela (não precisa mais abrir a aba de tela cheia só para "ganhar espaço" — ela continua existindo pra quando quiser esconder o menu lateral também).
+
 ## Duas visões da mesma conversa
 
 - **Lista (3 painéis)** — visão padrão. Painel 1: lista de conversas com abas (Todas / Não lidas / Em atendimento / Finalizadas), busca por nome/telefone/assunto, filtro por responsável e por etiqueta. Painel 2: a conversa aberta (histórico, anexos, áudio, respostas prontas). Painel 3: ficha do contato — identificação, processo vinculado, financeiro, etiquetas editáveis, notas internas da equipe, botões de "Abrir cadastro"/"Criar tarefa"/"Vincular processo".
@@ -73,7 +77,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
-| 22/09/2026 | Claude | Fila de envio com prioridade (audiência > avulsa > cobrança); watchdog de conexão a cada 20min; Painel de Saúde ganha falhas de transcrição/webhook/conexão; atalho "/" na composição pra resposta pronta; tabela órfã `whatsapp_templates` removida (4 conteúdos úteis migrados pra lista real) (achados da auditoria de fluxos) |
+| 22/09/2026 | Claude | Fila de envio com prioridade (audiência > avulsa > cobrança); watchdog de conexão a cada 20min; Painel de Saúde ganha falhas de transcrição/webhook/conexão; atalho "/" na composição pra resposta pronta; tabela órfã `whatsapp_templates` removida (4 conteúdos úteis migrados pra lista real); tela do WhatsApp deixa de ter teto de 1200px de largura (achados da auditoria de fluxos) |
 
 ---
 ◀ [Leads](02-leads.md) · [Visão geral](00-visao-geral.md) · Próximo: [Processos e prazos](04-processos.md) ▶

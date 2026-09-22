@@ -175,6 +175,11 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 .bell-count { background: var(--red); color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
 .content { margin-left: 260px; flex: 1; padding: 0 0 40px; min-height: 100vh; }
 .content > .page { padding: 28px 42px; max-width: 1200px; }
+/* A tela do WhatsApp (#wa-body) é chat de 3 colunas, não tabela/formulário —
+   o teto de 1200px que serve bem o resto do CRM só sobra espaço perdido nas
+   laterais aqui e faz a conversa parecer "pequena" num monitor largo, mesmo
+   sem abrir a aba de tela cheia. Só esta página ganha largura livre. */
+.content > .page:has(#wa-body) { max-width: none; }
 
 /* ── Modo "tela cheia" (aba separada, sem menu/topo) ── */
 body.foco-total .sidebar,
@@ -1907,7 +1912,7 @@ img, svg, video { max-width: 100%; }
    clone de app de chat de consumidor. */
 .wa-msgs { flex: 1; min-height: 0; overflow-y: auto; padding: 22px 8%; display: flex; flex-direction: column; gap: 7px; background: linear-gradient(180deg, var(--surface-2, #faf8f3) 0%, var(--surface) 340px); }
 .wa-day { align-self: center; font-size: 11px; background: var(--surface-2, #fff); border: 1px solid var(--border-soft); color: var(--text-muted); padding: 3px 12px; border-radius: 10px; margin: 10px 0 6px; }
-.wa-bub { position: relative; max-width: 66%; padding: 10px 14px 7px; border-radius: var(--radius, 11px); font-size: 14px; line-height: 1.5; box-shadow: var(--shadow-sm, 0 1px 1px rgba(0,0,0,.08)); word-wrap: break-word; animation: wa-bub-in 180ms cubic-bezier(0.23, 1, 0.32, 1); }
+.wa-bub { position: relative; max-width: min(66%, 640px); padding: 10px 14px 7px; border-radius: var(--radius, 11px); font-size: 14px; line-height: 1.5; box-shadow: var(--shadow-sm, 0 1px 1px rgba(0,0,0,.08)); word-wrap: break-word; animation: wa-bub-in 180ms cubic-bezier(0.23, 1, 0.32, 1); }
 @keyframes wa-bub-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .wa-bub { animation: none; } }
 .wa-bub.in { align-self: flex-start; background: var(--surface-card, #fff); border: 1px solid var(--border-soft); color: var(--text); border-top-left-radius: 3px; }
