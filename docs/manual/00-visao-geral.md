@@ -32,6 +32,7 @@ Estes números crescem todo dia — tratem como referência de escala, não cont
 Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro contato ao fechamento, depois a operação interna, depois a base técnica):
 
 0. [Fluxograma do sistema](00b-fluxograma.md)
+0. [Dashboard (Cockpit e demais painéis)](00c-dashboard.md)
 1. [Clientes e cadastro](01-clientes.md)
 2. [Leads e comercial](02-leads.md)
 3. [WhatsApp](03-whatsapp.md)
@@ -65,6 +66,7 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 | 03/09/2026 | Claude | Criação do documento — visão geral e mapa dos 13 blocos |
 | 04/09/2026 | Claude | Adicionados fluxograma, Runbook, Onboarding e Ferramentas/acessos; documentação auto-mantida virou regra do projeto (CLAUDE.md) |
 | 04/09/2026 | Claude | Adicionado Decision Log (bloco 17) — documentação completa, 17 de 17 blocos |
+| 22/09/2026 | Claude | Adicionado Dashboard (bloco 00c) — auditoria completa dos 8 painéis, 19 blocos no total |
 
 ---
 Próximo: [Clientes e cadastro](01-clientes.md) ▶

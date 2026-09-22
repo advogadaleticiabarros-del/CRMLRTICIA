@@ -76,4 +76,4 @@ flowchart TD
 | 04/09/2026 | Claude | Criação do documento |
 
 ---
-◀ [Visão geral](00-visao-geral.md) · Próximo: [Clientes e cadastro](01-clientes.md) ▶
+◀ [Visão geral](00-visao-geral.md) · Próximo: [Dashboard](00c-dashboard.md) ▶

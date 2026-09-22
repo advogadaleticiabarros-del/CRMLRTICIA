@@ -59,4 +59,4 @@ Todo acesso à ficha completa de um cliente é registrado (quem acessou, quando)
 | 03/09/2026 | Claude | Criação do documento |
 
 ---
-◀ [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶
+◀ [Dashboard](00c-dashboard.md) · [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶

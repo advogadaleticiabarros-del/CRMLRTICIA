@@ -34,3 +34,21 @@ test('KPI de Inadimplência do Cockpit aponta pra sub-aba inadimplencia, não pr
   assert.ok(linha, "KPI 'Inadimplência' não encontrado no Cockpit");
   assert.match(linha[0], /'financeiro\?tab=inadimplencia'/);
 });
+
+test('KPI "Propostas em análise" do Cockpit aponta pro board de Leads, não pro board de Propostas', () => {
+  // Achado da auditoria do dashboard (22/09/2026): d.propostas_paradas conta
+  // leads.status='proposta_em_analise' (etapa "Negociação" do funil), mas o
+  // KPI linkava pra 'propostas' — tela de honorários/parcelas, entidade
+  // totalmente diferente. Corrigido pra 'leads?stage=proposta_em_analise'.
+  const linha = src.match(/stat\('Propostas em análise'[^)]*\)/);
+  assert.ok(linha, "KPI 'Propostas em análise' não encontrado no Cockpit");
+  assert.match(linha[0], /'leads\?stage=proposta_em_analise'/);
+  assert.doesNotMatch(linha[0], /'propostas'/, "não pode mais apontar pro board de Propostas — entidade errada");
+});
+
+test('ROUTES.leads rola até a etapa pedida via "#leads?stage=x"', () => {
+  const fn = src.match(/async leads\(page\)[\s\S]*?\n  \},/);
+  assert.ok(fn, 'ROUTES.leads não encontrada');
+  assert.match(fn[0], /hashParam\('stage'\)/);
+  assert.match(fn[0], /kanban-col-highlight/);
+});

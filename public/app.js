@@ -1144,6 +1144,19 @@ const ROUTES = {
     };
     $('#new-lead').onclick = () => leadForm(load);
     await load();
+    // Chegando via link direto pra uma etapa específica (ex.: "#leads?stage=
+    // proposta_em_analise", KPI "Propostas em análise" do Cockpit) — rola até
+    // a coluna certa e pisca uma vez, em vez de deixar a pessoa procurar
+    // manualmente entre as 9 colunas do funil.
+    const etapaAlvo = hashParam('stage');
+    if (etapaAlvo && cols[etapaAlvo]) {
+      const colEl = $('#board').querySelector(`.kanban-col[data-stage="${etapaAlvo}"]`);
+      if (colEl) {
+        colEl.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+        colEl.classList.add('kanban-col-highlight');
+        setTimeout(() => colEl.classList.remove('kanban-col-highlight'), 3600);
+      }
+    }
   },
 
   async newsletter(page) {
@@ -4246,7 +4259,7 @@ async function dashCockpit(c) {
     ${stat('A pagar (7 dias)', f.pagar_7d, 'financeiro?tab=pagar', { money: 1, key: 'pagar_7d', goodUp: false })}
     ${stat('Inadimplência', f.vencido, 'financeiro?tab=inadimplencia', { money: 1, key: 'inadimplencia', color: Number(f.vencido) > 0 ? 'var(--red)' : '', sparkColor: 'var(--red)', goodUp: false })}
     ${stat('Tarefas pendentes', d.tarefas_pendentes ?? 0, 'prazos', { key: 'tarefas_pendentes', color: Number(d.tarefas_pendentes) > 0 ? 'var(--amber)' : '', sparkColor: 'var(--amber)', goodUp: false })}
-    ${stat('Propostas em análise', d.propostas_paradas ?? 0, 'propostas', { key: 'propostas_analise', goodUp: false })}
+    ${stat('Propostas em análise', d.propostas_paradas ?? 0, 'leads?stage=proposta_em_analise', { key: 'propostas_analise', goodUp: false })}
     ${stat('Total a protocolar', d.producao?.a_protocolar ?? 0, 'producao', { color: Number(d.producao?.a_protocolar) > 0 ? 'var(--amber)' : '', goodUp: false })}
     ${stat('Protocolados no mês', d.producao?.protocolados_mes ?? 0, 'producao', { color: 'var(--green)' })}
   </div>`;
