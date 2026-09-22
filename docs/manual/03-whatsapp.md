@@ -35,6 +35,10 @@ Dentro do menu de auditoria da tela: status da conexão em tempo real, hora da �
 
 Desde 22/09/2026, uma rotina roda a cada 20 minutos só pra checar se a conexão caiu (`whatsapp:verificar-conexao`, ver [Monitoramento automático](10-monitoramento.md)) — antes, uma queda no meio do dia só era percebida abrindo esta tela ou tentando enviar algo.
 
+## Respostas prontas — uma lista só
+
+Até 22/09/2026 existiam dois sistemas de "mensagem pronta" que não se falavam: a lista real que aparece no menu ⚡ e no atalho `/` (sincronizada com a Uazapi/WhatsApp Business), e uma tabela própria do CRM que nunca teve tela nenhuma — só dava pra usar chamando a API diretamente. Os 4 conteúdos úteis que só existiam lá (procuração, aviso de audiência, confirmação de reunião, pedido de documentos de pensão) foram migrados pra lista real como `/procuracao`, `/audiencia`, `/reuniao` e `/pensaodocumentos`; a tabela antiga foi removida.
+
 ## Atalho de resposta pronta na composição
 
 Desde 22/09/2026, digitar `/` seguido do começo do atalho (ex.: `/doc`) direto na caixa de mensagem já sugere as respostas prontas que batem — não precisa mais abrir o menu ⚡ toda vez. Setas para navegar, Enter ou Tab para escolher, Esc para fechar. `/` só dispara no início da mensagem ou logo depois de um espaço (uma URL como `http://...` não aciona por engano).
@@ -69,7 +73,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
-| 22/09/2026 | Claude | Fila de envio com prioridade (audiência > avulsa > cobrança); watchdog de conexão a cada 20min; Painel de Saúde ganha falhas de transcrição/webhook/conexão; atalho "/" na composição pra resposta pronta (achados da auditoria de fluxos) |
+| 22/09/2026 | Claude | Fila de envio com prioridade (audiência > avulsa > cobrança); watchdog de conexão a cada 20min; Painel de Saúde ganha falhas de transcrição/webhook/conexão; atalho "/" na composição pra resposta pronta; tabela órfã `whatsapp_templates` removida (4 conteúdos úteis migrados pra lista real) (achados da auditoria de fluxos) |
 
 ---
 ◀ [Leads](02-leads.md) · [Visão geral](00-visao-geral.md) · Próximo: [Processos e prazos](04-processos.md) ▶

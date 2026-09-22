@@ -139,30 +139,6 @@ router.post('/auto', async (req: Request, res: Response) => {
   res.json(await getStatus());
 });
 
-// ── Mensagens prontas (modelos jurídicos com {{nome}}) ──────────────────────
-router.get('/templates', async (_req: Request, res: Response) => {
-  const [rows] = await db.query('SELECT id, title, body FROM whatsapp_templates ORDER BY title ASC') as any;
-  res.json(rows);
-});
-router.post('/templates', async (req: Request, res: Response) => {
-  const { title, body } = req.body || {};
-  if (!title || !body) { res.status(400).json({ error: 'Informe título e mensagem' }); return; }
-  const [r] = await db.query('INSERT INTO whatsapp_templates (title, body) VALUES (?, ?)',
-    [String(title).slice(0, 120), String(body).slice(0, 4000)]) as any;
-  res.status(201).json({ id: r.insertId });
-});
-router.put('/templates/:id', async (req: Request, res: Response) => {
-  const { title, body } = req.body || {};
-  if (!title || !body) { res.status(400).json({ error: 'Informe título e mensagem' }); return; }
-  await db.query('UPDATE whatsapp_templates SET title = ?, body = ? WHERE id = ?',
-    [String(title).slice(0, 120), String(body).slice(0, 4000), req.params.id]);
-  res.json({ success: true });
-});
-router.delete('/templates/:id', async (req: Request, res: Response) => {
-  await db.query('DELETE FROM whatsapp_templates WHERE id = ?', [req.params.id]);
-  res.json({ success: true });
-});
-
 // ── Editar/apagar uma mensagem já enviada (só as nossas) ────────────────────
 router.put('/messages/:id', async (req: Request, res: Response) => {
   const texto = String(req.body?.text || '').trim();
