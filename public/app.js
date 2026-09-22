@@ -914,11 +914,23 @@ async function notificationSettings() {
 
 // ── Router ──
 let routeToken = 0;
+// Lê um parâmetro do hash atual (ex.: "#financeiro?tab=inadimplencia" →
+// hashParam('tab') === 'inadimplencia') — usado por telas com sub-abas que
+// precisam abrir direto num relatório específico, em vez de sempre cair
+// na aba padrão (ex.: clicar em "Inadimplência" no Cockpit).
+function hashParam(nome) {
+  const q = location.hash.split('?')[1];
+  return q ? new URLSearchParams(q).get(nome) : null;
+}
+
 function router() {
   const token = ++routeToken;
   document.body.classList.remove('nav-open'); // fecha a gaveta ao navegar (mobile)
   const allowed = navForRole();
-  let route = (location.hash.replace('#', '') || allowed[0]);
+  // "?" depois da rota carrega parâmetro pra tela abrir já numa sub-aba
+  // específica (ex.: "#financeiro?tab=inadimplencia") — a rota em si nunca
+  // inclui o "?", só o texto antes dele entra no lookup de ROUTES.
+  let route = (location.hash.replace('#', '').split('?')[0] || allowed[0]);
   if (!allowed.includes(route)) route = allowed[0]; // respeita o papel
   document.querySelectorAll('.nav-item').forEach((a) =>
     a.classList.toggle('active', a.dataset.route === route));
@@ -1538,7 +1550,11 @@ const ROUTES = {
       moveTabAction(c, $('#fin-action'));
     };
     document.querySelectorAll('#fin-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
-    await show('geral');
+    // Abre direto na sub-aba pedida via "#financeiro?tab=inadimplencia" (ex.:
+    // vindo do KPI "Inadimplência" do Cockpit) — sem isso, todo atalho de
+    // fora sempre caía na Visão geral, sem filtro nenhum aplicado.
+    const tabPedida = hashParam('tab');
+    await show(tabs[tabPedida] ? tabPedida : 'geral');
   },
 
   async config(page) {
@@ -4225,10 +4241,10 @@ async function dashCockpit(c) {
      </div>`;
   };
   const kpis = `<div class="kpi-grid" style="margin-bottom:20px">
-    ${stat('A receber até hoje', f.receber_hoje, 'financeiro', { money: 1, key: 'receber_hoje', sparkColor: 'var(--green)' })}
-    ${stat('A receber (7 dias)', f.receber_7d, 'financeiro', { money: 1, key: 'receber_7d', sparkColor: 'var(--green)' })}
-    ${stat('A pagar (7 dias)', f.pagar_7d, 'financeiro', { money: 1, key: 'pagar_7d', goodUp: false })}
-    ${stat('Inadimplência', f.vencido, 'financeiro', { money: 1, key: 'inadimplencia', color: Number(f.vencido) > 0 ? 'var(--red)' : '', sparkColor: 'var(--red)', goodUp: false })}
+    ${stat('A receber até hoje', f.receber_hoje, 'financeiro?tab=receitas', { money: 1, key: 'receber_hoje', sparkColor: 'var(--green)' })}
+    ${stat('A receber (7 dias)', f.receber_7d, 'financeiro?tab=receitas', { money: 1, key: 'receber_7d', sparkColor: 'var(--green)' })}
+    ${stat('A pagar (7 dias)', f.pagar_7d, 'financeiro?tab=pagar', { money: 1, key: 'pagar_7d', goodUp: false })}
+    ${stat('Inadimplência', f.vencido, 'financeiro?tab=inadimplencia', { money: 1, key: 'inadimplencia', color: Number(f.vencido) > 0 ? 'var(--red)' : '', sparkColor: 'var(--red)', goodUp: false })}
     ${stat('Tarefas pendentes', d.tarefas_pendentes ?? 0, 'prazos', { key: 'tarefas_pendentes', color: Number(d.tarefas_pendentes) > 0 ? 'var(--amber)' : '', sparkColor: 'var(--amber)', goodUp: false })}
     ${stat('Propostas em análise', d.propostas_paradas ?? 0, 'propostas', { key: 'propostas_analise', goodUp: false })}
     ${stat('Total a protocolar', d.producao?.a_protocolar ?? 0, 'producao', { color: Number(d.producao?.a_protocolar) > 0 ? 'var(--amber)' : '', goodUp: false })}

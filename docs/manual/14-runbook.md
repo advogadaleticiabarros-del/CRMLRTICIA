@@ -131,6 +131,16 @@ pm2 restart crm-juridico && pm2 save
 
 **Se acontecer de novo (outro componente com `hidden` que "não esconde"):** toda classe que define `display` num elemento que também é escondido via atributo `hidden` PRECISA de uma regra irmã `.classe[hidden] { display: none; }` — senão o atributo nunca tem efeito nenhum. Conferido neste incidente: `.empty` e `.msel-empty` (as outras 2 classes usadas com `hidden` no projeto) não definem `display`, então não têm este problema.
 
+## Incidente: KPI do Cockpit sempre abre a Visão geral do Financeiro, sem filtro
+
+**Sintoma:** clicar no KPI "Inadimplência" (ou "A receber", "A pagar") no Cockpit sempre abre a tela Financeiro na aba "Visão geral" — que não tem filtro nenhum aplicado, então não dá pra ver especificamente o que está vencido. Reportado 22/09/2026.
+
+**Causa raiz:** o roteador de hash (`function router()`, `public/app.js`) só faz correspondência exata de string com `location.hash` — nunca existiu um jeito de uma tela dizer "abra aqui, mas já na sub-aba X". O KPI só definia `location.hash = '#financeiro'`, e `ROUTES.financeiro` sempre chamava `show('geral')` incondicionalmente no fim, ignorando de onde veio o clique.
+
+**Correção:** `router()` agora ignora tudo depois de `?` só pra achar a rota (`#financeiro?tab=inadimplencia` continua resolvendo pra `ROUTES.financeiro`), e um novo helper `hashParam(nome)` lê esse parâmetro. `ROUTES.financeiro` abre a sub-aba pedida (`hashParam('tab')`) em vez de sempre "geral". Os KPIs do Cockpit que fazem sentido apontar pra um relatório específico agora levam pra lá: "A receber até hoje"/"A receber (7 dias)" → aba Receitas, "A pagar (7 dias)" → aba Contas a Pagar, "Inadimplência" → aba Inadimplência.
+
+**Se acontecer de novo (outro atalho que devia abrir numa sub-aba específica):** usar o mesmo padrão — `'#rota?tab=nome-da-aba'` no `location.hash`, e a tela de destino lendo `hashParam('tab')` pra decidir a aba inicial em vez de sempre a padrão. Vale conferir os outros KPIs do Cockpit que apontam pra telas com sub-abas (Prazos, Produção) — ainda não auditados por esse ângulo.
+
 ## Incidente: quadro Kanban com muitas colunas fica ilegível/inacessível
 
 **Sintoma:** num quadro com várias etapas (Produção tem 8, Fases 6, Leads 9), as colunas mais à direita ficam cortadas na borda da tela sem nenhuma forma visível de rolar até elas — ou, no caso do quadro de Leads, quebram pra uma segunda linha desalinhada com os rótulos da primeira. Relatado como "não consigo ver os dados urgentes" e "erro besta que não deveria ter em nenhuma tela".
@@ -240,6 +250,7 @@ pm2 restart crm-juridico && pm2 save
 | 05/09/2026 | Claude | +1 incidente: prova mensal de restauração do backup falhando há 2 meses (permissão em `crm_restore_test`) — confirmado corrigido, restauração manual passou (99 tabelas · 177 clientes · 41 casos · 8 usuários) |
 | 20/09/2026 | Claude | +1 incidente: espaço da assinatura sumindo quando o bloco cai no topo de página nova — `margin-top` trocado por altura de elemento filho (`.sig-spacer`), que não colapsa na paginação |
 | 22/09/2026 | Claude | +1 incidente: dropdown de Pagador continuava preso aberto mesmo após o fix de 04/09 — causa raiz diferente (CSS: `display` de classe vencendo `[hidden]` nativo), corrigido com `.msel-panel[hidden]{display:none}` |
+| 22/09/2026 | Claude | +1 incidente: KPIs do Cockpit sempre abriam a Visão geral do Financeiro sem filtro — roteador ganhou suporte a `#rota?tab=x` (`hashParam()`), Inadimplência/A receber/A pagar agora abrem direto na sub-aba certa |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
