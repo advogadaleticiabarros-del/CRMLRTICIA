@@ -46,8 +46,14 @@ router.get('/', async (req: Request, res: Response) => {
   res.json({ data: rows, total, page, limit, pages: Math.ceil(total / limit) });
 });
 
-// ── POST /api/inadimplencias/recalcular — varre parcelas vencidas ───────────
-router.post('/recalcular', async (req: Request, res: Response) => {
+/**
+ * Varre parcelas vencidas e atualiza a fila de cobrança (`inadimplencias`).
+ * Extraído da rota pra também rodar sozinho num cron diário — antes só
+ * atualizava quando alguém clicava "Recalcular agora" na tela, então a
+ * fila podia ficar dias desatualizada sem ninguém perceber (achado da
+ * auditoria do Dashboard, 22/09/2026).
+ */
+export async function recalcularInadimplencias(): Promise<{ verificadas: number; criadas: number; atualizadas: number }> {
   // Parcelas em aberto/parcial/atrasado já vencidas
   const [vencidas] = await db.query(`
     SELECT p.id AS parcela_id, p.valor_final, r.client_id,
@@ -82,7 +88,12 @@ router.post('/recalcular', async (req: Request, res: Response) => {
     }
   }
 
-  res.json({ verificadas: vencidas.length, criadas, atualizadas });
+  return { verificadas: vencidas.length, criadas, atualizadas };
+}
+
+// ── POST /api/inadimplencias/recalcular — varre parcelas vencidas ───────────
+router.post('/recalcular', async (_req: Request, res: Response) => {
+  res.json(await recalcularInadimplencias());
 });
 
 // ── PATCH /api/inadimplencias/:id — status / tentativas de cobrança ─────────

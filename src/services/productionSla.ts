@@ -25,3 +25,16 @@ export function pendenciasAbertasSql(caseIdRef: string): string {
   return `(SELECT COUNT(*) FROM production_notes pn
             WHERE pn.case_id = ${caseIdRef} AND pn.kind = 'pendencia' AND pn.resolved = 0)`;
 }
+
+/**
+ * Etapas da esteira ANTES do protocolo — usado por "Total a protocolar"
+ * (Dashboard → Cockpit) e "Peças pendentes" (Dashboard → Processual), que
+ * mantinham essa mesma lista copiada em dois arquivos (achado na auditoria
+ * do Dashboard, 22/09/2026). Uma mudança na lista de etapas agora só
+ * precisa acontecer aqui.
+ */
+export const ETAPAS_PRE_PROTOCOLO = ['em_analise', 'separacao_documentos', 'criacao_inicial', 'revisao_inicial', 'aguardando_protocolo'];
+
+export function totalAProtocolarSql(alias = 'total'): string {
+  return `SELECT COUNT(*) AS ${alias} FROM cases WHERE production_stage IN (${ETAPAS_PRE_PROTOCOLO.map((s) => `'${s}'`).join(',')})`;
+}

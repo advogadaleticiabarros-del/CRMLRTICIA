@@ -1,5 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../../config/database';
+import { totalAProtocolarSql } from '../../services/productionSla';
+import { getFinanceSummary } from '../../services/financeSummary';
 
 const router = Router();
 
@@ -37,39 +39,33 @@ router.get('/', async (req: Request, res: Response) => {
       SELECT
         COALESCE(SUM(CASE WHEN tipo='receita' AND status='pendente' AND due_date <= CURDATE() THEN valor END),0) AS receber_hoje,
         COALESCE(SUM(CASE WHEN tipo='receita' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS receber_7d,
-        COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS pagar_7d,
-        COALESCE(SUM(CASE WHEN tipo='receita' AND status='vencido' THEN valor END),0) AS vencido
+        COALESCE(SUM(CASE WHEN tipo='despesa' AND status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS pagar_7d
       FROM financial_records WHERE escopo='empresa'`) as any;
     const [[inst]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status='pendente' AND due_date <= CURDATE() THEN valor END),0) AS receber_hoje,
-        COALESCE(SUM(CASE WHEN status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS receber_7d,
-        COALESCE(SUM(CASE WHEN status='pendente' AND due_date < CURDATE() THEN valor END),0) AS vencido
+        COALESCE(SUM(CASE WHEN status='pendente' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS receber_7d
       FROM installments`) as any;
     const [[aud]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date <= CURDATE() THEN value END),0) AS receber_hoje,
-        COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN value END),0) AS receber_7d,
-        COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date < CURDATE() THEN value END),0) AS vencido
+        COALESCE(SUM(CASE WHEN status IN ('agendada','realizada','faturada') AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN value END),0) AS receber_7d
       FROM correspondent_hearings`) as any;
     const [[dat]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status='previsto' AND expected_date <= CURDATE() THEN value END),0) AS receber_hoje,
-        COALESCE(SUM(CASE WHEN status='previsto' AND expected_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN value END),0) AS receber_7d,
-        COALESCE(SUM(CASE WHEN status='previsto' AND expected_date < CURDATE() THEN value END),0) AS vencido
+        COALESCE(SUM(CASE WHEN status='previsto' AND expected_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN value END),0) AS receber_7d
       FROM dative_payments`) as any;
     const [[parc]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status IN ('aberto','atrasado','parcial') AND data_vencimento <= CURDATE() THEN valor_final END),0) AS receber_hoje,
-        COALESCE(SUM(CASE WHEN status IN ('aberto','atrasado','parcial') AND data_vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor_final END),0) AS receber_7d,
-        COALESCE(SUM(CASE WHEN status IN ('aberto','atrasado','parcial') AND data_vencimento < CURDATE() THEN valor_final END),0) AS vencido
-      FROM parcelas`).catch(() => [{ receber_hoje: 0, receber_7d: 0, vencido: 0 }]) as any;
+        COALESCE(SUM(CASE WHEN status IN ('aberto','atrasado','parcial') AND data_vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor_final END),0) AS receber_7d
+      FROM parcelas`).catch(() => [{ receber_hoje: 0, receber_7d: 0 }]) as any;
     const [[aw]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status='aguardando' AND previsao_pagamento <= CURDATE() THEN valor_escritorio END),0) AS receber_hoje,
-        COALESCE(SUM(CASE WHEN status='aguardando' AND previsao_pagamento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor_escritorio END),0) AS receber_7d,
-        COALESCE(SUM(CASE WHEN status='aguardando' AND previsao_pagamento < CURDATE() THEN valor_escritorio END),0) AS vencido
-      FROM case_awards`).catch(() => [{ receber_hoje: 0, receber_7d: 0, vencido: 0 }]) as any;
+        COALESCE(SUM(CASE WHEN status='aguardando' AND previsao_pagamento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor_escritorio END),0) AS receber_7d
+      FROM case_awards`).catch(() => [{ receber_hoje: 0, receber_7d: 0 }]) as any;
     const [[rep]] = await db.query(`
       SELECT
         COALESCE(SUM(CASE WHEN status IN ('pendente','processando') AND data_vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN valor END),0) AS pagar_7d
@@ -80,11 +76,16 @@ router.get('/', async (req: Request, res: Response) => {
       SELECT
         COALESCE(SUM(CASE WHEN status='previsto' AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) THEN amount END),0) AS pagar_7d
       FROM cashflow_entries WHERE type='saida' AND escopo='empresa'`) as any;
+    // "vencido" (inadimplência) vem de getFinanceSummary() — é a MESMA conta
+    // usada no topo do Financeiro, pra nunca mais divergir entre as duas
+    // telas (achado da auditoria do Dashboard, 22/09/2026: existiam 4 contas
+    // diferentes de "inadimplência" espalhadas pelo sistema).
+    const resumo = await getFinanceSummary();
     return {
       receber_hoje: Number(fr.receber_hoje) + Number(inst.receber_hoje) + Number(aud.receber_hoje) + Number(dat.receber_hoje) + Number(parc.receber_hoje) + Number(aw.receber_hoje),
       receber_7d:   Number(fr.receber_7d)   + Number(inst.receber_7d)   + Number(aud.receber_7d)   + Number(dat.receber_7d)   + Number(parc.receber_7d)   + Number(aw.receber_7d),
       pagar_7d:     Number(fr.pagar_7d)     + Number(rep.pagar_7d)      + Number(cf.pagar_7d),
-      vencido:      Number(fr.vencido)      + Number(inst.vencido)      + Number(aud.vencido)      + Number(dat.vencido)      + Number(parc.vencido)      + Number(aw.vencido),
+      vencido:      Number(resumo.inadimplencia),
     };
   }, { receber_hoje: 0, receber_7d: 0, pagar_7d: 0, vencido: 0 });
 
@@ -176,9 +177,7 @@ router.get('/', async (req: Request, res: Response) => {
 
   // Produção — total a protocolar (na esteira, antes do protocolo) e protocolados no mês
   const producao = await safe(async () => {
-    const [[ap]] = await db.query(`
-      SELECT COUNT(*) AS total FROM cases
-       WHERE production_stage IN ('em_analise','separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')`) as any;
+    const [[ap]] = await db.query(totalAProtocolarSql()) as any;
     const [[pm]] = await db.query(`
       SELECT COUNT(DISTINCT case_id) AS total FROM client_timeline
        WHERE event_type = 'etapa_protocolado'
@@ -217,6 +216,19 @@ router.post('/resolver', async (req: Request, res: Response) => {
      ON DUPLICATE KEY UPDATE resolved_at = NOW()`,
     [item_key, userId]
   );
+  // "alerta:N" (movement_alerts) é o único item do Cockpit sem nenhuma outra
+  // tela pra fechar de vez — prazo/intimação têm fluxo próprio na tela de
+  // Prazos, mas movimentação sem intimação só existia aqui. Sem isto,
+  // "Resolver" era só uma soneca de 1 dia que voltava pra sempre (achado da
+  // auditoria do Dashboard, 22/09/2026). A coluna já existia no banco
+  // (status 'resolvido'), só nunca era escrita por código nenhum.
+  const [, alertaId] = item_key.match(/^alerta:([0-9]+)$/) || [];
+  if (alertaId) {
+    await db.query(
+      "UPDATE movement_alerts SET status = 'resolvido', resolved_by = ?, resolved_at = NOW() WHERE id = ? AND status = 'aberto'",
+      [userId, alertaId]
+    ).catch(() => {});
+  }
   res.json({ success: true });
 });
 

@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../../config/database';
+import { totalAProtocolarSql } from '../../services/productionSla';
 
 const router = Router();
 
@@ -72,10 +73,7 @@ router.get('/', async (req: Request, res: Response) => {
     // ANTES: contava `legal_pieces`, tabela MORTA — nenhum código insere nela.
     // O KPI "peças pendentes" mostrava ZERO para sempre, mesmo com a esteira cheia.
     // A produção real vive em cases.production_stage.
-    const [[pecas]] = await db.query(`
-      SELECT COUNT(*) AS pendentes FROM cases
-       WHERE production_stage IN ('em_analise','separacao_documentos','criacao_inicial','revisao_inicial','aguardando_protocolo')
-    `) as any;
+    const [[pecas]] = await db.query(totalAProtocolarSql('pendentes')) as any;
 
     res.json({
       totais,

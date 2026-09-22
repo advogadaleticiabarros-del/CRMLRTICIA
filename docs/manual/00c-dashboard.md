@@ -29,32 +29,33 @@ Abas em `#dashboard` (papel `comercial` só vê Comercial e Agenda):
 
 Todo KPI do Cockpit tem um clique que leva pra algum lugar (`stat()`, `public/app.js`) — desde 22/09/2026, os que apontam pro Financeiro ou pro funil de Leads já abrem na aba/etapa certa (antes caíam sempre na tela padrão, sem filtro):
 
-- **A receber até hoje / A receber (7 dias)** — soma de recebíveis pendentes (vencidos ou vencendo) somando 6 fontes: contratos de cliente, parcelamentos, audiências de correspondente, pagamentos do dativo, parcelas de acordo e prêmios de êxito. Sem filtro por usuária (deliberado). Clique → Financeiro, aba **A Receber**.
-- **A pagar (7 dias)** — despesas + repasses + saídas de caixa vencendo em 7 dias. Clique → Financeiro, aba **Contas a Pagar** (que abre no mês corrente, não numa janela de 7 dias — ver "O que falta" abaixo).
-- **Inadimplência** — soma do que já está vencido, mesmas 6 fontes do "A receber". Clique → Financeiro, aba **Inadimplência** — **atenção:** essa aba usa uma tabela separada (só parcelamentos, recalculada por um botão manual), então o valor lá pode não bater com o KPI. Ver "O que falta".
+- **A receber até hoje / A receber (7 dias)** — soma de recebíveis pendentes (vencidos ou vencendo) somando 6 fontes: contratos de cliente, parcelamentos, audiências de correspondente, pagamentos do dativo, parcelas de acordo e prêmios de êxito. Sem filtro por usuária (deliberado). Clique → Financeiro, aba **A Receber** (ainda sem filtro de data pré-aplicado — ver "O que ainda falta").
+- **A pagar (7 dias)** — despesas + repasses + saídas de caixa vencendo em 7 dias. Clique → Financeiro, aba **Contas a Pagar** (ainda abre no mês corrente, não numa janela de 7 dias — ver "O que ainda falta").
+- **Inadimplência** — soma do que já está vencido, mesmas 6 fontes do "A receber", calculada por `getFinanceSummary()`. Clique → Financeiro, aba **Inadimplência** — essa aba mostra uma fila de cobrança **só de parcelas de cliente** (é a única fonte onde "renegociar"/"cobrança jurídica" fazem sentido), então pode ser um valor menor que o KPI — isso é esperado, não é mais uma divergência por bug (ver [Cobrança e parcelas](08-cobranca.md#inadimplência-e-renegociação)).
 - **Tarefas pendentes** — contagem de tarefas não concluídas/canceladas. Clique → Prazos & Tarefas (tela cheia, sem filtro só nas pendentes).
-- **Propostas em análise** — leads parados na etapa "Negociação" do funil comercial. Clique → funil de **Leads**, rola e destaca a coluna Negociação (corrigido em 22/09/2026 — antes ia pra tela de Propostas/honorários, entidade errada).
+- **Propostas em análise** — leads parados na etapa "Negociação" do funil comercial. Clique → funil de **Leads**, rola e destaca a coluna Negociação.
 - **Total a protocolar / Protocolados no mês** — contagem de casos nas etapas pré-protocolo / contagem de "etapa_protocolado" na linha do tempo do mês. Clique → esteira de Produção (sem filtro nas etapas certas).
 
-Painéis (listas com botão "Abrir →"): Prazos críticos (72h), Intimações a confirmar, Movimentações a verificar, Agenda de hoje. Cada item tem um botão "Resolver" — **importante entender o que isso faz de verdade**, ver "O que falta" abaixo.
+Painéis (listas com botão "Abrir →"): Prazos críticos (72h), Intimações a confirmar, Movimentações a verificar, Agenda de hoje. Cada item tem um botão "Resolver" — pra prazo/intimação/agenda é uma soneca de 1 dia (some até meia-noite, volta se a causa raiz não for tratada na tela de origem); pra **Movimentações a verificar**, "Resolver" agora fecha o alerta de vez (não existia mais nenhuma outra tela que fizesse isso).
 
-## O que falta / achados da auditoria (22/09/2026)
+## O que já foi corrigido (22/09/2026)
 
-1. **"Inadimplência" é calculada de 4 jeitos diferentes no sistema** — o KPI do Cockpit, o KPI do topo do Financeiro, o painel "Inteligência financeira → aging" (só 3 das 6 fontes) e a aba Inadimplência de verdade (só parcelamentos, numa tabela que só atualiza quando alguém clica "Recalcular agora"). Resultado prático: dá pra clicar no KPI, chegar na aba certa (bug já corrigido), e ainda ver um número diferente do que motivou o clique. **Precisa de uma decisão de produto:** qual dessas 4 é a definição oficial, e as outras 3 telas passam a usar a mesma consulta.
-2. **"Propostas em análise" apontava pra tela errada** — contava leads parados no funil, mas levava pra tela de Propostas (honorários/parcelas), sem relação nenhuma. Corrigido em 22/09/2026: agora vai pro funil de Leads e destaca a coluna certa.
-3. **"Resolver" nos painéis do Cockpit é uma soneca de 1 dia, não uma resolução real** — grava só "resolvido hoje" numa tabela própria; no dia seguinte o item volta, a não ser que a origem dele (prazo, intimação) também tenha sido fechada por outro fluxo de verdade. **"Movimentações a verificar" é o pior caso: não existe NENHUMA outra tela no sistema pra fechar esse tipo de item de vez** — ele volta pra sempre até alguém decidir agir nele de outra forma (não existe hoje).
-4. **Dados calculados no backend, nunca mostrados na tela** — os painéis Processual e Agenda calculam listas inteiras (prazos vencidos, reuniões futuras, audiências, processos por fase) que a tela nunca lê. Parece funcionalidade que começou e não foi terminada.
-5. **Duas contas idênticas mantidas em dois arquivos** — "Total a protocolar" (Cockpit) e "Peças pendentes" (Processual) são a mesma consulta SQL copiada em dois lugares — qualquer mudança na lista de etapas precisa ser feita nos dois ou eles desalinham.
+1. ~~"Inadimplência" calculada de 4 jeitos diferentes~~ — **Cockpit e o topo do Financeiro agora usam a mesma função** (`getFinanceSummary()`); o painel de aging (Inteligência financeira) passou a somar as mesmas 6 fontes, não só 3. A aba de fila de cobrança continua com escopo próprio de propósito (só parcelas de cliente — ver acima) e agora recalcula sozinha todo dia às 6h50, não só quando alguém clica "Recalcular agora".
+2. ~~"Propostas em análise" apontava pra tela errada~~ — agora vai pro funil de Leads e destaca a coluna certa.
+3. ~~"Movimentações a verificar" nunca fechava de vez~~ — "Resolver" agora marca `status='resolvido'` na tabela de origem (a coluna já existia, só nunca era escrita) — o item some pra sempre, não só até meia-noite.
+4. ~~Dados calculados no backend, nunca mostrados na tela~~ — Processual ganhou as listas "Prazos vencidos" e "Processos por fase"; Agenda ganhou "Prazos vencidos" (explicando o KPI "Vencidos" que já existia sem lista nenhuma). `prazos_semana`, `reuniões futuras` e `audiências` (painel Agenda) foram deixados de fora de propósito — a tela já tem escopo de "hoje", exibi-los ali duplicaria a Agenda completa.
+5. ~~Duas contas idênticas em dois arquivos~~ — "Total a protocolar" e "Peças pendentes" agora chamam a mesma função (`totalAProtocolarSql()`, `src/services/productionSla.ts`).
+
+## O que ainda falta
+
 6. **KPIs de data aproximada não filtram por data ao chegar no destino** — "A receber até hoje" e "A receber (7 dias)" levam pro mesmo lugar (aba A Receber sem filtro de data aplicado), então não dá pra distinguir um do outro só chegando lá; "A pagar (7 dias)" cai no mês inteiro, não numa janela de 7 dias.
-7. **Painéis Comercial, Processos (Monitoramento), Processual, Agenda e Financeiro não têm nenhum clique** — todo número é só leitura, sem link pra investigar mais fundo (diferente do Cockpit e da Produção).
-
-Nenhum desses 5 primeiros itens tem solução implementada ainda — são decisões de produto ou correções que dependem de prioridade. Itens 2 já corrigido; itens 1, 3, 4, 5, 6, 7 aguardando decisão de prioridade da Dra. Letícia.
+7. **Painéis Comercial, Processos (Monitoramento), Processual, Agenda e Financeiro não têm nenhum clique** — todo número é só leitura, sem link pra investigar mais fundo (diferente do Cockpit e da Produção). Maior escopo — precisa decidir, painel por painel, pra onde cada número deveria levar.
 
 ## FAQ
 
-**Por que às vezes o número de "inadimplência" que vejo num lugar não bate com outro lugar do sistema?** Porque hoje existem 4 contas diferentes pra "inadimplência" (ver item 1 acima) — não é bug de cálculo isolado, é falta de uma definição única compartilhada entre as telas.
+**Por que o valor da aba Inadimplência é menor que o KPI "Inadimplência" do Cockpit?** Por design, não por bug: o KPI soma tudo que o escritório tem a receber e está vencido (6 fontes); a aba é só a fila de cobrança acionável de parcelas de cliente (a única fonte onde dá pra renegociar/escalar cobrança). Ver [Cobrança e parcelas](08-cobranca.md#inadimplência-e-renegociação).
 
-**"Resolver" no Cockpit apaga o item de vez?** Não — some só até meia-noite (horário de Brasília). Volta no dia seguinte se a causa raiz (o prazo, a intimação, a movimentação) continuar sem ser tratada de verdade na tela de origem.
+**"Resolver" no Cockpit apaga o item de vez?** Depende do tipo: em "Movimentações a verificar", sim, desde 22/09/2026. Em prazo/intimação/agenda, não — some só até meia-noite (horário de Brasília) e volta se a causa raiz não for tratada de verdade na tela de origem (isso é intencional: esses já têm um fluxo de resolução real em outro lugar).
 
 ## Links relacionados
 - [Cobrança e parcelas](08-cobranca.md) — telas de Financeiro que os KPIs do Cockpit abrem
@@ -67,6 +68,7 @@ Nenhum desses 5 primeiros itens tem solução implementada ainda — são decis�
 | Data | Autor | Mudança |
 |---|---|---|
 | 22/09/2026 | Claude | Criação do documento — auditoria completa dos 8 painéis a pedido da Dra. Letícia, depois do bug do KPI de Inadimplência |
+| 22/09/2026 | Claude | Resolvidos 5 dos 7 achados: Inadimplência unificada (3 das 4 contas), Movimentações a verificar fecham de vez, Processual/Agenda ganham as listas que já eram calculadas, "Total a protocolar"/"Peças pendentes" compartilham a mesma consulta |
 
 ---
 ◀ [Fluxograma do sistema](00b-fluxograma.md) · [Visão geral](00-visao-geral.md) · Próximo: [Clientes e cadastro](01-clientes.md) ▶

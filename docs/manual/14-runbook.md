@@ -141,7 +141,9 @@ pm2 restart crm-juridico && pm2 save
 
 **Se acontecer de novo (outro atalho que devia abrir numa sub-aba específica):** usar o mesmo padrão — `'#rota?tab=nome-da-aba'` no `location.hash`, e a tela de destino lendo `hashParam('tab')` pra decidir a aba inicial em vez de sempre a padrão.
 
-**Atualização 22/09/2026 — auditoria completa do Dashboard encontrou um bug pior no mesmo estilo:** o KPI "Propostas em análise" contava `leads` parados na etapa "Negociação", mas levava pra tela de Propostas (honorários/parcelas) — entidade completamente diferente, sem relação com o número mostrado. Corrigido usando o mesmo mecanismo (`'leads?stage=proposta_em_analise'`), e `ROUTES.leads` ganhou lógica pra rolar até a coluna certa do Kanban e destacá-la por alguns segundos (`hashParam('stage')`, classe `.kanban-col-highlight`). Ver `docs/manual/00c-dashboard.md` pro levantamento completo dos outros pontos ainda não corrigidos (4 definições diferentes de "inadimplência", "Resolver" que não resolve de vez, dados calculados no backend e nunca exibidos).
+**Atualização 22/09/2026 — auditoria completa do Dashboard encontrou um bug pior no mesmo estilo:** o KPI "Propostas em análise" contava `leads` parados na etapa "Negociação", mas levava pra tela de Propostas (honorários/parcelas) — entidade completamente diferente, sem relação com o número mostrado. Corrigido usando o mesmo mecanismo (`'leads?stage=proposta_em_analise'`), e `ROUTES.leads` ganhou lógica pra rolar até a coluna certa do Kanban e destacá-la por alguns segundos (`hashParam('stage')`, classe `.kanban-col-highlight`).
+
+**Atualização 22/09/2026 (2) — resto dos achados da auditoria resolvidos na mesma tarefa:** "Inadimplência" (Cockpit + topo do Financeiro + aging) unificada numa função só (`getFinanceSummary()`); "Movimentações a verificar" ganhou fechamento de vez (`movement_alerts.status='resolvido'`, coluna que já existia e nunca era escrita); Processual e Agenda passaram a exibir listas que já eram calculadas no backend e nunca apareciam na tela; "Total a protocolar"/"Peças pendentes" pararam de duplicar a mesma consulta em dois arquivos. Ver `docs/manual/00c-dashboard.md` pro detalhe de cada um e os 2 pontos que ainda ficaram de fora (KPIs de "7 dias" sem filtro de data no destino; 5 painéis sem nenhum clique).
 
 ## Incidente: quadro Kanban com muitas colunas fica ilegível/inacessível
 
@@ -254,6 +256,7 @@ pm2 restart crm-juridico && pm2 save
 | 22/09/2026 | Claude | +1 incidente: dropdown de Pagador continuava preso aberto mesmo após o fix de 04/09 — causa raiz diferente (CSS: `display` de classe vencendo `[hidden]` nativo), corrigido com `.msel-panel[hidden]{display:none}` |
 | 22/09/2026 | Claude | +1 incidente: KPIs do Cockpit sempre abriam a Visão geral do Financeiro sem filtro — roteador ganhou suporte a `#rota?tab=x` (`hashParam()`), Inadimplência/A receber/A pagar agora abrem direto na sub-aba certa |
 | 22/09/2026 | Claude | Atualização do incidente acima: "Propostas em análise" levava pro board errado (Propostas em vez de Leads) — corrigido com o mesmo mecanismo + destaque de coluna no Kanban |
+| 22/09/2026 | Claude | Resto da auditoria do Dashboard resolvido: Inadimplência unificada, Movimentações a verificar fecham de vez, Processual/Agenda exibem dado que já era calculado, consulta duplicada de "peças pendentes" compartilhada |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶

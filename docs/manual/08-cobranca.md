@@ -42,6 +42,10 @@ Receita menos despesa, separado por mês e por ano — a despesa soma tanto lan�
 
 O sistema calcula inadimplência automaticamente e permite renegociar uma parcela em atraso (gerando novas condições) sem perder o histórico da original.
 
+**Duas coisas diferentes com o mesmo nome (desde 22/09/2026 unificadas onde faziam sentido):**
+- **"Inadimplência" (número, no Cockpit e no topo do Financeiro)** — total vencido somando as 6 fontes de receita do escritório (clientes/contratos, parcelas de proposta, dativo, correspondente, parcerias, êxitos). Vem de `getFinanceSummary()`, uma função só, usada nos dois lugares — antes cada tela calculava por conta própria e podiam divergir.
+- **Aba "Inadimplência" (fila de cobrança acionável)** — só parcelas de **cliente** (`parcelas`), porque é a única fonte onde faz sentido "renegociar", escalar pra cobrança jurídica ou marcar tentativa de contato. Dativo, correspondente e parcerias entram no número total acima, mas não têm fila de cobrança própria — são recebíveis de outra natureza (Estado, terceiros), sem esse fluxo de negociação com cliente. Essa fila recalcula sozinha todo dia às 6h50 (antes só atualizava quando alguém clicava "Recalcular agora").
+
 ## FAQ
 
 **A despesa pessoal da família aparece no resultado do escritório?** Não deveria — o sistema guarda despesa pessoal/familiar separada por escopo, e o DRE do escritório filtra só `escopo='empresa'`.
@@ -61,6 +65,7 @@ O sistema calcula inadimplência automaticamente e permite renegociar uma parcel
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Adicionado painel de destaque no topo da Visão Geral — resultado do mês, previsão, a receber 30d, projeção 90d |
+| 22/09/2026 | Claude | Unificadas as 3 contas de "Inadimplência" que podiam divergir (Cockpit, topo do Financeiro, aging) — todas usam `getFinanceSummary()`; a 4ª (fila de cobrança) mantém escopo próprio (só parcelas de cliente) de propósito, e recalcula sozinha todo dia às 6h50 |
 
 ---
 ◀ [Agenda](07-agenda.md) · [Visão geral](00-visao-geral.md) · Próximo: [Repasses e parcerias](09-repasses.md) ▶

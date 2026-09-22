@@ -182,19 +182,34 @@ export async function getDespesasAPagarHoje(): Promise<number> {
 
 export interface Inadimplencia { ate_30: number; de_31_60: number; mais_60: number; total: number }
 
-/** O que está VENCIDO e não recebido, em todas as fontes com data de vencimento. */
+/**
+ * O que está VENCIDO e não recebido, em todas as fontes com data de
+ * vencimento — as MESMAS 6 fontes de getFinanceSummary() (achado da
+ * auditoria do Dashboard, 22/09/2026: esta consulta só olhava 3 das 6,
+ * então o total do aging nunca batia com o "Inadimplência" mostrado em
+ * outras telas — a soma das 3 faixas agora bate com getFinanceSummary().inadimplencia).
+ */
 export async function getInadimplencia(): Promise<Inadimplencia> {
   const [[r]] = await db.query(`
     SELECT
       COALESCE((SELECT SUM(valor) FROM financial_records WHERE tipo='receita' AND status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 1 AND 30),0)
     + COALESCE((SELECT SUM(valor) FROM installments WHERE status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 1 AND 30),0)
-    + COALESCE((SELECT SUM(valor_final) FROM parcelas WHERE status IN ('aberto','atrasado') AND data_vencimento < CURDATE() AND DATEDIFF(CURDATE(),data_vencimento) BETWEEN 1 AND 30),0) AS ate_30,
+    + COALESCE((SELECT SUM(valor_final) FROM parcelas WHERE status IN ('aberto','atrasado','parcial') AND data_vencimento < CURDATE() AND DATEDIFF(CURDATE(),data_vencimento) BETWEEN 1 AND 30),0)
+    + COALESCE((SELECT SUM(value) FROM correspondent_hearings WHERE status IN ('realizada','faturada') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 1 AND 30),0)
+    + COALESCE((SELECT SUM(value) FROM dative_payments WHERE status='previsto' AND expected_date < CURDATE() AND DATEDIFF(CURDATE(),expected_date) BETWEEN 1 AND 30),0)
+    + COALESCE((SELECT SUM(valor_escritorio) FROM case_awards WHERE status='aguardando' AND previsao_pagamento < CURDATE() AND DATEDIFF(CURDATE(),previsao_pagamento) BETWEEN 1 AND 30),0) AS ate_30,
       COALESCE((SELECT SUM(valor) FROM financial_records WHERE tipo='receita' AND status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 31 AND 60),0)
     + COALESCE((SELECT SUM(valor) FROM installments WHERE status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 31 AND 60),0)
-    + COALESCE((SELECT SUM(valor_final) FROM parcelas WHERE status IN ('aberto','atrasado') AND data_vencimento < CURDATE() AND DATEDIFF(CURDATE(),data_vencimento) BETWEEN 31 AND 60),0) AS de_31_60,
+    + COALESCE((SELECT SUM(valor_final) FROM parcelas WHERE status IN ('aberto','atrasado','parcial') AND data_vencimento < CURDATE() AND DATEDIFF(CURDATE(),data_vencimento) BETWEEN 31 AND 60),0)
+    + COALESCE((SELECT SUM(value) FROM correspondent_hearings WHERE status IN ('realizada','faturada') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) BETWEEN 31 AND 60),0)
+    + COALESCE((SELECT SUM(value) FROM dative_payments WHERE status='previsto' AND expected_date < CURDATE() AND DATEDIFF(CURDATE(),expected_date) BETWEEN 31 AND 60),0)
+    + COALESCE((SELECT SUM(valor_escritorio) FROM case_awards WHERE status='aguardando' AND previsao_pagamento < CURDATE() AND DATEDIFF(CURDATE(),previsao_pagamento) BETWEEN 31 AND 60),0) AS de_31_60,
       COALESCE((SELECT SUM(valor) FROM financial_records WHERE tipo='receita' AND status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) > 60),0)
     + COALESCE((SELECT SUM(valor) FROM installments WHERE status IN ('pendente','vencido') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) > 60),0)
-    + COALESCE((SELECT SUM(valor_final) FROM parcelas WHERE status IN ('aberto','atrasado') AND data_vencimento < CURDATE() AND DATEDIFF(CURDATE(),data_vencimento) > 60),0) AS mais_60
+    + COALESCE((SELECT SUM(valor_final) FROM parcelas WHERE status IN ('aberto','atrasado','parcial') AND data_vencimento < CURDATE() AND DATEDIFF(CURDATE(),data_vencimento) > 60),0)
+    + COALESCE((SELECT SUM(value) FROM correspondent_hearings WHERE status IN ('realizada','faturada') AND due_date < CURDATE() AND DATEDIFF(CURDATE(),due_date) > 60),0)
+    + COALESCE((SELECT SUM(value) FROM dative_payments WHERE status='previsto' AND expected_date < CURDATE() AND DATEDIFF(CURDATE(),expected_date) > 60),0)
+    + COALESCE((SELECT SUM(valor_escritorio) FROM case_awards WHERE status='aguardando' AND previsao_pagamento < CURDATE() AND DATEDIFF(CURDATE(),previsao_pagamento) > 60),0) AS mais_60
   `) as any;
   const ate_30 = round2(N(r.ate_30)), de_31_60 = round2(N(r.de_31_60)), mais_60 = round2(N(r.mais_60));
   return { ate_30, de_31_60, mais_60, total: round2(ate_30 + de_31_60 + mais_60) };

@@ -4464,12 +4464,19 @@ async function dashMonitoramento(c) {
 
 async function dashProcessual(c) {
   const d = await api('/api/dashboards/processual');
+  // "Prazos vencidos" e "Processos por fase" já eram calculados no backend
+  // mas a tela nunca lia os dois (achado da auditoria do Dashboard,
+  // 22/09/2026) — completado aqui em vez de descartar o cálculo.
+  const vencidosHtml = (d.prazos_vencidos || []).map((p) =>
+    `<div class="mini-row"><span>${p.description}<br><small>${p.client_name || ''}${p.case_number ? ' · ' + p.case_number : ''}</small></span><strong style="color:var(--red)">${fmtDate(p.deadline_date)}</strong></div>`);
   c.innerHTML = `
     <div class="kpi-grid">
       ${kpi('Processos ativos', d.totais?.ativos)}${kpi('Suspensos', d.totais?.suspensos)}
       ${kpi('Encerrados', d.totais?.encerrados)}${kpi('Peças pendentes', d.pecas_pendentes)}
     </div>
+    ${vencidosHtml.length ? miniList('⚠️ Prazos vencidos', vencidosHtml) : ''}
     ${miniList('Processos por área', (d.processos_por_area || []).map((a) => `<div class="mini-row">${badge(a.legal_area)}<strong>${a.total}</strong></div>`))}
+    ${miniList('Processos por fase', (d.processos_por_fase || []).map((f) => `<div class="mini-row">${badge(f.phase || 'sem fase')}<strong>${f.total}</strong></div>`))}
     ${miniList('Prazos próximos', (d.prazos_proximos || []).map((p) => `<div class="mini-row"><span>${p.description}<br><small>${p.client_name || ''}</small></span><span>${badge(p.status_label || 'normal')}</span></div>`))}
     ${miniList('Audiências agendadas', (d.audiencias_agendadas || []).map((a) => `<div class="mini-row"><span>${a.title}<br><small>${a.client_name || ''}</small></span><small>${fmtDate(a.start_datetime)}</small></div>`))}
     ${miniList('Movimentações recentes', (d.movimentacoes_recentes || []).map((m) => `<div class="mini-row"><span>${m.description}<br><small>${m.case_number || ''}</small></span><small>${fmtDate(m.created_at)}</small></div>`))}`;
@@ -4478,11 +4485,17 @@ async function dashProcessual(c) {
 async function dashAgenda(c) {
   const d = await api('/api/dashboards/agenda');
   const cr = d.contagem_regressiva || {};
+  // O KPI "Vencidos" já existia, mas sem lista nenhuma pra ver QUAIS —
+  // d.prazos_vencidos era calculado e nunca lido (achado da auditoria do
+  // Dashboard, 22/09/2026), mesmo problema já corrigido no painel Processual.
+  const vencidosHtml = (d.prazos_vencidos || []).map((p) =>
+    `<div class="mini-row"><span>${p.description}${p.case_number ? '<br><small>' + p.case_number + '</small>' : ''}</span><strong style="color:var(--red)">${fmtDate(p.deadline_date)}</strong></div>`);
   c.innerHTML = `
     <div class="kpi-grid">
       ${kpi('Vencidos', cr.vencidos)}${kpi('Urgentes', cr.urgentes)}
       ${kpi('Atenção', cr.atencao)}${kpi('Normais', cr.normais)}
     </div>
+    ${vencidosHtml.length ? miniList('⚠️ Prazos vencidos', vencidosHtml) : ''}
     ${miniList('Prazos de hoje', (d.prazos_hoje || []).map((p) => `<div class="mini-row"><span>${p.description}</span>${badge(p.status_label || 'urgente')}</div>`))}
     ${miniList('Compromissos do dia', (d.compromissos_dia || []).map((e) => `<div class="mini-row"><span>${e.title}<br><small>${e.client_name || ''}</small></span><small>${fmtDate(e.start_datetime)}</small></div>`))}
     ${miniList('Tarefas por prioridade', (d.tarefas_por_prioridade || []).slice(0, 8).map((t) => `<div class="mini-row"><span>${t.title}</span>${badge(t.priority)}</div>`))}`;
@@ -5268,6 +5281,7 @@ async function finRepasses(c) {
 
 async function finInadimplencia(c) {
   c.innerHTML = `
+    <p class="sub" style="margin:0 0 10px">Fila de cobrança de <strong>parcelas de cliente</strong> em atraso, com escalonamento (alerta → cobrança jurídica → negociando). Atualiza sozinha todo dia às 6h50 — o botão abaixo força uma atualização na hora. Não inclui dativo, correspondente ou parcerias: esses valores contam no total de "Inadimplência" do Cockpit e do Financeiro, mas não têm uma fila de cobrança própria como esta.</p>
     <div style="display:flex;justify-content:flex-end;gap:8px;margin:8px 0"><button class="btn-ghost" id="renegociar-btn">Renegociar parcelas</button><button class="btn-gold" id="recalc-inad">Recalcular agora</button></div>
     <div class="card"><div id="inad-table"></div></div>`;
   tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#inad-table table'), filename: 'inadimplencia', title: 'Inadimplência' });

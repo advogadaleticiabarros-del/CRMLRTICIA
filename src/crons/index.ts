@@ -194,6 +194,18 @@ export function startCronJobs() {
     runJob('financeiro:vencidos', () => alertOverdueItems(), { critica: true });
   });
 
+  // ── diário 06:50: recalcula a fila de cobrança (Inadimplência) ────────────
+  // Antes só atualizava quando alguém clicava "Recalcular agora" na tela —
+  // podia ficar dias parada sem ninguém notar (achado da auditoria do
+  // Dashboard, 22/09/2026). Roda antes do "financeiro:vencidos" das 7h pra
+  // esse já sair com a fila fresca.
+  cron.schedule('50 6 * * *', () => {
+    runJob('financeiro:inadimplencia-recalcular', async () => {
+      const { recalcularInadimplencias } = await import('../routes/inadimplencias');
+      return await recalcularInadimplencias();
+    }, { critica: true });
+  });
+
   // ── diário 08:30: régua de cobrança por e-mail (D-3, D0, D+3, D+7) ── CRÍTICO
   cron.schedule('30 8 * * *', () => {
     runJob('financeiro:regua-cobranca', async () => {
