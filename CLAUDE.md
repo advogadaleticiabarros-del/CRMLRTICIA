@@ -123,3 +123,11 @@ Sempre que uma tarefa:
 - **envolver uma decisão de arquitetura/produto não óbvia** (por que X em vez de Y) → adicione uma linha em `docs/manual/17-decision-log.md`.
 
 Isso não é uma skill a mais pra ativar — é parte de terminar a tarefa, igual a rodar teste ou build. Ao apresentar o resumo final da tarefa (linha 106-111 acima), inclua também: **documentação atualizada** (qual arquivo, ou "não se aplicava — mudança sem impacto documentável").
+
+### Espelho no Obsidian (leitura da usuária — desde 22/09/2026)
+
+A pasta `docs/manual/` **continua sendo a fonte oficial** (git, deploy, regra acima) — mas existe uma cópia de leitura no cofre Obsidian da Dra. Letícia, em `C:\Users\prosy\Documents\CRM LETICIA\CRMLeticia\Documentação Técnica\`, com os mesmos 18 arquivos (mesmo nome, mesmo conteúdo). É só pra ela navegar com mais conforto — nunca edite esse espelho como se fosse a fonte, e nunca leia dele para tomar decisão técnica (leia sempre `docs/manual/` no repositório).
+
+Sempre que um arquivo de `docs/manual/` for criado ou alterado nesta sessão (regra acima), **copie a mesma alteração pro arquivo correspondente no espelho** (mesmo nome de arquivo) antes de considerar a tarefa concluída — é o mesmo conteúdo, só em dois lugares. Se o caminho do Obsidian não existir nesta máquina/sessão (ambiente diferente do computador da Dra. Letícia), pule esse passo silenciosamente — a fonte em `docs/manual/` já está correta e é o que importa.
+
+Antes de começar a mexer num módulo a pedido da usuária, ela pode esperar que você já tenha lido o contexto — não é preciso pedir pra ela reexplicar o que o módulo faz; leia o arquivo correspondente em `docs/manual/` (ou o espelho, se for mais conveniente na sessão) primeiro.
