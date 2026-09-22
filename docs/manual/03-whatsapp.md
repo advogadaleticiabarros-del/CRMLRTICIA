@@ -35,6 +35,10 @@ Dentro do menu de auditoria da tela: status da conexão em tempo real, hora da �
 
 Desde 22/09/2026, uma rotina roda a cada 20 minutos só pra checar se a conexão caiu (`whatsapp:verificar-conexao`, ver [Monitoramento automático](10-monitoramento.md)) — antes, uma queda no meio do dia só era percebida abrindo esta tela ou tentando enviar algo.
 
+## Atalho de resposta pronta na composição
+
+Desde 22/09/2026, digitar `/` seguido do começo do atalho (ex.: `/doc`) direto na caixa de mensagem já sugere as respostas prontas que batem — não precisa mais abrir o menu ⚡ toda vez. Setas para navegar, Enter ou Tab para escolher, Esc para fechar. `/` só dispara no início da mensagem ou logo depois de um espaço (uma URL como `http://...` não aciona por engano).
+
 ## Fila de envio automático tem prioridade
 
 A fila (cobrança + lembrete de audiência, `whatsapp:fila`) respeita um teto de 30 mensagens/dia contra bloqueio do número. Desde 22/09/2026, dentro desse teto, lembrete de audiência sai antes de mensagem avulsa, que sai antes de cobrança de rotina — antes era só ordem de chegada (FIFO), e um lembrete de audiência de amanhã podia ficar preso atrás de várias cobranças do dia.
@@ -65,7 +69,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
-| 22/09/2026 | Claude | Fila de envio com prioridade (audiência > avulsa > cobrança); watchdog de conexão a cada 20min; Painel de Saúde ganha falhas de transcrição/webhook/conexão (achados da auditoria de fluxos) |
+| 22/09/2026 | Claude | Fila de envio com prioridade (audiência > avulsa > cobrança); watchdog de conexão a cada 20min; Painel de Saúde ganha falhas de transcrição/webhook/conexão; atalho "/" na composição pra resposta pronta (achados da auditoria de fluxos) |
 
 ---
 ◀ [Leads](02-leads.md) · [Visão geral](00-visao-geral.md) · Próximo: [Processos e prazos](04-processos.md) ▶

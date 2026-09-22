@@ -1398,7 +1398,7 @@ Object.assign(ROUTES, {
           wrap.querySelectorAll('[data-apagar]').forEach((b) => b.onclick = async () => {
             if (!(await uiConfirm('Apagar esta resposta pronta?'))) return;
             await api('/api/whatsapp-instance/quickreplies/' + b.dataset.apagar, { method: 'DELETE' }).catch(() => {});
-            closeModal(); $('#wa-modelos').click();
+            slashCache = null; closeModal(); $('#wa-modelos').click();
           });
           wrap.querySelectorAll('[data-editar-tpl]').forEach((b) => b.onclick = () => {
             const t = tpls.find((x) => x.id == b.dataset.editarTpl);
@@ -1413,7 +1413,7 @@ Object.assign(ROUTES, {
               if (!b2.shortCut || !b2.text) { toast('Preencha o atalho e a mensagem', 'error'); return; }
               try {
                 await api('/api/whatsapp-instance/quickreplies/' + t.id, { method: 'PUT', body: JSON.stringify(b2) });
-                toast('Resposta pronta atualizada'); closeModal(); $('#wa-modelos').click();
+                slashCache = null; toast('Resposta pronta atualizada'); closeModal(); $('#wa-modelos').click();
               } catch (e) { toast(e.message, 'error'); }
             };
             openModal('Editar resposta pronta', ef);
@@ -1422,7 +1422,7 @@ Object.assign(ROUTES, {
             ev.preventDefault();
             const b2 = Object.fromEntries(new FormData(ev.target));
             if (!b2.shortCut || !b2.text) { toast('Preencha o atalho e a mensagem', 'error'); return; }
-            try { await api('/api/whatsapp-instance/quickreplies', { method: 'POST', body: JSON.stringify(b2) }); toast('Resposta pronta salva'); closeModal(); $('#wa-modelos').click(); }
+            try { await api('/api/whatsapp-instance/quickreplies', { method: 'POST', body: JSON.stringify(b2) }); slashCache = null; toast('Resposta pronta salva'); closeModal(); $('#wa-modelos').click(); }
             catch (e) { toast(e.message, 'error'); }
           };
           openModal('Respostas prontas', wrap);
@@ -1534,10 +1534,68 @@ Object.assign(ROUTES, {
         const taTexto = $('#wa-reply [name=text]');
         const ajustarAlturaTexto = () => { taTexto.style.height = 'auto'; taTexto.style.height = Math.min(taTexto.scrollHeight, 120) + 'px'; };
         ajustarAlturaTexto();
-        taTexto.oninput = ajustarAlturaTexto;
+
+        // Atalho "/" na composição: digitar "/algo" logo depois de um espaço
+        // (ou no início da mensagem) sugere as respostas prontas que batem,
+        // sem precisar abrir o menu ⚡ — pedido da auditoria de fluidez do
+        // WhatsApp (usar uma resposta pronta hoje exige abrir modal toda vez).
+        // "http://" não dispara (a barra vem colada, sem espaço antes).
+        let slashCache = null;
+        let slashOpcoes = [];
+        let slashSel = 0;
+        const slashPicker = $('#wa-reply .wa-slash-picker') || (() => {
+          const p = el('<div class="wa-slash-picker" style="display:none"></div>');
+          $('#wa-reply').appendChild(p);
+          return p;
+        })();
+        const nomeParaAtalho = () => (ativo.name.startsWith('+') ? '' : ativo.name).split(' ')[0] || 'cliente';
+        const fecharSlash = () => { slashPicker.style.display = 'none'; slashPicker.innerHTML = ''; slashOpcoes = []; };
+        const pintarSlash = () => {
+          slashPicker.innerHTML = slashOpcoes.map((t, i) => {
+            const sc = t.shortCut || t.shortcut || '';
+            return `<div class="wa-slash-item${i === slashSel ? ' on' : ''}" data-i="${i}"><strong>/${esc(sc)}</strong><span>${esc(String(t.text || ''))}</span></div>`;
+          }).join('');
+          slashPicker.querySelectorAll('.wa-slash-item').forEach((row) => {
+            row.onclick = () => escolherSlash(Number(row.dataset.i));
+            row.onmouseenter = () => { slashSel = Number(row.dataset.i); pintarSlash(); };
+          });
+        };
+        const escolherSlash = (i) => {
+          const t = slashOpcoes[i]; if (!t) return;
+          const val = taTexto.value;
+          const slashIdx = val.lastIndexOf('/');
+          const texto = String(t.text || '').replace(/\{\{nome\}\}/g, nomeParaAtalho());
+          taTexto.value = val.slice(0, slashIdx) + texto;
+          fecharSlash(); ajustarAlturaTexto(); taTexto.focus();
+        };
+        const verificarSlash = async () => {
+          const val = taTexto.value;
+          const slashIdx = val.lastIndexOf('/');
+          if (slashIdx === -1) { fecharSlash(); return; }
+          const antes = val.slice(0, slashIdx);
+          const termo = val.slice(slashIdx + 1);
+          // "/" só conta como atalho começando a linha ou logo após espaço,
+          // e enquanto o termo digitado não tiver espaço (senão já virou texto normal).
+          if (/\s/.test(termo) || (antes && !/\s$/.test(antes))) { fecharSlash(); return; }
+          if (slashCache === null) slashCache = await api('/api/whatsapp-instance/quickreplies').catch(() => []);
+          const t = termo.toLowerCase();
+          slashOpcoes = slashCache.filter((q) => (q.shortCut || q.shortcut || '').toLowerCase().includes(t)).slice(0, 6);
+          slashSel = 0;
+          if (!slashOpcoes.length) { fecharSlash(); return; }
+          slashPicker.style.display = 'block';
+          pintarSlash();
+        };
+        taTexto.oninput = () => { ajustarAlturaTexto(); verificarSlash(); };
         taTexto.onkeydown = (e) => {
+          if (slashOpcoes.length) {
+            if (e.key === 'ArrowDown') { e.preventDefault(); slashSel = Math.min(slashSel + 1, slashOpcoes.length - 1); pintarSlash(); return; }
+            if (e.key === 'ArrowUp') { e.preventDefault(); slashSel = Math.max(slashSel - 1, 0); pintarSlash(); return; }
+            if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) { e.preventDefault(); escolherSlash(slashSel); return; }
+            if (e.key === 'Escape') { e.preventDefault(); fecharSlash(); return; }
+          }
           if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); $('#wa-reply').requestSubmit(); }
         };
+        taTexto.addEventListener('blur', () => setTimeout(fecharSlash, 150));
         $('#wa-reply').onsubmit = async (ev) => {
           ev.preventDefault();
           const inp = $('#wa-reply [name=text]');
