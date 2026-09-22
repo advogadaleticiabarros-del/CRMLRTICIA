@@ -20,6 +20,8 @@ O histórico de correspondente pode ser filtrado por status e por um ou mais pag
 
 Um **parceiro** é alguém (outro advogado ou escritório) que indica clientes ou atua junto em um caso, com um percentual de divisão combinado: honorário de êxito, percentual do parceiro e percentual de sucumbência, cada um pode ter seu próprio valor combinado. Parceiros têm **login próprio** (portal do parceiro) e enxergam só o que é deles: casos em andamento, pendências da produção da peça, valores a receber — nunca os dados de outros clientes/parceiros.
 
+Desde 22/09/2026, a ficha do parceiro também tem um campo de **telefone (WhatsApp)** — cadastrando, o CRM reconhece sozinho quando esse parceiro manda mensagem e etiqueta a conversa como "Parceiro" automaticamente (ver [WhatsApp](03-whatsapp.md#triagem-automática-de-conversa-nova)). Sem o telefone cadastrado, o reconhecimento não funciona pra ele.
+
 ## Repasses
 
 Quando o dinheiro precisa ser **repassado pra fora** (pra quem indicou, por uma audiência feita por correspondente, por diligência) — quatro tipos: indicação, audiência, correspondente, diligência. Status: pendente → processando → repassado (ou cancelado). Cada repasse pode estar ligado a um caso específico, com data de vencimento e histórico de auditoria financeira igual às parcelas.
@@ -45,6 +47,7 @@ Manter isso em módulos próprios (em vez de misturar com as parcelas dos seus p
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Filtro de pagador do Correspondente virou multi-seleção com busca (era `<select multiple>` nativo, exigia Ctrl/Cmd+clique) |
+| 22/09/2026 | Claude | Ficha do parceiro ganha campo de telefone (WhatsApp), usado pra reconhecimento automático de conversa |
 
 ---
 ◀ [Cobrança e parcelas](08-cobranca.md) · [Visão geral](00-visao-geral.md) · Próximo: [Monitoramento automático](10-monitoramento.md) ▶

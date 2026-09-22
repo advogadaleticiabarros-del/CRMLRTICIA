@@ -4,6 +4,7 @@ import { logTimeline } from '../services/TimelineService';
 import { ajustarEntradaParceria } from '../services/partnerEntry';
 import { createProductionFolder } from '../services/DriveService';
 import { slaDiasEfetivosSql, pendenciasAbertasSql } from '../services/productionSla';
+import { normalizePhone } from '../services/whatsappQueue';
 
 const router = Router();
 
@@ -20,9 +21,9 @@ router.post('/', async (req: Request, res: Response) => {
   const b = req.body || {};
   if (!b.name || !String(b.name).trim()) { res.status(400).json({ error: 'O nome do parceiro é obrigatório' }); return; }
   const [r] = await db.query(
-    `INSERT INTO partners (name, success_fee_percent, partner_split_percent, sucumbencia_split_percent, entry_value_single, entry_value_double, entry_split, notes)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [String(b.name).trim(), Number(b.success_fee_percent) || 30, Number(b.partner_split_percent) || 50,
+    `INSERT INTO partners (name, phone, success_fee_percent, partner_split_percent, sucumbencia_split_percent, entry_value_single, entry_value_double, entry_split, notes)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [String(b.name).trim(), normalizePhone(b.phone), Number(b.success_fee_percent) || 30, Number(b.partner_split_percent) || 50,
      Number(b.sucumbencia_split_percent) || 50, Number(b.entry_value_single) || 100, Number(b.entry_value_double) || 130,
      b.entry_split ? 1 : 0, b.notes ?? null]
   ) as any;
@@ -35,6 +36,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   const fields: string[] = []; const params: any[] = [];
   const setIf = (col: string, val: any) => { if (val !== undefined) { fields.push(`${col} = ?`); params.push(val); } };
   setIf('name', b.name?.trim?.());
+  setIf('phone', b.phone !== undefined ? normalizePhone(b.phone) : undefined);
   setIf('success_fee_percent', b.success_fee_percent !== undefined ? Number(b.success_fee_percent) : undefined);
   setIf('partner_split_percent', b.partner_split_percent !== undefined ? Number(b.partner_split_percent) : undefined);
   setIf('sucumbencia_split_percent', b.sucumbencia_split_percent !== undefined ? Number(b.sucumbencia_split_percent) : undefined);

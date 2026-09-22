@@ -103,20 +103,54 @@ async function storeMedia(messageId: string, phone: string, clientId: number | n
 // contato) pra distinguir relato de caso de contato pessoal/engano/spam.
 // Best-effort: se a IA falhar ou não reconhecer nada, segue sem resumo —
 // nunca bloqueia o aviso no sino.
-async function classificarPrimeiraMsg(texto: string): Promise<{ eLead: boolean; nome: string; area: string; resumo: string } | null> {
+async function classificarPrimeiraMsg(texto: string): Promise<{ eLead: boolean; soCumprimento: boolean; nome: string; area: string; resumo: string } | null> {
   try {
     const { aiComplete } = await import('../services/aiAssistant');
     const r = await aiComplete(`Uma pessoa mandou esta mensagem pela 1ª vez no WhatsApp de um escritório de advocacia. Devolva APENAS um JSON válido, sem comentários:
-{"e_lead": true/false, "nome": "nome completo se a pessoa se identificou, senão vazio", "area": "trabalhista|previdenciario|consumidor|familia|gestante|civel|outro|vazio", "resumo": "resumo do caso relatado em até 300 caracteres, ou vazio"}
-"e_lead" é true SÓ se a mensagem parecer um relato de caso jurídico real (alguém pedindo ajuda com um problema). É false se for contato pessoal, colega, engano de número, spam, cumprimento sem contexto, ou mensagem vaga demais pra saber.
+{"e_lead": true/false, "so_cumprimento": true/false, "nome": "nome completo se a pessoa se identificou, senão vazio", "area": "trabalhista|previdenciario|consumidor|familia|gestante|civel|outro|vazio", "resumo": "resumo do caso relatado em até 300 caracteres, ou vazio"}
+"e_lead" é true SÓ se a mensagem parecer um relato de caso jurídico real (alguém pedindo ajuda com um problema).
+"so_cumprimento" é true SÓ se a mensagem for uma saudação sem conteúdo (ex.: "oi", "bom dia", "boa tarde", "olá"), sem relatar caso nem fazer pergunta.
+Se não for nem um caso real nem só cumprimento (contato pessoal, colega, engano de número, spam, mensagem vaga demais), os dois campos ficam false.
 
 MENSAGEM:
 ${texto}`, 'groq');
     if (!r.ok) return null;
     const clean = String(r.text || '').replace(/```json|```/g, '').trim();
     const j = JSON.parse(clean.slice(clean.indexOf('{'), clean.lastIndexOf('}') + 1));
-    return { eLead: !!j.e_lead, nome: j.nome || '', area: j.area || '', resumo: j.resumo || '' };
+    return { eLead: !!j.e_lead, soCumprimento: !!j.so_cumprimento, nome: j.nome || '', area: j.area || '', resumo: j.resumo || '' };
   } catch { return null; }
+}
+
+// Reconhecimento de parceiro/correspondente — determinístico por telefone
+// (não usa IA: mais confiável e sem custo de API do que tentar "adivinhar"
+// pelo texto). Pedido da Dra. Letícia: diferenciar parceiro de cliente/lead
+// sem precisar mover o card no Kanban manualmente pra cada mensagem.
+async function findPartnerPhoneMatch(phone: string): Promise<boolean> {
+  const tail = phone.replace(/\D/g, '').slice(-8);
+  if (tail.length < 8) return false;
+  const [rows] = await db.query(
+    `SELECT id FROM partners
+      WHERE active = 1 AND phone IS NOT NULL
+        AND REPLACE(REPLACE(REPLACE(REPLACE(phone,'(',''),')',''),'-',''),' ','') LIKE ?
+      LIMIT 1`,
+    [`%${tail}`]
+  ) as any;
+  return rows.length > 0;
+}
+
+// Etiqueta "Parceiro" automática — reaproveita o mesmo campo `labels` (JSON)
+// que a tela já filtra e exibe (ver POST /chats/:phone/labels em
+// whatsapp-instance.ts), em vez de criar uma pasta/mecanismo novo só pra isso.
+async function marcarComoParceiro(phone: string): Promise<void> {
+  const [[atual]] = await db.query('SELECT labels FROM whatsapp_chat_meta WHERE phone = ?', [phone]) as any;
+  let labels: string[] = [];
+  try { labels = JSON.parse(atual?.labels || '[]'); } catch { /* mantém vazio */ }
+  if (labels.includes('Parceiro')) return;
+  labels.push('Parceiro');
+  await db.query(
+    `INSERT INTO whatsapp_chat_meta (phone, labels) VALUES (?, ?) ON DUPLICATE KEY UPDATE labels = VALUES(labels)`,
+    [phone, JSON.stringify(labels.slice(0, 6))]
+  );
 }
 
 // Avisa no sino na 1ª mensagem de um número desconhecido — NÃO cria lead
@@ -145,6 +179,18 @@ async function notifyNewWhatsappContact(phone: string, pushName: string | null, 
        ON DUPLICATE KEY UPDATE lead_summary = VALUES(lead_summary), lead_area = VALUES(lead_area), lead_nome = VALUES(lead_nome)`,
       [phone, classificacao!.resumo, classificacao!.area || null, classificacao!.nome || null]
     ).catch(() => {});
+  } else if (classificacao?.soCumprimento) {
+    // Só um "bom dia"/"oi" — marca pra sugerir resposta pronta DENTRO da
+    // conversa (cartão inline, mesmo padrão do alerta de audiência). Nunca
+    // envia sozinho: pedido explícito da Dra. Letícia, ela clica pra mandar.
+    await db.query(
+      `INSERT INTO whatsapp_chat_meta (phone, unread, greeting_only) VALUES (?, 0, 1)
+       ON DUPLICATE KEY UPDATE greeting_only = 1`,
+      [phone]
+    ).catch(() => {});
+    // Caso mais tranquilo de todos — o cartão na própria conversa já resolve,
+    // não precisa também gritar no sino (reduz ruído de notificação).
+    return;
   }
 
   const corpo = pareceLead
@@ -489,7 +535,13 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
          ON DUPLICATE KEY UPDATE unread = unread + 1, push_name = COALESCE(VALUES(push_name), push_name)`,
         [phone, pushName ? pushName.trim().slice(0, 255) : null]).catch(() => {});
 
-      if (!clientId && !respondeuPendencia) {
+      // Parceiro reconhecido pelo telefone tem prioridade sobre a triagem de
+      // lead — não é um contato novo pra converter, é alguém que já manda
+      // caso/audiência pro escritório rotineiramente.
+      const ehParceiro = !clientId && await findPartnerPhoneMatch(phone).catch(() => false);
+      if (ehParceiro) {
+        await marcarComoParceiro(phone).catch(() => {});
+      } else if (!clientId && !respondeuPendencia) {
         await notifyNewWhatsappContact(phone, pushName, String(body).slice(0, 500)).catch(() => {});
         // Não roda pra quem já respondeu uma pendência de botão (não é a
         // mensagem de dados) nem pra quem já é cliente (lead convertido não

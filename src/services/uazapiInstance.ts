@@ -189,6 +189,10 @@ export async function sendText(phone: string, text: string, sentBy?: string, rep
        VALUES (?, ?, ?, 1, ?, NOW(), ?, ?, ?, ?)`,
       [r?.messageid || null, digits, await findClientByPhone(digits), String(text).slice(0, 4000), sentBy || null,
        replyToDbId || null, replySnapshot?.body.slice(0, 500) || null, replySnapshot ? replySnapshot.fromMe : null]).catch(() => {});
+    // Qualquer envio nosso resolve a sugestão de "só cumprimento" (ela
+    // respondeu, seja pela sugestão ou por conta própria) — não precisa mais
+    // aparecer o cartão inline nem esperar um clique de "dispensar".
+    db.query('UPDATE whatsapp_chat_meta SET greeting_only = 0 WHERE phone = ?', [digits]).catch(() => {});
     emitWaUpdate(digits);
     return true;
   } catch (e: any) {

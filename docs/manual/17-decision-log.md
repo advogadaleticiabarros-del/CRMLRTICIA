@@ -16,6 +16,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 22/09/2026 — Reconhecer parceiro por telefone (comparação direta), não por IA
+**Decisão:** a etiqueta automática "Parceiro" numa conversa do WhatsApp vem de comparar o telefone de quem manda mensagem com a ficha de parceiros cadastrados — não de pedir pra uma IA "adivinhar" pelo conteúdo da mensagem.
+**Motivo:** é uma pergunta de identidade (esse número é ou não é de um parceiro conhecido?), não de interpretação — comparação exata é 100% confiável, não custa chamada de IA, e não pode "errar" como uma classificação probabilística poderia. IA entra só onde a pergunta É de interpretação (separar cumprimento de relato de caso, numa mensagem de número desconhecido).
+**Alternativa considerada:** pedir pra IA analisar a mensagem e decidir se "parece" ser de um parceiro — descartada por ser uma solução mais cara e menos confiável pra um problema que já tem resposta exata disponível (o telefone).
+
 ### 04/09/2026 — Documentação passa a ser mantida automaticamente, sem precisar pedir
 **Decisão:** toda mudança de comportamento, correção de bug real ou troca de integração atualiza `docs/manual/` na mesma tarefa — virou regra do `CLAUDE.md`, não depende de a usuária lembrar de pedir.
 **Motivo:** o mesmo dia já tinha mostrado o risco de "documentação/aviso que só existe se alguém lembrar" (ver entrada do Railway abaixo) — a usuária decidiu que o mesmo problema não podia se repetir com a documentação em si.

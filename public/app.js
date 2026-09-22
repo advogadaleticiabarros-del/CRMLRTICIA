@@ -2447,6 +2447,7 @@ const ROUTES = {
         <strong>${esc(p.name)}</strong> · Êxito ${Number(p.success_fee_percent)}% sobre o ganho, dividido ${Number(p.partner_split_percent)}/${100 - Number(p.partner_split_percent)} ·
         Sucumbência ${Number(p.sucumbencia_split_percent)}/${100 - Number(p.sucumbencia_split_percent)} ·
         Entrada R$ ${Number(p.entry_value_single).toFixed(2)} (1 proc.) / R$ ${Number(p.entry_value_double).toFixed(2)} (2 proc.)${Number(p.entry_split) ? ' · dividida' : ' · 100% sua'}
+        ${p.phone ? ` · WhatsApp ${esc(p.phone)}` : ' · <span style="color:var(--gold-deep,#a67a34)">sem telefone cadastrado — conversa não é reconhecida automaticamente</span>'}
         <button class="btn-sm" type="button" id="parc-edit" style="margin-left:8px">Editar parceiro</button></div>`;
       $('#parc-edit').onclick = () => partnerForm(p.id, () => ROUTES.parcerias($('#page')));
       const allCases = await api(`/api/partners/${p.id}/cases`).catch(() => []);
@@ -3933,10 +3934,11 @@ function resultadoForm(caseId, clientName, onSave) {
 
 // Cadastro/edição de parceiro (empresa que indica clientes)
 async function partnerForm(id, onSave) {
-  let p = { name: '', success_fee_percent: 30, partner_split_percent: 50, sucumbencia_split_percent: 50, entry_value_single: 100, entry_value_double: 130, entry_split: 0, notes: '' };
+  let p = { name: '', phone: '', success_fee_percent: 30, partner_split_percent: 50, sucumbencia_split_percent: 50, entry_value_single: 100, entry_value_double: 130, entry_split: 0, notes: '' };
   if (id) { const all = await api('/api/partners').catch(() => []); p = all.find((x) => x.id == id) || p; }
   const form = el(`<form class="form-grid">
-    ${field('Nome do parceiro *', 'name', { value: p.name })}
+    <div class="form-row">${field('Nome do parceiro *', 'name', { value: p.name })}${field('Telefone (WhatsApp)', 'phone', { value: p.phone || '', placeholder: '(27) 99999-9999' })}</div>
+    <small style="color:var(--text-muted);margin-top:-8px">Cadastrando o telefone, o CRM reconhece sozinho quando esse parceiro mandar mensagem no WhatsApp e etiqueta a conversa como "Parceiro".</small>
     <div class="form-row">${field('Êxito (% sobre o ganho)', 'success_fee_percent', { type: 'number', value: p.success_fee_percent })}${field('Fatia do parceiro no êxito (%)', 'partner_split_percent', { type: 'number', value: p.partner_split_percent })}</div>
     <div class="form-row">${field('Divisão da sucumbência (%)', 'sucumbencia_split_percent', { type: 'number', value: p.sucumbencia_split_percent })}${field('Entrada — 1 processo (R$)', 'entry_value_single', { type: 'number', value: p.entry_value_single })}</div>
     <div class="form-row">${field('Entrada — 2 processos (R$)', 'entry_value_double', { type: 'number', value: p.entry_value_double })}${field('A entrada é dividida com o parceiro?', 'entry_split', { options: [{ v: '0', t: 'Não (100% do escritório)' }, { v: '1', t: 'Sim' }] })}</div>
@@ -3949,7 +3951,7 @@ async function partnerForm(id, onSave) {
     const b = Object.fromEntries(new FormData(form));
     if (!b.name.trim()) { toast('Informe o nome do parceiro', 'error'); return; }
     const body = {
-      name: b.name.trim(),
+      name: b.name.trim(), phone: b.phone ? b.phone.trim() : null,
       success_fee_percent: Number(b.success_fee_percent) || 0, partner_split_percent: Number(b.partner_split_percent) || 0,
       sucumbencia_split_percent: Number(b.sucumbencia_split_percent) || 0,
       entry_value_single: Number(b.entry_value_single) || 0, entry_value_double: Number(b.entry_value_double) || 0,

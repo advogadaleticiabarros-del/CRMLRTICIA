@@ -557,6 +557,21 @@ Object.assign(ROUTES, {
         </div>`;
       };
 
+      // Cartão inline de triagem por IA: primeira mensagem de número
+      // desconhecido classificada como "só cumprimento" (bom dia/oi, sem
+      // relatar caso) — sugere responder, nunca envia sozinho (pedido
+      // explícito da Dra. Letícia). Some assim que qualquer mensagem for
+      // enviada pra esse número (ver sendText em uazapiInstance.ts).
+      const cartaoInlineSaudacao = (c) => {
+        if (!c.greeting_only) return '';
+        return `<div class="wa-inline-card">
+          <span class="wa-inline-card-icon">${svgIcon('ia')}</span>
+          <span class="wa-inline-card-txt"><strong>Parece só um cumprimento</strong><br><small>Sugestão: mande uma saudação e peça pra contar o caso.</small></span>
+          <button type="button" class="btn-gold btn-sm" id="wa-inline-saudacao-enviar">Enviar saudação</button>
+          <button type="button" class="btn-icon btn-icon-sm" id="wa-inline-saudacao-dispensar" title="Dispensar sugestão">${svgIcon('x', 'ic-xs')}</button>
+        </div>`;
+      };
+
       // Abas horizontais — 1 botão único por aba, com contador. Refeito a
       // cada renderFiltros() (mesmos pontos de chamada já cobrem todo lugar
       // que muda `chats`, incl. o polling), então os contadores nunca ficam
@@ -1126,6 +1141,7 @@ Object.assign(ROUTES, {
               <button type="button" class="btn-sm" id="wa-carregar-antigas">Carregar mensagens antigas</button>
             </div>
             ${cartaoInlinePendencia(c)}
+            ${cartaoInlineSaudacao(c)}
             ${renderMsgs(msgs)}
           </div>
           <div class="wa-reply-banner" id="wa-reply-banner" style="display:none">
@@ -1516,6 +1532,26 @@ Object.assign(ROUTES, {
         if (cartaoFichaBtn) cartaoFichaBtn.onclick = () => {
           if ($('#wa-shell').classList.contains('ctx-open')) return; // já aberta
           $('#wa-info').click();
+        };
+        const saudacaoEnviarBtn = $('#wa-inline-saudacao-enviar');
+        if (saudacaoEnviarBtn) saudacaoEnviarBtn.onclick = async () => {
+          saudacaoEnviarBtn.disabled = true; saudacaoEnviarBtn.textContent = 'Enviando…';
+          try {
+            const tpls = await api('/api/whatsapp-instance/quickreplies').catch(() => []);
+            const modelo = tpls.find((t) => (t.shortCut || t.shortcut) === 'primeirocontato');
+            const primeiroNome = (ativo.name.startsWith('+') ? '' : ativo.name).split(' ')[0] || '';
+            const texto = modelo
+              ? String(modelo.text || '').replace(/\{\{nome\}\}/g, primeiroNome || 'cliente')
+              : 'Olá! Tudo bem? Recebi sua mensagem e será um prazer entender melhor o seu caso. Me conte, por favor, o que aconteceu.';
+            await api(`/api/whatsapp-instance/chats/${ativo.phone}/send`, { method: 'POST', body: JSON.stringify({ text: texto }) });
+            toast('Saudação enviada'); await atualizar(true);
+          } catch (e) { toast(e.message, 'error'); saudacaoEnviarBtn.disabled = false; saudacaoEnviarBtn.textContent = 'Enviar saudação'; }
+        };
+        const saudacaoDispensarBtn = $('#wa-inline-saudacao-dispensar');
+        if (saudacaoDispensarBtn) saudacaoDispensarBtn.onclick = async () => {
+          try { await api(`/api/whatsapp-instance/chats/${ativo.phone}/dispensar-saudacao`, { method: 'POST', body: '{}' }); }
+          catch { /* best-effort — some da tela mesmo se a chamada falhar */ }
+          await atualizar(true);
         };
         if (window.innerWidth >= 1100) {
           $('#wa-shell').classList.toggle('ctx-open', ctxAberta);

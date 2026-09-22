@@ -201,6 +201,7 @@ router.get('/chats', async (req: Request, res: Response) => {
            MAX(cl.name) AS client_name,
            MAX(m.unread) AS unread,
            MAX(m.labels) AS labels,
+           MAX(m.greeting_only) AS greeting_only,
            MAX(m.push_name) AS push_name,
            MAX(m.pinned) AS pinned,
            MAX(m.archived) AS archived,
@@ -339,6 +340,15 @@ router.post('/chats/:phone/labels', async (req: Request, res: Response) => {
     'INSERT INTO whatsapp_chat_meta (phone, labels) VALUES (?, ?) ON DUPLICATE KEY UPDATE labels = VALUES(labels)',
     [phone, JSON.stringify(labels)]);
   res.json({ success: true, labels });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/dispensar-saudacao ─────────────
+// Fecha o cartão inline de sugestão de saudação sem enviar nada — ela decidiu
+// que não quer responder com o modelo pronto agora.
+router.post('/chats/:phone/dispensar-saudacao', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  await db.query('UPDATE whatsapp_chat_meta SET greeting_only = 0 WHERE phone = ?', [phone]);
+  res.json({ success: true });
 });
 
 // ── POST /api/whatsapp-instance/messages/:id/react — reage com emoji (ou remove) ─
