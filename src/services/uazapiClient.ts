@@ -27,7 +27,13 @@ async function request<T = any>(method: string, path: string, body?: Record<stri
   try { data = text ? JSON.parse(text) : null; } catch { data = text; }
   if (!res.ok) {
     const msg = data?.message || data?.error || `Uazapi HTTP ${res.status}`;
-    throw new Error(msg);
+    const err = new Error(msg) as Error & { status?: number };
+    // Guarda o status HTTP no erro — 463 é o código que a Uazapi usa pra
+    // sinalizar risco de bloqueio/restrição de envio (ver getMessageLimits
+    // acima); sem isso, quem chama só enxerga a mensagem de texto, nunca o
+    // código, e não dá pra distinguir "falha comum" de "risco de banimento".
+    err.status = res.status;
+    throw err;
   }
   return data as T;
 }

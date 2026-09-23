@@ -64,6 +64,35 @@ export async function avisarFalhaEnvioWhatsapp(contexto: string, telefone: strin
   } catch { /* aviso é best-effort — nunca deve derrubar o cron que chamou */ }
 }
 
+/**
+ * Avisa os admins quando a Uazapi devolve HTTP 463 — o código que ela usa pra
+ * sinalizar risco de bloqueio/restrição de envio (ver uazapi.getMessageLimits
+ * em uazapiClient.ts). É um aviso DISTINTO de avisarFalhaEnvioWhatsapp: uma
+ * falha comum de envio é um evento pontual; um 463 é sinal de que o número
+ * pode ser banido pelo WhatsApp se o envio continuar do jeito que está —
+ * merece alerta próprio, não se misturar ao ruído de falhas genéricas.
+ * Mesmo throttle de 30min (por janela), pra não gerar 1 aviso por mensagem
+ * se o bloqueio persistir durante um lote inteiro.
+ */
+export async function avisarRiscoBloqueioWhatsapp(contexto: string): Promise<void> {
+  try {
+    const janela = Math.floor(Date.now() / (30 * 60 * 1000));
+    const [dup] = await db.query(
+      'INSERT IGNORE INTO sent_reminders (ref_key, channel) VALUES (?, ?)',
+      [`wa_risco_bloqueio_${janela}`, 'sino']) as any;
+    if (!dup.affectedRows) return;
+    const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
+    for (const a of admins) {
+      await db.query(
+        `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+         VALUES (?, ?, ?, 'whatsapp_risco_bloqueio', 'sistema', NOW(), 'pendente')`,
+        [a.id, '🚨 Risco de bloqueio do número do WhatsApp',
+         `Contexto: ${contexto}. A Uazapi sinalizou restrição de envio (HTTP 463) — se continuar mandando mensagem no mesmo ritmo, o número pode ser banido pelo WhatsApp. Reduza o envio automático e confira Configurações → Conexão do WhatsApp antes de continuar.`]
+      ).catch(() => {});
+    }
+  } catch { /* aviso é best-effort — nunca deve derrubar o envio que chamou */ }
+}
+
 let autoSend = true;
 let autoTimer: NodeJS.Timeout | null = null;
 
@@ -197,6 +226,7 @@ export async function sendText(phone: string, text: string, sentBy?: string, rep
     return true;
   } catch (e: any) {
     lastError = e?.message || 'Falha ao enviar';
+    if (e?.status === 463) avisarRiscoBloqueioWhatsapp('sendText').catch(() => {});
     return false;
   }
 }

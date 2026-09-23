@@ -177,7 +177,12 @@ async function abrirAuditoriaModal() {
         <div class="kpi"><div class="label">Falhas de envio (7 dias)</div><div class="value ${s.falhas.envio_7d ? 'money' : ''}">${s.falhas.envio_7d}</div></div>
         <div class="kpi"><div class="label">Falhas de transcrição (7 dias)</div><div class="value ${s.falhas.transcricao_7d ? 'money' : ''}">${s.falhas.transcricao_7d}</div></div>
         <div class="kpi"><div class="label">Quedas de conexão (7 dias)</div><div class="value ${s.falhas.conexao_7d ? 'money' : ''}">${s.falhas.conexao_7d}</div></div>
+        <div class="kpi"><div class="label">🚨 Risco de bloqueio do número (7 dias)</div><div class="value" style="${s.falhas.risco_bloqueio_7d ? 'color:var(--red);font-weight:700' : ''}">${s.falhas.risco_bloqueio_7d}</div></div>
       </div>
+      ${s.falhas.risco_bloqueio_7d ? `<div class="card" style="padding:14px 16px;border-left:3px solid var(--red);margin-bottom:16px">
+          <strong style="color:var(--red)">🚨 A Uazapi sinalizou risco de bloqueio do número nos últimos 7 dias.</strong>
+          Reduza o envio automático até confirmar que a situação normalizou — ver "Avisos recentes" abaixo.
+        </div>` : ''}
       ${!s.connected ? `<div class="card" style="padding:14px 16px;border-left:3px solid var(--red);margin-bottom:16px">
           <strong style="color:var(--red)">Instância desconectada.</strong>
           ${s.lastError ? ` Último erro: ${esc(s.lastError)}` : ' Conecte novamente em Configurações → Conexão do WhatsApp.'}

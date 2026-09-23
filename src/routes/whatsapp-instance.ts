@@ -67,7 +67,9 @@ router.get('/status', async (_req: Request, res: Response) => {
 // perde (achado na auditoria de fluxos do WhatsApp). Queda de conexão
 // detectada pelo watchdog (`whatsapp:verificar-conexao`, a cada 20min)
 // também entra em "recentes" via o mesmo mecanismo de `rotina_falhou`.
-const TIPOS_FALHA_WHATSAPP = ['whatsapp_midia_falhou', 'whatsapp_envio_falhou', 'whatsapp_transcricao_falhou', 'whatsapp_webhook_erro'];
+// 23/09/2026: 'whatsapp_risco_bloqueio' (HTTP 463 da Uazapi) entra separado
+// dos demais — não é "falha comum", é sinal de risco de banimento do número.
+const TIPOS_FALHA_WHATSAPP = ['whatsapp_midia_falhou', 'whatsapp_envio_falhou', 'whatsapp_transcricao_falhou', 'whatsapp_webhook_erro', 'whatsapp_risco_bloqueio'];
 
 router.get('/saude', async (_req: Request, res: Response) => {
   const status = await getStatus();
@@ -86,6 +88,8 @@ router.get('/saude', async (_req: Request, res: Response) => {
       SUM(CASE WHEN notification_type = 'whatsapp_transcricao_falhou' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS transcricao_30d,
       SUM(CASE WHEN notification_type = 'whatsapp_webhook_erro' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS webhook_7d,
       SUM(CASE WHEN notification_type = 'whatsapp_webhook_erro' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS webhook_30d,
+      SUM(CASE WHEN notification_type = 'whatsapp_risco_bloqueio' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS risco_bloqueio_7d,
+      SUM(CASE WHEN notification_type = 'whatsapp_risco_bloqueio' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS risco_bloqueio_30d,
       SUM(CASE WHEN notification_type = 'rotina_falhou' AND title LIKE '%whatsapp:verificar-conexao%' AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) AS conexao_7d,
       SUM(CASE WHEN notification_type = 'rotina_falhou' AND title LIKE '%whatsapp:verificar-conexao%' AND created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY) THEN 1 ELSE 0 END) AS conexao_30d
     FROM notifications
@@ -112,6 +116,8 @@ router.get('/saude', async (_req: Request, res: Response) => {
       transcricao_30d: Number(contagens?.transcricao_30d) || 0,
       webhook_7d: Number(contagens?.webhook_7d) || 0,
       webhook_30d: Number(contagens?.webhook_30d) || 0,
+      risco_bloqueio_7d: Number(contagens?.risco_bloqueio_7d) || 0,
+      risco_bloqueio_30d: Number(contagens?.risco_bloqueio_30d) || 0,
       conexao_7d: Number(contagens?.conexao_7d) || 0,
       conexao_30d: Number(contagens?.conexao_30d) || 0,
     },
