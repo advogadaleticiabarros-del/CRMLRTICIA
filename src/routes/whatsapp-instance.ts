@@ -431,6 +431,20 @@ router.get('/chats/:phone', async (req: Request, res: Response) => {
       WHERE w.phone = ? ORDER BY w.msg_time ASC, w.id ASC LIMIT 300`, [phone]) as any;
   for (const r of rows) if (r.media_id) r.media_url = signMediaUrl(`/api/whatsapp-instance/media/${r.media_id}`);
   res.json(rows);
+
+  // LGPD: registra o acesso à conversa (best-effort, não bloqueia) — mesma
+  // trilha de auditoria já usada em clients.ts (ficha_cliente). Achado da
+  // auditoria do módulo WhatsApp (23/09/2026): abrir a ficha de cliente
+  // ficava registrado, abrir a conversa de WhatsApp desse mesmo cliente não.
+  const tail = phone.slice(-8);
+  db.query(
+    `SELECT id FROM clients
+      WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(phone,''),'(',''),')',''),'-',''),' ','') LIKE ? LIMIT 1`,
+    [`%${tail}`]
+  ).then(([cliRows]: any) => import('../services/accessLog').then(({ logAccess }) => logAccess({
+    userId: req.user!.id, userName: req.user!.name,
+    clientId: cliRows[0]?.id ?? null, action: 'conversa_whatsapp', ip: req.ip,
+  }))).catch(() => {});
 });
 
 // ── GET /api/whatsapp-instance/media/:id — arquivo recebido pelo WhatsApp ───

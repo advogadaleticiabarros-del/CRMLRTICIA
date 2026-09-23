@@ -58,6 +58,10 @@ Desde 22/09/2026, uma mensagem de número desconhecido passa por duas checagens 
 1. **É parceiro/correspondente?** — comparação direta pelo telefone (sem IA, mais confiável) contra a ficha de parceiros. Se bater, a conversa ganha a etiqueta **"Parceiro"** automaticamente (mesmo campo de etiquetas que já existia — filtre por ela nos filtros da lista) e não entra na triagem de lead. Só funciona se o parceiro tiver telefone cadastrado — edite a ficha dele em Parcerias pra adicionar.
 2. **Se não é parceiro nem cliente**, a IA classifica a primeira mensagem em três grupos: relato de caso real (já existia — vira possível lead, avisa no sino), **só cumprimento** ("bom dia", "oi", sem contar nada — novo: aparece um cartão dentro da própria conversa sugerindo responder, com um botão "Enviar saudação"; nunca manda sozinho, só sugere), ou sem certeza (comportamento de sempre, sem tentar adivinhar). A sugestão de saudação some assim que qualquer mensagem for enviada pra aquele número, por qualquer via.
 
+## Log de acesso LGPD
+
+Desde 23/09/2026, abrir uma conversa (`GET /chats/:telefone`, a que carrega o histórico de mensagens) registra o acesso — mesmo mecanismo já usado na ficha de cliente (quem acessou, quando, IP), consultável em **Configurações → Log de acesso a dados pessoais (LGPD)**. Antes disso, abrir a ficha de um cliente ficava registrado, mas abrir a conversa de WhatsApp desse mesmo cliente — que pode ter CPF, endereço, relato de caso — não gerava nenhum rastro.
+
 ## Avisos automáticos que chegam por aqui
 
 Vários módulos usam o mesmo canal de WhatsApp pra avisar o escritório: nomeação dativa detectada, sentença/acórdão publicado, movimentação encontrada por e-mail fora do DJEN, falha de conexão/envio. Ver [Monitoramento automático](10-monitoramento.md) para o detalhe de cada um.
@@ -86,6 +90,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 | 03/09/2026 | Claude | Criação do documento |
 | 22/09/2026 | Claude | Fila de envio com prioridade (audiência > avulsa > cobrança); watchdog de conexão a cada 20min; Painel de Saúde ganha falhas de transcrição/webhook/conexão; atalho "/" na composição pra resposta pronta; tabela órfã `whatsapp_templates` removida (4 conteúdos úteis migrados pra lista real); tela do WhatsApp deixa de ter teto de 1200px de largura (achados da auditoria de fluxos) |
 | 22/09/2026 | Claude | Triagem automática de conversa nova: parceiro reconhecido por telefone (etiqueta automática) e IA passa a distinguir "só cumprimento" (sugere resposta, nunca envia sozinha) de relato de caso real |
+| 23/09/2026 | Claude | Abrir uma conversa passa a gerar log de acesso LGPD (achado da auditoria de melhorias do módulo) — antes só a ficha de cliente era registrada |
 
 ---
 ◀ [Leads](02-leads.md) · [Visão geral](00-visao-geral.md) · Próximo: [Processos e prazos](04-processos.md) ▶
