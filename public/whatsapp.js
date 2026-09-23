@@ -1133,6 +1133,7 @@ Object.assign(ROUTES, {
             <button class="btn-ghost btn-sm wa-ficha-btn ${ctxAberta ? 'on' : ''}" id="wa-info" title="Mostrar/ocultar a ficha do contato">👤 Ficha</button>
           </div>
           <div class="wa-digitando" id="wa-digitando" style="display:none">digitando…</div>
+          <div class="wa-digitando" id="wa-staff-typing" style="display:none"></div>
           <div class="wa-search-chat" id="wa-search-chat" style="display:none">
             ${svgIcon('search', 'ic-inline')}
             <input id="wa-busca-chat-input" placeholder="Buscar nesta conversa…" autocomplete="off">
@@ -1626,7 +1627,16 @@ Object.assign(ROUTES, {
           slashPicker.style.display = 'block';
           pintarSlash();
         };
-        taTexto.oninput = () => { ajustarAlturaTexto(); verificarSlash(); };
+        // Avisa a equipe "estou respondendo esta conversa" enquanto digita —
+        // throttle de 4s (não a cada tecla) pra não sobrecarregar o socket.
+        let waStaffTypingUltimoEnvio = 0;
+        const avisarStaffTyping = () => {
+          const agora = Date.now();
+          if (agora - waStaffTypingUltimoEnvio < 4000) return;
+          waStaffTypingUltimoEnvio = agora;
+          api(`/api/whatsapp-instance/chats/${ativo.phone}/staff-typing`, { method: 'POST' }).catch(() => {});
+        };
+        taTexto.oninput = () => { ajustarAlturaTexto(); verificarSlash(); if (taTexto.value.trim()) avisarStaffTyping(); };
         taTexto.onkeydown = (e) => {
           if (slashOpcoes.length) {
             if (e.key === 'ArrowDown') { e.preventDefault(); slashSel = Math.min(slashSel + 1, slashOpcoes.length - 1); pintarSlash(); return; }
@@ -1832,6 +1842,7 @@ Object.assign(ROUTES, {
       // polling (atualizar) em vez de tentar remontar a mensagem à mão —
       // menos código, mesma lógica de dedupe/scroll/trava já testada.
       let waDigitandoTimer = null;
+      let waStaffTypingTimer = null;
       waConectarSocket();
       waOnUpdate = (data) => {
         if (tab !== 'conversas' || !data?.phone) return;
@@ -1843,6 +1854,16 @@ Object.assign(ROUTES, {
             ind.style.display = 'block';
             waDigitandoTimer = setTimeout(() => { ind.style.display = 'none'; }, 6000);
           } else ind.style.display = 'none';
+          return;
+        }
+        if (data.staffTyping) {
+          if (!ativo || ativo.phone !== data.phone) return;
+          if (Number(data.staffTyping.userId) === Number(USER?.id)) return; // sou eu mesma — não avisa de mim mesma
+          const ind = $('#wa-staff-typing'); if (!ind) return;
+          clearTimeout(waStaffTypingTimer);
+          ind.textContent = `${data.staffTyping.userName} está respondendo esta conversa…`;
+          ind.style.display = 'block';
+          waStaffTypingTimer = setTimeout(() => { ind.style.display = 'none'; }, 6000);
           return;
         }
         atualizar(!!(ativo && ativo.phone === data.phone));

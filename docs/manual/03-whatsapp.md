@@ -58,6 +58,10 @@ Desde 22/09/2026, uma mensagem de número desconhecido passa por duas checagens 
 1. **É parceiro/correspondente?** — comparação direta pelo telefone (sem IA, mais confiável) contra a ficha de parceiros. Se bater, a conversa ganha a etiqueta **"Parceiro"** automaticamente (mesmo campo de etiquetas que já existia — filtre por ela nos filtros da lista) e não entra na triagem de lead. Só funciona se o parceiro tiver telefone cadastrado — edite a ficha dele em Parcerias pra adicionar.
 2. **Se não é parceiro nem cliente**, a IA classifica a primeira mensagem em três grupos: relato de caso real (já existia — vira possível lead, avisa no sino), **só cumprimento** ("bom dia", "oi", sem contar nada — novo: aparece um cartão dentro da própria conversa sugerindo responder, com um botão "Enviar saudação"; nunca manda sozinho, só sugere), ou sem certeza (comportamento de sempre, sem tentar adivinhar). A sugestão de saudação some assim que qualquer mensagem for enviada pra aquele número, por qualquer via.
 
+## Quem está respondendo agora
+
+Desde 23/09/2026, se mais de uma pessoa da equipe tiver a mesma conversa aberta, quem começar a digitar uma resposta avisa a outra pessoa em tempo real: aparece "Fulana está respondendo esta conversa…" acima da caixa de mensagem. É só um aviso — não trava a conversa, e cada pessoa continua podendo enviar. O aviso some sozinho depois de alguns segundos sem digitação, e nunca chega ao WhatsApp do cliente (é só entre a equipe, pelo mesmo canal de tempo real já usado pra mensagem nova).
+
 ## Risco de bloqueio do número
 
 Desde 23/09/2026, quando a Uazapi sinaliza risco de bloqueio de envio (erro HTTP 463 — o código que ela usa pra avisar restrição, não um erro comum), o escritório recebe um aviso próprio no sino: **"🚨 Risco de bloqueio do número do WhatsApp"**, separado dos avisos de falha comum de envio. Antes, esse tipo de erro só virava a mesma mensagem genérica de "falha ao enviar" — sem destacar que o risco ali é o número inteiro ser banido pelo WhatsApp, não só aquela mensagem não ter saído. O Painel de Saúde (menu de auditoria da tela) também mostra essa contagem separada, com destaque em vermelho quando houver ocorrência nos últimos 7 dias.
@@ -98,6 +102,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 | 22/09/2026 | Claude | Triagem automática de conversa nova: parceiro reconhecido por telefone (etiqueta automática) e IA passa a distinguir "só cumprimento" (sugere resposta, nunca envia sozinha) de relato de caso real |
 | 23/09/2026 | Claude | Abrir uma conversa passa a gerar log de acesso LGPD (achado da auditoria de melhorias do módulo) — antes só a ficha de cliente era registrada |
 | 23/09/2026 | Claude | Aviso próprio (🚨) quando a Uazapi sinaliza risco de bloqueio do número (HTTP 463) — antes virava a mesma mensagem genérica de falha de envio, sem destacar o risco de banimento |
+| 23/09/2026 | Claude | Aviso ao vivo de "Fulana está respondendo esta conversa" entre a equipe — antes duas pessoas podiam responder o mesmo cliente ao mesmo tempo sem saber |
 
 ---
 ◀ [Leads](02-leads.md) · [Visão geral](00-visao-geral.md) · Próximo: [Processos e prazos](04-processos.md) ▶

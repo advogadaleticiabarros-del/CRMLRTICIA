@@ -9,6 +9,7 @@ import {
   configurarMensagensEfemeras, solicitarHistoricoAntigo, listarRespostasRapidas, salvarRespostaRapida, excluirRespostaRapida,
 } from '../services/uazapiInstance';
 import { uazapi } from '../services/uazapiClient';
+import { emitWaUpdate } from '../services/waSocket';
 import { stripDataUrlPrefix } from '../utils/dataUrl';
 import { buscarExpediente, buscarEventosExistentes, hojeStrBrasilia, addDaysToDateStr } from './agenda-public';
 import { calcularSlotsDisponiveis } from '../services/agendaSlots';
@@ -402,6 +403,22 @@ router.post('/chats/:phone/notes', async (req: Request, res: Response) => {
 router.post('/chats/:phone/presence', async (req: Request, res: Response) => {
   const tipo = req.body?.tipo === 'recording' ? 'recording' : 'composing';
   await enviarPresenca(String(req.params.phone), tipo, req.body?.delay ? Number(req.body.delay) : undefined);
+  res.json({ success: true });
+});
+
+// ── POST /api/whatsapp-instance/chats/:phone/staff-typing — "Fulana está
+// respondendo esta conversa" ENTRE A EQUIPE (nunca chega ao WhatsApp do
+// contato — é só um aviso ao vivo pra outra pessoa da equipe não responder
+// a mesma pessoa ao mesmo tempo sem saber). Achado da auditoria do módulo
+// WhatsApp (23/09/2026): hoje qualquer atendente pode abrir e responder
+// qualquer conversa, sem nenhum aviso de "alguém já está respondendo esta".
+// Puramente efêmero — mesmo padrão do indicador de "digitando…" do contato
+// (whatsapp-webhook.ts, evento de presence): transmite via Socket.IO e não
+// grava nada no banco.
+router.post('/chats/:phone/staff-typing', async (req: Request, res: Response) => {
+  emitWaUpdate(String(req.params.phone).replace(/\D/g, ''), {
+    staffTyping: { userId: req.user!.id, userName: req.user!.name },
+  });
   res.json({ success: true });
 });
 
