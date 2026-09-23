@@ -26,6 +26,10 @@ Integração com o Asaas permite gerar cobrança por Pix/cartão e conciliar o r
 
 Dá pra importar o extrato do banco (arquivo OFX, exportado direto no site do banco) e o sistema casa cada crédito recebido com uma parcela: se já tinha baixa registrada perto da mesma data, marca como **conferido**; se achou uma parcela pendente com o mesmo valor, marca como **sugestão** de baixa esquecida; o que sobra fica listado como **sem correspondência**, pra revisão manual.
 
+## Meta do mês
+
+A Visão Geral mostra uma barra de progresso "Meta do mês" (recebido × meta, %, contratos fechados no mês) — vem de `GET /api/goals/current` (`src/services/goalsService.ts`), o mesmo motor usado pelo briefing matinal. A meta **sobe 10% sozinha** no mês seguinte sempre que a meta do mês anterior é batida (regime de caixa — conta o que foi *recebido*, não o que foi contratado); se você editar a meta manualmente em Configurações, isso é respeitado (`source='manual'`) até o próximo mês recalcular. Editar a meta em Configurações atualiza as duas fontes ao mesmo tempo (desde 22/09/2026 — antes só atualizava `office_settings`, e a Visão Geral e o briefing podiam mostrar percentuais diferentes pro mesmo dia).
+
 ## Painel de destaque (Financeiro → Visão geral)
 
 O topo da tela mostra 4 números grandes, de relance, sem precisar rolar: **resultado do mês** (já realizado), **previsão fechada do mês**, **a receber nos próximos 30 dias** e **projeção acumulada de 90 dias**. Adicionado 04/09/2026 — os dados já existiam espalhados em blocos de KPI mais abaixo na mesma tela; isso só resume os 4 que mais importam pra decisão do dia a dia, antes de qualquer outro detalhe.
@@ -66,6 +70,7 @@ O sistema calcula inadimplência automaticamente e permite renegociar uma parcel
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Adicionado painel de destaque no topo da Visão Geral — resultado do mês, previsão, a receber 30d, projeção 90d |
 | 22/09/2026 | Claude | Unificadas as 3 contas de "Inadimplência" que podiam divergir (Cockpit, topo do Financeiro, aging) — todas usam `getFinanceSummary()`; a 4ª (fila de cobrança) mantém escopo próprio (só parcelas de cliente) de propósito, e recalcula sozinha todo dia às 6h50 |
+| 23/09/2026 | Claude | "Meta do mês" da Visão Geral unificada com o motor real (`getGoalProgress()`) — antes calculava do zero a partir de `office_settings` + projeção de caixa, podendo divergir do que o briefing matinal mostrava para o mesmo dia |
 
 ---
 ◀ [Agenda](07-agenda.md) · [Visão geral](00-visao-geral.md) · Próximo: [Repasses e parcerias](09-repasses.md) ▶

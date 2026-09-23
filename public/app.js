@@ -1704,6 +1704,13 @@ const ROUTES = {
           multa_percent: $('#os-multa').value, juros_mes_percent: $('#os-juros').value,
           meta_faturamento_mes: $('#os-meta').value, google_review_url: $('#os-review').value,
           briefing_whatsapp: $('#os-briefing-whats').value }) });
+        // A meta do mês tem uma 2ª fonte (monthly_goals, com aumento de 10%
+        // automático ao bater o mês) que só sincroniza com office_settings
+        // quando passa por aqui — sem isto, editar a meta nesta tela não
+        // atualizava o número que a Visão Geral do Financeiro e o briefing
+        // matinal realmente usam (achado da pesquisa de 22/09/2026).
+        const metaVal = Number($('#os-meta').value);
+        if (metaVal > 0) await api('/api/goals/current', { method: 'PUT', body: JSON.stringify({ target: metaVal }) }).catch(() => {});
         toast('Configurações do escritório salvas');
       } catch (e) { toast(e.message, 'error'); }
     };
@@ -4656,19 +4663,24 @@ async function dashParceriaMensal(c) {
 async function finVisaoGeral(c) {
   const s = await api('/api/financial/summary');
   const proj = await api('/api/dashboards/financeiro/projecao-mes');
-  const [cx, origem, os] = await Promise.all([
+  const [cx, origem, goal] = await Promise.all([
     api('/api/financial/projecao').catch(() => null),
     api('/api/financial/receita-origem').catch(() => null),
-    api('/api/office-settings').catch(() => ({})),
+    // GET /api/goals/current é a MESMA conta usada pelo briefing matinal
+    // (getGoalProgress(), inclui o aumento automático de 10% ao bater o mês
+    // anterior) — antes esta tela calculava meta/recebido do zero a partir
+    // de office_settings + projeção de caixa, um número que podia divergir
+    // do que chegava no briefing das 7h (achado da pesquisa de 22/09/2026).
+    api('/api/goals/current').catch(() => null),
   ]);
-  const meta = Number(os.meta_faturamento_mes) || 0;
-  const recebidoMes = Number(proj.entrada_realizado) || 0;
+  const meta = Number(goal?.target) || 0;
+  const recebidoMes = Number(goal?.current) || 0;
   const pctMeta = meta ? Math.min(100, Math.round((recebidoMes / meta) * 100)) : 0;
   const metaHtml = meta ? `
     <div class="card" style="padding:16px 18px;margin:14px 0">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;align-items:baseline">
         <strong style="color:var(--navy)">Meta do mês</strong>
-        <span style="font-size:13px">${money(recebidoMes)} de ${money(meta)} · <strong style="color:${pctMeta >= 100 ? 'var(--green)' : 'var(--navy-deep)'}">${pctMeta}%</strong>${pctMeta >= 100 ? '' : ''}</span>
+        <span style="font-size:13px">${money(recebidoMes)} de ${money(meta)} · <strong style="color:${pctMeta >= 100 ? 'var(--green)' : 'var(--navy-deep)'}">${pctMeta}%</strong>${goal?.contratos_fechados_mes ? ` · ${goal.contratos_fechados_mes} contrato${goal.contratos_fechados_mes > 1 ? 's' : ''} fechado${goal.contratos_fechados_mes > 1 ? 's' : ''} no mês` : ''}</span>
       </div>
       <div style="height:10px;background:var(--surface);border:1px solid var(--border);border-radius:6px;margin-top:10px;overflow:hidden">
         <div style="height:100%;width:${pctMeta}%;background:${pctMeta >= 100 ? 'var(--green)' : 'var(--gold)'};transition:width .4s"></div>
