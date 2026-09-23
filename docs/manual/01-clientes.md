@@ -37,7 +37,7 @@ Antes de cadastrar alguém novo, o sistema pode checar o nome/CPF contra: client
 
 ## LGPD
 
-Todo acesso à ficha completa de um cliente é registrado (quem acessou, quando) — não é visível na tela, é um log interno de auditoria.
+Todo acesso à ficha completa de um cliente ou processo é registrado (quem acessou, quando, IP) — grava sozinho, sem precisar de nenhuma ação de quem está usando o sistema. Desde 23/09/2026 dá pra consultar em **Configurações → Log de acesso a dados pessoais (LGPD)**: total de registros, acessos hoje, ranking por pessoa, e uma busca por nome de cliente. Antes desse painel, só dava pra ver rodando SQL direto no banco — os dados já vinham sendo gravados desde bem antes (migration 059), só não existia tela pra consultar.
 
 ## FAQ
 
@@ -57,6 +57,7 @@ Todo acesso à ficha completa de um cliente é registrado (quem acessou, quando)
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
+| 23/09/2026 | Claude | Log de acesso LGPD ganha tela própria em Configurações (antes só existia gravação, sem consulta) |
 
 ---
 ◀ [Dashboard](00c-dashboard.md) · [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶

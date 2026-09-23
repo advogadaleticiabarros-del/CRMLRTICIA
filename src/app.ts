@@ -56,6 +56,7 @@ import pecaModelosRoutes from './routes/pecaModelos';
 import jobHealthRoutes from './routes/jobHealth';
 import retentionRoutes from './routes/retention';
 import securityStatusRoutes from './routes/securityStatus';
+import accessLogsRoutes from './routes/accessLogs';
 import aiRoutes from './routes/ai';
 import automationRoutes from './routes/automation';
 import pushRoutes from './routes/push';
@@ -214,6 +215,7 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.use('/api/job-health',            authenticate, requireStaff, jobHealthRoutes);
   app.use('/api/retention',             authenticate, requireAdmin, retentionRoutes);
   app.use('/api/security',              authenticate, requireAdmin, securityStatusRoutes);
+  app.use('/api/access-logs',           authenticate, requireAdmin, accessLogsRoutes);
   app.use('/api/ai',                    authenticate, requireStaff, aiRoutes);
   app.use('/api/dashboards/cockpit',    authenticate, requireStaff, cockpitDashboard);
   app.use('/api/dashboards/relatorio-mensal', authenticate, requireStaff, relatorioMensalDashboard);

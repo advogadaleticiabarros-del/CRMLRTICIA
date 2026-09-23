@@ -1595,6 +1595,15 @@ const ROUTES = {
 
       <div class="card" style="padding:20px;margin-bottom:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div><h3 style="color:var(--navy);margin-bottom:2px">${svgIcon('shield','ic-title')}Log de acesso a dados pessoais (LGPD)</h3>
+            <p class="sub" style="margin:0">Quem abriu a ficha de qual cliente/processo, e quando — grava sozinho a cada acesso</p></div>
+          <button class="btn-sm" id="acl-reload">Atualizar</button>
+        </div>
+        <div id="acl-status" style="margin-top:14px"><div class="spinner"></div></div>
+      </div>
+
+      <div class="card" style="padding:20px;margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div><h3 style="color:var(--navy);margin-bottom:2px">${svgIcon('clock','ic-title')}Saúde das rotinas automáticas</h3>
             <p class="sub" style="margin:0">Prazos, backup, financeiro e sincronizações — descubra a falha antes de sentir o sintoma</p></div>
           <button class="btn-sm" id="job-reload">Atualizar</button>
@@ -1959,6 +1968,52 @@ const ROUTES = {
     };
     $('#sec-reload').onclick = loadSeguranca;
     loadSeguranca();
+
+    // ── Log de acesso LGPD: quem abriu a ficha de qual cliente/processo ──────
+    // A tabela já era gravada desde a migration 059, mas não existia tela
+    // nenhuma pra consultar (achado da pesquisa de 22/09/2026) — só dava pra
+    // ver rodando SQL direto no banco.
+    const ACL_ACAO_PT = { ficha_cliente: 'Abriu ficha de cliente', ficha_processo: 'Abriu ficha de processo' };
+    const loadAcessos = async () => {
+      const box = $('#acl-status'); if (!box) return;
+      try {
+        const stats = await api('/api/access-logs/stats');
+        const porUsuario = (stats.por_usuario || []).map((u) => `<div class="mini-row" style="padding:5px 0"><span>${esc(u.user_name || '—')}</span><strong>${u.qtd}</strong></div>`).join('');
+        box.innerHTML = `
+          <div class="kpi-grid" style="margin-bottom:12px">
+            ${kpi('Registros no total', stats.total_registros || 0)}${kpi('Acessos hoje', stats.acessos_hoje || 0)}
+          </div>
+          ${porUsuario ? `<div style="margin-bottom:12px"><strong style="font-size:12.5px;color:var(--navy)">Por pessoa</strong>${porUsuario}</div>` : ''}
+          <div class="toolbar" style="margin-bottom:0">
+            <input id="acl-busca-cliente" placeholder="Filtrar por nome do cliente…" style="max-width:260px">
+            <button class="btn-sm" id="acl-buscar">Filtrar</button>
+          </div>
+          <div id="acl-table" style="margin-top:10px"></div>`;
+
+        const loadTable = async (clienteNome) => {
+          const params = { limit: '30' };
+          if (clienteNome) params.client_name = clienteNome;
+          const r = await api('/api/access-logs?' + new URLSearchParams(params));
+          const rows = r.data || [];
+          $('#acl-table').innerHTML = rows.length ? `
+            <table><thead><tr><th>Data/hora</th><th>Quem acessou</th><th>O quê</th><th>IP</th></tr></thead>
+            <tbody>${rows.map((a) => `<tr>
+              <td><small>${fmtDateTime(a.created_at)}</small></td>
+              <td>${esc(a.user_name || '—')}</td>
+              <td>${badge(ACL_ACAO_PT[a.action] || a.action)} ${a.client_name ? esc(a.client_name) : (a.case_title ? esc(a.case_title) : '')}</td>
+              <td><small style="color:var(--text-muted)">${esc(a.ip || '—')}</small></td></tr>`).join('')}</tbody></table>
+            <div style="padding:10px 4px;color:var(--text-muted);font-size:12.5px">${r.total} registro(s)${r.total > rows.length ? ' · mostrando os ' + rows.length + ' mais recentes' : ''}</div>`
+            : '<div class="empty">Nenhum acesso registrado ainda.</div>';
+        };
+        $('#acl-buscar').onclick = () => loadTable($('#acl-busca-cliente').value);
+        $('#acl-busca-cliente').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); loadTable($('#acl-busca-cliente').value); } };
+        await loadTable('');
+      } catch (e) {
+        box.innerHTML = `<div class="empty">${esc(e.message || 'Erro ao carregar o log de acesso')}</div>`;
+      }
+    };
+    $('#acl-reload').onclick = loadAcessos;
+    loadAcessos();
 
     // ── Saúde das rotinas automáticas ────────────────────────────────────────
     const loadJobs = async () => {
