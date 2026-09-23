@@ -16,6 +16,12 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 23/09/2026 — Não usar o Laya (motor de decisão local) para triagem de WhatsApp/qualificação de lead
+**Decisão:** pesquisado o projeto [Laya](https://github.com/NandhaKishorM/laya) (motor de classificação local, sem chamada de IA externa) para dois usos possíveis — qualificar lead automaticamente e separar "só cumprimento" de "relato de caso real" na primeira mensagem do WhatsApp — e decidido **não integrar**, mantendo os dois fluxos como estão hoje (Groq/Gemini via API).
+**Motivo:** rodar o Laya de verdade não é só "chamar uma função nova" — exige instalar Python na VPS e manter um segundo serviço rodando o tempo todo (`laya-serve`), carregando um modelo de ~600MB-1,6GB em memória, porque os pesos publicados são só PyTorch (sem versão `.onnx` pronta que o Node pudesse carregar direto). Isso é infraestrutura nova (mais um processo pra monitorar, mais RAM ocupada na VPS, mais uma peça que pode quebrar) por um ganho pequeno: o benefício do Laya é velocidade bruta (~33ms contra as poucas centenas de milissegundos do Groq hoje), mas isso não é um problema real — ninguém espera esse tempo, é processamento em segundo plano. Some a isso o projeto ser recente e mantido por uma pessoa só (o próprio README admite que o empacotamento pra Node/TypeScript é "não testado").
+**Alternativa considerada:** manter os dois fluxos como já funcionam (Groq pra triagem rápida, Gemini como reserva) — mantida, por já resolver o problema sem custo de manutenção adicional.
+**Quando reconsiderar:** se o volume de mensagens/leads crescer o suficiente para o custo das chamadas de IA externas pesar de forma relevante no orçamento, ou se o Laya publicar pesos `.onnx` prontos (removendo a necessidade do serviço Python separado).
+
 ### 23/09/2026 — Reimportar peças do Obsidian pelo seletor de pasta do navegador, não por sincronização automática de arquivos
 **Decisão:** o botão "Importar do Obsidian…" em Configurações usa `<input type="file" webkitdirectory>` — a Dra. Letícia escolhe a pasta manualmente cada vez, em vez de o CRM enxergar o cofre sozinho e sincronizar em segundo plano.
 **Motivo:** o servidor do CRM roda na VPS Hostinger; o cofre Obsidian vive no computador dela. Não existe caminho de rede entre os dois sem um serviço de sincronização de arquivos (Dropbox/OneDrive/rclone) rodando nos dois lados — infraestrutura nova, ponto a mais pra quebrar, e ela teria que configurar e manter. O seletor de pasta resolve o mesmo problema (parar de depender de terminal/SSH) sem exigir nenhuma peça de infraestrutura nova: ela clica, escolhe a pasta de sempre, o navegador já dá acesso a todos os arquivos daquela pasta pro JavaScript ler.
@@ -78,6 +84,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | Data | Autor | Mudança |
 |---|---|---|
 | 04/09/2026 | Claude | Criação do documento — 8 decisões registradas |
+| 23/09/2026 | Claude | Registrada decisão de não integrar o Laya (motor de decisão local) — custo de infraestrutura (serviço Python separado na VPS) maior que o ganho (velocidade que ninguém sente) frente ao Groq/Gemini já em uso |
 
 ---
 ◀ [Ferramentas e acessos](16-ferramentas-acessos.md) · [Visão geral](00-visao-geral.md)
