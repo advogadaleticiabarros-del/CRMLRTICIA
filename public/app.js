@@ -1612,6 +1612,17 @@ const ROUTES = {
       </div>
 
       <div class="card" style="padding:20px;margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
+          <div><h3 style="color:var(--navy);margin-bottom:2px">${svgIcon('file','ic-title')}Biblioteca de modelos de peça (IA)</h3>
+            <p class="sub" style="margin:0">Reimporte direto do cofre Obsidian quando adicionar ou editar um modelo — sem terminal</p></div>
+          <button class="btn-gold btn-sm" id="pm-importar">Importar do Obsidian…</button>
+        </div>
+        <div id="pm-resumo" style="margin-top:14px"><div class="spinner"></div></div>
+        <input type="file" id="pm-folder-picker" webkitdirectory multiple hidden>
+        <div id="pm-progresso" style="margin-top:12px"></div>
+      </div>
+
+      <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:12px">Minha conta</h3>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
           <button class="btn-sm" id="change-pwd">Trocar minha senha</button>
@@ -2014,6 +2025,46 @@ const ROUTES = {
     };
     $('#acl-reload').onclick = loadAcessos;
     loadAcessos();
+
+    // ── Biblioteca de modelos de peça — reimportar do Obsidian ───────────────
+    const loadResumoPecas = async () => {
+      const box = $('#pm-resumo'); if (!box) return;
+      try {
+        const r = await api('/api/peca-modelos/resumo');
+        const porArea = (r.por_area || []).map((a) => `${a.area || 'sem área'} (${a.n})`).join(' · ');
+        box.innerHTML = `<div class="kpi-grid" style="margin-bottom:6px">
+            ${kpi('Modelos na biblioteca', r.total || 0)}${kpi('Última atualização', r.ultima_atualizacao ? fmtDate(r.ultima_atualizacao) : '—')}
+          </div>
+          ${porArea ? `<small style="color:var(--text-muted)">${esc(porArea)}</small>` : ''}`;
+      } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    };
+    loadResumoPecas();
+    $('#pm-importar').onclick = () => $('#pm-folder-picker').click();
+    $('#pm-folder-picker').onchange = async (e) => {
+      const files = Array.from(e.target.files || []);
+      const btn = $('#pm-importar');
+      const log = $('#pm-progresso');
+      if (!files.length) return;
+      btn.disabled = true; btn.textContent = 'Importando…';
+      log.innerHTML = '<div class="sub" style="margin-bottom:6px">Lendo a pasta selecionada — cada ficha é enviada e processada uma de cada vez (extrai o texto do .docx e calcula o índice de significado pra IA achar o modelo certo depois).</div><div id="pm-log"></div>';
+      const linhas = [];
+      const pintar = () => { $('#pm-log').innerHTML = linhas.join(''); $('#pm-log').scrollTop = $('#pm-log').scrollHeight; };
+      try {
+        const resultado = await importarFichasObsidian(files, (p) => {
+          const icone = p.status === 'ok' ? '✔' : p.status === 'ok-sem-docx' ? '⚠' : p.status === 'falha' ? '✗' : '…';
+          const cor = p.status === 'falha' ? 'var(--red)' : p.status === 'ok-sem-docx' ? 'var(--amber,#a67626)' : 'var(--text-muted)';
+          linhas[p.atual - 1] = `<div style="font-size:12px;color:${cor}">${icone} (${p.atual}/${p.total}) ${esc(p.titulo)}${p.erro ? ' — ' + esc(p.erro) : ''}</div>`;
+          pintar();
+        });
+        toast(`Importação concluída: ${resultado.ok} de ${resultado.total} fichas${resultado.falhas ? `, ${resultado.falhas} falha(s)` : ''}`);
+        await loadResumoPecas();
+      } catch (err) {
+        toast(err.message, 'error');
+      } finally {
+        btn.disabled = false; btn.textContent = 'Importar do Obsidian…';
+        $('#pm-folder-picker').value = '';
+      }
+    };
 
     // ── Saúde das rotinas automáticas ────────────────────────────────────────
     const loadJobs = async () => {
@@ -8060,6 +8111,87 @@ function readFileAsDataUrl(file) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+// ── Biblioteca de peças — reimportar direto do cofre Obsidian, sem terminal ──
+// Mesma lógica de scripts/import-pecas-obsidian.mjs (frontmatter da ficha +
+// docx vinculado), só que lendo os arquivos que o navegador dá acesso via
+// seletor de pasta, em vez do sistema de arquivos do servidor (o servidor
+// roda na VPS — nunca teria como ver o cofre no computador dela sozinho).
+
+// Mesmo parser de frontmatter do script (chave: valor | chave: [a, b] | chave: "...").
+function parseFichaFrontmatter(md) {
+  const m = String(md || '').match(/^---\r?\n([\s\S]*?)\r?\n---/);
+  if (!m) return {};
+  const out = {};
+  for (const linha of m[1].split(/\r?\n/)) {
+    const kv = linha.match(/^([a-z_]+):\s*(.*)$/i);
+    if (!kv) continue;
+    let v = kv[2].trim();
+    if (v.startsWith('[') && v.endsWith(']')) {
+      v = v.slice(1, -1).split(',').map((x) => x.trim().replace(/^["'[]+|["'\]]+$/g, '')).filter(Boolean);
+    } else {
+      v = v.replace(/^["']|["']$/g, '');
+    }
+    out[kv[1].toLowerCase()] = v;
+  }
+  return out;
+}
+
+// A partir da FileList de um <input webkitdirectory>, acha toda ficha .md
+// dentro de uma pasta "Fichas/" (direto na raiz ou dentro de subpastas de
+// área, ex.: "Trabalhista/Fichas/") — mesma detecção de acharVaults() no
+// script. Devolve cada ficha com o diretório do "cofre" (onde o .docx
+// citado no frontmatter mora, irmão da própria pasta Fichas).
+function encontrarFichasNaPasta(fileList) {
+  const porCaminho = new Map();
+  for (const f of fileList) porCaminho.set(f.webkitRelativePath, f);
+  const fichas = [];
+  for (const f of fileList) {
+    const rel = f.webkitRelativePath || '';
+    const idx = rel.indexOf('/Fichas/');
+    if (idx === -1 || !rel.endsWith('.md')) continue;
+    fichas.push({ file: f, vaultDir: rel.slice(0, idx), nomeArquivo: rel.slice(idx + '/Fichas/'.length) });
+  }
+  return { fichas, porCaminho };
+}
+
+// Processa e envia uma ficha por vez pro backend (POST /import-ficha) —
+// sequencial de propósito: dá progresso visível item a item, e uma falha
+// isolada (docx corrompido, ficha sem frontmatter) não derruba as outras.
+async function importarFichasObsidian(fileList, onProgresso) {
+  const { fichas, porCaminho } = encontrarFichasNaPasta(fileList);
+  let ok = 0, semDocx = 0, falhas = 0;
+  for (let i = 0; i < fichas.length; i++) {
+    const f = fichas[i];
+    const titulo = f.nomeArquivo.replace(/\.md$/, '');
+    onProgresso({ atual: i + 1, total: fichas.length, titulo, status: 'processando' });
+    try {
+      const md = await f.file.text();
+      const fm = parseFichaFrontmatter(md);
+      const docxNome = String(fm.arquivo || '').replace(/[\[\]"]/g, '').trim();
+      let docxBase64 = null;
+      if (docxNome) {
+        const docxFile = porCaminho.get(`${f.vaultDir}/${docxNome}`);
+        if (docxFile) docxBase64 = await readFileAsDataUrl(docxFile);
+        else semDocx++;
+      } else semDocx++;
+      await api('/api/peca-modelos/import-ficha', {
+        method: 'POST',
+        body: JSON.stringify({
+          external_key: titulo, titulo, area: fm.area || null, assunto: fm.assunto || null,
+          tipo: fm.tipo || null, rito: fm.rito || null, teses: fm.teses || null, fundamentos: fm.fundamentos || null,
+          docx_base64: docxBase64,
+        }),
+      });
+      ok++;
+      onProgresso({ atual: i + 1, total: fichas.length, titulo, status: docxBase64 ? 'ok' : 'ok-sem-docx' });
+    } catch (e) {
+      falhas++;
+      onProgresso({ atual: i + 1, total: fichas.length, titulo, status: 'falha', erro: e.message });
+    }
+  }
+  return { total: fichas.length, ok, semDocx, falhas };
 }
 
 function loadImageEl(file) {

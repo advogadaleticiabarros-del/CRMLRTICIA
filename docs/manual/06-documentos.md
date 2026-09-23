@@ -31,7 +31,17 @@ Documentos podem ser enviados pra assinatura eletrônica direto pelo sistema, co
 
 ## Modelos de peça (banco de modelos do escritório)
 
-Além dos templates de preenchimento automático, existe um banco de modelos de peça por área jurídica — a IA busca o modelo mais adequado ao caso na hora de montar uma minuta, em vez de escrever do zero toda vez.
+Além dos templates de preenchimento automático, existe um banco de modelos de peça por área jurídica (`peca_modelos`) — a IA busca o modelo mais adequado ao caso na hora de montar uma minuta (por significado, quando o modelo já tem "índice" calculado; por palavra-chave do assunto/título, senão), em vez de escrever do zero toda vez. 176 modelos hoje, a maioria trabalhista.
+
+### De onde vêm os modelos — e como atualizar (desde 23/09/2026)
+
+Os modelos são escritos e organizados no **cofre Obsidian** da Dra. Letícia (pasta "Modelos de Peças" — uma ficha `.md` por modelo, com o texto de verdade num `.docx` vinculado). **A IA nunca lê o Obsidian ao vivo** — ela lê uma cópia guardada no banco de dados, que só é atualizada quando alguém reimporta.
+
+Duas formas de reimportar depois de criar/editar um modelo no Obsidian:
+- **Pelo CRM (recomendado, sem terminal):** Configurações → card "Biblioteca de modelos de peça (IA)" → **Importar do Obsidian…** — escolhe a pasta "Modelos de Peças" no seletor do navegador, e o próprio CRM lê cada ficha, extrai o texto do `.docx` e recalcula o índice de significado, uma peça de cada vez (com barra de progresso).
+- **Por script (technical, se precisar de algo fora do normal):** `node scripts/import-pecas-obsidian.mjs "<caminho do cofre>" "<mysql-url>"`, rodando de onde o cofre e o banco estejam acessíveis.
+
+As duas formas são idempotentes (identificam o modelo pelo nome do arquivo — reimportar não duplica, só atualiza).
 
 ### Contrato padrão fixo — Família, pensão alimentícia
 
@@ -63,6 +73,7 @@ Outras causas de família (divórcio, guarda isolada, inventário) continuam no 
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Adicionada seção "Esteira de produção" — corrige entendimento: "Concluído" é a peça protocolada, não o caso encerrado |
 | 18/09/2026 | Claude | Novo padrão fixo de 19 cláusulas pra contratos de família/pensão alimentícia (`buildTemplateFamiliaPensao`), roteado automaticamente quando área = família e tipo de causa contém "pensão" |
+| 23/09/2026 | Claude | Botão "Importar do Obsidian…" em Configurações — reimporta a biblioteca de modelos de peça sem terminal/SSH (antes só dava pra atualizar rodando o script manualmente; editar um modelo no Obsidian não chegava na IA sozinho) |
 
 ---
 ◀ [Dativo](05-dativo.md) · [Visão geral](00-visao-geral.md) · Próximo: [Agenda e compromissos](07-agenda.md) ▶

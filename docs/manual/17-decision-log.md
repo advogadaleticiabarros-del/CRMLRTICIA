@@ -16,6 +16,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 23/09/2026 — Reimportar peças do Obsidian pelo seletor de pasta do navegador, não por sincronização automática de arquivos
+**Decisão:** o botão "Importar do Obsidian…" em Configurações usa `<input type="file" webkitdirectory>` — a Dra. Letícia escolhe a pasta manualmente cada vez, em vez de o CRM enxergar o cofre sozinho e sincronizar em segundo plano.
+**Motivo:** o servidor do CRM roda na VPS Hostinger; o cofre Obsidian vive no computador dela. Não existe caminho de rede entre os dois sem um serviço de sincronização de arquivos (Dropbox/OneDrive/rclone) rodando nos dois lados — infraestrutura nova, ponto a mais pra quebrar, e ela teria que configurar e manter. O seletor de pasta resolve o mesmo problema (parar de depender de terminal/SSH) sem exigir nenhuma peça de infraestrutura nova: ela clica, escolhe a pasta de sempre, o navegador já dá acesso a todos os arquivos daquela pasta pro JavaScript ler.
+**Alternativa considerada:** sincronizar o cofre via nuvem (Google Drive/Dropbox) e o servidor ler de lá periodicamente — descartada por agora por exigir montar um serviço de sincronização na VPS; fica como opção se algum dia o processo manual (escolher a pasta) incomodar.
+
 ### 22/09/2026 — Reconhecer parceiro por telefone (comparação direta), não por IA
 **Decisão:** a etiqueta automática "Parceiro" numa conversa do WhatsApp vem de comparar o telefone de quem manda mensagem com a ficha de parceiros cadastrados — não de pedir pra uma IA "adivinhar" pelo conteúdo da mensagem.
 **Motivo:** é uma pergunta de identidade (esse número é ou não é de um parceiro conhecido?), não de interpretação — comparação exata é 100% confiável, não custa chamada de IA, e não pode "errar" como uma classificação probabilística poderia. IA entra só onde a pergunta É de interpretação (separar cumprimento de relato de caso, numa mensagem de número desconhecido).
