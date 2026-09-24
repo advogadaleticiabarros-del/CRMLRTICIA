@@ -12,7 +12,7 @@ Consulte este documento sempre que precisar saber o que o cadastro de cliente gu
 
 ## O que é um "cliente" aqui
 
-Cadastro com: nome, tipo (Pessoa Física ou Jurídica), CPF/CNPJ, e-mail, telefone, endereço, observações internas e status (**ativo**, **inativo** ou **prospecto** — usado para pré-cadastros automáticos, ver [Monitoramento automático](10-monitoramento.md)).
+Cadastro com: nome, tipo (Pessoa Física ou Jurídica), CPF/CNPJ, e-mail, telefone, data de nascimento, endereço, observações internas e status (**ativo**, **inativo** ou **prospecto** — usado para pré-cadastros automáticos, ver [Monitoramento automático](10-monitoramento.md)).
 
 ## Ficha do cliente
 
@@ -61,6 +61,7 @@ Todo acesso à ficha completa de um cliente ou processo é registrado (quem aces
 | 03/09/2026 | Claude | Criação do documento |
 | 23/09/2026 | Claude | Log de acesso LGPD ganha tela própria em Configurações (antes só existia gravação, sem consulta) |
 | 24/09/2026 | Claude | Ficha completa do cliente (`/ficha`) passa a gerar log de acesso LGPD — só a tela simples de detalhe gerava, mas é a ficha completa que o sistema realmente usa pra abrir o cliente |
+| 24/09/2026 | Claude | Campo de data de nascimento no formulário de cadastro/edição de cliente — a coluna já existia no banco (usada no aniversariante do briefing), mas só era preenchida por fluxos específicos |
 
 ---
 ◀ [Dashboard](00c-dashboard.md) · [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶

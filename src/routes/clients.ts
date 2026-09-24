@@ -183,7 +183,7 @@ router.get('/:id/ficha', async (req: Request, res: Response) => {
 
 // ── POST /api/clients — criar ───────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
-  const { name, tipo, cpf_cnpj, email, phone, address, notes, status } = req.body;
+  const { name, tipo, cpf_cnpj, email, phone, address, notes, status, birth_date } = req.body;
 
   if (!name || !String(name).trim()) {
     res.status(400).json({ error: 'O nome é obrigatório' });
@@ -194,10 +194,10 @@ router.post('/', async (req: Request, res: Response) => {
   const finalStatus = STATUSES.includes(status) ? status : 'ativo';
 
   const [result] = await db.query(
-    `INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, address, notes, status, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, address, notes, status, birth_date, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [name.trim(), finalTipo, cpf_cnpj ?? null, email ?? null, phone ?? null,
-     address ?? null, notes ?? null, finalStatus, req.user!.id]
+     address ?? null, notes ?? null, finalStatus, birth_date || null, req.user!.id]
   ) as any;
 
   const [rows] = await db.query('SELECT * FROM clients WHERE id = ?', [result.insertId]) as any;
@@ -207,7 +207,7 @@ router.post('/', async (req: Request, res: Response) => {
 // ── PUT /api/clients/:id — atualizar ────────────────────────────────────────
 router.put('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, tipo, cpf_cnpj, email, phone, address, notes, status } = req.body;
+  const { name, tipo, cpf_cnpj, email, phone, address, notes, status, birth_date } = req.body;
 
   const [existing] = await db.query('SELECT id FROM clients WHERE id = ?', [id]) as any;
   if (!existing.length) {
@@ -234,6 +234,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('address', address);
   setIf('notes', notes);
   setIf('status', status, STATUSES.includes(status));
+  setIf('birth_date', birth_date || null);
 
   if (!fields.length) {
     res.status(400).json({ error: 'Nenhum campo válido para atualizar' });

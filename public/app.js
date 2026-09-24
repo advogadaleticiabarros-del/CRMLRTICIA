@@ -6590,7 +6590,7 @@ function attachConflictCheck(form, { skip = false } = {}) {
 }
 
 async function clientForm(id, onSave) {
-  let c = { name: '', tipo: 'PF', cpf_cnpj: '', email: '', phone: '', address: '', status: 'ativo' };
+  let c = { name: '', tipo: 'PF', cpf_cnpj: '', email: '', phone: '', address: '', status: 'ativo', birth_date: '' };
   if (id) c = await api('/api/clients/' + id);
   const form = el(`<form class="form-grid">
     ${field('Nome *', 'name', { value: c.name })}
@@ -6599,6 +6599,7 @@ async function clientForm(id, onSave) {
       ${field('CPF/CNPJ', 'cpf_cnpj', { value: c.cpf_cnpj })}
     </div>
     <div class="form-row">${field('E-mail', 'email', { value: c.email, type: 'email' })}${field('Telefone', 'phone', { value: c.phone })}</div>
+    ${field('Data de nascimento', 'birth_date', { type: 'date', value: datDateInputValue(c.birth_date) })}
     ${field('Endereço', 'address', { value: c.address })}
     ${field('Status', 'status', { value: c.status, options: [{v:'ativo',t:'Ativo'},{v:'inativo',t:'Inativo'},{v:'prospecto',t:'Prospecto'}] })}
     ${field('Número do processo (opcional)', 'process_number', { value: '' })}
