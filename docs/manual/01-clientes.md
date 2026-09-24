@@ -51,6 +51,10 @@ Desde 24/09/2026, digitar um CEP completo no cadastro/edição de cliente preenc
 
 Desde 24/09/2026, com Tipo = Pessoa Jurídica, digitar um CNPJ completo preenche nome e endereço automaticamente (BrasilAPI, gratuita). Só preenche o nome se o campo ainda estiver vazio — nunca sobrescreve um nome já digitado. Se o CNPJ não existir ou a busca falhar, nada trava.
 
+## Consentimento LGPD
+
+Desde 24/09/2026, o cadastro/edição de cliente tem uma marcação explícita: "Cliente autorizou o tratamento dos dados pessoais (LGPD)". Marcar registra a data (mostrada ao lado, ex.: "registrado em 24/09/2026") — marcar de novo depois não muda essa data, ela é sempre a da primeira vez. Desmarcar registra a revogação (a data some). Antes disso, só existia opt-in de newsletter para lead — nada formalizava o consentimento do cliente em si.
+
 ## Enviar documento direto da ficha
 
 Desde 24/09/2026, a ficha do cliente tem um botão **"Enviar documento"** — envia foto/PDF direto pra pasta "documentos pessoais" do GED (mesmo mecanismo da Central de Documentos), sem precisar sair da ficha e ir até a tela de Documentos.
@@ -92,6 +96,7 @@ Desde 24/09/2026, o cadastro/edição de cliente confere o dígito verificador d
 | 24/09/2026 | Claude | CNPJ (Pessoa Jurídica) preenche razão social e endereço sozinho via BrasilAPI |
 | 24/09/2026 | Claude | Checagem de conflito de interesses ganha tolerância a erro de digitação (distância de edição) contra clientes e leads — `src/utils/nomeSimilar.ts` |
 | 24/09/2026 | Claude | Botão "Enviar documento" direto na ficha do cliente — reaproveita o upload já existente da Central de Documentos |
+| 24/09/2026 | Claude | Consentimento LGPD explícito no cadastro (`clients.lgpd_consent_at`, migration 134) — conclui as 5 ideias de prioridade média da auditoria do módulo Clientes |
 
 ---
 ◀ [Dashboard](00c-dashboard.md) · [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶

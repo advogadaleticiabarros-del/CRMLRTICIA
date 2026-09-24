@@ -266,7 +266,7 @@ router.get('/:id/exportar-lgpd', async (req: Request, res: Response) => {
 
 // ── POST /api/clients — criar ───────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
-  const { name, tipo, cpf_cnpj, email, phone, address, notes, status, birth_date } = req.body;
+  const { name, tipo, cpf_cnpj, email, phone, address, notes, status, birth_date, lgpd_consent } = req.body;
 
   if (!name || !String(name).trim()) {
     res.status(400).json({ error: 'O nome é obrigatório' });
@@ -284,11 +284,16 @@ router.post('/', async (req: Request, res: Response) => {
   const finalTipo   = TIPOS.includes(tipo) ? tipo : 'PF';
   const finalStatus = STATUSES.includes(status) ? status : 'ativo';
 
+  // Achado da auditoria do módulo Clientes (23/09/2026): não havia registro
+  // formal do consentimento do titular pro tratamento dos próprios dados —
+  // só existia opt-in de newsletter pra lead. Campo opcional, marcado manual.
+  const lgpdConsentAt = lgpd_consent ? new Date() : null;
+
   const [result] = await db.query(
-    `INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, address, notes, status, birth_date, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, address, notes, status, birth_date, lgpd_consent_at, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [name.trim(), finalTipo, cpf_cnpj ?? null, email ?? null, phone ?? null,
-     address ?? null, notes ?? null, finalStatus, birth_date || null, req.user!.id]
+     address ?? null, notes ?? null, finalStatus, birth_date || null, lgpdConsentAt, req.user!.id]
   ) as any;
 
   const [rows] = await db.query('SELECT * FROM clients WHERE id = ?', [result.insertId]) as any;
@@ -298,7 +303,7 @@ router.post('/', async (req: Request, res: Response) => {
 // ── PUT /api/clients/:id — atualizar ────────────────────────────────────────
 router.put('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { name, tipo, cpf_cnpj, email, phone, address, notes, status, birth_date } = req.body;
+  const { name, tipo, cpf_cnpj, email, phone, address, notes, status, birth_date, lgpd_consent } = req.body;
 
   const [existing] = await db.query('SELECT id FROM clients WHERE id = ?', [id]) as any;
   if (!existing.length) {
@@ -331,6 +336,12 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('notes', notes);
   setIf('status', status, STATUSES.includes(status));
   setIf('birth_date', birth_date || null);
+  // Marcar o consentimento nunca sobrescreve uma data já registrada
+  // (COALESCE — a data de verdade é sempre a 1ª vez que foi dado);
+  // desmarcar registra a revogação (NULL), direito do titular.
+  if (lgpd_consent !== undefined) {
+    fields.push(lgpd_consent ? 'lgpd_consent_at = COALESCE(lgpd_consent_at, NOW())' : 'lgpd_consent_at = NULL');
+  }
 
   if (!fields.length) {
     res.status(400).json({ error: 'Nenhum campo válido para atualizar' });

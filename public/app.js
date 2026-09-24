@@ -6603,6 +6603,10 @@ async function clientForm(id, onSave) {
     ${field('CEP', 'cep', { value: '' })}
     ${field('Endereço', 'address', { value: c.address })}
     ${field('Status', 'status', { value: c.status, options: [{v:'ativo',t:'Ativo'},{v:'inativo',t:'Inativo'},{v:'prospecto',t:'Prospecto'}] })}
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+      <input type="checkbox" name="lgpd_consent" ${c.lgpd_consent_at ? 'checked' : ''} style="width:auto">
+      Cliente autorizou o tratamento dos dados pessoais (LGPD)${c.lgpd_consent_at ? ` <small style="color:var(--text-muted)">— registrado em ${fmtDate(c.lgpd_consent_at)}</small>` : ''}
+    </label>
     ${field('Número do processo (opcional)', 'process_number', { value: '' })}
     <p class="sub" style="margin:-6px 0 0">Preenchendo aqui, o processo já entra vinculado a ${esc(c.name) || 'este cliente'} e no monitoramento automático — mesma coisa que cadastrar em Processos.</p>
     <button type="submit" class="btn-primary">${id ? 'Salvar' : 'Cadastrar'}</button>
@@ -6642,6 +6646,7 @@ async function clientForm(id, onSave) {
   form.onsubmit = async (e) => {
     e.preventDefault();
     const { process_number, cep, ...body } = Object.fromEntries(new FormData(form));
+    body.lgpd_consent = form.querySelector('[name=lgpd_consent]').checked; // checkbox some do FormData quando desmarcado
     try {
       const saved = id
         ? await api('/api/clients/' + id, { method: 'PUT', body: JSON.stringify(body) })
