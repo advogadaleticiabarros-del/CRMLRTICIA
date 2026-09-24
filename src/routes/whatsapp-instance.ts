@@ -128,6 +128,52 @@ router.get('/saude', async (_req: Request, res: Response) => {
   });
 });
 
+// ── GET /api/whatsapp-instance/desempenho — tempo médio de resposta + volume ─
+// Pedido explícito da Dra. Letícia (23/09/2026): painel de desempenho do
+// atendimento de WhatsApp em geral — diferente do SLA de lead comercial
+// (leads.first_response_at), que só cobre lead novo. Aqui é QUALQUER
+// conversa: quanto tempo o escritório demora a responder, e quantas
+// mensagens entram/saem por dia.
+//
+// Tempo de resposta = para cada mensagem recebida, a primeira mensagem NOSSA
+// na mesma conversa depois dela, dentro de 24h (resposta que vem depois de
+// 1 dia não é "resposta daquela mensagem", é uma conversa nova). Janela de
+// 30 dias na mensagem recebida — sem isso, a subquery correlacionada
+// varreria a tabela inteira (anos de histórico) a cada carregamento do painel.
+router.get('/desempenho', async (_req: Request, res: Response) => {
+  const [[tempo]] = await db.query(`
+    SELECT AVG(resposta_min) AS media_min, COUNT(*) AS amostras
+      FROM (
+        SELECT TIMESTAMPDIFF(MINUTE, m1.msg_time, (
+          SELECT MIN(m2.msg_time) FROM whatsapp_messages m2
+           WHERE m2.phone = m1.phone AND m2.from_me = 1 AND m2.msg_time > m1.msg_time
+             AND m2.msg_time < DATE_ADD(m1.msg_time, INTERVAL 1 DAY)
+        )) AS resposta_min
+        FROM whatsapp_messages m1
+       WHERE m1.from_me = 0 AND m1.msg_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      ) t
+     WHERE resposta_min IS NOT NULL
+  `) as any;
+
+  const [volume] = await db.query(`
+    SELECT DATE(msg_time) AS dia,
+           SUM(CASE WHEN from_me = 0 THEN 1 ELSE 0 END) AS recebidas,
+           SUM(CASE WHEN from_me = 1 THEN 1 ELSE 0 END) AS enviadas
+      FROM whatsapp_messages
+     WHERE msg_time >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+     GROUP BY DATE(msg_time)
+     ORDER BY dia ASC
+  `) as any;
+
+  res.json({
+    tempo_medio_resposta_min: tempo?.media_min != null ? Math.round(Number(tempo.media_min)) : null,
+    amostras_resposta: Number(tempo?.amostras) || 0,
+    volume_por_dia: volume.map((v: any) => ({
+      dia: v.dia, recebidas: Number(v.recebidas) || 0, enviadas: Number(v.enviadas) || 0,
+    })),
+  });
+});
+
 // ── POST /api/whatsapp-instance/connect — inicia (gera QR se sem sessão) ────
 router.post('/connect', async (_req: Request, res: Response) => {
   await startInstance();

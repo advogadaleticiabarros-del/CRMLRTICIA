@@ -141,6 +141,7 @@ async function abrirAuditoriaModal() {
   const body = el(`<div>
     <div class="tabs" id="aud-tabs" style="margin-bottom:14px">
       <button type="button" class="tab" data-sec="saude">Saúde do WhatsApp</button>
+      <button type="button" class="tab" data-sec="desempenho">Desempenho</button>
       <button type="button" class="tab active" data-sec="apagadas">Mensagens apagadas</button>
       <button type="button" class="tab" data-sec="fila">Fila de envio</button>
     </div>
@@ -193,6 +194,40 @@ async function abrirAuditoriaModal() {
           <span><strong style="color:var(--navy-deep)">${esc(r.titulo)}</strong><br><small style="color:var(--text-muted)">${esc(r.mensagem)}</small></span>
           <small style="color:var(--text-muted);white-space:nowrap">${fmtDateTime(r.quando)}</small>
         </div>`).join('')}</div>` : '<div class="empty">Nenhuma falha registrada nos últimos 30 dias.</div>'}`;
+  };
+
+  // Painel de desempenho — pedido explícito da Dra. Letícia (23/09/2026):
+  // tempo médio de resposta e volume de mensagens do atendimento geral
+  // (diferente do SLA de lead comercial). Reaproveita chartColumns, o mesmo
+  // gráfico de colunas já usado no Financeiro — sem lib de gráfico nova.
+  const fmtDuracaoResposta = (min) => {
+    if (min == null) return '— (sem dados suficientes)';
+    if (min < 60) return `${min} min`;
+    const h = Math.floor(min / 60), m = min % 60;
+    return m ? `${h}h ${m}min` : `${h}h`;
+  };
+  const renderDesempenho = async () => {
+    const box = $('#aud-body');
+    box.innerHTML = '<div class="spinner"></div>';
+    const d = await api('/api/whatsapp-instance/desempenho').catch(() => null);
+    if (!d) { box.innerHTML = '<div class="empty">Não foi possível carregar o desempenho agora.</div>'; return; }
+    const dias = d.volume_por_dia.map((v) => ({
+      label: new Date(v.dia).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+      a: v.recebidas, b: v.enviadas,
+    }));
+    const totalRecebidas = d.volume_por_dia.reduce((s, v) => s + v.recebidas, 0);
+    const totalEnviadas = d.volume_por_dia.reduce((s, v) => s + v.enviadas, 0);
+    box.innerHTML = `
+      <div class="kpi-grid" style="margin-bottom:16px">
+        <div class="kpi"><div class="label">Tempo médio de resposta (30 dias)</div><div class="value" style="font-size:20px">${fmtDuracaoResposta(d.tempo_medio_resposta_min)}</div></div>
+        <div class="kpi"><div class="label">Mensagens recebidas (14 dias)</div><div class="value">${totalRecebidas}</div></div>
+        <div class="kpi"><div class="label">Mensagens enviadas (14 dias)</div><div class="value">${totalEnviadas}</div></div>
+      </div>
+      <p class="sub" style="margin-bottom:8px">Tempo médio calculado a partir de ${d.amostras_resposta} respostas reais nos últimos 30 dias (mensagem recebida → primeira resposta nossa em até 24h depois). É atendimento geral de qualquer conversa — não confundir com o cronômetro de 1ª resposta de lead comercial.</p>
+      <div class="card" style="padding:16px 18px">
+        <strong style="color:var(--navy);display:block;margin-bottom:8px">Mensagens por dia (últimos 14 dias)</strong>
+        ${chartColumns(dias, { aLabel: 'Recebidas', bLabel: 'Enviadas', aColor: 'var(--navy)', bColor: 'var(--gold)' })}
+      </div>`;
   };
 
   const renderApagadas = async () => {
@@ -270,7 +305,7 @@ async function abrirAuditoriaModal() {
     });
   };
 
-  const RENDER_SEC = { saude: renderSaude, apagadas: renderApagadas, fila: renderFila };
+  const RENDER_SEC = { saude: renderSaude, desempenho: renderDesempenho, apagadas: renderApagadas, fila: renderFila };
   body.querySelectorAll('[data-sec]').forEach((btn) => btn.onclick = () => {
     if (secao === btn.dataset.sec) return;
     secao = btn.dataset.sec;
