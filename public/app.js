@@ -6622,6 +6622,22 @@ async function clientForm(id, onSave) {
       form.querySelector('[name=address]').value = partes.join(' - ');
     } catch { /* CEP inexistente ou rede fora do ar — segue com preenchimento manual */ }
   };
+  // Ideia 7 da auditoria do módulo Clientes (23/09/2026): CNPJ autocompleta
+  // razão social e endereço via BrasilAPI (pública, gratuita, sem chave) —
+  // só quando Tipo = Pessoa Jurídica, com os 14 dígitos completos. Nunca
+  // sobrescreve um nome já digitado pra não atropelar edição em andamento.
+  form.querySelector('[name=cpf_cnpj]').oninput = async (e) => {
+    const digits = e.target.value.replace(/\D/g, '');
+    if (form.querySelector('[name=tipo]').value !== 'PJ' || digits.length !== 14) return;
+    try {
+      const r = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${digits}`).then((res) => res.json());
+      if (r.message) return; // BrasilAPI devolve { message } em erro (CNPJ inválido/não encontrado)
+      const nomeField = form.querySelector('[name=name]');
+      if (!nomeField.value.trim()) nomeField.value = r.razao_social || r.nome_fantasia || '';
+      const partes = [[r.logradouro, r.numero].filter(Boolean).join(', '), r.bairro, [r.municipio, r.uf].filter(Boolean).join('/')].filter(Boolean);
+      form.querySelector('[name=address]').value = partes.join(' - ');
+    } catch { /* CNPJ inexistente ou rede fora do ar — segue com preenchimento manual */ }
+  };
   attachConflictCheck(form, { skip: !!id });
   form.onsubmit = async (e) => {
     e.preventDefault();

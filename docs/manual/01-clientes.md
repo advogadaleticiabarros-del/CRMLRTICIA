@@ -45,6 +45,10 @@ Todo acesso à ficha completa de um cliente ou processo é registrado (quem aces
 
 Desde 24/09/2026, digitar um CEP completo no cadastro/edição de cliente preenche o campo Endereço sozinho (rua, bairro, cidade/UF), usando a ViaCEP (API pública, gratuita). Número e complemento continuam manuais — a ViaCEP não devolve isso. Se o CEP não existir ou a busca falhar, nada trava: o campo de endereço continua editável normalmente.
 
+## CNPJ preenche razão social e endereço sozinho
+
+Desde 24/09/2026, com Tipo = Pessoa Jurídica, digitar um CNPJ completo preenche nome e endereço automaticamente (BrasilAPI, gratuita). Só preenche o nome se o campo ainda estiver vazio — nunca sobrescreve um nome já digitado. Se o CNPJ não existir ou a busca falhar, nada trava.
+
 ## Baixar dados do cliente (LGPD)
 
 Desde 24/09/2026, a ficha do cliente tem um botão **"Baixar dados (LGPD)"** — gera um arquivo com tudo que o escritório guarda sobre aquela pessoa (cadastro, processos, parcelas/receitas, metadados de documento, histórico), pra atender um pedido de portabilidade (LGPD art. 18) sem precisar consultar o banco na mão. O próprio download fica registrado no log de acesso (Configurações → Log de acesso a dados pessoais).
@@ -79,6 +83,7 @@ Desde 24/09/2026, o cadastro/edição de cliente confere o dígito verificador d
 | 24/09/2026 | Claude | CPF/CNPJ passa a ter o dígito verificador conferido antes de salvar (`src/utils/cpfCnpj.ts`) — antes aceitava qualquer texto |
 | 24/09/2026 | Claude | Botão "Baixar dados (LGPD)" na ficha do cliente — atende pedido de portabilidade (art. 18) sem precisar de SQL manual; conclui as 5 ideias de prioridade alta da auditoria do módulo Clientes |
 | 24/09/2026 | Claude | Campo de CEP no cadastro/edição — preenche o endereço sozinho via ViaCEP (1ª ideia de prioridade média) |
+| 24/09/2026 | Claude | CNPJ (Pessoa Jurídica) preenche razão social e endereço sozinho via BrasilAPI |
 
 ---
 ◀ [Dashboard](00c-dashboard.md) · [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶
