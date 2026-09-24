@@ -6600,16 +6600,32 @@ async function clientForm(id, onSave) {
     </div>
     <div class="form-row">${field('E-mail', 'email', { value: c.email, type: 'email' })}${field('Telefone', 'phone', { value: c.phone })}</div>
     ${field('Data de nascimento', 'birth_date', { type: 'date', value: datDateInputValue(c.birth_date) })}
+    ${field('CEP', 'cep', { value: '' })}
     ${field('Endereço', 'address', { value: c.address })}
     ${field('Status', 'status', { value: c.status, options: [{v:'ativo',t:'Ativo'},{v:'inativo',t:'Inativo'},{v:'prospecto',t:'Prospecto'}] })}
     ${field('Número do processo (opcional)', 'process_number', { value: '' })}
     <p class="sub" style="margin:-6px 0 0">Preenchendo aqui, o processo já entra vinculado a ${esc(c.name) || 'este cliente'} e no monitoramento automático — mesma coisa que cadastrar em Processos.</p>
     <button type="submit" class="btn-primary">${id ? 'Salvar' : 'Cadastrar'}</button>
   </form>`);
+  // Ideia 6 da auditoria do módulo Clientes (23/09/2026): CEP autocompleta o
+  // endereço via ViaCEP (API pública, gratuita, sem chave) — só número/
+  // complemento continuam manuais, porque a ViaCEP não devolve isso. Dispara
+  // só com os 8 dígitos completos, nunca a cada tecla; falha (CEP inexistente,
+  // rede fora do ar) é silenciosa — a usuária sempre pode digitar à mão.
+  form.querySelector('[name=cep]').oninput = async (e) => {
+    const cep = e.target.value.replace(/\D/g, '');
+    if (cep.length !== 8) return;
+    try {
+      const r = await fetch(`https://viacep.com.br/ws/${cep}/json/`).then((res) => res.json());
+      if (r.erro) return;
+      const partes = [[r.logradouro, r.bairro].filter(Boolean).join(', '), [r.localidade, r.uf].filter(Boolean).join('/')].filter(Boolean);
+      form.querySelector('[name=address]').value = partes.join(' - ');
+    } catch { /* CEP inexistente ou rede fora do ar — segue com preenchimento manual */ }
+  };
   attachConflictCheck(form, { skip: !!id });
   form.onsubmit = async (e) => {
     e.preventDefault();
-    const { process_number, ...body } = Object.fromEntries(new FormData(form));
+    const { process_number, cep, ...body } = Object.fromEntries(new FormData(form));
     try {
       const saved = id
         ? await api('/api/clients/' + id, { method: 'PUT', body: JSON.stringify(body) })
