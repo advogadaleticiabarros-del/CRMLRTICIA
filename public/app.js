@@ -7356,6 +7356,7 @@ async function fichaCliente(id, onSave) {
       <button class="btn-gold btn-sm" id="fc-edit" type="button">${svgIcon('edit')}Editar cadastro</button>
       <button class="btn-sm" id="fc-print" type="button">${svgIcon('printer')}Imprimir / PDF</button>
       <button class="btn-sm" id="fc-copy" type="button">Copiar</button>
+      <button class="btn-sm" id="fc-export-lgpd" type="button" title="Baixa um arquivo com tudo que o escritório guarda sobre este cliente — direito de portabilidade, LGPD art. 18">${svgIcon('download')}Baixar dados (LGPD)</button>
     </div>
     <div id="fc-body" style="max-height:65vh;overflow:auto">${html}</div>
   </div>`);
@@ -7364,6 +7365,19 @@ async function fichaCliente(id, onSave) {
     `Ficha do Cliente — ${f.client && f.client.name || ''}`,
     `${f.client && f.client.tipo || ''}${f.client && f.client.cpf_cnpj ? ' · ' + f.client.cpf_cnpj : ''}`, html);
   wrap.querySelector('#fc-copy').onclick = () => { try { navigator.clipboard.writeText(wrap.querySelector('#fc-body').innerText); toast('Ficha copiada'); } catch { toast('Copie manualmente', 'error'); } };
+  wrap.querySelector('#fc-export-lgpd').onclick = async () => {
+    try {
+      const res = await fetch(`/api/clients/${id}/exportar-lgpd`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+      if (!res.ok) throw new Error('Não foi possível gerar o arquivo');
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `dados-${(f.client?.name || 'cliente')}.json`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+      toast('Arquivo baixado');
+    } catch (e) { toast(e.message, 'error'); }
+  };
   openModal('Ficha do cliente', wrap);
 }
 

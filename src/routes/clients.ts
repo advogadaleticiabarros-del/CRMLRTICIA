@@ -182,6 +182,57 @@ router.get('/:id/ficha', async (req: Request, res: Response) => {
   });
 });
 
+// ── GET /api/clients/:id/exportar-lgpd — portabilidade (LGPD art. 18) ───────
+// Achado da auditoria do módulo Clientes (23/09/2026): a lei garante ao
+// titular o direito de pedir tudo que o escritório guarda sobre ele — antes
+// disso, atender esse pedido exigia consultar o banco direto. Reúne cadastro,
+// processos, financeiro, metadados de documento (não o arquivo em si — fica
+// no MEGA/GED) e histórico num pacote só, e baixa como arquivo (não fica só
+// na tela). O próprio acesso à exportação também vira log de auditoria.
+router.get('/:id/exportar-lgpd', async (req: Request, res: Response) => {
+  const id = req.params.id;
+  const [[c]] = await db.query('SELECT * FROM clients WHERE id = ?', [id]) as any;
+  if (!c) { res.status(404).json({ error: 'Cliente não encontrado' }); return; }
+
+  import('../services/accessLog')
+    .then(({ logAccess }) => logAccess({ userId: req.user!.id, userName: req.user!.name, clientId: Number(id), action: 'exportacao_lgpd', ip: req.ip }))
+    .catch(() => {});
+
+  const [[lead]] = await db.query(
+    'SELECT rg, marital_status, profession, case_summary, source FROM leads WHERE client_id = ? ORDER BY created_at DESC LIMIT 1', [id]
+  ) as any;
+
+  const q = async (sql: string) => { try { const [r] = await db.query(sql, [id]) as any; return r; } catch { return []; } };
+  const [cases, installments, receitas, documents, timeline] = await Promise.all([
+    q('SELECT title, case_number, legal_area, phase, status FROM cases WHERE client_id = ? ORDER BY created_at DESC'),
+    q('SELECT numero, valor, due_date, status FROM installments WHERE client_id = ? ORDER BY due_date ASC'),
+    q("SELECT description, valor, tipo, status, due_date FROM financial_records WHERE client_id = ? AND tipo = 'receita' ORDER BY due_date ASC"),
+    q("SELECT name, type, folder, status, created_at FROM documents WHERE client_id = ? ORDER BY created_at DESC"),
+    q('SELECT description, created_at FROM client_timeline WHERE client_id = ? ORDER BY created_at DESC LIMIT 500'),
+  ]);
+
+  const pacote = {
+    exportado_em: new Date().toISOString(),
+    finalidade: 'Portabilidade de dados pessoais — LGPD art. 18',
+    titular: {
+      nome: c.name, tipo: c.tipo, cpf_cnpj: c.cpf_cnpj, email: c.email, phone: c.phone,
+      endereco: c.address, data_nascimento: c.birth_date, status: c.status,
+      rg: lead?.rg || null, estado_civil: lead?.marital_status || null, profissao: lead?.profession || null,
+      origem_do_relacionamento: lead?.source || null,
+    },
+    processos: cases,
+    parcelas: installments,
+    receitas,
+    documentos: documents,
+    historico: timeline,
+  };
+
+  const nomeArquivo = `dados-${c.name}-${id}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80) + '.json';
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${nomeArquivo}"`);
+  res.send(JSON.stringify(pacote, null, 2));
+});
+
 // ── POST /api/clients — criar ───────────────────────────────────────────────
 router.post('/', async (req: Request, res: Response) => {
   const { name, tipo, cpf_cnpj, email, phone, address, notes, status, birth_date } = req.body;
