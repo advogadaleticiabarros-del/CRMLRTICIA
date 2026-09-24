@@ -7389,10 +7389,35 @@ async function fichaCliente(id, onSave) {
       <button class="btn-sm" id="fc-print" type="button">${svgIcon('printer')}Imprimir / PDF</button>
       <button class="btn-sm" id="fc-copy" type="button">Copiar</button>
       <button class="btn-sm" id="fc-export-lgpd" type="button" title="Baixa um arquivo com tudo que o escritório guarda sobre este cliente — direito de portabilidade, LGPD art. 18">${svgIcon('download')}Baixar dados (LGPD)</button>
+      <button class="btn-sm" id="fc-upload-doc" type="button">${svgIcon('paperclip')}Enviar documento</button>
+      <input type="file" id="fc-upload-doc-input" style="display:none" accept="image/*,application/pdf">
     </div>
     <div id="fc-body" style="max-height:65vh;overflow:auto">${html}</div>
   </div>`);
   wrap.querySelector('#fc-edit').onclick = () => { closeModal(); clientForm(id, onSave); };
+  // Ideia 9 da auditoria do módulo Clientes (23/09/2026): upload direto na
+  // ficha, sem precisar ir até a tela genérica de Documentos — reaproveita o
+  // mesmo POST /api/documents (base64) já usado lá, guarda em
+  // "documentos_pessoais" (RG/CPF digitalizado etc.) e recarrega a ficha pra
+  // mostrar o arquivo novo na lista.
+  wrap.querySelector('#fc-upload-doc').onclick = () => wrap.querySelector('#fc-upload-doc-input').click();
+  wrap.querySelector('#fc-upload-doc-input').onchange = async (e) => {
+    const arquivo = e.target.files[0];
+    if (!arquivo) return;
+    const base64 = await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(arquivo);
+    });
+    try {
+      await api('/api/documents', { method: 'POST', body: JSON.stringify({
+        client_id: id, name: arquivo.name, folder: 'documentos_pessoais', file_base64: base64, mime: arquivo.type,
+      }) });
+      toast('Documento enviado');
+      closeModal(); fichaCliente(id, onSave);
+    } catch (err) { toast(err.message, 'error'); }
+  };
   wrap.querySelector('#fc-print').onclick = () => printBranded(
     `Ficha do Cliente — ${f.client && f.client.name || ''}`,
     `${f.client && f.client.tipo || ''}${f.client && f.client.cpf_cnpj ? ' · ' + f.client.cpf_cnpj : ''}`, html);

@@ -51,6 +51,10 @@ Desde 24/09/2026, digitar um CEP completo no cadastro/edição de cliente preenc
 
 Desde 24/09/2026, com Tipo = Pessoa Jurídica, digitar um CNPJ completo preenche nome e endereço automaticamente (BrasilAPI, gratuita). Só preenche o nome se o campo ainda estiver vazio — nunca sobrescreve um nome já digitado. Se o CNPJ não existir ou a busca falhar, nada trava.
 
+## Enviar documento direto da ficha
+
+Desde 24/09/2026, a ficha do cliente tem um botão **"Enviar documento"** — envia foto/PDF direto pra pasta "documentos pessoais" do GED (mesmo mecanismo da Central de Documentos), sem precisar sair da ficha e ir até a tela de Documentos.
+
 ## Baixar dados do cliente (LGPD)
 
 Desde 24/09/2026, a ficha do cliente tem um botão **"Baixar dados (LGPD)"** — gera um arquivo com tudo que o escritório guarda sobre aquela pessoa (cadastro, processos, parcelas/receitas, metadados de documento, histórico), pra atender um pedido de portabilidade (LGPD art. 18) sem precisar consultar o banco na mão. O próprio download fica registrado no log de acesso (Configurações → Log de acesso a dados pessoais).
@@ -87,6 +91,7 @@ Desde 24/09/2026, o cadastro/edição de cliente confere o dígito verificador d
 | 24/09/2026 | Claude | Campo de CEP no cadastro/edição — preenche o endereço sozinho via ViaCEP (1ª ideia de prioridade média) |
 | 24/09/2026 | Claude | CNPJ (Pessoa Jurídica) preenche razão social e endereço sozinho via BrasilAPI |
 | 24/09/2026 | Claude | Checagem de conflito de interesses ganha tolerância a erro de digitação (distância de edição) contra clientes e leads — `src/utils/nomeSimilar.ts` |
+| 24/09/2026 | Claude | Botão "Enviar documento" direto na ficha do cliente — reaproveita o upload já existente da Central de Documentos |
 
 ---
 ◀ [Dashboard](00c-dashboard.md) · [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶
