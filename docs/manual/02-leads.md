@@ -45,6 +45,8 @@ Mover um lead pra **"Proposta Recusada"** ou **"Perdido"** dispara, uma única v
 
 Converter um lead em cliente cria um cadastro em Clientes (PF ou PJ) já com nome/e-mail/telefone/observações, marca o lead como "Convertido" e vincula os dois registros — o histórico de qualificação (RG, estado civil, profissão, resumo do caso) migra junto pra ficha do cliente. Um lead só pode ser convertido uma vez.
 
+**Correção (24/09/2026):** até então, essa conversão não copiava o CPF/CNPJ nem o endereço do lead pro cadastro de cliente — a "qualificação jurídica pronta pra copiar" da ficha saía incompleta pra quem virou cliente por essa via. Agora os dois vêm junto (endereço montado a partir de CEP/rua/bairro/cidade/UF quando não há um endereço único já preenchido).
+
 ## Relação com Propostas
 
 Cada lead pode ter propostas comerciais vinculadas (enviada, em negociação, aceita, recusada) — ver módulo de Documentos e peças para como uma proposta é gerada.
@@ -68,6 +70,7 @@ Cada lead pode ter propostas comerciais vinculadas (enviada, em negociação, ac
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Quadro Kanban corrigido: era grid de 5 colunas fixas, as 4 últimas etapas quebravam pra 2ª linha desalinhada — agora rola horizontalmente com setas de navegação (ver [Runbook](14-runbook.md)) |
+| 24/09/2026 | Claude | Converter lead em cliente passa a copiar CPF/CNPJ e endereço também — antes só nome/e-mail/telefone/observações |
 
 ---
 ◀ [Clientes](01-clientes.md) · [Visão geral](00-visao-geral.md) · Próximo: [WhatsApp](03-whatsapp.md) ▶

@@ -5,6 +5,7 @@ import { notifyNewLead } from '../services/leadAlert';
 import { qualificarLead } from '../services/aiAssistant';
 import { dispararRecusaProposta, msgPropostaRecusada, digitsOf } from '../services/propostaFollowupService';
 import { sendText } from '../services/uazapiInstance';
+import { montarEndereco } from '../services/contractTemplates';
 
 const router = Router();
 
@@ -371,10 +372,18 @@ router.post('/:id/convert-client', async (req: Request, res: Response) => {
     return;
   }
 
+  // Achado da auditoria do módulo Clientes (23/09/2026): esta rota só copiava
+  // name/tipo/email/phone/notes — CPF/CNPJ e endereço do lead ficavam pra
+  // trás, quebrando a "qualificação jurídica pronta pra copiar" da ficha pra
+  // qualquer cliente convertido por aqui. RG/estado civil/profissão não
+  // precisam ser copiados: a ficha já busca isso na tabela leads, cruzando
+  // pelo client_id (ver GET /:id/ficha em clients.ts), e o UPDATE logo
+  // abaixo já grava esse vínculo.
+  const endereco = montarEndereco(lead);
   const [result] = await db.query(
-    `INSERT INTO clients (name, tipo, email, phone, status, created_by, notes)
-     VALUES (?, ?, ?, ?, 'ativo', ?, ?)`,
-    [lead.name, tipo === 'PJ' ? 'PJ' : 'PF', lead.email, lead.phone, lead.user_id, lead.notes]
+    `INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, address, status, created_by, notes)
+     VALUES (?, ?, ?, ?, ?, ?, 'ativo', ?, ?)`,
+    [lead.name, tipo === 'PJ' ? 'PJ' : 'PF', lead.cpf_cnpj || null, lead.email, lead.phone, endereco, lead.user_id, lead.notes]
   ) as any;
 
   await db.query(
