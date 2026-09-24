@@ -28,6 +28,8 @@ Ao abrir um cliente, o sistema monta uma **ficha consolidada** com tudo que exis
 
 Antes de cadastrar alguém novo, o sistema pode checar o nome/CPF contra: clientes já cadastrados, leads no funil, títulos/descrições de processos existentes (onde a parte contrária costuma aparecer escrita) e assistidos de demandas dativas. É um **aviso**, não um bloqueio — a decisão final é sempre da advogada.
 
+**Tolerância a erro de digitação (desde 24/09/2026):** além da busca exata, a checagem contra clientes e leads também pega nomes com grafia parecida (ex.: uma letra trocada) — aparece marcado como "grafia parecida" no resultado. Não resolve apelido nem nome de solteira/casada (isso exigiria uma lista de sinônimos por pessoa, que o sistema não tem).
+
 ## Onde os dados de cliente aparecem em outros módulos
 
 - **Leads**: quando um lead vira cliente, o histórico de qualificação (RG, estado civil, profissão, resumo do caso) migra junto.
@@ -84,6 +86,7 @@ Desde 24/09/2026, o cadastro/edição de cliente confere o dígito verificador d
 | 24/09/2026 | Claude | Botão "Baixar dados (LGPD)" na ficha do cliente — atende pedido de portabilidade (art. 18) sem precisar de SQL manual; conclui as 5 ideias de prioridade alta da auditoria do módulo Clientes |
 | 24/09/2026 | Claude | Campo de CEP no cadastro/edição — preenche o endereço sozinho via ViaCEP (1ª ideia de prioridade média) |
 | 24/09/2026 | Claude | CNPJ (Pessoa Jurídica) preenche razão social e endereço sozinho via BrasilAPI |
+| 24/09/2026 | Claude | Checagem de conflito de interesses ganha tolerância a erro de digitação (distância de edição) contra clientes e leads — `src/utils/nomeSimilar.ts` |
 
 ---
 ◀ [Dashboard](00c-dashboard.md) · [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶

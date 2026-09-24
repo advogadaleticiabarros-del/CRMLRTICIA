@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { cpfCnpjValido } from '../utils/cpfCnpj';
+import { nomesParecidos } from '../utils/nomeSimilar';
 
 const router = Router();
 
@@ -26,13 +27,43 @@ router.get('/conflito', async (req: Request, res: Response) => {
         LIMIT 10`,
       [...(nome.length >= 4 ? [like] : []), ...(cpf.length >= 11 ? [cpf] : [])]
     ) as any;
+    const idsCli = new Set(cli.map((r: any) => r.id));
     for (const r of cli) achados.push({ tipo: 'cliente', nome: r.name, detalhe: `já é cliente (${r.status})${r.cpf_cnpj ? ' · ' + r.cpf_cnpj : ''}` });
+
+    // Grafia parecida (achado da auditoria do módulo Clientes, 23/09/2026): a
+    // busca acima é substring exato — não pega "Ricrado" pra quem digitou
+    // "Ricardo". Busca candidatos que começam com a mesma letra e filtra por
+    // distância de edição (nomesParecidos), sem duplicar quem já entrou pela
+    // busca exata. Não resolve apelido nem nome de solteira/casada — isso
+    // exigiria um dicionário de sinônimos, fora de escopo aqui.
+    if (nome.length >= 4) {
+      const [candidatosCli] = await db.query(
+        'SELECT id, name, cpf_cnpj, status FROM clients WHERE name LIKE ? LIMIT 50', [`${nome[0]}%`]
+      ) as any;
+      for (const r of candidatosCli) {
+        if (idsCli.has(r.id) || !nomesParecidos(nome, r.name)) continue;
+        idsCli.add(r.id);
+        achados.push({ tipo: 'cliente', nome: r.name, detalhe: `já é cliente (${r.status})${r.cpf_cnpj ? ' · ' + r.cpf_cnpj : ''} — grafia parecida` });
+      }
+    }
 
     const [lds] = await db.query(
       `SELECT id, name, stage FROM leads WHERE ${nome.length >= 4 ? 'name LIKE ?' : '1=0'} LIMIT 10`,
       nome.length >= 4 ? [like] : []
     ).catch(() => [[]]) as any;
+    const idsLead = new Set(lds.map((r: any) => r.id));
     for (const r of lds) achados.push({ tipo: 'lead', nome: r.name, detalhe: `lead no funil (${r.stage || '—'})` });
+
+    if (nome.length >= 4) {
+      const [candidatosLead] = await db.query(
+        'SELECT id, name, stage FROM leads WHERE name LIKE ? LIMIT 50', [`${nome[0]}%`]
+      ).catch(() => [[]]) as any;
+      for (const r of candidatosLead) {
+        if (idsLead.has(r.id) || !nomesParecidos(nome, r.name)) continue;
+        idsLead.add(r.id);
+        achados.push({ tipo: 'lead', nome: r.name, detalhe: `lead no funil (${r.stage || '—'}) — grafia parecida` });
+      }
+    }
   }
 
   if (nome.length >= 4) {
