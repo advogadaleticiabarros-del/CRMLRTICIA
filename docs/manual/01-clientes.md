@@ -41,9 +41,15 @@ Todo acesso à ficha completa de um cliente ou processo é registrado (quem aces
 
 **Correção (24/09/2026):** até então, só a tela simples de detalhe do cliente gerava esse log — mas o sistema abre o cliente pela ficha completa (`/ficha`, que traz CPF, endereço, financeiro e documentos), e essa rota nunca tinha gerado registro nenhum. Ou seja, o dado mais sensível de todos não tinha trilha de auditoria. Agora a ficha completa também registra o acesso.
 
+## Validação de CPF/CNPJ
+
+Desde 24/09/2026, o cadastro/edição de cliente confere o dígito verificador do CPF/CNPJ digitado (o mesmo cálculo usado pela Receita Federal) — um número com dígito errado (ex.: digitado errado sem querer) é recusado com aviso claro, antes de salvar. Campo continua opcional: deixar vazio é permitido. Isso não muda a checagem de conflito de interesses (que continua um aviso, nunca bloqueio) — é uma validação de formato, diferente.
+
 ## FAQ
 
 **Se eu cadastrar o mesmo CPF duas vezes, o sistema bloqueia?** Não bloqueia — a checagem de conflito de interesses é um aviso, mostrado antes de salvar, mas a decisão final é sua.
+
+**Um CPF/CNPJ com dígito errado é aceito?** Não, desde 24/09/2026 — o sistema confere o dígito verificador antes de salvar. Isso é diferente de duplicidade: pega número inválido/digitado errado, não impede reaproveitar um CPF já cadastrado em outro registro.
 
 **Posso ter um cliente sem processo nenhum?** Sim — o cadastro de cliente é independente de ter processo, caso ou demanda dativa vinculada.
 
@@ -62,6 +68,7 @@ Todo acesso à ficha completa de um cliente ou processo é registrado (quem aces
 | 23/09/2026 | Claude | Log de acesso LGPD ganha tela própria em Configurações (antes só existia gravação, sem consulta) |
 | 24/09/2026 | Claude | Ficha completa do cliente (`/ficha`) passa a gerar log de acesso LGPD — só a tela simples de detalhe gerava, mas é a ficha completa que o sistema realmente usa pra abrir o cliente |
 | 24/09/2026 | Claude | Campo de data de nascimento no formulário de cadastro/edição de cliente — a coluna já existia no banco (usada no aniversariante do briefing), mas só era preenchida por fluxos específicos |
+| 24/09/2026 | Claude | CPF/CNPJ passa a ter o dígito verificador conferido antes de salvar (`src/utils/cpfCnpj.ts`) — antes aceitava qualquer texto |
 
 ---
 ◀ [Dashboard](00c-dashboard.md) · [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶

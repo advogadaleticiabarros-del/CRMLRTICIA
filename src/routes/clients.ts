@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
+import { cpfCnpjValido } from '../utils/cpfCnpj';
 
 const router = Router();
 
@@ -190,6 +191,14 @@ router.post('/', async (req: Request, res: Response) => {
     return;
   }
 
+  // Achado da auditoria do módulo Clientes (23/09/2026): o campo aceitava
+  // qualquer texto, sem checar o dígito verificador — dá pra digitar um
+  // número que nem existe. Vazio continua permitido (campo opcional).
+  if (!cpfCnpjValido(cpf_cnpj)) {
+    res.status(400).json({ error: 'CPF/CNPJ inválido — confira os números digitados' });
+    return;
+  }
+
   const finalTipo   = TIPOS.includes(tipo) ? tipo : 'PF';
   const finalStatus = STATUSES.includes(status) ? status : 'ativo';
 
@@ -217,6 +226,11 @@ router.put('/:id', async (req: Request, res: Response) => {
 
   if (name !== undefined && !String(name).trim()) {
     res.status(400).json({ error: 'O nome não pode ser vazio' });
+    return;
+  }
+
+  if (cpf_cnpj !== undefined && !cpfCnpjValido(cpf_cnpj)) {
+    res.status(400).json({ error: 'CPF/CNPJ inválido — confira os números digitados' });
     return;
   }
 
