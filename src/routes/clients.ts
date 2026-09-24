@@ -140,6 +140,15 @@ router.get('/:id/ficha', async (req: Request, res: Response) => {
   const [[c]] = await db.query('SELECT * FROM clients WHERE id = ?', [id]) as any;
   if (!c) { res.status(404).json({ error: 'Cliente não encontrado' }); return; }
 
+  // LGPD: registra o acesso (best-effort, não bloqueia) — mesmo padrão de
+  // GET /:id. Achado da auditoria do módulo Clientes (23/09/2026): o
+  // frontend abre o cliente por AQUI (/ficha), não por GET /:id — só a rota
+  // simples gerava log, então o dado mais sensível (CPF, endereço,
+  // financeiro, documentos) não tinha nenhuma trilha de auditoria.
+  import('../services/accessLog')
+    .then(({ logAccess }) => logAccess({ userId: req.user!.id, userName: req.user!.name, clientId: Number(id), action: 'ficha_cliente', ip: req.ip }))
+    .catch(() => {});
+
   const [[lead]] = await db.query(
     'SELECT rg, marital_status, profession, case_summary FROM leads WHERE client_id = ? ORDER BY created_at DESC LIMIT 1', [id]
   ) as any;

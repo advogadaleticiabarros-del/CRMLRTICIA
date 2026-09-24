@@ -83,7 +83,12 @@ export function tabelasDoArquivo(src) {
 
 // Tabelas de sistema/derivadas que não vêm das migrations, ou aliases de
 // uma letra só que o parser de FROM/JOIN pode confundir com nome de tabela.
-export const IGNORAR = new Set(['information_schema', 'tables', 'u', 'c', 'cl', 'j', 'f']);
+// 'as' entra aqui por um falso-positivo real (achado 23/09/2026, auditoria de
+// clients.ts): `const from = req.query.from as string;` é código TS, não SQL
+// — mas a regex de FROM/JOIN (case-insensitive, sem distinguir contexto) lê
+// a variável "from" seguida de "as" como se fosse `FROM as`, uma "tabela"
+// fantasma. "as" nunca é nome de tabela de verdade, então ignorar é seguro.
+export const IGNORAR = new Set(['information_schema', 'tables', 'u', 'c', 'cl', 'j', 'f', 'as']);
 
 // Palavras-chave/funções SQL que não são nomes de coluna — usadas ao checar
 // referências de coluna SEM prefixo de alias (ex.: `COALESCE(area, ...)`).
@@ -225,7 +230,13 @@ export function auditarArquivos(arquivos, { schema = lerSchema(), escritas = tab
         }
       }
       for (const m of bloco.matchAll(/\bWHERE\b([\s\S]*?)(?:GROUP BY|ORDER BY|$)/gi)) {
-        for (const cm of m[1].matchAll(/\b([a-zA-Z_]\w*)\s*(?:=(?!=)|<=|>=|<|>|\bIS\s+NOT\s+NULL\b|\bIS\s+NULL\b|\bIN\s*\()/gi)) {
+        // (?<!\.) — achado 23/09/2026 (auditoria de clients.ts): um template
+        // literal com `${variavel.length >= 4 ? 'x' : 'y'}` embutido faz esse
+        // `.length` (acesso de propriedade em JS, não coluna SQL) casar com a
+        // checagem de coluna solta. Uma coluna SQL de verdade nunca vem
+        // precedida de ponto neste padrão (isso seria alias.coluna, já
+        // tratado à parte acima) — só um `.algumaCoisa` de JS interpolado.
+        for (const cm of m[1].matchAll(/(?<!\.)\b([a-zA-Z_]\w*)\s*(?:=(?!=)|<=|>=|<|>|\bIS\s+NOT\s+NULL\b|\bIS\s+NULL\b|\bIN\s*\()/gi)) {
           const ident = cm[1].toLowerCase();
           if (SQL_PALAVRAS_RESERVADAS.has(ident)) continue;
           if (ident === t) continue;

@@ -39,6 +39,8 @@ Antes de cadastrar alguém novo, o sistema pode checar o nome/CPF contra: client
 
 Todo acesso à ficha completa de um cliente ou processo é registrado (quem acessou, quando, IP) — grava sozinho, sem precisar de nenhuma ação de quem está usando o sistema. Desde 23/09/2026 dá pra consultar em **Configurações → Log de acesso a dados pessoais (LGPD)**: total de registros, acessos hoje, ranking por pessoa, e uma busca por nome de cliente. Antes desse painel, só dava pra ver rodando SQL direto no banco — os dados já vinham sendo gravados desde bem antes (migration 059), só não existia tela pra consultar.
 
+**Correção (24/09/2026):** até então, só a tela simples de detalhe do cliente gerava esse log — mas o sistema abre o cliente pela ficha completa (`/ficha`, que traz CPF, endereço, financeiro e documentos), e essa rota nunca tinha gerado registro nenhum. Ou seja, o dado mais sensível de todos não tinha trilha de auditoria. Agora a ficha completa também registra o acesso.
+
 ## FAQ
 
 **Se eu cadastrar o mesmo CPF duas vezes, o sistema bloqueia?** Não bloqueia — a checagem de conflito de interesses é um aviso, mostrado antes de salvar, mas a decisão final é sua.
@@ -58,6 +60,7 @@ Todo acesso à ficha completa de um cliente ou processo é registrado (quem aces
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
 | 23/09/2026 | Claude | Log de acesso LGPD ganha tela própria em Configurações (antes só existia gravação, sem consulta) |
+| 24/09/2026 | Claude | Ficha completa do cliente (`/ficha`) passa a gerar log de acesso LGPD — só a tela simples de detalhe gerava, mas é a ficha completa que o sistema realmente usa pra abrir o cliente |
 
 ---
 ◀ [Dashboard](00c-dashboard.md) · [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶
