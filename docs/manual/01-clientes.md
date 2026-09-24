@@ -41,6 +41,8 @@ Antes de cadastrar alguém novo, o sistema pode checar o nome/CPF contra: client
 
 Todo acesso à ficha completa de um cliente ou processo é registrado (quem acessou, quando, IP) — grava sozinho, sem precisar de nenhuma ação de quem está usando o sistema. Desde 23/09/2026 dá pra consultar em **Configurações → Log de acesso a dados pessoais (LGPD)**: total de registros, acessos hoje, ranking por pessoa, e uma busca por nome de cliente. Antes desse painel, só dava pra ver rodando SQL direto no banco — os dados já vinham sendo gravados desde bem antes (migration 059), só não existia tela pra consultar.
 
+**Retenção (desde 24/09/2026):** esse log é apagado automaticamente depois de **5 anos** (mesma faxina mensal de LGPD que já cuida de outras tabelas, ver `src/services/retentionService.ts`). Prazo escolhido porque é o mesmo prazo prescricional que a própria LGPD usa pra apuração administrativa da ANPD (art. 52, §5º) — o log precisa sobreviver esse tempo pra provar conformidade se for cobrado, mas guardar pra sempre depois disso só aumenta o risco (o log carrega IP e nome de cliente). Antes dessa correção, `access_logs` não tinha prazo nenhum — crescia indefinidamente.
+
 **Correção (24/09/2026):** até então, só a tela simples de detalhe do cliente gerava esse log — mas o sistema abre o cliente pela ficha completa (`/ficha`, que traz CPF, endereço, financeiro e documentos), e essa rota nunca tinha gerado registro nenhum. Ou seja, o dado mais sensível de todos não tinha trilha de auditoria. Agora a ficha completa também registra o acesso.
 
 ## CEP preenche o endereço sozinho
@@ -97,6 +99,7 @@ Desde 24/09/2026, o cadastro/edição de cliente confere o dígito verificador d
 | 24/09/2026 | Claude | Checagem de conflito de interesses ganha tolerância a erro de digitação (distância de edição) contra clientes e leads — `src/utils/nomeSimilar.ts` |
 | 24/09/2026 | Claude | Botão "Enviar documento" direto na ficha do cliente — reaproveita o upload já existente da Central de Documentos |
 | 24/09/2026 | Claude | Consentimento LGPD explícito no cadastro (`clients.lgpd_consent_at`, migration 134) — conclui as 5 ideias de prioridade média da auditoria do módulo Clientes |
+| 24/09/2026 | Claude | `access_logs` ganha política de retenção (5 anos) na faxina mensal de LGPD — antes não tinha prazo nenhum e crescia pra sempre (`src/services/retentionService.ts`) |
 
 ---
 ◀ [Dashboard](00c-dashboard.md) · [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶

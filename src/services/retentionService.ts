@@ -41,6 +41,7 @@ const DIAS = {
   emailsRecusados: 90,  // e-mail de parceria que você DESCARTOU
   leadsPerdidos: 730,   // 2 anos — nunca virou cliente
   midiaOrfa: 365,       // mídia de WhatsApp sem cliente vinculado
+  logsAcesso: 1825,     // access_logs: 5 anos
 };
 
 export const POLITICAS: Politica[] = [
@@ -116,6 +117,20 @@ export const POLITICAS: Politica[] = [
               WHERE client_id IS NULL AND created_at < NOW() - INTERVAL ${DIAS.midiaOrfa} DAY`,
     executar: `DELETE FROM whatsapp_media
                 WHERE client_id IS NULL AND created_at < NOW() - INTERVAL ${DIAS.midiaOrfa} DAY`,
+  },
+
+  // ── NÍVEL 4 — trilha de auditoria LGPD: guarda por tempo definido, não pra sempre ──
+  {
+    nome: 'logs_acesso_lgpd', tabela: 'access_logs', acao: 'apagado',
+    criterio: `mais de ${DIAS.logsAcesso} dias (5 anos)`,
+    porque: 'Achado da auditoria do módulo Clientes (23/09/2026): access_logs (migration 059) ' +
+            'registra quem acessou a ficha de qual cliente/processo e nunca teve prazo — crescia ' +
+            'pra sempre. 5 anos é o mesmo prazo prescricional que a própria LGPD usa para apuração ' +
+            'administrativa da ANPD (art. 52, §5º): o log precisa sobreviver esse tempo pra provar ' +
+            'conformidade se for cobrado, mas depois disso guardar só aumenta o risco (contém IP e ' +
+            'nome de cliente). Não é dado de processo/financeiro — é log de QUEM olhou, não O QUE é.',
+    contar: `SELECT COUNT(*) AS n FROM access_logs WHERE created_at < NOW() - INTERVAL ${DIAS.logsAcesso} DAY`,
+    executar: `DELETE FROM access_logs WHERE created_at < NOW() - INTERVAL ${DIAS.logsAcesso} DAY`,
   },
 ];
 
