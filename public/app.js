@@ -2136,7 +2136,27 @@ const ROUTES = {
       <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Minhas parcelas</strong></div><div id="portal-parc"><div class="spinner"></div></div></div>
       <div id="portal-cases"></div>
       <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Meus documentos</strong></div><div id="portal-docs"><div class="spinner"></div></div></div>
-      <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Atualizações</strong></div><div id="portal-tl"><div class="spinner"></div></div></div>`;
+      <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Atualizações</strong></div><div id="portal-tl"><div class="spinner"></div></div></div>
+      <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Meus dados de contato</strong></div>
+        <form id="portal-dados-form" style="padding:14px 18px;display:grid;gap:10px;max-width:480px">
+          <label>E-mail<input type="email" name="email" value="${esc(me.email || '')}"></label>
+          <label>Telefone<input type="text" name="phone" value="${esc(me.phone || '')}"></label>
+          <label>Endereço<input type="text" name="address" value="${esc(me.address || '')}"></label>
+          <button class="btn-gold" type="submit" style="width:auto;justify-self:start">Salvar</button>
+        </form>
+      </div>`;
+    $('#portal-dados-form').onsubmit = async (ev) => {
+      ev.preventDefault();
+      const btn = ev.target.querySelector('button[type=submit]'); btn.disabled = true;
+      const fd = new FormData(ev.target);
+      try {
+        await api('/api/portal/me', { method: 'PUT', body: JSON.stringify({
+          email: fd.get('email') || null, phone: fd.get('phone') || null, address: fd.get('address') || null,
+        }) });
+        toast('Dados atualizados!');
+      } catch (e) { toast(e.message, 'error'); }
+      finally { btn.disabled = false; }
+    };
     $('#portal-cases').innerHTML = cases.length ? cases.map((c) => `
       <div class="card" style="padding:18px;margin-bottom:14px">
         <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:baseline">

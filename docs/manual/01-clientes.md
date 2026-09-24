@@ -69,6 +69,10 @@ Desde 24/09/2026, a ficha do cliente tem um botão **"Baixar dados (LGPD)"** —
 
 Desde 24/09/2026, o cadastro/edição de cliente confere o dígito verificador do CPF/CNPJ digitado (o mesmo cálculo usado pela Receita Federal) — um número com dígito errado (ex.: digitado errado sem querer) é recusado com aviso claro, antes de salvar. Campo continua opcional: deixar vazio é permitido. Isso não muda a checagem de conflito de interesses (que continua um aviso, nunca bloqueio) — é uma validação de formato, diferente.
 
+## Portal do cliente: atualizar os próprios dados de contato
+
+Desde 24/09/2026, o Portal do Cliente tem uma seção "Meus dados de contato" onde o próprio cliente atualiza e-mail, telefone e endereço sozinho — antes precisava pedir pra advogada fazer manualmente. Escopo restrito de propósito: nome, CPF/CNPJ e status **não** ficam editáveis pelo cliente (mudam a identificação jurídica/qualificação da parte — continuam só no cadastro interno, feito pela equipe).
+
 ## FAQ
 
 **Se eu cadastrar o mesmo CPF duas vezes, o sistema bloqueia?** Não bloqueia — a checagem de conflito de interesses é um aviso, mostrado antes de salvar, mas a decisão final é sua.
@@ -100,6 +104,7 @@ Desde 24/09/2026, o cadastro/edição de cliente confere o dígito verificador d
 | 24/09/2026 | Claude | Botão "Enviar documento" direto na ficha do cliente — reaproveita o upload já existente da Central de Documentos |
 | 24/09/2026 | Claude | Consentimento LGPD explícito no cadastro (`clients.lgpd_consent_at`, migration 134) — conclui as 5 ideias de prioridade média da auditoria do módulo Clientes |
 | 24/09/2026 | Claude | `access_logs` ganha política de retenção (5 anos) na faxina mensal de LGPD — antes não tinha prazo nenhum e crescia pra sempre (`src/services/retentionService.ts`) |
+| 24/09/2026 | Claude | Portal do Cliente ganha autoatendimento pra atualizar e-mail/telefone/endereço (`PUT /api/portal/me`) — antes o portal só consultava, qualquer correção dependia de pedir pra advogada |
 
 ---
 ◀ [Dashboard](00c-dashboard.md) · [Visão geral](00-visao-geral.md) · Próximo: [Leads e comercial](02-leads.md) ▶

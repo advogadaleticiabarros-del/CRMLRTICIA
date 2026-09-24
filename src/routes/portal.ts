@@ -23,7 +23,7 @@ router.use(loadClientId);
 // ── GET /api/portal/me — resumo do cliente ──────────────────────────────────
 router.get('/me', async (req: Request, res: Response) => {
   const clientId = (req as any).clientId;
-  const [client] = await db.query('SELECT id, name, email, phone FROM clients WHERE id = ?', [clientId]) as any;
+  const [client] = await db.query('SELECT id, name, email, phone, address FROM clients WHERE id = ?', [clientId]) as any;
   const [[resumo]] = await db.query(`
     SELECT
       (SELECT COUNT(*) FROM cases WHERE client_id = ? AND status = 'ativo') AS processos_ativos,
@@ -31,6 +31,24 @@ router.get('/me', async (req: Request, res: Response) => {
       (SELECT COALESCE(SUM(valor),0) FROM installments WHERE client_id = ? AND status = 'pendente' AND due_date < CURDATE()) AS vencido
   `, [clientId, clientId, clientId]) as any;
   res.json({ ...client[0], resumo });
+});
+
+// ── PUT /api/portal/me — cliente atualiza os próprios dados de contato ──────
+// Achado da auditoria do módulo Clientes (prioridade baixa, 24/09/2026): o
+// portal só CONSULTA — pra corrigir um telefone/e-mail/endereço, o cliente
+// tinha que pedir pra advogada fazer manualmente. Escopo deliberadamente
+// restrito: só email/phone/address. Nome, CPF/CNPJ e status continuam fora do
+// alcance do cliente (mudam a identificação jurídica/qualificação — só a
+// equipe edita, pelo cadastro normal).
+router.put('/me', async (req: Request, res: Response) => {
+  const clientId = (req as any).clientId;
+  const { email, phone, address } = req.body;
+  await db.query(
+    'UPDATE clients SET email = ?, phone = ?, address = ? WHERE id = ?',
+    [email ?? null, phone ?? null, address ?? null, clientId]
+  );
+  const [rows] = await db.query('SELECT id, name, email, phone, address FROM clients WHERE id = ?', [clientId]) as any;
+  res.json(rows[0]);
 });
 
 // ── GET /api/portal/cases — meus processos (com estágio de produção) ────────
