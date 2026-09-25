@@ -8534,10 +8534,15 @@ async function datProjecao(c) {
 async function datDemandas(c) {
   c.innerHTML = `<div class="toolbar">
       <button class="btn-gold" id="new-dcase">+ Nova demanda</button>
-      <select id="dcase-status" title="Filtrar por status"><option value="">Todos status</option><option value="nomeada">Nomeada</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="a_receber">A receber</option><option value="paga">Paga</option><option value="recusada">Recusada</option></select>
+      <select id="dcase-status" title="Filtrar por status"><option value="">Todos status</option><option value="nomeada">Nomeada</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="aguardando_liberacao_requerimento">Aguardando liberação do requerimento</option><option value="a_receber">A receber</option><option value="paga">Paga</option><option value="recusada">Recusada</option></select>
+      <input type="text" id="dcase-nome" placeholder="Buscar por assistido…" style="max-width:220px">
+      <input type="text" id="dcase-comarca" placeholder="Filtrar por comarca…" style="max-width:200px">
     </div><div class="card"><div id="dcase-table"></div></div>`;
   let periodo = { de: '', ate: '' };
   let statusFiltro = '';
+  let nomeFiltro = '';
+  let comarcaFiltro = '';
+  let debounceTimer = null;
   tableTools(c.querySelector('.card'), {
     onPeriod: (de, ate) => { periodo = { de, ate }; load(); },
     findTable: () => c.querySelector('#dcase-table table'), filename: 'dativo-demandas',
@@ -8549,8 +8554,12 @@ async function datDemandas(c) {
     return true;
   });
   const load = async () => {
-    const q = statusFiltro ? ('?status=' + statusFiltro) : '';
-    const rows = filtraPeriodo(await api('/api/dative/cases' + q), 'nomeacao_date');
+    const params = new URLSearchParams();
+    if (statusFiltro) params.set('status', statusFiltro);
+    if (nomeFiltro.trim()) params.set('assisted_name', nomeFiltro.trim());
+    if (comarcaFiltro.trim()) params.set('comarca', comarcaFiltro.trim());
+    const qs = params.toString();
+    const rows = filtraPeriodo(await api('/api/dative/cases' + (qs ? '?' + qs : '')), 'nomeacao_date');
     $('#dcase-table').innerHTML = rows.length ? `
       <table><thead><tr><th>Comarca</th><th>Assistido</th><th>Assunto</th><th>Área</th><th>Nomeação</th><th>Estimado</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.map((d) => `<tr>
@@ -8566,6 +8575,14 @@ async function datDemandas(c) {
   };
   $('#new-dcase').onclick = () => dativeCaseForm(load);
   $('#dcase-status').onchange = () => { statusFiltro = $('#dcase-status').value; load(); };
+  const buscaComDebounce = () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => {
+      nomeFiltro = $('#dcase-nome').value; comarcaFiltro = $('#dcase-comarca').value; load();
+    }, 350);
+  };
+  $('#dcase-nome').oninput = buscaComDebounce;
+  $('#dcase-comarca').oninput = buscaComDebounce;
   await load();
 }
 
@@ -8715,7 +8732,7 @@ async function dativeCaseDetail(id, onSave) {
     ${field('Assistido', 'assisted_name', { value: d.assisted_name || '' })}
     <div class="form-row">${field('Área', 'area', { value: d.area, options: DATIVE_AREAS })}${field('Data da nomeação', 'nomeacao_date', { type: 'date', value: dinput })}</div>
     ${field('Assunto (etiqueta)', 'assunto', { value: d.assunto || '', placeholder: 'ex.: tráfico de drogas, divórcio litigioso, furto' })}
-    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d.estimated_value ?? 0 })}${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
+    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d.estimated_value ?? 0 })}${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['aguardando_liberacao_requerimento','Aguardando liberação do requerimento'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
     ${field('Observações', 'notes', { value: d.notes || '', type: 'textarea' })}
     <button class="btn-primary" id="dat-save">Salvar alterações</button>
     <hr style="border:none;border-top:1px solid var(--border)">
@@ -8900,7 +8917,7 @@ async function dativeCaseEditForm(onSave, d) {
     <div class="form-row">${field('&Aacute;rea', 'area', { value: d?.area || 'outro', options: DATIVE_AREAS })}${field('Data da nomea&ccedil;&atilde;o', 'nomeacao_date', { type: 'date', value: datDateInputValue(d?.nomeacao_date) })}</div>
     <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d?.estimated_value ?? '' })}${d?.status === 'recusada'
       ? `<label>Status<select disabled><option>Recusada</option></select><small style="color:var(--text-muted)">Nomeação recusada — abra "Abrir" pra ver o motivo ou reverter</small></label>`
-      : field('Status', 'status', { value: d?.status || 'nomeada', options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Conclu&iacute;da'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
+      : field('Status', 'status', { value: d?.status || 'nomeada', options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Conclu&iacute;da'],['aguardando_liberacao_requerimento','Aguardando libera&ccedil;&atilde;o do requerimento'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
     ${field('Observa&ccedil;&otilde;es', 'notes', { type: 'textarea', value: d?.notes || '' })}
     <button type="submit" class="btn-primary">Salvar altera&ccedil;&otilde;es</button>
     <button type="button" class="btn-sm" id="dcase-del" style="color:var(--red);border-color:var(--red)">Excluir demanda</button>

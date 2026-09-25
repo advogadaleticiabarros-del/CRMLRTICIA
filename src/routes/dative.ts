@@ -5,7 +5,7 @@ import { stripDataUrlPrefix } from '../utils/dataUrl';
 
 const router = Router();
 
-const CASE_STATUS = ['nomeada', 'em_andamento', 'concluida', 'a_receber', 'paga', 'recusada'];
+const CASE_STATUS = ['nomeada', 'em_andamento', 'concluida', 'aguardando_liberacao_requerimento', 'a_receber', 'paga', 'recusada'];
 const AREAS = ['criminal', 'familia', 'civel', 'previdenciario', 'trabalhista', 'infancia', 'outro'];
 const HEARING_STATUS = ['agendada', 'realizada', 'adiada', 'cancelada'];
 const PAY_STATUS = ['previsto', 'recebido'];
@@ -71,13 +71,13 @@ router.get('/summary', async (req: Request, res: Response) => {
       (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
          FROM dative_cases dc WHERE dc.user_id = ? AND dc.status NOT IN ('paga','recusada'))                    AS estimado_total,
       (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
-         FROM dative_cases dc WHERE dc.user_id = ? AND dc.status IN ('concluida','a_receber'))                  AS realizado,
+         FROM dative_cases dc WHERE dc.user_id = ? AND dc.status IN ('concluida','aguardando_liberacao_requerimento','a_receber'))                  AS realizado,
       (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
          FROM dative_cases dc WHERE dc.user_id = ? AND dc.status = 'em_andamento')                              AS agendado,
       (SELECT COUNT(*) FROM dative_hearings WHERE user_id = ? AND status = 'realizada')                          AS audiencias_realizadas,
       (SELECT COUNT(*) FROM dative_hearings WHERE user_id = ? AND status = 'agendada' AND hearing_date >= NOW()) AS audiencias_futuras,
       (SELECT COALESCE(SUM(value),0) FROM dative_payments WHERE user_id = ? AND status = 'recebido')             AS recebido,
-      (SELECT COUNT(*) FROM dative_cases WHERE user_id = ? AND status NOT IN ('concluida','a_receber','paga','recusada')) AS demandas_ativas
+      (SELECT COUNT(*) FROM dative_cases WHERE user_id = ? AND status NOT IN ('concluida','aguardando_liberacao_requerimento','a_receber','paga','recusada')) AS demandas_ativas
   `, Array(7).fill(userId)) as any;
 
   const aReceber = Math.max(0, Number(totais.realizado) - Number(totais.recebido));
@@ -114,11 +114,17 @@ router.get('/summary', async (req: Request, res: Response) => {
 });
 
 // ── DEMANDAS ────────────────────────────────────────────────────────────────
+// Pedido da Dra. Letícia (25/09/2026): pesquisar pelo nome do assistido
+// (representado) e filtrar por comarca — antes só dava pra filtrar por status.
 router.get('/cases', async (req: Request, res: Response) => {
   const status = req.query.status as string;
+  const assistedName = req.query.assisted_name as string;
+  const comarca = req.query.comarca as string;
   const where: string[] = ['user_id = ?'];
   const params: any[] = [req.user!.id];
   if (status && CASE_STATUS.includes(status)) { where.push('status = ?'); params.push(status); }
+  if (assistedName && assistedName.trim()) { where.push('assisted_name LIKE ?'); params.push(`%${assistedName.trim()}%`); }
+  if (comarca && comarca.trim()) { where.push('comarca LIKE ?'); params.push(`%${comarca.trim()}%`); }
 
   const [rows] = await db.query(
     `SELECT id, process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, arbitrated_value, status, origem,

@@ -12,7 +12,9 @@ Consulte pra entender o ciclo de uma demanda dativa, como a detecção automáti
 
 ## Status de uma demanda
 
-`nomeada` → `em_andamento` → `concluida` → `a_receber` → `paga`.
+`nomeada` → `em_andamento` → `concluida` → `aguardando_liberacao_requerimento` → `a_receber` → `paga`.
+
+**`aguardando_liberacao_requerimento` (desde 25/09/2026):** a nomeação/ato terminou (o honorário pode ou não já ter sido arbitrado), mas o requerimento de pagamento ainda não foi registrado — por isso ainda não dá pra nem solicitar o pagamento. Só depois do requerimento registrado é que a demanda avança pra `a_receber` (procedimento de recebimento já aberto, dinheiro ainda não caiu). Antes desse status existir, não tinha como marcar esse meio-do-caminho: ou ficava em `concluida` (perdendo a informação de que já podia avançar) ou pulava direto pra `a_receber` (informação incorreta de que o requerimento já tinha sido protocolado).
 
 Existe também `recusada`, fora dessa linha principal — usado quando a nomeação (detectada automaticamente ou cadastrada à mão) é recusada. Diferente dos demais, não dá pra setar `recusada` editando o campo Status direto: é preciso usar o botão **Recusar nomeação** na tela de detalhe, que exige o motivo (obrigatório) e trava o status — só sai revertendo pelo botão **Reverter recusa**, que devolve o status anterior à recusa. Isso preserva o histórico de nomeações recusadas e o motivo de cada uma, em vez de excluir a demanda. Uma demanda recusada não entra em nenhum total financeiro do dativo (estimado, a receber, por comarca/mês) nem conta como demanda ativa.
 
@@ -46,6 +48,10 @@ Pagamentos previstos e recebidos ficam vinculados à demanda. A tela de resumo m
 
 Uma demanda dativa pode ser movida pra esteira de produção (gera um caso normal, usando o mesmo cliente já vinculado) quando chega a hora de redigir uma peça — não duplica o cliente.
 
+## Buscar e filtrar demandas
+
+Desde 25/09/2026, a listagem de demandas dativas tem busca por **nome do assistido (representado)** e filtro por **comarca**, além do filtro por status já existente — antes só dava pra filtrar por status, e achar uma demanda específica exigia rolar a lista inteira ou usar Ctrl+F no navegador.
+
 ## FAQ
 
 **Uma demanda dativa duplicada pode acontecer?** Já aconteceu (bug corrigido em 03/09/2026) — a comparação de número de processo antes era exata, e um cadastro manual formatado (`0000000-00.0000.8.08.0000`) não batia com o número sem formatação que o DJEN manda. Hoje a comparação ignora pontuação.
@@ -63,6 +69,7 @@ Uma demanda dativa pode ser movida pra esteira de produção (gera um caso norma
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 25/09/2026 | Claude | Busca por nome do assistido + filtro por comarca na listagem de demandas; novo status `aguardando_liberacao_requerimento` entre `concluida` e `a_receber` (migration 135) |
 | 20/09/2026 | Claude | Adicionado status `recusada` (motivo obrigatório, reversível) — `POST /api/dative/cases/:id/reject` e `/reject/revert`; recusada some dos totais financeiros e de "demandas ativas"; filtro por status na listagem agora inclui Recusada |
 | 03/09/2026 | Claude | Criação do documento; registrada a correção de duplicidade por comparação de número de processo |
 
