@@ -30,6 +30,12 @@ Uma vez confirmado ou descartado, o mesmo prazo não é recriado nas sincroniza�
 
 **Data do vencimento ao confirmar (corrigido 28/09/2026):** a data é calculada em dias úteis pelo mesmo cálculo da calculadora de prazos (CPC arts. 219/220/224): pula sábado, domingo, feriados nacionais e forenses (Carnaval, Quinta/Sexta-feira Santa, Corpus Christi, 11/08, 01/11, 08/12 etc.) e a suspensão de 20/12 a 20/01. Feriado **municipal** da comarca não entra — em data apertada, confira o calendário do tribunal. Antes dessa correção, a confirmação só pulava fim de semana.
 
+## Avisos de prazo que ficam mais fortes (desde 28/09/2026)
+
+- **Prazo próximo (caso vinculado):** o aviso de "prazo em até 3 dias" agora escala — a partir de 2 dias o título ganha 🚨, e em menos de 24h vira "🚨 URGENTE". Com mais de 24h sobrando, o aviso repete a cada 6 horas; com menos de 24h, a cada hora (antes repetia igual toda hora, desde 3 dias).
+- **Prazo vencido:** no momento em que um prazo pendente passa da data, sai UM aviso "🚨 PRAZO VENCIDO" (sino + Telegram, quando ligado), uma única vez por prazo. Só considera vencidos há até 2 dias, pra não despejar aviso de prazos antigos.
+- **Prazo confirmado em processo sem caso vinculado:** esses prazos não entram na lista de Prazos nem nos avisos de 30/15/7/3/1 (que dependem de caso). Todo dia às 7h20 o sistema avisa os admins de cada um que vence nos próximos 30 dias, com título cada vez mais forte (semana / poucos dias / urgente), até alguém vincular o processo a um caso. O prazo também entra na Agenda normalmente, com ou sem caso.
+
 ## Avisos de alto valor no WhatsApp
 
 Sentença publicada ou acórdão publicado avisam o escritório por WhatsApp **imediatamente**, além de qualquer prazo. Cada processo só avisa **uma vez** por tipo de marco — mesmo que o mesmo evento apareça de novo por outra fonte ou seja republicado pelo tribunal. Quando o processo não tem cliente vinculado, a mensagem tenta mostrar as partes identificadas na publicação em vez de só o número.
@@ -61,6 +67,7 @@ O sistema tenta manter uma sugestão de fase processual (inicial, instrução, s
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/09/2026 | Claude | Avisos de prazo escalonados (título 🚨 e repetição por urgência), aviso único ao vencer (`prazos:vencidos`) e alerta diário de prazo em processo sem caso (`prazos:sem-caso`) — ideias 2, 4 e 5 da auditoria |
 | 28/09/2026 | Claude | Confirmação de prazo detectado passa a usar o cálculo com feriados/suspensão (`contarPrazo`) — antes só pulava fim de semana (achado crítico da auditoria) |
 | 03/09/2026 | Claude | Criação do documento; registrada a correção de dedup de avisos e limpeza de HTML/entidades |
 

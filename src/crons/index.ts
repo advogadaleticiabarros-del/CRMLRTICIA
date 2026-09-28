@@ -10,6 +10,7 @@ import { sendMorningBriefings, sendMorningBriefingWhatsapp } from '../services/m
 import { runPropostaFollowups, runFechamentoDefinitivoPropostas } from '../services/propostaFollowupService';
 import { captureDailyMetrics } from '../services/metricsSnapshotService';
 import { runJob } from './runner';
+import { nivelUrgencia } from '../utils/urgenciaPrazo';
 
 /**
  * Rotinas automáticas do CRM.
@@ -135,6 +136,11 @@ export function startCronJobs() {
   // ── a cada hora: gera alertas de prazos próximos ── CRÍTICO ───────────────
   cron.schedule('0 * * * *', () => {
     runJob('prazos:alertas', () => generateDeadlineAlerts(), { critica: true });
+  });
+
+  // ── a cada 15 min: avisa (uma vez) quando um prazo pendente vence ── CRÍTICO
+  cron.schedule('*/15 * * * *', () => {
+    runJob('prazos:vencidos', () => alertOverdueDeadlines(), { critica: true, silencioso: true });
   });
 
   // ── a cada 15 min: alerta reuniões e audiências próximas ── CRÍTICO ───────
@@ -355,6 +361,15 @@ export function startCronJobs() {
     runJob('monitoramento:processos', () => runMonitoringJob(), { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── diário 07:20 (Brasília): prazo confirmado em processo SEM caso vinculado
+  // fica fora dos avisos 30/15/7/3/1 — este alerta escala até vincularem ── CRÍTICO
+  cron.schedule('20 7 * * *', () => {
+    runJob('prazos:sem-caso', async () => {
+      const { alertarPrazosSemCaso } = await import('../services/prazoSemCasoService');
+      return await alertarPrazosSemCaso();
+    }, { critica: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── vigia do monitoramento: 13h30 e 20h30 (Brasília) ── CRÍTICO ────────────
   // O monitoramento roda de hora em hora das 07h às 20h. Se travar ou parar
   // sem lançar erro, nenhuma rodada 'ok' aparece em job_runs — e ninguém era
@@ -487,7 +502,7 @@ async function generateDeadlineAlerts() {
       AND NOT EXISTS (
         SELECT 1 FROM notifications n
         WHERE n.deadline_id = d.id AND n.status IN ('pendente','enviada')
-          AND n.scheduled_at >= NOW() - INTERVAL 1 HOUR
+          AND n.scheduled_at >= NOW() - INTERVAL (CASE WHEN TIMESTAMPDIFF(HOUR, NOW(), d.deadline_date) <= 24 THEN 1 ELSE 6 END) HOUR
       )
   `) as any;
 
@@ -498,7 +513,11 @@ async function generateDeadlineAlerts() {
     await notificationService.create({
       userId:      d.user_id,
       deadlineId:  d.id,
-      title:       `Prazo processual em ${daysLeft} dia(s)`,
+      title:       nivelUrgencia(daysLeft - 1) === 'critico'
+        ? `🚨 URGENTE: prazo processual em menos de 24h`
+        : nivelUrgencia(daysLeft - 1) === 'alto'
+          ? `🚨 Prazo processual em ${daysLeft} dia(s)`
+          : `Prazo processual em ${daysLeft} dia(s)`,
       message:     `${d.description} — Processo ${d.case_number}`,
       notificationType: 'prazo_proximo',
       channel:     'sistema',
@@ -513,6 +532,38 @@ async function generateDeadlineAlerts() {
     }
   }
   return { alertas: deadlines.length };
+}
+
+// Ideia 5 da auditoria de Processos e prazos (28/09/2026): ao virar "vencido"
+// só mudava a cor na lista. Agora dispara UM aviso forte, uma única vez por
+// prazo (dedupe por deadline_id + tipo). Janela de 2 dias evita despejar aviso
+// de todo prazo antigo já vencido na 1ª execução.
+async function alertOverdueDeadlines() {
+  const [vencidos] = await db.query(`
+    SELECT d.id, d.description, d.deadline_date, d.user_id, c.case_number
+    FROM deadlines d
+    JOIN cases c ON c.id = d.case_id
+    WHERE d.status = 'pendente'
+      AND d.deadline_date < NOW()
+      AND d.deadline_date >= NOW() - INTERVAL 2 DAY
+      AND NOT EXISTS (
+        SELECT 1 FROM notifications n
+        WHERE n.deadline_id = d.id AND n.notification_type = 'prazo_vencido'
+      )
+  `) as any;
+  for (const d of vencidos) {
+    await notificationService.create({
+      userId:      d.user_id,
+      deadlineId:  d.id,
+      title:       '🚨 PRAZO VENCIDO',
+      message:     `${d.description} — Processo ${d.case_number}. O prazo venceu e ainda está pendente: verifique agora se foi cumprido e dê baixa, ou tome providência.`,
+      notificationType: 'prazo_vencido',
+      channel:     'sistema',
+      scheduledAt: new Date(),
+    });
+    await telegramNotificationService.sendPrazoVencido(d.user_id, { caseRef: d.case_number, description: d.description }).catch(() => {});
+  }
+  return { vencidos: vencidos.length };
 }
 
 async function alertUpcomingEvents() {
