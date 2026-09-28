@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { runPrazoConfirmadoPlaybooks } from '../services/automationService';
 import { runEstagiarioForDeadline } from '../services/aiAssistant';
+import { contarPrazo } from '../utils/prazoUtil';
 
 const router = Router();
 
@@ -29,18 +30,6 @@ router.post('/:id/minuta', async (req: Request, res: Response) => {
   if (!r.ok) { res.status(400).json({ error: r.message || 'Não foi possível gerar a minuta' }); return; }
   res.json({ success: true, ai_draft_id: r.minutaId });
 });
-
-/** Soma N dias ÚTEIS a uma data (pula sábado/domingo). */
-function addBusinessDays(startStr: string, n: number): string {
-  const d = new Date(startStr + 'T00:00:00');
-  let added = 0;
-  while (added < n) {
-    d.setDate(d.getDate() + 1);
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) added++;
-  }
-  return d.toISOString().split('T')[0];
-}
 
 // ── GET /api/prazos-detectados ──────────────────────────────────────────────
 router.get('/', async (req: Request, res: Response) => {
@@ -76,7 +65,10 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
 
   const start = start_date || (dd.start_date ? new Date(dd.start_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
   const n = parseInt(days) || dd.suggested_days || 15;
-  const due = addBusinessDays(start, n);
+  // Mesmo cálculo da calculadora manual (CPC 219/220/224): pula feriado
+  // nacional/forense e a suspensão de 20/12–20/01. O addBusinessDays antigo só
+  // pulava fim de semana e podia dar data MENOR que a real perto de feriado.
+  const due = contarPrazo(start, n).vencimento;
   const type = deadline_type || dd.suggested_type || 'Prazo';
 
   await db.query(

@@ -211,6 +211,16 @@ pm2 restart crm-juridico && pm2 save
 
 **Se acontecer de novo:** (0) veja o motivo no aviso do sino — é ele que diz se foi HTTP da Uazapi, arquivo vazio, etc.; (1) clique em "Tentar baixar de novo" em cada aviso; (2) se continuar falhando, a mídia provavelmente expirou do lado do WhatsApp — peça pro remetente reenviar; (3) se falhar pra várias pessoas ao mesmo tempo, veja Saúde do WhatsApp e o painel da Uazapi, e confira `getWebhookErrors` (diagnóstico da Uazapi, ainda sem tela no CRM).
 
+## Incidente: prazo confirmado com data menor que a real (feriado ignorado)
+
+**Sintoma (risco encontrado em auditoria, 28/09/2026 — sem prejuízo conhecido):** ao confirmar um prazo detectado na tela de Prazos, a data de vencimento podia sair antes da data correta quando havia feriado no meio da contagem. Exemplo: 3 dias úteis a partir de 01/04/2026 saía 06/04, e o correto é 08/04 (Quinta e Sexta-feira Santa).
+
+**Causa raiz:** existiam dois cálculos. A calculadora manual (`src/utils/prazoUtil.ts`, `contarPrazo`) considera feriados nacionais/forenses e a suspensão de 20/12–20/01; a confirmação de prazo detectado (`src/routes/detected-deadlines.ts`) usava um `addBusinessDays` local que só pulava sábado e domingo.
+
+**Correção:** a confirmação passou a usar `contarPrazo`. Teste `tests/prazoDetectadoConfirmarComFeriados.test.mjs` impede a volta do cálculo simples.
+
+**Se acontecer de novo / prazos já confirmados antes de 28/09/2026:** os prazos confirmados antes da correção NÃO foram recalculados. Confira os que tenham feriado no intervalo (calculadora em Prazos) e corrija a data à mão se estiver menor. Nunca reintroduza uma segunda função de contagem de prazo — use sempre `contarPrazo`. Feriado municipal da comarca continua fora do cálculo.
+
 ## Incidente: prova mensal de restauração do backup falhando (sem impacto no backup em si)
 
 **Sintoma:** notificação no sino "Teste de restauração do backup FALHOU" no dia 1 de cada mês, às 03h30 — mensagem: `Access denied for user 'crmapp'@'127.0.0.1' to database 'crm_restore_test'`.
@@ -263,6 +273,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: botões de ação flutuando em telas com abas (Documentos, Controladoria, Financeiro) — slot de ação no cabeçalho + helper `moveTabAction()` únicos para as 3 telas |
 | 04/09/2026 | Claude | +1 incidente: espaço vazio dentro do Kanban — colunas esticavam pra altura da mais cheia (`align-items:stretch` padrão do flex); `align-items:flex-start` corrige Produção/Fases/Leads de uma vez |
 | 04/09/2026 | Claude | +1 incidente: aviso de "movimentação por e-mail" sem nome do cliente — mesmo fix do marco processual, agora extraído em `buscarNomeCliente()` compartilhado |
+| 28/09/2026 | Claude | +1 incidente: prazo detectado confirmado sem considerar feriado — passa a usar `contarPrazo` |
 | 28/09/2026 | Claude | Mídia do WhatsApp: retry (3x), fallback fileURL, motivo no sino e varredura automática a cada 10 min |
 | 25/09/2026 | Claude | +1 incidente: rajada de mídia do WhatsApp falhando ao baixar — botão "Tentar baixar de novo" reaproveita o messageId já gravado |
 | 05/09/2026 | Claude | +1 incidente: prova mensal de restauração do backup falhando há 2 meses (permissão em `crm_restore_test`) — confirmado corrigido, restauração manual passou (99 tabelas · 177 clientes · 41 casos · 8 usuários) |
