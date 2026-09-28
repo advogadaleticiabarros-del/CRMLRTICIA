@@ -370,6 +370,14 @@ export function startCronJobs() {
     }, { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── diário 07:40 (Brasília): fase sugerida à frente da fase manual há 3+ dias
+  cron.schedule('40 7 * * *', () => {
+    runJob('processos:fase-divergente', async () => {
+      const { alertarFaseDivergente } = await import('../services/faseDivergenteService');
+      return await alertarFaseDivergente();
+    }, { silencioso: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── vigia do monitoramento: 13h30 e 20h30 (Brasília) ── CRÍTICO ────────────
   // O monitoramento roda de hora em hora das 07h às 20h. Se travar ou parar
   // sem lançar erro, nenhuma rodada 'ok' aparece em job_runs — e ninguém era

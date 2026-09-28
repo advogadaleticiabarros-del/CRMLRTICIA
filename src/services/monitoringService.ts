@@ -1,3 +1,5 @@
+import { identificarGatilho } from '../utils/deteccaoPrazo';
+import { melhorFase } from '../utils/faseProcesso';
 import crypto from 'crypto';
 import { db } from '../config/database';
 import { getActiveProvider, getProvider } from './processProviders';
@@ -11,27 +13,12 @@ import { interpretarMovimentacao, extrairNomeacaoDativa, extrairArbitramentoDati
 import { sendText, avisarFalhaEnvioWhatsapp } from './uazapiInstance';
 
 // ── Sugestão de fase processual a partir do texto das movimentações ──────────
-const PHASE_RANK: Record<string, number> = { inicial: 1, instrucao: 2, sentenca: 3, recurso: 4, execucao: 5, encerrado: 6 };
-function phaseFromText(text: string): string | null {
-  const t = (text || '').toLowerCase();
-  if (/tr[âa]nsito em julgado|arquivad|baixa definitiva/.test(t)) return 'encerrado';
-  if (/execu[çc][ãa]o|cumprimento de senten|penhora|alvar[áa]|bacenjud|sisbajud|bloqueio de valores|le[ií]l[ãa]o/.test(t)) return 'execucao';
-  if (/ac[óo]rd[ãa]o|apela[çc][ãa]o|\brecurso\b|embargos de declara|agravo|recurso ordin[áa]rio|recurso de revista/.test(t)) return 'recurso';
-  if (/senten[çc]a/.test(t)) return 'sentenca';
-  if (/audi[êe]ncia|instru[çc][ãa]o|contesta[çc][ãa]o|r[ée]plica|per[íi]cia|saneador|sanea/.test(t)) return 'instrucao';
-  if (/cita[çc][ãa]o|distribu|autua|recebida a inicial|peti[çc][ãa]o inicial|ajuiza/.test(t)) return 'inicial';
-  return null;
-}
-
+// Regras em src/utils/faseProcesso.ts (puras, com teste).
 /** Recalcula a fase SUGERIDA do processo (maior estágio detectado nas movimentações). */
 export async function recomputeSuggestedPhase(processId: number): Promise<void> {
   try {
     const [movs] = await db.query('SELECT title, description FROM process_movements WHERE process_id = ?', [processId]) as any;
-    let best: string | null = null; let bestRank = 0;
-    for (const m of movs) {
-      const ph = phaseFromText(`${m.title || ''} ${m.description || ''}`);
-      if (ph && PHASE_RANK[ph] > bestRank) { best = ph; bestRank = PHASE_RANK[ph]; }
-    }
+    const best = melhorFase(movs.map((m: any) => `${m.title || ''} ${m.description || ''}`));
     if (best) await db.query('UPDATE legal_processes SET suggested_phase = ? WHERE id = ?', [best, processId]);
   } catch { /* best-effort */ }
 }
@@ -115,30 +102,16 @@ function toDate(val: string | null): Date | null {
   return isNaN(d.getTime()) ? null : d;
 }
 
-// Palavras-gatilho que normalmente iniciam um prazo (sugestão; o advogado confirma).
-const DEADLINE_TRIGGERS: { re: RegExp; type: string; days: number }[] = [
-  { re: /senten[çc]a/i,         type: 'Recurso (apelação)', days: 15 },
-  { re: /ac[óo]rd[ãa]o/i,       type: 'Recurso',            days: 15 },
-  { re: /cita[çc][ãa]o/i,       type: 'Contestação',        days: 15 },
-  { re: /embargos/i,            type: 'Embargos',           days: 5 },
-  { re: /intima[çc][ãa]o/i,     type: 'Manifestação',       days: 15 },
-  { re: /decis[ãa]o|despacho/i, type: 'Manifestação',       days: 5 },
-  { re: /publica[çc][ãa]o/i,    type: 'Manifestação',       days: 15 },
-];
-
-// Tipos de gatilho que são MARCO do processo (não rotina) — a advogada quer
-// saber na hora, no WhatsApp, e não só como mais um item numa lista de
-// prazos/alertas. "Recurso (apelação)" vem de "sentença", "Recurso" vem de
-// "acórdão" (ver DEADLINE_TRIGGERS acima). Mesmo padrão de aviso da detecção
-// de nomeação dativa — Fase 4 do roteiro de evolução: estender esse
-// tratamento além do dativo pros outros eventos de alto valor.
-const MARCO_PROCESSUAL = new Set(['Recurso (apelação)', 'Recurso']);
+// Palavras-gatilho que normalmente iniciam um prazo (sugestão; o advogado
+// confirma) — ver src/utils/deteccaoPrazo.ts: gatilho ESPECÍFICO vence o
+// genérico, e o título do ato pesa mais que a descrição. sentença/acórdão são
+// MARCO do processo (não rotina): a advogada quer saber na hora, no WhatsApp,
+// e não só como mais um item numa lista de prazos/alertas.
 
 /** Cria "prazo a confirmar" (DJEN) ou alerta (DataJud) quando a movimentação contém palavra-gatilho. Nunca derruba o sync. */
 async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string; metadata?: { parties?: Array<{ nome?: string | null }> } | null }, processNumber?: string, movementId: number | null = null, source?: string): Promise<void> {
   try {
-    const text = `${m.title || ''} ${m.description || ''}`;
-    const trig = DEADLINE_TRIGGERS.find((t) => t.re.test(text));
+    const trig = identificarGatilho(m.title, m.description);
     if (!trig) return;
     const start = toDate(m.movement_date) || new Date();
     const DETECT_MAX_AGE_DAYS = 45;
@@ -152,7 +125,7 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     // WhatsApp a cada vez (reportado: "múltiplas mensagens da mesma
     // movimentação e/ou processo"). INSERT IGNORE decide atomicamente: só
     // quem inserir de verdade (afetou 1 linha) manda a mensagem.
-    if (MARCO_PROCESSUAL.has(trig.type)) {
+    if (trig.marco) {
       const [marcaResp] = await db.query(
         'INSERT IGNORE INTO marco_processual_avisos (process_id, marco_type) VALUES (?, ?)',
         [processId, trig.type]

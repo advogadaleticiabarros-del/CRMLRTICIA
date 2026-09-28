@@ -221,6 +221,16 @@ pm2 restart crm-juridico && pm2 save
 
 **Se acontecer de novo / prazos já confirmados antes de 28/09/2026:** os prazos confirmados antes da correção NÃO foram recalculados. Confira os que tenham feriado no intervalo (calculadora em Prazos) e corrija a data à mão se estiver menor. Nunca reintroduza uma segunda função de contagem de prazo — use sempre `contarPrazo`. Feriado municipal da comarca continua fora do cálculo.
 
+## Incidente: processo trabalhista/federal não encontrado no DataJud (tribunal deduzido errado do número)
+
+**Sintoma (achado por teste, 28/09/2026):** processo do TRT ou da Justiça Federal descoberto pelo DJEN ficava sem movimentação do DataJud ("não encontrado"). Sem prejuízo conhecido: estaduais (TJ) não eram afetados.
+
+**Causa raiz:** `tribunalSlugFromNumber` (`src/services/datajud.ts`) tinha o segmento de justiça do número CNJ trocado — tratava J=5 como Federal e J=4 como Trabalho, e a Res. CNJ 65 diz o contrário (4 = Federal, 5 = Trabalho). Um processo do TRT17 virava `api_publica_trf17` (não existe). Além disso, um código de tribunal desconhecido devolvia o slug solto `tj`.
+
+**Correção:** mapeamento corrigido, código desconhecido devolve `null`, e a migration 136 recalcula o `court_alias` das linhas já gravadas errado. Testes em `tests/faseETribunalDeterministicos.test.mjs`.
+
+**Se acontecer de novo:** confira o `court_alias` do processo contra o número (`NNNNNNN-DD.AAAA.J.TR.OOOO`: J=4 → `trf<TR>`, J=5 → `trt<TR>`, J=8 → `tj<UF>`), e nunca duplique essa lógica — use `aliasFromProcessNumber`.
+
 ## Incidente: prova mensal de restauração do backup falhando (sem impacto no backup em si)
 
 **Sintoma:** notificação no sino "Teste de restauração do backup FALHOU" no dia 1 de cada mês, às 03h30 — mensagem: `Access denied for user 'crmapp'@'127.0.0.1' to database 'crm_restore_test'`.
@@ -273,6 +283,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: botões de ação flutuando em telas com abas (Documentos, Controladoria, Financeiro) — slot de ação no cabeçalho + helper `moveTabAction()` únicos para as 3 telas |
 | 04/09/2026 | Claude | +1 incidente: espaço vazio dentro do Kanban — colunas esticavam pra altura da mais cheia (`align-items:stretch` padrão do flex); `align-items:flex-start` corrige Produção/Fases/Leads de uma vez |
 | 04/09/2026 | Claude | +1 incidente: aviso de "movimentação por e-mail" sem nome do cliente — mesmo fix do marco processual, agora extraído em `buscarNomeCliente()` compartilhado |
+| 28/09/2026 | Claude | +1 incidente: tribunal deduzido errado do número CNJ (TRF/TRT trocados) — corrigido + migration 136 |
 | 28/09/2026 | Claude | +1 incidente: prazo detectado confirmado sem considerar feriado — passa a usar `contarPrazo` |
 | 28/09/2026 | Claude | Mídia do WhatsApp: retry (3x), fallback fileURL, motivo no sino e varredura automática a cada 10 min |
 | 25/09/2026 | Claude | +1 incidente: rajada de mídia do WhatsApp falhando ao baixar — botão "Tentar baixar de novo" reaproveita o messageId já gravado |

@@ -28,6 +28,8 @@ Toda movimentação nova é lida em busca de palavras-gatilho (sentença, acórd
 
 Uma vez confirmado ou descartado, o mesmo prazo não é recriado nas sincronizações seguintes.
 
+**Como o tipo do prazo é escolhido (desde 28/09/2026):** antes valia a PRIMEIRA palavra-gatilho da lista que aparecesse no texto. Agora: (1) gatilhos **específicos** (sentença, acórdão, citação, embargos) vencem os **genéricos** (intimação, decisão/despacho, publicação), mesmo que o genérico apareça antes no texto; (2) entre específicos vence o que aparece primeiro no texto; (3) o **título** do ato pesa mais que a descrição; (4) acento e maiúscula não importam. Regras em `src/utils/deteccaoPrazo.ts`, com teste. Continua sendo só sugestão — a advogada confirma.
+
 **Data do vencimento ao confirmar (corrigido 28/09/2026):** a data é calculada em dias úteis pelo mesmo cálculo da calculadora de prazos (CPC arts. 219/220/224): pula sábado, domingo, feriados nacionais e forenses (Carnaval, Quinta/Sexta-feira Santa, Corpus Christi, 11/08, 01/11, 08/12 etc.) e a suspensão de 20/12 a 20/01. Feriado **municipal** da comarca não entra — em data apertada, confira o calendário do tribunal. Antes dessa correção, a confirmação só pulava fim de semana.
 
 ## Avisos de prazo que ficam mais fortes (desde 28/09/2026)
@@ -48,6 +50,8 @@ Quando um prazo é detectado via DJEN, o sistema pode acionar um "estagiário IA
 
 O sistema tenta manter uma sugestão de fase processual (inicial, instrução, sentença, recurso, execução, encerrado) recalculada a partir do texto das movimentações mais recentes — é uma sugestão, não substitui a fase que você define manualmente no caso.
 
+
+**Aviso de divergência (desde 28/09/2026):** se a fase sugerida pelas movimentações ficar À FRENTE da fase cadastrada por 3 dias ou mais, os admins recebem um aviso no sino ("Fase do processo pode estar desatualizada"), repetido a cada 14 dias enquanto persistir — antes só aparecia um selo na tela de Processos, que ninguém via sem abri-la. A fase nunca é alterada sozinha. Regras de sugestão em `src/utils/faseProcesso.ts`, com teste.
 ## FAQ
 
 **Por que um processo apareceu no sistema sem eu ter cadastrado?** Foi descoberto pela varredura DJEN por OAB — qualquer publicação endereçada à sua OAB entra automaticamente, mesmo sem cadastro prévio.
@@ -67,6 +71,7 @@ O sistema tenta manter uma sugestão de fase processual (inicial, instrução, s
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/09/2026 | Claude | Tipo de prazo por gatilho específico/título (`deteccaoPrazo.ts`), aviso de fase divergente (`processos:fase-divergente`), busca nacional por OAB passa a reportar falha por tribunal, testes de fase e tribunal — ideias 6, 7, 8 e 9 da auditoria |
 | 28/09/2026 | Claude | Avisos de prazo escalonados (título 🚨 e repetição por urgência), aviso único ao vencer (`prazos:vencidos`) e alerta diário de prazo em processo sem caso (`prazos:sem-caso`) — ideias 2, 4 e 5 da auditoria |
 | 28/09/2026 | Claude | Confirmação de prazo detectado passa a usar o cálculo com feriados/suspensão (`contarPrazo`) — antes só pulava fim de semana (achado crítico da auditoria) |
 | 03/09/2026 | Claude | Criação do documento; registrada a correção de dedup de avisos e limpeza de HTML/entidades |

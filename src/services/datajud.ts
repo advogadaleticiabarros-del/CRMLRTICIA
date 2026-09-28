@@ -62,12 +62,13 @@ const TRT_BY_UF: Record<string, string> = {
 export function tribunalSlugFromNumber(processNumber: string): string | null {
   const c = cleanNumber(processNumber);
   if (c.length < 20) return null;
-  const justica = c.charAt(13);        // segmento de justiça (J)
+  const justica = c.charAt(13);        // segmento de justiça (J) — Res. CNJ 65: 4=Federal, 5=Trabalho, 6=Eleitoral, 7=Militar da União, 8=Estadual
   const tribunal = parseInt(c.substring(14, 16)); // código do tribunal (TR)
-  if (justica === '8') return `tj${TJ_BY_CODE[tribunal] ?? ''}` || null; // estadual
-  if (justica === '5') return `trf${tribunal}`;  // federal
-  if (justica === '4') return `trt${tribunal}`;  // trabalhista
-  if (justica === '6') return `tre${TJ_BY_CODE[tribunal] ?? ''}`;        // eleitoral
+  const uf = TJ_BY_CODE[tribunal];
+  if (justica === '8') return uf ? `tj${uf}` : null;  // estadual
+  if (justica === '4') return tribunal > 0 ? `trf${tribunal}` : null;  // federal
+  if (justica === '5') return tribunal > 0 ? `trt${tribunal}` : null;  // trabalhista
+  if (justica === '6') return uf ? `tre${uf}` : null;  // eleitoral
   if (justica === '7') return 'stm';   // militar da união
   return null;
 }
@@ -179,10 +180,17 @@ export interface DiscoveredProcess {
   movements: NormalizedMovement[];
 }
 
-/** Consulta UM tribunal buscando processos onde a OAB aparece como advogado. */
-async function searchTribunalByOAB(slug: string, oabNumber: string, oabUf: string): Promise<DiscoveredProcess[]> {
+export interface FalhaTribunal { tribunal: string; erro: string }
+
+/**
+ * Consulta UM tribunal buscando processos onde a OAB aparece como advogado.
+ * Ideia 9 da auditoria de Processos e prazos (28/09/2026): antes qualquer erro
+ * (500, timeout, rede) virava lista vazia — indistinguível de "0 processos".
+ * 404 continua ignorado (tribunal sem índice não é falha).
+ */
+async function searchTribunalByOAB(slug: string, oabNumber: string, oabUf: string): Promise<{ processos: DiscoveredProcess[]; erro?: string }> {
   const apiKey = process.env.DATAJUD_API_KEY;
-  if (!apiKey) return [];
+  if (!apiKey) return { processos: [], erro: 'DATAJUD_API_KEY não configurada' };
   const url = `${BASE_URL}/api_publica_${slug}/_search`;
   const advQuery = (oabValue: string) => ({
     nested: {
@@ -210,11 +218,12 @@ async function searchTribunalByOAB(slug: string, oabNumber: string, oabUf: strin
       signal: controller.signal,
     });
     clearTimeout(timer);
-    if (!res.ok) return []; // 404 = tribunal sem dados / sem índice — ignora
+    if (res.status === 404) return { processos: [] }; // tribunal sem dados / sem índice — ignora
+    if (!res.ok) return { processos: [], erro: `HTTP ${res.status}` };
 
     const data: any = await res.json();
     const hits: any[] = data?.hits?.hits ?? [];
-    return hits.map((h) => {
+    const processos = hits.map((h) => {
       const s = h._source ?? {};
       const movimentos: any[] = Array.isArray(s.movimentos) ? s.movimentos : [];
       return {
@@ -234,8 +243,10 @@ async function searchTribunalByOAB(slug: string, oabNumber: string, oabUf: strin
         })),
       } as DiscoveredProcess;
     }).filter((p) => p.process_number);
-  } catch {
-    return [];
+    return { processos };
+  } catch (e: any) {
+    const abortou = e?.name === 'AbortError';
+    return { processos: [], erro: abortou ? 'tempo esgotado (15s)' : String(e?.message || e) };
   }
 }
 
@@ -244,22 +255,29 @@ export async function searchByOAB(
   oabNumber: string,
   oabUf: string,
   scope: 'national' | 'state' = 'national'
-): Promise<{ total: number; processes: DiscoveredProcess[]; tribunaisConsultados: number }> {
+): Promise<{ total: number; processes: DiscoveredProcess[]; tribunaisConsultados: number; falhas: FalhaTribunal[] }> {
   const uf = (oabUf || 'ES').toUpperCase();
   const tribunais = scope === 'state'
     ? [`tj${uf.toLowerCase()}`, `trt${TRT_BY_UF[uf] ?? '17'}`]
     : TRIBUNAIS_NACIONAIS;
 
   const all: DiscoveredProcess[] = [];
+  const falhas: FalhaTribunal[] = [];
+  if (!process.env.DATAJUD_API_KEY) {
+    return { total: 0, processes: [], tribunaisConsultados: 0, falhas: [{ tribunal: '*', erro: 'DATAJUD_API_KEY não configurada' }] };
+  }
   const BATCH = 8; // lotes para não estourar rate limit
   for (let i = 0; i < tribunais.length; i += BATCH) {
     const batch = tribunais.slice(i, i + BATCH);
     const results = await Promise.all(batch.map((t) => searchTribunalByOAB(t, oabNumber, uf)));
-    results.forEach((procs) => all.push(...procs));
+    results.forEach((r, idx) => {
+      all.push(...r.processos);
+      if (r.erro) falhas.push({ tribunal: batch[idx], erro: r.erro });
+    });
   }
 
   // Dedup por número de processo
   const seen = new Set<string>();
   const unique = all.filter((p) => (seen.has(p.process_number) ? false : (seen.add(p.process_number), true)));
-  return { total: unique.length, processes: unique, tribunaisConsultados: tribunais.length };
+  return { total: unique.length, processes: unique, tribunaisConsultados: tribunais.length, falhas };
 }
