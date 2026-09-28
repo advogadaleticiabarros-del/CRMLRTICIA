@@ -17,7 +17,7 @@ function maskCpf(cpf: string | null): string {
 // ── GET /api/public/sign/:token — carrega o documento para assinar ──────────
 router.get('/sign/:token', async (req: Request, res: Response) => {
   const [rows] = await db.query(
-    `SELECT s.id, s.status, s.signer_name, s.signer_cpf, s.party_label, s.verification_code, s.signed_at,
+    `SELECT s.id, s.status, s.signer_name, s.signer_cpf, s.party_label, s.verification_code, s.signed_at, s.require_selfie,
             COALESCE(d.name, ct.title) AS document_name, COALESCE(d.content, ct.content) AS content
        FROM signature_requests s
        LEFT JOIN documents d ON d.id = s.document_id
@@ -37,6 +37,7 @@ router.get('/sign/:token', async (req: Request, res: Response) => {
     name_locked: !!r.signer_name,
     cpf_locked: !!r.signer_cpf,
     party_label: r.party_label || '',
+    require_selfie: !!r.require_selfie,
     status: r.status,
     verification_code: r.status === 'assinado' ? r.verification_code : null,
     signed_at: r.signed_at,
@@ -77,6 +78,16 @@ router.post('/sign/:token', async (req: Request, res: Response) => {
   const signerNameFinal = nameLocked ? reqRow.signer_name : String(signer_name).trim();
   const cpfDigitsFinal = cpfLocked ? String(reqRow.signer_cpf) : String(signer_cpf || '').replace(/\D/g, '');
 
+  // Selfie (só registro, sem comparação facial): dado sensível (LGPD), então
+  // só é aceita/guardada quando a advogada a exigiu neste link — e nesse caso
+  // é obrigatória. Se não foi exigida, qualquer imagem enviada é descartada.
+  const selfieValida = !!(selfie_image && String(selfie_image).startsWith('data:image'));
+  if (reqRow.require_selfie && !selfieValida) {
+    res.status(400).json({ error: 'Selfie obrigatória: tire uma foto do seu rosto para concluir a assinatura.' });
+    return;
+  }
+  const selfieFinal = reqRow.require_selfie && selfieValida ? selfie_image : null;
+
   const docHash = crypto.createHash('sha256').update(String(reqRow.content || '')).digest('hex');
   const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || '';
   const ua = String(req.headers['user-agent'] || '').slice(0, 500);
@@ -90,6 +101,7 @@ router.post('/sign/:token', async (req: Request, res: Response) => {
     ...(opened_at ? [{ evento: 'Documento aberto pelo signatário', data_utc: String(opened_at) }] : []),
     { evento: 'Aceite "Li e concordo" e manifestação de vontade', data_utc: nowIso },
     { evento: 'Assinatura manuscrita registrada', data_utc: nowIso },
+    ...(selfieFinal ? [{ evento: 'Selfie de verificação registrada (apenas registro, sem comparação facial)', data_utc: nowIso }] : []),
     { evento: 'Assinatura concluída', data_utc: nowIso, ip, user_agent: ua, geolocalizacao: (lat != null && lng != null) ? `${lat}, ${lng} (±${acc ?? '?'}m)` : 'não autorizada', hash_sha256: docHash },
   ];
 
@@ -100,7 +112,7 @@ router.post('/sign/:token', async (req: Request, res: Response) => {
            status = 'assinado', signed_at = NOW(), signer_ip = ?, signer_ua = ?
      WHERE id = ?`,
     [signerNameFinal, cpfDigitsFinal, signer_email || null, String(signer_phone || '').replace(/\D/g, '') || null,
-     signature_image, (selfie_image && String(selfie_image).startsWith('data:image')) ? selfie_image : null,
+     signature_image, selfieFinal,
      docHash, lat, lng, acc, JSON.stringify(eventLog), ip, ua, reqRow.id]
   );
 

@@ -29,6 +29,8 @@ Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análi
 
 Documentos podem ser enviados pra assinatura eletrônica direto pelo sistema, com acompanhamento de quem já assinou.
 
+**Selfie do signatário — opcional, você escolhe (desde 28/09/2026):** ao gerar o link de assinatura de um documento ou contrato há a opção **"Exigir selfie do signatário"**. Desmarcada (padrão), a tela de assinatura nem mostra o campo de foto e o sistema descarta qualquer imagem enviada. Marcada, a selfie vira obrigatória: o botão "Assinar" só libera depois da foto, e o Termo de assinatura registra o evento "Selfie de verificação registrada". É só **registro/evidência** — o sistema não compara o rosto com nada. Foto do rosto é dado pessoal sensível (LGPD, art. 11), por isso a regra é pedir só quando fizer sentido. Cada link decide sozinho; links criados antes dessa mudança não pedem selfie. Atenção: a selfie aparece no Termo público de verificação (`/verificar.html?codigo=…`), acessível a quem tiver o código de verificação de 10 caracteres — não compartilhe o código fora dos envolvidos.
+
 ## Modelos de peça (banco de modelos do escritório)
 
 Além dos templates de preenchimento automático, existe um banco de modelos de peça por área jurídica (`peca_modelos`) — a IA busca o modelo mais adequado ao caso na hora de montar uma minuta (por significado, quando o modelo já tem "índice" calculado; por palavra-chave do assunto/título, senão), em vez de escrever do zero toda vez. 176 modelos hoje, a maioria trabalhista.
@@ -70,6 +72,7 @@ Outras causas de família (divórcio, guarda isolada, inventário) continuam no 
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/09/2026 | Claude | Selfie do signatário opcional por link (`signature_requests.require_selfie`, migration 137) — exigida pela advogada, obrigatória quando exigida, descartada quando não |
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Adicionada seção "Esteira de produção" — corrige entendimento: "Concluído" é a peça protocolada, não o caso encerrado |
 | 18/09/2026 | Claude | Novo padrão fixo de 19 cláusulas pra contratos de família/pensão alimentícia (`buildTemplateFamiliaPensao`), roteado automaticamente quando área = família e tipo de causa contém "pensão" |

@@ -3206,11 +3206,13 @@ async function docViewer(id, onSave) {
       ${field('Nome completo do signatário *', 'signer_name')}
       ${field('CPF do signatário (opcional — se informado, fica travado no link)', 'signer_cpf')}
       <p class="sub">Deixando nome/CPF em branco, o link fica genérico (quem abrir preenche os próprios dados).</p>
+      <label style="display:flex;gap:8px;align-items:flex-start;font-weight:400"><input type="checkbox" name="require_selfie" style="margin-top:3px"><span>Exigir selfie do signatário <small style="color:var(--text-muted)">(só registro/evidência, sem comparação facial — foto do rosto é dado sensível, peça só quando fizer sentido)</small></span></label>
       <button type="submit" class="btn-primary">Gerar link exclusivo</button>
     </form>`);
     form.onsubmit = async (e) => {
       e.preventDefault();
       const b = Object.fromEntries(new FormData(form));
+      b.require_selfie = form.querySelector('[name=require_selfie]').checked;
       try {
         await api(`/api/documents/${id}/sign-request`, { method: 'POST', body: JSON.stringify(b) });
         closeModal(); toast('Link de assinatura criado'); loadSigs();
@@ -9003,6 +9005,7 @@ async function contractEditor(id, onSave) {
     signAction = `<div style="text-align:center;color:var(--green);font-weight:600">Contrato assinado · processo na esteira + honorários gerados</div>`;
   else
     signAction = `
+      <label style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;margin-bottom:6px;font-weight:400"><input type="checkbox" id="ct-require-selfie" style="margin-top:3px"><span>Exigir selfie do cliente na assinatura <small style="color:var(--text-muted)">(só registro, sem comparação facial — foto do rosto é dado sensível)</small></span></label>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn-gold" id="send-sign" style="flex:1;min-width:200px">Gerar link de assinatura (cliente assina na tela)</button>
         <button class="btn-sm" id="mark-signed">Marcar assinado manual</button>
@@ -9235,7 +9238,7 @@ async function contractEditor(id, onSave) {
   };
   const sendBtn = wrap.querySelector('#send-sign');
   if (sendBtn) sendBtn.onclick = async () => {
-    try { await saveDocs(); await api(`/api/contracts/${id}/sign-request`, { method: 'POST', body: '{}' });
+    try { await saveDocs(); await api(`/api/contracts/${id}/sign-request`, { method: 'POST', body: JSON.stringify({ require_selfie: !!wrap.querySelector('#ct-require-selfie')?.checked }) });
       toast('Link de assinatura criado — envie ao cliente'); loadCtSigs(); } catch (e) { toast(e.message, 'error'); }
   };
   const signBtn = wrap.querySelector('#mark-signed');

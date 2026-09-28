@@ -27,7 +27,8 @@ export function lerSchema() {
       const corpo = m[2];
       const cols = tabelas.get(nome) || new Set();
       for (const linha of corpo.split(',')) {
-        const c = linha.trim().match(/^[`"]?(\w+)[`"]?\s+(INT|BIGINT|VARCHAR|TEXT|LONGTEXT|DATETIME|TIMESTAMP|DATE|DECIMAL|ENUM|JSON|TINYINT|BOOLEAN|LONGBLOB|BLOB|FLOAT|DOUBLE)/i);
+        // CHAR(36) e afins ficavam de fora: `token`/`doc_hash` de signature_requests eram acusados como inexistentes.
+        const c = linha.trim().match(/^[`"]?(\w+)[`"]?\s+(INT|BIGINT|SMALLINT|MEDIUMINT|VARCHAR|CHAR|TEXT|MEDIUMTEXT|LONGTEXT|DATETIME|TIMESTAMP|TIME|DATE|DECIMAL|ENUM|JSON|TINYINT|BOOLEAN|LONGBLOB|MEDIUMBLOB|BLOB|FLOAT|DOUBLE)/i);
         if (c) cols.add(c[1].toLowerCase());
       }
       tabelas.set(nome, cols);

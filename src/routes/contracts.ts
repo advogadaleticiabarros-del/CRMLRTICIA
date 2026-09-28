@@ -325,9 +325,10 @@ router.post('/:id/sign-request', async (req: Request, res: Response) => {
   const token = crypto.randomUUID();
   const code = crypto.randomBytes(5).toString('hex').toUpperCase();
   await db.query(
-    `INSERT INTO signature_requests (contract_id, token, verification_code, signer_name, signer_cpf, created_by)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [req.params.id, token, code, req.body?.signer_name ?? null, req.body?.signer_cpf ?? null, req.user!.id]
+    `INSERT INTO signature_requests (contract_id, token, verification_code, signer_name, signer_cpf, require_selfie, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [req.params.id, token, code, req.body?.signer_name ?? null, req.body?.signer_cpf ?? null,
+     req.body?.require_selfie ? 1 : 0, req.user!.id]
   );
   // marca o contrato como enviado para assinatura
   await db.query("UPDATE contracts SET status = 'enviado_assinatura' WHERE id = ? AND status <> 'assinado'", [req.params.id]);

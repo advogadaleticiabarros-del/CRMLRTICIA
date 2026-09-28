@@ -62,6 +62,7 @@
     }
 
     function render(r) {
+      window._requireSelfie = !!r.require_selfie;
       window._nameLocked = !!r.name_locked;
       window._cpfLocked = !!r.cpf_locked;
       root.innerHTML = `
@@ -81,9 +82,10 @@
         <label>Sua assinatura (assine com o dedo ou o mouse)</label>
         <div class="padwrap"><canvas id="pad"></canvas><div class="padhint" id="hint">assine aqui</div></div>
         <div class="row"><button class="btn-clear" id="clear">Limpar assinatura</button></div>
-        <label style="margin-top:14px">Selfie segurando o documento (opcional — reforça a validade)</label>
+        ${r.require_selfie ? `<label style="margin-top:14px">Selfie (obrigatória) — tire uma foto do seu rosto</label>
         <input id="selfie" type="file" accept="image/*" capture="user" style="color:#D8CEB8;font-size:13px" />
         <div id="selfie-prev"></div>
+        <p style="color:#8a8270;font-size:11.5px;margin-top:4px">O escritório solicitou esta foto como registro da sua assinatura. Ela não é comparada com nenhum banco de rostos.</p>` : ''}
         <label class="check"><input type="checkbox" id="agree" /><span>Declaro que li o documento, que as informações são minhas e verdadeiras, e manifesto minha vontade de assiná-lo eletronicamente.</span></label>
         <label class="check"><input type="checkbox" id="lgpd" /><span>Autorizo o registro e o tratamento dos meus dados e das evidências desta assinatura (data/hora, IP, geolocalização e dispositivo), nos termos da LGPD.</span></label>
         <button class="btn-gold" id="sign" disabled>Assinar documento</button>
@@ -94,16 +96,17 @@
       const agree = document.getElementById('agree');
       const lgpd = document.getElementById('lgpd');
       const btn = document.getElementById('sign');
-      const sync = () => { btn.disabled = !(agree.checked && lgpd.checked && hasDrawn); };
+      const sync = () => { btn.disabled = !(agree.checked && lgpd.checked && hasDrawn && (!window._requireSelfie || window._selfie)); };
       agree.onchange = sync; lgpd.onchange = sync;
       window._sync = sync;
       document.getElementById('cpf').oninput = maskCpf;
       btn.onclick = submit;
       document.getElementById('clear').onclick = clearPad;
-      document.getElementById('selfie').onchange = (e) => {
+      const selfieInput = document.getElementById('selfie');
+      if (selfieInput) selfieInput.onchange = (e) => {
         const file = e.target.files && e.target.files[0]; if (!file) return;
         const fr = new FileReader();
-        fr.onload = () => { window._selfie = fr.result; document.getElementById('selfie-prev').innerHTML = `<img src="${fr.result}" style="max-width:120px;border-radius:10px;margin-top:8px">`; };
+        fr.onload = () => { window._selfie = fr.result; document.getElementById('selfie-prev').innerHTML = `<img src="${fr.result}" style="max-width:120px;border-radius:10px;margin-top:8px">`; window._sync && window._sync(); };
         fr.readAsDataURL(file);
       };
       requestGeo();
@@ -150,13 +153,14 @@
       // validação de formato só vale quando o signatário digita o próprio CPF.
       if (!window._cpfLocked && cpf.length !== 11) { msg.textContent = 'Informe um CPF válido.'; return; }
       if (!lgpd) { msg.textContent = 'É necessário autorizar o registro dos dados (LGPD).'; return; }
+      if (window._requireSelfie && !window._selfie) { msg.textContent = 'Tire a selfie solicitada pelo escritório.'; return; }
       const img = window._pad.toDataURL('image/png');
       const btn = document.getElementById('sign'); btn.disabled = true; btn.textContent = 'Assinando…';
       try {
         const resp = await fetch('/api/public/sign/' + token, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ signer_name: nome, signer_cpf: cpf, signer_email: email, signer_phone: phone,
-            signature_image: img, selfie_image: window._selfie || null, consent_lgpd: true,
+            signature_image: img, selfie_image: window._requireSelfie ? (window._selfie || null) : null, consent_lgpd: true,
             geo: window._geo || null, opened_at: window._openedAt }),
         });
         // Erro de servidor/proxy (ex.: foto grande demais) pode voltar sem corpo

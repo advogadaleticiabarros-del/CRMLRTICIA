@@ -231,9 +231,10 @@ router.post('/:id/sign-request', async (req: Request, res: Response) => {
   // na tela de assinatura (ninguém mais consegue assinar nesse link no lugar
   // do signatário indicado) — ver GET/POST /api/public/sign/:token.
   await db.query(
-    `INSERT INTO signature_requests (document_id, token, verification_code, signer_name, signer_cpf, party_label, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [req.params.id, token, code, req.body?.signer_name ?? null, req.body?.signer_cpf ?? null, req.body?.party_label ?? null, req.user!.id]
+    `INSERT INTO signature_requests (document_id, token, verification_code, signer_name, signer_cpf, party_label, require_selfie, created_by)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [req.params.id, token, code, req.body?.signer_name ?? null, req.body?.signer_cpf ?? null, req.body?.party_label ?? null,
+     req.body?.require_selfie ? 1 : 0, req.user!.id]
   );
   res.status(201).json({ token, verification_code: code, path: `/assinar.html?token=${token}` });
 });
