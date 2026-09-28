@@ -20,6 +20,7 @@ Consulte quando precisar saber COM QUE FREQUÊNCIA algo roda sozinho, o que faze
 | `monitoramento:processos-pre-briefing` | 6h | Sincronização extra antes do briefing matinal, pra ele sair com dado fresco |
 | `whatsapp:reconectar` | uma vez, na subida do servidor | Rearma o auto-envio se a sessão da Uazapi já estiver conectada — só isso, não vigia a conexão depois |
 | `whatsapp:verificar-conexao` | a cada 20 minutos | **Novo (22/09/2026).** Checa se a instância continua conectada; se caiu, avisa no sino (throttle de 6h) em vez de depender de alguém abrir o Painel de Saúde ou tentar mandar mensagem pra notar. Não reconecta sozinho — quando a sessão é invalidada do lado do WhatsApp (ex.: "logged out from another device"), só escanear o QR de novo resolve |
+| `monitoramento:vigia` | 13h30 e 20h30 | **Novo (28/09/2026).** Confere em `job_runs` se `monitoramento:processos` (ou o de 6h) completou ao menos uma rodada ok nas últimas 6 horas. Se não, avisa os admins no sino como rotina CRÍTICA — cobre o caso de o monitoramento travar/parar sem lançar erro, que antes só se percebia abrindo a tela de saúde das rotinas. Não roda se o servidor inteiro estiver fora do ar (aí nem o vigia existe) |
 | `backup:diario` | 2h, 9h, 19h | Backup criptografado do banco (local + MEGA) |
 
 ## Limpeza de texto na entrada
@@ -59,6 +60,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 | 03/09/2026 | Claude | Criação do documento; registrada a limpeza de HTML/entidades na entrada |
 | 20/09/2026 | Claude | Corrigida a frequência de `whatsapp:reconectar` — é uma vez no boot, não a cada 5 minutos (achado durante auditoria dos fluxos de WhatsApp) |
 | 22/09/2026 | Claude | Nova rotina `whatsapp:verificar-conexao` (a cada 20min) — cobre a lacuna que a correção acima expôs |
+| 28/09/2026 | Claude | Nova rotina `monitoramento:vigia` (13h30 e 20h30) — alerta crítico se o monitoramento de processos ficar 6h sem rodar (ideia 3 da auditoria de Processos e prazos) |
 
 ---
 ◀ [Repasses e parcerias](09-repasses.md) · [Visão geral](00-visao-geral.md) · Próximo: [Briefing diário](11-briefing.md) ▶

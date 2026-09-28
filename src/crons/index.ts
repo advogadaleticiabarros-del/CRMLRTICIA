@@ -355,6 +355,25 @@ export function startCronJobs() {
     runJob('monitoramento:processos', () => runMonitoringJob(), { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── vigia do monitoramento: 13h30 e 20h30 (Brasília) ── CRÍTICO ────────────
+  // O monitoramento roda de hora em hora das 07h às 20h. Se travar ou parar
+  // sem lançar erro, nenhuma rodada 'ok' aparece em job_runs — e ninguém era
+  // avisado (só olhando a tela de saúde). A janela de 6h cobre as 6+ rodadas
+  // esperadas antes de cada checagem. Falha aqui avisa os admins (runJob).
+  cron.schedule('30 13,20 * * *', () => {
+    runJob('monitoramento:vigia', async () => {
+      const [[r]] = await db.query(
+        `SELECT COUNT(*) AS n FROM job_runs
+          WHERE job IN ('monitoramento:processos','monitoramento:processos-pre-briefing')
+            AND status = 'ok' AND ran_at >= NOW() - INTERVAL 6 HOUR`
+      ) as any;
+      if (Number(r?.n) === 0) {
+        throw new Error('O monitoramento de processos não completou nenhuma rodada nas últimas 6 horas — novas movimentações e prazos podem estar passando batido. Veja Configurações → Saúde das rotinas e o log do servidor.');
+      }
+      return { rodadas_ok_6h: Number(r.n) };
+    }, { critica: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── monitoramento por E-MAIL (item 7 — plano B do DJEN): 08h e 19h ────────
   // Só roda de verdade depois que a Dra. Letícia conectar a caixa de e-mail
   // em Configurações — se não houver conexão ativa, o serviço não faz nada
