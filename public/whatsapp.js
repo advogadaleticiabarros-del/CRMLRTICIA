@@ -752,6 +752,11 @@ Object.assign(ROUTES, {
             if (ehAudio && !String(m.body).includes('📝 Transcrição:')) {
               anexo += ` <button type="button" class="btn-sm" data-transcrever="${m.media_id}" style="font-size:11px;padding:2px 8px;margin-left:6px">Transcrever áudio</button>`;
             }
+          } else if (!m.media_id && /falhou ao baixar/.test(String(m.body))) {
+            // Achado real (25/09/2026): rajada de mídia falhou ao baixar da
+            // Uazapi. O messageId continua salvo — dá pra tentar de novo sem
+            // precisar pedir reenvio (ver POST /messages/:id/reprocessar-midia).
+            anexo = `<br><button type="button" class="btn-sm" data-reprocessar-midia="${m.id}" style="font-size:11px;padding:2px 8px">Tentar baixar de novo</button>`;
           }
           const autor = Number(m.from_me) && m.sent_by ? `<div style="font-size:9.5px;color:rgba(0,0,0,.45);margin-bottom:2px">${esc(m.sent_by)}</div>` : '';
           let corpo = esc(m.body);
@@ -1223,6 +1228,19 @@ Object.assign(ROUTES, {
         };
         ligarTranscricao();
 
+        // Tentar de novo uma mídia que falhou ao baixar (achado real, 25/09/2026).
+        // Mesma razão das funções acima: precisa religar depois de cada redesenho de #wam.
+        const ligarReprocessarMidia = () => {
+          $('#wam').querySelectorAll('[data-reprocessar-midia]').forEach((b) => b.onclick = async () => {
+            b.disabled = true; b.textContent = 'Tentando…';
+            try {
+              await api(`/api/whatsapp-instance/messages/${b.dataset.reprocessarMidia}/reprocessar-midia`, { method: 'POST', body: '{}' });
+              toast('Mídia baixada ✓'); await atualizar(true);
+            } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Tentar baixar de novo'; }
+          });
+        };
+        ligarReprocessarMidia();
+
         // Imagem recebida/enviada — abre num visualizador na própria janela
         // (clique fora fecha e volta pra mensagem) em vez de nova aba, com
         // botão de baixar. Religada junto de ligarAcoesMsg() logo abaixo,
@@ -1299,7 +1317,7 @@ Object.assign(ROUTES, {
           if (buscaChatIdx >= total) buscaChatIdx = Math.max(0, total - 1);
           $('#wam').innerHTML = renderMsgs(msgs, buscaChatTermo, buscaChatTermo ? buscaChatIdx : -1);
           $('#wa-busca-chat-cont').textContent = total ? `${buscaChatIdx + 1}/${total}` : '0/0';
-          ligarTranscricao(); ligarAcoesMsg(); ligarLightbox();
+          ligarTranscricao(); ligarReprocessarMidia(); ligarAcoesMsg(); ligarLightbox();
           if (buscaChatTermo && total) {
             const alvo = $('#wam').querySelector('mark.cur');
             if (alvo) alvo.scrollIntoView({ block: 'center', behavior: 'smooth' });
@@ -1310,7 +1328,7 @@ Object.assign(ROUTES, {
           const abrindo = bar.style.display === 'none';
           bar.style.display = abrindo ? 'flex' : 'none';
           if (abrindo) { $('#wa-busca-chat-input').focus(); }
-          else { buscaChatTermo = ''; buscaChatIdx = 0; $('#wam').innerHTML = renderMsgs(msgs); ligarTranscricao(); ligarAcoesMsg(); ligarLightbox(); }
+          else { buscaChatTermo = ''; buscaChatIdx = 0; $('#wam').innerHTML = renderMsgs(msgs); ligarTranscricao(); ligarReprocessarMidia(); ligarAcoesMsg(); ligarLightbox(); }
         };
         $('#wa-busca-chat-fechar').onclick = () => { $('#wa-buscar-chat').click(); };
         $('#wa-busca-chat-input').oninput = (e) => { buscaChatTermo = e.target.value.trim(); buscaChatIdx = 0; redesenharBusca(); };

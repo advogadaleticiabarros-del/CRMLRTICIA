@@ -53,7 +53,7 @@ async function findClientByPhone(phone: string): Promise<number | null> {
 }
 
 /** Baixa a mídia via /message/download (a Uazapi já decripta), guarda no banco e registra em Documentos. */
-async function storeMedia(messageId: string, phone: string, clientId: number | null, mediaTypeRaw: string): Promise<{ mediaId: number; label: string } | null> {
+export async function storeMedia(messageId: string, phone: string, clientId: number | null, mediaTypeRaw: string): Promise<{ mediaId: number; label: string } | null> {
   const mediaType = normalizeMediaType(mediaTypeRaw);
   const info = mediaType ? ROTULOS[mediaType] : null;
   if (!info) {

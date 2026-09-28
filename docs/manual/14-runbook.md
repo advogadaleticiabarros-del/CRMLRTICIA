@@ -199,6 +199,16 @@ pm2 restart crm-juridico && pm2 save
 
 **Correção:** o robô `whatsapp:reconectar` já tenta reconectar sozinho a cada 5 minutos (ver [Monitoramento automático](10-monitoramento.md)). Se persistir além disso, é provável instabilidade do lado da Uazapi (provedor) — não há ação manual documentada além de aguardar/checar o painel da Uazapi.
 
+## Incidente: mídia do WhatsApp aparece como "Mídia recebida, mas falhou ao baixar"
+
+**Sintoma (25/09/2026):** uma cliente mandou 7 fotos + 3 áudios + 1 áudio de voz em sequência e a conversa mostrou só avisos "⚠️ Mídia recebida, mas falhou ao baixar (tipo: image/audio/ptt)", sem os arquivos.
+
+**Causa provável:** todas as 11 falharam juntas em ~2 minutos, o que aponta para instabilidade pontual do download do lado da Uazapi (o código de download em `storeMedia` segue a API documentada e o tratamento de falha funcionou como projetado: registrou o aviso na conversa e avisou os admins no sino). Causa exata não confirmada — sem acesso aos logs da VPS na hora.
+
+**Correção (25/09/2026):** o `message_id` da Uazapi é gravado mesmo quando o download falha, então dá pra tentar de novo. Cada aviso de falha na conversa agora tem o botão **"Tentar baixar de novo"** (`POST /api/whatsapp-instance/messages/:id/reprocessar-midia`), que reaproveita a mesma `storeMedia` do webhook: se der certo, o arquivo entra na conversa e em Documentos do cliente.
+
+**Se acontecer de novo:** (1) clique em "Tentar baixar de novo" em cada aviso; (2) se continuar falhando, a mídia provavelmente expirou do lado do WhatsApp — peça pro remetente reenviar; (3) se falhar pra várias pessoas ao mesmo tempo, veja Saúde do WhatsApp e o painel da Uazapi, e confira `getWebhookErrors` (diagnóstico da Uazapi, ainda sem tela no CRM).
+
 ## Incidente: prova mensal de restauração do backup falhando (sem impacto no backup em si)
 
 **Sintoma:** notificação no sino "Teste de restauração do backup FALHOU" no dia 1 de cada mês, às 03h30 — mensagem: `Access denied for user 'crmapp'@'127.0.0.1' to database 'crm_restore_test'`.
@@ -251,6 +261,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: botões de ação flutuando em telas com abas (Documentos, Controladoria, Financeiro) — slot de ação no cabeçalho + helper `moveTabAction()` únicos para as 3 telas |
 | 04/09/2026 | Claude | +1 incidente: espaço vazio dentro do Kanban — colunas esticavam pra altura da mais cheia (`align-items:stretch` padrão do flex); `align-items:flex-start` corrige Produção/Fases/Leads de uma vez |
 | 04/09/2026 | Claude | +1 incidente: aviso de "movimentação por e-mail" sem nome do cliente — mesmo fix do marco processual, agora extraído em `buscarNomeCliente()` compartilhado |
+| 25/09/2026 | Claude | +1 incidente: rajada de mídia do WhatsApp falhando ao baixar — botão "Tentar baixar de novo" reaproveita o messageId já gravado |
 | 05/09/2026 | Claude | +1 incidente: prova mensal de restauração do backup falhando há 2 meses (permissão em `crm_restore_test`) — confirmado corrigido, restauração manual passou (99 tabelas · 177 clientes · 41 casos · 8 usuários) |
 | 20/09/2026 | Claude | +1 incidente: espaço da assinatura sumindo quando o bloco cai no topo de página nova — `margin-top` trocado por altura de elemento filho (`.sig-spacer`), que não colapsa na paginação |
 | 22/09/2026 | Claude | +1 incidente: dropdown de Pagador continuava preso aberto mesmo após o fix de 04/09 — causa raiz diferente (CSS: `display` de classe vencendo `[hidden]` nativo), corrigido com `.msel-panel[hidden]{display:none}` |

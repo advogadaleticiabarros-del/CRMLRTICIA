@@ -33,6 +33,10 @@ A barra de busca/filtros pode ser minimizada, e existe um modo "foco na conversa
 
 Notas internas (visíveis só pra equipe, nunca pro cliente) e etiquetas de conversa (setor, prioridade, o que for) ficam editáveis direto no painel 3, sem precisar abrir um menu separado.
 
+## Mídia que falhou ao baixar
+
+Quando uma foto/áudio/documento recebido não consegue ser baixado da Uazapi, a conversa mostra "⚠️ Mídia recebida, mas falhou ao baixar" e os admins recebem aviso no sino. Desde 25/09/2026, esse aviso tem o botão **"Tentar baixar de novo"**: refaz o download pelo identificador que já ficou guardado, sem precisar pedir reenvio ao cliente. Se o arquivo já expirou do lado do WhatsApp, o botão avisa e a saída é pedir pro remetente mandar de novo.
+
 ## Painel de Saúde do WhatsApp
 
 Dentro do menu de auditoria da tela: status da conexão em tempo real, hora da última mensagem recebida, e contagem de falhas (envio, mídia, transcrição/descrição por IA, erro de webhook e queda de conexão) nos últimos 7 e 30 dias, com a lista das notificações mais recentes. É um painel de diagnóstico — os números são "pelo menos N" (o sistema evita alertar demais pra mesma falha, no máximo 1 aviso a cada 30min por tipo), não uma contagem perfeita.
@@ -107,6 +111,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 | 23/09/2026 | Claude | Abrir uma conversa passa a gerar log de acesso LGPD (achado da auditoria de melhorias do módulo) — antes só a ficha de cliente era registrada |
 | 23/09/2026 | Claude | Aviso próprio (🚨) quando a Uazapi sinaliza risco de bloqueio do número (HTTP 463) — antes virava a mesma mensagem genérica de falha de envio, sem destacar o risco de banimento |
 | 23/09/2026 | Claude | Aviso ao vivo de "Fulana está respondendo esta conversa" entre a equipe — antes duas pessoas podiam responder o mesmo cliente ao mesmo tempo sem saber |
+| 25/09/2026 | Claude | Botão "Tentar baixar de novo" nas mídias que falharam ao baixar (`POST /api/whatsapp-instance/messages/:id/reprocessar-midia`) |
 | 23/09/2026 | Claude | Painel de Desempenho (Auditoria → Desempenho): tempo médio de resposta do atendimento geral + gráfico de mensagens por dia — pedido direto da Dra. Letícia |
 
 ---

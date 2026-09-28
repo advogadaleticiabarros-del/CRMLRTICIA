@@ -9,6 +9,7 @@ import {
   configurarMensagensEfemeras, solicitarHistoricoAntigo, listarRespostasRapidas, salvarRespostaRapida, excluirRespostaRapida,
 } from '../services/uazapiInstance';
 import { uazapi } from '../services/uazapiClient';
+import { storeMedia, normalizeMediaType } from './whatsapp-webhook';
 import { emitWaUpdate } from '../services/waSocket';
 import { stripDataUrlPrefix } from '../utils/dataUrl';
 import { buscarExpediente, buscarEventosExistentes, hojeStrBrasilia, addDaysToDateStr } from './agenda-public';
@@ -488,6 +489,38 @@ router.post('/chats/:phone/vincular-cliente', async (req: Request, res: Response
   if (!cli) { res.status(404).json({ error: 'Cliente não encontrado' }); return; }
   await db.query('UPDATE clients SET phone = ? WHERE id = ?', [phone, clientId]);
   res.json({ success: true, client: { id: cli.id, name: cli.name } });
+});
+
+// ── POST /api/whatsapp-instance/messages/:id/reprocessar-midia — tenta baixar
+// de novo uma mídia que falhou. Achado real (25/09/2026): uma rajada de
+// mídias de uma cliente falhou ao baixar da Uazapi (todas ao mesmo tempo,
+// sinal de instabilidade pontual do lado deles) — a conversa registrou só o
+// aviso, sem o arquivo. O messageId da Uazapi já é guardado mesmo quando o
+// download falha (whatsapp-webhook.ts), então dá pra tentar de novo sem
+// precisar pedir reenvio pro cliente. Reaproveita a mesma storeMedia do
+// webhook — mesma regra de tamanho máximo, mesmo registro em Documentos.
+router.post('/messages/:id/reprocessar-midia', async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const [[msg]] = await db.query(
+    'SELECT id, message_id, phone, client_id, body, media_id FROM whatsapp_messages WHERE id = ?', [id]
+  ) as any;
+  if (!msg) { res.status(404).json({ error: 'Mensagem não encontrada' }); return; }
+  if (msg.media_id) { res.status(400).json({ error: 'Esta mensagem já tem a mídia salva' }); return; }
+  if (!msg.message_id) { res.status(400).json({ error: 'Mensagem sem identificador da Uazapi — não é possível tentar de novo' }); return; }
+  const m = String(msg.body || '').match(/\(tipo:\s*([\w]+)\)/i);
+  const mediaTypeRaw = m ? m[1] : null;
+  if (!mediaTypeRaw || !normalizeMediaType(mediaTypeRaw)) {
+    res.status(400).json({ error: 'Não foi possível identificar o tipo de mídia desta mensagem' });
+    return;
+  }
+  const media = await storeMedia(msg.message_id, msg.phone, msg.client_id, mediaTypeRaw);
+  if (!media) {
+    res.status(400).json({ error: 'Ainda não foi possível baixar — a mídia pode ter expirado do lado do WhatsApp. Peça pro remetente reenviar.' });
+    return;
+  }
+  await db.query('UPDATE whatsapp_messages SET media_id = ?, body = ? WHERE id = ?', [media.mediaId, `📎 ${media.label}`, id]);
+  emitWaUpdate(msg.phone);
+  res.json({ success: true, media_id: media.mediaId, label: media.label });
 });
 
 // ── GET /api/whatsapp-instance/chats/:phone — mensagens da conversa ─────────
