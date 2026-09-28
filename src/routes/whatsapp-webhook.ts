@@ -87,7 +87,7 @@ async function baixarMidia(messageId: string): Promise<{ buffer?: Buffer; erro?:
   return { erro };
 }
 
-export async function storeMedia(messageId: string, phone: string, clientId: number | null, mediaTypeRaw: string, onErro?: (motivo: string) => void): Promise<{ mediaId: number; label: string } | null> {
+export async function storeMedia(messageId: string, phone: string, clientId: number | null, mediaTypeRaw: string, onErro?: (motivo: string) => void, opts: { registrarDocumento?: boolean } = {}): Promise<{ mediaId: number; label: string } | null> {
   const mediaType = normalizeMediaType(mediaTypeRaw);
   const info = mediaType ? ROTULOS[mediaType] : null;
   if (!info) {
@@ -110,7 +110,9 @@ export async function storeMedia(messageId: string, phone: string, clientId: num
     // Vira Documento do cliente automaticamente (Central de Documentos).
     // Tenta classificar o tipo via IA (best-effort) — falha mantém 'recebido',
     // igual ao comportamento anterior a esta mudança.
-    if (clientId) {
+    // Mídia enviada POR NÓS (ex.: áudio mandado pelo celular) fica só na conversa —
+    // não vira "documento recebido" do cliente.
+    if (clientId && opts.registrarDocumento !== false) {
       const [[adm]] = await db.query(
         "SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
       const tipoClassificado = await classificarTipoDocumento({ id: mediaId, file_name: fileName, mime: info.mime, data: buffer }).catch(() => null);
@@ -128,13 +130,13 @@ export async function storeMedia(messageId: string, phone: string, clientId: num
 }
 
 /** Refaz o download de UMA mensagem cuja mídia falhou. Devolve ok/erro pra rota e pra varredura. */
-export async function reprocessarMensagemMidia(msg: { id: number; message_id: string | null; phone: string; client_id: number | null; body: string; media_id: number | null }): Promise<{ ok: boolean; erro?: string; mediaId?: number; label?: string }> {
+export async function reprocessarMensagemMidia(msg: { id: number; message_id: string | null; phone: string; client_id: number | null; body: string; media_id: number | null; from_me?: number }): Promise<{ ok: boolean; erro?: string; mediaId?: number; label?: string }> {
   if (msg.media_id) return { ok: false, erro: 'Esta mensagem já tem a mídia salva' };
   if (!msg.message_id) return { ok: false, erro: 'Mensagem sem identificador da Uazapi — não é possível tentar de novo' };
   const m = String(msg.body || '').match(/\(tipo:\s*([\w]+)\)/i);
   if (!m || !normalizeMediaType(m[1])) return { ok: false, erro: 'Não foi possível identificar o tipo de mídia desta mensagem' };
   let motivo = '';
-  const media = await storeMedia(msg.message_id, msg.phone, msg.client_id, m[1], (x) => { motivo = x; });
+  const media = await storeMedia(msg.message_id, msg.phone, msg.client_id, m[1], (x) => { motivo = x; }, { registrarDocumento: !msg.from_me });
   if (!media) return { ok: false, erro: motivo || 'falha ao baixar' };
   await db.query('UPDATE whatsapp_messages SET media_id = ?, body = ? WHERE id = ?', [media.mediaId, `📎 ${media.label}`, msg.id]);
   emitWaUpdate(msg.phone);
@@ -144,8 +146,8 @@ export async function reprocessarMensagemMidia(msg: { id: number; message_id: st
 /** Varredura (cron): recupera sozinha as mídias das últimas 48h que falharam. */
 export async function reprocessarMidiasFalhadas(): Promise<{ tentadas: number; recuperadas: number }> {
   const [rows] = await db.query(
-    `SELECT id, message_id, phone, client_id, body, media_id FROM whatsapp_messages
-      WHERE from_me = 0 AND media_id IS NULL AND message_id IS NOT NULL
+    `SELECT id, message_id, phone, client_id, body, media_id, from_me FROM whatsapp_messages
+      WHERE media_id IS NULL AND message_id IS NOT NULL
         AND body LIKE '%falhou ao baixar%' AND msg_time >= NOW() - INTERVAL 48 HOUR
       ORDER BY msg_time ASC LIMIT 20`) as any;
   let recuperadas = 0;
@@ -521,13 +523,21 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
     // ("conversation") — por isso só entra no fluxo de mídia quando o valor
     // normalizado bate com um tipo conhecido em ROTULOS, não só "existe".
     const mediaTypeNorm = normalizeMediaType(msg.messageType);
-    const isMedia = !msg.fromMe && !!mediaTypeNorm && !!ROTULOS[mediaTypeNorm];
+    // Mídia mandada por NÓS pelo celular (fora do CRM) também precisa entrar na
+    // conversa — antes só entrava a do cliente (28/09/2026). Se a mensagem já
+    // foi gravada pelo próprio envio do CRM (mesmo message_id), não baixa de novo.
+    let jaGravadaPeloCrm = false;
+    if (msg.fromMe && msgId) {
+      const [ja] = await db.query('SELECT id FROM whatsapp_messages WHERE message_id = ?', [msgId]) as any;
+      jaGravadaPeloCrm = ja.length > 0;
+    }
+    const isMedia = !!mediaTypeNorm && !!ROTULOS[mediaTypeNorm] && !jaGravadaPeloCrm;
     if (!msg.fromMe && !isMedia && !msg.text && !msg.content) {
       console.error(`[whatsapp-webhook] mensagem sem texto e sem tipo de mídia reconhecido (messageType="${msg.messageType}") — payload de msg:`, JSON.stringify(msg).slice(0, 1500));
     }
     if (isMedia) {
       let motivo = 'desconhecido';
-      const media = await storeMedia(msg.messageid || msg.id, phone, clientId, msg.messageType, (x) => { motivo = x; });
+      const media = await storeMedia(msg.messageid || msg.id, phone, clientId, msg.messageType, (x) => { motivo = x; }, { registrarDocumento: !msg.fromMe });
       if (media) { mediaId = media.mediaId; body = body || `📎 ${media.label}`; }
       else {
         // Antes descartava a mensagem inteira quando não havia legenda —
@@ -535,7 +545,9 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
         // corpo de aviso, pra pelo menos aparecer na conversa, e alerta os
         // admins (throttled) em vez de só logar no console.
         console.error(`[whatsapp-webhook] mídia tipo "${msg.messageType}" não foi salva (storeMedia devolveu null).`);
-        body = body || `⚠️ Mídia recebida, mas falhou ao baixar (tipo: ${msg.messageType})`;
+        body = body || (msg.fromMe
+          ? `⚠️ Mídia enviada por você, mas falhou ao baixar (tipo: ${msg.messageType})`
+          : `⚠️ Mídia recebida, mas falhou ao baixar (tipo: ${msg.messageType})`);
         await avisarFalhaMidia(msg.messageType, motivo).catch(() => {});
       }
     }

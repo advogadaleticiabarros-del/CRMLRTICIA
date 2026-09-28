@@ -231,6 +231,16 @@ pm2 restart crm-juridico && pm2 save
 
 **Se acontecer de novo:** confira o `court_alias` do processo contra o número (`NNNNNNN-DD.AAAA.J.TR.OOOO`: J=4 → `trf<TR>`, J=5 → `trt<TR>`, J=8 → `tj<UF>`), e nunca duplique essa lógica — use `aliasFromProcessNumber`.
 
+## Incidente: áudio/foto que a Letícia manda pelo celular não aparece no CRM
+
+**Sintoma (reportado 28/09/2026):** só a mídia que o cliente envia aparecia na conversa; áudios mandados por ela pelo celular sumiam (texto mandado pelo celular aparecia normal).
+
+**Causa raiz:** em `src/routes/whatsapp-webhook.ts`, o tratamento de mídia só rodava com `!msg.fromMe`, e como áudio/foto sem legenda não tem texto, a mensagem caía no `if (!body) return` e era descartada.
+
+**Correção:** o webhook passa a baixar mídia `fromMe` também, pulando as que já foram gravadas pelo envio do CRM (mesmo `message_id`) pra não duplicar, e sem criar "documento recebido" para o cliente.
+
+**Se acontecer de novo:** confira nos logs do servidor por "mensagem sem texto e sem tipo de mídia reconhecido" e o `messageType` que a Uazapi mandou — se for um tipo novo, acrescente em `ROTULOS`. Mídia enviada pelo celular antes de 28/09/2026 não foi recuperada.
+
 ## Incidente: prova mensal de restauração do backup falhando (sem impacto no backup em si)
 
 **Sintoma:** notificação no sino "Teste de restauração do backup FALHOU" no dia 1 de cada mês, às 03h30 — mensagem: `Access denied for user 'crmapp'@'127.0.0.1' to database 'crm_restore_test'`.
@@ -283,6 +293,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: botões de ação flutuando em telas com abas (Documentos, Controladoria, Financeiro) — slot de ação no cabeçalho + helper `moveTabAction()` únicos para as 3 telas |
 | 04/09/2026 | Claude | +1 incidente: espaço vazio dentro do Kanban — colunas esticavam pra altura da mais cheia (`align-items:stretch` padrão do flex); `align-items:flex-start` corrige Produção/Fases/Leads de uma vez |
 | 04/09/2026 | Claude | +1 incidente: aviso de "movimentação por e-mail" sem nome do cliente — mesmo fix do marco processual, agora extraído em `buscarNomeCliente()` compartilhado |
+| 28/09/2026 | Claude | +1 incidente: mídia enviada pelo celular não aparecia no CRM — webhook passa a tratar fromMe |
 | 28/09/2026 | Claude | +1 incidente: tribunal deduzido errado do número CNJ (TRF/TRT trocados) — corrigido + migration 136 |
 | 28/09/2026 | Claude | +1 incidente: prazo detectado confirmado sem considerar feriado — passa a usar `contarPrazo` |
 | 28/09/2026 | Claude | Mídia do WhatsApp: retry (3x), fallback fileURL, motivo no sino e varredura automática a cada 10 min |

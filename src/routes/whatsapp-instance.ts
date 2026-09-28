@@ -502,7 +502,7 @@ router.post('/chats/:phone/vincular-cliente', async (req: Request, res: Response
 router.post('/messages/:id/reprocessar-midia', async (req: Request, res: Response) => {
   const id = Number(req.params.id);
   const [[msg]] = await db.query(
-    'SELECT id, message_id, phone, client_id, body, media_id FROM whatsapp_messages WHERE id = ?', [id]
+    'SELECT id, message_id, phone, client_id, body, media_id, from_me FROM whatsapp_messages WHERE id = ?', [id]
   ) as any;
   if (!msg) { res.status(404).json({ error: 'Mensagem não encontrada' }); return; }
   const r = await reprocessarMensagemMidia(msg);

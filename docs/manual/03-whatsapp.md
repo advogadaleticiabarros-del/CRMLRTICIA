@@ -37,6 +37,10 @@ Notas internas (visíveis só pra equipe, nunca pro cliente) e etiquetas de conv
 
 Quando uma foto/áudio/documento recebido não consegue ser baixado da Uazapi, a conversa mostra "⚠️ Mídia recebida, mas falhou ao baixar" e os admins recebem aviso no sino. Desde 25/09/2026, esse aviso tem o botão **"Tentar baixar de novo"**: refaz o download pelo identificador que já ficou guardado, sem precisar pedir reenvio ao cliente. Além disso, desde 28/09/2026 o sistema tenta 3 vezes antes de desistir, mostra o motivo real no aviso do sino e refaz sozinho, a cada 10 minutos, o download das mídias que falharam nas últimas 48h. Se o arquivo já expirou do lado do WhatsApp, o botão avisa e a saída é pedir pro remetente mandar de novo.
 
+## Áudios e arquivos que VOCÊ envia pelo celular
+
+Desde 28/09/2026, foto, áudio, vídeo ou documento que você manda **pelo celular** (fora do CRM) também aparece na conversa do cliente, com o player de áudio e a transcrição. Antes só entrava a mídia que o cliente mandava (e a que você enviava pelo próprio CRM) — a que saía do celular era descartada por não ter texto. O que você envia pelo CRM continua igual (não é baixado duas vezes). Mídia enviada por você **não** vira "documento recebido" na ficha do cliente. Se o download falhar, aparece "⚠️ Mídia enviada por você, mas falhou ao baixar" com o botão "Tentar baixar de novo" (e a recuperação automática a cada 10 minutos). Mídia que você enviou **antes** dessa data não é recuperada.
+
 ## Painel de Saúde do WhatsApp
 
 Dentro do menu de auditoria da tela: status da conexão em tempo real, hora da última mensagem recebida, e contagem de falhas (envio, mídia, transcrição/descrição por IA, erro de webhook e queda de conexão) nos últimos 7 e 30 dias, com a lista das notificações mais recentes. É um painel de diagnóstico — os números são "pelo menos N" (o sistema evita alertar demais pra mesma falha, no máximo 1 aviso a cada 30min por tipo), não uma contagem perfeita.
@@ -111,6 +115,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 | 23/09/2026 | Claude | Abrir uma conversa passa a gerar log de acesso LGPD (achado da auditoria de melhorias do módulo) — antes só a ficha de cliente era registrada |
 | 23/09/2026 | Claude | Aviso próprio (🚨) quando a Uazapi sinaliza risco de bloqueio do número (HTTP 463) — antes virava a mesma mensagem genérica de falha de envio, sem destacar o risco de banimento |
 | 23/09/2026 | Claude | Aviso ao vivo de "Fulana está respondendo esta conversa" entre a equipe — antes duas pessoas podiam responder o mesmo cliente ao mesmo tempo sem saber |
+| 28/09/2026 | Claude | Mídia enviada pelo celular (fromMe) passa a ser baixada e mostrada na conversa — antes só a mídia recebida entrava |
 | 28/09/2026 | Claude | Download de mídia com 3 tentativas, fallback por fileURL, motivo no aviso e recuperação automática a cada 10 min |
 | 25/09/2026 | Claude | Botão "Tentar baixar de novo" nas mídias que falharam ao baixar (`POST /api/whatsapp-instance/messages/:id/reprocessar-midia`) |
 | 23/09/2026 | Claude | Painel de Desempenho (Auditoria → Desempenho): tempo médio de resposta do atendimento geral + gráfico de mensagens por dia — pedido direto da Dra. Letícia |
