@@ -53,24 +53,51 @@ async function findClientByPhone(phone: string): Promise<number | null> {
 }
 
 /** Baixa a mídia via /message/download (a Uazapi já decripta), guarda no banco e registra em Documentos. */
-export async function storeMedia(messageId: string, phone: string, clientId: number | null, mediaTypeRaw: string): Promise<{ mediaId: number; label: string } | null> {
+// Erro persistente reportado (25/09/2026): rajada de mídias falhou ao baixar e
+// o download tinha UMA tentativa só, sem guardar o motivo. Agora: várias
+// tentativas com espera (falha da Uazapi costuma ser passageira), fallback
+// por fileURL quando não vem base64, e o motivo real volta pro chamador.
+const TENTATIVAS_DOWNLOAD = 3;
+const ESPERA_ENTRE_TENTATIVAS_MS = [0, 2000, 6000];
+const dormir = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+async function baixarMidia(messageId: string): Promise<{ buffer?: Buffer; erro?: string }> {
+  let erro = 'desconhecido';
+  for (let tentativa = 1; tentativa <= TENTATIVAS_DOWNLOAD; tentativa++) {
+    if (ESPERA_ENTRE_TENTATIVAS_MS[tentativa - 1]) await dormir(ESPERA_ENTRE_TENTATIVAS_MS[tentativa - 1]);
+    try {
+      const dl = await uazapi.downloadMessage(messageId);
+      let buffer: Buffer | null = null;
+      if (dl?.base64Data) buffer = Buffer.from(dl.base64Data, 'base64');
+      else if (dl?.fileURL) {
+        const r = await fetch(dl.fileURL);
+        if (!r.ok) throw new Error(`fileURL respondeu HTTP ${r.status}`);
+        buffer = Buffer.from(await r.arrayBuffer());
+      } else {
+        throw new Error(`resposta sem base64Data nem fileURL: ${JSON.stringify(dl).slice(0, 200)}`);
+      }
+      if (!buffer.length) throw new Error('arquivo vazio');
+      if (buffer.length > MEDIA_MAX) return { erro: `arquivo maior que ${MEDIA_MAX / 1048576} MB` };
+      return { buffer };
+    } catch (e: any) {
+      erro = `${e?.status ? 'HTTP ' + e.status + ' — ' : ''}${e?.message || e}`;
+      console.error(`[whatsapp-webhook] download falhou (tentativa ${tentativa}/${TENTATIVAS_DOWNLOAD}, messageId=${messageId}): ${erro}`);
+    }
+  }
+  return { erro };
+}
+
+export async function storeMedia(messageId: string, phone: string, clientId: number | null, mediaTypeRaw: string, onErro?: (motivo: string) => void): Promise<{ mediaId: number; label: string } | null> {
   const mediaType = normalizeMediaType(mediaTypeRaw);
   const info = mediaType ? ROTULOS[mediaType] : null;
   if (!info) {
     console.error(`[whatsapp-webhook] tipo de mídia não reconhecido (messageId=${messageId}, messageType="${mediaTypeRaw}", normalizado="${mediaType}")`);
+    onErro?.(`tipo de mídia não reconhecido ("${mediaTypeRaw}")`);
     return null;
   }
   try {
-    const dl = await uazapi.downloadMessage(messageId);
-    if (!dl?.base64Data) {
-      console.error(`[whatsapp-webhook] download sem base64Data (messageId=${messageId}, tipo=${mediaType}) — resposta:`, JSON.stringify(dl).slice(0, 500));
-      return null;
-    }
-    const buffer = Buffer.from(dl.base64Data, 'base64');
-    if (!buffer.length || buffer.length > MEDIA_MAX) {
-      console.error(`[whatsapp-webhook] buffer inválido (messageId=${messageId}, tipo=${mediaType}) — tamanho: ${buffer.length}`);
-      return null;
-    }
+    const { buffer, erro } = await baixarMidia(messageId);
+    if (!buffer) { onErro?.(erro || 'desconhecido'); return null; }
 
     const stamp = new Date().toISOString().slice(0, 10);
     const fileName = `WhatsApp_${info.rotulo}_${stamp}.${info.ext}`;
@@ -95,8 +122,35 @@ export async function storeMedia(messageId: string, phone: string, clientId: num
     return { mediaId, label: `${info.rotulo}: ${fileName}` };
   } catch (e: any) {
     console.error(`[whatsapp-webhook] falha ao baixar mídia (messageId=${messageId}, tipo=${mediaType}):`, e?.message || e);
+    onErro?.(String(e?.message || e));
     return null;
   }
+}
+
+/** Refaz o download de UMA mensagem cuja mídia falhou. Devolve ok/erro pra rota e pra varredura. */
+export async function reprocessarMensagemMidia(msg: { id: number; message_id: string | null; phone: string; client_id: number | null; body: string; media_id: number | null }): Promise<{ ok: boolean; erro?: string; mediaId?: number; label?: string }> {
+  if (msg.media_id) return { ok: false, erro: 'Esta mensagem já tem a mídia salva' };
+  if (!msg.message_id) return { ok: false, erro: 'Mensagem sem identificador da Uazapi — não é possível tentar de novo' };
+  const m = String(msg.body || '').match(/\(tipo:\s*([\w]+)\)/i);
+  if (!m || !normalizeMediaType(m[1])) return { ok: false, erro: 'Não foi possível identificar o tipo de mídia desta mensagem' };
+  let motivo = '';
+  const media = await storeMedia(msg.message_id, msg.phone, msg.client_id, m[1], (x) => { motivo = x; });
+  if (!media) return { ok: false, erro: motivo || 'falha ao baixar' };
+  await db.query('UPDATE whatsapp_messages SET media_id = ?, body = ? WHERE id = ?', [media.mediaId, `📎 ${media.label}`, msg.id]);
+  emitWaUpdate(msg.phone);
+  return { ok: true, mediaId: media.mediaId, label: media.label };
+}
+
+/** Varredura (cron): recupera sozinha as mídias das últimas 48h que falharam. */
+export async function reprocessarMidiasFalhadas(): Promise<{ tentadas: number; recuperadas: number }> {
+  const [rows] = await db.query(
+    `SELECT id, message_id, phone, client_id, body, media_id FROM whatsapp_messages
+      WHERE from_me = 0 AND media_id IS NULL AND message_id IS NOT NULL
+        AND body LIKE '%falhou ao baixar%' AND msg_time >= NOW() - INTERVAL 48 HOUR
+      ORDER BY msg_time ASC LIMIT 20`) as any;
+  let recuperadas = 0;
+  for (const r of rows) if ((await reprocessarMensagemMidia(r)).ok) recuperadas++;
+  return { tentadas: rows.length, recuperadas };
 }
 
 // Lê a 1ª mensagem com IA (Groq, mesmo motor do "extrair" da ficha do
@@ -283,7 +337,7 @@ ${texto}`, 'groq');
 // silenciosamente por meses (ver comentário de diagnóstico acima). Throttled
 // via sent_reminders pra não spammar o sino a cada mensagem se a Uazapi
 // ficar instável — no máximo 1 aviso a cada 30 minutos.
-async function avisarFalhaMidia(tipo: string): Promise<void> {
+async function avisarFalhaMidia(tipo: string, motivo = 'desconhecido'): Promise<void> {
   const janela = Math.floor(Date.now() / (30 * 60 * 1000)); // muda a cada 30min
   const [dup] = await db.query(
     'INSERT IGNORE INTO sent_reminders (ref_key, channel) VALUES (?, ?)',
@@ -295,8 +349,8 @@ async function avisarFalhaMidia(tipo: string): Promise<void> {
       `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
        VALUES (?, ?, ?, 'whatsapp_midia_falhou', 'sistema', NOW(), 'pendente')`,
       [a.id, '⚠️ Mídia do WhatsApp não baixou',
-       `Uma mídia (tipo: ${tipo}) chegou pelo WhatsApp mas falhou ao baixar — a conversa registrou um aviso no lugar do arquivo. ` +
-       'Se continuar acontecendo, pode ser mudança na integração com a Uazapi; veja os logs do servidor.']
+       `Uma mídia (tipo: ${tipo}) chegou pelo WhatsApp mas falhou ao baixar após ${TENTATIVAS_DOWNLOAD} tentativas — a conversa registrou um aviso no lugar do arquivo. ` +
+       `Motivo: ${String(motivo).slice(0, 300)}. O sistema tenta recuperar sozinho a cada 10 minutos; também dá pra usar "Tentar baixar de novo" na conversa.`]
     ).catch(() => {});
   }
 }
@@ -472,7 +526,8 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
       console.error(`[whatsapp-webhook] mensagem sem texto e sem tipo de mídia reconhecido (messageType="${msg.messageType}") — payload de msg:`, JSON.stringify(msg).slice(0, 1500));
     }
     if (isMedia) {
-      const media = await storeMedia(msg.messageid || msg.id, phone, clientId, msg.messageType);
+      let motivo = 'desconhecido';
+      const media = await storeMedia(msg.messageid || msg.id, phone, clientId, msg.messageType, (x) => { motivo = x; });
       if (media) { mediaId = media.mediaId; body = body || `📎 ${media.label}`; }
       else {
         // Antes descartava a mensagem inteira quando não havia legenda —
@@ -481,7 +536,7 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
         // admins (throttled) em vez de só logar no console.
         console.error(`[whatsapp-webhook] mídia tipo "${msg.messageType}" não foi salva (storeMedia devolveu null).`);
         body = body || `⚠️ Mídia recebida, mas falhou ao baixar (tipo: ${msg.messageType})`;
-        await avisarFalhaMidia(msg.messageType).catch(() => {});
+        await avisarFalhaMidia(msg.messageType, motivo).catch(() => {});
       }
     }
     if (!body) {

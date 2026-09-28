@@ -400,6 +400,16 @@ export function startCronJobs() {
     }, { silencioso: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── a cada 10 min: recupera sozinho mídia do WhatsApp que falhou ao baixar
+  // (últimas 48h). Erro persistente reportado em 25/09/2026 — falha da Uazapi
+  // costuma ser passageira, então tentar de novo depois resolve sem ninguém.
+  cron.schedule('*/10 * * * *', () => {
+    runJob('whatsapp:midias-falhadas', async () => {
+      const { reprocessarMidiasFalhadas } = await import('../routes/whatsapp-webhook');
+      return await reprocessarMidiasFalhadas();
+    }, { silencioso: true });
+  });
+
   // ── a cada hora: lembrete de 24h pra pendência de WhatsApp sem resposta
   // (hoje só o opt-in de newsletter na recusa de proposta) — pedido da
   // Dra. Letícia: se não respondeu Sim/Não em 24h, manda UM lembrete antes

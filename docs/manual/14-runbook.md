@@ -207,7 +207,9 @@ pm2 restart crm-juridico && pm2 save
 
 **Correção (25/09/2026):** o `message_id` da Uazapi é gravado mesmo quando o download falha, então dá pra tentar de novo. Cada aviso de falha na conversa agora tem o botão **"Tentar baixar de novo"** (`POST /api/whatsapp-instance/messages/:id/reprocessar-midia`), que reaproveita a mesma `storeMedia` do webhook: se der certo, o arquivo entra na conversa e em Documentos do cliente.
 
-**Se acontecer de novo:** (1) clique em "Tentar baixar de novo" em cada aviso; (2) se continuar falhando, a mídia provavelmente expirou do lado do WhatsApp — peça pro remetente reenviar; (3) se falhar pra várias pessoas ao mesmo tempo, veja Saúde do WhatsApp e o painel da Uazapi, e confira `getWebhookErrors` (diagnóstico da Uazapi, ainda sem tela no CRM).
+**Correção definitiva (28/09/2026):** o download agora tenta 3 vezes com espera (0s/2s/6s), aceita `fileURL` quando a Uazapi não devolve base64, o aviso no sino traz o **motivo real** da falha, e uma varredura automática (`whatsapp:midias-falhadas`, a cada 10 min) recupera sozinha as mídias das últimas 48h. Ninguém precisa clicar em nada na maioria dos casos.
+
+**Se acontecer de novo:** (0) veja o motivo no aviso do sino — é ele que diz se foi HTTP da Uazapi, arquivo vazio, etc.; (1) clique em "Tentar baixar de novo" em cada aviso; (2) se continuar falhando, a mídia provavelmente expirou do lado do WhatsApp — peça pro remetente reenviar; (3) se falhar pra várias pessoas ao mesmo tempo, veja Saúde do WhatsApp e o painel da Uazapi, e confira `getWebhookErrors` (diagnóstico da Uazapi, ainda sem tela no CRM).
 
 ## Incidente: prova mensal de restauração do backup falhando (sem impacto no backup em si)
 
@@ -261,6 +263,7 @@ pm2 restart crm-juridico && pm2 save
 | 04/09/2026 | Claude | +1 incidente: botões de ação flutuando em telas com abas (Documentos, Controladoria, Financeiro) — slot de ação no cabeçalho + helper `moveTabAction()` únicos para as 3 telas |
 | 04/09/2026 | Claude | +1 incidente: espaço vazio dentro do Kanban — colunas esticavam pra altura da mais cheia (`align-items:stretch` padrão do flex); `align-items:flex-start` corrige Produção/Fases/Leads de uma vez |
 | 04/09/2026 | Claude | +1 incidente: aviso de "movimentação por e-mail" sem nome do cliente — mesmo fix do marco processual, agora extraído em `buscarNomeCliente()` compartilhado |
+| 28/09/2026 | Claude | Mídia do WhatsApp: retry (3x), fallback fileURL, motivo no sino e varredura automática a cada 10 min |
 | 25/09/2026 | Claude | +1 incidente: rajada de mídia do WhatsApp falhando ao baixar — botão "Tentar baixar de novo" reaproveita o messageId já gravado |
 | 05/09/2026 | Claude | +1 incidente: prova mensal de restauração do backup falhando há 2 meses (permissão em `crm_restore_test`) — confirmado corrigido, restauração manual passou (99 tabelas · 177 clientes · 41 casos · 8 usuários) |
 | 20/09/2026 | Claude | +1 incidente: espaço da assinatura sumindo quando o bloco cai no topo de página nova — `margin-top` trocado por altura de elemento filho (`.sig-spacer`), que não colapsa na paginação |

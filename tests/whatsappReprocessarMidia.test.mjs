@@ -25,22 +25,17 @@ test('rota de reprocessar mídia existe em whatsapp-instance.ts', () => {
   assert.match(instanceSrc, /reprocessar-midia/);
 });
 
-test('rota de reprocessar mídia importa e usa storeMedia + normalizeMediaType do webhook', () => {
+test('rota de reprocessar mídia delega para reprocessarMensagemMidia (webhook)', () => {
   assert.match(instanceSrc, /from '\.\/whatsapp-webhook'/);
-  const idx = instanceSrc.indexOf('reprocessar-midia');
-  const inicio = instanceSrc.lastIndexOf("router.post(", idx);
-  const fim = instanceSrc.indexOf('\n});', idx);
-  const bloco = instanceSrc.slice(inicio, fim);
-  assert.match(bloco, /storeMedia\(/);
-  assert.match(bloco, /message_id/);
-  assert.match(bloco, /media_id/);
+  assert.match(instanceSrc, /reprocessarMensagemMidia\(/);
 });
 
-test('rota recusa reprocessar mensagem que já tem mídia salva', () => {
-  const idx = instanceSrc.indexOf('reprocessar-midia');
-  const inicio = instanceSrc.lastIndexOf("router.post(", idx);
-  const fim = instanceSrc.indexOf('\n});', idx);
-  const bloco = instanceSrc.slice(inicio, fim);
+test('reprocessarMensagemMidia usa storeMedia, message_id e recusa mensagem que já tem mídia', () => {
+  const idx = webhookSrc.indexOf('export async function reprocessarMensagemMidia');
+  const fim = webhookSrc.indexOf('\n}', idx);
+  const bloco = webhookSrc.slice(idx, fim);
+  assert.match(bloco, /storeMedia\(/);
+  assert.match(bloco, /message_id/);
   assert.match(bloco, /msg\.media_id/);
 });
 

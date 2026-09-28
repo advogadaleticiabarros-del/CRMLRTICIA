@@ -9,7 +9,7 @@ import {
   configurarMensagensEfemeras, solicitarHistoricoAntigo, listarRespostasRapidas, salvarRespostaRapida, excluirRespostaRapida,
 } from '../services/uazapiInstance';
 import { uazapi } from '../services/uazapiClient';
-import { storeMedia, normalizeMediaType } from './whatsapp-webhook';
+import { reprocessarMensagemMidia } from './whatsapp-webhook';
 import { emitWaUpdate } from '../services/waSocket';
 import { stripDataUrlPrefix } from '../utils/dataUrl';
 import { buscarExpediente, buscarEventosExistentes, hojeStrBrasilia, addDaysToDateStr } from './agenda-public';
@@ -505,22 +505,9 @@ router.post('/messages/:id/reprocessar-midia', async (req: Request, res: Respons
     'SELECT id, message_id, phone, client_id, body, media_id FROM whatsapp_messages WHERE id = ?', [id]
   ) as any;
   if (!msg) { res.status(404).json({ error: 'Mensagem não encontrada' }); return; }
-  if (msg.media_id) { res.status(400).json({ error: 'Esta mensagem já tem a mídia salva' }); return; }
-  if (!msg.message_id) { res.status(400).json({ error: 'Mensagem sem identificador da Uazapi — não é possível tentar de novo' }); return; }
-  const m = String(msg.body || '').match(/\(tipo:\s*([\w]+)\)/i);
-  const mediaTypeRaw = m ? m[1] : null;
-  if (!mediaTypeRaw || !normalizeMediaType(mediaTypeRaw)) {
-    res.status(400).json({ error: 'Não foi possível identificar o tipo de mídia desta mensagem' });
-    return;
-  }
-  const media = await storeMedia(msg.message_id, msg.phone, msg.client_id, mediaTypeRaw);
-  if (!media) {
-    res.status(400).json({ error: 'Ainda não foi possível baixar — a mídia pode ter expirado do lado do WhatsApp. Peça pro remetente reenviar.' });
-    return;
-  }
-  await db.query('UPDATE whatsapp_messages SET media_id = ?, body = ? WHERE id = ?', [media.mediaId, `📎 ${media.label}`, id]);
-  emitWaUpdate(msg.phone);
-  res.json({ success: true, media_id: media.mediaId, label: media.label });
+  const r = await reprocessarMensagemMidia(msg);
+  if (!r.ok) { res.status(400).json({ error: `Não foi possível baixar: ${r.erro}. Se a mídia expirou no WhatsApp, peça pro remetente reenviar.` }); return; }
+  res.json({ success: true, media_id: r.mediaId, label: r.label });
 });
 
 // ── GET /api/whatsapp-instance/chats/:phone — mensagens da conversa ─────────
