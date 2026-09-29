@@ -1014,6 +1014,51 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
   .bottom-item:active { opacity: .6; }
   /* esconde a barra de abas quando a gaveta está aberta (foco na navegação completa) */
   body.nav-open .bottom-nav { opacity: 0; pointer-events: none; transition: opacity .2s; }
+  /* esconde a barra de abas com a busca global aberta (mesmo espírito) */
+  body.qs-open .bottom-nav { opacity: 0; pointer-events: none; transition: opacity .2s; }
+}
+
+/* ── Busca global ("assistente de bolso") — cliente ou processo, de qualquer
+   tela, com a última movimentação já na resposta (29/09/2026) ────────────── */
+.quick-search {
+  position: fixed; inset: 0; z-index: 200; background: var(--surface, #fff);
+  display: flex; flex-direction: column;
+}
+.quick-search.hidden { display: none; }
+.qs-bar {
+  display: flex; gap: 10px; align-items: center;
+  padding: calc(14px + env(safe-area-inset-top)) 14px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.qs-bar input {
+  flex: 1; font-size: 16px; padding: 11px 14px; border-radius: 10px;
+  border: 1px solid var(--border); background: var(--bg-soft, #f4f2ee); font-family: inherit;
+}
+.qs-bar button {
+  background: none; border: none; color: var(--gold); font-weight: 600; font-size: 15px;
+  padding: 8px 2px; cursor: pointer; white-space: nowrap;
+}
+.qs-results { flex: 1; overflow-y: auto; padding: 4px 0 calc(24px + env(safe-area-inset-bottom)); }
+.qs-hint { padding: 40px 20px; text-align: center; color: var(--text-muted); font-size: 14px; }
+.qs-group-label {
+  padding: 14px 16px 6px; font-size: 11px; font-weight: 700; letter-spacing: .5px;
+  text-transform: uppercase; color: var(--text-muted);
+}
+.qs-row {
+  display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left;
+  padding: 11px 16px; border: none; border-bottom: 1px solid var(--border-soft, var(--border));
+  background: none; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent;
+}
+.qs-row:active { background: var(--bg-soft, #f4f2ee); }
+.qs-row-title { font-size: 15px; font-weight: 600; color: var(--navy-deep, var(--navy)); }
+.qs-row-num { font-weight: 500; color: var(--text-muted); }
+.qs-row-sub { font-size: 12.5px; color: var(--text-muted); }
+.qs-row-mov { font-size: 12.5px; color: var(--navy); margin-top: 2px; }
+.qs-row-mov-vazio { color: var(--text-muted); font-style: italic; }
+@media (min-width: 881px) {
+  .quick-search { max-width: 560px; left: 50%; transform: translateX(-50%); top: 8vh; bottom: auto;
+    max-height: 80vh; border-radius: 16px; box-shadow: 0 24px 60px rgba(0,0,0,.25); border: 1px solid var(--border); }
+  .qs-bar { padding-top: 14px; }
 }
 
 /* Telas bem estreitas (iPhone SE / mini) — afinamento final */

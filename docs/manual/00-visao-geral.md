@@ -51,6 +51,14 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 16. [Ferramentas e acessos](16-ferramentas-acessos.md)
 17. [Decision Log](17-decision-log.md)
 
+## Busca global no celular ("assistente de bolso")
+
+Desde 29/09/2026, a barra de abas do celular tem um botão **Buscar** — de qualquer tela, abre uma busca única que mostra **cliente OU processo** juntos, com a **última movimentação** de cada processo já na lista (sem precisar abrir a ficha). No computador, o mesmo atalho abre com **Cmd/Ctrl+K**. Toque no resultado abre a ficha direto (cliente) ou o detalhe do processo. A última movimentação usa a mais recente entre o que foi lançado manualmente e o que o monitoramento automático captou — o que for mais novo. Só aparece pra quem tem acesso a Clientes/Processos (não aparece no portal do cliente/parceiro).
+
+## Barra de abas do celular reorganizada
+
+Desde 29/09/2026, a barra de abas do celular (equipe do escritório) é: **Início, Prazos, Clientes, Buscar, Mais** — decisão da Dra. Letícia, que confirmou querer sempre à mão o resumo do dia, os prazos e a busca de cliente/processo. Processos, WhatsApp, Financeiro, Dativo e o resto continuam a 1 toque em "Mais" (o mesmo menu completo, não ficaram escondidos, só saíram da barra fixa — ela pediu explicitamente acesso a tudo, só não precisa disso sempre visível). Segue o padrão da Apple de no máximo 5 abas fixas.
+
 ## FAQ
 
 **Essa documentação é gerada automaticamente ou alguém escreveu?** Foi escrita lendo o código-fonte real do sistema (rotas, regras de negócio, banco de dados) — não é um chute nem um template genérico preenchido. Cada afirmação aqui corresponde a um comportamento que existe de fato no CRM em 03/09/2026.
@@ -66,6 +74,7 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 | 03/09/2026 | Claude | Criação do documento — visão geral e mapa dos 13 blocos |
 | 04/09/2026 | Claude | Adicionados fluxograma, Runbook, Onboarding e Ferramentas/acessos; documentação auto-mantida virou regra do projeto (CLAUDE.md) |
 | 04/09/2026 | Claude | Adicionado Decision Log (bloco 17) — documentação completa, 17 de 17 blocos |
+| 29/09/2026 | Claude | Busca global no celular ("assistente de bolso", `GET /api/busca`, Cmd/Ctrl+K no computador) e barra de abas do celular reorganizada (Início/Prazos/Clientes/Buscar/Mais) — 1ª etapa do redesenho mobile pedido pela Dra. Letícia |
 | 22/09/2026 | Claude | Adicionado Dashboard (bloco 00c) — auditoria completa dos 8 painéis, 19 blocos no total |
 
 ---

@@ -102,6 +102,15 @@
     <nav id="bottom-nav" class="bottom-nav" aria-label="Navegação rápida"></nav>
   </div>
 
+  <!-- Busca global ("assistente de bolso") — cliente ou processo, de qualquer tela -->
+  <div id="quick-search" class="quick-search hidden">
+    <div class="qs-bar">
+      <input id="qs-input" type="search" inputmode="search" placeholder="Buscar cliente ou processo…" autocomplete="off" />
+      <button id="qs-close" type="button" aria-label="Fechar busca">Cancelar</button>
+    </div>
+    <div id="qs-results" class="qs-results"></div>
+  </div>
+
   <!-- MODAL -->
   <div id="modal" class="modal hidden">
     <div class="modal-card">

@@ -138,9 +138,16 @@ function uiPrompt(mensagem, valorInicial = '') {
 }
 // Esc fecha o modal aberto (ou a gaveta no mobile)
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'Escape') return;
-  if (!$('#modal').classList.contains('hidden')) closeModal();
-  else if (document.body.classList.contains('nav-open')) document.body.classList.remove('nav-open');
+  if (e.key === 'Escape') {
+    if (!$('#quick-search').classList.contains('hidden')) closeQuickSearch();
+    else if (!$('#modal').classList.contains('hidden')) closeModal();
+    else if (document.body.classList.contains('nav-open')) document.body.classList.remove('nav-open');
+    return;
+  }
+  // Atalho Cmd/Ctrl+K — mesma busca global do botão "Buscar" no celular.
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && $('#quick-search')) {
+    e.preventDefault(); openQuickSearch();
+  }
 });
 
 // ── Auth ──
@@ -492,7 +499,11 @@ const NAV_SHORT = {
   ppcases: 'Indicados', ppclients: 'Fichas', ppupdates: 'Novidades', ppagenda: 'Audiências', ppfin: 'Financeiro',
 };
 // Ordem de preferência das abas inferiores (as 4 primeiras disponíveis para o papel)
-const BOTTOM_PREFERRED = ['dashboard', 'agenda', 'prazos', 'dativo', 'propostas', 'cases', 'clients', 'financeiro', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppagenda', 'ppfin'];
+// Ordem pedida pela Dra. Letícia (29/09/2026): Início, Prazos e Clientes
+// sempre fixos; a 4ª vaga fica pra Processos (complementa a busca). Tudo o
+// mais (WhatsApp, Financeiro, Dativo etc.) continua a 1 toque em "Mais" —
+// ela confirmou que quer acesso a tudo, só não precisa disso na barra fixa.
+const BOTTOM_PREFERRED = ['dashboard', 'prazos', 'clients', 'cases', 'agenda', 'dativo', 'propostas', 'financeiro', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppagenda', 'ppfin'];
 
 function buildNav() {
   const items = navForRole();
@@ -511,18 +522,80 @@ function buildNav() {
 function buildBottomNav(items) {
   const el = $('#bottom-nav');
   if (!el) return;
-  let primary = BOTTOM_PREFERRED.filter((r) => items.includes(r)).slice(0, 4);
-  if (primary.length < 4) primary = items.slice(0, 4);
+  // Padrão Apple: no máximo 5 abas. Quem tem busca de cliente/processo
+  // (equipe do escritório) ganha 3 rotas fixas + Buscar + Mais; quem não
+  // tem (portal do cliente/parceiro) mantém 4 rotas + Mais, como antes.
+  const temBusca = items.includes('clients') || items.includes('cases');
+  let primary = BOTTOM_PREFERRED.filter((r) => items.includes(r)).slice(0, temBusca ? 3 : 4);
+  if (primary.length < (temBusca ? 3 : 4)) primary = items.slice(0, temBusca ? 3 : 4);
   const tabs = primary.map((r) =>
     `<a href="#${r}" class="bottom-item" data-route="${r}">
        <span class="bi-ic">${svgIcon(NAV_ICONS[r])}</span>
        <span class="bi-lb">${NAV_SHORT[r] || NAV_LABELS[r]}</span>
      </a>`).join('');
-  el.innerHTML = tabs +
+  const buscaTab = temBusca
+    ? `<button class="bottom-item" id="bottom-search" type="button">
+         <span class="bi-ic">${svgIcon('search')}</span><span class="bi-lb">Buscar</span>
+       </button>` : '';
+  el.innerHTML = tabs + buscaTab +
     `<button class="bottom-item bottom-more" id="bottom-more" type="button">
        <span class="bi-ic">${svgIcon('menu')}</span><span class="bi-lb">Mais</span>
      </button>`;
   $('#bottom-more').onclick = () => document.body.classList.toggle('nav-open');
+  const searchBtn = $('#bottom-search');
+  if (searchBtn) searchBtn.onclick = openQuickSearch;
+}
+
+// ── Busca global / "assistente de bolso" (29/09/2026) ────────────────────────
+// De qualquer tela, um toque já mostra cliente OU processo, com a última
+// movimentação em destaque — sem precisar navegar até a ficha.
+let qsDebounce = null;
+function openQuickSearch() {
+  const box = $('#quick-search');
+  box.classList.remove('hidden');
+  document.body.classList.add('qs-open');
+  $('#qs-input').value = '';
+  $('#qs-results').innerHTML = '<div class="qs-hint">Digite o nome, telefone ou número do processo…</div>';
+  setTimeout(() => $('#qs-input').focus(), 50);
+}
+function closeQuickSearch() {
+  $('#quick-search').classList.add('hidden');
+  document.body.classList.remove('qs-open');
+}
+function initQuickSearch() {
+  $('#qs-close').onclick = closeQuickSearch;
+  $('#qs-input').oninput = (e) => {
+    clearTimeout(qsDebounce);
+    const q = e.target.value.trim();
+    if (q.length < 2) { $('#qs-results').innerHTML = '<div class="qs-hint">Digite pelo menos 2 letras…</div>'; return; }
+    $('#qs-results').innerHTML = '<div class="spinner"></div>';
+    qsDebounce = setTimeout(async () => {
+      try { renderQuickSearchResults(await api('/api/busca?q=' + encodeURIComponent(q))); }
+      catch (err) { $('#qs-results').innerHTML = `<div class="qs-hint">${esc(err.message)}</div>`; }
+    }, 300);
+  };
+}
+function renderQuickSearchResults(r) {
+  const box = $('#qs-results');
+  if (!r.clients.length && !r.cases.length) { box.innerHTML = '<div class="qs-hint">Nada encontrado</div>'; return; }
+  const clientesHtml = r.clients.length ? `
+    <div class="qs-group-label">Clientes</div>
+    ${r.clients.map((c) => `
+      <button class="qs-row" data-qs-client="${c.id}">
+        <span class="qs-row-title">${esc(c.name)}</span>
+        <span class="qs-row-sub">${esc(c.phone || c.cpf_cnpj || '')}${c.status === 'inativo' ? ' · inativo' : ''}</span>
+      </button>`).join('')}` : '';
+  const casosHtml = r.cases.length ? `
+    <div class="qs-group-label">Processos</div>
+    ${r.cases.map((c) => `
+      <button class="qs-row" data-qs-case="${c.id}">
+        <span class="qs-row-title">${esc(c.title)}${c.case_number ? ` <small class="qs-row-num">${esc(c.case_number)}</small>` : ''}</span>
+        <span class="qs-row-sub">${esc(c.client_name)}</span>
+        ${c.ultima_movimentacao ? `<span class="qs-row-mov">📌 ${esc(String(c.ultima_movimentacao).slice(0, 140))}${c.ultima_movimentacao_data ? ` <small>· ${fmtDate(c.ultima_movimentacao_data)}</small>` : ''}</span>` : '<span class="qs-row-mov qs-row-mov-vazio">Sem movimentação registrada</span>'}
+      </button>`).join('')}` : '';
+  box.innerHTML = clientesHtml + casosHtml;
+  box.querySelectorAll('[data-qs-client]').forEach((b) => b.onclick = () => { closeQuickSearch(); fichaCliente(b.dataset.qsClient); });
+  box.querySelectorAll('[data-qs-case]').forEach((b) => b.onclick = () => { closeQuickSearch(); caseDetail(b.dataset.qsCase); });
 }
 
 function initials(name) {
@@ -532,9 +605,11 @@ function initials(name) {
 const ROLE_PT = { admin: 'Administrador', advogado: 'Advogado(a)', estagiario: 'Estagiário(a)', parceiro: 'Parceiro(a)', cliente: 'Cliente', staff: 'Equipe', parceiro_portal: 'Parceiro', comercial: 'Comercial' };
 
 let bellTimer = null;
+let quickSearchInited = false;
 function showApp() {
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
+  if (!quickSearchInited) { initQuickSearch(); quickSearchInited = true; }
   $('#user-name').innerHTML = `${USER?.name || ''}<small style="display:block;color:var(--gold-soft);font-size:11px">${ROLE_PT[USER?.role] || ''}</small>`;
   const av = $('#user-avatar'); if (av) av.textContent = initials(USER?.name);
   const greet = $('#topbar-greeting');
