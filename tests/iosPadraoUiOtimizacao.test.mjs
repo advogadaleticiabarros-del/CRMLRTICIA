@@ -57,5 +57,5 @@ test('trocar de tela (hashchange) reseta o scroll e o título grande volta a apa
 });
 
 test('tudo inicializado uma única vez, no mesmo lugar dos outros ajustes de mobile', () => {
-  assert.match(js, /initModalDragToClose\(\); initLargeTitleCollapse\(\); quickSearchInited = true;/);
+  assert.match(js, /initModalDragToClose\(\);.*initLargeTitleCollapse\(\);.*quickSearchInited = true;/);
 });

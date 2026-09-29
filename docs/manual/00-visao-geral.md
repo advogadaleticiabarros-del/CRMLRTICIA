@@ -69,7 +69,7 @@ Desde 29/09/2026, todo modal do sistema (é um componente ÚNICO, reaproveitado 
 
 Pedido direto da Dra. Letícia — "está difícil gerir" pelo celular. Aplicado via componentes ÚNICOS e compartilhados (não telas isoladas), então já vale pra todo lugar do sistema de uma vez:
 
-- **Título grande que encolhe ao rolar ("Large Title")** — o título de cada tela (ex.: "Clientes", "Processos") começa grande e encolhe assim que a lista começa a rolar, sobrando mais espaço de leitura. Some junto o subtítulo e o filete dourado. Troca de tela sempre volta com o título grande.
+- **Título grande que encolhe ao rolar ("Large Title")** — o título de cada tela (ex.: "Clientes", "Processos") começa grande e encolhe assim que a lista começa a rolar, sobrando mais espaço de leitura. Some junto o subtítulo e o filete dourado. Troca de tela sempre volta com o título grande. **Completo em 29/09/2026:** o título não só encolhe — ele "migra" pra barra do topo (troca de lugar com a saudação "Bom dia, Letícia..."), igual ao comportamento real do Large Title do iOS, não uma aproximação.
 - **Abas em "segmented control"** — toda `.tabs` do sistema (usada em dezenas de telas) virou o "pill" cinza com aba ativa em branco/destacada, igual ao seletor de segmentos do iOS, em vez do sublinhado do desktop. Só no celular.
 - **Campo de busca/filtro** — os campos de texto dentro da barra de ferramentas (`.toolbar`) ganharam o visual preenchido/arredondado de barra de busca do iOS, igual ao campo da busca global.
 
@@ -90,6 +90,7 @@ Nada de cor, fonte ou raio novo foi inventado — tudo reaproveita as variáveis
 | 03/09/2026 | Claude | Criação do documento — visão geral e mapa dos 13 blocos |
 | 04/09/2026 | Claude | Adicionados fluxograma, Runbook, Onboarding e Ferramentas/acessos; documentação auto-mantida virou regra do projeto (CLAUDE.md) |
 | 04/09/2026 | Claude | Adicionado Decision Log (bloco 17) — documentação completa, 17 de 17 blocos |
+| 29/09/2026 | Claude | Título compacto migra pra barra do topo ao rolar (em vez de só sumir) — comportamento completo do Large Title do iOS |
 | 29/09/2026 | Claude | Título grande que encolhe ao rolar, abas em "segmented control" e campo de busca/filtro em estilo iOS — reaproveitando só as variáveis de cor/espaçamento já existentes |
 | 29/09/2026 | Claude | Modal vira "sheet" no padrão iOS no celular (sobe da base, alça de arrastar, arrastar fecha) — componente único, vale pra toda tela do sistema |
 | 29/09/2026 | Claude | Busca global mais rápida (prioriza prefixo indexado) e mais informativa (telefone/CPF e última movimentação já na lista, resultado antigo não sobrescreve mais o novo) — relato real da Dra. Letícia |

@@ -118,6 +118,37 @@ function initLargeTitleCollapse() {
   }, { passive: true });
 }
 
+// ── Título compacto na barra do topo (padrão iOS: o Large Title, ao sair da
+// tela, "migra" pro nav bar em vez de só sumir) ─────────────────────────────
+// Módulo fechado: expõe só a inicialização; por dentro, observa o <h2> da
+// tela ATUAL (troca a cada navegação, já que #page é reconstruído por rota)
+// e alterna body.title-compact conforme ele sai/entra da área visível.
+function initCompactTitleSync() {
+  const compactEl = $('#topbar-compact-title');
+  if (!compactEl) return;
+  let tituloObserver = null;
+  let h2Atual = null;
+
+  const observarTitulo = (h2) => {
+    if (h2 === h2Atual) return;
+    if (tituloObserver) tituloObserver.disconnect();
+    h2Atual = h2;
+    document.body.classList.remove('title-compact');
+    if (!h2) return;
+    tituloObserver = new IntersectionObserver(([entry]) => {
+      compactEl.textContent = h2.textContent || '';
+      document.body.classList.toggle('title-compact', !entry.isIntersecting);
+    }, { rootMargin: '-64px 0px 0px 0px', threshold: 0 }); // -64px = altura da topbar
+    tituloObserver.observe(h2);
+  };
+
+  const page = $('#page');
+  if (!page) return;
+  new MutationObserver(() => observarTitulo(page.querySelector('.page-header h2')))
+    .observe(page, { childList: true, subtree: true });
+  observarTitulo(page.querySelector('.page-header h2'));
+}
+
 function initModalDragToClose() {
   if (!window.matchMedia('(pointer: coarse)').matches) return;
   const card = document.querySelector('#modal .modal-card');
@@ -692,7 +723,7 @@ let quickSearchInited = false;
 function showApp() {
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
-  if (!quickSearchInited) { initQuickSearch(); initModalDragToClose(); initLargeTitleCollapse(); quickSearchInited = true; }
+  if (!quickSearchInited) { initQuickSearch(); initModalDragToClose(); initLargeTitleCollapse(); initCompactTitleSync(); quickSearchInited = true; }
   $('#user-name').innerHTML = `${USER?.name || ''}<small style="display:block;color:var(--gold-soft);font-size:11px">${ROLE_PT[USER?.role] || ''}</small>`;
   const av = $('#user-avatar'); if (av) av.textContent = initials(USER?.name);
   const greet = $('#topbar-greeting');
