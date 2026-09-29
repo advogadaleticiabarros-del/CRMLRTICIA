@@ -103,6 +103,21 @@ function closeModal() { $('#modal').classList.add('hidden'); }
 // mesmo gesto de qualquer modal nativo do iOS. Só ativa em toque (pointer:
 // coarse) e só a partir do cabeçalho, pra nunca atrapalhar a rolagem do
 // conteúdo do modal (o corpo não tem esse listener).
+// ── Título grande que encolhe ao rolar ("Large Title", padrão iOS) ──────────
+// A tela inteira rola no documento (não tem um container com scroll próprio),
+// então um único listener no window já cobre toda tela do sistema.
+function initLargeTitleCollapse() {
+  let ticking = false;
+  window.addEventListener('scroll', () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      document.body.classList.toggle('is-scrolled', window.scrollY > 28);
+      ticking = false;
+    });
+  }, { passive: true });
+}
+
 function initModalDragToClose() {
   if (!window.matchMedia('(pointer: coarse)').matches) return;
   const card = document.querySelector('#modal .modal-card');
@@ -677,7 +692,7 @@ let quickSearchInited = false;
 function showApp() {
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
-  if (!quickSearchInited) { initQuickSearch(); initModalDragToClose(); quickSearchInited = true; }
+  if (!quickSearchInited) { initQuickSearch(); initModalDragToClose(); initLargeTitleCollapse(); quickSearchInited = true; }
   $('#user-name').innerHTML = `${USER?.name || ''}<small style="display:block;color:var(--gold-soft);font-size:11px">${ROLE_PT[USER?.role] || ''}</small>`;
   const av = $('#user-avatar'); if (av) av.textContent = initials(USER?.name);
   const greet = $('#topbar-greeting');
@@ -9967,7 +9982,13 @@ if (fsBtn) {
 }
 $('#modal-close').onclick = closeModal;
 $('#modal').onclick = (e) => { if (e.target.id === 'modal') closeModal(); };
-window.addEventListener('hashchange', router);
+window.addEventListener('hashchange', () => {
+  // Cada tela nova começa do topo, com o título grande — sem isso, trocar de
+  // aba já rolado deixava a tela nova "encolhida" antes mesmo de renderizar.
+  window.scrollTo(0, 0);
+  document.body.classList.remove('is-scrolled');
+  router();
+});
 
 // ── Tabelas viram cartões no mobile: rotula cada célula com o seu cabeçalho ──
 function labelTableCells(table) {

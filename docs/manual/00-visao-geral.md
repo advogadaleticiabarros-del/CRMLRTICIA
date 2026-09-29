@@ -65,6 +65,16 @@ Desde 29/09/2026, a barra de abas do celular (equipe do escritório) é: **Iníc
 
 Desde 29/09/2026, todo modal do sistema (é um componente ÚNICO, reaproveitado por toda tela — cadastro, ficha, formulário, filtro) ganhou o comportamento de "sheet" do iOS no celular: sobe da base da tela (em vez de nascer do centro), tem a alcinha de arrastar no topo, e arrastar pra baixo pelo cabeçalho fecha o modal — mesmo gesto de qualquer app nativo da Apple. Respeita "reduzir movimento" (acessibilidade) e não muda nada no computador nem nas cores/fontes/espaçamentos do sistema (design system intocado, só a posição/animação/gesto no celular). Como é um componente único, a mudança já vale pra toda tela que usa modal, sem precisar mexer tela por tela.
 
+## Mais padrões iOS aplicados de uma vez (29/09/2026)
+
+Pedido direto da Dra. Letícia — "está difícil gerir" pelo celular. Aplicado via componentes ÚNICOS e compartilhados (não telas isoladas), então já vale pra todo lugar do sistema de uma vez:
+
+- **Título grande que encolhe ao rolar ("Large Title")** — o título de cada tela (ex.: "Clientes", "Processos") começa grande e encolhe assim que a lista começa a rolar, sobrando mais espaço de leitura. Some junto o subtítulo e o filete dourado. Troca de tela sempre volta com o título grande.
+- **Abas em "segmented control"** — toda `.tabs` do sistema (usada em dezenas de telas) virou o "pill" cinza com aba ativa em branco/destacada, igual ao seletor de segmentos do iOS, em vez do sublinhado do desktop. Só no celular.
+- **Campo de busca/filtro** — os campos de texto dentro da barra de ferramentas (`.toolbar`) ganharam o visual preenchido/arredondado de barra de busca do iOS, igual ao campo da busca global.
+
+Nada de cor, fonte ou raio novo foi inventado — tudo reaproveita as variáveis que já existiam no sistema (`--bg`, `--surface`, `--gold`, `--navy`, `--border`). Só a forma, a posição e o comportamento no celular mudaram.
+
 ## FAQ
 
 **Essa documentação é gerada automaticamente ou alguém escreveu?** Foi escrita lendo o código-fonte real do sistema (rotas, regras de negócio, banco de dados) — não é um chute nem um template genérico preenchido. Cada afirmação aqui corresponde a um comportamento que existe de fato no CRM em 03/09/2026.
@@ -80,6 +90,7 @@ Desde 29/09/2026, todo modal do sistema (é um componente ÚNICO, reaproveitado 
 | 03/09/2026 | Claude | Criação do documento — visão geral e mapa dos 13 blocos |
 | 04/09/2026 | Claude | Adicionados fluxograma, Runbook, Onboarding e Ferramentas/acessos; documentação auto-mantida virou regra do projeto (CLAUDE.md) |
 | 04/09/2026 | Claude | Adicionado Decision Log (bloco 17) — documentação completa, 17 de 17 blocos |
+| 29/09/2026 | Claude | Título grande que encolhe ao rolar, abas em "segmented control" e campo de busca/filtro em estilo iOS — reaproveitando só as variáveis de cor/espaçamento já existentes |
 | 29/09/2026 | Claude | Modal vira "sheet" no padrão iOS no celular (sobe da base, alça de arrastar, arrastar fecha) — componente único, vale pra toda tela do sistema |
 | 29/09/2026 | Claude | Busca global mais rápida (prioriza prefixo indexado) e mais informativa (telefone/CPF e última movimentação já na lista, resultado antigo não sobrescreve mais o novo) — relato real da Dra. Letícia |
 | 29/09/2026 | Claude | Busca global no celular ("assistente de bolso", `GET /api/busca`, Cmd/Ctrl+K no computador) e barra de abas do celular reorganizada (Início/Prazos/Clientes/Buscar/Mais) — 1ª etapa do redesenho mobile pedido pela Dra. Letícia |

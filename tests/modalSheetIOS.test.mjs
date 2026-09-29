@@ -20,9 +20,9 @@ test('modal ganha a alça de arrastar (drag handle) no HTML', () => {
 
 test('alça fica escondida por padrão e só aparece no mobile', () => {
   assert.match(css, /\.modal-drag-handle \{ display: none; \}/);
-  const i = css.indexOf('@media (max-width: 880px)');
-  const bloco = css.slice(i, css.indexOf('\n}', i + 400));
-  assert.match(css.slice(i, i + 3000), /\.modal-drag-handle \{[^}]*display: block/);
+  const i = css.indexOf('/* Modais viram "sheet" no estilo iOS');
+  assert.notEqual(i, -1);
+  assert.match(css.slice(i, i + 600), /\.modal-drag-handle \{[^}]*display: block/);
 });
 
 test('no mobile o modal SOBE DA BASE (sheet), não nasce do centro com scale', () => {
@@ -45,7 +45,7 @@ test('gesto de arrastar pra fechar só ativa em toque (pointer: coarse) e só pe
 });
 
 test('inicializado uma única vez, junto da busca global', () => {
-  assert.match(js, /initModalDragToClose\(\);\s*quickSearchInited = true;/);
+  assert.match(js, /initModalDragToClose\(\);.*quickSearchInited = true;/);
 });
 
 test('sintaxe válida (JS e HTML balanceados)', () => {

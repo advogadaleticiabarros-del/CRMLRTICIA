@@ -711,6 +711,15 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
   .topbar-greeting { font-size: 13px; }
   .topbar-date { display: none; }
 
+  /* Título grande que encolhe ao rolar (padrão "Large Title" do iOS) — mais
+     espaço pra lista assim que começa a rolar, sem perder o título de vista.
+     Só a fonte encolhe/some o filete dourado; cor/família seguem o mesmo
+     token do design system. */
+  .page-header h2 { transition: font-size .18s ease, margin-bottom .18s ease; }
+  body.is-scrolled .page-header h2 { font-size: 19px; }
+  body.is-scrolled .page-header h2::after { display: none; }
+  body.is-scrolled .page-header .sub { display: none; }
+
   .kanban { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
   .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
@@ -720,7 +729,35 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
   /* Tabelas largas rolam dentro do card, sem quebrar o layout */
   .card { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .page table { font-size: 12.5px; }
-  .tabs { overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch; }
+
+  /* Abas em "segmented control" (padrão iOS) em vez do sublinhado do desktop:
+     trilha cinza única, cada aba vira um "pill" que preenche quando ativa —
+     mesmas cores do sistema (--navy, --gold, --border), só a forma muda
+     (29/09/2026, pedido de padronização iOS). */
+  .tabs {
+    overflow-x: auto; flex-wrap: nowrap; -webkit-overflow-scrolling: touch;
+    background: var(--bg); border: none; border-radius: 11px;
+    padding: 3px; gap: 2px;
+  }
+  .tab {
+    flex: 1 0 auto; text-align: center; border-radius: 9px; padding: 8px 14px;
+    border-bottom: none !important; white-space: nowrap;
+  }
+  .tab.active {
+    background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.12);
+    border-bottom: none !important;
+  }
+  .tab.active::after { display: none; }
+
+  /* Campo de busca/filtro no estilo "barra de busca" do iOS: preenchido,
+     cantos mais arredondados, sem borda visível — mesmo tratamento já usado
+     na busca global (#quick-search). */
+  .toolbar input[type="text"], .toolbar input[type="search"], .toolbar input:not([type]) {
+    background: var(--bg); border: 1px solid transparent; border-radius: 10px;
+  }
+  .toolbar input[type="text"]:focus, .toolbar input[type="search"]:focus, .toolbar input:not([type]):focus {
+    background: var(--surface, #fff); border-color: var(--gold);
+  }
 
   /* Modais viram "sheet" no estilo iOS: sobe da base, com alça pra arrastar
      e fechar — mesmas cores/raio/sombra do design system, só muda a posição,
@@ -769,7 +806,7 @@ input:focus-visible, select:focus-visible { outline: 2px solid var(--gold); outl
   .modal-card { animation: sheetUp .28s cubic-bezier(.16,.8,.3,1); }
   @keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
 }
-@media (prefers-reduced-motion: reduce) { .modal-card { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .modal-card { animation: none; } .page-header h2 { transition: none; } }
 
 /* Spinner de carregamento */
 .spinner { width: 30px; height: 30px; border: 3px solid var(--border); border-top-color: var(--gold); border-radius: 50%; animation: spin .7s linear infinite; margin: 40px auto; }
@@ -1044,7 +1081,7 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
 }
 .qs-bar input {
   flex: 1; font-size: 16px; padding: 11px 14px; border-radius: 10px;
-  border: 1px solid var(--border); background: var(--bg-soft, #f4f2ee); font-family: inherit;
+  border: 1px solid var(--border); background: var(--bg); font-family: inherit;
 }
 .qs-bar button {
   background: none; border: none; color: var(--gold); font-weight: 600; font-size: 15px;
@@ -1061,7 +1098,7 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
   padding: 11px 16px; border: none; border-bottom: 1px solid var(--border-soft, var(--border));
   background: none; cursor: pointer; font-family: inherit; -webkit-tap-highlight-color: transparent;
 }
-.qs-row:active { background: var(--bg-soft, #f4f2ee); }
+.qs-row:active { background: var(--bg); }
 .qs-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .qs-row-title { font-size: 15px; font-weight: 600; color: var(--navy-deep, var(--navy)); }
 .qs-row-tag { font-weight: 600; color: var(--text-muted); text-transform: uppercase; font-size: 10px; }
