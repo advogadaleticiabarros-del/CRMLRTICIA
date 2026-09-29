@@ -1,6 +1,11 @@
 // "Assistente de bolso" pedido pela Dra. Letícia (29/09/2026): de qualquer
 // tela do celular, buscar cliente OU processo e já ver a última movimentação,
 // sem navegar até a ficha. GET /api/busca?q=
+//
+// Corrigido em 29/09/2026 (achado real: busca lenta) — LIKE '%termo%' não usa
+// índice; prioriza LIKE 'termo%' (prefixo) e só cai pro "contém" se faltar
+// resultado. Última movimentação passou de 4 subconsultas correlacionadas
+// (1 ida ao banco por linha) para 2 buscas em lote.
 import { test } from 'node:test';
 import assert from 'node:assert';
 import fs from 'node:fs';
@@ -22,25 +27,38 @@ test('busca curta (menos de 2 chars) devolve vazio sem consultar o banco', () =>
   assert.match(bloco, /res\.json\(\{ clients: \[\], cases: \[\] \}\)/);
 });
 
-test('busca clientes por nome, telefone e CPF/CNPJ (quando parecer número)', () => {
-  assert.match(src, /FROM clients/);
-  assert.match(src, /name LIKE \?/);
-  assert.match(src, /phone LIKE \?/);
-  assert.match(src, /cpf_cnpj LIKE \?/);
+test('busca de cliente tenta prefixo (usa índice) antes do "contém"', () => {
+  const i = src.indexOf('async function buscarClientes');
+  const bloco = src.slice(i, src.indexOf('\n}', i));
+  assert.match(bloco, /name LIKE \?.*ORDER BY name ASC LIMIT 8/s);
+  assert.match(bloco, /porPrefixo\.length >= 5/);
+  assert.match(bloco, /cpf_cnpj LIKE \?/);
 });
 
-test('busca processos por título, número e nome do cliente', () => {
-  assert.match(src, /FROM cases c/);
-  assert.match(src, /c\.title LIKE \?/);
-  assert.match(src, /c\.case_number LIKE \?/);
-  assert.match(src, /cl\.name LIKE \?/);
+test('busca de processo também prioriza prefixo, com fallback pro "contém"', () => {
+  const i = src.indexOf('async function buscarCasos');
+  const bloco = src.slice(i, src.indexOf('\n}', i));
+  assert.match(bloco, /porPrefixo\.length >= 5/);
+  assert.match(bloco, /c\.title LIKE \?/);
+  assert.match(bloco, /c\.case_number LIKE \?/);
+  assert.match(bloco, /cl\.name LIKE \?/);
 });
 
-test('traz a última movimentação, escolhendo a mais recente entre interna e do monitoramento', () => {
-  assert.match(src, /case_movements/);
-  assert.match(src, /process_movements/);
-  assert.match(src, /ultima_movimentacao/);
-  assert.match(src, /dataMonitor > dataInterna/);
+test('última movimentação é buscada em lote (2 consultas), não 1 por processo', () => {
+  const i = src.indexOf('async function anexarUltimaMovimentacao');
+  const bloco = src.slice(i, src.indexOf('\nexport default', i));
+  assert.match(bloco, /case_id IN \(\$\{placeholders\}\)/);
+  assert.match(bloco, /FROM case_movements/);
+  assert.match(bloco, /FROM legal_processes/);
+  assert.match(bloco, /FROM process_movements|JOIN process_movements/);
+  // escolhe a mais recente entre as duas fontes
+  assert.match(bloco, /new Date\(r\.data\)\.getTime\(\) > new Date\(atual\.data\)\.getTime\(\)/);
+});
+
+test('lista vazia de processos não dispara nenhuma consulta de movimentação', () => {
+  const i = src.indexOf('async function anexarUltimaMovimentacao');
+  const bloco = src.slice(i, src.indexOf('\n}', i + 50));
+  assert.match(bloco, /if \(!cases\.length\) return;/);
 });
 
 test('SQL não referencia tabela/coluna inexistente', () => {

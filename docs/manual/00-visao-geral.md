@@ -55,6 +55,8 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 
 Desde 29/09/2026, a barra de abas do celular tem um botão **Buscar** — de qualquer tela, abre uma busca única que mostra **cliente OU processo** juntos, com a **última movimentação** de cada processo já na lista (sem precisar abrir a ficha). No computador, o mesmo atalho abre com **Cmd/Ctrl+K**. Toque no resultado abre a ficha direto (cliente) ou o detalhe do processo. A última movimentação usa a mais recente entre o que foi lançado manualmente e o que o monitoramento automático captou — o que for mais novo. Só aparece pra quem tem acesso a Clientes/Processos (não aparece no portal do cliente/parceiro).
 
+**Corrigido em 29/09/2026 (relato real — busca lenta, resultado só com o nome):** a busca ficou mais rápida (o "contém, em qualquer posição" não usa índice do banco; agora tenta primeiro o começo do nome/processo, que é indexado) e mais confiável (uma resposta antiga não sobrescreve mais uma mais nova, se a rede oscilar). Cada resultado agora mostra telefone/CPF (cliente) ou última movimentação (processo) direto na lista, com uma seta indicando que dá pra tocar — tocar sempre abre a ficha completa.
+
 ## Barra de abas do celular reorganizada
 
 Desde 29/09/2026, a barra de abas do celular (equipe do escritório) é: **Início, Prazos, Clientes, Buscar, Mais** — decisão da Dra. Letícia, que confirmou querer sempre à mão o resumo do dia, os prazos e a busca de cliente/processo. Processos, WhatsApp, Financeiro, Dativo e o resto continuam a 1 toque em "Mais" (o mesmo menu completo, não ficaram escondidos, só saíram da barra fixa — ela pediu explicitamente acesso a tudo, só não precisa disso sempre visível). Segue o padrão da Apple de no máximo 5 abas fixas.
@@ -74,6 +76,7 @@ Desde 29/09/2026, a barra de abas do celular (equipe do escritório) é: **Iníc
 | 03/09/2026 | Claude | Criação do documento — visão geral e mapa dos 13 blocos |
 | 04/09/2026 | Claude | Adicionados fluxograma, Runbook, Onboarding e Ferramentas/acessos; documentação auto-mantida virou regra do projeto (CLAUDE.md) |
 | 04/09/2026 | Claude | Adicionado Decision Log (bloco 17) — documentação completa, 17 de 17 blocos |
+| 29/09/2026 | Claude | Busca global mais rápida (prioriza prefixo indexado) e mais informativa (telefone/CPF e última movimentação já na lista, resultado antigo não sobrescreve mais o novo) — relato real da Dra. Letícia |
 | 29/09/2026 | Claude | Busca global no celular ("assistente de bolso", `GET /api/busca`, Cmd/Ctrl+K no computador) e barra de abas do celular reorganizada (Início/Prazos/Clientes/Buscar/Mais) — 1ª etapa do redesenho mobile pedido pela Dra. Letícia |
 | 22/09/2026 | Claude | Adicionado Dashboard (bloco 00c) — auditoria completa dos 8 painéis, 19 blocos no total |
 

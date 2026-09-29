@@ -549,7 +549,16 @@ function buildBottomNav(items) {
 // ── Busca global / "assistente de bolso" (29/09/2026) ────────────────────────
 // De qualquer tela, um toque já mostra cliente OU processo, com a última
 // movimentação em destaque — sem precisar navegar até a ficha.
+// Achado real (29/09/2026): a busca parecia lenta e travada. Duas causas de
+// UX, além da consulta em si (corrigida no backend, ver src/routes/busca.ts):
+// (1) cada tecla apagava a lista e mostrava um spinner — a lista "piscava" a
+// cada letra, dando sensação de trava; (2) se uma resposta antiga chegasse
+// depois de uma mais nova (rede instável), sobrescrevia o resultado certo com
+// um errado. AbortController cancela a busca anterior; a lista anterior só é
+// substituída quando a resposta nova (da busca ATUAL) chega — nunca fica em
+// branco/spinner por cima do que já tinha achado.
 let qsDebounce = null;
+let qsAbort = null;
 function openQuickSearch() {
   const box = $('#quick-search');
   box.classList.remove('hidden');
@@ -561,41 +570,69 @@ function openQuickSearch() {
 function closeQuickSearch() {
   $('#quick-search').classList.add('hidden');
   document.body.classList.remove('qs-open');
+  if (qsAbort) { qsAbort.abort(); qsAbort = null; }
 }
 function initQuickSearch() {
   $('#qs-close').onclick = closeQuickSearch;
   $('#qs-input').oninput = (e) => {
     clearTimeout(qsDebounce);
     const q = e.target.value.trim();
-    if (q.length < 2) { $('#qs-results').innerHTML = '<div class="qs-hint">Digite pelo menos 2 letras…</div>'; return; }
-    $('#qs-results').innerHTML = '<div class="spinner"></div>';
-    qsDebounce = setTimeout(async () => {
-      try { renderQuickSearchResults(await api('/api/busca?q=' + encodeURIComponent(q))); }
-      catch (err) { $('#qs-results').innerHTML = `<div class="qs-hint">${esc(err.message)}</div>`; }
-    }, 300);
+    if (q.length < 2) {
+      if (qsAbort) { qsAbort.abort(); qsAbort = null; }
+      $('#qs-results').innerHTML = '<div class="qs-hint">Digite pelo menos 2 letras…</div>';
+      return;
+    }
+    qsDebounce = setTimeout(() => runQuickSearch(q), 200);
   };
+}
+async function runQuickSearch(q) {
+  if (qsAbort) qsAbort.abort();
+  const ctrl = new AbortController();
+  qsAbort = ctrl;
+  try {
+    const headers = TOKEN ? { Authorization: `Bearer ${TOKEN}` } : {};
+    const res = await fetch('/api/busca?q=' + encodeURIComponent(q), { headers, signal: ctrl.signal });
+    const data = await res.json();
+    if (ctrl.signal.aborted) return; // uma busca mais nova já começou — descarta esta resposta
+    if (!res.ok) throw new Error(data?.error || 'Falha na busca');
+    renderQuickSearchResults(data);
+  } catch (err) {
+    if (err.name === 'AbortError') return;
+    $('#qs-results').innerHTML = `<div class="qs-hint">${esc(err.message)}</div>`;
+  }
 }
 function renderQuickSearchResults(r) {
   const box = $('#qs-results');
   if (!r.clients.length && !r.cases.length) { box.innerHTML = '<div class="qs-hint">Nada encontrado</div>'; return; }
+  const chevron = '<span class="qs-row-chevron">›</span>';
   const clientesHtml = r.clients.length ? `
-    <div class="qs-group-label">Clientes</div>
+    <div class="qs-group-label">Clientes · toque para abrir a ficha completa</div>
     ${r.clients.map((c) => `
       <button class="qs-row" data-qs-client="${c.id}">
-        <span class="qs-row-title">${esc(c.name)}</span>
-        <span class="qs-row-sub">${esc(c.phone || c.cpf_cnpj || '')}${c.status === 'inativo' ? ' · inativo' : ''}</span>
+        <span class="qs-row-main">
+          <span class="qs-row-title">${esc(c.name)}${c.status === 'inativo' ? ' <small class="qs-row-tag">inativo</small>' : ''}</span>
+          <span class="qs-row-sub">${[c.phone, c.cpf_cnpj].filter(Boolean).map(esc).join(' · ') || 'sem telefone/CPF cadastrado'}</span>
+        </span>${chevron}
       </button>`).join('')}` : '';
   const casosHtml = r.cases.length ? `
-    <div class="qs-group-label">Processos</div>
+    <div class="qs-group-label">Processos · toque para abrir o detalhe</div>
     ${r.cases.map((c) => `
       <button class="qs-row" data-qs-case="${c.id}">
-        <span class="qs-row-title">${esc(c.title)}${c.case_number ? ` <small class="qs-row-num">${esc(c.case_number)}</small>` : ''}</span>
-        <span class="qs-row-sub">${esc(c.client_name)}</span>
-        ${c.ultima_movimentacao ? `<span class="qs-row-mov">📌 ${esc(String(c.ultima_movimentacao).slice(0, 140))}${c.ultima_movimentacao_data ? ` <small>· ${fmtDate(c.ultima_movimentacao_data)}</small>` : ''}</span>` : '<span class="qs-row-mov qs-row-mov-vazio">Sem movimentação registrada</span>'}
+        <span class="qs-row-main">
+          <span class="qs-row-title">${esc(c.title)}${c.case_number ? ` <small class="qs-row-num">${esc(c.case_number)}</small>` : ''}</span>
+          <span class="qs-row-sub">${esc(c.client_name)}</span>
+          ${c.ultima_movimentacao ? `<span class="qs-row-mov">📌 ${esc(String(c.ultima_movimentacao).slice(0, 140))}${c.ultima_movimentacao_data ? ` <small>· ${fmtDate(c.ultima_movimentacao_data)}</small>` : ''}</span>` : '<span class="qs-row-mov qs-row-mov-vazio">Sem movimentação registrada</span>'}
+        </span>${chevron}
       </button>`).join('')}` : '';
   box.innerHTML = clientesHtml + casosHtml;
-  box.querySelectorAll('[data-qs-client]').forEach((b) => b.onclick = () => { closeQuickSearch(); fichaCliente(b.dataset.qsClient); });
-  box.querySelectorAll('[data-qs-case]').forEach((b) => b.onclick = () => { closeQuickSearch(); caseDetail(b.dataset.qsCase); });
+  box.querySelectorAll('[data-qs-client]').forEach((b) => b.onclick = () => {
+    closeQuickSearch();
+    fichaCliente(b.dataset.qsClient).catch(() => toast('Não foi possível abrir a ficha do cliente', 'error'));
+  });
+  box.querySelectorAll('[data-qs-case]').forEach((b) => b.onclick = () => {
+    closeQuickSearch();
+    caseDetail(b.dataset.qsCase).catch(() => toast('Não foi possível abrir o processo', 'error'));
+  });
 }
 
 function initials(name) {
