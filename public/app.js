@@ -98,6 +98,37 @@ function openModal(title, bodyEl, opts) {
 }
 function closeModal() { $('#modal').classList.add('hidden'); }
 
+// ── Gesto de arrastar pra fechar (padrão iOS, só no celular) ─────────────────
+// Arrastar pela alça ou pelo cabeçalho do modal pra baixo fecha a "sheet" —
+// mesmo gesto de qualquer modal nativo do iOS. Só ativa em toque (pointer:
+// coarse) e só a partir do cabeçalho, pra nunca atrapalhar a rolagem do
+// conteúdo do modal (o corpo não tem esse listener).
+function initModalDragToClose() {
+  if (!window.matchMedia('(pointer: coarse)').matches) return;
+  const card = document.querySelector('#modal .modal-card');
+  const pegador = document.querySelector('#modal .modal-header');
+  if (!card || !pegador) return;
+  let startY = 0, deltaY = 0, arrastando = false;
+  pegador.addEventListener('touchstart', (e) => {
+    startY = e.touches[0].clientY; deltaY = 0; arrastando = true;
+    card.classList.add('dragging');
+  }, { passive: true });
+  pegador.addEventListener('touchmove', (e) => {
+    if (!arrastando) return;
+    deltaY = Math.max(0, e.touches[0].clientY - startY); // só deixa arrastar pra baixo
+    card.style.transform = `translateY(${deltaY}px)`;
+  }, { passive: true });
+  const soltar = () => {
+    if (!arrastando) return;
+    arrastando = false;
+    card.classList.remove('dragging');
+    if (deltaY > 110) { closeModal(); }
+    card.style.transform = '';
+  };
+  pegador.addEventListener('touchend', soltar);
+  pegador.addEventListener('touchcancel', soltar);
+}
+
 // ── Diálogos próprios (substituem confirm/prompt do navegador) ───────────────
 // Overlay independente do #modal: empilha por cima de modais abertos sem
 // destruí-los. Retornam Promise — usar com await.
@@ -646,7 +677,7 @@ let quickSearchInited = false;
 function showApp() {
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
-  if (!quickSearchInited) { initQuickSearch(); quickSearchInited = true; }
+  if (!quickSearchInited) { initQuickSearch(); initModalDragToClose(); quickSearchInited = true; }
   $('#user-name').innerHTML = `${USER?.name || ''}<small style="display:block;color:var(--gold-soft);font-size:11px">${ROLE_PT[USER?.role] || ''}</small>`;
   const av = $('#user-avatar'); if (av) av.textContent = initials(USER?.name);
   const greet = $('#topbar-greeting');
