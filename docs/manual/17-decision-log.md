@@ -73,6 +73,10 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Decisão:** ao encontrar uma skill instalada chamada `whatsapp` (automação via Green API/WAHA), decidiu-se **não usar** — não é a integração que o CRM usa.
 **Motivo:** o CRM já tem uma integração real e funcional com Uazapi, profundamente integrada (WhatsApp-instance, webhooks, health panel). Trocar ou adicionar um segundo provedor sem necessidade criaria confusão e risco, sem ganho.
 
+### 29/09/2026 — Todo código novo ou refatorado segue a skill `codebase-design` (módulos profundos)
+**Decisão:** instaladas as skills `codebase-design` e `setup-matt-pocock-skills` (github.com/mattpocock/skills). Toda criação ou reestruturação de código passa a seguir os princípios de módulo profundo: muito comportamento atrás de interface pequena, dependências externas (APIs, banco, envio de WhatsApp) injetadas, teste pela mesma interface que o sistema usa. Regra registrada no `CLAUDE.md` (seção "Agent skills"); configuração em `docs/agents/`.
+**Motivo:** pedido da usuária ("vamos usar em tudo que der"). Arquivos grandes como `app.js`/`whatsapp.js` misturam responsabilidades; módulos profundos concentram mudança e bug num lugar só e se encaixam com o TDD já adotado.
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.
@@ -92,6 +96,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | 04/09/2026 | Claude | Criação do documento — 8 decisões registradas |
 | 23/09/2026 | Claude | Registrada decisão de não integrar o Laya (motor de decisão local) — custo de infraestrutura (serviço Python separado na VPS) maior que o ganho (velocidade que ninguém sente) frente ao Groq/Gemini já em uso |
 | 24/09/2026 | Claude | Registrada decisão de manter `cases` e `legal_processes` separados (achado de prioridade baixa da auditoria do módulo Clientes) — overlap já tem FK de ligação, risco real é lógica de matching duplicada em 3 arquivos, não a separação em si |
+| 29/09/2026 | Claude | Registrada adoção da skill `codebase-design` (módulos profundos) para todo código novo/refatorado |
 
 ---
 ◀ [Ferramentas e acessos](16-ferramentas-acessos.md) · [Visão geral](00-visao-geral.md)

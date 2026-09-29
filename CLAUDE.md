@@ -131,3 +131,17 @@ A pasta `docs/manual/` **continua sendo a fonte oficial** (git, deploy, regra ac
 Sempre que um arquivo de `docs/manual/` for criado ou alterado nesta sessão (regra acima), **copie a mesma alteração pro arquivo correspondente no espelho** (mesmo nome de arquivo) antes de considerar a tarefa concluída — é o mesmo conteúdo, só em dois lugares. Se o caminho do Obsidian não existir nesta máquina/sessão (ambiente diferente do computador da Dra. Letícia), pule esse passo silenciosamente — a fonte em `docs/manual/` já está correta e é o que importa.
 
 Antes de começar a mexer num módulo a pedido da usuária, ela pode esperar que você já tenha lido o contexto — não é preciso pedir pra ela reexplicar o que o módulo faz; leia o arquivo correspondente em `docs/manual/` (ou o espelho, se for mais conveniente na sessão) primeiro.
+
+## Agent skills
+
+### Issue tracker
+
+Issues no GitHub Issues do repo (`gh` CLI). Ver `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` + `docs/adr/` na raiz (criados sob demanda, não antecipadamente). Ver `docs/agents/domain.md`.
+
+### Design de código (obrigatório)
+
+Use a skill `codebase-design` em **todo** trabalho que crie ou reestruture código (módulo novo, refatoração, integração, feature que toque mais de um arquivo): projete módulos profundos (muito comportamento atrás de interface pequena), com dependências externas injetadas (APIs, banco, envio) pra permitir testar pela mesma interface que o resto do sistema usa. Combine com TDD. Pedido explícito da usuária (29/09/2026): "vamos usar em tudo que der".
