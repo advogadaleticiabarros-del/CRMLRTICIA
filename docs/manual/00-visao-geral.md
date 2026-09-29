@@ -75,6 +75,10 @@ Pedido direto da Dra. Letícia — "está difícil gerir" pelo celular. Aplicado
 
 Nada de cor, fonte ou raio novo foi inventado — tudo reaproveita as variáveis que já existiam no sistema (`--bg`, `--surface`, `--gold`, `--navy`, `--border`). Só a forma, a posição e o comportamento no celular mudaram.
 
+## Muitos botões de ação viram "Ações ⋯" (celular)
+
+Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Investigação (29/09/2026):** "arrastar pra revelar" (padrão comum em apps de lista) entraria em conflito com o cartão mobile que já existe — a coluna de ações já vira botões largos e sempre visíveis no rodapé do cartão, não fica escondida competindo espaço. Implementado, em vez disso, o equivalente correto do iOS: quando uma lista tem **3 ou mais** botões de ação (Editar/Abrir/Excluir etc.), eles somem e viram um único botão **"Ações ⋯"**, que abre uma folha (o mesmo modal-sheet) listando cada ação. Automático — qualquer tabela nova do sistema já ganha isso sozinha, sem precisar mexer na tela que a criou. Com 1 ou 2 botões, nada muda (não precisa condensar). Só no celular; no computador os botões continuam lado a lado, como sempre.
+
 ## FAQ
 
 **Essa documentação é gerada automaticamente ou alguém escreveu?** Foi escrita lendo o código-fonte real do sistema (rotas, regras de negócio, banco de dados) — não é um chute nem um template genérico preenchido. Cada afirmação aqui corresponde a um comportamento que existe de fato no CRM em 03/09/2026.
@@ -90,6 +94,7 @@ Nada de cor, fonte ou raio novo foi inventado — tudo reaproveita as variáveis
 | 03/09/2026 | Claude | Criação do documento — visão geral e mapa dos 13 blocos |
 | 04/09/2026 | Claude | Adicionados fluxograma, Runbook, Onboarding e Ferramentas/acessos; documentação auto-mantida virou regra do projeto (CLAUDE.md) |
 | 04/09/2026 | Claude | Adicionado Decision Log (bloco 17) — documentação completa, 17 de 17 blocos |
+| 29/09/2026 | Claude | Listas com 3+ botões de ação condensam num "Ações ⋯" (folha) no celular — automático em toda tabela do sistema, sem mudar tela por tela |
 | 29/09/2026 | Claude | Título compacto migra pra barra do topo ao rolar (em vez de só sumir) — comportamento completo do Large Title do iOS |
 | 29/09/2026 | Claude | Título grande que encolhe ao rolar, abas em "segmented control" e campo de busca/filtro em estilo iOS — reaproveitando só as variáveis de cor/espaçamento já existentes |
 | 29/09/2026 | Claude | Modal vira "sheet" no padrão iOS no celular (sobe da base, alça de arrastar, arrastar fecha) — componente único, vale pra toda tela do sistema |

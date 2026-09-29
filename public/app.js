@@ -10029,7 +10029,53 @@ function labelTableCells(table) {
     [...tr.children].forEach((td, i) => {
       if (i < ths.length && !td.hasAttribute('data-label')) td.setAttribute('data-label', ths[i]);
     });
+    condensarAcoesDaLinha(tr);
   });
+}
+
+/**
+ * Padrão iOS pra lista com muitas ações (Editar/Abrir/Excluir…): em vez de
+ * "arrastar pra revelar" — que brigaria com o cartão do celular, onde a
+ * coluna de ações já vira botões largos e sempre visíveis no rodapé (ver
+ * CSS `td[data-label=""]`) —, 3 ou mais botões viram um único **"Ações ⋯"**
+ * que abre uma folha (mesmo componente do modal, já no padrão iOS) listando
+ * cada ação. Automático: qualquer tabela nova ganha isso sem precisar mexer
+ * na tela que a criou. Os botões originais continuam no DOM (só escondidos),
+ * pra não perder nenhum onclick já ligado por quem montou a tela.
+ */
+function condensarAcoesDaLinha(tr) {
+  if (!window.matchMedia('(max-width: 880px)').matches) return; // só no celular — no computador cabe tudo normalmente
+  if (tr.dataset.acoesCondensadas) return;
+  const acoesTd = tr.querySelector('td[data-label=""]');
+  if (!acoesTd) return;
+  // Botões de ação às vezes vêm dentro de um <div> wrapper (flex/gap) dentro
+  // do td — busca em qualquer profundidade, não só filho direto.
+  const botoes = [...acoesTd.querySelectorAll('button, a')];
+  if (botoes.length < 3) return; // pouca coisa: deixa visível, sem precisar condensar
+  tr.dataset.acoesCondensadas = '1';
+
+  const guardaChuva = document.createElement('div');
+  guardaChuva.className = 'row-actions-original hidden';
+  botoes.forEach((b) => guardaChuva.appendChild(b)); // move (não clona) — mantém o onclick de cada um
+
+  const btnMais = document.createElement('button');
+  btnMais.type = 'button'; btnMais.className = 'btn-sm row-actions-mais';
+  btnMais.textContent = 'Ações ⋯';
+  btnMais.onclick = () => {
+    const wrap = document.createElement('div');
+    wrap.className = 'row-actions-sheet';
+    botoes.forEach((b) => {
+      const item = document.createElement('button');
+      item.type = 'button'; item.className = 'row-actions-sheet-item';
+      item.innerHTML = b.innerHTML;
+      item.disabled = b.disabled;
+      item.onclick = () => { closeModal(); b.click(); };
+      wrap.appendChild(item);
+    });
+    openModal('Ações', wrap);
+  };
+  acoesTd.appendChild(guardaChuva);
+  acoesTd.appendChild(btnMais);
 }
 function enhanceTables(root) { (root || document).querySelectorAll('table').forEach(labelTableCells); }
 if ('MutationObserver' in window) {

@@ -1187,10 +1187,24 @@ input, select, textarea { transition: border-color .16s, box-shadow .16s; }
   .page tbody td[data-label=""] .btn-sm,
   .page tbody td[data-label=""] button { flex: 1 1 auto; text-align: center; min-height: 38px; }
 
+  /* 3+ ações condensam num "Ações ⋯" (padrão iOS de menu de ações, ver
+     condensarAcoesDaLinha em app.js) — evita fileira de botões brigando
+     por espaço/legibilidade dentro do cartão. */
+  .row-actions-mais { width: 100%; background: var(--bg); border-color: var(--border); color: var(--navy-deep, var(--navy)); font-weight: 600; }
+
   /* valores longos quebram bem em vez de empurrar o layout */
   .page tbody td { word-break: break-word; }
   .page tbody td small { text-align: right; }
 }
+.row-actions-sheet { display: flex; flex-direction: column; gap: 2px; }
+.row-actions-sheet-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  padding: 13px 6px; border: none; border-bottom: 1px solid var(--border-soft);
+  background: none; font-size: 15px; color: var(--text); font-family: inherit; cursor: pointer;
+}
+.row-actions-sheet-item:last-child { border-bottom: none; }
+.row-actions-sheet-item:active { background: var(--bg); }
+.row-actions-sheet-item:disabled { color: var(--text-muted); cursor: default; }
 
 /* ════════════════════════════════════════════════════════
    📋 Prazos detectados no monitoramento — cartões próprios
