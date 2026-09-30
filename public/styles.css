@@ -483,6 +483,9 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .cal-chip.audiencia { background: #f1e6f7; color: #6b3690; border-left-color: #9a52c4; }
 .cal-chip.compromisso { background: #eaf3ec; color: #2f6b43; border-left-color: #46996a; }
 .cal-chip.prazo, .cal-chip.tarefa { background: var(--amber-bg); color: var(--amber); border-left-color: var(--amber); }
+.cal-chip.pessoal { background: #e6f4f4; color: #1f6464; border-left-color: #2f9a9a; }
+.cal-chip.recado { background: #fdf1e3; color: #8a5210; border-left-color: #d98a2b; }
+.cal-chip.medicamento { background: #fdeaf0; color: #8f2b4d; border-left-color: #d1467a; }
 .cal-chip.vencido, .cal-chip.urgente { background: var(--red-bg); color: var(--red); border-left-color: var(--red); }
 /* Detalhe do evento */
 .evt-detail { display: flex; flex-direction: column; }
@@ -491,6 +494,9 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
 .evt-type.audiencia { background: #f1e6f7; color: #6b3690; }
 .evt-type.compromisso { background: #eaf3ec; color: #2f6b43; }
 .evt-type.prazo, .evt-type.tarefa { background: var(--amber-bg); color: var(--amber); }
+.evt-type.pessoal { background: #e6f4f4; color: #1f6464; }
+.evt-type.recado { background: #fdf1e3; color: #8a5210; }
+.evt-type.medicamento { background: #fdeaf0; color: #8f2b4d; }
 .evt-title { font-size: 18px; line-height: 1.35; margin-bottom: 14px; color: var(--text); }
 .evt-line { display: flex; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--border-soft); font-size: 13.5px; }
 .evt-line span { color: var(--text-muted); min-width: 70px; }

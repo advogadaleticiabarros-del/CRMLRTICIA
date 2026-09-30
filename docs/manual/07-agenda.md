@@ -14,6 +14,15 @@ Consulte pra entender como um evento chega no Google Calendar, o que a cor de um
 
 Reunião 🤝, Audiência ⚖️, Compromisso 📌 — cada um com ícone próprio nas telas que listam a agenda (WhatsApp, briefing, etc.).
 
+## Pessoal, recado e medicamento
+
+Decisão da Dra. Letícia: trabalho e vida pessoal no mesmo sistema. Três tipos extras no formulário de evento:
+
+- **Pessoal** (verde-água), **Recado** (laranja) e **Medicamento** (rosa).
+- Na hora marcada chega um aviso no WhatsApp do número configurado em *Configurações → briefing_whatsapp* e no sino. Um aviso por ocorrência (rotina `agenda:lembretes-pessoais`, a cada 5 min).
+- **Repetir todo dia** (marcado automaticamente em Medicamento): o sistema cria a ocorrência de hoje e de amanhã às 00h20 e 12h20 (rotina `agenda:repeticao-diaria`), até a data final, se houver.
+- **Parar de repetir**, no detalhe do evento, encerra a série e remove as ocorrências futuras já criadas (inclusive do Google Agenda).
+
 ## Google Calendar
 
 O sistema conecta com a conta do Google (OAuth) e sincroniza os dois lados: eventos criados no CRM vão pro Google, e existe uma rotina de sincronização que roda a cada poucos minutos. Um evento pode ser desconectado do Google a qualquer momento sem apagar o histórico no CRM.
@@ -41,6 +50,7 @@ Audiências do Dativo e de processos de correspondente **não são cadastradas d
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
+| 30/09/2026 | Claude | Tipos Pessoal/Recado/Medicamento, repetição diária e aviso por WhatsApp na hora |
 
 ---
 ◀ [Documentos e peças](06-documentos.md) · [Visão geral](00-visao-geral.md) · Próximo: [Cobrança e parcelas](08-cobranca.md) ▶

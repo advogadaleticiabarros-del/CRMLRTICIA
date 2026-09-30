@@ -68,7 +68,8 @@ router.get('/events', async (req: Request, res: Response) => {
 router.post('/events', async (req: Request, res: Response) => {
   const userId = (req as any).user.id;
   const { title, description, event_type, start_datetime, end_datetime,
-          location, client_id, case_id, task_id, deadline_id, generate_meet } = req.body;
+          location, client_id, case_id, task_id, deadline_id, generate_meet,
+          repeat_daily, repeat_until } = req.body;
 
   if (!title || !start_datetime || !end_datetime) {
     res.status(400).json({ error: 'title, start_datetime e end_datetime são obrigatórios' });
@@ -79,14 +80,19 @@ router.post('/events', async (req: Request, res: Response) => {
     `INSERT INTO calendar_events
        (user_id, client_id, case_id, task_id, deadline_id,
         title, description, event_type, start_datetime, end_datetime,
-        location, source, sync_status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'crm', 'pendente')`,
+        location, source, sync_status, repeat_daily, repeat_until)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'crm', 'pendente', ?, ?)`,
     [userId, client_id ?? null, case_id ?? null, task_id ?? null, deadline_id ?? null,
      title, description ?? null, event_type ?? 'compromisso',
-     localParaUtcMysql(start_datetime), localParaUtcMysql(end_datetime), location ?? null]
+     localParaUtcMysql(start_datetime), localParaUtcMysql(end_datetime), location ?? null,
+     repeat_daily ? 1 : 0, repeat_daily && repeat_until ? repeat_until : null]
   ) as any;
 
   const eventId = result.insertId;
+  if (repeat_daily) {
+    const { gerarOcorrenciasDiarias } = await import('../services/agendaPessoalJobs');
+    await gerarOcorrenciasDiarias().catch(() => {});
+  }
 
   // Sync to Google if connected
   const [ga] = await db.query('SELECT id FROM google_accounts WHERE user_id = ? AND sync_enabled = 1', [userId]) as any;
@@ -257,6 +263,29 @@ router.delete('/events/:id', async (req: Request, res: Response) => {
     try { await googleCalendarService.deleteEvent(userId, rows[0].google_event_id); } catch { /* já removido no Google */ }
   }
   await db.query('DELETE FROM calendar_events WHERE id = ? AND user_id = ?', [req.params.id, userId]);
+  res.json({ success: true });
+});
+
+// POST /api/calendar/events/:id/stop-series — encerra a repetição diária
+// (a partir da original ou de qualquer ocorrência) e remove as futuras já geradas.
+router.post('/events/:id/stop-series', async (req: Request, res: Response) => {
+  const userId = (req as any).user.id;
+  const [[ev]] = await db.query(
+    'SELECT id, series_id FROM calendar_events WHERE id = ? AND user_id = ?', [req.params.id, userId]
+  ) as any;
+  if (!ev) { res.status(404).json({ error: 'Evento não encontrado' }); return; }
+  const raiz = ev.series_id || ev.id;
+  await db.query('UPDATE calendar_events SET repeat_daily = 0 WHERE id = ? AND user_id = ?', [raiz, userId]);
+  const [futuras] = await db.query(
+    'SELECT id, google_event_id FROM calendar_events WHERE series_id = ? AND user_id = ? AND start_datetime > UTC_TIMESTAMP()',
+    [raiz, userId]
+  ) as any;
+  for (const f of futuras) {
+    if (f.google_event_id) {
+      try { await googleCalendarService.deleteEvent(userId, f.google_event_id); } catch { /* já removido no Google */ }
+    }
+    await db.query('DELETE FROM calendar_events WHERE id = ?', [f.id]);
+  }
   res.json({ success: true });
 });
 

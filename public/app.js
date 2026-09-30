@@ -277,7 +277,7 @@ function logout() {
   $('#app-view').classList.add('hidden');
   $('#login-view').classList.remove('hidden');
 }
-const AGENDA_TIPO_PT = { reuniao: 'Reuniões', audiencia: 'Audiências', prazo: 'Prazos', tarefa: 'Tarefas', compromisso: 'Outros compromissos' };
+const AGENDA_TIPO_PT = { reuniao: 'Reuniões', audiencia: 'Audiências', prazo: 'Prazos', tarefa: 'Tarefas', compromisso: 'Outros compromissos', pessoal: 'Pessoal', recado: 'Recados', medicamento: 'Medicamentos' };
 const NAV_LABELS = {
   dashboard: 'Dashboard', clients: 'Clientes', leads: 'Leads',
   propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos & Tarefas',
@@ -8130,8 +8130,8 @@ async function taskForm(onSave) {
 const EVT_STATUS_PT = { agendado: 'Agendado', realizado: 'Realizado', cancelado: 'Cancelado' };
 
 async function eventDetail(item, onSave) {
-  const isEvent = ['reuniao', 'audiencia', 'compromisso'].includes(item.type);
-  const labels = { reuniao: 'Reunião', audiencia: 'Audiência', compromisso: 'Compromisso', prazo: 'Prazo', tarefa: 'Tarefa' };
+  const isEvent = ['reuniao', 'audiencia', 'compromisso', 'pessoal', 'recado', 'medicamento'].includes(item.type);
+  const labels = { reuniao: 'Reunião', audiencia: 'Audiência', compromisso: 'Compromisso', prazo: 'Prazo', tarefa: 'Tarefa', pessoal: 'Pessoal', recado: 'Recado', medicamento: 'Medicamento' };
   let full = item;
   if (isEvent) { try { full = await api(`/api/calendar/events/${item.id}`); } catch {} }
   const ini = new Date(full.start_datetime || item.datetime);
@@ -8154,6 +8154,7 @@ async function eventDetail(item, onSave) {
         ${status !== 'realizado' ? `<button class="btn-sm" id="evt-st-realizado">Marcar como realizado</button>` : ''}
         ${status !== 'cancelado' ? `<button class="btn-sm" id="evt-st-cancelado">Cancelar compromisso</button>` : ''}
         ${status !== 'agendado' ? `<button class="btn-sm" id="evt-st-agendado">Reabrir (agendado)</button>` : ''}
+        ${full.repeat_daily || full.series_id ? `<button class="btn-sm" id="evt-stop-series">Parar de repetir</button>` : ''}
         <button class="btn-sm" id="evt-del">Excluir evento</button>
       </div>` : '<p class="sub" style="margin-top:12px">Gerencie prazos e tarefas na tela Prazos &amp; Tarefas.</p>'}
   </div>`);
@@ -8168,6 +8169,12 @@ async function eventDetail(item, onSave) {
     body.querySelector('#evt-st-realizado')?.addEventListener('click', () => setStatus('realizado'));
     body.querySelector('#evt-st-cancelado')?.addEventListener('click', () => setStatus('cancelado'));
     body.querySelector('#evt-st-agendado')?.addEventListener('click', () => setStatus('agendado'));
+    const stop = body.querySelector('#evt-stop-series');
+    if (stop) stop.onclick = async () => {
+      if (!await uiConfirm('Parar de repetir? As próximas ocorrências já criadas também são removidas.')) return;
+      try { await api(`/api/calendar/events/${item.id}/stop-series`, { method: 'POST', body: '{}' }); closeModal(); toast('Repetição encerrada'); onSave && onSave(); }
+      catch (e) { toast(e.message, 'error'); }
+    };
     body.querySelector('#evt-del').onclick = async () => {
       if (!await uiConfirm('Excluir este evento? Ele também sai do Google Agenda.')) return;
       try { await api(`/api/calendar/events/${item.id}`, { method: 'DELETE' }); closeModal(); toast('Evento excluído'); onSave && onSave(); }
@@ -8183,16 +8190,30 @@ async function eventForm(onSave, prefillDate) {
   const endVal   = prefillDate ? `${prefillDate}T10:00` : '';
   const form = el(`<form class="form-grid">
     ${field('Título *', 'title')}
-    ${field('Tipo', 'event_type', { options: [['compromisso','Compromisso'],['reuniao','Reunião'],['audiencia','Audiência']].map(([v,t])=>({v,t})) })}
+    ${field('Tipo', 'event_type', { options: [['compromisso','Compromisso'],['reuniao','Reunião'],['audiencia','Audiência'],['pessoal','Pessoal'],['recado','Recado'],['medicamento','Medicamento']].map(([v,t])=>({v,t})) })}
     ${field('Cliente', 'client_id', { options: [{ v: '', t: '— nenhum —' }, ...clients.data.map((c) => ({ v: c.id, t: c.name }))] })}
     <div class="form-row">${field('Início *', 'start_datetime', { type: 'datetime-local', value: startVal })}${field('Fim', 'end_datetime', { type: 'datetime-local', value: endVal })}</div>
     ${field('Local', 'location')}
     ${field('Descrição', 'description', { type: 'textarea' })}
+    <div class="form-row" data-repeat-row hidden>
+      <label style="display:flex;align-items:center;gap:8px"><input type="checkbox" name="repeat_daily" value="1"> Repetir todo dia</label>
+      ${field('Até (opcional)', 'repeat_until', { type: 'date' })}
+    </div>
+    <p class="sub" data-repeat-hint hidden>Você recebe um aviso no WhatsApp na hora marcada.</p>
     <button type="submit" class="btn-primary">Criar evento</button>
   </form>`);
+  const tipoSel = form.querySelector('[name=event_type]');
+  const syncRepeat = () => {
+    const pessoal = ['pessoal', 'recado', 'medicamento'].includes(tipoSel.value);
+    form.querySelector('[data-repeat-row]').hidden = !pessoal;
+    form.querySelector('[data-repeat-hint]').hidden = !pessoal;
+    if (tipoSel.value === 'medicamento') form.querySelector('[name=repeat_daily]').checked = true;
+  };
+  tipoSel.addEventListener('change', syncRepeat);
   form.onsubmit = async (e) => {
     e.preventDefault();
     const body = Object.fromEntries(new FormData(form));
+    if (!body.repeat_daily) delete body.repeat_until;
     if (!body.end_datetime) body.end_datetime = body.start_datetime;
     if (!body.client_id) delete body.client_id;
     try {

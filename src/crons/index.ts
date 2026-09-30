@@ -149,6 +149,22 @@ export function startCronJobs() {
       { critica: true, silencioso: true });
   });
 
+  // ── a cada 5 min: lembrete pessoal/recado/medicamento por WhatsApp ────────
+  cron.schedule('*/5 * * * *', () => {
+    runJob('agenda:lembretes-pessoais', async () => {
+      const m = await import('../services/agendaPessoalJobs');
+      return m.enviarLembretesPessoais();
+    }, { silencioso: true });
+  });
+
+  // ── 00:20 e 12:20: gera a ocorrência de hoje/amanhã das séries diárias ─────
+  cron.schedule('20 0,12 * * *', () => {
+    runJob('agenda:repeticao-diaria', async () => {
+      const m = await import('../services/agendaPessoalJobs');
+      return m.gerarOcorrenciasDiarias();
+    });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── a cada 10 min: sincroniza Google Calendar ─────────────────────────────
   cron.schedule('*/10 * * * *', () => {
     runJob('agenda:sync-incremental', async () => {
