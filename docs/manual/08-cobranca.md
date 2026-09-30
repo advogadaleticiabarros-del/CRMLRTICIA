@@ -34,6 +34,16 @@ A Visão Geral mostra uma barra de progresso "Meta do mês" (recebido × meta, %
 
 O topo da tela mostra 4 números grandes, de relance, sem precisar rolar: **resultado do mês** (já realizado), **previsão fechada do mês**, **a receber nos próximos 30 dias** e **projeção acumulada de 90 dias**. Adicionado 04/09/2026 — os dados já existiam espalhados em blocos de KPI mais abaixo na mesma tela; isso só resume os 4 que mais importam pra decisão do dia a dia, antes de qualquer outro detalhe.
 
+## Previsão realista do mês (desde 30/09/2026)
+
+Cartão em *Financeiro → Visão geral*, logo abaixo da meta:
+
+- **Deve entrar até o fim do mês** = já recebido + (a receber no mês × taxa de recebimento). A taxa é quanto do valor que venceu nos últimos 90 dias (parcelas de clientes e de receitas) foi de fato pago — se nada venceu ainda, conta 100%.
+- **Se todos pagarem** = cenário otimista (tudo que está previsto no mês).
+- **Novos contratos (ponderado)** = propostas enviadas/em negociação × chance de fechar: a *Prob. fechamento (%)* do lead quando preenchida; senão, a taxa de aceite das propostas decididas nos últimos 6 meses (30% se ainda não há histórico). Fica fora da previsão do mês porque proposta aceita não vira caixa na hora.
+
+Endpoint `GET /api/dashboards/financeiro/previsao-ponderada`; regras em `src/services/previsaoPonderada.ts` (testadas).
+
 ## Projeção de fluxo de caixa (30/60/90 dias)
 
 Junta entradas previstas de todas as frentes — parcelas normais, avulsos, dativas, correspondente, honorários de êxito — menos saídas previstas (despesas e repasses) — numa projeção de 30, 60 e 90 dias.
@@ -67,6 +77,7 @@ O sistema calcula inadimplência automaticamente e permite renegociar uma parcel
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/09/2026 | Claude | Previsão realista do mês (taxa histórica de recebimento) e pipeline de propostas ponderado |
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Adicionado painel de destaque no topo da Visão Geral — resultado do mês, previsão, a receber 30d, projeção 90d |
 | 22/09/2026 | Claude | Unificadas as 3 contas de "Inadimplência" que podiam divergir (Cockpit, topo do Financeiro, aging) — todas usam `getFinanceSummary()`; a 4ª (fila de cobrança) mantém escopo próprio (só parcelas de cliente) de propósito, e recalcula sozinha todo dia às 6h50 |

@@ -5003,7 +5003,7 @@ async function dashParceriaMensal(c) {
 async function finVisaoGeral(c) {
   const s = await api('/api/financial/summary');
   const proj = await api('/api/dashboards/financeiro/projecao-mes');
-  const [cx, origem, goal] = await Promise.all([
+  const [cx, origem, goal, prev] = await Promise.all([
     api('/api/financial/projecao').catch(() => null),
     api('/api/financial/receita-origem').catch(() => null),
     // GET /api/goals/current é a MESMA conta usada pelo briefing matinal
@@ -5012,7 +5012,21 @@ async function finVisaoGeral(c) {
     // de office_settings + projeção de caixa, um número que podia divergir
     // do que chegava no briefing das 7h (achado da pesquisa de 22/09/2026).
     api('/api/goals/current').catch(() => null),
+    api('/api/dashboards/financeiro/previsao-ponderada').catch(() => null),
   ]);
+  const pct = (x) => `${Math.round((Number(x) || 0) * 100)}%`;
+  const prevHtml = prev ? `
+    <div class="card" style="padding:16px 18px;margin:14px 0">
+      <strong style="color:var(--navy)">Previsão realista do mês</strong>
+      <div class="kpi-grid" style="margin-top:10px">
+        ${kpi('Deve entrar até o fim do mês', money(prev.previsaoMes), 'money')}
+        ${kpi('Já recebido', money(prev.realizado), 'money')}
+        ${kpi('Se todos pagarem', money(prev.otimista), 'money')}
+        ${kpi('Novos contratos (ponderado)', money(prev.pipelinePonderado), 'money')}
+      </div>
+      <p class="sub" style="margin-top:8px">A receber no mês (${money(prev.aReceber)}) × ${pct(prev.taxaRecebimento)} — quanto do que venceu nos últimos 90 dias foi de fato pago.
+        Propostas em aberto: ${prev.propostasAbertas} somando ${money(prev.pipelineBruto)}, ponderadas pela probabilidade do lead ou pela taxa de aceite dos últimos 6 meses (${pct(prev.taxaConversao)}); não entram na previsão do mês.</p>
+    </div>` : '';
   const meta = Number(goal?.target) || 0;
   const recebidoMes = Number(goal?.current) || 0;
   const pctMeta = meta ? Math.min(100, Math.round((recebidoMes / meta) * 100)) : 0;
@@ -5107,6 +5121,7 @@ async function finVisaoGeral(c) {
       ${kpi('Saldo previsto', money(proj.saldo_previsto), 'money', proj.saldo_previsto > 0 ? 'var(--green)' : 'var(--red)')}
     </div>
     ${metaHtml}
+    ${prevHtml}
     ${cxHtml}
     ${origemHtml}
     <div class="card" id="fin-lancamentos-card" style="margin:20px 0"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Lançamentos</strong></div><div id="fin-table"></div></div>

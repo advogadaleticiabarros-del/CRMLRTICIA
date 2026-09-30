@@ -28,6 +28,46 @@ router.get('/projecao-mes', async (_req: Request, res: Response) => {
   }
 });
 
+// GET /api/dashboards/financeiro/previsao-ponderada — quanto deve entrar de
+// verdade no mês (a receber × taxa histórica de recebimento) + pipeline de
+// propostas ponderado pela chance de fechar. Regras em previsaoPonderada.ts.
+router.get('/previsao-ponderada', async (_req: Request, res: Response) => {
+  try {
+    const now = new Date();
+    const mesAtual = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const { getMonthlyCashflow } = await import('../../services/cashflowService');
+    const { preverMes } = await import('../../services/previsaoPonderada');
+    const m = (await getMonthlyCashflow(mesAtual, 1)).meses[0];
+
+    // Histórico: do que venceu nos últimos 90 dias (até ontem), quanto foi pago (por valor).
+    const [[hi]] = await db.query(`
+      SELECT COALESCE(SUM(valor),0) AS devido, COALESCE(SUM(CASE WHEN status='pago' THEN valor END),0) AS recebido
+        FROM installments WHERE due_date >= CURDATE() - INTERVAL 90 DAY AND due_date < CURDATE() AND status <> 'cancelado'`) as any;
+    const [[hp]] = await db.query(`
+      SELECT COALESCE(SUM(valor_final),0) AS devido, COALESCE(SUM(CASE WHEN status='pago' THEN valor_final END),0) AS recebido
+        FROM parcelas WHERE data_vencimento >= CURDATE() - INTERVAL 90 DAY AND data_vencimento < CURDATE() AND status <> 'cancelado'`) as any;
+
+    const [propostas] = await db.query(`
+      SELECT p.valor, l.close_probability AS prob FROM propostas p LEFT JOIN leads l ON l.id = p.lead_id
+       WHERE p.status IN ('enviada','em_negociacao')`) as any;
+    const [[conv]] = await db.query(`
+      SELECT SUM(status='aceita') AS aceitas, COUNT(*) AS decididas FROM propostas
+       WHERE status IN ('aceita','recusada','expirada') AND created_at >= NOW() - INTERVAL 180 DAY`) as any;
+
+    res.json({ mes: mesAtual, ...preverMes({
+      realizado: Number(m.entrada_realizado) || 0,
+      aReceber: Math.max(0, (Number(m.entrada_previsto) || 0) - (Number(m.entrada_realizado) || 0)),
+      recebidoHist: Number(hi.recebido) + Number(hp.recebido),
+      devidoHist: Number(hi.devido) + Number(hp.devido),
+      propostas: propostas.map((p: any) => ({ valor: Number(p.valor) || 0, prob: p.prob === null ? null : Number(p.prob) })),
+      aceitasHist: Number(conv.aceitas) || 0,
+      decididasHist: Number(conv.decididas) || 0,
+    }) });
+  } catch (err) {
+    res.status(500).json({ error: 'Erro ao calcular a previsão ponderada' });
+  }
+});
+
 // GET /api/dashboards/financeiro
 router.get('/', async (req: Request, res: Response) => {
   try {
