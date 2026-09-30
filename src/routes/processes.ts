@@ -137,8 +137,11 @@ router.patch('/:id/phase', async (req: Request, res: Response) => {
   const PHASES = ['inicial', 'instrucao', 'sentenca', 'recurso', 'execucao', 'encerrado'];
   const { phase } = req.body;
   if (!PHASES.includes(phase)) { res.status(400).json({ error: 'Fase inválida' }); return; }
+  const [[antes]] = await db.query('SELECT phase FROM legal_processes WHERE id = ?', [req.params.id]) as any;
   const [r] = await db.query('UPDATE legal_processes SET phase = ? WHERE id = ?', [phase, req.params.id]) as any;
   if (!r.affectedRows) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+  const { runFaseMudouPlaybooks } = await import('../services/automationService');
+  await runFaseMudouPlaybooks({ userId: req.user!.id, processId: Number(req.params.id), de: antes?.phase ?? null, para: phase }).catch(() => {});
   res.json({ success: true, id: Number(req.params.id), phase });
 });
 

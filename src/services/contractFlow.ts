@@ -160,5 +160,10 @@ export async function onContractSigned(contractId: number, actorId: number, acto
   await logActivity({ clientId: ct.client_id, caseId, eventType: 'contrato_assinado', title: 'Contrato assinado',
     description: `Processo criado e honorários gerados automaticamente.${fin}`, actorId: actor, actorName });
 
+  // Barramento: próximas tarefas do caso (regra ligável em Automações). Não
+  // pode derrubar o fluxo do contrato — só registra falha em automation_runs.
+  const { runContratoAssinadoPlaybooks } = await import('./automationService');
+  await runContratoAssinadoPlaybooks({ userId: ct.user_id ?? actor, clientId: ct.client_id, caseId, area: ct.area ?? null }).catch(() => {});
+
   return { caseId, receitaId };
 }

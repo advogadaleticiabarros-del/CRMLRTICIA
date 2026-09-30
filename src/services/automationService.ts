@@ -2,6 +2,7 @@ import { db } from '../config/database';
 import { runEstagiarioForDeadline } from './aiAssistant';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { localParaUtcMysql } from '../utils/timezone';
+import { tarefasContratoAssinado, tarefaFaseMudou, type TarefaGerada } from './playbooksNegocio';
 
 /**
  * Motor de automação (playbooks). Regras prontas, cada uma ligável/desligável
@@ -39,6 +40,18 @@ export const PLAYBOOKS: Playbook[] = [
     key: 'prazo_confirmado_agenda', trigger: 'prazo_confirmado',
     name: 'Agendar o prazo na agenda (com Google)',
     description: 'Ao confirmar um prazo, cria automaticamente um evento na agenda na data-limite (sincroniza com o Google Calendar) e avisa os administradores.',
+    defaultEnabled: true,
+  },
+  {
+    key: 'contrato_assinado_tarefas', trigger: 'contrato_assinado',
+    name: 'Tarefas iniciais quando o contrato é assinado',
+    description: 'Ao assinar um contrato, cria as tarefas "enviar boas-vindas e lista de documentos" (dia seguinte) e "conferir documentos recebidos" (5 dias), com a lista de documentos da área.',
+    defaultEnabled: true,
+  },
+  {
+    key: 'fase_mudou_avisar_cliente', trigger: 'fase_mudou',
+    name: 'Tarefa para avisar o cliente quando a fase do processo muda',
+    description: 'Ao mudar a fase de um processo com cliente vinculado, cria uma tarefa com rascunho de mensagem em linguagem simples. Nunca envia sozinho — você revisa e envia.',
     defaultEnabled: true,
   },
 ];
@@ -192,5 +205,45 @@ export async function runPrazoConfirmadoPlaybooks(ctx: PrazoConfirmadoCtx): Prom
     } catch (e: any) {
       await logRun('prazo_confirmado_agenda', ref, 'erro', e?.message);
     }
+  }
+}
+
+// ── Gatilhos de negócio (contrato assinado, fase mudou) ─────────────────────
+async function gravarTarefas(userId: number, clientId: number | null, caseId: number | null, tarefas: TarefaGerada[]) {
+  for (const t of tarefas) {
+    await db.query(
+      `INSERT INTO tasks (user_id, client_id, case_id, title, description, due_date, priority, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'pendente')`,
+      [userId, clientId, caseId, t.title, t.description, localParaUtcMysql(`${t.dueDate}T09:00`), t.priority]
+    );
+  }
+}
+
+export async function runContratoAssinadoPlaybooks(ctx: { userId: number; clientId: number; caseId: number | null; area: string | null }): Promise<void> {
+  if (!await isEnabled('contrato_assinado_tarefas')) return;
+  const ref = `case:${ctx.caseId ?? ''}`;
+  try {
+    const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [ctx.clientId]) as any;
+    await gravarTarefas(ctx.userId, ctx.clientId, ctx.caseId, tarefasContratoAssinado({ clientName: cl?.name || 'cliente', area: ctx.area }));
+    await logRun('contrato_assinado_tarefas', ref, 'ok');
+  } catch (e: any) {
+    await logRun('contrato_assinado_tarefas', ref, 'erro', e?.message);
+  }
+}
+
+export async function runFaseMudouPlaybooks(ctx: { userId: number; processId: number; de: string | null; para: string }): Promise<void> {
+  if (!await isEnabled('fase_mudou_avisar_cliente')) return;
+  const ref = `process:${ctx.processId}`;
+  try {
+    const [[lp]] = await db.query(
+      `SELECT lp.process_number, lp.client_id, cl.name AS client_name
+         FROM legal_processes lp LEFT JOIN clients cl ON cl.id = lp.client_id WHERE lp.id = ?`, [ctx.processId]
+    ) as any;
+    const t = tarefaFaseMudou({ processNumber: lp?.process_number || '', clientName: lp?.client_name || null, de: ctx.de, para: ctx.para });
+    if (!t) return;
+    await gravarTarefas(ctx.userId, lp.client_id, null, [t]);
+    await logRun('fase_mudou_avisar_cliente', ref, 'ok');
+  } catch (e: any) {
+    await logRun('fase_mudou_avisar_cliente', ref, 'erro', e?.message);
   }
 }
