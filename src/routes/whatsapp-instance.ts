@@ -435,6 +435,22 @@ router.post('/chats/:phone/block', async (req: Request, res: Response) => {
   res.json({ success: true, blocked: block });
 });
 
+// ── Ler dados dos documentos recebidos → sugestões (nada é gravado aqui) ────
+router.post('/chats/:phone/extrair-dados', async (req: Request, res: Response) => {
+  const { lerDadosDosDocumentos } = await import('../services/extracaoDocumentosJob');
+  const r = await lerDadosDosDocumentos(String(req.params.phone));
+  if ('erro' in r) { res.status(400).json({ error: r.erro }); return; }
+  res.json(r);
+});
+
+// ── Grava SÓ os campos que a advogada confirmou na tela de conferência ─────
+router.post('/chats/:phone/aplicar-dados', async (req: Request, res: Response) => {
+  const { aplicarDados } = await import('../services/extracaoDocumentosJob');
+  const r = await aplicarDados(String(req.params.phone), req.body?.campos || {});
+  if (!r.ok) { res.status(400).json({ error: r.erro }); return; }
+  res.json(r);
+});
+
 // ── PUT /chats/:phone/case — "essa conversa é sobre qual processo?" (opcional) ─
 router.put('/chats/:phone/case', async (req: Request, res: Response) => {
   const phone = String(req.params.phone).replace(/\D/g, '');

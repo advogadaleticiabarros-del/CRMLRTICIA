@@ -882,6 +882,7 @@ Object.assign(ROUTES, {
         html += `<div style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
           <button type="button" class="btn-gold btn-sm" id="wa-ctx-gerar-proposta" ${cx.lead ? '' : 'disabled title="Só disponível pra quem já é lead — cadastre como lead primeiro"'}>${svgIcon('file', 'ic-xs')}Gerar proposta</button>
           <button type="button" class="btn-sm" id="wa-ctx-abrir-cadastro" ${(cx.client || cx.lead) ? '' : 'disabled title="Ainda não é cliente nem lead"'}>${svgIcon('file', 'ic-xs')}Abrir cadastro</button>
+          <button type="button" class="btn-sm" id="wa-ctx-extrair" ${(cx.client || cx.lead) ? '' : 'disabled title="Cadastre como lead ou vincule a um cliente primeiro"'}>${svgIcon('ia', 'ic-xs')}Ler dados dos documentos</button>
           <button type="button" class="btn-sm" data-conv="tarefa">${svgIcon('clock', 'ic-xs')}Criar tarefa</button>
           <button type="button" class="btn-sm" id="wa-ctx-vincular-processo" ${cx.client ? '' : 'disabled title="Vincule a um cliente primeiro"'}>${svgIcon('briefcase', 'ic-xs')}Vincular processo</button>
         </div>`;
@@ -954,6 +955,18 @@ Object.assign(ROUTES, {
           await salvarEtiquetas([...etiquetasAtuais, nova.trim()]);
         };
         box.querySelectorAll('[data-rm-tag]').forEach((b) => b.onclick = () => salvarEtiquetas(etiquetasAtuais.filter((t) => t !== b.dataset.rmTag)));
+
+        // Ler dados dos documentos recebidos (RG, CNH, CTPS, comprovante) e
+        // conferir campo a campo antes de gravar — nada entra sozinho.
+        const btnExtr = box.querySelector('#wa-ctx-extrair');
+        if (btnExtr) btnExtr.onclick = async () => {
+          btnExtr.disabled = true; const txt = btnExtr.innerHTML; btnExtr.textContent = 'Lendo documentos…';
+          try {
+            const r = await api(`/api/whatsapp-instance/chats/${ativo.phone}/extrair-dados`, { method: 'POST', body: '{}' });
+            conferirDadosExtraidos(r, ativo.phone);
+          } catch (err) { toast(err.message, 'error'); }
+          btnExtr.disabled = false; btnExtr.innerHTML = txt;
+        };
 
         // "Esta conversa é sobre qual processo?" — só aparece com 2+ processos.
         const selCaso = box.querySelector('#wa-ctx-caso');
@@ -2155,3 +2168,41 @@ Object.assign(ROUTES, {
     await shell();
   },
 });
+
+// ── Tela "confirmar antes de gravar" dos dados lidos pela IA ──────────────
+// Cada campo mostra o valor atual do cadastro, a sugestão, de qual documento
+// veio e, em amarelo, quando a leitura é incerta ou os documentos divergem.
+// Só vai marcado por padrão o que é confiável E está vazio no cadastro.
+function conferirDadosExtraidos(r, phone) {
+  const ROT = { nome: 'Nome completo', cpf: 'CPF', rg: 'RG', data_nascimento: 'Data de nascimento', cep: 'CEP', street: 'Rua', number: 'Número', neighborhood: 'Bairro', city: 'Cidade', state: 'UF' };
+  const campos = Object.keys(ROT).filter((c) => r.sugestoes[c]);
+  if (!campos.length) { toast(`Nenhum dado legível nos documentos${r.falhas.length ? ` (${r.falhas.length} não lidos)` : ''}`, 'error'); return; }
+  const linhas = campos.map((c) => {
+    const sg = r.sugestoes[c]; const atual = r.atuais[c] || '';
+    const incerto = sg.confianca === 'baixa';
+    const marcar = !incerto && !atual;
+    const valorInput = c === 'data_nascimento' ? `type="date"` : 'type="text"';
+    return `<tr style="${incerto ? 'background:var(--amber-bg)' : ''}">
+      <td><input type="checkbox" data-usar="${c}" ${marcar ? 'checked' : ''} aria-label="Usar ${ROT[c]}"></td>
+      <td><strong>${ROT[c]}</strong>${incerto ? `<br><small style="color:var(--amber)">⚠ ${esc(sg.aviso || 'Leitura incerta')}</small>` : ''}</td>
+      <td><small style="color:var(--text-muted)">${esc(atual) || '—'}</small></td>
+      <td><input ${valorInput} data-valor="${c}" value="${esc(sg.valor)}" style="width:100%">
+        ${sg.alternativas.length ? `<small style="color:var(--text-muted)">outro doc: ${sg.alternativas.map((a) => esc(a.valor)).join(', ')}</small>` : ''}</td>
+      <td><small style="color:var(--text-muted)">${sg.fontes.map(esc).join(', ')}</small></td></tr>`;
+  }).join('');
+  const wrap = el(`<div>
+    <p class="sub">Lidos: ${r.lidos.map((l) => `${esc(l.fonte)} (${esc(l.tipo || '?')})`).join(', ') || '—'}${r.falhas.length ? ` · não lidos: ${r.falhas.map(esc).join(', ')}` : ''}</p>
+    <p class="sub">Confira cada valor com o documento. Amarelo = leitura incerta ou documentos divergentes. Só os campos marcados serão gravados em <strong>${r.alvo.tipo === 'lead' ? 'Lead' : 'Cliente'}: ${esc(r.alvo.nome || '')}</strong>.</p>
+    <div class="table-scroll"><table><thead><tr><th></th><th>Campo</th><th>No cadastro hoje</th><th>Lido no documento</th><th>Fonte</th></tr></thead><tbody>${linhas}</tbody></table></div>
+    <button class="btn-primary" id="extr-gravar" style="margin-top:12px">Gravar campos marcados</button></div>`);
+  wrap.querySelector('#extr-gravar').onclick = async () => {
+    const payload = {};
+    wrap.querySelectorAll('[data-usar]:checked').forEach((cb) => { payload[cb.dataset.usar] = wrap.querySelector(`[data-valor="${cb.dataset.usar}"]`).value; });
+    if (!Object.keys(payload).length) { toast('Marque ao menos um campo', 'error'); return; }
+    try {
+      await api(`/api/whatsapp-instance/chats/${phone}/aplicar-dados`, { method: 'POST', body: JSON.stringify({ campos: payload }) });
+      closeModal(); toast(`${Object.keys(payload).length} campo(s) gravado(s) no cadastro`);
+    } catch (e) { toast(e.message, 'error'); }
+  };
+  openModal('Conferir dados lidos dos documentos', wrap);
+}

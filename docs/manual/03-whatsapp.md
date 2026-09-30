@@ -37,6 +37,16 @@ Notas internas (visíveis só pra equipe, nunca pro cliente) e etiquetas de conv
 
 Cliente com 2+ processos: no bloco **Processo** da ficha aparece *Esta conversa é sobre*. Escolher é opcional; o processo escolhido passa a ser o destacado na ficha (nº, etapa, audiência) e é usado como caso da tarefa criada quando o cliente menciona intimação. Salvo em `whatsapp_chat_meta.case_id`; só aceita processo do próprio cliente do número.
 
+## Ler dados dos documentos recebidos (desde 30/09/2026)
+
+Botão **Ler dados dos documentos** na ficha da conversa (precisa ser lead ou cliente). A IA (Gemini visão) lê até 6 fotos/PDFs mais recentes do contato (RG, CNH, CTPS, comprovante…) e abre a tela **Conferir dados lidos**:
+
+- cada campo mostra o valor atual do cadastro, o lido no documento (editável) e de qual arquivo veio;
+- **amarelo** = leitura incerta, documentos com valores diferentes (mostra o outro valor) ou CPF que não passa no dígito verificador;
+- vêm marcados só os campos confiáveis que estão vazios no cadastro; **nada é gravado sem clicar em "Gravar campos marcados"**.
+
+Destino: lead (nome, CPF, RG, nascimento, CEP, rua, número, bairro, cidade, UF) ou cliente (nome, CPF, nascimento e endereço numa linha só). Como o lead convertido em cliente já leva esses dados para proposta e contrato, o dado é digitado uma vez só. Regras em `src/services/extracaoDocumentos.ts` (testadas).
+
 ## Cliente mencionou intimação (desde 30/09/2026)
 
 Quando um **cliente** (número já cadastrado) escreve algo como "recebi uma intimação", "fui citado", "o oficial de justiça passou aqui", "chegou uma carta do fórum", o sistema cria uma **tarefa crítica** com o trecho da mensagem e um rascunho de resposta, e avisa no sino com som. Nada é enviado ao cliente automaticamente — o rascunho deixa claro que não é a confirmação oficial do prazo. No máximo um aviso a cada 12h por número. Regras em `src/services/whatsappIntimacao.ts`.
@@ -121,6 +131,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/09/2026 | Claude | Ler dados dos documentos recebidos com tela de conferência antes de gravar |
 | 30/09/2026 | Claude | Conversa vinculada a um processo, aviso de intimação mencionada pelo cliente e WhatsApp fechado para o perfil parceiro |
 | 03/09/2026 | Claude | Criação do documento |
 | 22/09/2026 | Claude | Fila de envio com prioridade (audiência > avulsa > cobrança); watchdog de conexão a cada 20min; Painel de Saúde ganha falhas de transcrição/webhook/conexão; atalho "/" na composição pra resposta pronta; tabela órfã `whatsapp_templates` removida (4 conteúdos úteis migrados pra lista real); tela do WhatsApp deixa de ter teto de 1200px de largura (achados da auditoria de fluxos) |
