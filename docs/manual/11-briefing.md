@@ -27,6 +27,17 @@ Consulte pra entender o que cada seção do briefing significa, os horários de 
 - **Esteira e documentos** — peças paradas há X dias, documentos pendentes.
 - **Movimentações processuais do dia** — já resumidas pela IA (ver [Processos e prazos](04-processos.md)).
 - **Prazos por faixa** — hoje, amanhã, 3 dias, semana.
+- **Tipo e grau da movimentação** (desde 30/09/2026) — o resumo vem prefixado, ex.: "[Sentença · 1º grau]".
+- **Também precisa de você** (desde 30/09/2026) — bloco no e-mail e no WhatsApp, só aparece o que tiver conteúdo:
+  - 💬 WhatsApp aguardando sua resposta (última mensagem do contato há 2h+, últimos 7 dias, sem arquivadas/bloqueadas) — com horas de espera;
+  - 📥 Leads sem resposta há 24h+ (últimos 30 dias);
+  - 💸 Parcelas atrasadas (installments + parcelas de receitas) com total;
+  - 🤝 Repasses ao cliente de acordos pendentes (vencidos ou nos próximos 3 dias);
+  - 📎 Documentos recebidos no WhatsApp nas últimas 24h;
+  - 🔎 Publicações sem análise da IA (24h) — ler manualmente;
+  - ⚠️ Consultas ao tribunal que falharam (24h) e não voltaram a funcionar;
+  - 🩺 Saúde do CRM — rotinas com erro sem sucesso posterior e backup sem confirmação nas últimas 26h.
+  Conversa esperando 24h+ e backup não confirmado entram na contagem de urgentes do assunto do e-mail. Consultas em `src/services/briefingExtras.ts`, texto em `briefingExtrasRender.ts` (testado).
 
 ## Classificação por urgência
 
@@ -69,6 +80,7 @@ Uma versão curta e só com o que exige ação (leads frios, valores vencidos, c
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
+| 30/09/2026 | Claude | Briefing: bloco "Também precisa de você" (WhatsApp aguardando, leads 24h, parcelas atrasadas, repasses, docs recebidos, publicações não analisadas, falhas de consulta, saúde do CRM) e tipo/grau da movimentação |
 | 30/09/2026 | Claude | Fechamento do dia v2: versão WhatsApp, prioridade de amanhã, bloco "aguardando terceiro", 100 frases por contexto e uso real do retrato da manhã |
 
 ---

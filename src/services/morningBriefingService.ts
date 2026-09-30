@@ -1,4 +1,6 @@
 import { db } from '../config/database';
+import { extrasHtml, extrasWhatsapp, criticosExtras, type BriefingExtras } from './briefingExtrasRender';
+import { TIPO_MOVIMENTACAO_PT } from './movimentacaoIa';
 import { sendEmail, layout } from './EmailService';
 import { getGoalProgress, GoalProgress } from './goalsService';
 import { sendText } from './uazapiInstance';
@@ -421,7 +423,8 @@ export function buildHtml(
   comercial: { leadsNovos: LeadNovo[]; aniversariantes: Aniversariante[] },
   esteira: { pecasAProduzir: PecaPendente[]; documentosPendentes: DocumentoPendente[] },
   movimentacoes: MovimentacaoBriefing[],
-  prazosPorFaixa: { description: string; case_number: string | null; diasParaVencer: number }[] = []
+  prazosPorFaixa: { description: string; case_number: string | null; diasParaVencer: number }[] = [],
+  extras: BriefingExtras | null = null
 ): string {
   // pulso não é mais renderizado diretamente aqui — o conteúdo dele (leads frios,
   // a receber, casos atrasados, e-mails pendentes) já está coberto pelos blocos
@@ -547,6 +550,8 @@ export function buildHtml(
     ${sevBlock('Prioridade do dia', '🟠', WARNING, WARNING_SOFT, atencao, 'atencao2')}
     ${sevBlock('Acompanhamento', '🟢', OK_STRONG, OK_SOFT, acompanhamento, 'acompanhamento')}
 
+    ${extras ? extrasHtml(extras, NAVY) : ''}
+
     <hr style="border:none;border-top:1px solid #e2ddd1;margin:26px 0">
 
     <h3 style="color:${NAVY};font-size:15px;margin:0 0 8px;font-family:Georgia,serif">Meta do mês</h3>
@@ -605,7 +610,8 @@ async function getMovimentacoesDoDia(): Promise<MovimentacaoBriefing[]> {
     return {
       processo: r.processo,
       clienteVsParte: r.cliente || r.processo,
-      resumo: s.resumo || '',
+      resumo: (s.tipo && s.tipo !== 'outro' && (TIPO_MOVIMENTACAO_PT as any)[s.tipo]
+        ? `[${(TIPO_MOVIMENTACAO_PT as any)[s.tipo]}${s.grau ? ' · ' + s.grau : ''}] ` : '') + (s.resumo || ''),
       acao: s.acao || '',
       prazoInterno: s.prazo_interno || '',
       severity: classificarMovimentacao(s.prioridade ?? null),
@@ -631,6 +637,8 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
   const comercial = await getComercialDoDia();
   const esteira = await getEsteiraEDocumentos();
   const movimentacoes = await getMovimentacoesDoDia();
+  const { getBriefingExtras } = await import('./briefingExtras');
+  const extras = await getBriefingExtras().catch(() => null);
 
   let sent = 0, failed = 0;
   const seen = new Set<string>();
@@ -650,14 +658,14 @@ export async function sendMorningBriefings(): Promise<{ sent: number; failed: nu
     await salvarSnapshotDoDia(u.id, { tarefas: tarefasHoje }).catch((e) => console.error('[briefing] falha ao salvar snapshot:', e?.message || e));
     const agenda3d = await getAgenda3Dias(u.id);
     const prazosPorFaixa = await getPrazosPorFaixa(u.id);
-    const criticosHoje = contarCriticosDoDia(agenda3d, prazosPorFaixa, movimentacoes, financeiro, esteira);
+    const criticosHoje = contarCriticosDoDia(agenda3d, prazosPorFaixa, movimentacoes, financeiro, esteira) + (extras ? criticosExtras(extras) : 0);
     const subject = criticosHoje > 0
       ? `⚠️ ${criticosHoje} item${criticosHoje > 1 ? 's' : ''} urgente${criticosHoje > 1 ? 's' : ''} hoje`
       : 'Bom dia! Sua agenda de hoje';
     const r = await sendEmail({
       to: u.email,
       subject,
-      html: buildHtml(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes, prazosPorFaixa),
+      html: buildHtml(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes, prazosPorFaixa, extras),
     });
     if (r.ok) sent++; else failed++;
 
@@ -689,7 +697,8 @@ export function buildWhatsappText(
   comercial: { leadsNovos: LeadNovo[]; aniversariantes: Aniversariante[] },
   esteira: { pecasAProduzir: PecaPendente[]; documentosPendentes: DocumentoPendente[] },
   movimentacoes: MovimentacaoBriefing[],
-  prazosPorFaixa: { description: string; case_number: string | null; diasParaVencer: number }[] = []
+  prazosPorFaixa: { description: string; case_number: string | null; diasParaVencer: number }[] = [],
+  extras: BriefingExtras | null = null
 ): string {
   // pulso não é mais renderizado diretamente aqui — o conteúdo dele (leads frios,
   // a receber, casos atrasados, e-mails pendentes) já está coberto pelos blocos
@@ -750,6 +759,9 @@ export function buildWhatsappText(
     ...agenda3d.filter((a) => a.severity === 'critica').map((a, idx) => ({ id: `ag-${idx}`, kind: 'agenda' as const, label: `${a.titulo}, ${a.hora}`, severity: a.severity, ordemDesempate: idx })),
     ...(financeiro.aReceberHoje > 0 ? [{ id: 'pag-0', kind: 'pagamento' as const, label: `Cobrar ${money(financeiro.aReceberHoje)} vencendo hoje`, severity: 'critica' as const, ordemDesempate: 0 }] : []),
   ];
+  const extrasTxt = extras ? extrasWhatsapp(extras) : '';
+  if (extrasTxt) blocos.push(extrasTxt);
+
   const top = top3(briefingItems);
   if (top.length) blocos.push(`🎯 *Se você fizer só 3 coisas hoje:*\n${top.map((i, idx) => `${idx + 1}. ${esc(i.label)}`).join('\n')}`);
 
@@ -791,7 +803,9 @@ export async function sendMorningBriefingWhatsapp(): Promise<{ sent: boolean; re
   const esteira = await getEsteiraEDocumentos();
   const movimentacoes = await getMovimentacoesDoDia();
 
-  const texto = buildWhatsappText(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes, prazosPorFaixa);
+  const { getBriefingExtras } = await import('./briefingExtras');
+  const extras = await getBriefingExtras().catch(() => null);
+  const texto = buildWhatsappText(firstName, weather, agenda, pulso, meta, agenda3d, financeiro, comercial, esteira, movimentacoes, prazosPorFaixa, extras);
 
   // Suporta múltiplos números separados por vírgula (ex.: "27995151402,44991274377")
   // — cada um recebe o mesmo resumo. `sent` só vira true se pelo menos um envio funcionar.
