@@ -153,6 +153,28 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // ── GET /api/clients/:id/timeline — histórico do cliente (ficha) ────────────
+// ── Mensagens do portal — lado do escritório ───────────────────────────────
+router.get('/:id/portal-messages', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT pm.id, pm.from_client, pm.body, pm.created_at, pm.read_at, u.name AS author_name
+       FROM portal_messages pm LEFT JOIN users u ON u.id = pm.author_id
+      WHERE pm.client_id = ? ORDER BY pm.created_at DESC LIMIT 100`, [req.params.id]) as any;
+  await db.query('UPDATE portal_messages SET read_at = NOW() WHERE client_id = ? AND from_client = 1 AND read_at IS NULL', [req.params.id]);
+  res.json(rows.reverse());
+});
+
+router.post('/:id/portal-messages', async (req: Request, res: Response) => {
+  const { validarMensagem } = await import('../services/portalRegras');
+  const body = validarMensagem(req.body?.body);
+  if (!body) { res.status(400).json({ error: 'Escreva a mensagem' }); return; }
+  const [[cl]] = await db.query('SELECT id FROM clients WHERE id = ?', [req.params.id]) as any;
+  if (!cl) { res.status(404).json({ error: 'Cliente não encontrado' }); return; }
+  const [r] = await db.query(
+    'INSERT INTO portal_messages (client_id, from_client, author_id, body) VALUES (?, 0, ?, ?)',
+    [req.params.id, (req as any).user.id, body]) as any;
+  res.status(201).json({ id: r.insertId });
+});
+
 router.get('/:id/timeline', async (req: Request, res: Response) => {
   const [rows] = await db.query(
     `SELECT t.event_type, t.description, t.created_at, u.name AS by_name,

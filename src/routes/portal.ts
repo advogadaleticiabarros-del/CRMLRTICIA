@@ -3,6 +3,9 @@ import { db } from '../config/database';
 import { buildPixPayload, pixQrDataUri } from '../services/pixService';
 import { notificationService } from '../services/NotificationService';
 import { sendEmail, isEmailConfigured } from '../services/EmailService';
+import { buildCaseChecklist } from '../services/caseChecklists';
+import { validarArquivoPortal, nomeDocumentoPortal, validarMensagem } from '../services/portalRegras';
+import { stripDataUrlPrefix } from '../utils/dataUrl';
 
 const router = Router();
 
@@ -138,6 +141,92 @@ router.get('/documents', async (req: Request, res: Response) => {
       WHERE d.client_id = ? AND d.visible_to_client = 1 AND d.file_url IS NOT NULL AND d.file_url <> ''
       ORDER BY d.created_at DESC`, [(req as any).clientId]) as any;
   res.json(rows);
+});
+
+// ── GET /api/portal/checklist — o que já foi enviado e o que falta, por processo ─
+router.get('/checklist', async (req: Request, res: Response) => {
+  const [cases] = await db.query(
+    "SELECT id, title FROM cases WHERE client_id = ? AND status = 'ativo' ORDER BY created_at DESC",
+    [(req as any).clientId]) as any;
+  const out = [];
+  for (const c of cases) {
+    const ck = await buildCaseChecklist(c.id);
+    if (ck && ck.total) out.push({ case_id: c.id, title: c.title, itens: ck.itens.map((i) => ({ label: i.label, done: i.done })), completos: ck.completos, total: ck.total });
+  }
+  res.json(out);
+});
+
+// ── POST /api/portal/cases/:id/documentos — cliente envia um item do checklist ─
+// Só PDF/foto até 10MB, sempre em processo DO PRÓPRIO cliente, e o item tem
+// que existir no checklist daquele processo. Entra como "recebido", não
+// visível no portal até a equipe conferir.
+router.post('/cases/:id/documentos', async (req: Request, res: Response) => {
+  const clientId = (req as any).clientId;
+  const caseId = Number(req.params.id);
+  const [[caso]] = await db.query('SELECT id FROM cases WHERE id = ? AND client_id = ?', [caseId, clientId]) as any;
+  if (!caso) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+  const item = String(req.body?.item || '');
+  const ck = await buildCaseChecklist(caseId);
+  if (!ck?.itens.some((i) => i.label === item)) { res.status(400).json({ error: 'Item do checklist inválido' }); return; }
+  const data = Buffer.from(stripDataUrlPrefix(String(req.body?.file_base64 || '')), 'base64');
+  const mime = String(req.body?.mime || '');
+  const erro = validarArquivoPortal(mime, data.length);
+  if (erro) { res.status(400).json({ error: erro }); return; }
+  const [r] = await db.query(
+    `INSERT INTO documents (client_id, case_id, name, type, folder, data, mime, status, visible_to_client, created_by)
+     VALUES (?, ?, ?, 'portal', 'documentos_pessoais', ?, ?, 'recebido', 0, ?)`,
+    [clientId, caseId, nomeDocumentoPortal(item, req.body?.file_name), data, mime, req.user!.id]) as any;
+  const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
+  const [equipe] = await db.query("SELECT id FROM users WHERE role IN ('admin','advogado') AND active = 1") as any;
+  for (const u of equipe) {
+    await notificationService.create({
+      userId: u.id, clientId, caseId, title: 'Documento enviado pelo portal',
+      message: `${cl?.name || 'Cliente'} enviou: ${item}`, notificationType: 'portal_documento',
+      channel: 'sistema', scheduledAt: new Date(),
+    }).catch(() => {});
+  }
+  res.status(201).json({ id: r.insertId });
+});
+
+// ── GET /api/portal/assinaturas — documentos aguardando a assinatura do cliente ─
+router.get('/assinaturas', async (req: Request, res: Response) => {
+  const clientId = (req as any).clientId;
+  const [rows] = await db.query(
+    `SELECT sr.token, d.name, sr.created_at
+       FROM signature_requests sr
+       JOIN documents d ON d.id = sr.document_id
+       LEFT JOIN contracts ct ON ct.id = sr.contract_id
+      WHERE sr.status = 'pendente' AND (d.client_id = ? OR ct.client_id = ?)
+      ORDER BY sr.created_at DESC`, [clientId, clientId]) as any;
+  res.json(rows.map((r: any) => ({ name: r.name, created_at: r.created_at, path: `/assinar.html?token=${r.token}` })));
+});
+
+// ── Mensagens do portal (canal registrado cliente <-> escritório) ───────────
+router.get('/mensagens', async (req: Request, res: Response) => {
+  const clientId = (req as any).clientId;
+  const [rows] = await db.query(
+    `SELECT id, from_client, body, created_at FROM portal_messages
+      WHERE client_id = ? ORDER BY created_at DESC LIMIT 100`, [clientId]) as any;
+  await db.query('UPDATE portal_messages SET read_at = NOW() WHERE client_id = ? AND from_client = 0 AND read_at IS NULL', [clientId]);
+  res.json(rows.reverse());
+});
+
+router.post('/mensagens', async (req: Request, res: Response) => {
+  const clientId = (req as any).clientId;
+  const body = validarMensagem(req.body?.body);
+  if (!body) { res.status(400).json({ error: 'Escreva a mensagem' }); return; }
+  const [r] = await db.query(
+    'INSERT INTO portal_messages (client_id, from_client, author_id, body) VALUES (?, 1, ?, ?)',
+    [clientId, req.user!.id, body]) as any;
+  const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
+  const [equipe] = await db.query("SELECT id FROM users WHERE role IN ('admin','advogado') AND active = 1") as any;
+  for (const u of equipe) {
+    await notificationService.create({
+      userId: u.id, clientId, title: `Mensagem no portal — ${cl?.name || 'cliente'}`,
+      message: body.slice(0, 200), notificationType: 'portal_mensagem', channel: 'som', scheduledAt: new Date(),
+    }).catch(() => {});
+  }
+  res.status(201).json({ id: r.insertId });
 });
 
 // ── GET /api/portal/contact — canal com o escritório (WhatsApp) ─────────────

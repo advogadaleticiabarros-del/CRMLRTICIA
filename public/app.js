@@ -2328,16 +2328,26 @@ const ROUTES = {
     const wa = (contact.whatsapp || '').replace(/\D/g, '');
     page.innerHTML = `
       <div class="page-header"><div><h2>Olá, ${esc((me.name || '').split(' ')[0])}</h2><p class="sub">Acompanhe seus processos e pagamentos</p></div>
-        ${wa ? `<a class="btn-gold" href="https://wa.me/${wa}" target="_blank" rel="noopener" style="text-decoration:none">Falar com o escritório</a>` : ''}</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn-sm" id="portal-agendar">Agendar reunião</button>
+          ${wa ? `<a class="btn-gold" href="https://wa.me/${wa}" target="_blank" rel="noopener" style="text-decoration:none">Falar com o escritório</a>` : ''}</div></div>
       <div class="kpi-grid">
         ${kpi('Processos ativos', me.resumo.processos_ativos)}
         ${kpi('Valores a pagar', money(me.resumo.a_pagar), 'money')}
         ${kpi('Em atraso', money(me.resumo.vencido), 'money')}
       </div>
+      <div id="portal-assinar"></div>
+      <div id="portal-checklist"></div>
       <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Minhas parcelas</strong></div><div id="portal-parc"><div class="spinner"></div></div></div>
       <div id="portal-cases"></div>
       <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Meus documentos</strong></div><div id="portal-docs"><div class="spinner"></div></div></div>
       <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Atualizações</strong></div><div id="portal-tl"><div class="spinner"></div></div></div>
+      <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Mensagens com o escritório</strong></div>
+        <div id="portal-msgs" style="padding:12px 18px;max-height:320px;overflow:auto"><div class="spinner"></div></div>
+        <form id="portal-msg-form" style="display:flex;gap:8px;padding:0 18px 16px">
+          <textarea name="body" rows="2" maxlength="2000" placeholder="Escreva sua mensagem…" style="flex:1" aria-label="Mensagem para o escritório"></textarea>
+          <button class="btn-gold" type="submit" style="width:auto;align-self:flex-end">Enviar</button>
+        </form></div>
       <div class="card" style="margin-top:16px"><div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Meus dados de contato</strong></div>
         <form id="portal-dados-form" style="padding:14px 18px;display:grid;gap:10px;max-width:480px">
           <label>E-mail<input type="email" name="email" value="${esc(me.email || '')}"></label>
@@ -2369,6 +2379,7 @@ const ROUTES = {
         <div style="margin-top:12px"><button class="btn-sm" data-pcase="${c.id}">Ver detalhes</button></div>
       </div>`).join('') : '<div class="empty">Nenhum processo no momento</div>';
     document.querySelectorAll('[data-pcase]').forEach((b) => b.onclick = () => portalCaseDetail(b.dataset.pcase));
+    portalHub();
     api('/api/portal/financial').then((parcelas) => {
       if (!parcelas.length) { $('#portal-parc').innerHTML = '<div class="empty" style="padding:16px">Nenhuma parcela registrada</div>'; return; }
       const statusBadge = (i) => i.status === 'pago' ? '<span class="badge pago">paga</span>'
@@ -7619,10 +7630,12 @@ async function fichaCliente(id, onSave) {
       <button class="btn-sm" id="fc-export-lgpd" type="button" title="Baixa um arquivo com tudo que o escritório guarda sobre este cliente — direito de portabilidade, LGPD art. 18">${svgIcon('download')}Baixar dados (LGPD)</button>
       <button class="btn-sm" id="fc-upload-doc" type="button">${svgIcon('paperclip')}Enviar documento</button>
       <input type="file" id="fc-upload-doc-input" style="display:none" accept="image/*,application/pdf">
+      <button class="btn-sm" id="fc-portal-msgs" type="button">${svgIcon('chat')}Mensagens do portal</button>
     </div>
     <div id="fc-body" style="max-height:65vh;overflow:auto">${html}</div>
   </div>`);
   wrap.querySelector('#fc-edit').onclick = () => { closeModal(); clientForm(id, onSave); };
+  wrap.querySelector('#fc-portal-msgs').onclick = () => { closeModal(); portalMensagensEquipe(id, f.client?.name || f.name || 'Cliente'); };
   // Ideia 9 da auditoria do módulo Clientes (23/09/2026): upload direto na
   // ficha, sem precisar ir até a tela genérica de Documentos — reaproveita o
   // mesmo POST /api/documents (base64) já usado lá, guarda em
@@ -8413,6 +8426,66 @@ function changePasswordForm() {
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Trocar minha senha', form);
+}
+
+// ── Portal como hub: assinar, checklist com envio, agendar e mensagens ─────
+// Tudo acontece dentro do portal: assinatura e agendamento abrem numa janela
+// sobreposta (iframe das páginas públicas já existentes), sem mandar o
+// cliente para outro lugar.
+function portalJanela(titulo, src) {
+  openModal(titulo, el(`<div><iframe src="${esc(src)}" title="${esc(titulo)}" style="width:100%;height:70vh;border:0;border-radius:8px;background:#fff"></iframe></div>`));
+}
+
+function portalHub() {
+  $('#portal-agendar').onclick = () => portalJanela('Agendar reunião', '/agendamento.html');
+
+  api('/api/portal/assinaturas').then((docs) => {
+    $('#portal-assinar').innerHTML = docs.length ? `<div class="card" style="margin-top:16px;border:1px solid var(--gold)">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Você tem ${docs.length} documento${docs.length > 1 ? 's' : ''} para assinar</strong></div>
+      ${docs.map((d, i) => `<div class="mini-row"><span>${esc(d.name)}<br><small style="color:var(--text-muted)">enviado em ${fmtDate(d.created_at)}</small></span>
+        <button class="btn-gold btn-sm" data-assinar="${i}">Assinar</button></div>`).join('')}</div>` : '';
+    document.querySelectorAll('[data-assinar]').forEach((b) => b.onclick = () => portalJanela('Assinar documento', docs[b.dataset.assinar].path));
+  }).catch(() => {});
+
+  const carregarChecklist = () => api('/api/portal/checklist').then((lista) => {
+    const comFalta = lista.filter((c) => c.completos < c.total);
+    $('#portal-checklist').innerHTML = comFalta.length ? comFalta.map((c) => `<div class="card" style="margin-top:16px">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--navy)">Documentos — ${esc(c.title)}</strong>
+        <small style="color:var(--text-muted);margin-left:6px">${c.completos} de ${c.total} enviados</small></div>
+      ${c.itens.map((i) => `<div class="mini-row"><span>${i.done ? '✅' : '⏳'} ${esc(i.label)}</span>
+        ${i.done ? '<small style="color:var(--text-muted)">enviado</small>' : `<label class="btn-sm" style="cursor:pointer">Enviar<input type="file" accept="application/pdf,image/*" capture="environment" hidden data-up-case="${c.case_id}" data-up-item="${esc(i.label)}"></label>`}</div>`).join('')}
+    </div>`).join('') : '';
+    document.querySelectorAll('[data-up-case]').forEach((inp) => inp.onchange = async () => {
+      const f = inp.files[0]; if (!f) return;
+      if (f.size > 10 * 1024 * 1024) { toast('Arquivo maior que 10MB — tente uma foto com menos resolução.', 'error'); return; }
+      const b64 = await new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = erro; r.readAsDataURL(f); });
+      try {
+        await api(`/api/portal/cases/${inp.dataset.upCase}/documentos`, { method: 'POST', body: JSON.stringify({ item: inp.dataset.upItem, file_base64: b64, mime: f.type, file_name: f.name }) });
+        toast('Documento enviado! O escritório vai conferir.'); carregarChecklist();
+      } catch (e) { toast(e.message, 'error'); }
+    });
+  }).catch(() => {});
+  carregarChecklist();
+
+  const carregarMsgs = () => api('/api/portal/mensagens').then((msgs) => {
+    const box = $('#portal-msgs');
+    box.innerHTML = msgs.length ? msgs.map((m) => `<div style="margin:6px 0;display:flex;${m.from_client ? 'justify-content:flex-end' : ''}">
+      <div style="max-width:80%;padding:8px 12px;border-radius:10px;background:${m.from_client ? 'var(--amber-bg)' : 'var(--bg)'}">
+        <div style="white-space:pre-wrap;font-size:13.5px">${esc(m.body)}</div>
+        <small style="color:var(--text-muted)">${m.from_client ? 'Você' : 'Escritório'} · ${fmtDate(m.created_at)}</small></div></div>`).join('')
+      : '<div class="empty" style="padding:8px">Nenhuma mensagem ainda. Escreva abaixo — fica tudo registrado aqui.</div>';
+    box.scrollTop = box.scrollHeight;
+  }).catch(() => { $('#portal-msgs').innerHTML = '<div class="empty">—</div>'; });
+  carregarMsgs();
+  $('#portal-msg-form').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const ta = ev.target.body; const btn = ev.target.querySelector('button');
+    if (!ta.value.trim()) return;
+    btn.disabled = true;
+    try { await api('/api/portal/mensagens', { method: 'POST', body: JSON.stringify({ body: ta.value }) }); ta.value = ''; carregarMsgs(); }
+    catch (e) { toast(e.message, 'error'); }
+    finally { btn.disabled = false; }
+  };
 }
 
 async function portalCaseDetail(id) {
@@ -9502,6 +9575,36 @@ async function contractEditor(id, onSave) {
   };
   loadCtSigs();
   openModal('Produção de documentos', wrap);
+}
+
+// Mensagens do portal — lado do escritório (o cliente escreve pelo portal;
+// a resposta aparece lá, registrada junto do processo, sem depender do WhatsApp).
+async function portalMensagensEquipe(clientId, nome) {
+  const wrap = el(`<div>
+    <div id="pm-list" style="max-height:50vh;overflow:auto;padding:4px 2px"><div class="spinner"></div></div>
+    <form id="pm-form" style="display:flex;gap:8px;margin-top:10px">
+      <textarea name="body" rows="2" maxlength="2000" placeholder="Responder pelo portal…" style="flex:1" aria-label="Resposta pelo portal"></textarea>
+      <button class="btn-gold" type="submit" style="width:auto;align-self:flex-end">Enviar</button>
+    </form>
+    <p class="sub" style="margin-top:6px">O cliente vê a resposta ao entrar no portal.</p></div>`);
+  const carregar = async () => {
+    const msgs = await api(`/api/clients/${clientId}/portal-messages`).catch(() => []);
+    const box = wrap.querySelector('#pm-list');
+    box.innerHTML = msgs.length ? msgs.map((m) => `<div style="margin:6px 0;display:flex;${m.from_client ? '' : 'justify-content:flex-end'}">
+      <div style="max-width:80%;padding:8px 12px;border-radius:10px;background:${m.from_client ? 'var(--bg)' : 'var(--amber-bg)'}">
+        <div style="white-space:pre-wrap;font-size:13.5px">${esc(m.body)}</div>
+        <small style="color:var(--text-muted)">${m.from_client ? esc(nome) : esc(m.author_name || 'Escritório')} · ${fmtDate(m.created_at)}${!m.from_client && m.read_at ? ' · lida' : ''}</small></div></div>`).join('')
+      : '<div class="empty">Nenhuma mensagem pelo portal ainda</div>';
+    box.scrollTop = box.scrollHeight;
+  };
+  wrap.querySelector('#pm-form').onsubmit = async (ev) => {
+    ev.preventDefault();
+    const ta = ev.target.body; if (!ta.value.trim()) return;
+    try { await api(`/api/clients/${clientId}/portal-messages`, { method: 'POST', body: JSON.stringify({ body: ta.value }) }); ta.value = ''; carregar(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  openModal(`Mensagens do portal — ${nome}`, wrap);
+  carregar();
 }
 
 async function clientHistory(clientId) {

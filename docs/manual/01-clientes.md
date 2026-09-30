@@ -69,6 +69,17 @@ Desde 24/09/2026, a ficha do cliente tem um botão **"Baixar dados (LGPD)"** —
 
 Desde 24/09/2026, o cadastro/edição de cliente confere o dígito verificador do CPF/CNPJ digitado (o mesmo cálculo usado pela Receita Federal) — um número com dígito errado (ex.: digitado errado sem querer) é recusado com aviso claro, antes de salvar. Campo continua opcional: deixar vazio é permitido. Isso não muda a checagem de conflito de interesses (que continua um aviso, nunca bloqueio) — é uma validação de formato, diferente.
 
+## Portal do cliente como hub (desde 30/09/2026)
+
+O cliente resolve sozinho, sem sair do portal:
+
+- **Documentos para assinar** — faixa dourada no topo quando há assinatura pendente (de documento ou contrato do cliente). "Assinar" abre a mesma página de assinatura eletrônica numa janela sobreposta, dentro do portal.
+- **Checklist de documentos por processo** — para cada processo ativo com item faltando: ✅ enviado / ⏳ pendente, com botão **Enviar** (câmera no celular). Aceita só PDF e foto (JPG, PNG, WEBP, HEIC) até 10MB, sempre no processo do próprio cliente e para um item que existe no checklist. O arquivo entra em *Documentos pessoais* do caso como "recebido" (não fica visível no portal até a equipe conferir) e avisa a equipe no sino.
+- **Agendar reunião** — abre a página de agendamento (horários livres da agenda) dentro do portal.
+- **Mensagens com o escritório** — canal registrado junto do cadastro, alternativa ao WhatsApp. Mensagem do cliente avisa a equipe no sino (com som). A equipe responde em *Ficha do cliente → Mensagens do portal*; a resposta mostra "lida" quando o cliente abre o portal. Tabela `portal_messages`.
+
+Regras em `src/services/portalRegras.ts` (testadas).
+
 ## Portal do cliente: atualizar os próprios dados de contato
 
 Desde 24/09/2026, o Portal do Cliente tem uma seção "Meus dados de contato" onde o próprio cliente atualiza e-mail, telefone e endereço sozinho — antes precisava pedir pra advogada fazer manualmente. Escopo restrito de propósito: nome, CPF/CNPJ e status **não** ficam editáveis pelo cliente (mudam a identificação jurídica/qualificação da parte — continuam só no cadastro interno, feito pela equipe).
@@ -92,6 +103,7 @@ Desde 24/09/2026, o Portal do Cliente tem uma seção "Meus dados de contato" on
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/09/2026 | Claude | Portal como hub: assinatura, checklist com envio, agendamento e mensagens dentro do portal |
 | 03/09/2026 | Claude | Criação do documento |
 | 23/09/2026 | Claude | Log de acesso LGPD ganha tela própria em Configurações (antes só existia gravação, sem consulta) |
 | 24/09/2026 | Claude | Ficha completa do cliente (`/ficha`) passa a gerar log de acesso LGPD — só a tela simples de detalhe gerava, mas é a ficha completa que o sistema realmente usa pra abrir o cliente |
