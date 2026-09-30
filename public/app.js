@@ -1560,9 +1560,21 @@ const ROUTES = {
         <tbody>${r.data.map((t) => `<tr>
           <td><strong>${t.title}</strong></td><td>${badge(t.priority)}</td>
           <td>${fmtDate(t.due_date)}</td><td>${t.due_date ? countdown(t.days_remaining, t.status_label) : '—'}</td>
-          <td>${badge(t.status)}</td>
-          <td>${t.status !== 'concluida' ? `<button class="btn-sm" data-done-task="${t.id}">Concluir</button>` : ''}</td></tr>`).join('')}</tbody></table>`
+          <td>${t.status === 'aguardando_terceiro' ? `<span class="badge aguardando_terceiro">Aguardando ${esc(t.waiting_on || 'terceiro')}</span>` : badge(t.status)}</td>
+          <td style="white-space:nowrap">${t.status !== 'concluida' ? `<button class="btn-sm" data-done-task="${t.id}">Concluir</button>` : ''}
+            ${!['concluida', 'aguardando_terceiro'].includes(t.status) ? `<button class="btn-sm" data-wait-task="${t.id}">Aguardando terceiro</button>` : ''}
+            ${t.status === 'aguardando_terceiro' ? `<button class="btn-sm" data-resume-task="${t.id}">Retomar</button>` : ''}</td></tr>`).join('')}</tbody></table>`
         : '<div class="empty">Nenhuma tarefa</div>';
+      const setTaskStatus = async (id, body, msg) => {
+        try { await api(`/api/tasks/${id}/status`, { method: 'PATCH', body: JSON.stringify(body) }); toast(msg); loadTasks(); }
+        catch (e) { toast(e.message, 'error'); }
+      };
+      document.querySelectorAll('[data-wait-task]').forEach((b) => b.onclick = () => {
+        const f = el(`<form class="form-grid">${field('Aguardando quem? (cliente, perito, cartório...)', 'waiting_on')}<button type="submit" class="btn-primary">Salvar</button></form>`);
+        f.onsubmit = (e) => { e.preventDefault(); closeModal(); setTaskStatus(b.dataset.waitTask, { status: 'aguardando_terceiro', waiting_on: f.waiting_on.value }, 'Tarefa marcada como aguardando terceiro'); };
+        openModal('Aguardando terceiro', f);
+      });
+      document.querySelectorAll('[data-resume-task]').forEach((b) => b.onclick = () => setTaskStatus(b.dataset.resumeTask, { status: 'pendente' }, 'Tarefa retomada'));
       document.querySelectorAll('[data-done-task]').forEach((b) => b.onclick = async () => {
         try { await api(`/api/tasks/${b.dataset.doneTask}/status`, { method: 'PATCH', body: JSON.stringify({ status: 'concluida' }) });
           toast('Tarefa concluída'); loadTasks(); } catch (e) { toast(e.message, 'error'); }

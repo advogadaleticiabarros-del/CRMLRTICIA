@@ -52,6 +52,10 @@ O sistema tenta manter uma sugestão de fase processual (inicial, instrução, s
 
 
 **Aviso de divergência (desde 28/09/2026):** se a fase sugerida pelas movimentações ficar À FRENTE da fase cadastrada por 3 dias ou mais, os admins recebem um aviso no sino ("Fase do processo pode estar desatualizada"), repetido a cada 14 dias enquanto persistir — antes só aparecia um selo na tela de Processos, que ninguém via sem abri-la. A fase nunca é alterada sozinha. Regras de sugestão em `src/utils/faseProcesso.ts`, com teste.
+## Tarefa aguardando terceiro (desde 30/09/2026)
+
+Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como travada esperando alguém (pergunta quem: cliente, perito, cartório). Ela aparece com o selo "Aguardando <quem>" e num bloco separado no fechamento do dia. **Retomar** volta para pendente.
+
 ## FAQ
 
 **Por que um processo apareceu no sistema sem eu ter cadastrado?** Foi descoberto pela varredura DJEN por OAB — qualquer publicação endereçada à sua OAB entra automaticamente, mesmo sem cadastro prévio.
@@ -73,6 +77,7 @@ O sistema tenta manter uma sugestão de fase processual (inicial, instrução, s
 |---|---|---|
 | 28/09/2026 | Claude | Tipo de prazo por gatilho específico/título (`deteccaoPrazo.ts`), aviso de fase divergente (`processos:fase-divergente`), busca nacional por OAB passa a reportar falha por tribunal, testes de fase e tribunal — ideias 6, 7, 8 e 9 da auditoria |
 | 28/09/2026 | Claude | Avisos de prazo escalonados (título 🚨 e repetição por urgência), aviso único ao vencer (`prazos:vencidos`) e alerta diário de prazo em processo sem caso (`prazos:sem-caso`) — ideias 2, 4 e 5 da auditoria |
+| 30/09/2026 | Claude | Status de tarefa "aguardando terceiro" (com quem) |
 | 28/09/2026 | Claude | Confirmação de prazo detectado passa a usar o cálculo com feriados/suspensão (`contarPrazo`) — antes só pulava fim de semana (achado crítico da auditoria) |
 | 03/09/2026 | Claude | Criação do documento; registrada a correção de dedup de avisos e limpeza de HTML/entidades |
 

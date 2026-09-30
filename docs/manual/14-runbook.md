@@ -269,6 +269,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: fechamento do dia ignorava o retrato da manhã
+
+**Sintoma:** tarefa que estava no briefing da manhã e foi reagendada durante o dia simplesmente não aparecia no fechamento das 18h30 — nem como concluída, nem como pendente.
+
+**Causa raiz (confirmado 30/09/2026):** `compararSnapshotComEstadoAtual` recebia o retrato da manhã mas nunca o lia — só olhava as tarefas com vencimento hoje no estado atual.
+
+**Correção:** o fechamento passou a usar `classificarDia` (`src/services/fechamentoDia.ts`), que une o retrato da manhã (com o estado atual de cada tarefa, buscado por id) às tarefas de hoje, sem duplicar.
+
+**Como reconhecer de novo:** tarefa planejada de manhã some do e-mail da noite. Conferir se `briefing_snapshots` tem linha do dia para o usuário.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -303,6 +315,7 @@ pm2 restart crm-juridico && pm2 save
 | 22/09/2026 | Claude | +1 incidente: dropdown de Pagador continuava preso aberto mesmo após o fix de 04/09 — causa raiz diferente (CSS: `display` de classe vencendo `[hidden]` nativo), corrigido com `.msel-panel[hidden]{display:none}` |
 | 22/09/2026 | Claude | +1 incidente: KPIs do Cockpit sempre abriam a Visão geral do Financeiro sem filtro — roteador ganhou suporte a `#rota?tab=x` (`hashParam()`), Inadimplência/A receber/A pagar agora abrem direto na sub-aba certa |
 | 22/09/2026 | Claude | Atualização do incidente acima: "Propostas em análise" levava pro board errado (Propostas em vez de Leads) — corrigido com o mesmo mecanismo + destaque de coluna no Kanban |
+| 30/09/2026 | Claude | +1 incidente: fechamento do dia ignorava o retrato da manhã |
 | 22/09/2026 | Claude | Resto da auditoria do Dashboard resolvido: Inadimplência unificada, Movimentações a verificar fecham de vez, Processual/Agenda exibem dado que já era calculado, consulta duplicada de "peças pendentes" compartilhada |
 
 ---

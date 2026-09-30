@@ -4,7 +4,7 @@ import { deadlineCounterService } from '../services/DeadlineCounterService';
 
 const router = Router();
 
-const STATUSES = ['pendente', 'em_andamento', 'concluida', 'cancelada'];
+const STATUSES = ['pendente', 'em_andamento', 'concluida', 'cancelada', 'aguardando_terceiro'];
 const PRIORITIES = ['baixa', 'media', 'alta', 'critica'];
 
 const STATUS_LABEL_SQL = `
@@ -35,7 +35,7 @@ router.get('/', async (req: Request, res: Response) => {
   const [[{ total }]] = await db.query(`SELECT COUNT(*) AS total FROM tasks t ${whereSql}`, params) as any;
 
   const [rows] = await db.query(
-    `SELECT t.id, t.title, t.due_date, t.priority, t.status, t.client_id,
+    `SELECT t.id, t.title, t.due_date, t.priority, t.status, t.waiting_on, t.client_id,
             cl.name AS client_name,
             TIMESTAMPDIFF(DAY, NOW(), t.due_date) AS days_remaining,
             ${STATUS_LABEL_SQL} AS status_label
@@ -105,7 +105,9 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
   if (!STATUSES.includes(status)) {
     res.status(400).json({ error: `status deve ser um de: ${STATUSES.join(', ')}` }); return;
   }
-  const [result] = await db.query('UPDATE tasks SET status = ? WHERE id = ?', [status, req.params.id]) as any;
+  // waiting_on só vale enquanto a tarefa está aguardando terceiro; sai ao mudar de status.
+  const waitingOn = status === 'aguardando_terceiro' ? (String(req.body.waiting_on || '').trim().slice(0, 160) || null) : null;
+  const [result] = await db.query('UPDATE tasks SET status = ?, waiting_on = ? WHERE id = ?', [status, waitingOn, req.params.id]) as any;
   if (!result.affectedRows) { res.status(404).json({ error: 'Tarefa não encontrada' }); return; }
   res.json({ success: true, id: Number(req.params.id), status });
 });

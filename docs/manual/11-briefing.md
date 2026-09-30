@@ -34,7 +34,18 @@ Cada item do briefing recebe uma severidade — **crítica** (🔴, precisa de a
 
 ## Fechamento do dia
 
-Ao final do dia (18h30), um snapshot das tarefas do dia é salvo — usado como comparação no briefing seguinte (o que ficou pendente de ontem).
+Às 18h30 sai o fechamento do dia, em duas versões:
+
+- **E-mail completo** para quem recebe o briefing: concluído hoje, ficou pendente, aguardando terceiro, prioridade de amanhã e uma frase de encerramento.
+- **WhatsApp executivo** (desde 30/09/2026) para o número de *Configurações → briefing_whatsapp*: contagem, pendências (até 8), aguardando terceiro, top 5 de amanhã e a frase.
+
+**Comparação manhã × noite:** o retrato salvo pelo briefing matinal (`briefing_snapshots`) agora é usado de verdade — uma tarefa que estava planejada de manhã e foi reagendada durante o dia continua aparecendo como pendente (antes sumia do fechamento).
+
+**Prioridade de amanhã:** até 5 itens — prazos pendentes de amanhã primeiro, depois audiências/reuniões, depois tarefas por prioridade.
+
+**Aguardando terceiro:** tarefa marcada em *Prazos & Tarefas → Aguardando terceiro* (com quem: cliente, perito, cartório...) sai de "pendente" e ganha bloco próprio.
+
+**Frase de encerramento:** 100 frases em 7 categorias (descanso, audiência, dia cheio, pendências, academia, hidratação, leitura). A categoria vem do dia: teve audiência → audiência; compromisso com "academia"/"treino" amanhã → academia; 5+ concluídas → dia cheio; 5+ pendentes → pendências; senão, sorteio entre descanso/hidratação/leitura. Sorteio de verdade, evitando as últimas 40 usadas (guardadas em `office_settings.fechamento_frases_recentes`).
 
 ## Copiloto no sino
 
@@ -58,6 +69,7 @@ Uma versão curta e só com o que exige ação (leads frios, valores vencidos, c
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
+| 30/09/2026 | Claude | Fechamento do dia v2: versão WhatsApp, prioridade de amanhã, bloco "aguardando terceiro", 100 frases por contexto e uso real do retrato da manhã |
 
 ---
 ◀ [Monitoramento automático](10-monitoramento.md) · [Visão geral](00-visao-geral.md) · Próximo: [Usuários e acesso](12-usuarios.md) ▶
