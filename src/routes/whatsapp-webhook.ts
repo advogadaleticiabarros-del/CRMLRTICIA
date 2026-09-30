@@ -605,6 +605,8 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
       // Parceiro reconhecido pelo telefone tem prioridade sobre a triagem de
       // lead — não é um contato novo pra converter, é alguém que já manda
       // caso/audiência pro escritório rotineiramente.
+      if (clientId && !respondeuPendencia) await avisarIntimacaoMencionada(phone, clientId, String(body)).catch(() => {});
+
       const ehParceiro = !clientId && await findPartnerPhoneMatch(phone).catch(() => false);
       if (ehParceiro) {
         await marcarComoParceiro(phone).catch(() => {});
@@ -625,5 +627,36 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
     await avisarErroWebhook(e?.message || String(e)).catch(() => {});
   }
 });
+
+/**
+ * Cliente escreveu que recebeu intimação/citação → tarefa urgente + sino.
+ * Uma vez a cada 12h por telefone. Nunca responde sozinho ao cliente.
+ */
+async function avisarIntimacaoMencionada(phone: string, clientId: number, texto: string): Promise<void> {
+  const { mencionaIntimacao, tarefaIntimacao } = await import('../services/whatsappIntimacao');
+  if (!mencionaIntimacao(texto)) return;
+  const [[recente]] = await db.query(
+    'SELECT 1 AS sim FROM whatsapp_chat_meta WHERE phone = ? AND intimacao_alert_at > NOW() - INTERVAL 12 HOUR', [phone]) as any;
+  if (recente) return;
+  await db.query(
+    `INSERT INTO whatsapp_chat_meta (phone, intimacao_alert_at) VALUES (?, NOW())
+     ON DUPLICATE KEY UPDATE intimacao_alert_at = NOW()`, [phone]);
+  const [[cl]] = await db.query('SELECT name FROM clients WHERE id = ?', [clientId]) as any;
+  const [[meta]] = await db.query('SELECT case_id FROM whatsapp_chat_meta WHERE phone = ?', [phone]) as any;
+  const t = tarefaIntimacao(cl?.name || phone, texto);
+  const [admins] = await db.query("SELECT id FROM users WHERE role IN ('admin','advogado') AND active = 1 ORDER BY id") as any;
+  if (!admins.length) return;
+  await db.query(
+    `INSERT INTO tasks (user_id, client_id, case_id, title, description, due_date, priority, status)
+     VALUES (?, ?, ?, ?, ?, NOW(), 'critica', 'pendente')`,
+    [admins[0].id, clientId, meta?.case_id ?? null, t.title, t.description]);
+  const { notificationService } = await import('../services/NotificationService');
+  for (const a of admins) {
+    await notificationService.create({
+      userId: a.id, clientId, title: t.title, message: texto.slice(0, 300),
+      notificationType: 'whatsapp_intimacao_mencionada', channel: 'som', scheduledAt: new Date(),
+    });
+  }
+}
 
 export default router;

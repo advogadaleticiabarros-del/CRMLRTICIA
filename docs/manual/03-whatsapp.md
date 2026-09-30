@@ -33,6 +33,18 @@ A barra de busca/filtros pode ser minimizada, e existe um modo "foco na conversa
 
 Notas internas (visíveis só pra equipe, nunca pro cliente) e etiquetas de conversa (setor, prioridade, o que for) ficam editáveis direto no painel 3, sem precisar abrir um menu separado.
 
+## Conversa sobre qual processo (desde 30/09/2026)
+
+Cliente com 2+ processos: no bloco **Processo** da ficha aparece *Esta conversa é sobre*. Escolher é opcional; o processo escolhido passa a ser o destacado na ficha (nº, etapa, audiência) e é usado como caso da tarefa criada quando o cliente menciona intimação. Salvo em `whatsapp_chat_meta.case_id`; só aceita processo do próprio cliente do número.
+
+## Cliente mencionou intimação (desde 30/09/2026)
+
+Quando um **cliente** (número já cadastrado) escreve algo como "recebi uma intimação", "fui citado", "o oficial de justiça passou aqui", "chegou uma carta do fórum", o sistema cria uma **tarefa crítica** com o trecho da mensagem e um rascunho de resposta, e avisa no sino com som. Nada é enviado ao cliente automaticamente — o rascunho deixa claro que não é a confirmação oficial do prazo. No máximo um aviso a cada 12h por número. Regras em `src/services/whatsappIntimacao.ts`.
+
+## Quem acessa as conversas (desde 30/09/2026)
+
+Só a equipe interna: `admin`, `advogado`, `estagiario`, `staff`, `comercial`. O perfil `parceiro` (advogado externo) não acessa mais a tela nem a API de WhatsApp — conversa de cliente é dado pessoal (LGPD).
+
 ## Mídia que falhou ao baixar
 
 Quando uma foto/áudio/documento recebido não consegue ser baixado da Uazapi, a conversa mostra "⚠️ Mídia recebida, mas falhou ao baixar" e os admins recebem aviso no sino. Desde 25/09/2026, esse aviso tem o botão **"Tentar baixar de novo"**: refaz o download pelo identificador que já ficou guardado, sem precisar pedir reenvio ao cliente. Além disso, desde 28/09/2026 o sistema tenta 3 vezes antes de desistir, mostra o motivo real no aviso do sino e refaz sozinho, a cada 10 minutos, o download das mídias que falharam nas últimas 48h. Se o arquivo já expirou do lado do WhatsApp, o botão avisa e a saída é pedir pro remetente mandar de novo.
@@ -109,6 +121,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/09/2026 | Claude | Conversa vinculada a um processo, aviso de intimação mencionada pelo cliente e WhatsApp fechado para o perfil parceiro |
 | 03/09/2026 | Claude | Criação do documento |
 | 22/09/2026 | Claude | Fila de envio com prioridade (audiência > avulsa > cobrança); watchdog de conexão a cada 20min; Painel de Saúde ganha falhas de transcrição/webhook/conexão; atalho "/" na composição pra resposta pronta; tabela órfã `whatsapp_templates` removida (4 conteúdos úteis migrados pra lista real); tela do WhatsApp deixa de ter teto de 1200px de largura (achados da auditoria de fluxos) |
 | 22/09/2026 | Claude | Triagem automática de conversa nova: parceiro reconhecido por telefone (etiqueta automática) e IA passa a distinguir "só cumprimento" (sugere resposta, nunca envia sozinha) de relato de caso real |

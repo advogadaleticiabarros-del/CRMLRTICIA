@@ -18,7 +18,7 @@ Consulte pra entender o que cada perfil de usuário pode ver/fazer, como funcion
 | `advogado` | Operação normal do escritório |
 | `estagiario` | Acesso de apoio, sem as ações mais sensíveis |
 | `comercial` | Foco no funil de leads/propostas |
-| `parceiro` | Advogado/escritório parceiro (ver [Repasses e parcerias](09-repasses.md)) |
+| `parceiro` | Advogado/escritório parceiro (ver [Repasses e parcerias](09-repasses.md)). Sem acesso às conversas de WhatsApp (desde 30/09/2026) |
 | `parceiro_portal` | Acesso ao portal do parceiro especificamente |
 | `cliente` | Perfil reservado para acesso futuro de cliente (portal do cliente) |
 
@@ -48,6 +48,7 @@ O sistema libera explicitamente, só para o próprio domínio: **microfone** (gr
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/09/2026 | Claude | Perfil parceiro sem acesso ao WhatsApp |
 | 03/09/2026 | Claude | Criação do documento |
 
 ---

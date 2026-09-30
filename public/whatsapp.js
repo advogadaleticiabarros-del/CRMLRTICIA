@@ -824,7 +824,8 @@ Object.assign(ROUTES, {
           // explícito da usuária). Mostra o processo mais recente; se houver
           // mais de um, o restante fica listado embaixo sem tirar o destaque
           // dos 3 dados principais.
-          const casoPrincipal = (cx.cases || [])[0] || null;
+          // Processo escolhido para esta conversa (opcional) tem prioridade.
+          const casoPrincipal = (cx.cases || []).find((k) => k.id === cx.case_id) || (cx.cases || [])[0] || null;
           const diasAud = cx.audiencia ? Math.ceil((new Date(cx.audiencia.start_datetime) - new Date()) / 86400000) : null;
           const audAlerta = diasAud !== null && diasAud <= 3;
           const audTexto = cx.audiencia
@@ -832,7 +833,11 @@ Object.assign(ROUTES, {
             : 'nenhuma marcada';
           html += bloco('Processo', casoPrincipal
             ? linha('Nº', esc(casoPrincipal.case_number || '—')) + linha('Etapa', esc(STG[casoPrincipal.production_stage] || casoPrincipal.production_stage || casoPrincipal.status || '—')) + linha('Audiência', audTexto, audAlerta)
-              + ((cx.cases || []).length > 1 ? `<div style="margin-top:6px"><small style="color:var(--text-muted)">+ ${cx.cases.length - 1} outro${cx.cases.length - 1 > 1 ? 's' : ''} processo${cx.cases.length - 1 > 1 ? 's' : ''}</small></div>` : '')
+              + ((cx.cases || []).length > 1 ? `<label style="display:block;margin-top:8px;font-size:12px;color:var(--text-muted)">Esta conversa é sobre
+                  <select id="wa-ctx-caso" style="width:100%;margin-top:4px;font-size:12.5px">
+                    <option value="">— não definido (${cx.cases.length} processos) —</option>
+                    ${cx.cases.map((k) => `<option value="${k.id}" ${k.id === cx.case_id ? 'selected' : ''}>${esc(k.title || 'Processo')}${k.case_number ? ' · ' + esc(k.case_number) : ''}</option>`).join('')}
+                  </select></label>` : '')
             : '<small style="color:var(--text-muted)">Nenhum processo cadastrado</small>');
 
           // ── FINANCEIRO — parcelas em aberto e vencidas, nesta ordem exata.
@@ -949,6 +954,16 @@ Object.assign(ROUTES, {
           await salvarEtiquetas([...etiquetasAtuais, nova.trim()]);
         };
         box.querySelectorAll('[data-rm-tag]').forEach((b) => b.onclick = () => salvarEtiquetas(etiquetasAtuais.filter((t) => t !== b.dataset.rmTag)));
+
+        // "Esta conversa é sobre qual processo?" — só aparece com 2+ processos.
+        const selCaso = box.querySelector('#wa-ctx-caso');
+        if (selCaso) selCaso.onchange = async () => {
+          try {
+            await api(`/api/whatsapp-instance/chats/${ativo.phone}/case`, { method: 'PUT', body: JSON.stringify({ case_id: selCaso.value || null }) });
+            toast(selCaso.value ? 'Conversa vinculada ao processo' : 'Vínculo removido');
+            cx.case_id = selCaso.value ? Number(selCaso.value) : null;
+          } catch (err) { toast(err.message, 'error'); }
+        };
 
         // Notas internas — nota nativa do WhatsApp Business (endpoint já existia).
         box.querySelector('#wa-ctx-notas-salvar').onclick = async (e) => {

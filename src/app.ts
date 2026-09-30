@@ -5,7 +5,7 @@ import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
 import { env } from './config/env';
-import { authenticate, requireStaff, requireAdmin } from './middleware/auth';
+import { authenticate, requireStaff, requireWhatsappAccess, requireAdmin } from './middleware/auth';
 
 // Rotas já existentes
 import cockpitDashboard from './routes/dashboards/cockpit';
@@ -185,10 +185,10 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.use('/api/court-email-monitor',   authenticate, requireStaff, courtEmailMonitorRoutes);
   app.use('/api/tasks',                 authenticate, requireStaff, taskRoutes);
   app.use('/api/financial',             authenticate, requireStaff, financialRoutes);
-  app.use('/api/whatsapp-queue',        authenticate, requireStaff, whatsappQueueRoutes);
+  app.use('/api/whatsapp-queue',        authenticate, requireStaff, requireWhatsappAccess, whatsappQueueRoutes);
   // Mídia do WhatsApp com link ASSINADO (HMAC, 24h) — sem assinatura, cai no login
   app.get('/api/whatsapp-instance/media/:id', mediaHandler as any);
-  app.use('/api/whatsapp-instance',     authenticate, requireStaff, whatsappInstanceRoutes);
+  app.use('/api/whatsapp-instance',     authenticate, requireStaff, requireWhatsappAccess, whatsappInstanceRoutes);
   app.use('/api/receitas',              authenticate, requireStaff, receitaRoutes);
   app.use('/api/parcelas',              authenticate, requireStaff, parcelaRoutes);
   app.use('/api/acordos',               authenticate, requireStaff, acordoRoutes);

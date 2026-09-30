@@ -435,6 +435,24 @@ router.post('/chats/:phone/block', async (req: Request, res: Response) => {
   res.json({ success: true, blocked: block });
 });
 
+// ── PUT /chats/:phone/case — "essa conversa é sobre qual processo?" (opcional) ─
+router.put('/chats/:phone/case', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const caseId = req.body?.case_id ? Number(req.body.case_id) : null;
+  if (caseId) {
+    // Só aceita processo do cliente dono deste telefone.
+    const [[ok]] = await db.query(
+      `SELECT c.id FROM cases c JOIN clients cl ON cl.id = c.client_id
+        WHERE c.id = ? AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cl.phone,''),'(',''),')',''),'-',''),' ','') LIKE ?`,
+      [caseId, `%${phone.slice(-8)}`]) as any;
+    if (!ok) { res.status(400).json({ error: 'Processo não pertence a este contato' }); return; }
+  }
+  await db.query(
+    'INSERT INTO whatsapp_chat_meta (phone, case_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE case_id = VALUES(case_id)',
+    [phone, caseId]);
+  res.json({ success: true, case_id: caseId });
+});
+
 // ── Nota interna do chat (nativa do WhatsApp Business) ──────────────────────
 router.get('/chats/:phone/notes', async (req: Request, res: Response) => {
   const notes = await obterNotaDoChat(String(req.params.phone));
@@ -591,6 +609,9 @@ router.get('/chats/:phone/context', async (req: Request, res: Response) => {
     financeiro = fin;
   }
 
+  const [[metaCaso]] = await db.query('SELECT case_id FROM whatsapp_chat_meta WHERE phone = ?', [phone]).catch(() => [[]]) as any;
+  const caseIdVinculado = metaCaso?.case_id && cases.some((k) => k.id === metaCaso.case_id) ? metaCaso.case_id : null;
+
   const [[ultima]] = await db.query(
     'SELECT MAX(msg_time) AS t FROM whatsapp_messages WHERE phone = ? AND from_me = 0', [phone]) as any;
 
@@ -601,7 +622,7 @@ router.get('/chats/:phone/context', async (req: Request, res: Response) => {
     if (meta?.lead_summary) leadSugerido = { resumo: meta.lead_summary, area: meta.lead_area, nome: meta.lead_nome };
   }
 
-  res.json({ client, lead, cases, audiencia, financeiro, ultima_resposta: ultima?.t || null, lead_sugerido: leadSugerido });
+  res.json({ case_id: caseIdVinculado, client, lead, cases, audiencia, financeiro, ultima_resposta: ultima?.t || null, lead_sugerido: leadSugerido });
 });
 
 // ── POST /api/whatsapp-instance/chats/:phone/send — responder pela instância ─

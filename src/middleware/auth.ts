@@ -76,5 +76,9 @@ export function requireStaff(req: Request, res: Response, next: NextFunction): v
   next();
 }
 
+/** WhatsApp: equipe interna. Parceiro externo não vê conversas de clientes (LGPD). */
+export const WHATSAPP_ROLES = ['admin', 'advogado', 'estagiario', 'staff', 'comercial'];
+export const requireWhatsappAccess = authorize(...WHATSAPP_ROLES);
+
 /** Somente admin. */
 export const requireAdmin = authorize('admin');
