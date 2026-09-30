@@ -231,17 +231,21 @@ export async function runContratoAssinadoPlaybooks(ctx: { userId: number; client
   }
 }
 
-export async function runFaseMudouPlaybooks(ctx: { userId: number; processId: number; de: string | null; para: string }): Promise<void> {
+/** Fase mudou — num caso (tela Processos) ou num processo monitorado. */
+export async function runFaseMudouPlaybooks(ctx: { userId: number; processId?: number; caseId?: number; de: string | null; para: string }): Promise<void> {
   if (!await isEnabled('fase_mudou_avisar_cliente')) return;
-  const ref = `process:${ctx.processId}`;
+  const ref = ctx.caseId ? `case:${ctx.caseId}` : `process:${ctx.processId}`;
   try {
-    const [[lp]] = await db.query(
-      `SELECT lp.process_number, lp.client_id, cl.name AS client_name
-         FROM legal_processes lp LEFT JOIN clients cl ON cl.id = lp.client_id WHERE lp.id = ?`, [ctx.processId]
-    ) as any;
-    const t = tarefaFaseMudou({ processNumber: lp?.process_number || '', clientName: lp?.client_name || null, de: ctx.de, para: ctx.para });
+    const [[alvo]] = ctx.caseId
+      ? await db.query(
+          `SELECT COALESCE(c.case_number, c.title) AS numero, c.client_id, c.id AS case_id, cl.name AS client_name
+             FROM cases c LEFT JOIN clients cl ON cl.id = c.client_id WHERE c.id = ?`, [ctx.caseId]) as any
+      : await db.query(
+          `SELECT lp.process_number AS numero, lp.client_id, lp.case_id, cl.name AS client_name
+             FROM legal_processes lp LEFT JOIN clients cl ON cl.id = lp.client_id WHERE lp.id = ?`, [ctx.processId]) as any;
+    const t = tarefaFaseMudou({ processNumber: alvo?.numero || '', clientName: alvo?.client_name || null, de: ctx.de, para: ctx.para });
     if (!t) return;
-    await gravarTarefas(ctx.userId, lp.client_id, null, [t]);
+    await gravarTarefas(ctx.userId, alvo.client_id, alvo.case_id ?? null, [t]);
     await logRun('fase_mudou_avisar_cliente', ref, 'ok');
   } catch (e: any) {
     await logRun('fase_mudou_avisar_cliente', ref, 'erro', e?.message);

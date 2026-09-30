@@ -149,6 +149,14 @@ export function startCronJobs() {
       { critica: true, silencioso: true });
   });
 
+  // ── 07:30: vigia da carteira — processo parado e prescrição se aproximando ─
+  cron.schedule('30 7 * * *', () => {
+    runJob('carteira:vigia', async () => {
+      const m = await import('../services/carteiraVigiaJob');
+      return m.runVigiaCarteira();
+    }, { critica: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── a cada 5 min: lembrete pessoal/recado/medicamento por WhatsApp ────────
   cron.schedule('*/5 * * * *', () => {
     runJob('agenda:lembretes-pessoais', async () => {

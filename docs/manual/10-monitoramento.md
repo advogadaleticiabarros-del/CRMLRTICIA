@@ -38,6 +38,15 @@ Ver [Dativo](05-dativo.md#detecção-automática) — roda dentro da mesma varre
 
 Ver [Processos e prazos](04-processos.md#detecção-automática-de-prazo) — roda dentro de `monitoramento:processos` e `monitoramento:descoberta-oab`, a cada movimentação nova.
 
+## Vigia da carteira (desde 30/09/2026)
+
+Rotina `carteira:vigia`, todo dia às 7h30. Avisa no sino, sem ninguém perguntar:
+
+- **Processo parado:** processo monitorado e ativo sem movimentação há 30+ ou 60+ dias. Um aviso por marco; se o processo andar e parar de novo, os marcos recomeçam. Mais de 5 de uma vez (ex.: primeira varredura) viram um aviso-resumo.
+- **Prescrição se aproximando:** caso ativo com *data-limite prescricional* informada na ficha do caso — avisos a 90, 60, 30, 15 e 7 dias, e quando a data passa.
+
+Controle de "já avisei": tabela `vigia_alertas` (ref + marco únicos). Regras puras em `src/services/carteiraVigia.ts`.
+
 ## Tribunais e instabilidade do DataJud
 
 A consulta por número de processo cobre TJES, TRT17, TRF2, TRE-ES (Espírito Santo), TJPR, TRT9, TRF4, TRE-PR (Paraná), STJ e TST. Quando o CNJ responde com instabilidade (erro 5xx, 429, timeout ou queda de rede), o sistema tenta de novo sozinho até 3 vezes, com espera crescente (1,5s, 3s). Erros de cliente (ex.: 401, 404) não são repetidos.
@@ -69,6 +78,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 | 22/09/2026 | Claude | Nova rotina `whatsapp:verificar-conexao` (a cada 20min) — cobre a lacuna que a correção acima expôs |
 | 28/09/2026 | Claude | Nova rotina `processos:fase-divergente` (7h40) |
 | 28/09/2026 | Claude | Novas rotinas `prazos:vencidos` (15 min) e `prazos:sem-caso` (7h20) |
+| 30/09/2026 | Claude | Nova rotina `carteira:vigia` (7h30): processo parado 30/60 dias e prescrição 90/60/30/15/7 dias |
 | 30/09/2026 | Claude | TRE-ES/TRE-PR na lista de tribunais; consulta por número tenta de novo até 3x em instabilidade do CNJ |
 | 28/09/2026 | Claude | Nova rotina `monitoramento:vigia` (13h30 e 20h30) — alerta crítico se o monitoramento de processos ficar 6h sem rodar (ideia 3 da auditoria de Processos e prazos) |
 

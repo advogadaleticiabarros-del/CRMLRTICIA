@@ -7733,6 +7733,7 @@ async function caseDetail(id, onSave) {
         <small style="color:var(--text-muted)">${c.client_name || ''} · ${c.case_number || 's/ número'}</small>
         <div style="margin-top:9px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">${badge(c.legal_area)} ${badge(c.phase)} ${badge(c.status)} ${c.production_stage ? badge(c.production_stage) : ''} ${c.partner_name ? `<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">Parceria com ${esc(c.partner_name)}</span>` : ''}
           <span style="font-size:12.5px;color:var(--text-muted)">Valor da causa: <strong id="vc-display" style="color:var(--navy-deep)">${Number(c.valor_causa) ? money(c.valor_causa) : '—'}</strong> <button type="button" id="vc-edit" class="btn-sm" style="padding:1px 7px;font-size:11px">editar</button></span>
+          <span style="font-size:12.5px;color:var(--text-muted)">Prescrição: <strong style="color:${c.prescricao_data ? 'var(--red)' : 'var(--navy-deep)'}">${c.prescricao_data ? fmtDate(c.prescricao_data) : '—'}</strong> <button type="button" id="presc-edit" class="btn-sm" style="padding:1px 7px;font-size:11px">${c.prescricao_data ? 'editar' : 'informar'}</button></span>
         </div>
       </div>
       <button class="btn-gold btn-sm" id="ficha-btn" type="button" style="white-space:nowrap;flex:0 0 auto">${svgIcon('clipboard')} Ficha completa</button>
@@ -7905,6 +7906,35 @@ async function caseDetail(id, onSave) {
       await api('/api/cases/' + id, { method: 'PUT', body: JSON.stringify({ valor_causa: parseMoneyBR(novo) }) });
       toast('Valor da causa atualizado'); closeModal(); onSave();
     } catch (e) { toast(e.message, 'error'); }
+  };
+  form.querySelector('#presc-edit').onclick = () => {
+    const d = (v) => (v ? String(v).slice(0, 10) : '');
+    const pf = el(`<form class="form-grid">
+      <p class="sub">O sistema avisa no sino a 90, 60, 30, 15 e 7 dias da data-limite. A sugestão por área é só ponto de partida — confira sempre o caso concreto.</p>
+      ${field('Data do fato gerador (ex.: fim do contrato, dano)', 'prescricao_fato_gerador', { type: 'date', value: d(c.prescricao_fato_gerador) })}
+      <button type="button" class="btn-sm" id="presc-sugerir">Sugerir data-limite pela área</button>
+      <p class="sub" id="presc-base">${esc(c.prescricao_base || '')}</p>
+      ${field('Data-limite prescricional', 'prescricao_data', { type: 'date', value: d(c.prescricao_data) })}
+      <input type="hidden" name="prescricao_base" value="${esc(c.prescricao_base || '')}">
+      <p class="sub">Depois de ajuizar, apague a data-limite para parar os avisos.</p>
+      <button type="submit" class="btn-primary">Salvar</button>
+    </form>`);
+    pf.querySelector('#presc-sugerir').onclick = async () => {
+      const fato = pf.prescricao_fato_gerador.value;
+      if (!fato) { toast('Informe a data do fato gerador', 'error'); return; }
+      const s = await api(`/api/cases/prescricao/sugestao?area=${encodeURIComponent(c.legal_area || '')}&fato=${fato}`).catch(() => null);
+      if (!s) { toast('Sem regra automática para esta área — informe a data manualmente', 'error'); return; }
+      pf.prescricao_data.value = s.data; pf.prescricao_base.value = s.base;
+      pf.querySelector('#presc-base').textContent = s.base;
+    };
+    pf.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await api('/api/cases/' + id, { method: 'PUT', body: JSON.stringify(Object.fromEntries(new FormData(pf))) });
+        toast('Prescrição salva'); closeModal(); onSave();
+      } catch (err) { toast(err.message, 'error'); }
+    };
+    openModal('Prescrição do caso', pf);
   };
   form.querySelector('#add-mov').onclick = async () => {
     const desc = form.querySelector('#mov-desc').value;

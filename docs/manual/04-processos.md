@@ -52,6 +52,20 @@ O sistema tenta manter uma sugestão de fase processual (inicial, instrução, s
 
 
 **Aviso de divergência (desde 28/09/2026):** se a fase sugerida pelas movimentações ficar À FRENTE da fase cadastrada por 3 dias ou mais, os admins recebem um aviso no sino ("Fase do processo pode estar desatualizada"), repetido a cada 14 dias enquanto persistir — antes só aparecia um selo na tela de Processos, que ninguém via sem abri-la. A fase nunca é alterada sozinha. Regras de sugestão em `src/utils/faseProcesso.ts`, com teste.
+## Prescrição do caso (desde 30/09/2026)
+
+Na ficha do caso, **Prescrição → informar**: data do fato gerador, botão *Sugerir data-limite pela área* e a data-limite. A sugestão é só ponto de partida (o sistema nunca decide prescrição):
+
+| Área | Sugestão | Base |
+|---|---|---|
+| Trabalhista / Gestante | 2 anos do fato gerador | CF art. 7º, XXIX |
+| Consumidor | 5 anos | CDC art. 27 |
+| Cível | 3 anos | CC art. 206, §3º, V |
+| Família (alimentos vencidos) | 2 anos | CC art. 206, §2º |
+| Previdenciário / outras | sem sugestão | fundo de direito não prescreve — informar manualmente se for o caso |
+
+Com a data preenchida, o vigia da carteira avisa a 90/60/30/15/7 dias. Depois de ajuizar, apague a data para parar os avisos.
+
 ## Automações (Configurações → Automações)
 
 Regras prontas, cada uma liga/desliga na tela de Automações. Toda execução fica em `automation_runs` (ok/erro). Nenhuma delas manda mensagem ao cliente sozinha.
@@ -63,7 +77,7 @@ Regras prontas, cada uma liga/desliga na tela de Automações. Toda execução f
 | Tarefa para vincular processo sem caso | Prazo confirmado | Tarefa com a data-limite real |
 | Agendar o prazo | Prazo confirmado | Evento na agenda/Google no dia do prazo |
 | **Tarefas iniciais do contrato** (30/09/2026) | Contrato assinado | "Enviar boas-vindas e lista de documentos" (D+1) e "Conferir documentos recebidos" (D+5), com a lista de documentos da área (trabalhista, previdenciário, família, gestante, consumidor ou genérica) |
-| **Avisar cliente da mudança de fase** (30/09/2026) | Fase do processo alterada manualmente | Tarefa para o dia seguinte com rascunho de mensagem em linguagem simples, pronto para revisar e enviar |
+| **Avisar cliente da mudança de fase** (30/09/2026) | Fase alterada manualmente (ficha do caso ou processo monitorado) | Tarefa para o dia seguinte com rascunho de mensagem em linguagem simples, pronto para revisar e enviar |
 
 Regras em `src/services/playbooksNegocio.ts` (puras, testadas); motor em `src/services/automationService.ts`.
 
@@ -93,6 +107,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 | 28/09/2026 | Claude | Tipo de prazo por gatilho específico/título (`deteccaoPrazo.ts`), aviso de fase divergente (`processos:fase-divergente`), busca nacional por OAB passa a reportar falha por tribunal, testes de fase e tribunal — ideias 6, 7, 8 e 9 da auditoria |
 | 28/09/2026 | Claude | Avisos de prazo escalonados (título 🚨 e repetição por urgência), aviso único ao vencer (`prazos:vencidos`) e alerta diário de prazo em processo sem caso (`prazos:sem-caso`) — ideias 2, 4 e 5 da auditoria |
 | 30/09/2026 | Claude | Status de tarefa "aguardando terceiro" (com quem) |
+| 30/09/2026 | Claude | Prescrição do caso com sugestão por área e avisos do vigia da carteira |
 | 30/09/2026 | Claude | Automações: tabela das regras + novas regras de contrato assinado e mudança de fase |
 | 28/09/2026 | Claude | Confirmação de prazo detectado passa a usar o cálculo com feriados/suspensão (`contarPrazo`) — antes só pulava fim de semana (achado crítico da auditoria) |
 | 03/09/2026 | Claude | Criação do documento; registrada a correção de dedup de avisos e limpeza de HTML/entidades |

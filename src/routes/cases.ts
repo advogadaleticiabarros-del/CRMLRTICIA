@@ -388,9 +388,15 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // ── PUT /api/cases/:id ──────────────────────────────────────────────────────
+// GET /api/cases/prescricao/sugestao?area=&fato=YYYY-MM-DD — só sugestão, a advogada confirma.
+router.get('/prescricao/sugestao', async (req: Request, res: Response) => {
+  const { sugerirPrescricao } = await import('../services/carteiraVigia');
+  res.json(sugerirPrescricao(String(req.query.area || ''), String(req.query.fato || '') || null));
+});
+
 router.put('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
-  const [existing] = await db.query('SELECT id FROM cases WHERE id = ?', [id]) as any;
+  const [existing] = await db.query('SELECT id, phase FROM cases WHERE id = ?', [id]) as any;
   if (!existing.length) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
 
   const fields: string[] = [];
@@ -404,6 +410,16 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('phase', req.body.phase, PHASES.includes(req.body.phase));
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
   setIf('description', req.body.description);
+  // Prescrição: data informada pela advogada ('' limpa). Formato YYYY-MM-DD.
+  const dataOuNull = (v: any) => (v === '' || v === null ? null : /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? v : undefined);
+  for (const col of ['prescricao_fato_gerador', 'prescricao_data'] as const) {
+    if (req.body[col] !== undefined) {
+      const v = dataOuNull(req.body[col]);
+      if (v === undefined) { res.status(400).json({ error: `${col} deve ser uma data (AAAA-MM-DD)` }); return; }
+      setIf(col, v);
+    }
+  }
+  if (req.body.prescricao_base !== undefined) setIf('prescricao_base', String(req.body.prescricao_base || '').slice(0, 255) || null);
   if (req.body.valor_causa !== undefined) {
     const { parseValorBR } = await import('../utils/money');
     const v = String(req.body.valor_causa).trim();
@@ -413,6 +429,11 @@ router.put('/:id', async (req: Request, res: Response) => {
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
   params.push(id);
   await db.query(`UPDATE cases SET ${fields.join(', ')} WHERE id = ?`, params);
+
+  if (PHASES.includes(req.body.phase) && req.body.phase !== existing[0].phase) {
+    const { runFaseMudouPlaybooks } = await import('../services/automationService');
+    await runFaseMudouPlaybooks({ userId: (req as any).user.id, caseId: Number(id), de: existing[0].phase, para: req.body.phase }).catch(() => {});
+  }
 
   const [rows] = await db.query('SELECT * FROM cases WHERE id = ?', [id]) as any;
   res.json(rows[0]);
