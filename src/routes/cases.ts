@@ -795,12 +795,20 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   // de segundos; travar a resposta aqui prendia a tela ao mover o card.
   if (stage === 'criacao_inicial' && c.production_stage !== 'criacao_inicial') {
     buildPeticaoInicial(Number(id), req.user!.id)
-      .then((r) => notificationService.create({
-        userId: req.user!.id, caseId: Number(id),
-        title: r.ok ? 'Petição inicial gerada' : 'Falha ao gerar a petição inicial',
-        message: r.ok ? `${c.title || 'Processo'} — confira em Documentos do caso.` : (r.message || 'Erro desconhecido'),
-        notificationType: r.ok ? 'peticao_gerada' : 'peticao_falhou', channel: 'sistema', scheduledAt: new Date(),
-      }))
+      .then(async (r) => {
+        // Revisão automática logo após gerar (antes só rodava ao mover para
+        // "Revisão inicial"): os pontos de atenção já chegam junto da minuta.
+        const rev = r.ok ? await revisarPeticaoDoCaso(Number(id), req.user!.id).catch(() => null) : null;
+        const revTxt = rev?.ok && rev.resumo
+          ? ` Revisão automática: ${rev.resumo.itens_ok}/${rev.resumo.itens_verificados} itens OK${rev.resumo.pendencias_criticas ? `, ${rev.resumo.pendencias_criticas} pendência(s) crítica(s)` : ''}.`
+          : '';
+        return notificationService.create({
+          userId: req.user!.id, caseId: Number(id),
+          title: r.ok ? 'Petição inicial gerada' : 'Falha ao gerar a petição inicial',
+          message: r.ok ? `${c.title || 'Processo'} — confira em Documentos do caso.${revTxt}` : (r.message || 'Erro desconhecido'),
+          notificationType: r.ok ? 'peticao_gerada' : 'peticao_falhou', channel: 'sistema', scheduledAt: new Date(),
+        });
+      })
       .catch((e: any) => notificationService.create({
         userId: req.user!.id, caseId: Number(id),
         title: 'Falha ao gerar a petição inicial',

@@ -269,6 +269,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: revisor de petição revisando o próprio parecer
+
+**Sintoma:** ao revisar a petição do caso uma segunda vez, o parecer falava do relatório de revisão anterior, não da petição.
+
+**Causa raiz (confirmado 30/09/2026):** `revisarPeticaoDoCaso` pega o documento mais recente do caso com `type='ia'` — e o parecer de revisão também é salvo com `type='ia'`.
+
+**Correção:** a busca ignora documentos cujo nome começa com "Revisão da Petição" (`src/services/peticaoReviewer.ts`).
+
+**Como reconhecer de novo:** documento de revisão comentando "checagens estruturais" em vez de pedidos/fatos da peça.
+
+---
+
 ## Incidente: fechamento do dia ignorava o retrato da manhã
 
 **Sintoma:** tarefa que estava no briefing da manhã e foi reagendada durante o dia simplesmente não aparecia no fechamento das 18h30 — nem como concluída, nem como pendente.
@@ -315,6 +327,7 @@ pm2 restart crm-juridico && pm2 save
 | 22/09/2026 | Claude | +1 incidente: dropdown de Pagador continuava preso aberto mesmo após o fix de 04/09 — causa raiz diferente (CSS: `display` de classe vencendo `[hidden]` nativo), corrigido com `.msel-panel[hidden]{display:none}` |
 | 22/09/2026 | Claude | +1 incidente: KPIs do Cockpit sempre abriam a Visão geral do Financeiro sem filtro — roteador ganhou suporte a `#rota?tab=x` (`hashParam()`), Inadimplência/A receber/A pagar agora abrem direto na sub-aba certa |
 | 22/09/2026 | Claude | Atualização do incidente acima: "Propostas em análise" levava pro board errado (Propostas em vez de Leads) — corrigido com o mesmo mecanismo + destaque de coluna no Kanban |
+| 30/09/2026 | Claude | +1 incidente: revisor de petição revisando o próprio parecer |
 | 30/09/2026 | Claude | +1 incidente: fechamento do dia ignorava o retrato da manhã |
 | 22/09/2026 | Claude | Resto da auditoria do Dashboard resolvido: Inadimplência unificada, Movimentações a verificar fecham de vez, Processual/Agenda exibem dado que já era calculado, consulta duplicada de "peças pendentes" compartilhada |
 

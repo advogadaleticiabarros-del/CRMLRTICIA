@@ -25,6 +25,16 @@ Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análi
 
 **Importante — "Concluído" aqui não é o caso encerrado.** Significa só que a peça foi protocolada e o trabalho de produção daquela demanda terminou — o **caso em si continua ativo**, seguindo dali em diante pela esteira processual normal (acompanhamento de movimentação, prazos, audiências — ver [Processos e prazos](04-processos.md)), não pela esteira de produção. "Concluído"/"Protocolado" só tiram o card da contagem de "Em produção" e param o relógio do SLA de redação — não mudam o status do processo.
 
+## Revisão automática da peça (desde 30/09/2026)
+
+A revisão (checagens estruturais + parecer de mérito por IA) agora roda sozinha logo depois que a IA gera:
+- a **petição inicial** (ao mover para *Criação inicial*) — o aviso "Petição inicial gerada" já traz "X/Y itens OK, N pendência(s) crítica(s)";
+- a **minuta automática da intimação** (Estagiário IA), quando o processo tem caso e cliente.
+
+Mover para *Revisão inicial* continua revisando de novo (útil se você editou a peça). Nada é protocolado sem sua aprovação.
+
+Correção junto: o revisor escolhia "o documento de IA mais recente do caso" — e o próprio parecer é um documento de IA, então uma segunda revisão revisava o parecer. Agora documentos "Revisão da Petição…" são ignorados na escolha.
+
 ## Assinatura
 
 Documentos podem ser enviados pra assinatura eletrônica direto pelo sistema, com acompanhamento de quem já assinou.
@@ -72,6 +82,7 @@ Outras causas de família (divórcio, guarda isolada, inventário) continuam no 
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/09/2026 | Claude | Revisão automática logo após gerar petição inicial e minuta da intimação; revisor não revisa mais o próprio parecer |
 | 28/09/2026 | Claude | Selfie do signatário opcional por link (`signature_requests.require_selfie`, migration 137) — exigida pela advogada, obrigatória quando exigida, descartada quando não |
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Adicionada seção "Esteira de produção" — corrige entendimento: "Concluído" é a peça protocolada, não o caso encerrado |

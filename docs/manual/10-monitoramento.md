@@ -47,6 +47,10 @@ Rotina `carteira:vigia`, todo dia às 7h30. Avisa no sino, sem ninguém pergunta
 
 Controle de "já avisei": tabela `vigia_alertas` (ref + marco únicos). Regras puras em `src/services/carteiraVigia.ts`.
 
+## Análise da movimentação pela IA em formato fixo (desde 30/09/2026)
+
+Cada movimentação nova é analisada pela IA (Groq, com Gemini de reserva) em **modo JSON**: resumo, ação, prazo interno, prioridade, **tipo** (sentença, acórdão, decisão, despacho, intimação, citação, audiência, recurso, trânsito em julgado, juntada, outro) e **grau** (1º, 2º, tribunal superior). Cada campo é validado em `src/services/movimentacaoIa.ts`. Antes o sistema "recortava" texto solto e, se a IA escrevesse diferente, falhava em silêncio; agora resposta fora do formato não é gravada e a movimentação fica como *não analisada* (aparece assim no briefing).
+
 ## Tribunais e instabilidade do DataJud
 
 A consulta por número de processo cobre TJES, TRT17, TRF2, TRE-ES (Espírito Santo), TJPR, TRT9, TRF4, TRE-PR (Paraná), STJ e TST. Quando o CNJ responde com instabilidade (erro 5xx, 429, timeout ou queda de rede), o sistema tenta de novo sozinho até 3 vezes, com espera crescente (1,5s, 3s). Erros de cliente (ex.: 401, 404) não são repetidos.
@@ -78,6 +82,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 | 22/09/2026 | Claude | Nova rotina `whatsapp:verificar-conexao` (a cada 20min) — cobre a lacuna que a correção acima expôs |
 | 28/09/2026 | Claude | Nova rotina `processos:fase-divergente` (7h40) |
 | 28/09/2026 | Claude | Novas rotinas `prazos:vencidos` (15 min) e `prazos:sem-caso` (7h20) |
+| 30/09/2026 | Claude | Análise de movimentação pela IA em JSON validado, com tipo e grau |
 | 30/09/2026 | Claude | Nova rotina `carteira:vigia` (7h30): processo parado 30/60 dias e prescrição 90/60/30/15/7 dias |
 | 30/09/2026 | Claude | TRE-ES/TRE-PR na lista de tribunais; consulta por número tenta de novo até 3x em instabilidade do CNJ |
 | 28/09/2026 | Claude | Nova rotina `monitoramento:vigia` (13h30 e 20h30) — alerta crítico se o monitoramento de processos ficar 6h sem rodar (ideia 3 da auditoria de Processos e prazos) |

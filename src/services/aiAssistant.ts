@@ -1,4 +1,5 @@
 import { db } from '../config/database';
+import { parseMovimentacaoJson, PROMPT_MOVIMENTACAO_JSON } from './movimentacaoIa';
 
 /**
  * Cliente de IA compartilhado (grátis se houver chave Gemini/Groq).
@@ -19,13 +20,16 @@ import { db } from '../config/database';
  */
 type Provider = 'gemini' | 'groq' | 'openai' | 'openai-smart';
 
-async function callGemini(prompt: string): Promise<{ ok: boolean; text?: string; message?: string }> {
+async function callGemini(prompt: string, json = false): Promise<{ ok: boolean; text?: string; message?: string }> {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return { ok: false, message: 'sem_gemini' };
   const model = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      ...(json ? { generationConfig: { responseMimeType: 'application/json' } } : {}),
+    }),
   });
   const d: any = await r.json();
   if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro Gemini' };
@@ -33,7 +37,7 @@ async function callGemini(prompt: string): Promise<{ ok: boolean; text?: string;
   return { ok: true, text };
 }
 
-async function callGroq(prompt: string): Promise<{ ok: boolean; text?: string; message?: string }> {
+async function callGroq(prompt: string, json = false): Promise<{ ok: boolean; text?: string; message?: string }> {
   const key = process.env.GROQ_API_KEY;
   if (!key) return { ok: false, message: 'sem_groq' };
   // A família Llama saiu do catálogo da Groq (confirmado via GET /models —
@@ -42,7 +46,10 @@ async function callGroq(prompt: string): Promise<{ ok: boolean; text?: string; m
   const model = process.env.GROQ_MODEL || 'openai/gpt-oss-120b';
   const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, messages: [{ role: 'user', content: prompt }] }),
+    body: JSON.stringify({
+      model, messages: [{ role: 'user', content: prompt }],
+      ...(json ? { response_format: { type: 'json_object' } } : {}),
+    }),
   });
   const d: any = await r.json();
   if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro Groq' };
@@ -93,6 +100,28 @@ export async function aiComplete(
       if (r.ok) return r;
       lastMsg = r.message || lastMsg;
       // 'sem_gemini'/'sem_groq' → só significa "não configurado", tenta o próximo.
+    } catch (e: any) {
+      lastMsg = e.message;
+    }
+  }
+  return { ok: false, message: lastMsg };
+}
+
+/**
+ * Igual a `aiComplete`, mas pede ao provedor a resposta em modo JSON (formato
+ * fixo) — Gemini `responseMimeType` / Groq `response_format`. Só gemini/groq.
+ */
+export async function aiCompleteJson(
+  prompt: string,
+  prefer: 'gemini' | 'groq' = 'groq'
+): Promise<{ ok: boolean; text?: string; message?: string }> {
+  const order: ('gemini' | 'groq')[] = prefer === 'groq' ? ['groq', 'gemini'] : ['gemini', 'groq'];
+  let lastMsg = 'sem_chave';
+  for (const p of order) {
+    try {
+      const r = p === 'gemini' ? await callGemini(prompt, true) : await callGroq(prompt, true);
+      if (r.ok) return r;
+      lastMsg = r.message || lastMsg;
     } catch (e: any) {
       lastMsg = e.message;
     }
@@ -401,6 +430,11 @@ ${teor}`;
              VALUES (?, ?, ?, 'ia', 'processos', ?, 'pendente', ?)`,
             [clientId, caseId, title, minuta.text, admin.id]
           );
+          // Revisão automática da minuta (estrutura + mérito) — best-effort.
+          if (caseId) {
+            const { revisarPeticaoDoCaso } = await import('./peticaoReviewer');
+            await revisarPeticaoDoCaso(caseId, admin.id).catch(() => {});
+          }
         }
         return { ok: true, minutaId: r.insertId };
       }
@@ -447,17 +481,20 @@ export async function interpretarMovimentacao(
 ): Promise<{ ok: boolean; summary?: MovementAiSummary; message?: string }> {
   const teor = (texto || '').trim();
   if (!teor) return { ok: false, message: 'Sem texto da movimentação' };
-  const prompt = `Você é assistente jurídico(a) experiente. Leia a movimentação processual abaixo e responda EXATAMENTE neste formato, sem texto fora dele:
-RESUMO: <1-2 linhas, linguagem simples>
-AÇÃO: <ação necessária, ou "nenhuma" se for andamento de rotina sem exigir providência>
-PRAZO INTERNO: <data sugerida dd/mm/aaaa, ou "sem prazo">
-PRIORIDADE: <Alta, Média ou Baixa>
+  const prompt = `Você é assistente jurídico(a) experiente. Analise a movimentação processual abaixo.
+${PROMPT_MOVIMENTACAO_JSON}
 
 MOVIMENTAÇÃO:
 ${teor}`;
-  const r = await aiComplete(prompt, 'groq');
+  const r = await aiCompleteJson(prompt, 'groq');
   if (!r.ok || !r.text) return { ok: false, message: r.message || 'IA indisponível' };
-  const summary = parseMovementAiResponse(r.text);
+  // Formato fixo validado; se a IA ainda assim responder em texto rotulado
+  // (formato antigo), aproveita. Sem resumo em nenhum dos dois → falha
+  // VISÍVEL: não grava e a movimentação conta como "não analisada".
+  const json = parseMovimentacaoJson(r.text);
+  const legado = json ? null : parseMovementAiResponse(r.text);
+  const summary = json ?? (legado?.resumo ? legado : null);
+  if (!summary) return { ok: false, message: 'Resposta da IA fora do formato esperado' };
   await db.query('UPDATE process_movements SET ai_summary = ? WHERE id = ?', [JSON.stringify(summary), movementId]);
   return { ok: true, summary };
 }

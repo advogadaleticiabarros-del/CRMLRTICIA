@@ -145,6 +145,7 @@ export async function revisarPeticaoDoCaso(caseId: number, actorId: number): Pro
     `SELECT id, name, content FROM documents
       WHERE case_id = ? AND content IS NOT NULL AND content <> ''
         AND (type = 'ia' OR name LIKE 'Peti%')
+        AND name NOT LIKE 'Revisão da Petição%'
       ORDER BY id DESC LIMIT 1`, [caseId]
   ) as any;
   const peca = (docs || [])[0];
