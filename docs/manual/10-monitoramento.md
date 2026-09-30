@@ -38,6 +38,10 @@ Ver [Dativo](05-dativo.md#detecção-automática) — roda dentro da mesma varre
 
 Ver [Processos e prazos](04-processos.md#detecção-automática-de-prazo) — roda dentro de `monitoramento:processos` e `monitoramento:descoberta-oab`, a cada movimentação nova.
 
+## Tribunais e instabilidade do DataJud
+
+A consulta por número de processo cobre TJES, TRT17, TRF2, TRE-ES (Espírito Santo), TJPR, TRT9, TRF4, TRE-PR (Paraná), STJ e TST. Quando o CNJ responde com instabilidade (erro 5xx, 429, timeout ou queda de rede), o sistema tenta de novo sozinho até 3 vezes, com espera crescente (1,5s, 3s). Erros de cliente (ex.: 401, 404) não são repetidos.
+
 ## O que fazer se um robô parecer travado
 
 Cada execução é registrada com sucesso ou falha (visível nos logs do servidor). Falhas são best-effort — uma rotina quebrando não derruba as outras nem o sistema. Se um robô específico parece ter parado (ex.: processo não sincroniza há dias), o primeiro lugar a olhar é se a integração externa (DJEN, e-mail, DataJud) está fora do ar, não necessariamente o CRM.
@@ -65,6 +69,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 | 22/09/2026 | Claude | Nova rotina `whatsapp:verificar-conexao` (a cada 20min) — cobre a lacuna que a correção acima expôs |
 | 28/09/2026 | Claude | Nova rotina `processos:fase-divergente` (7h40) |
 | 28/09/2026 | Claude | Novas rotinas `prazos:vencidos` (15 min) e `prazos:sem-caso` (7h20) |
+| 30/09/2026 | Claude | TRE-ES/TRE-PR na lista de tribunais; consulta por número tenta de novo até 3x em instabilidade do CNJ |
 | 28/09/2026 | Claude | Nova rotina `monitoramento:vigia` (13h30 e 20h30) — alerta crítico se o monitoramento de processos ficar 6h sem rodar (ideia 3 da auditoria de Processos e prazos) |
 
 ---

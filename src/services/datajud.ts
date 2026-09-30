@@ -14,6 +14,8 @@ export const TRIBUNAIS: Record<string, { sigla: string; estado: string; nome: st
   api_publica_tjpr: { sigla: 'TJPR',  estado: 'PR', nome: 'Tribunal de Justiça do PR' },
   api_publica_trt9: { sigla: 'TRT9',  estado: 'PR', nome: 'TRT 9ª Região (PR)' },
   api_publica_trf4: { sigla: 'TRF4',  estado: 'PR', nome: 'TRF 4ª Região' },
+  api_publica_trees: { sigla: 'TRE-ES', estado: 'ES', nome: 'Tribunal Regional Eleitoral do ES' },
+  api_publica_trepr: { sigla: 'TRE-PR', estado: 'PR', nome: 'Tribunal Regional Eleitoral do PR' },
   api_publica_stj:  { sigla: 'STJ',   estado: 'BR', nome: 'Superior Tribunal de Justiça' },
   api_publica_tst:  { sigla: 'TST',   estado: 'BR', nome: 'Tribunal Superior do Trabalho' },
 };
@@ -81,6 +83,35 @@ export function aliasFromProcessNumber(processNumber: string): string | null {
 
 const ALIAS_RE = /^api_publica_[a-z0-9]+$/;
 
+const MAX_TENTATIVAS = 3;
+
+/** POST ao DataJud com nova tentativa em instabilidade do CNJ (5xx, 429,
+ *  timeout, erro de rede). 4xx de cliente volta na hora — repetir não ajuda.
+ *  Espera cresce a cada tentativa (DATAJUD_RETRY_DELAY_MS, padrão 1,5s). */
+async function postComRetry(url: string, apiKey: string, body: unknown): Promise<Response> {
+  const base = Number(process.env.DATAJUD_RETRY_DELAY_MS || 1500);
+  let ultimoErro: any;
+  for (let tentativa = 1; tentativa <= MAX_TENTATIVAS; tentativa++) {
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 20000);
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: { Authorization: `APIKey ${apiKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timer));
+      const transitorio = res.status >= 500 || res.status === 429;
+      if (!transitorio || tentativa === MAX_TENTATIVAS) return res;
+    } catch (err) {
+      ultimoErro = err;
+      if (tentativa === MAX_TENTATIVAS) throw err;
+    }
+    await new Promise((r) => setTimeout(r, base * tentativa));
+  }
+  throw ultimoErro;
+}
+
 export interface NormalizedMovement {
   movement_date: string | null;
   title: string;
@@ -113,16 +144,7 @@ export async function consultarProcessoDataJud(
   const url = `${BASE_URL}/${alias}/_search`;
 
   try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 20000);
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { Authorization: `APIKey ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: { match: { numeroProcesso: numero } } }),
-      signal: controller.signal,
-    });
-    clearTimeout(timer);
-
+    const res = await postComRetry(url, apiKey, { query: { match: { numeroProcesso: numero } } });
     if (!res.ok) return { found: false, error: `DataJud HTTP ${res.status}`, movements: [] };
 
     const data: any = await res.json();
