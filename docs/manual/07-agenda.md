@@ -19,7 +19,7 @@ Reunião 🤝, Audiência ⚖️, Compromisso 📌 — cada um com ícone própr
 Decisão da Dra. Letícia: trabalho e vida pessoal no mesmo sistema. Três tipos extras no formulário de evento:
 
 - **Pessoal** (verde-água), **Recado** (laranja) e **Medicamento** (rosa).
-- Na hora marcada chega um aviso no WhatsApp do número configurado em *Configurações → briefing_whatsapp* e no sino. Um aviso por ocorrência (rotina `agenda:lembretes-pessoais`, a cada 5 min).
+- Na hora marcada chega um aviso no WhatsApp **só da Jessica (27 98879-8093)** — não vai para os números do briefing (pedido de 01/10/2026; trocável em `office_settings.whatsapp_pessoal_destino`) — e no sino. Um aviso por ocorrência (rotina `agenda:lembretes-pessoais`, a cada 5 min).
 - **Repetir todo dia** (marcado automaticamente em Medicamento): o sistema cria a ocorrência de hoje e de amanhã às 00h20 e 12h20 (rotina `agenda:repeticao-diaria`), até a data final, se houver.
 - **Parar de repetir**, no detalhe do evento, encerra a série e remove as ocorrências futuras já criadas (inclusive do Google Agenda).
 
@@ -50,6 +50,7 @@ Audiências do Dativo e de processos de correspondente **não são cadastradas d
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
+| 01/10/2026 | Claude | Lembretes pessoais por WhatsApp vão só para o número da Jessica |
 | 30/09/2026 | Claude | Tipos Pessoal/Recado/Medicamento, repetição diária e aviso por WhatsApp na hora |
 
 ---

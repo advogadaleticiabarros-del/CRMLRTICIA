@@ -48,7 +48,7 @@ Cada item do briefing recebe uma severidade — **crítica** (🔴, precisa de a
 Às 18h30 sai o fechamento do dia, em duas versões:
 
 - **E-mail completo** para quem recebe o briefing: concluído hoje, ficou pendente, aguardando terceiro, prioridade de amanhã e uma frase de encerramento.
-- **WhatsApp executivo** (desde 30/09/2026) para o número de *Configurações → briefing_whatsapp*: contagem, pendências (até 8), aguardando terceiro, top 5 de amanhã e a frase.
+- **WhatsApp executivo** (desde 30/09/2026) **só para o número da Jessica (27 98879-8093)** — não vai para os números do briefing (pedido de 01/10/2026; trocável em `office_settings.whatsapp_pessoal_destino`): contagem, pendências (até 8), aguardando terceiro, top 5 de amanhã e a frase.
 
 **Comparação manhã × noite:** o retrato salvo pelo briefing matinal (`briefing_snapshots`) agora é usado de verdade — uma tarefa que estava planejada de manhã e foi reagendada durante o dia continua aparecendo como pendente (antes sumia do fechamento).
 
@@ -80,6 +80,7 @@ Uma versão curta e só com o que exige ação (leads frios, valores vencidos, c
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento |
+| 01/10/2026 | Claude | Fechamento do dia por WhatsApp vai só para o número da Jessica |
 | 30/09/2026 | Claude | Briefing: bloco "Também precisa de você" (WhatsApp aguardando, leads 24h, parcelas atrasadas, repasses, docs recebidos, publicações não analisadas, falhas de consulta, saúde do CRM) e tipo/grau da movimentação |
 | 30/09/2026 | Claude | Fechamento do dia v2: versão WhatsApp, prioridade de amanhã, bloco "aguardando terceiro", 100 frases por contexto e uso real do retrato da manhã |
 

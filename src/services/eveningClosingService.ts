@@ -1,6 +1,7 @@
 import { db } from '../config/database';
 import { sendEmail, layout } from './EmailService';
 import { sendText } from './uazapiInstance';
+import { destinoWhatsappPessoal } from './destinoWhatsappPessoal';
 import {
   classificarDia, categoriaDoDia, sortearFrase, textoWhatsapp,
   type Retrato, type TarefaDia, type Classificacao, type ContextoDia,
@@ -127,9 +128,7 @@ async function fraseDoDia(ctx: ContextoDia): Promise<string> {
 }
 
 async function numerosWhatsapp(): Promise<string[]> {
-  const [[cfg]] = await db.query("SELECT setting_value FROM office_settings WHERE setting_key = 'briefing_whatsapp'") as any;
-  return String(cfg?.setting_value || '').split(',').map((n) => n.replace(/\D/g, '')).filter(Boolean)
-    .map((d) => (d.length <= 11 ? '55' + d : d));
+  return [await destinoWhatsappPessoal()];
 }
 
 const esc = (t: string) => String(t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]!));
@@ -137,7 +136,7 @@ const lista = (itens: string[], vazio: string) => (itens.length ? itens.map(esc)
 
 /**
  * Fechamento do dia (18:30): e-mail completo para quem recebe o briefing e
- * versão executiva por WhatsApp (número de `briefing_whatsapp`, enviada uma
+ * versão executiva por WhatsApp (só o número de `destinoWhatsappPessoal`, enviada uma
  * vez só, com os dados do primeiro advogado/admin — o escritório é solo).
  */
 export async function sendEveningClosing(): Promise<{ sent: number; failed: number; whatsapp: boolean }> {

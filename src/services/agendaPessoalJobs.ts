@@ -1,12 +1,13 @@
 /**
  * Rotinas da agenda pessoal (ver `agendaPessoal.ts` para as regras):
  *  - gera a ocorrência do dia para cada série com repetição diária;
- *  - avisa por WhatsApp (número de `briefing_whatsapp`) e no sino na hora
+ *  - avisa por WhatsApp (só o número de `destinoWhatsappPessoal`) e no sino na hora
  *    do compromisso pessoal/recado/medicamento — uma vez só por ocorrência.
  */
 import { db } from '../config/database';
 import { notificationService } from './NotificationService';
 import { sendText } from './uazapiInstance';
+import { destinoWhatsappPessoal } from './destinoWhatsappPessoal';
 import { TIPOS_PESSOAIS, ocorrenciaNoDia, textoLembrete } from './agendaPessoal';
 
 const hojeSP = (offsetDias = 0) =>
@@ -46,11 +47,7 @@ export async function gerarOcorrenciasDiarias(): Promise<{ criadas: number }> {
 }
 
 async function numerosDaAdvogada(): Promise<string[]> {
-  const [[cfg]] = await db.query(
-    "SELECT setting_value FROM office_settings WHERE setting_key = 'briefing_whatsapp'"
-  ) as any;
-  return String(cfg?.setting_value || '').split(',').map((n) => n.replace(/\D/g, '')).filter(Boolean)
-    .map((d) => (d.length <= 11 ? '55' + d : d));
+  return [await destinoWhatsappPessoal()];
 }
 
 /** Avisa na hora (janela de -10 a +5 min) cada compromisso pessoal/recado/medicamento ainda não avisado. */
