@@ -435,6 +435,50 @@ router.post('/chats/:phone/block', async (req: Request, res: Response) => {
   res.json({ success: true, blocked: block });
 });
 
+// ── POST /chats/:phone/lead-para-proposta — "Gerar proposta" num número que
+// ainda não é lead nem cliente (relato real 01/10/2026: a cliente mandou os
+// dados, mas os botões ficavam desativados porque ninguém tinha cadastrado o
+// lead). Cadastra o lead na hora e preenche com os dados que o contato mandou
+// por escrito na conversa (nome, CPF, e-mail, endereço) — só o que estiver
+// lá, sem inventar. Se já for lead, devolve o existente.
+router.post('/chats/:phone/lead-para-proposta', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const tail = `%${phone.slice(-8)}`;
+  const semMascara = "REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '')";
+  const [[cl]] = await db.query(`SELECT id FROM clients WHERE ${semMascara} LIKE ? LIMIT 1`, [tail]) as any;
+  if (cl) { res.status(400).json({ error: 'Este número já é cliente — use a proposta pela ficha do cliente.' }); return; }
+  const [[existente]] = await db.query(`SELECT id FROM leads WHERE ${semMascara} LIKE ? ORDER BY id DESC LIMIT 1`, [tail]) as any;
+  if (existente) { res.json({ id: existente.id, criado: false }); return; }
+
+  const [msgs] = await db.query(
+    `SELECT body FROM whatsapp_messages WHERE phone = ? AND from_me = 0 AND body IS NOT NULL AND body <> ''
+      ORDER BY msg_time DESC LIMIT 30`, [phone]) as any;
+  const texto = msgs.map((m: any) => m.body).reverse().join('\n').slice(0, 6000);
+  const [[meta]] = await db.query('SELECT push_name FROM whatsapp_chat_meta WHERE phone = ?', [phone]).catch(() => [[null]]) as any;
+
+  let j: any = {};
+  if (texto) {
+    const { aiComplete } = await import('../services/aiAssistant');
+    const r = await aiComplete(`Leia as mensagens que um contato mandou a um escritório de advocacia pelo WhatsApp e devolva APENAS um JSON válido com o que estiver escrito (deixe "" quando não houver — não invente nada):
+{"nome_completo": "", "cpf": "", "email": "", "cep": "", "street": "", "number": "", "neighborhood": "", "city": "", "state": ""}
+"street" é só o nome da rua; "number" o número; "state" a sigla da UF se identificável.
+
+MENSAGENS:
+${texto}`, 'groq').catch(() => ({ ok: false } as any));
+    if (r.ok && r.text) {
+      try { const c = String(r.text).replace(/```json|```/g, ''); j = JSON.parse(c.slice(c.indexOf('{'), c.lastIndexOf('}') + 1)); } catch { j = {}; }
+    }
+  }
+  const s = (v: any, n = 255) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, n) : null);
+  const nome = s(j.nome_completo) || s(meta?.push_name?.replace(/^~\s*/, '')) || `WhatsApp ${phone.slice(-4)}`;
+  const [ins] = await db.query(
+    `INSERT INTO leads (user_id, name, email, phone, source, status, cpf_cnpj, cep, street, number, neighborhood, city, state)
+     VALUES (?, ?, ?, ?, 'whatsapp', 'triagem', ?, ?, ?, ?, ?, ?, ?)`,
+    [(req as any).user.id, nome, s(j.email), phone, s(j.cpf, 20), s(j.cep, 12), s(j.street), s(j.number, 20),
+     s(j.neighborhood), s(j.city), s(j.state, 2)?.toUpperCase() || null]) as any;
+  res.status(201).json({ id: ins.insertId, criado: true, dados_lidos: Object.values(j).some((v) => s(v)) });
+});
+
 // ── Ler dados dos documentos recebidos → sugestões (nada é gravado aqui) ────
 router.post('/chats/:phone/extrair-dados', async (req: Request, res: Response) => {
   const { lerDadosDosDocumentos } = await import('../services/extracaoDocumentosJob');

@@ -37,6 +37,10 @@ Notas internas (visíveis só pra equipe, nunca pro cliente) e etiquetas de conv
 
 Cliente com 2+ processos: no bloco **Processo** da ficha aparece *Esta conversa é sobre*. Escolher é opcional; o processo escolhido passa a ser o destacado na ficha (nº, etapa, audiência) e é usado como caso da tarefa criada quando o cliente menciona intimação. Salvo em `whatsapp_chat_meta.case_id`; só aceita processo do próprio cliente do número.
 
+## Gerar proposta de quem ainda não é lead (desde 01/10/2026)
+
+**Gerar proposta** na ficha da conversa funciona mesmo quando o número ainda não é lead: o sistema cadastra o lead na hora (origem WhatsApp), lê as últimas mensagens escritas pelo contato e preenche nome completo, CPF, e-mail e endereço que estiverem lá (sem inventar), e abre o formulário de proposta já preenchido para conferir. Se o número já for lead, usa o existente; se já for cliente, o botão fica desativado (proposta pela ficha do cliente). Rota `POST /api/whatsapp-instance/chats/:phone/lead-para-proposta`.
+
 ## Ler dados dos documentos recebidos (desde 30/09/2026)
 
 Botão **Ler dados dos documentos** na ficha da conversa (precisa ser lead ou cliente). A IA (Gemini visão) lê até 6 fotos/PDFs mais recentes do contato (RG, CNH, CTPS, comprovante…) e abre a tela **Conferir dados lidos**:
@@ -131,6 +135,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 01/10/2026 | Claude | Gerar proposta cadastra o lead na hora com os dados da conversa (relato real) |
 | 30/09/2026 | Claude | Ler dados dos documentos recebidos com tela de conferência antes de gravar |
 | 30/09/2026 | Claude | Conversa vinculada a um processo, aviso de intimação mencionada pelo cliente e WhatsApp fechado para o perfil parceiro |
 | 03/09/2026 | Claude | Criação do documento |

@@ -880,7 +880,7 @@ Object.assign(ROUTES, {
           </div>` : '<small style="color:var(--text-muted)">Nenhum processo vinculado ainda</small>');
 
         html += `<div style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
-          <button type="button" class="btn-gold btn-sm" id="wa-ctx-gerar-proposta" ${cx.lead ? '' : 'disabled title="Só disponível pra quem já é lead — cadastre como lead primeiro"'}>${svgIcon('file', 'ic-xs')}Gerar proposta</button>
+          <button type="button" class="btn-gold btn-sm" id="wa-ctx-gerar-proposta" ${cx.client ? 'disabled title="Já é cliente — gere a proposta pela ficha do cliente"' : (cx.lead ? '' : 'title="Cadastra o lead com os dados que o contato mandou e abre a proposta"')}>${svgIcon('file', 'ic-xs')}Gerar proposta</button>
           <button type="button" class="btn-sm" id="wa-ctx-abrir-cadastro" ${(cx.client || cx.lead) ? '' : 'disabled title="Ainda não é cliente nem lead"'}>${svgIcon('file', 'ic-xs')}Abrir cadastro</button>
           <button type="button" class="btn-sm" id="wa-ctx-extrair" ${(cx.client || cx.lead) ? '' : 'disabled title="Cadastre como lead ou vincule a um cliente primeiro"'}>${svgIcon('ia', 'ic-xs')}Ler dados dos documentos</button>
           <button type="button" class="btn-sm" data-conv="tarefa">${svgIcon('clock', 'ic-xs')}Criar tarefa</button>
@@ -997,13 +997,22 @@ Object.assign(ROUTES, {
         // um resumo do lead) pra chegar com o mesmo pré-preenchimento que
         // já tinha na ficha do lead.
         const gp = box.querySelector('#wa-ctx-gerar-proposta');
-        if (gp && cx.lead) gp.onclick = async () => {
-          gp.disabled = true;
+        if (gp && !cx.client) gp.onclick = async () => {
+          gp.disabled = true; const txtGp = gp.innerHTML;
           try {
-            const leadCompleto = await api('/api/leads/' + cx.lead.id);
+            let leadId = cx.lead?.id;
+            if (!leadId) {
+              // Ainda não é lead: cadastra na hora com os dados da conversa.
+              gp.textContent = 'Lendo os dados da conversa…';
+              const r = await api(`/api/whatsapp-instance/chats/${ativo.phone}/lead-para-proposta`, { method: 'POST', body: '{}' });
+              leadId = r.id;
+              if (r.criado) toast(r.dados_lidos ? 'Lead cadastrado com os dados da conversa — confira na proposta' : 'Lead cadastrado — preencha os dados na proposta');
+            }
+            const leadCompleto = await api('/api/leads/' + leadId);
             propostaForm(() => {}, leadCompleto);
+            if (!cx.lead) renderContexto();
           } catch (e) { toast(e.message, 'error'); }
-          gp.disabled = false;
+          gp.disabled = false; gp.innerHTML = txtGp;
         };
 
         // Abrir cadastro — cliente já tem ficha própria (reaproveitada de
