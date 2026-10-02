@@ -59,6 +59,64 @@ router.get('/:id', async (req: Request, res: Response) => {
 });
 
 // ── POST /api/receitas — criar ──────────────────────────────────────────────
+// ── POST /api/receitas/recebimento — "Recebi um pagamento" (já recebido) ────
+// Atalho do botão "+" e da conversa do WhatsApp (02/10/2026): lança receita e
+// parcela já pagas, em um passo. Comprovante opcional: arquivo enviado
+// (base64) ou mídia recebida no WhatsApp (whatsapp_media.id) vira documento.
+router.post('/recebimento', async (req: Request, res: Response) => {
+  const { validarRecebimento } = await import('../services/recebimentoRegras');
+  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  const { erro, dados } = validarRecebimento(req.body, hoje);
+  if (erro) { res.status(400).json({ error: erro }); return; }
+  const [[cl]] = await db.query('SELECT id FROM clients WHERE id = ?', [dados.client_id]) as any;
+  if (!cl) { res.status(404).json({ error: 'Cliente não encontrado' }); return; }
+
+  const conn = await db.getConnection();
+  let receitaId = 0;
+  try {
+    await conn.beginTransaction();
+    const [r] = await conn.query(
+      `INSERT INTO receitas (client_id, case_id, descricao, tipo, valor, status, data_vencimento, total_recebido, saldo_pendente, criado_por)
+       VALUES (?, ?, ?, 'honorario', ?, 'recebido', ?, ?, 0, ?)`,
+      [dados.client_id, dados.case_id, `${dados.descricao} (${dados.forma})`, dados.valor, dados.data, dados.valor, req.user!.id]) as any;
+    receitaId = r.insertId;
+    await conn.query(
+      `INSERT INTO parcelas (receita_id, numero, total_parcelas, valor, valor_final, status, data_vencimento, data_pagamento)
+       VALUES (?, 1, 1, ?, ?, 'pago', ?, ?)`,
+      [receitaId, dados.valor, dados.valor, dados.data, `${dados.data} 12:00:00`]);
+    await conn.commit();
+  } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
+
+  // Comprovante (opcional) → documento do cliente.
+  let docId: number | null = null;
+  try {
+    let data: Buffer | null = null; let mime = String(req.body?.mime || ''); let nome = 'Comprovante de pagamento';
+    if (req.body?.comprovante_media_id) {
+      const [[m]] = await db.query('SELECT data, mime, file_name FROM whatsapp_media WHERE id = ?', [Number(req.body.comprovante_media_id)]) as any;
+      if (m) { data = m.data; mime = m.mime; nome = `Comprovante de pagamento — ${m.file_name}`; }
+    } else if (req.body?.comprovante_base64) {
+      const { stripDataUrlPrefix } = await import('../utils/dataUrl');
+      data = Buffer.from(stripDataUrlPrefix(String(req.body.comprovante_base64)), 'base64');
+      if (data.length > 10 * 1024 * 1024) data = null;
+    }
+    if (data) {
+      const [d] = await db.query(
+        `INSERT INTO documents (client_id, case_id, name, type, folder, data, mime, status, created_by)
+         VALUES (?, ?, ?, 'comprovante', 'financeiro', ?, ?, 'recebido', ?)`,
+        [dados.client_id, dados.case_id, `${nome} (${dados.data})`, data, mime || 'application/octet-stream', req.user!.id]) as any;
+      docId = d.insertId;
+    }
+  } catch { /* comprovante é opcional — o recebimento já foi gravado */ }
+
+  await logFinancialAudit({
+    entityType: 'Receita', entityId: receitaId, action: 'created',
+    userId: req.user!.id, userName: req.user!.name, clientId: dados.client_id, caseId: dados.case_id,
+    receitaId, newValue: dados.valor, newStatus: 'recebido',
+    reason: `Recebimento registrado (${dados.forma})`, ipAddress: req.ip,
+  }).catch(() => {});
+  res.status(201).json({ receita_id: receitaId, documento_id: docId, ...dados });
+});
+
 router.post('/', async (req: Request, res: Response) => {
   const { client_id, case_id, descricao, tipo, valor, data_vencimento } = req.body;
   if (!client_id) { res.status(400).json({ error: 'client_id é obrigatório' }); return; }

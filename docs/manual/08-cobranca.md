@@ -34,6 +34,12 @@ A Visão Geral mostra uma barra de progresso "Meta do mês" (recebido × meta, %
 
 O topo da tela mostra 4 números grandes, de relance, sem precisar rolar: **resultado do mês** (já realizado), **previsão fechada do mês**, **a receber nos próximos 30 dias** e **projeção acumulada de 90 dias**. Adicionado 04/09/2026 — os dados já existiam espalhados em blocos de KPI mais abaixo na mesma tela; isso só resume os 4 que mais importam pra decisão do dia a dia, antes de qualquer outro detalhe.
 
+## Recebi um pagamento (desde 02/10/2026)
+
+Atalho para lançar dinheiro que **já entrou**, em um passo: botão **+ Registrar → Recebi um pagamento** (quem pagou, valor, data, forma, referente a, comprovante opcional) ou, na conversa do WhatsApp, o botão **💸 É comprovante? Registrar** em cada foto/PDF recebido de um contato — a IA lê valor e data do comprovante e o cliente vem do telefone; você confere e registra. Vira receita + parcela **pagas** (aparece em Visão geral, relatórios e previsão) e o comprovante vai para Documentos do cliente (pasta Financeiro). Rota `POST /api/receitas/recebimento`; regras em `src/services/recebimentoRegras.ts` (testadas).
+
+Motivo: em 02/10/2026 o financeiro tinha 0 lançamentos nos últimos 30 dias — os recebimentos não estavam sendo anotados no CRM.
+
 ## Acordos a registrar (desde 02/10/2026)
 
 O sistema passou a ler acordo nas movimentações dos processos: "Homologação de Transação", "homologado acordo", "HOMOLOGO o acordo", "sentença homologatória de acordo", conciliação homologada (→ **homologado**) e "petição/termo de acordo", "as partes celebraram acordo" (→ **juntado**). Não confunde com "Homologação de Decisão de Juiz Leigo" (sentença) nem com "sem acordo"/conciliação infrutífera.
@@ -88,6 +94,7 @@ O sistema calcula inadimplência automaticamente e permite renegociar uma parcel
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 02/10/2026 | Claude | "Recebi um pagamento" pelo botão + e pelo comprovante no WhatsApp |
 | 02/10/2026 | Claude | Acordos detectados nas movimentações + cadastro rápido de acordo |
 | 30/09/2026 | Claude | Previsão realista do mês (taxa histórica de recebimento) e pipeline de propostas ponderado |
 | 03/09/2026 | Claude | Criação do documento |

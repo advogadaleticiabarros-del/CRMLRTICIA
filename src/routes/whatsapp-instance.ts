@@ -222,6 +222,37 @@ router.get('/messages/deletions', async (_req: Request, res: Response) => {
 // ── POST /api/whatsapp-instance/media/:id/transcricao — áudio → texto (Whisper)
 // Usa o Whisper do Groq (grátis com a GROQ_API_KEY já usada na IA). A transcrição
 // fica gravada na própria mensagem — vira prova legível e entra na busca.
+// ── POST /media/:id/ler-comprovante — lê valor e data de um comprovante
+// recebido no WhatsApp (IA visão) e diz de qual cliente é. Só sugere: quem
+// grava é a advogada, conferindo no formulário "Recebi um pagamento".
+router.post('/media/:id/ler-comprovante', async (req: Request, res: Response) => {
+  const [[m]] = await db.query('SELECT id, phone, client_id, mime, data FROM whatsapp_media WHERE id = ?', [req.params.id]) as any;
+  if (!m) { res.status(404).json({ error: 'Arquivo não encontrado' }); return; }
+  let clientId = m.client_id;
+  if (!clientId) {
+    const [[cl]] = await db.query(
+      "SELECT id FROM clients WHERE REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '') LIKE ? LIMIT 1", [`%${String(m.phone).slice(-8)}`]) as any;
+    clientId = cl?.id ?? null;
+  }
+  let valor: number | null = null; let data: string | null = null;
+  if (/^image\/|pdf/.test(String(m.mime)) && m.data && m.data.length < 8 * 1024 * 1024) {
+    const { aiExtractFromFile } = await import('../services/aiAssistant');
+    const r = await aiExtractFromFile(Buffer.from(m.data).toString('base64'), m.mime,
+      'Este arquivo é um comprovante de pagamento (PIX, transferência, boleto pago)? Responda SOMENTE JSON: {"comprovante": true|false, "valor": "1234,56", "data": "dd/mm/aaaa"}. Não invente: deixe vazio o que não estiver escrito.').catch(() => null);
+    try {
+      const t = String(r?.text || '').replace(/```(?:json)?/g, '');
+      const j = JSON.parse(t.slice(t.indexOf('{'), t.lastIndexOf('}') + 1));
+      if (j.comprovante !== false) {
+        const v = String(j.valor || '').replace(/[^\d,.]/g, '');
+        valor = v ? Number(/,\d{1,2}$/.test(v) ? v.replace(/\./g, '').replace(',', '.') : v) || null : null;
+        const d = String(j.data || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+        data = d ? `${d[3]}-${d[2]}-${d[1]}` : null;
+      }
+    } catch { /* leitura é só sugestão */ }
+  }
+  res.json({ client_id: clientId, valor, data, media_id: m.id });
+});
+
 router.post('/media/:id/transcricao', async (req: Request, res: Response) => {
   const [[m]] = await db.query('SELECT id, file_name, mime, data FROM whatsapp_media WHERE id = ?', [req.params.id]) as any;
   if (!m) { res.status(404).json({ error: 'Áudio não encontrado' }); return; }

@@ -750,6 +750,9 @@ Object.assign(ROUTES, {
             } else {
               anexo = `<br><a href="${url}" target="_blank" rel="noopener" class="wa-anexo-link">${svgIcon('paperclip', 'ic-inline')}Abrir anexo</a>`;
             }
+            if (!Number(m.from_me) && (mimeAnexo.startsWith('image/') || mimeAnexo === 'application/pdf')) {
+              anexo += ` <button type="button" class="btn-sm" data-comprovante="${m.media_id}" style="font-size:11px;padding:2px 8px;margin-left:6px" title="Lança no financeiro e guarda o comprovante">💸 É comprovante? Registrar</button>`;
+            }
             if (ehAudio && !String(m.body).includes('📝 Transcrição:')) {
               anexo += ` <button type="button" class="btn-sm" data-transcrever="${m.media_id}" style="font-size:11px;padding:2px 8px;margin-left:6px">Transcrever áudio</button>`;
             }
@@ -2341,3 +2344,17 @@ async function organizarSemCadastro() {
   };
   carregar();
 }
+
+// ── "É comprovante? Registrar" — recebimento direto da conversa ────────────
+// Delegado no documento: a conversa é redesenhada a cada mensagem nova.
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest && e.target.closest('[data-comprovante]');
+  if (!b) return;
+  b.disabled = true; const txt = b.textContent; b.textContent = 'Lendo o comprovante…';
+  try {
+    const r = await api(`/api/whatsapp-instance/media/${b.dataset.comprovante}/ler-comprovante`, { method: 'POST', body: '{}' });
+    if (!r.client_id) toast('Este número ainda não está ligado a um cliente — escolha o cliente no formulário', 'error');
+    recebimentoForm(null, { client_id: r.client_id || '', valor: r.valor || '', data: r.data || '', comprovante_media_id: r.media_id, descricao: '' });
+  } catch (err) { toast(err.message, 'error'); }
+  b.disabled = false; b.textContent = txt;
+});

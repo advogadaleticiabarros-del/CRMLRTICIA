@@ -2221,3 +2221,11 @@ body.sidebar-collapsed .nav-group-title { visibility: hidden; height: 6px; paddi
 /* "?" de ajuda no título de cada tela */
 .ajuda-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: 8px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-size: 12.5px; font-weight: 700; cursor: pointer; vertical-align: middle; font-family: inherit; }
 .ajuda-btn:hover { color: var(--gold); border-color: var(--gold); }
+
+/* Botão "+ Registrar" e escolha do que registrar */
+.registrar-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; }
+.registrar-op { display: flex; gap: 12px; align-items: flex-start; text-align: left; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px; cursor: pointer; font-family: inherit; color: var(--text); min-height: 64px; }
+.registrar-op:hover, .registrar-op:focus-visible { border-color: var(--gold); background: var(--surface-2); }
+.registrar-op strong { display: block; font-size: 14.5px; }
+.registrar-op small { display: block; color: var(--text-muted); font-size: 12.5px; margin-top: 2px; }
+.registrar-ic { font-size: 22px; line-height: 1; }

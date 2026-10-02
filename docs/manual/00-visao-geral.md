@@ -51,6 +51,10 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 16. [Ferramentas e acessos](16-ferramentas-acessos.md)
 17. [Decision Log](17-decision-log.md)
 
+## Botão "+ Registrar" (desde 02/10/2026)
+
+No topo de toda tela (equipe do escritório). Pergunta "O que você quer registrar?" e abre o formulário curto certo: **Recebi um pagamento**, Prazo processual, Compromisso, Tarefa, Acordo, Cliente, Possível cliente.
+
 ## Menu enxuto e "?" em cada tela (desde 02/10/2026)
 
 O menu lateral deixou de ser uma lista de 24 itens e virou grupos: **Hoje · Atendimento** (novo atendimento, possíveis clientes, propostas, contratos) **· Clientes e processos** (clientes, processos, andamentos nos tribunais, peças em produção, dativo, correspondente, parcerias) **· Agenda e prazos · Financeiro · Documentos** (documentos, assistente de IA) **· Relatórios**, e **Mais** (recolhido: newsletter, fases dos processos, rentabilidade e custos, advogados/OAB) + Configurações. Nomes em português simples: Leads → "Possíveis clientes", Dashboard → "Relatórios", Monitoramento → "Andamentos nos tribunais", Produção → "Peças em produção", Fases (Kanban) → "Fases dos processos", Controladoria → "Rentabilidade e custos", IA Jurídica → "Assistente de IA". As rotas (#leads, #monitor…) não mudaram. Papéis com poucas telas (cliente, parceiro, estagiário) seguem com a lista simples.
@@ -107,6 +111,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 02/10/2026 | Claude | Botão "+ Registrar" único |
 | 02/10/2026 | Claude | Menu enxuto em grupos + "?" de ajuda em cada tela |
 | 02/10/2026 | Claude | Tela "Hoje" como página inicial, com painel de saúde |
 | 03/09/2026 | Claude | Criação do documento — visão geral e mapa dos 13 blocos |

@@ -758,6 +758,7 @@ function showApp() {
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
   if (!quickSearchInited) { initQuickSearch(); initModalDragToClose(); initLargeTitleCollapse(); initCompactTitleSync(); quickSearchInited = true; }
+  const novoBtn = $('#novo-btn'); if (novoBtn) novoBtn.classList.toggle('hidden', !navForRole().includes('hoje'));
   $('#user-name').innerHTML = `${USER?.name || ''}<small style="display:block;color:var(--gold-soft);font-size:11px">${ROLE_PT[USER?.role] || ''}</small>`;
   const av = $('#user-avatar'); if (av) av.textContent = initials(USER?.name);
   const greet = $('#topbar-greeting');
@@ -10630,3 +10631,67 @@ document.addEventListener('click', async (e) => {
   const rota = alvo.id === 'inbox-reconnect' ? '/api/email-intake/integration/auth-url' : '/api/court-email-monitor/auth-url';
   try { const { url } = await api(rota); window.location.href = url; } catch (err) { toast(err.message, 'error'); }
 });
+
+// ── Botão "+ Registrar" único (02/10/2026) ─────────────────────────────────
+// Uma porta de entrada para tudo: pergunta "o que você quer registrar?" e
+// abre o formulário curto certo (reaproveita os formulários existentes).
+function abrirRegistrar() {
+  const recarregar = () => { try { router(); } catch {} };
+  const OPCOES = [
+    ['💸', 'Recebi um pagamento', 'Dinheiro que já entrou (honorário, parcela, acordo)', () => recebimentoForm(recarregar)],
+    ['⚖️', 'Prazo processual', 'Um prazo de processo com data-limite', () => deadlineForm(recarregar)],
+    ['📅', 'Compromisso', 'Audiência, reunião, pessoal, recado ou remédio', () => eventForm(recarregar)],
+    ['✅', 'Tarefa', 'Algo para fazer, com data', () => taskForm(recarregar)],
+    ['🤝', 'Acordo', 'Acordo judicial ou extrajudicial com valores', () => acordoForm(recarregar)],
+    ['👤', 'Cliente', 'Cadastro de um cliente novo', () => clientForm(null, recarregar)],
+    ['📥', 'Possível cliente', 'Alguém que procurou o escritório (lead)', () => leadForm(recarregar)],
+  ];
+  const wrap = el(`<div class="registrar-grade">${OPCOES.map(([ic, t, d], i) => `
+    <button type="button" class="registrar-op" data-op="${i}"><span class="registrar-ic">${ic}</span><span><strong>${t}</strong><small>${d}</small></span></button>`).join('')}</div>`);
+  wrap.querySelectorAll('[data-op]').forEach((b) => b.onclick = () => { closeModal(); OPCOES[b.dataset.op][3](); });
+  openModal('O que você quer registrar?', wrap);
+}
+(function initRegistrar() {
+  const b = $('#novo-btn');
+  if (!b) return;
+  const mostrar = () => b.classList.toggle('hidden', !(typeof USER !== 'undefined' && USER && navForRole().includes('hoje')));
+  b.onclick = abrirRegistrar;
+  mostrar();
+  window.addEventListener('hashchange', mostrar);
+})();
+
+// "Recebi um pagamento" — lança no financeiro algo que JÁ foi recebido.
+async function recebimentoForm(onSave, pre = {}) {
+  const clients = await api('/api/clients?limit=2000');
+  const hoje = new Date().toLocaleDateString('en-CA');
+  const lista = [...clients.data].sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR'));
+  const form = el(`<form class="form-grid">
+    ${field('Quem pagou? *', 'client_id', { value: pre.client_id ? Number(pre.client_id) : '', options: [{ v: '', t: '— escolha o cliente —' }, ...lista.map((c) => ({ v: c.id, t: c.name }))] })}
+    <div class="form-row">${moneyField('Valor recebido (R$) *', 'valor', pre.valor ? Number(pre.valor).toFixed(2).replace('.', ',') : '')}${field('Data do recebimento', 'data', { type: 'date', value: pre.data || hoje })}</div>
+    ${pre.valor || pre.data ? '<p class="sub" style="margin-top:-6px">Valor e data lidos do comprovante pela IA — confira antes de registrar.</p>' : ''}
+    ${field('Forma', 'forma', { value: 'PIX', options: ['PIX', 'Transferência', 'Boleto', 'Cartão', 'Dinheiro', 'Depósito judicial', 'Outro'].map((v) => ({ v, t: v })) })}
+    ${field('Referente a', 'descricao', { value: pre.descricao || '', placeholder: 'ex.: 2ª parcela dos honorários' })}
+    ${pre.comprovante_media_id ? '<p class="sub">📎 O comprovante recebido no WhatsApp será guardado nos documentos do cliente.</p>' : field('Comprovante (opcional)', 'comprovante', { type: 'file' })}
+    <button type="submit" class="btn-primary">Registrar recebimento</button>
+  </form>`);
+  const inpFile = form.querySelector('[name=comprovante]');
+  if (inpFile) inpFile.setAttribute('accept', 'application/pdf,image/*');
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const body = { client_id: fd.get('client_id'), valor: parseMoneyBR(fd.get('valor')), data: fd.get('data'), forma: fd.get('forma'), descricao: fd.get('descricao') };
+    if (pre.comprovante_media_id) body.comprovante_media_id = pre.comprovante_media_id;
+    const f = inpFile && inpFile.files[0];
+    if (f) {
+      if (f.size > 10 * 1024 * 1024) { toast('Comprovante maior que 10MB', 'error'); return; }
+      body.comprovante_base64 = await new Promise((ok, err) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = err; r.readAsDataURL(f); });
+      body.mime = f.type;
+    }
+    const btn = form.querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      await api('/api/receitas/recebimento', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast(`Recebimento de ${money(body.valor)} registrado no financeiro`); onSave && onSave();
+    } catch (err) { toast(err.message, 'error'); btn.disabled = false; }
+  };
+  openModal('Recebi um pagamento', form);
+}
