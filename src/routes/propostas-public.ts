@@ -48,6 +48,10 @@ router.get('/proposta/:token', async (req: Request, res: Response) => {
       WHERE p.public_token = ?`, [req.params.token]
   ) as any;
   if (!rows.length) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
+  // Marca que o cliente abriu o link (1ª vez e a mais recente) — best-effort.
+  db.query(
+    'UPDATE propostas SET visualizada_em = COALESCE(visualizada_em, NOW()), ultima_visualizacao_em = NOW() WHERE public_token = ?',
+    [req.params.token]).catch(() => {});
   res.json(rows[0]);
 });
 

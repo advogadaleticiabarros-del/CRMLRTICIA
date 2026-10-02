@@ -2180,3 +2180,10 @@ img, svg, video { max-width: 100%; }
 .badge-urgencia { display: inline-block; margin-top: 4px; margin-left: 4px; padding: 2px 7px; border-radius: 8px; font-size: 11px; font-weight: 600; }
 .badge-urgencia-alta { background: var(--red-bg, #fbe9e7); color: var(--red, #c4453b); }
 .badge-urgencia-media { background: var(--amber-bg, #fbf1dc); color: var(--amber, #c08a2e); }
+
+/* Bolinha verde piscando — lead analisando a proposta (WhatsApp) */
+.wa-prop-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: #22a55a; vertical-align: middle; box-shadow: 0 0 0 0 rgba(34,165,90,.6); animation: waPropPulse 1.6s ease-out infinite; }
+.wa-prop-badge { display: flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #1d7a44; background: #e8f6ee; border-radius: 6px; padding: 6px 9px; }
+@keyframes waPropPulse { 0% { box-shadow: 0 0 0 0 rgba(34,165,90,.6); opacity: 1; } 70% { box-shadow: 0 0 0 7px rgba(34,165,90,0); opacity: .55; } 100% { box-shadow: 0 0 0 0 rgba(34,165,90,0); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .wa-prop-dot { animation: none; } }
+:root[data-theme="dark"] .wa-prop-badge { background: #143524; color: #7fdca6; }

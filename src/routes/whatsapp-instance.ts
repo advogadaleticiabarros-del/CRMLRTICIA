@@ -283,6 +283,19 @@ router.get('/chats', async (req: Request, res: Response) => {
      ${whereQ}
      GROUP BY w.phone
      ORDER BY last_time DESC LIMIT 100`, q ? [like, like, like, like] : []) as any;
+  // "Analisando proposta": proposta enviada/em negociação para o telefone (ou lead dele).
+  const [emAnalise] = await db.query(
+    `SELECT RIGHT(REGEXP_REPLACE(COALESCE(NULLIF(p.phone,''), l.phone, ''), '[^0-9]', ''), 8) AS tail,
+            MAX(p.visualizada_em IS NOT NULL) AS vista
+       FROM propostas p LEFT JOIN leads l ON l.id = p.lead_id
+      WHERE p.status IN ('enviada','em_negociacao')
+      GROUP BY tail`).catch(() => [[]]) as any;
+  const mapa = new Map<string, number>(emAnalise.map((r: any) => [r.tail, Number(r.vista)]));
+  for (const r of rows) {
+    const v = mapa.get(String(r.phone).slice(-8));
+    r.proposta_analise = v !== undefined;
+    r.proposta_vista = v === 1;
+  }
   res.json(rows);
 });
 
@@ -477,6 +490,58 @@ ${texto}`, 'groq').catch(() => ({ ok: false } as any));
     [(req as any).user.id, nome, s(j.email), phone, s(j.cpf, 20), s(j.cep, 12), s(j.street), s(j.number, 20),
      s(j.neighborhood), s(j.city), s(j.state, 2)?.toUpperCase() || null]) as any;
   res.status(201).json({ id: ins.insertId, criado: true, dados_lidos: Object.values(j).some((v) => s(v)) });
+});
+
+// ── GET /chats/:phone/proposta — proposta mais recente deste contato ────────
+router.get('/chats/:phone/proposta', async (req: Request, res: Response) => {
+  const tail = String(req.params.phone).replace(/\D/g, '').slice(-8);
+  const [[p]] = await db.query(`SELECT p.id, p.title, p.valor, p.status, p.public_token, p.enviada_em, p.visualizada_em, p.ultima_visualizacao_em,
+            COALESCE(p.contact_name, l.name) AS nome
+       FROM propostas p LEFT JOIN leads l ON l.id = p.lead_id
+      WHERE RIGHT(REGEXP_REPLACE(COALESCE(NULLIF(p.phone,''), l.phone, ''), '[^0-9]', ''), 8) = ?
+        AND p.status NOT IN ('recusada','expirada')
+      ORDER BY p.id DESC LIMIT 1`, [tail]) as any;
+  if (!p) { res.json(null); return; }
+  // Garante o link público (gerar token não muda status nem dispara follow-up).
+  if (!p.public_token) {
+    p.public_token = (await import('crypto')).randomUUID();
+    await db.query('UPDATE propostas SET public_token = ? WHERE id = ?', [p.public_token, p.id]);
+  }
+  const { linkProposta, textoEnvioProposta, emAnalise } = await import('../services/propostaWhatsapp');
+  const url = linkProposta(p.public_token);
+  res.json({ id: p.id, title: p.title, valor: p.valor, status: p.status, enviada_em: p.enviada_em,
+    visualizada_em: p.visualizada_em, ultima_visualizacao_em: p.ultima_visualizacao_em,
+    em_analise: emAnalise(p.status), url, texto: textoEnvioProposta(p.nome || '', p.title || '', url) });
+});
+
+// ── POST /chats/:phone/enviar-proposta — manda o link da proposta por WhatsApp ─
+router.post('/chats/:phone/enviar-proposta', async (req: Request, res: Response) => {
+  const phone = String(req.params.phone).replace(/\D/g, '');
+  const [[p]] = await db.query(`SELECT p.id, p.title, p.valor, p.status, p.public_token, p.enviada_em, p.visualizada_em, p.ultima_visualizacao_em,
+            COALESCE(p.contact_name, l.name) AS nome
+       FROM propostas p LEFT JOIN leads l ON l.id = p.lead_id
+      WHERE RIGHT(REGEXP_REPLACE(COALESCE(NULLIF(p.phone,''), l.phone, ''), '[^0-9]', ''), 8) = ?
+        AND p.status NOT IN ('recusada','expirada')
+      ORDER BY p.id DESC LIMIT 1`, [phone.slice(-8)]) as any;
+  if (!p) { res.status(404).json({ error: 'Nenhuma proposta encontrada para este contato — gere a proposta primeiro.' }); return; }
+  const { linkProposta, textoEnvioProposta } = await import('../services/propostaWhatsapp');
+  let token = p.public_token;
+  if (!token) {
+    token = (await import('crypto')).randomUUID();
+    await db.query('UPDATE propostas SET public_token = ? WHERE id = ?', [token, p.id]);
+  }
+  const url = linkProposta(token);
+  const texto = String(req.body?.texto || '').trim() || textoEnvioProposta(p.nome || '', p.title || '', url);
+  if (!texto.includes(url)) { res.status(400).json({ error: 'O texto precisa conter o link da proposta.' }); return; }
+  const ok = await sendText(phone, texto.slice(0, 4000), (req as any).user?.name || 'Equipe');
+  if (!ok) { res.status(400).json({ error: 'Não deu pra enviar — confira se o WhatsApp está conectado.' }); return; }
+  // Mesmo efeito do "compartilhar link": vira enviada e começa o follow-up 48h/5d/7d.
+  await db.query(
+    "UPDATE propostas SET enviada_em = COALESCE(enviada_em, NOW()), status = IF(status = 'rascunho', 'enviada', status) WHERE id = ?", [p.id]);
+  await db.query(
+    `UPDATE leads l JOIN propostas p ON p.lead_id = l.id SET l.status = 'proposta'
+      WHERE p.id = ? AND l.status IN ('triagem','atendimento_inicial','reuniao','documentacao_pendente')`, [p.id]).catch(() => {});
+  res.json({ success: true, proposta_id: p.id, url });
 });
 
 // ── Ler dados dos documentos recebidos → sugestões (nada é gravado aqui) ────

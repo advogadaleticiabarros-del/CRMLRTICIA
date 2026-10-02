@@ -41,6 +41,12 @@ Cliente com 2+ processos: no bloco **Processo** da ficha aparece *Esta conversa 
 
 **Gerar proposta** na ficha da conversa funciona mesmo quando o número ainda não é lead: o sistema cadastra o lead na hora (origem WhatsApp), lê as últimas mensagens escritas pelo contato e preenche nome completo, CPF, e-mail e endereço que estiverem lá (sem inventar), e abre o formulário de proposta já preenchido para conferir. Se o número já for lead, usa o existente; se já for cliente, o botão fica desativado (proposta pela ficha do cliente). Rota `POST /api/whatsapp-instance/chats/:phone/lead-para-proposta`.
 
+## Enviar proposta pela conversa e "analisando proposta" (desde 01/10/2026)
+
+- **Enviar proposta** (ficha da conversa): busca a proposta mais recente deste contato (pelo telefone da proposta ou do lead; ignora recusadas/expiradas), mostra título, valor, status e se o cliente já abriu o link, e traz uma mensagem pronta com o link público — editável, mas o link precisa ficar. Ao enviar: a proposta vira *Enviada* (começa o follow-up 48h/5d/7d) e o lead vai para *Proposta Enviada* se ainda estava antes disso.
+- **Bolinha verde piscando**: aparece ao lado do nome na lista de conversas e como selo "Analisando proposta" na ficha enquanto a proposta estiver *Enviada* ou *Em negociação*. O selo diz quando o cliente abriu o link pela última vez, ou "ainda não abriu o link". Sai sozinha quando a proposta é aceita, recusada ou expira.
+- A abertura do link é registrada em `propostas.visualizada_em` (primeira vez) e `ultima_visualizacao_em`.
+
 ## Ler dados dos documentos recebidos (desde 30/09/2026)
 
 Botão **Ler dados dos documentos** na ficha da conversa (precisa ser lead ou cliente). A IA (Gemini visão) lê até 6 fotos/PDFs mais recentes do contato (RG, CNH, CTPS, comprovante…) e abre a tela **Conferir dados lidos**:
@@ -135,6 +141,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 01/10/2026 | Claude | Botão Enviar proposta com link e texto pronto; bolinha verde "analisando proposta"; registro de quando o cliente abre o link |
 | 01/10/2026 | Claude | Gerar proposta cadastra o lead na hora com os dados da conversa (relato real) |
 | 30/09/2026 | Claude | Ler dados dos documentos recebidos com tela de conferência antes de gravar |
 | 30/09/2026 | Claude | Conversa vinculada a um processo, aviso de intimação mencionada pelo cliente e WhatsApp fechado para o perfil parceiro |

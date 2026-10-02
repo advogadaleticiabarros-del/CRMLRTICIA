@@ -654,7 +654,7 @@ Object.assign(ROUTES, {
           return `<div class="wa-item sev-${sev} ${ativo && ativo.phone === c.phone ? 'on' : ''}" data-chat="${esc(c.phone)}" role="button" tabindex="0" aria-label="Abrir conversa com ${esc(nome)}">
             <div class="wa-ava" style="background:${cor(nome)}">${iniciais(nome)}</div>
             <div class="wa-item-mid">
-              <div class="wa-item-name">${Number(c.pinned) ? svgIcon('pin', 'ic-xs') + ' ' : ''}${esc(nome)}</div>
+              <div class="wa-item-name">${Number(c.pinned) ? svgIcon('pin', 'ic-xs') + ' ' : ''}${esc(nome)}${c.proposta_analise ? ` <span class="wa-prop-dot" title="${c.proposta_vista ? 'Abriu o link da proposta' : 'Proposta enviada, aguardando resposta'}" aria-label="Analisando proposta"></span>` : ''}</div>
               <div class="wa-item-prev">${Number(c.last_from_me) ? '✓ ' : ''}${esc(String(c.last_body || '').slice(0, 52))}</div>
               ${tags.length ? `<div class="wa-tags">${tags.map((t) => `<span class="wa-tag" style="background:${cor(t)}">${esc(t)}</span>`).join('')}</div>` : ''}
               ${et ? `<span class="wa-pill wa-pill-${sev}">${svgIcon(et.icone, 'ic-xs')}${esc(et.texto)}</span>` : ''}
@@ -881,6 +881,8 @@ Object.assign(ROUTES, {
 
         html += `<div style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
           <button type="button" class="btn-gold btn-sm" id="wa-ctx-gerar-proposta" ${cx.client ? 'disabled title="Já é cliente — gere a proposta pela ficha do cliente"' : (cx.lead ? '' : 'title="Cadastra o lead com os dados que o contato mandou e abre a proposta"')}>${svgIcon('file', 'ic-xs')}Gerar proposta</button>
+          <button type="button" class="btn-gold btn-sm" id="wa-ctx-enviar-proposta" ${cx.client ? 'disabled title="Já é cliente"' : ''}>${svgIcon('send', 'ic-xs')}Enviar proposta</button>
+          <div id="wa-ctx-prop-status"></div>
           <button type="button" class="btn-sm" id="wa-ctx-abrir-cadastro" ${(cx.client || cx.lead) ? '' : 'disabled title="Ainda não é cliente nem lead"'}>${svgIcon('file', 'ic-xs')}Abrir cadastro</button>
           <button type="button" class="btn-sm" id="wa-ctx-extrair" ${(cx.client || cx.lead) ? '' : 'disabled title="Cadastre como lead ou vincule a um cliente primeiro"'}>${svgIcon('ia', 'ic-xs')}Ler dados dos documentos</button>
           <button type="button" class="btn-sm" data-conv="tarefa">${svgIcon('clock', 'ic-xs')}Criar tarefa</button>
@@ -1013,6 +1015,47 @@ Object.assign(ROUTES, {
             if (!cx.lead) renderContexto();
           } catch (e) { toast(e.message, 'error'); }
           gp.disabled = false; gp.innerHTML = txtGp;
+        };
+
+        // Enviar proposta — busca a proposta mais recente deste contato e manda
+        // o link com texto pronto (editável) pelo próprio WhatsApp.
+        const statusProp = box.querySelector('#wa-ctx-prop-status');
+        const fmtQuando = (d) => d ? `${fmtDia(d)} ${fmtHora(d)}` : '';
+        const pintarStatusProp = (pr) => {
+          if (!statusProp) return;
+          statusProp.innerHTML = pr && pr.em_analise
+            ? `<div class="wa-prop-badge"><span class="wa-prop-dot"></span>Analisando proposta${pr.visualizada_em ? ` · viu ${fmtQuando(pr.ultima_visualizacao_em || pr.visualizada_em)}` : ' · ainda não abriu o link'}</div>`
+            : '';
+        };
+        if (!cx.client) api(`/api/whatsapp-instance/chats/${ativo.phone}/proposta`).then(pintarStatusProp).catch(() => {});
+        const ep = box.querySelector('#wa-ctx-enviar-proposta');
+        if (ep && !cx.client) ep.onclick = async () => {
+          ep.disabled = true;
+          try {
+            const pr = await api(`/api/whatsapp-instance/chats/${ativo.phone}/proposta`);
+            if (!pr) { toast('Nenhuma proposta deste contato ainda — use "Gerar proposta" primeiro', 'error'); return; }
+            const STP = { rascunho: 'Rascunho', enviada: 'Enviada', em_negociacao: 'Em negociação', aceita: 'Aceita' };
+            const f = el(`<form class="form-grid">
+              <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px">
+                <strong>${esc(pr.title || 'Proposta')}</strong> · ${money(pr.valor)} · ${STP[pr.status] || esc(pr.status)}
+                ${pr.enviada_em ? `<br><small style="color:var(--text-muted)">Enviada em ${fmtQuando(pr.enviada_em)}${pr.visualizada_em ? ` · cliente abriu em ${fmtQuando(pr.visualizada_em)}` : ' · ainda não abriu'}</small>` : ''}
+                <br><a href="${esc(pr.url)}" target="_blank" rel="noopener" style="font-size:12px">Ver a proposta como o cliente vê</a>
+              </div>
+              <label>Mensagem (pode editar — o link precisa ficar)<textarea name="texto" rows="9">${esc(pr.texto)}</textarea></label>
+              <button type="submit" class="btn-primary">Enviar pelo WhatsApp</button>
+            </form>`);
+            f.onsubmit = async (ev) => {
+              ev.preventDefault();
+              const b = f.querySelector('button[type=submit]'); b.disabled = true; b.textContent = 'Enviando…';
+              try {
+                await api(`/api/whatsapp-instance/chats/${ativo.phone}/enviar-proposta`, { method: 'POST', body: JSON.stringify({ texto: f.texto.value }) });
+                closeModal(); toast('Proposta enviada pelo WhatsApp');
+                await atualizar(true); renderContexto();
+              } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Enviar pelo WhatsApp'; }
+            };
+            openModal('Enviar proposta', f);
+          } catch (e) { toast(e.message, 'error'); }
+          finally { ep.disabled = false; }
         };
 
         // Abrir cadastro — cliente já tem ficha própria (reaproveitada de
