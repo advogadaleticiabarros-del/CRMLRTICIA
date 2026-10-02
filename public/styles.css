@@ -2210,3 +2210,14 @@ img, svg, video { max-width: 100%; }
 .hoje-btn { flex: none; text-decoration: none; white-space: nowrap; min-height: 36px; display: inline-flex; align-items: center; }
 .hoje-vazio { text-align: center; padding: 40px 20px; }
 @media (max-width: 640px) { .hoje-item { flex-wrap: wrap; } .hoje-btn { width: 100%; justify-content: center; } }
+
+/* Menu agrupado (02/10/2026) */
+.nav-group { display: flex; flex-direction: column; gap: 1px; margin-bottom: 8px; }
+.nav-group-title { font-size: 10.5px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; color: var(--text-muted); padding: 8px 14px 3px; background: none; border: 0; text-align: left; font-family: inherit; }
+.nav-mais-toggle { cursor: pointer; }
+.nav-mais-toggle:hover { color: var(--text); }
+body.sidebar-collapsed .nav-group-title { visibility: hidden; height: 6px; padding: 0; }
+
+/* "?" de ajuda no título de cada tela */
+.ajuda-btn { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: 8px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--text-muted); font-size: 12.5px; font-weight: 700; cursor: pointer; vertical-align: middle; font-family: inherit; }
+.ajuda-btn:hover { color: var(--gold); border-color: var(--gold); }

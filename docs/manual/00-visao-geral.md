@@ -51,6 +51,12 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 16. [Ferramentas e acessos](16-ferramentas-acessos.md)
 17. [Decision Log](17-decision-log.md)
 
+## Menu enxuto e "?" em cada tela (desde 02/10/2026)
+
+O menu lateral deixou de ser uma lista de 24 itens e virou grupos: **Hoje · Atendimento** (novo atendimento, possíveis clientes, propostas, contratos) **· Clientes e processos** (clientes, processos, andamentos nos tribunais, peças em produção, dativo, correspondente, parcerias) **· Agenda e prazos · Financeiro · Documentos** (documentos, assistente de IA) **· Relatórios**, e **Mais** (recolhido: newsletter, fases dos processos, rentabilidade e custos, advogados/OAB) + Configurações. Nomes em português simples: Leads → "Possíveis clientes", Dashboard → "Relatórios", Monitoramento → "Andamentos nos tribunais", Produção → "Peças em produção", Fases (Kanban) → "Fases dos processos", Controladoria → "Rentabilidade e custos", IA Jurídica → "Assistente de IA". As rotas (#leads, #monitor…) não mudaram. Papéis com poucas telas (cliente, parceiro, estagiário) seguem com a lista simples.
+
+Cada tela tem um **"?"** ao lado do título com uma ou duas frases dizendo para que ela serve e o que fazer (`AJUDA_TELAS` em `public/app.js`).
+
 ## Tela "Hoje" — página inicial (desde 02/10/2026)
 
 Primeira tela ao entrar (admin/advogado/equipe). Uma lista só com tudo que precisa de você, do mais urgente para o mais tranquilo, cada item com o botão que resolve:
@@ -101,6 +107,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 02/10/2026 | Claude | Menu enxuto em grupos + "?" de ajuda em cada tela |
 | 02/10/2026 | Claude | Tela "Hoje" como página inicial, com painel de saúde |
 | 03/09/2026 | Claude | Criação do documento — visão geral e mapa dos 13 blocos |
 | 04/09/2026 | Claude | Adicionados fluxograma, Runbook, Onboarding e Ferramentas/acessos; documentação auto-mantida virou regra do projeto (CLAUDE.md) |

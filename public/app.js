@@ -280,12 +280,12 @@ function logout() {
 }
 const AGENDA_TIPO_PT = { reuniao: 'Reuniões', audiencia: 'Audiências', prazo: 'Prazos', tarefa: 'Tarefas', compromisso: 'Outros compromissos', pessoal: 'Pessoal', recado: 'Recados', medicamento: 'Medicamentos' };
 const NAV_LABELS = {
-  hoje: 'Hoje', dashboard: 'Dashboard', clients: 'Clientes', leads: 'Leads',
-  propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos & Tarefas',
-  agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Controladoria', correspondente: 'Correspondente',
-  documentos: 'Documentos', ia: 'IA Jurídica', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
-  contratos: 'Contratos', intakes: 'Novo Atendimento', newsletter: 'Newsletter',
-  monitor: 'Monitoramento', fases: 'Fases (Kanban)', producao: 'Produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB', whatsapp: 'WhatsApp',
+  hoje: 'Hoje', dashboard: 'Relatórios', clients: 'Clientes', leads: 'Possíveis clientes',
+  propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos e tarefas',
+  agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Rentabilidade e custos', correspondente: 'Correspondente',
+  documentos: 'Documentos', ia: 'Assistente de IA', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
+  contratos: 'Contratos', intakes: 'Novo atendimento', newsletter: 'Newsletter',
+  monitor: 'Andamentos nos tribunais', fases: 'Fases dos processos', producao: 'Peças em produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB', whatsapp: 'WhatsApp',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
   ppcases: 'Meus Indicados', ppclients: 'Fichas dos Clientes', ppupdates: 'Atualizações', ppagenda: 'Audiências', ppfin: 'Financeiro',
 };
@@ -592,8 +592,41 @@ function buildNav() {
   // `items` (com 'whatsapp' dentro) continua sendo usado pra permissão —
   // navForRole().includes('whatsapp') decide se o botão do topbar aparece —
   // só a renderização do menu em si filtra.
-  $('#nav').innerHTML = items.filter((r) => r !== 'whatsapp').map((r) =>
-    `<a href="#${r}" class="nav-item ${r === 'intakes' ? 'nav-highlight' : ''}" data-route="${r}" title="${NAV_LABELS[r]}">${svgIcon(NAV_ICONS[r], 'nav-ic')}<span>${NAV_LABELS[r]}</span></a>`).join('');
+  const link = (r) =>
+    `<a href="#${r}" class="nav-item ${r === 'intakes' ? 'nav-highlight' : ''}" data-route="${r}" title="${NAV_LABELS[r]}">${svgIcon(NAV_ICONS[r], 'nav-ic')}<span>${NAV_LABELS[r]}</span></a>`;
+  const visiveis = items.filter((r) => r !== 'whatsapp');
+  // Menu enxuto (02/10/2026): 24 itens soltos viraram grupos com nome simples;
+  // o que é raro fica em "Mais" (recolhido). Papéis com poucas telas
+  // (cliente, parceiro, estagiário) continuam com a lista simples.
+  const agrupado = visiveis.includes('hoje');
+  if (!agrupado) { $('#nav').innerHTML = visiveis.map(link).join(''); buildBottomNav(visiveis); return; }
+  const usados = new Set();
+  const grupo = (titulo, rotas) => {
+    const rs = rotas.filter((r) => visiveis.includes(r) && !usados.has(r));
+    rs.forEach((r) => usados.add(r));
+    return rs.length ? `<div class="nav-group">${titulo ? `<div class="nav-group-title">${titulo}</div>` : ''}${rs.map(link).join('')}</div>` : '';
+  };
+  const html = [
+    grupo('', ['hoje']),
+    grupo('Atendimento', ['intakes', 'leads', 'propostas', 'contratos']),
+    grupo('Clientes e processos', ['clients', 'cases', 'monitor', 'producao', 'dativo', 'correspondente', 'parcerias']),
+    grupo('Agenda e prazos', ['agenda', 'prazos']),
+    grupo('Financeiro', ['financeiro', 'repasses']),
+    grupo('Documentos', ['documentos', 'ia']),
+    grupo('Relatórios', ['dashboard']),
+  ].join('');
+  const resto = visiveis.filter((r) => !usados.has(r) && r !== 'config');
+  const aberto = localStorage.getItem('crm_nav_mais') === '1';
+  $('#nav').innerHTML = html +
+    (resto.length ? `<div class="nav-group"><button type="button" class="nav-group-title nav-mais-toggle" id="nav-mais-toggle" aria-expanded="${aberto}">Mais ${aberto ? '▴' : '▾'}</button>
+      <div id="nav-mais" ${aberto ? '' : 'hidden'}>${resto.map(link).join('')}</div></div>` : '') +
+    (visiveis.includes('config') ? `<div class="nav-group">${link('config')}</div>` : '');
+  const tg = $('#nav-mais-toggle');
+  if (tg) tg.onclick = () => {
+    const box = $('#nav-mais'); const abrir = box.hidden;
+    box.hidden = !abrir; tg.setAttribute('aria-expanded', String(abrir)); tg.textContent = `Mais ${abrir ? '▴' : '▾'}`;
+    try { localStorage.setItem('crm_nav_mais', abrir ? '1' : '0'); } catch {}
+  };
   buildBottomNav(items.filter((r) => r !== 'whatsapp'));
 }
 
@@ -1108,6 +1141,43 @@ let routeToken = 0;
 // hashParam('tab') === 'inadimplencia') — usado por telas com sub-abas que
 // precisam abrir direto num relatório específico, em vez de sempre cair
 // na aba padrão (ex.: clicar em "Inadimplência" no Cockpit).
+// ── "?" em cada tela (02/10/2026): para que serve, em português simples ────
+const AJUDA_TELAS = {
+  hoje: 'Tudo que precisa de você hoje, do mais urgente para o mais tranquilo. Clique no botão de cada item para resolver; quando a lista esvazia, o dia está em dia.',
+  intakes: 'Comece aqui quando alguém novo procurar o escritório: registra o primeiro atendimento e já cria o possível cliente.',
+  leads: 'Pessoas que procuraram o escritório e ainda não são clientes. Arraste o cartão de coluna conforme a conversa avança (primeiro contato, proposta, contrato…).',
+  propostas: 'Propostas de honorários enviadas. O cliente abre pelo link, lê e dá o aceite sozinho — você vê aqui quem abriu e quem aceitou.',
+  contratos: 'Contratos de honorários. Quando o cliente assina, o sistema cria o processo e lança os honorários no financeiro sozinho.',
+  clients: 'Cadastro de todos os clientes. Abra a ficha para ver processos, documentos, pagamentos e histórico de um cliente num lugar só.',
+  cases: 'Seus processos e casos, com fase, etapa e valor da causa. Clique num processo para ver tudo dele.',
+  monitor: 'O sistema consulta os tribunais sozinho e traz as movimentações dos processos. Aqui você vê o que chegou e corrige processos duplicados ou com cliente errado.',
+  producao: 'Peças sendo feitas, por etapa: separação de documentos, criação, revisão, protocolo. Arraste o cartão quando a etapa terminar.',
+  fases: 'Os processos organizados pela fase no tribunal (inicial, instrução, sentença, recurso, execução).',
+  dativo: 'Nomeações como advogada dativa: aceite, audiências, documentos e honorários a receber do Estado.',
+  correspondente: 'Audiências que você faz como correspondente para outros escritórios, com valores a receber.',
+  parcerias: 'Casos que chegam de escritórios parceiros e o que é repassado a eles.',
+  agenda: 'Seus compromissos: audiências, reuniões, pessoais e lembretes. Sincroniza com o Google Agenda.',
+  prazos: 'Prazos processuais e tarefas. Os prazos que o sistema encontra nas intimações aparecem no topo para você confirmar — use "Resolver em lote" para fazer vários de uma vez.',
+  financeiro: 'Tudo que entra e sai: honorários, parcelas, acordos, repasses e contas a pagar. Comece pela Visão geral.',
+  repasses: 'Valores que você tem a receber das parcerias.',
+  controladoria: 'Quanto cada cliente e cada área dá de resultado, e os custos do escritório.',
+  documentos: 'Todos os documentos do escritório: modelos, peças geradas e arquivos recebidos dos clientes.',
+  ia: 'Assistente de IA para gerar petições, pareceres e resumos a partir dos dados do cliente e do processo. Sempre revise antes de usar.',
+  dashboard: 'Números do escritório: comercial, financeiro, processos e produção, para acompanhar como o mês está indo.',
+  newsletter: 'E-mails para a lista de contatos que aceitaram receber novidades.',
+  advogados: 'Advogados e números de OAB que o sistema usa para encontrar processos nos tribunais.',
+  config: 'Ajustes do escritório: dados, integrações (WhatsApp, Google), usuários, Face ID e automações.',
+  whatsapp: 'Central de atendimento do WhatsApp: conversas, quadro por etapas e ficha do contato com as ações (proposta, documentos, tarefas).',
+};
+function adicionarAjuda(page, route) {
+  const texto = AJUDA_TELAS[route];
+  const titulo = page.querySelector('.page-header h2');
+  if (!texto || !titulo || titulo.querySelector('.ajuda-btn')) return;
+  const b = el(`<button type="button" class="ajuda-btn" aria-label="Para que serve esta tela?" title="Para que serve esta tela?">?</button>`);
+  b.onclick = () => openModal('Para que serve esta tela', el(`<p style="font-size:15px;line-height:1.6;margin:0">${esc(texto)}</p>`));
+  titulo.appendChild(b);
+}
+
 function hashParam(nome) {
   const q = location.hash.split('?')[1];
   return q ? new URLSearchParams(q).get(nome) : null;
@@ -1133,7 +1203,8 @@ function router() {
   page.innerHTML = '<div class="spinner"></div>';
   const fn = ROUTES[route] || ROUTES[allowed[0]];
   // Só escreve o erro se ainda estivermos na mesma rota (evita atropelar a tela nova)
-  fn(page).catch((err) => { if (token === routeToken) page.innerHTML = `<div class="empty">${err.message}</div>`; });
+  fn(page).then(() => { if (token === routeToken) adicionarAjuda(page, route); })
+    .catch((err) => { if (token === routeToken) page.innerHTML = `<div class="empty">${err.message}</div>`; });
 }
 
 // ── Configurações → Financeiro: chave da conta Asaas (boleto/cartão) ──
