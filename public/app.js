@@ -1585,8 +1585,10 @@ const ROUTES = {
       const rows = await api('/api/prazos-detectados').catch(() => []);
       $('#dd-card').innerHTML = rows.length ? `
         <div class="card" style="margin-bottom:20px;border:1px solid var(--gold)">
-          <div style="padding:14px 18px;border-bottom:1px solid var(--border)"><strong style="color:var(--gold)">⚠ Prazos detectados no monitoramento (${rows.length})</strong>
+          <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center">
+            <div><strong style="color:var(--gold)">⚠ Prazos detectados no monitoramento (${rows.length})</strong>
             <p class="sub" style="margin:2px 0 0">Movimentações que podem iniciar prazo — confirme a data (o sistema não chuta).</p></div>
+            ${rows.length > 3 ? `<button class="btn-gold btn-sm" id="dd-mutirao">Resolver em lote (mutirão)</button>` : ''}</div>
           <div class="dd-list">${rows.map((d) => { const full = d.movement_full || d.movement_text || ''; return `
             <div class="dd-item">
               <div class="dd-item-head">
@@ -10382,3 +10384,52 @@ function bootApp() {
 }
 if (document.readyState === 'complete') bootApp();
 else window.addEventListener('load', bootApp);
+
+// ── Mutirão de prazos detectados ───────────────────────────────────────────
+// Lista os "a confirmar" com o vencimento já calculado (CPC, feriados) em 3
+// grupos: urgentes (até 5 dias), demais e vencidos. Confirma ou dá baixa em
+// lote. Duplicados (mesmo processo + tipo) vêm desmarcados para baixa.
+document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#dd-mutirao')) mutiraoPrazos(); });
+
+async function mutiraoPrazos() {
+  const itens = await api('/api/prazos-detectados/mutirao').catch((e) => { toast(e.message, 'error'); return null; });
+  if (!itens) return;
+  const G = { urgente: ['🔴 Vencem em até 5 dias — confirme já', true], normal: ['🟡 Demais prazos', true], vencido: ['⚪ Vencimento calculado já passou — provavelmente já tratados fora do CRM', false] };
+  const sec = (g) => {
+    const lista = itens.filter((i) => i.grupo === g);
+    if (!lista.length) return '';
+    return `<div style="margin:14px 0 6px;display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <strong style="color:var(--navy)">${G[g][0]} (${lista.length})</strong>
+        <label style="font-size:12px"><input type="checkbox" data-mt-all="${g}" ${G[g][1] ? 'checked' : ''}> marcar todos</label></div>
+      ${lista.map((i) => `<label class="mini-row" style="align-items:flex-start;gap:10px;cursor:pointer">
+        <input type="checkbox" data-mt="${i.id}" data-grupo="${g}" ${G[g][1] && !i.duplicado_de ? 'checked' : ''} style="margin-top:3px">
+        <span style="flex:1"><strong>${esc(i.suggested_type || 'Prazo')}</strong> · vence <strong>${fmtDate(i.vencimento)}</strong>
+          ${i.duplicado_de ? '<span class="badge" style="background:var(--amber-bg);color:var(--amber)">duplicado</span>' : ''}<br>
+          <small>${esc(i.client_name || 'sem cliente')}${i.process_number ? ' · ' + esc(i.process_number) : ''}</small><br>
+          <small style="color:var(--text-muted)">${esc(String(i.trecho || '').slice(0, 140))}</small></span></label>`).join('')}`;
+  };
+  const wrap = el(`<div>
+    <p class="sub">${itens.length} prazo(s) a confirmar. Marque e escolha a ação. Confirmar cria o prazo no processo (alertas 30/15/7/3/1) e na agenda; "Já tratados" só tira da lista.</p>
+    <div style="max-height:58vh;overflow:auto;padding-right:4px">${sec('urgente')}${sec('normal')}${sec('vencido')}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn-primary" id="mt-confirmar" style="width:auto">Confirmar marcados</button>
+      <button class="btn-sm" id="mt-descartar">Marcar como já tratados</button>
+    </div></div>`);
+  wrap.querySelectorAll('[data-mt-all]').forEach((cb) => cb.onchange = () =>
+    wrap.querySelectorAll(`[data-mt][data-grupo="${cb.dataset.mtAll}"]`).forEach((x) => { x.checked = cb.checked; }));
+  const executar = async (acao, btn) => {
+    const ids = [...wrap.querySelectorAll('[data-mt]:checked')].map((x) => Number(x.dataset.mt));
+    if (!ids.length) { toast('Marque ao menos um prazo', 'error'); return; }
+    if (acao === 'descartar' && !await uiConfirm(`Tirar ${ids.length} prazo(s) da lista como já tratados?`)) return;
+    btn.disabled = true; btn.textContent = 'Processando…';
+    try {
+      const r = await api('/api/prazos-detectados/lote', { method: 'POST', body: JSON.stringify({ acao, ids }) });
+      closeModal();
+      toast(`${r.ok} prazo(s) ${acao === 'confirmar' ? 'confirmado(s)' : 'marcado(s) como tratados'}${r.falhas.length ? ` · ${r.falhas.length} com falha` : ''}`);
+      setTimeout(() => location.reload(), 700);
+    } catch (e) { toast(e.message, 'error'); btn.disabled = false; }
+  };
+  wrap.querySelector('#mt-confirmar').onclick = (e) => executar('confirmar', e.target);
+  wrap.querySelector('#mt-descartar').onclick = (e) => executar('descartar', e.target);
+  openModal('Mutirão de prazos detectados', wrap);
+}

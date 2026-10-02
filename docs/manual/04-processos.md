@@ -32,6 +32,15 @@ Uma vez confirmado ou descartado, o mesmo prazo não é recriado nas sincroniza�
 
 **Data do vencimento ao confirmar (corrigido 28/09/2026):** a data é calculada em dias úteis pelo mesmo cálculo da calculadora de prazos (CPC arts. 219/220/224): pula sábado, domingo, feriados nacionais e forenses (Carnaval, Quinta/Sexta-feira Santa, Corpus Christi, 11/08, 01/11, 08/12 etc.) e a suspensão de 20/12 a 20/01. Feriado **municipal** da comarca não entra — em data apertada, confira o calendário do tribunal. Antes dessa correção, a confirmação só pulava fim de semana.
 
+## Mutirão de prazos detectados (desde 02/10/2026)
+
+Quando há mais de 3 prazos a confirmar, o cartão "⚠ Prazos detectados" mostra **Resolver em lote (mutirão)**. A janela traz todos com o vencimento já calculado (CPC, feriados e suspensão de fim de ano) em três grupos: **vencem em até 5 dias**, **demais** e **vencimento já passou** (provavelmente tratados fora do CRM). Duplicados (mesmo processo em dois formatos + mesmo tipo) aparecem marcados e desmarcados.
+
+- **Confirmar marcados** faz exatamente o mesmo que a confirmação individual (prazo no caso, alertas 30/15/7/3/1, agenda/Google, playbooks).
+- **Marcar como já tratados** tira da lista sem criar prazo.
+
+Motivo: em 02/10/2026 havia 61 prazos a confirmar, o mais antigo de 17/08. Regras em `src/services/mutiraoPrazos.ts` (testadas); rotas `GET /api/prazos-detectados/mutirao` e `POST /api/prazos-detectados/lote`.
+
 ## Avisos de prazo que ficam mais fortes (desde 28/09/2026)
 
 - **Prazo próximo (caso vinculado):** o aviso de "prazo em até 3 dias" agora escala — a partir de 2 dias o título ganha 🚨, e em menos de 24h vira "🚨 URGENTE". Com mais de 24h sobrando, o aviso repete a cada 6 horas; com menos de 24h, a cada hora (antes repetia igual toda hora, desde 3 dias).
@@ -107,6 +116,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 | 28/09/2026 | Claude | Tipo de prazo por gatilho específico/título (`deteccaoPrazo.ts`), aviso de fase divergente (`processos:fase-divergente`), busca nacional por OAB passa a reportar falha por tribunal, testes de fase e tribunal — ideias 6, 7, 8 e 9 da auditoria |
 | 28/09/2026 | Claude | Avisos de prazo escalonados (título 🚨 e repetição por urgência), aviso único ao vencer (`prazos:vencidos`) e alerta diário de prazo em processo sem caso (`prazos:sem-caso`) — ideias 2, 4 e 5 da auditoria |
 | 30/09/2026 | Claude | Status de tarefa "aguardando terceiro" (com quem) |
+| 02/10/2026 | Claude | Mutirão de prazos detectados (confirmar/dar baixa em lote) |
 | 30/09/2026 | Claude | Prescrição do caso com sugestão por área e avisos do vigia da carteira |
 | 30/09/2026 | Claude | Automações: tabela das regras + novas regras de contrato assinado e mudança de fase |
 | 28/09/2026 | Claude | Confirmação de prazo detectado passa a usar o cálculo com feriados/suspensão (`contarPrazo`) — antes só pulava fim de semana (achado crítico da auditoria) |

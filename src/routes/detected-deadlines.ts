@@ -58,10 +58,17 @@ router.get('/count', async (_req: Request, res: Response) => {
 });
 
 // ── POST /api/prazos-detectados/:id/confirmar ───────────────────────────────
-router.post('/:id/confirmar', async (req: Request, res: Response) => {
-  const { deadline_type, days, start_date } = req.body;
-  const [[dd]] = await db.query('SELECT * FROM detected_deadlines WHERE id = ?', [req.params.id]) as any;
-  if (!dd) { res.status(404).json({ error: 'Prazo não encontrado' }); return; }
+/**
+ * Confirma um prazo detectado (calcula o vencimento CPC, cria o prazo no caso,
+ * roda os playbooks). Usado pela confirmação individual e pelo mutirão em lote.
+ */
+async function confirmarPrazoDetectado(
+  id: number | string, user: { id: number },
+  opts: { deadline_type?: string; days?: any; start_date?: string } = {}
+): Promise<{ success: true; due_date: string; deadline_id: number | null; linked_to_case: boolean } | null> {
+  const { deadline_type, days, start_date } = opts;
+  const [[dd]] = await db.query('SELECT * FROM detected_deadlines WHERE id = ?', [id]) as any;
+  if (!dd) return null;
 
   const start = start_date || (dd.start_date ? new Date(dd.start_date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
   const n = parseInt(days) || dd.suggested_days || 15;
@@ -73,7 +80,7 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
 
   await db.query(
     "UPDATE detected_deadlines SET status = 'confirmado', due_date = ?, deadline_type = ?, confirmed_by = ? WHERE id = ?",
-    [due, type, req.user!.id, req.params.id]
+    [due, type, user.id, id]
   );
 
   // Se o processo está vinculado a um caso, cria o prazo no módulo de Prazos (entra nos alertas 30/15/7/3/1)
@@ -106,7 +113,7 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
       const [r] = await db.query(
         `INSERT INTO deadlines (user_id, client_id, case_id, description, movement_text, movement_id, deadline_date, priority, status)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'alta', 'pendente')`,
-        [req.user!.id, lp.client_id ?? dd.client_id ?? null, lp.case_id, `${type} (auto do monitoramento)`, movementText, movementId, due]
+        [user.id, lp.client_id ?? dd.client_id ?? null, lp.case_id, `${type} (auto do monitoramento)`, movementText, movementId, due]
       ) as any;
       deadlineId = r.insertId;
     }
@@ -117,13 +124,58 @@ router.post('/:id/confirmar', async (req: Request, res: Response) => {
     processId: dd.process_id ?? null,
     caseId: lp?.case_id ?? null,
     deadlineType: type,
-    userId: req.user!.id,
+    userId: user.id,
     clientId: lp?.client_id ?? dd.client_id ?? null,
     dueDate: due,
     deadlineId,
   });
 
-  res.json({ success: true, due_date: due, deadline_id: deadlineId, linked_to_case: !!deadlineId });
+  return { success: true, due_date: due, deadline_id: deadlineId, linked_to_case: !!deadlineId };
+}
+
+router.post('/:id/confirmar', async (req: Request, res: Response) => {
+  const r = await confirmarPrazoDetectado(req.params.id, req.user!, req.body || {});
+  if (!r) { res.status(404).json({ error: 'Prazo não encontrado' }); return; }
+  res.json(r);
+});
+
+// ── GET /api/prazos-detectados/mutirao — a confirmar, com vencimento já
+// calculado e separados em urgentes / demais / vencidos (+ duplicados) ──
+router.get('/mutirao', async (_req: Request, res: Response) => {
+  const { organizar } = await import('../services/mutiraoPrazos');
+  const [rows] = await db.query(
+    `SELECT d.id, d.suggested_type, d.suggested_days, d.start_date, d.created_at, lp.process_number,
+            COALESCE(c.name, cp.name) AS client_name, LEFT(COALESCE(pm.description, d.movement_text, ''), 300) AS trecho
+       FROM detected_deadlines d
+       LEFT JOIN legal_processes lp ON lp.id = d.process_id
+       LEFT JOIN clients c  ON c.id  = d.client_id
+       LEFT JOIN clients cp ON cp.id = lp.client_id
+       LEFT JOIN process_movements pm ON pm.id = d.movement_id
+      WHERE d.status = 'a_confirmar'`) as any;
+  const hoje = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  const itens = rows.map((r: any) => {
+    const ini = r.start_date ? new Date(r.start_date).toISOString().slice(0, 10) : new Date(r.created_at).toISOString().slice(0, 10);
+    return { ...r, vencimento: String(contarPrazo(ini, Number(r.suggested_days) || 15).vencimento).slice(0, 10) };
+  });
+  res.json(organizar(itens, hoje));
+});
+
+// ── POST /api/prazos-detectados/lote { acao: 'confirmar'|'descartar', ids } ──
+router.post('/lote', async (req: Request, res: Response) => {
+  const ids: number[] = Array.isArray(req.body?.ids) ? req.body.ids.map(Number).filter(Boolean).slice(0, 200) : [];
+  const acao = req.body?.acao;
+  if (!ids.length || !['confirmar', 'descartar'].includes(acao)) { res.status(400).json({ error: 'Informe a ação e os prazos' }); return; }
+  let ok = 0; const falhas: number[] = [];
+  for (const id of ids) {
+    try {
+      if (acao === 'confirmar') { if (await confirmarPrazoDetectado(id, req.user!)) ok++; else falhas.push(id); }
+      else {
+        const [r] = await db.query("UPDATE detected_deadlines SET status = 'descartado' WHERE id = ? AND status = 'a_confirmar'", [id]) as any;
+        if (r.affectedRows) ok++; else falhas.push(id);
+      }
+    } catch { falhas.push(id); }
+  }
+  res.json({ ok, falhas });
 });
 
 // ── DELETE /api/prazos-detectados/antigos?before=YYYY-MM-DD ─────────────────
