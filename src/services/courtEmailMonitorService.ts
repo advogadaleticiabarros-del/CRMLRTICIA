@@ -100,6 +100,7 @@ export async function getCourtEmailStatus(): Promise<any> {
   return {
     connected: !!row.refresh_token, google_email: row.google_email, active: !!row.active,
     last_check_at: row.last_check_at, last_check_found: row.last_check_found,
+    expirada: await (await import('./conexaoGoogle')).conexaoExpirada('monitoramento:processos-email'),
   };
 }
 

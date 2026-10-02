@@ -28,7 +28,15 @@ router.get('/google/status', async (req: Request, res: Response) => {
     'SELECT google_email, sync_enabled FROM google_accounts WHERE user_id = ?',
     [(req as any).user.id]
   ) as any;
-  res.json({ connected: rows.length > 0, ...(rows[0] || {}) });
+  // Testa a conexão de verdade: o registro existir não basta — o Google pode
+  // ter revogado a autorização (invalid_grant), como de 30/06 a 02/10/2026.
+  let saudavel = rows.length > 0;
+  let erro: string | null = null;
+  if (rows.length) {
+    try { await googleCalendarService.checarConexao((req as any).user.id); }
+    catch (e: any) { saudavel = false; erro = e?.message || 'falha'; }
+  }
+  res.json({ connected: rows.length > 0, saudavel, erro, ...(rows[0] || {}) });
 });
 
 // DELETE /api/calendar/google/disconnect

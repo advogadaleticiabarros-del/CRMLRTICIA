@@ -1718,9 +1718,19 @@ const ROUTES = {
       try { st = await api('/api/calendar/google/status'); } catch {}
       const area = $('#google-area');
       if (!area) return; // trocou de tela durante o carregamento
-      if (st.connected) {
+      const reconectar = async () => {
+        try { const { url } = await api('/api/calendar/google/auth-url'); window.location.href = url; }
+        catch (e) { toast(e.message, 'error'); }
+      };
+      if (st.connected && st.saudavel === false) {
+        area.innerHTML = `<small style="color:var(--red);font-weight:600">⚠ A conexão com o Google expirou — a agenda não está sincronizando</small>
+          <button class="btn-gold btn-sm" id="g-reconnect">Reconectar Google</button>`;
+        $('#g-reconnect').onclick = reconectar;
+      } else if (st.connected) {
         area.innerHTML = `<small style="color:var(--green)">${st.google_email || 'Google conectado'}</small>
-          <button class="btn-sm" id="g-sync">Sincronizar</button>`;
+          <button class="btn-sm" id="g-sync">Sincronizar</button>
+          <button class="btn-sm" id="g-reconnect" title="Use se a agenda parar de atualizar">Reconectar</button>`;
+        $('#g-reconnect').onclick = reconectar;
         $('#g-sync').onclick = async () => {
           try { const r = await api('/api/calendar/google/sync', { method: 'POST' });
             toast(`Sincronizado (${r.fromGoogle?.created || 0} novos)`); render(); } catch (e) { toast(e.message, 'error'); }
@@ -4045,6 +4055,7 @@ async function loadInboxPanel(onChange) {
   const last = st.last_sync ? new Date(st.last_sync).toLocaleString('pt-BR') : 'nunca';
   box.innerHTML = `<div class="card" style="margin-bottom:14px;padding:12px 14px">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
+${st.expirada ? `<div style="margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--red-bg);color:var(--red);font-size:12.5px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">⚠ A conexão com o Google expirou — nada está sendo buscado. <button class="btn-gold btn-sm" id="inbox-reconnect">Reconectar</button></div>` : ''}
       <div style="font-size:13px">📨 Gmail conectado: <strong>${esc(st.google_email || '—')}</strong> · remetente <code>${esc(st.sender_filter || '')}</code> · última busca: ${last} ${st.active ? '' : '<span style="color:var(--red)">(pausado)</span>'}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-gold btn-sm" id="inbox-sync">${svgIcon('refresh')} Buscar agora</button><button class="btn-sm" id="inbox-sync-reset" title="Apaga o last_sync e rebusca desde o início do dia">${svgIcon('refresh')} Rebuscar desde hoje</button><button class="btn-sm" id="inbox-sync-old" title="Recupera e-mails antigos do parceiro (últimos 30 dias)">${svgIcon('download')} Buscar e-mails antigos (30 dias)</button><button class="btn-sm" id="inbox-perm">${svgIcon('key')} Atualizar permissões</button><button class="btn-sm" id="inbox-disc">Desconectar</button></div>
       <div style="display:flex;gap:6px;margin-top:8px;align-items:center;flex-wrap:wrap">
@@ -4147,7 +4158,8 @@ async function loadCourtEmailPanel() {
     <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
       <div style="font-size:13px">Conectado: <strong>${esc(st.google_email || '—')}</strong> · última checagem: ${last}${typeof st.last_check_found === 'number' ? ` (${st.last_check_found} nova(s) na última vez)` : ''} ${st.active ? '' : '<span style="color:var(--red)">(pausado)</span>'}</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-gold btn-sm" id="ce-scan">${svgIcon('refresh')} Verificar agora</button><button class="btn-sm" id="ce-disc">Desconectar</button></div>
-    </div>`;
+    </div>
+    ${st.expirada ? `<div style="margin-top:8px;padding:8px 10px;border-radius:6px;background:var(--red-bg);color:var(--red);font-size:12.5px;font-weight:600;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">⚠ A conexão com o Google expirou — os e-mails do tribunal não estão sendo lidos. <button class="btn-gold btn-sm" id="ce-reconnect">Reconectar</button></div>` : ''}`;
   $('#ce-scan').onclick = async () => {
     const b = $('#ce-scan'); b.disabled = true; b.textContent = 'Verificando...';
     try {
@@ -10508,3 +10520,11 @@ async function processosDuplicados() {
     } catch (e) { toast(e.message, 'error'); b.disabled = false; }
   });
 }
+
+// Reconectar contas Google que expiraram (Gmail da parceria e do tribunal).
+document.addEventListener('click', async (e) => {
+  const alvo = e.target.closest && e.target.closest('#inbox-reconnect, #ce-reconnect');
+  if (!alvo) return;
+  const rota = alvo.id === 'inbox-reconnect' ? '/api/email-intake/integration/auth-url' : '/api/court-email-monitor/auth-url';
+  try { const { url } = await api(rota); window.location.href = url; } catch (err) { toast(err.message, 'error'); }
+});

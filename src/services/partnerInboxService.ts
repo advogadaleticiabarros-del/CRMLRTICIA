@@ -108,8 +108,9 @@ async function authedClient(): Promise<any> {
 export async function getInboxStatus(): Promise<any> {
   const row = await loadIntegration();
   if (!row) return { connected: false };
+  const { conexaoExpirada } = await import('./conexaoGoogle');
   return { connected: !!row.refresh_token, google_email: row.google_email, sender_filter: row.sender_filter,
-    active: !!row.active, last_sync: row.last_sync };
+    active: !!row.active, last_sync: row.last_sync, expirada: await conexaoExpirada('parceria:sync-gmail') };
 }
 
 /**

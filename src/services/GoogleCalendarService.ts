@@ -217,6 +217,12 @@ export class GoogleCalendarService {
     await calendar.events.delete({ calendarId: 'primary', eventId: googleEventId });
   }
 
+  /** Chamada mínima só para saber se a autorização ainda vale (lança se não). */
+  async checarConexao(userId: number): Promise<void> {
+    const auth = await this.getClientForUser(userId);
+    await google.calendar({ version: 'v3', auth }).calendarList.list({ maxResults: 1 });
+  }
+
   async listUpcomingEvents(userId: number, maxResults = 250): Promise<calendar_v3.Schema$Event[]> {
     const auth = await this.getClientForUser(userId);
     const calendar = google.calendar({ version: 'v3', auth });

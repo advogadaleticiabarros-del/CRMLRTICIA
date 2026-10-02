@@ -275,7 +275,9 @@ pm2 restart crm-juridico && pm2 save
 
 **Causa raiz:** o Google revogou a autorização (`invalid_grant` — mesma causa do Gmail parado). `listUpcomingEvents` engolia o erro (de listar calendários e de cada calendário) e devolvia lista vazia; a rotina ainda ignorava `fromGoogle.errors`.
 
-**Correção:** se nenhum calendário puder ser lido, o erro sobe; a rotina falha com "reconecte a conta Google" e avisa no sino. **Resolver de vez: reconectar a conta Google em Configurações.**
+**Correção:** se nenhum calendário puder ser lido, o erro sobe; a rotina falha com "reconecte a conta Google" e avisa no sino. A tela já não mostrava como resolver — mostrava "conectado" em verde: agora a Agenda testa a conexão de verdade e exibe **"⚠ A conexão com o Google expirou" + Reconectar** (e há sempre um botão "Reconectar"). O mesmo aviso vale para o Gmail da parceria (Parcerias) e o Gmail do tribunal (Monitoramento), com base na última execução da rotina (`conexaoGoogle.ts`).
+
+**Resolver de vez:** são 3 conexões Google separadas, todas com `invalid_grant` em 02/10/2026 — reconectar as três: **Agenda → Reconectar Google**, **Parcerias → Reconectar**, **Monitoramento (e-mail judicial) → Reconectar**.
 
 **Como reconhecer:** `job_runs` com `agenda:sync-completa` em erro "invalid_grant"/"reconecte"; nenhum `calendar_events` com `source='google'` recente.
 
