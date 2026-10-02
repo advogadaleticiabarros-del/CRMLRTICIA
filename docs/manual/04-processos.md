@@ -32,6 +32,16 @@ Uma vez confirmado ou descartado, o mesmo prazo não é recriado nas sincroniza�
 
 **Data do vencimento ao confirmar (corrigido 28/09/2026):** a data é calculada em dias úteis pelo mesmo cálculo da calculadora de prazos (CPC arts. 219/220/224): pula sábado, domingo, feriados nacionais e forenses (Carnaval, Quinta/Sexta-feira Santa, Corpus Christi, 11/08, 01/11, 08/12 etc.) e a suspensão de 20/12 a 20/01. Feriado **municipal** da comarca não entra — em data apertada, confira o calendário do tribunal. Antes dessa correção, a confirmação só pulava fim de semana.
 
+## Cliente certo na descoberta por OAB (corrigido 02/10/2026)
+
+Quando a advogada é a única intimada, todas as partes da intimação viravam candidatas a cliente e a primeira da lista ganhava — muitas vezes a empresa ré ou o INSS (16 casos encontrados). Agora `escolherCliente` (`src/services/djen.ts`, testado): uma parte só → ela; senão ignora ente público (INSS, União, Estado, Município, Fazenda) e, havendo pessoa física, ignora empresas; sobrando várias, fica a do polo ativo; ambíguo → sem cliente (cadastro manual).
+
+**Conferir cliente dos processos** (topo de *Monitoramento Processual*): lista os processos cujo cliente parece empresa/ente público, com as partes das intimações e um botão "Cliente é Fulano" (sugestão em dourado), "Outro…" ou "Está certo". Trocar cria o cliente se não existir e corrige também o caso e os prazos detectados que estavam com o cliente errado. Coluna `legal_processes.cliente_conferido`.
+
+## Processos duplicados (corrigido 02/10/2026)
+
+O mesmo número entrava com e sem máscara e virava dois cadastros (13 grupos). Agora toda busca/criação de processo compara só os dígitos (descoberta por OAB, protocolo na esteira, e-mail do tribunal, cadastro manual — este devolve 409 se já existe). Os existentes aparecem em **Processos cadastrados em duplicidade** (topo de *Monitoramento Processual*): **Unir** junta movimentações, prazos detectados, logs, avisos, e-mails, dativos e acordos detectados no cadastro mais antigo, remove movimentações repetidas e apaga as cópias, numa transação. Se as cópias têm clientes ou casos diferentes, é preciso escolher qual fica — o sistema não decide. Testado numa cópia do banco de produção antes de liberar.
+
 ## Mutirão de prazos detectados (desde 02/10/2026)
 
 Quando há mais de 3 prazos a confirmar, o cartão "⚠ Prazos detectados" mostra **Resolver em lote (mutirão)**. A janela traz todos com o vencimento já calculado (CPC, feriados e suspensão de fim de ano) em três grupos: **vencem em até 5 dias**, **demais** e **vencimento já passou** (provavelmente tratados fora do CRM). Duplicados (mesmo processo em dois formatos + mesmo tipo) aparecem marcados e desmarcados.
@@ -116,6 +126,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 | 28/09/2026 | Claude | Tipo de prazo por gatilho específico/título (`deteccaoPrazo.ts`), aviso de fase divergente (`processos:fase-divergente`), busca nacional por OAB passa a reportar falha por tribunal, testes de fase e tribunal — ideias 6, 7, 8 e 9 da auditoria |
 | 28/09/2026 | Claude | Avisos de prazo escalonados (título 🚨 e repetição por urgência), aviso único ao vencer (`prazos:vencidos`) e alerta diário de prazo em processo sem caso (`prazos:sem-caso`) — ideias 2, 4 e 5 da auditoria |
 | 30/09/2026 | Claude | Status de tarefa "aguardando terceiro" (com quem) |
+| 02/10/2026 | Claude | Cliente certo na descoberta + conferência; processos duplicados: prevenção + unir |
 | 02/10/2026 | Claude | Mutirão de prazos detectados (confirmar/dar baixa em lote) |
 | 30/09/2026 | Claude | Prescrição do caso com sugestão por área e avisos do vigia da carteira |
 | 30/09/2026 | Claude | Automações: tabela das regras + novas regras de contrato assinado e mudança de fase |

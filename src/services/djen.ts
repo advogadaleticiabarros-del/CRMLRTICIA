@@ -172,6 +172,30 @@ export function normalizeDjenItems(items: any[]): DjenPublication[] {
   return out;
 }
 
+/** Ente público — no escritório, sempre parte contrária (INSS, União, Estado, Município...). */
+export function isEntePublico(name: string): boolean {
+  return /\b(INSS|INSTITUTO NACIONAL DO SEGURO|UNI[AÃ]O FEDERAL|FAZENDA (P[UÚ]BLICA|NACIONAL|ESTADUAL|MUNICIPAL)|ESTADO D[OE]|MUNIC[IÍ]PIO D[EO]|MINIST[EÉ]RIO P[UÚ]BLICO|DEFENSORIA)\b/i.test(name || '');
+}
+
+/**
+ * Escolhe o cliente entre as partes candidatas. Regras (perfil do escritório:
+ * trabalhista/consumidor/previdenciário/família — cliente é quase sempre PF):
+ *  1. uma única candidata → ela (inclui cliente PJ legítimo);
+ *  2. ignora ente público e, havendo pessoa física, ignora empresas;
+ *  3. sobrou 1 → ela; sobraram várias → a do polo ativo, se for só uma;
+ *  4. senão null (ambíguo → cadastro manual, nunca chutar).
+ */
+export function escolherCliente(candidatos: Map<string, string>, polos: Map<string, string>): string | null {
+  const lista = [...candidatos.entries()];
+  if (lista.length === 1) return isEntePublico(lista[0][1]) ? null : lista[0][1];
+  let restantes = lista.filter(([, nm]) => !isEntePublico(nm));
+  const pessoas = restantes.filter(([, nm]) => !isCompanyName(nm));
+  if (pessoas.length) restantes = pessoas;
+  if (restantes.length === 1) return restantes[0][1];
+  const ativos = restantes.filter(([k]) => /^A/.test(polos.get(k) || ''));
+  return ativos.length === 1 ? ativos[0][1] : null;
+}
+
 /** Heurística: nome de pessoa jurídica? (para definir tipo PF/PJ do cliente). */
 export function isCompanyName(name: string): boolean {
   return /\b(LTDA|S\.?A\.?|EIRELI|EPP|MEI|ME|SOCIEDADE|ASSOCIA|COOPERATIVA|INSTITUTO|FUNDA[CÇ][AÃ]O|BANCO|SEGUR|COM[EÉ]RCIO|COMERCIO|IND[UÚ]STRIA|INDUSTRIA|SERVI[CÇ]OS|TECNOLOGIA|TELECOM|ENERGIA|CONSTRU|TRANSPORTE|EMPREEND|PARTICIPA[CÇ])/i.test(name || '');
@@ -205,7 +229,7 @@ export interface DjenProcess {
  * parte é seguramente cliente dela. Em casos ambíguos, deixa null → cadastro manual.
  */
 export function groupPublicationsByProcess(pubs: DjenPublication[]): DjenProcess[] {
-  type Acc = DjenProcess & { _sole: Map<string, string>; _all: Map<string, string> };
+  type Acc = DjenProcess & { _sole: Map<string, string>; _all: Map<string, string>; _polo: Map<string, string> };
   const byProc: Record<string, Acc> = {};
 
   for (const p of pubs) {
@@ -213,7 +237,7 @@ export function groupPublicationsByProcess(pubs: DjenPublication[]): DjenProcess
       process_number: p.process_number, process_masked: p.process_masked,
       court: p.court, orgao: p.orgao, classe: p.classe, last_date: null,
       client_name: null, client_type: 'PF', movements: [],
-      _sole: new Map(), _all: new Map(),
+      _sole: new Map(), _all: new Map(), _polo: new Map(),
     });
     const pubType = (p.type || 'Publicação').toLowerCase();
     const isIntimacao = /intima[çc][ãa]o/i.test(pubType);
@@ -232,16 +256,18 @@ export function groupPublicationsByProcess(pubs: DjenPublication[]): DjenProcess
       if (!nm) continue;
       const key = nm.toUpperCase().replace(/\s+/g, ' ');
       proc._all.set(key, nm);
+      if (pt.polo) proc._polo.set(key, String(pt.polo).toUpperCase());
       if ((p.adv_count || 0) <= 1) proc._sole.set(key, nm);
     }
   }
 
   return Object.values(byProc).map((proc) => {
-    let name: string | null = null;
-    if (proc._sole.size >= 1) name = [...proc._sole.values()][0];        // advogada única → cliente certo
-    else if (proc._all.size === 1) name = [...proc._all.values()][0];    // só uma parte no processo
-    // múltiplas partes e nunca foi a única advogada → ambíguo: deixa para cadastro manual
-    const { _sole, _all, ...clean } = proc;
+    // Advogada única intimada → o cliente está entre as partes intimadas, mas
+    // a ré também vem na lista (bug real: a 1ª parte, muitas vezes a empresa,
+    // virava "cliente"). Ver escolherCliente.
+    const candidatos = proc._sole.size ? proc._sole : (proc._all.size === 1 ? proc._all : new Map<string, string>());
+    const name = escolherCliente(candidatos, proc._polo);
+    const { _sole, _all, _polo, ...clean } = proc;
     return { ...clean, client_name: name, client_type: name && isCompanyName(name) ? 'PJ' : 'PF' };
   });
 }

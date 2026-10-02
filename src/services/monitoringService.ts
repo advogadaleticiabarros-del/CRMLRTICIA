@@ -589,7 +589,8 @@ export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublicatio
     let processId: number;
     let clientId: number | null;
 
-    const [exists] = await db.query('SELECT id, client_id FROM legal_processes WHERE process_number = ? LIMIT 1', [p.process_number]) as any;
+    // Compara só os dígitos: o mesmo processo chegava com e sem máscara e era cadastrado 2x.
+    const [exists] = await db.query("SELECT id, client_id FROM legal_processes WHERE REGEXP_REPLACE(process_number, '[^0-9]', '') = ? ORDER BY id LIMIT 1", [String(p.process_number).replace(/\D/g, '')]) as any;
     if (exists.length) {
       processId = exists[0].id;
       clientId = exists[0].client_id ?? null;

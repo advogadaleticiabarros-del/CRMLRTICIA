@@ -42,6 +42,37 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // ── GET /api/processes/:id — detalhe + movimentações ────────────────────────
+// ── Processos duplicados (mesmo número em 2 formatos) — antes de /:id ──────
+router.get('/duplicados', async (_req: Request, res: Response) => {
+  const { listarDuplicados } = await import('../services/unirProcessos');
+  res.json(await listarDuplicados());
+});
+router.post('/duplicados/:digitos/unir', async (req: Request, res: Response) => {
+  const { unirGrupo } = await import('../services/unirProcessos');
+  try {
+    res.json(await unirGrupo(String(req.params.digitos), {
+      client_id: req.body?.client_id ? Number(req.body.client_id) : null,
+      case_id: req.body?.case_id ? Number(req.body.case_id) : null,
+    }));
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
+// ── Conferência de cliente trocado pela parte contrária (antes de /:id) ─────
+router.get('/revisar-clientes', async (_req: Request, res: Response) => {
+  const { listarParaRevisao } = await import('../services/revisaoClientesProcessos');
+  res.json(await listarParaRevisao());
+});
+router.post('/:id/trocar-cliente', async (req: Request, res: Response) => {
+  const { trocarCliente } = await import('../services/revisaoClientesProcessos');
+  try { res.json(await trocarCliente(Number(req.params.id), String(req.body?.nome || ''), req.user!.id)); }
+  catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+router.post('/:id/cliente-conferido', async (req: Request, res: Response) => {
+  const { confirmarCliente } = await import('../services/revisaoClientesProcessos');
+  await confirmarCliente(Number(req.params.id));
+  res.json({ success: true });
+});
+
 router.get('/:id', async (req: Request, res: Response) => {
   const [rows] = await db.query(
     `SELECT lp.*, c.name AS client_name, l.name AS lawyer_name
@@ -79,6 +110,10 @@ router.post('/', async (req: Request, res: Response) => {
   }
   const alias = court_alias && TRIBUNAIS[court_alias] ? court_alias : suggestCourtAlias(judicial_area, 'ES');
   const court = alias && TRIBUNAIS[alias] ? TRIBUNAIS[alias].nome : null;
+
+  // Já monitorado (mesmo número, com ou sem máscara)? Não cria cópia.
+  const [[jaExiste]] = await db.query("SELECT id FROM legal_processes WHERE REGEXP_REPLACE(process_number, '[^0-9]', '') = ? LIMIT 1", [String(process_number || '').replace(/\D/g, '')]) as any;
+  if (jaExiste) { res.status(409).json({ error: 'Este processo já está sendo monitorado', id: jaExiste.id }); return; }
 
   const [result] = await db.query(
     `INSERT INTO legal_processes

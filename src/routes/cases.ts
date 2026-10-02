@@ -622,7 +622,7 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   if (stage === 'protocolado' && finalCaseNumber) {
     try {
       const [existsLp] = await db.query(
-        'SELECT id, case_id FROM legal_processes WHERE process_number = ? LIMIT 1', [finalCaseNumber]
+        "SELECT id, case_id FROM legal_processes WHERE REGEXP_REPLACE(process_number, '[^0-9]', '') = ? ORDER BY id LIMIT 1", [String(finalCaseNumber).replace(/\D/g, '')]
       ) as any;
       if (!existsLp.length) {
         const { suggestCourtAlias, TRIBUNAIS } = await import('../services/datajud');

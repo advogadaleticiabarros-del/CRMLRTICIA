@@ -2921,10 +2921,14 @@ const ROUTES = {
           <button class="btn-sm" id="to-esteira">Trazer p/ a esteira</button>
           <button class="btn-gold" id="new-proc">+ Monitorar processo</button>
         </div></div>
+      <div id="proc-revisar-clientes"></div>
+      <div id="proc-duplicados"></div>
       <div class="toolbar">
         <select id="proc-filter"><option value="">Todos</option><option value="stale">Parados +30 dias</option></select>
       </div>
       <div class="card"><div id="proc-table"></div></div>`;
+    revisarClientesProcessos();
+    processosDuplicados();
     const load = async () => {
       const q = $('#proc-filter').value === 'stale' ? '?stale=30' : '';
       const rows = await api('/api/processes' + q);
@@ -10432,4 +10436,75 @@ async function mutiraoPrazos() {
   wrap.querySelector('#mt-confirmar').onclick = (e) => executar('confirmar', e.target);
   wrap.querySelector('#mt-descartar').onclick = (e) => executar('descartar', e.target);
   openModal('Mutirão de prazos detectados', wrap);
+}
+
+// ── Conferir cliente dos processos ─────────────────────────────────────────
+// A descoberta por OAB chegou a vincular a parte contrária (empresa ré, INSS)
+// como cliente. Lista os suspeitos com a parte sugerida pelas intimações.
+async function revisarClientesProcessos() {
+  const box = $('#proc-revisar-clientes');
+  if (!box) return;
+  const lista = await api('/api/processes/revisar-clientes').catch(() => []);
+  if (!lista.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="card" style="margin-bottom:16px;border:1px solid var(--gold)">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border)">
+      <strong style="color:var(--navy)">⚠ Conferir cliente de ${lista.length} processo${lista.length > 1 ? 's' : ''}</strong>
+      <div class="sub">O cliente vinculado parece ser a parte contrária (empresa ou ente público). Escolha quem você representa.</div></div>
+    ${lista.map((r) => `<div class="mini-row" style="align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <span style="flex:1;min-width:220px"><strong>${esc(r.process_number)}</strong><br>
+        <small>Hoje: <span style="color:var(--red)">${esc(r.cliente_atual)}</span></small><br>
+        <small style="color:var(--text-muted)">Partes: ${r.partes.map((p) => `${esc(p.nome)}${p.polo ? ` (${p.polo === 'A' ? 'ativo' : p.polo === 'P' ? 'passivo' : esc(p.polo)})` : ''}`).join('; ') || 'sem partes nas intimações'}</small></span>
+      <span style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+        ${[...new Set([r.sugestao, ...r.opcoes].filter(Boolean))].map((n) => `<button class="${n === r.sugestao ? 'btn-gold' : ''} btn-sm" data-rc-trocar="${r.id}" data-nome="${esc(n)}">Cliente é ${esc(n.split(' ').slice(0, 2).join(' '))}</button>`).join('')}
+        <button class="btn-sm" data-rc-outro="${r.id}">Outro…</button>
+        <button class="btn-sm" data-rc-ok="${r.id}">Está certo</button></span>
+    </div>`).join('')}</div>`;
+  const trocar = async (id, nome) => {
+    try { await api(`/api/processes/${id}/trocar-cliente`, { method: 'POST', body: JSON.stringify({ nome }) }); toast(`Cliente corrigido: ${nome}`); revisarClientesProcessos(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  box.querySelectorAll('[data-rc-trocar]').forEach((b) => b.onclick = () => trocar(b.dataset.rcTrocar, b.dataset.nome));
+  box.querySelectorAll('[data-rc-outro]').forEach((b) => b.onclick = async () => {
+    const nome = await uiPrompt('Nome completo do cliente que você representa neste processo:');
+    if (nome && nome.trim()) trocar(b.dataset.rcOutro, nome.trim());
+  });
+  box.querySelectorAll('[data-rc-ok]').forEach((b) => b.onclick = async () => {
+    try { await api(`/api/processes/${b.dataset.rcOk}/cliente-conferido`, { method: 'POST', body: '{}' }); revisarClientesProcessos(); }
+    catch (e) { toast(e.message, 'error'); }
+  });
+}
+
+// ── Processos duplicados (mesmo número com e sem máscara) ──────────────────
+// Grupo sem conflito: "Unir" direto. Com clientes/casos diferentes entre as
+// cópias, a advogada escolhe qual fica — o sistema não decide.
+async function processosDuplicados() {
+  const box = $('#proc-duplicados');
+  if (!box) return;
+  const grupos = await api('/api/processes/duplicados').catch(() => []);
+  if (!grupos.length) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div class="card" style="margin-bottom:16px;border:1px solid var(--gold)">
+    <div style="padding:14px 18px;border-bottom:1px solid var(--border)">
+      <strong style="color:var(--navy)">⚠ ${grupos.length} processo${grupos.length > 1 ? 's' : ''} cadastrado${grupos.length > 1 ? 's' : ''} em duplicidade</strong>
+      <div class="sub">O mesmo número entrou com e sem máscara. Unir junta movimentações, prazos e alertas num só cadastro (repetidas são removidas).</div></div>
+    ${grupos.map((g, i) => `<div class="mini-row" style="align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <span style="flex:1;min-width:220px"><strong>${esc(g.process_number)}</strong> · ${g.copias.length} cópias
+        <br><small style="color:var(--text-muted)">${g.copias.map((c) => `#${c.id}: ${esc(c.client_name || 'sem cliente')}${c.case_title ? ' / ' + esc(c.case_title) : ''} (${c.movimentacoes} mov.)`).join(' · ')}</small>
+        ${g.conflito ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px">
+          ${g.clientes_nomes.length ? `<select data-dup-cli="${i}" aria-label="Cliente que fica"><option value="">Cliente que fica…</option>${g.clientes_nomes.map((c) => `<option value="${c.id}">${esc(c.nome)}</option>`).join('')}</select>` : ''}
+          ${g.casos_nomes.length ? `<select data-dup-caso="${i}" aria-label="Caso que fica"><option value="">Caso que fica… (nenhum)</option>${g.casos_nomes.map((c) => `<option value="${c.id}">${esc(c.titulo)}</option>`).join('')}</select>` : ''}
+        </div>` : ''}</span>
+      <button class="btn-gold btn-sm" data-dup-unir="${i}">Unir</button>
+    </div>`).join('')}</div>`;
+  box.querySelectorAll('[data-dup-unir]').forEach((b) => b.onclick = async () => {
+    const g = grupos[b.dataset.dupUnir];
+    const cli = box.querySelector(`[data-dup-cli="${b.dataset.dupUnir}"]`)?.value || null;
+    const caso = box.querySelector(`[data-dup-caso="${b.dataset.dupUnir}"]`)?.value || null;
+    if (g.conflito && g.clientes_nomes.length > 1 && !cli) { toast('Escolha qual cliente fica', 'error'); return; }
+    if (!await uiConfirm(`Unir as ${g.copias.length} cópias do processo ${g.process_number}?`)) return;
+    b.disabled = true;
+    try {
+      await api(`/api/processes/duplicados/${String(g.process_number).replace(/\D/g, '')}/unir`, { method: 'POST', body: JSON.stringify({ client_id: cli, case_id: caso }) });
+      toast('Processo unificado'); processosDuplicados();
+    } catch (e) { toast(e.message, 'error'); b.disabled = false; }
+  });
 }

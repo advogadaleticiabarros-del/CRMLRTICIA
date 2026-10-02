@@ -269,6 +269,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: parte contrária como cliente e processos em duplicidade
+
+**Sintoma (análise 02/10/2026):** 16 "clientes" eram a empresa ré/INSS; 13 processos cadastrados duas vezes.
+
+**Causas raiz:** (1) `groupPublicationsByProcess` tratava todas as partes intimadas como candidatas e pegava a primeira; (2) a busca de processo existente comparava o número com máscara (`process_number = ?`), e o DJEN/DataJud manda o mesmo número com e sem máscara.
+
+**Correção:** `escolherCliente` (PF > empresa, nunca ente público, polo ativo como desempate); busca por dígitos em todos os pontos; telas de conferência de cliente e de união de duplicados.
+
+**Como reconhecer de novo:** cliente com LTDA/EIRELI/INSS no nome num processo trabalhista/previdenciário; o mesmo número aparecendo duas vezes em Monitoramento.
+
+---
+
 ## Incidente: acordos realizados não eram "puxados" e formulários sem parte dos clientes
 
 **Sintoma (relato 02/10/2026):** 3 acordos realizados não apareciam no CRM; registrar acordo era difícil.
@@ -353,6 +365,7 @@ pm2 restart crm-juridico && pm2 save
 | 22/09/2026 | Claude | +1 incidente: dropdown de Pagador continuava preso aberto mesmo após o fix de 04/09 — causa raiz diferente (CSS: `display` de classe vencendo `[hidden]` nativo), corrigido com `.msel-panel[hidden]{display:none}` |
 | 22/09/2026 | Claude | +1 incidente: KPIs do Cockpit sempre abriam a Visão geral do Financeiro sem filtro — roteador ganhou suporte a `#rota?tab=x` (`hashParam()`), Inadimplência/A receber/A pagar agora abrem direto na sub-aba certa |
 | 22/09/2026 | Claude | Atualização do incidente acima: "Propostas em análise" levava pro board errado (Propostas em vez de Leads) — corrigido com o mesmo mecanismo + destaque de coluna no Kanban |
+| 02/10/2026 | Claude | +1 incidente: parte contrária como cliente e processos duplicados |
 | 02/10/2026 | Claude | +1 incidente: acordos não puxados e seletores com só 100 clientes |
 | 01/10/2026 | Claude | +1 incidente: Gerar proposta sem efeito para número ainda não cadastrado |
 | 30/09/2026 | Claude | +1 incidente: revisor de petição revisando o próprio parecer |

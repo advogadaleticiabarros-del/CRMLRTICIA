@@ -288,7 +288,7 @@ export async function runCourtEmailScan(): Promise<ScanResult> {
     }
 
     const [[proc]] = await db.query(
-      'SELECT id, client_id, process_number FROM legal_processes WHERE process_number = ? LIMIT 1', [processNumber]
+      "SELECT id, client_id, process_number FROM legal_processes WHERE REGEXP_REPLACE(process_number, '[^0-9]', '') = ? ORDER BY id LIMIT 1", [String(processNumber).replace(/\D/g, '')]
     ) as any;
     if (!proc) {
       // Processo mencionado no e-mail não está cadastrado no CRM — não dá
