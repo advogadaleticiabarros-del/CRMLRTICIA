@@ -277,6 +277,7 @@ function logout() {
   $('#modal-body').innerHTML = ''; // sessão encerrada: não deixa dados sensíveis do formulário no DOM
   $('#app-view').classList.add('hidden');
   $('#login-view').classList.remove('hidden');
+  if (window.PublicKeyCredential && window.SimpleWebAuthnBrowser) prepararPasskey();
 }
 const AGENDA_TIPO_PT = { reuniao: 'Reuniões', audiencia: 'Audiências', prazo: 'Prazos', tarefa: 'Tarefas', compromisso: 'Outros compromissos', pessoal: 'Pessoal', recado: 'Recados', medicamento: 'Medicamentos' };
 const NAV_LABELS = {
@@ -10259,13 +10260,28 @@ $('#login-form').onsubmit = login;
 function webauthnSupported() {
   return !!(window.PublicKeyCredential && window.SimpleWebAuthnBrowser);
 }
+// O iPhone só abre o Face ID se a chamada vier IMEDIATAMENTE do toque no
+// botão. Antes buscávamos o desafio no servidor depois do toque — com a
+// internet um pouco lenta, o Face ID "girava e voltava" pro login, sem
+// mensagem (relato 02/10/2026). Agora o desafio já está pronto antes do
+// toque (pedido ao abrir a tela e renovado a cada 4 min; vale 5 min).
+let passkeyPronto = null;
+async function prepararPasskey() {
+  try {
+    const r = await api('/api/auth/passkey/login/options', { method: 'POST', body: '{}' });
+    passkeyPronto = { ...r, em: Date.now() };
+  } catch { passkeyPronto = null; }
+}
 async function passkeyLogin() {
   const btn = $('#passkey-login-btn');
   const errBox = $('#login-error');
   if (errBox) errBox.textContent = '';
   if (btn) btn.disabled = true;
   try {
-    const { options, loginToken } = await api('/api/auth/passkey/login/options', { method: 'POST', body: '{}' });
+    // Usa o desafio já pronto (chamada imediata ao Face ID); só busca na hora se não houver.
+    const pronto = passkeyPronto && Date.now() - passkeyPronto.em < 4 * 60 * 1000 ? passkeyPronto : null;
+    passkeyPronto = null;
+    const { options, loginToken } = pronto || await api('/api/auth/passkey/login/options', { method: 'POST', body: '{}' });
     const response = await window.SimpleWebAuthnBrowser.startAuthentication({ optionsJSON: options });
     const data = await api('/api/auth/passkey/login/verify', { method: 'POST', body: JSON.stringify({ loginToken, response }) });
     TOKEN = data.token; USER = data.user;
@@ -10275,9 +10291,12 @@ async function passkeyLogin() {
   } catch (err) {
     // Usuária cancelou o Face ID (ex.: apertou "Cancelar") — não é um erro
     // de verdade, não precisa assustar com mensagem vermelha.
-    if (err && err.name !== 'NotAllowedError' && errBox) {
-      errBox.textContent = err.message || 'Não foi possível entrar com Face ID. Use e-mail e senha abaixo.';
+    if (errBox) {
+      errBox.textContent = err && err.name === 'NotAllowedError'
+        ? 'O Face ID não confirmou. Toque em "Entrar com Face ID" de novo — ou use e-mail e senha.'
+        : (err?.message || 'Não foi possível entrar com Face ID. Use e-mail e senha abaixo.');
     }
+    prepararPasskey(); // deixa um desafio novo pronto para a próxima tentativa
   } finally { if (btn) btn.disabled = false; }
 }
 (function initPasskeyLoginButton() {
@@ -10286,6 +10305,11 @@ async function passkeyLogin() {
   btn.classList.remove('hidden');
   if (hint) hint.classList.remove('hidden');
   btn.onclick = passkeyLogin;
+  // Desafio pronto antes do toque, renovado enquanto a tela de login estiver aberta.
+  const noLogin = () => !$('#login-view')?.classList.contains('hidden');
+  if (noLogin()) prepararPasskey();
+  setInterval(() => { if (noLogin() && document.visibilityState === 'visible') prepararPasskey(); }, 4 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && noLogin()) prepararPasskey(); });
 })();
 
 // Mostrar/ocultar a senha digitada (olho mágico)
@@ -10498,7 +10522,7 @@ if (new URLSearchParams(location.search).get('foco') === '1') {
 // DOM) já terminou — mais garantido que setTimeout(...,0), que em teoria
 // deveria bastar mas na prática não resolveu.
 function bootApp() {
-  if (TOKEN && USER) showApp(); else { $('#login-view').classList.remove('hidden'); }
+  if (TOKEN && USER) showApp(); else { $('#login-view').classList.remove('hidden'); if (typeof prepararPasskey === 'function' && window.PublicKeyCredential) prepararPasskey(); }
   setTimeout(maybeShowIosInstallBanner, 1500);
 }
 if (document.readyState === 'complete') bootApp();

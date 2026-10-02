@@ -455,7 +455,7 @@ router.post('/passkey/login/options', async (req: Request, res: Response) => {
     rpID: WEBAUTHN_RP_ID,
     userVerification: 'preferred',
   });
-  const loginToken = signChallenge({ purpose: 'passkey_login', challenge: options.challenge }, '2m');
+  const loginToken = signChallenge({ purpose: 'passkey_login', challenge: options.challenge }, '5m'); // a tela pede antes do toque (iPhone exige Face ID imediato)
   res.json({ options, loginToken });
 });
 

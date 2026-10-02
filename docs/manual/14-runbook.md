@@ -275,7 +275,9 @@ pm2 restart crm-juridico && pm2 save
 
 **Causa encontrada:** o login por Face ID funciona (último uso 02/10 14h35), mas o único aparelho cadastrado (`user_passkeys` id 1, "iPhone", 30/08/2026) está ligado ao usuário **#1 Administrador** (admin@…), não ao **#2 Letícia Elias Barros** — o aparelho fica preso à conta logada no momento do cadastro. Resultado: o Face ID entra na conta genérica (o fechamento do dia chegou como "Dra. Administrador"). A tela de Configurações ainda dizia, errado, que o Safari comum bloqueia o Face ID.
 
-**Correção:** texto da tela corrigido e explicando que o aparelho fica na conta logada; ao entrar por Face ID aparece "Entrou com Face ID como <nome>". Para resolver de vez: entrar com o e-mail/senha da própria conta → Configurações → "Cadastrar este aparelho" (e remover o cadastro antigo da conta Administrador), ou reatribuir `user_passkeys.user_id` com autorização da dona do aparelho (o login identifica o usuário pela credencial no banco, não pelo userHandle).
+**Correção:** texto da tela corrigido e explicando que o aparelho fica na conta logada; ao entrar por Face ID aparece "Entrou com Face ID como <nome>".
+
+**Atualização (mesmo dia):** o aparelho é da administradora (conta #1 correta — nada a transferir). Sintoma real: "o Face ID gira e volta para o login". Causa: o iPhone só abre o Face ID se a chamada vier imediatamente do toque; o código buscava o desafio no servidor DEPOIS do toque e, com a rede um pouco lenta, o iOS cancelava (`NotAllowedError`) — e o erro era escondido. Por isso às vezes funcionava (21 logins com sucesso no log). Correção: o desafio é pedido antes do toque (ao abrir a tela de login, após sair da conta e a cada 4 min; validade aumentada de 2 para 5 min) e o toque chama o Face ID na hora; quando o Face ID não confirma, aparece mensagem pedindo para tocar de novo. Para resolver de vez: entrar com o e-mail/senha da própria conta → Configurações → "Cadastrar este aparelho" (e remover o cadastro antigo da conta Administrador), ou reatribuir `user_passkeys.user_id` com autorização da dona do aparelho (o login identifica o usuário pela credencial no banco, não pelo userHandle).
 
 ---
 
