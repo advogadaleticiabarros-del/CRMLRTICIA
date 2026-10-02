@@ -9196,7 +9196,7 @@ async function dativeCaseForm(onSave) {
     <strong style="color:var(--navy);font-size:13px">Dados da nomeação</strong>
     ${field('Comarca *', 'comarca')}
     <div class="form-row">${field('Nº do processo', 'process_number')}${field('Vara', 'vara')}</div>
-    <div class="form-row">${field('Área', 'area', { options: DATIVE_AREAS })}${field('Data da nomeação', 'nomeacao_date', { type: 'date' })}</div>
+    <div class="form-row">${field('Área', 'area', { options: DATIVE_AREAS })}${field('Data da nomeação *', 'nomeacao_date', { type: 'date' })}</div>
     ${field('Assunto (aparece como etiqueta)', 'assunto', { placeholder: 'ex.: tráfico de drogas, divórcio litigioso, furto' })}
     ${field('Valor estimado (R$)', 'estimated_value', { type: 'number' })}
     <button type="submit" class="btn-primary">Cadastrar demanda</button>
@@ -9246,7 +9246,7 @@ async function dativeCaseDetail(id, onSave) {
     ${field('Comarca *', 'comarca', { value: d.comarca || '' })}
     <div class="form-row">${field('Nº do processo', 'process_number', { value: d.process_number || '' })}${field('Vara', 'vara', { value: d.vara || '' })}</div>
     ${field('Assistido', 'assisted_name', { value: d.assisted_name || '' })}
-    <div class="form-row">${field('Área', 'area', { value: d.area, options: DATIVE_AREAS })}${field('Data da nomeação', 'nomeacao_date', { type: 'date', value: dinput })}</div>
+    <div class="form-row">${field('Área', 'area', { value: d.area, options: DATIVE_AREAS })}${field('Data da nomeação *', 'nomeacao_date', { type: 'date', value: dinput })}</div>
     ${field('Assunto (etiqueta)', 'assunto', { value: d.assunto || '', placeholder: 'ex.: tráfico de drogas, divórcio litigioso, furto' })}
     <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d.estimated_value ?? 0 })}${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['aguardando_liberacao_requerimento','Aguardando liberação do requerimento'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
     ${field('Observações', 'notes', { value: d.notes || '', type: 'textarea' })}

@@ -276,6 +276,7 @@ router.post('/cases', async (req: Request, res: Response) => {
   const { process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, notes,
           client_id, client_cpf, client_phone, client_email } = req.body;
   if (!comarca || !String(comarca).trim()) { res.status(400).json({ error: 'A comarca é obrigatória' }); return; }
+  if (!/^\d{4}-\d{2}-\d{2}/.test(String(nomeacao_date || ''))) { res.status(400).json({ error: 'Informe a data da nomeação' }); return; }
   if (!client_id && !(assisted_name && String(assisted_name).trim())) {
     res.status(400).json({ error: 'Informe o cliente (assistido): selecione um existente ou preencha o nome' });
     return;
@@ -328,6 +329,10 @@ router.put('/cases/:id', async (req: Request, res: Response) => {
   setIf('assisted_name', req.body.assisted_name);
   setIf('area', req.body.area, AREAS.includes(req.body.area));
   setIf('assunto', req.body.assunto !== undefined ? (String(req.body.assunto).trim() || null) : undefined);
+  // Data da nomeação é obrigatória (regra do escritório): aviso claro em vez de erro 500.
+  if (req.body.nomeacao_date !== undefined && !/^\d{4}-\d{2}-\d{2}/.test(String(req.body.nomeacao_date))) {
+    res.status(400).json({ error: 'Informe a data da nomeação' }); return;
+  }
   setIf('nomeacao_date', req.body.nomeacao_date);
   setIf('estimated_value', req.body.estimated_value !== undefined ? Number(req.body.estimated_value) : undefined);
   // "recusada" só é setada via POST /cases/:id/reject (exige motivo) — trava

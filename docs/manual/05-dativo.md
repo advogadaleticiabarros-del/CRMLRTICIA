@@ -76,4 +76,4 @@ Desde 25/09/2026, a listagem de demandas dativas tem busca por **nome do assisti
 ---
 ◀ [Processos e prazos](04-processos.md) · [Visão geral](00-visao-geral.md) · Próximo: [Documentos e peças](06-documentos.md) ▶
 
-> **Correção 02/10/2026:** editar uma demanda dativa com a "Data da nomeação" (ou outra data) em branco dava "Erro interno do servidor". Agora campo vazio é salvo como "sem data".
+> **Regra (02/10/2026):** a **data da nomeação é obrigatória** ao criar ou editar uma demanda dativa. Sem ela o sistema avisa "Informe a data da nomeação"; antes aparecia "Erro interno do servidor".
