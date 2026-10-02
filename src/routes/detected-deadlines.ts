@@ -130,6 +130,9 @@ async function confirmarPrazoDetectado(
     deadlineId,
   });
 
+  // A tarefa "Analisar …" desta intimação está resolvida.
+  await import('../services/tarefasPrazoDetectado').then((x) => x.fecharTarefasDoPrazo([id])).catch(() => {});
+
   return { success: true, due_date: due, deadline_id: deadlineId, linked_to_case: !!deadlineId };
 }
 
@@ -171,7 +174,8 @@ router.post('/lote', async (req: Request, res: Response) => {
       if (acao === 'confirmar') { if (await confirmarPrazoDetectado(id, req.user!)) ok++; else falhas.push(id); }
       else {
         const [r] = await db.query("UPDATE detected_deadlines SET status = 'descartado' WHERE id = ? AND status = 'a_confirmar'", [id]) as any;
-        if (r.affectedRows) ok++; else falhas.push(id);
+        if (r.affectedRows) { ok++; await import('../services/tarefasPrazoDetectado').then((x) => x.fecharTarefasDoPrazo([id])).catch(() => {}); }
+        else falhas.push(id);
       }
     } catch { falhas.push(id); }
   }
@@ -193,6 +197,7 @@ router.delete('/antigos', async (req: Request, res: Response) => {
 router.post('/:id/descartar', async (req: Request, res: Response) => {
   const [r] = await db.query("UPDATE detected_deadlines SET status = 'descartado' WHERE id = ?", [req.params.id]) as any;
   if (!r.affectedRows) { res.status(404).json({ error: 'Prazo não encontrado' }); return; }
+  await import('../services/tarefasPrazoDetectado').then((x) => x.fecharTarefasDoPrazo([req.params.id])).catch(() => {});
   res.json({ success: true });
 });
 

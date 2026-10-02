@@ -291,7 +291,9 @@ pm2 restart crm-juridico && pm2 save
 
 **Correção:** detecção automática + fila "Acordos a registrar" com cadastro rápido; teto da lista de clientes para 2000 e todos os seletores pedindo a lista inteira.
 
-**Achado relacionado (não corrigido aqui):** em processos trabalhistas a descoberta por OAB vinculou como "cliente" a empresa da parte contrária (ex.: Oliveira Saúde Vila Velha, M. A. M. Medeiros). O cadastro rápido de acordo avisa para conferir o cliente.
+**Tarefas vencidas (114):** 109 eram "Analisar …" de intimação que nunca fechavam — agora ligadas ao prazo detectado e concluídas junto com ele.
+
+**Achado relacionado:** em processos trabalhistas a descoberta por OAB vinculou como "cliente" a empresa da parte contrária (ex.: Oliveira Saúde Vila Velha, M. A. M. Medeiros). O cadastro rápido de acordo avisa para conferir o cliente.
 
 ---
 

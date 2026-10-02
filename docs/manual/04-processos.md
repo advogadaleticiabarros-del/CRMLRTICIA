@@ -42,6 +42,10 @@ Quando a advogada é a única intimada, todas as partes da intimação viravam c
 
 O mesmo número entrava com e sem máscara e virava dois cadastros (13 grupos). Agora toda busca/criação de processo compara só os dígitos (descoberta por OAB, protocolo na esteira, e-mail do tribunal, cadastro manual — este devolve 409 se já existe). Os existentes aparecem em **Processos cadastrados em duplicidade** (topo de *Monitoramento Processual*): **Unir** junta movimentações, prazos detectados, logs, avisos, e-mails, dativos e acordos detectados no cadastro mais antigo, remove movimentações repetidas e apaga as cópias, numa transação. Se as cópias têm clientes ou casos diferentes, é preciso escolher qual fica — o sistema não decide. Testado numa cópia do banco de produção antes de liberar.
 
+## Tarefa "Analisar …" fecha sozinha (corrigido 02/10/2026)
+
+Cada intimação detectada cria a tarefa "Analisar <tipo> — proc. <nº>". Antes ela nunca fechava — em 02/10/2026 eram 109 das 114 tarefas vencidas. Agora a tarefa fica ligada ao prazo detectado (`tasks.detected_deadline_id`) e é concluída automaticamente quando o prazo é confirmado ou descartado (individual ou no mutirão). As antigas foram ligadas pelo nº do processo e as já resolvidas fechadas (script `sanearTarefasAnalisar`).
+
 ## Mutirão de prazos detectados (desde 02/10/2026)
 
 Quando há mais de 3 prazos a confirmar, o cartão "⚠ Prazos detectados" mostra **Resolver em lote (mutirão)**. A janela traz todos com o vencimento já calculado (CPC, feriados e suspensão de fim de ano) em três grupos: **vencem em até 5 dias**, **demais** e **vencimento já passou** (provavelmente tratados fora do CRM). Duplicados (mesmo processo em dois formatos + mesmo tipo) aparecem marcados e desmarcados.
@@ -126,6 +130,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 | 28/09/2026 | Claude | Tipo de prazo por gatilho específico/título (`deteccaoPrazo.ts`), aviso de fase divergente (`processos:fase-divergente`), busca nacional por OAB passa a reportar falha por tribunal, testes de fase e tribunal — ideias 6, 7, 8 e 9 da auditoria |
 | 28/09/2026 | Claude | Avisos de prazo escalonados (título 🚨 e repetição por urgência), aviso único ao vencer (`prazos:vencidos`) e alerta diário de prazo em processo sem caso (`prazos:sem-caso`) — ideias 2, 4 e 5 da auditoria |
 | 30/09/2026 | Claude | Status de tarefa "aguardando terceiro" (com quem) |
+| 02/10/2026 | Claude | Tarefa "Analisar" fecha ao confirmar/descartar o prazo detectado |
 | 02/10/2026 | Claude | Cliente certo na descoberta + conferência; processos duplicados: prevenção + unir |
 | 02/10/2026 | Claude | Mutirão de prazos detectados (confirmar/dar baixa em lote) |
 | 30/09/2026 | Claude | Prescrição do caso com sugestão por área e avisos do vigia da carteira |

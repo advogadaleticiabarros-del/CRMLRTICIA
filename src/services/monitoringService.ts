@@ -191,9 +191,9 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
     if (admins.length) {
       await db.query(
-        `INSERT INTO tasks (user_id, client_id, title, description, due_date, priority, status)
-         VALUES (?, ?, ?, ?, NOW(), 'alta', 'pendente')`,
-        [admins[0].id, clientId, `Analisar ${trig.type}${processNumber ? ' — proc. ' + processNumber : ''}`, (m.description || m.title || '').slice(0, 1000)]
+        `INSERT INTO tasks (user_id, client_id, title, description, due_date, priority, status, detected_deadline_id)
+         VALUES (?, ?, ?, ?, NOW(), 'alta', 'pendente', ?)`,
+        [admins[0].id, clientId, `Analisar ${trig.type}${processNumber ? ' — proc. ' + processNumber : ''}`, (m.description || m.title || '').slice(0, 1000), ddRes.insertId]
       );
     }
     for (const a of admins) {
