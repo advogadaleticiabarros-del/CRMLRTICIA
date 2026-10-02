@@ -62,7 +62,7 @@ No topo de toda tela (equipe do escritório). Pergunta "O que você quer registr
 
 ## Menu enxuto e "?" em cada tela (desde 02/10/2026)
 
-O menu lateral deixou de ser uma lista de 24 itens e virou grupos: **Hoje · Atendimento** (novo atendimento, possíveis clientes, propostas, contratos) **· Clientes e processos** (clientes, processos, andamentos nos tribunais, peças em produção, dativo, correspondente, parcerias) **· Agenda e prazos · Financeiro · Documentos** (documentos, assistente de IA) **· Relatórios**, e **Mais** (recolhido: newsletter, fases dos processos, rentabilidade e custos, advogados/OAB) + Configurações. Nomes em português simples: Leads → "Possíveis clientes", Dashboard → "Relatórios", Monitoramento → "Andamentos nos tribunais", Produção → "Peças em produção", Fases (Kanban) → "Fases dos processos", Controladoria → "Rentabilidade e custos", IA Jurídica → "Assistente de IA". As rotas (#leads, #monitor…) não mudaram. Papéis com poucas telas (cliente, parceiro, estagiário) seguem com a lista simples.
+**Atualização (02/10/2026, mesmo dia):** a pedido da usuária, os títulos de seção foram removidos — o menu é uma lista única, sem divisões nem "Mais", na ordem: Dashboard, Hoje, Novo atendimento, Possíveis clientes, Propostas, Contratos, Clientes, Processos, Andamentos nos tribunais, Peças em produção, Dativo, Correspondente, Parcerias, Agenda, Prazos e tarefas, Financeiro, Documentos, Assistente de IA, Newsletter, Fases dos processos, Rentabilidade e custos, Advogados/OAB, Configurações. Versão anterior (substituída): O menu lateral deixou de ser uma lista de 24 itens e virou grupos: **Hoje · Atendimento** (novo atendimento, possíveis clientes, propostas, contratos) **· Clientes e processos** (clientes, processos, andamentos nos tribunais, peças em produção, dativo, correspondente, parcerias) **· Agenda e prazos · Financeiro · Documentos** (documentos, assistente de IA) **· Relatórios**, e **Mais** (recolhido: newsletter, fases dos processos, rentabilidade e custos, advogados/OAB) + Configurações. Nomes em português simples: Leads → "Possíveis clientes", Dashboard → "Relatórios", Monitoramento → "Andamentos nos tribunais", Produção → "Peças em produção", Fases (Kanban) → "Fases dos processos", Controladoria → "Rentabilidade e custos", IA Jurídica → "Assistente de IA". As rotas (#leads, #monitor…) não mudaram. Papéis com poucas telas (cliente, parceiro, estagiário) seguem com a lista simples.
 
 Cada tela tem um **"?"** ao lado do título com uma ou duas frases dizendo para que ela serve e o que fazer (`AJUDA_TELAS` em `public/app.js`).
 
@@ -116,6 +116,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 02/10/2026 | Claude | Menu sem títulos de seção (lista única) |
 | 02/10/2026 | Claude | Dashboard como primeira tela; largura total em todas as telas |
 | 02/10/2026 | Claude | Botão "+ Registrar" único |
 | 02/10/2026 | Claude | Menu enxuto em grupos + "?" de ajuda em cada tela |

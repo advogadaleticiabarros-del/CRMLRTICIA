@@ -601,32 +601,13 @@ function buildNav() {
   // (cliente, parceiro, estagiário) continuam com a lista simples.
   const agrupado = visiveis.includes('hoje');
   if (!agrupado) { $('#nav').innerHTML = visiveis.map(link).join(''); buildBottomNav(visiveis); return; }
-  const usados = new Set();
-  const grupo = (titulo, rotas) => {
-    const rs = rotas.filter((r) => visiveis.includes(r) && !usados.has(r));
-    rs.forEach((r) => usados.add(r));
-    return rs.length ? `<div class="nav-group">${titulo ? `<div class="nav-group-title">${titulo}</div>` : ''}${rs.map(link).join('')}</div>` : '';
-  };
-  const html = [
-    grupo('', ['dashboard', 'hoje']),
-    grupo('Atendimento', ['intakes', 'leads', 'propostas', 'contratos']),
-    grupo('Clientes e processos', ['clients', 'cases', 'monitor', 'producao', 'dativo', 'correspondente', 'parcerias']),
-    grupo('Agenda e prazos', ['agenda', 'prazos']),
-    grupo('Financeiro', ['financeiro', 'repasses']),
-    grupo('Documentos', ['documentos', 'ia']),
-  ].join('');
-  const resto = visiveis.filter((r) => !usados.has(r) && r !== 'config');
-  const aberto = localStorage.getItem('crm_nav_mais') === '1';
-  $('#nav').innerHTML = html +
-    (resto.length ? `<div class="nav-group"><button type="button" class="nav-group-title nav-mais-toggle" id="nav-mais-toggle" aria-expanded="${aberto}">Mais ${aberto ? '▴' : '▾'}</button>
-      <div id="nav-mais" ${aberto ? '' : 'hidden'}>${resto.map(link).join('')}</div></div>` : '') +
-    (visiveis.includes('config') ? `<div class="nav-group">${link('config')}</div>` : '');
-  const tg = $('#nav-mais-toggle');
-  if (tg) tg.onclick = () => {
-    const box = $('#nav-mais'); const abrir = box.hidden;
-    box.hidden = !abrir; tg.setAttribute('aria-expanded', String(abrir)); tg.textContent = `Mais ${abrir ? '▴' : '▾'}`;
-    try { localStorage.setItem('crm_nav_mais', abrir ? '1' : '0'); } catch {}
-  };
+  // Lista única, sem títulos de seção (pedido 02/10/2026: "não quero essas
+  // divisões no menu") — só a ordem por uso: o mais usado primeiro.
+  const ORDEM = ['dashboard', 'hoje', 'intakes', 'leads', 'propostas', 'contratos', 'clients', 'cases', 'monitor',
+    'producao', 'dativo', 'correspondente', 'parcerias', 'agenda', 'prazos', 'financeiro', 'repasses',
+    'documentos', 'ia', 'newsletter', 'fases', 'controladoria', 'advogados', 'config'];
+  const ordenados = [...ORDEM.filter((r) => visiveis.includes(r)), ...visiveis.filter((r) => !ORDEM.includes(r))];
+  $('#nav').innerHTML = ordenados.map(link).join('');
   buildBottomNav(items.filter((r) => r !== 'whatsapp'));
 }
 
