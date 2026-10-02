@@ -556,6 +556,20 @@ router.post('/chats/:phone/enviar-proposta', async (req: Request, res: Response)
   res.json({ success: true, proposta_id: p.id, url });
 });
 
+// ── Triagem em lote dos números sem cadastro ─────────────────────────────────
+router.get('/sem-cadastro', async (_req: Request, res: Response) => {
+  const { listarSemCadastro } = await import('../services/triagemSemCadastroJob');
+  res.json(await listarSemCadastro());
+});
+router.post('/sem-cadastro/sugerir', async (_req: Request, res: Response) => {
+  const { sugerirLote } = await import('../services/triagemSemCadastroJob');
+  res.json(await sugerirLote(25));
+});
+router.post('/sem-cadastro/aplicar', async (req: Request, res: Response) => {
+  const { aplicarLote } = await import('../services/triagemSemCadastroJob');
+  res.json(await aplicarLote(Array.isArray(req.body?.itens) ? req.body.itens : [], (req as any).user.id));
+});
+
 // ── Ler dados dos documentos recebidos → sugestões (nada é gravado aqui) ────
 router.post('/chats/:phone/extrair-dados', async (req: Request, res: Response) => {
   const { lerDadosDosDocumentos } = await import('../services/extracaoDocumentosJob');

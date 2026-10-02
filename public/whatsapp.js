@@ -391,6 +391,7 @@ Object.assign(ROUTES, {
               <button type="button" class="wa-view-opt ${tab === 'contatos' ? 'active' : ''}" data-wtab="contatos" title="Quadro por etapas">${svgIcon('kanban', 'ic-xs')}Quadro</button>
             </div>
             ${tab === 'contatos' ? '<button class="btn-gold btn-sm" id="wc-nova-etapa">+ Nova etapa</button>' : ''}
+            <button class="btn-sm" id="wa-sem-cadastro" title="Classificar em lote os números sem lead/cliente">Organizar sem cadastro</button>
             <button class="btn-gold" id="wa-nova">+ Nova conversa</button>
           </div></div>
         <div id="wa-body"><div class="spinner"></div></div>`;
@@ -2286,4 +2287,57 @@ function leituraHtml(l, visitas) {
     ${(visitas || []).length ? `<table style="margin-top:6px;font-size:12.5px"><thead><tr><th>Quando</th><th>Tempo</th><th>Leu</th><th>Aparelho</th></tr></thead><tbody>
       ${visitas.map((v) => `<tr><td>${dt(v.iniciada_em)}</td><td>${duracaoTxt(v.segundos)}</td><td>${v.scroll_max}%</td><td>${esc(v.dispositivo)}</td></tr>`).join('')}</tbody></table>` : ''}
   </div>`;
+}
+
+// ── Organizar números sem cadastro (triagem em lote) ───────────────────────
+// A IA sugere a categoria de cada número (lead, pessoal, parceiro, parte
+// contrária, serviço); a advogada ajusta e aplica: lead vira cadastro no funil,
+// o resto vai para a etapa correspondente do quadro.
+document.addEventListener('click', (e) => { if (e.target.closest && e.target.closest('#wa-sem-cadastro')) organizarSemCadastro(); });
+
+async function organizarSemCadastro() {
+  const CAT = [['lead', 'Lead (cadastrar no funil)'], ['pessoal', 'Pessoal'], ['parceiro', 'Parceiro'], ['parte_contraria', 'Parte contrária'], ['servico', 'Serviço / notificação (arquivar)'], ['outro', 'Deixar como está']];
+  const wrap = el(`<div><p class="sub" id="sc-status">Carregando…</p><div id="sc-lista" style="max-height:58vh;overflow:auto"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px">
+      <button class="btn-sm" id="sc-sugerir">Sugerir com IA</button>
+      <button class="btn-primary" id="sc-aplicar" style="width:auto">Aplicar</button></div></div>`);
+  openModal('Organizar números sem cadastro', wrap);
+  let lista = [];
+  const render = () => {
+    const semSug = lista.filter((r) => !r.triagem_categoria).length;
+    wrap.querySelector('#sc-status').textContent = `${lista.length} número(s) sem lead/cliente nos últimos 30 dias${semSug ? ` · ${semSug} ainda sem sugestão da IA` : ''}. Confira e aplique.`;
+    wrap.querySelector('#sc-lista').innerHTML = lista.length ? lista.map((r, i) => `<div class="mini-row" style="align-items:flex-start;gap:10px;flex-wrap:wrap">
+      <span style="flex:1;min-width:200px"><strong>${esc(r.triagem_nome || r.push_name || '+' + r.phone)}</strong> <small style="color:var(--text-muted)">+${esc(r.phone)}</small><br>
+        <small style="color:var(--text-muted)">“${esc(r.ultima_msg || '')}”</small>
+        ${r.triagem_motivo ? `<br><small>IA: ${esc(r.triagem_motivo)}</small>` : ''}</span>
+      <select data-sc="${i}" aria-label="Categoria">${CAT.map(([v, t]) => `<option value="${v}" ${(r.triagem_categoria || 'outro') === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
+    </div>`).join('') : '<div class="empty">Nenhum número sem cadastro 🎉</div>';
+  };
+  const carregar = async () => { lista = await api('/api/whatsapp-instance/sem-cadastro').catch(() => []); render(); };
+  wrap.querySelector('#sc-sugerir').onclick = async (e) => {
+    const b = e.target; b.disabled = true;
+    try {
+      let r;
+      do {
+        b.textContent = 'A IA está lendo as conversas…';
+        r = await api('/api/whatsapp-instance/sem-cadastro/sugerir', { method: 'POST', body: '{}' });
+      } while (r.sugeridos && r.faltam);
+      await carregar(); toast('Sugestões prontas — confira antes de aplicar');
+    } catch (err) { toast(err.message, 'error'); }
+    b.disabled = false; b.textContent = 'Sugerir com IA';
+  };
+  wrap.querySelector('#sc-aplicar').onclick = async (e) => {
+    const itens = [...wrap.querySelectorAll('[data-sc]')].map((s) => ({ phone: lista[s.dataset.sc].phone, categoria: s.value, nome: lista[s.dataset.sc].triagem_nome || '' }))
+      .filter((i) => i.categoria !== 'outro');
+    if (!itens.length) { toast('Nada para aplicar', 'error'); return; }
+    if (!await uiConfirm(`Aplicar ${itens.length} classificação(ões)? Leads entram no funil; os demais vão para a etapa do quadro.`)) return;
+    e.target.disabled = true;
+    try {
+      const r = await api('/api/whatsapp-instance/sem-cadastro/aplicar', { method: 'POST', body: JSON.stringify({ itens }) });
+      toast(`${r.leads} lead(s) cadastrado(s) · ${r.movidos} contato(s) organizado(s) no quadro`);
+      await carregar();
+    } catch (err) { toast(err.message, 'error'); }
+    e.target.disabled = false;
+  };
+  carregar();
 }

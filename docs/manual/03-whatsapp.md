@@ -37,6 +37,10 @@ Notas internas (visíveis só pra equipe, nunca pro cliente) e etiquetas de conv
 
 Cliente com 2+ processos: no bloco **Processo** da ficha aparece *Esta conversa é sobre*. Escolher é opcional; o processo escolhido passa a ser o destacado na ficha (nº, etapa, audiência) e é usado como caso da tarefa criada quando o cliente menciona intimação. Salvo em `whatsapp_chat_meta.case_id`; só aceita processo do próprio cliente do número.
 
+## Organizar números sem cadastro (desde 02/10/2026)
+
+Botão **Organizar sem cadastro** no topo da Central de Atendimento. Lista os números com conversa nos últimos 30 dias que não são lead nem cliente e ainda estão em "Novo contato" (58 em 02/10/2026). **Sugerir com IA** lê as últimas 12 mensagens de cada um (Groq, modo JSON) e propõe: Lead, Pessoal, Parceiro, Parte contrária, Serviço/notificação ou "deixar como está" — com o motivo. Você ajusta e clica **Aplicar**: lead vira cadastro no funil (origem WhatsApp, etapa Triagem); os demais vão para a etapa do quadro (Pessoal, Parceiros, Parte contraria, Arquivado). A sugestão fica guardada em `whatsapp_chat_meta.triagem_*`. Regras em `src/services/triagemSemCadastro.ts` (testadas).
+
 ## Gerar proposta de quem ainda não é lead (desde 01/10/2026)
 
 **Gerar proposta** na ficha da conversa funciona mesmo quando o número ainda não é lead: o sistema cadastra o lead na hora (origem WhatsApp), lê as últimas mensagens escritas pelo contato e preenche nome completo, CPF, e-mail e endereço que estiverem lá (sem inventar), e abre o formulário de proposta já preenchido para conferir. Se o número já for lead, usa o existente; se já for cliente, o botão fica desativado (proposta pela ficha do cliente). Rota `POST /api/whatsapp-instance/chats/:phone/lead-para-proposta`.
@@ -145,6 +149,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 02/10/2026 | Claude | Organizar números sem cadastro (triagem em lote com IA) |
 | 02/10/2026 | Claude | Alerta de proposta em análise também no quadro (Kanban) |
 | 01/10/2026 | Claude | Monitoramento do link da proposta: tempo de leitura, reaberturas, % lido, aparelho e aviso no sino a cada abertura |
 | 01/10/2026 | Claude | Botão Enviar proposta com link e texto pronto; bolinha verde "analisando proposta"; registro de quando o cliente abre o link |
