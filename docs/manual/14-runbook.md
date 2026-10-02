@@ -269,6 +269,20 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: acordos realizados não eram "puxados" e formulários sem parte dos clientes
+
+**Sintoma (relato 02/10/2026):** 3 acordos realizados não apareciam no CRM; registrar acordo era difícil.
+
+**Causas raiz:**
+1. Nenhuma regra lia homologação de acordo/transação nas movimentações — só 2 acordos haviam sido cadastrados (manualmente, até julho), enquanto 5 processos tinham acordo nas movimentações dos últimos 120 dias.
+2. `GET /api/clients` tinha teto de 100 resultados e havia 185 clientes: em 19 formulários (acordo, agenda, tarefas, receitas, documentos, WhatsApp…) 85 clientes simplesmente não apareciam na lista.
+
+**Correção:** detecção automática + fila "Acordos a registrar" com cadastro rápido; teto da lista de clientes para 2000 e todos os seletores pedindo a lista inteira.
+
+**Achado relacionado (não corrigido aqui):** em processos trabalhistas a descoberta por OAB vinculou como "cliente" a empresa da parte contrária (ex.: Oliveira Saúde Vila Velha, M. A. M. Medeiros). O cadastro rápido de acordo avisa para conferir o cliente.
+
+---
+
 ## Incidente: "Gerar proposta" não funcionava na conversa (botões desativados)
 
 **Sintoma (relato 01/10/2026):** a cliente mandou nome, CPF, e-mail e endereço pelo WhatsApp, mas *Gerar proposta*, *Abrir cadastro* e *Ler dados dos documentos* não respondiam.
@@ -339,6 +353,7 @@ pm2 restart crm-juridico && pm2 save
 | 22/09/2026 | Claude | +1 incidente: dropdown de Pagador continuava preso aberto mesmo após o fix de 04/09 — causa raiz diferente (CSS: `display` de classe vencendo `[hidden]` nativo), corrigido com `.msel-panel[hidden]{display:none}` |
 | 22/09/2026 | Claude | +1 incidente: KPIs do Cockpit sempre abriam a Visão geral do Financeiro sem filtro — roteador ganhou suporte a `#rota?tab=x` (`hashParam()`), Inadimplência/A receber/A pagar agora abrem direto na sub-aba certa |
 | 22/09/2026 | Claude | Atualização do incidente acima: "Propostas em análise" levava pro board errado (Propostas em vez de Leads) — corrigido com o mesmo mecanismo + destaque de coluna no Kanban |
+| 02/10/2026 | Claude | +1 incidente: acordos não puxados e seletores com só 100 clientes |
 | 01/10/2026 | Claude | +1 incidente: Gerar proposta sem efeito para número ainda não cadastrado |
 | 30/09/2026 | Claude | +1 incidente: revisor de petição revisando o próprio parecer |
 | 30/09/2026 | Claude | +1 incidente: fechamento do dia ignorava o retrato da manhã |

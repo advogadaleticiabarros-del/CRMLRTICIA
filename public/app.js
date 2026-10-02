@@ -3093,7 +3093,7 @@ async function renderIA(page) {
 
 async function iaForm(onSave, opts) {
   const o = opts || {};
-  const [templates, clients] = await Promise.all([api('/api/ai/templates'), api('/api/clients?limit=200')]);
+  const [templates, clients] = await Promise.all([api('/api/ai/templates'), api('/api/clients?limit=2000')]);
   const typeOpts = templates.map((t) => ({ v: t.type, t: t.label }));
   const form = el(`<form class="form-grid">
     ${field('Tipo de documento', 'type', { options: typeOpts, value: o.type || '' })}
@@ -3188,7 +3188,7 @@ async function renderDocumentos(page) {
 }
 
 async function gedDocumentos(c) {
-  const clients = await api('/api/clients?limit=200');
+  const clients = await api('/api/clients?limit=2000');
   c.innerHTML = `
     <div class="toolbar">
       <select id="ged-client"><option value="">Selecione um cliente…</option>${clients.data.map((cl) => `<option value="${cl.id}">${cl.name}</option>`).join('')}</select>
@@ -3817,7 +3817,7 @@ async function renderCorrespondente(page) {
 }
 
 async function clientPicker(onPick) {
-  const clients = await api('/api/clients?limit=200');
+  const clients = await api('/api/clients?limit=2000');
   const form = el(`<form class="form-grid">
     ${field('Cliente', 'client_id', { options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}
     <button type="submit" class="btn-primary">Vincular</button>
@@ -5348,6 +5348,7 @@ async function finVisaoGeral(c) {
 async function finAcordos(c) {
   c.innerHTML = `
     <button class="btn-gold tab-action" id="new-acordo">+ Novo acordo</button>
+    <div id="acordo-detectados"></div>
     <div class="card"><div id="acordo-table"></div></div>`;
   tableTools(c.querySelector('.card'), { findTable: () => c.querySelector('#acordo-table table'), filename: 'acordos', title: 'Acordos' });
   const load = async () => {
@@ -5404,7 +5405,76 @@ async function finAcordos(c) {
     });
   };
   $('#new-acordo').onclick = () => acordoForm(load);
+  const loadDetectados = async () => {
+    const box = $('#acordo-detectados');
+    const lista = await api('/api/acordos/detectados/pendentes').catch(() => []);
+    box.innerHTML = `<div class="card" style="margin-bottom:16px;border:1px solid var(--gold)">
+      <div style="padding:14px 18px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+        <div><strong style="color:var(--navy)">🤝 Acordos a registrar ${lista.length ? `<span class="badge" style="background:var(--amber-bg);color:var(--amber)">${lista.length}</span>` : ''}</strong>
+          <div class="sub">Acordos que apareceram nas movimentações dos processos e ainda não têm valores lançados.</div></div>
+        <button class="btn-sm" id="acd-varrer">Procurar nos processos</button></div>
+      ${lista.length ? lista.map((d) => `<div class="mini-row" style="align-items:flex-start;gap:10px">
+          <span><strong>${esc(d.process_number)}</strong> · ${d.tipo === 'homologado' ? '<span class="badge pago">homologado</span>' : '<span class="badge">juntado</span>'}
+            ${d.data_movimento ? `<small style="color:var(--text-muted)"> em ${fmtDate(d.data_movimento)}</small>` : ''}<br>
+            <small>Cliente no CRM: ${d.client_name ? esc(d.client_name) : '<em>nenhum vinculado</em>'}</small><br>
+            <small style="color:var(--text-muted)">${esc(String(d.trecho || '').slice(0, 160))}</small></span>
+          <span style="white-space:nowrap;display:flex;gap:6px"><button class="btn-gold btn-sm" data-acd-reg="${d.id}">Registrar</button><button class="btn-sm" data-acd-desc="${d.id}">Não é acordo</button></span>
+        </div>`).join('') : '<div class="empty" style="padding:14px">Nenhum acordo pendente de registro</div>'}
+    </div>`;
+    box.querySelector('#acd-varrer').onclick = async (e) => {
+      e.target.disabled = true; e.target.textContent = 'Procurando…';
+      try { const r = await api('/api/acordos/detectados/varrer', { method: 'POST', body: '{}' }); toast(r.encontrados ? `${r.encontrados} acordo(s) novo(s) encontrado(s)` : 'Nenhum acordo novo nas movimentações'); loadDetectados(); }
+      catch (err) { toast(err.message, 'error'); e.target.disabled = false; }
+    };
+    box.querySelectorAll('[data-acd-desc]').forEach((b) => b.onclick = async () => {
+      if (!await uiConfirm('Descartar? Este processo sai da lista de acordos a registrar.')) return;
+      try { await api(`/api/acordos/detectados/${b.dataset.acdDesc}/descartar`, { method: 'POST', body: '{}' }); loadDetectados(); } catch (e) { toast(e.message, 'error'); }
+    });
+    box.querySelectorAll('[data-acd-reg]').forEach((b) => b.onclick = () => acordoRapido(lista.find((x) => String(x.id) === b.dataset.acdReg), () => { loadDetectados(); load(); }));
+  };
+  loadDetectados();
   await load();
+}
+
+// Cadastro RÁPIDO de acordo judicial (8 campos) a partir de um acordo detectado
+// no processo — o formulário completo (extrajudicial, representante, etc.)
+// continua em "+ Novo acordo" / "Editar". Lança honorários e repasses igual.
+async function acordoRapido(d, onSave) {
+  const clients = await api('/api/clients?limit=2000');
+  const hoje = new Date().toLocaleDateString('en-CA');
+  const form = el(`<form class="form-grid">
+    <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:12.5px">
+      Processo <strong>${esc(d.process_number)}</strong> — ${d.tipo === 'homologado' ? 'acordo homologado' : 'acordo juntado'}${d.data_movimento ? ` em ${fmtDate(d.data_movimento)}` : ''}<br>
+      <span style="color:var(--text-muted)">${esc(String(d.trecho || '').slice(0, 300))}</span></div>
+    ${field('Cliente (quem você representa) *', 'client_id', { value: d.client_id || '', options: [{ v: '', t: '— escolha —' }, ...[...clients.data].sort((a, b) => String(a.name).localeCompare(String(b.name), 'pt-BR')).map((c) => ({ v: c.id, t: c.name }))] })}
+    <p class="sub" style="margin-top:-6px">Confira: em alguns processos o CRM vinculou a empresa da parte contrária como cliente.</p>
+    ${field('Parte contrária *', 'opposing_party')}
+    <div class="form-row">${moneyField('Valor total do acordo (R$) *', 'total_agreement_value', d.valor_sugerido ? String(d.valor_sugerido).replace('.', ',') : '')}${moneyField('Entrada (R$)', 'entrada_value', '')}</div>
+    <div class="form-row">${field('Nº de parcelas', 'installments_count', { type: 'number', value: 1 })}${field('1º vencimento *', 'first_due_date', { type: 'date', value: hoje })}</div>
+    <div class="form-row">${field('Honorários (%)', 'honorarium_percentage', { type: 'number', value: 30 })}${moneyField('Sucumbência (R$)', 'sucumbencia_value', '')}</div>
+    ${field('O dinheiro cai…', 'payment_flow', { value: 'direto_cliente', options: [{ v: 'direto_cliente', t: 'Direto na conta do cliente' }, { v: 'via_escritorio', t: 'Na conta do escritório (gera repasse ao cliente)' }] })}
+    <button type="submit" class="btn-primary">Registrar acordo</button>
+  </form>`);
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const b = Object.fromEntries(new FormData(form));
+    if (!b.client_id) { toast('Escolha o cliente', 'error'); return; }
+    if (!b.opposing_party.trim()) { toast('Informe a parte contrária', 'error'); return; }
+    const total = parseMoneyBR(b.total_agreement_value);
+    if (!total) { toast('Informe o valor total do acordo', 'error'); return; }
+    const body = {
+      ...b, total_agreement_value: total, entrada_value: parseMoneyBR(b.entrada_value) || 0,
+      sucumbencia_value: parseMoneyBR(b.sucumbencia_value) || 0,
+      process_number: d.process_number, case_id: d.case_id || null,
+      status: d.tipo === 'homologado' ? 'Homologado' : 'Proposto', acordo_detectado_id: d.id,
+    };
+    const btn = form.querySelector('button[type=submit]'); btn.disabled = true;
+    try {
+      const r = await api('/api/acordos', { method: 'POST', body: JSON.stringify(body) });
+      closeModal(); toast(`Acordo registrado${r.lancamentos_financeiros ? ` — ${r.lancamentos_financeiros} lançamento(s) no financeiro` : ''}`); onSave();
+    } catch (err) { toast(err.message, 'error'); btn.disabled = false; }
+  };
+  openModal('Registrar acordo', form);
 }
 
 // A RECEBER — unificado: lançamentos, parcelas (propostas e contratos),
@@ -5525,7 +5595,7 @@ async function finReceitas(c) {
 
   // Formulário de RPV / precatório / alvará / acordo (êxito de caso próprio)
   const awardForm = async () => {
-    const clients = await api('/api/clients?limit=200').catch(() => ({ data: [] }));
+    const clients = await api('/api/clients?limit=2000').catch(() => ({ data: [] }));
     const form = el(`<form class="form-grid">
       <p style="font-size:13px;color:var(--text-muted)">Registre o que foi ganho e ainda vai cair na conta (RPV, precatório, alvará ou acordo). O valor do escritório entra no "A Receber" e no fluxo de caixa.</p>
       ${field('Tipo', 'kind', { options: [['rpv','RPV'],['precatorio','Precatório'],['alvara','Alvará judicial'],['acordo','Acordo'],['outro','Outro']].map(([v,t])=>({v,t})) })}
@@ -5655,7 +5725,7 @@ async function finInadimplencia(c) {
 
   // Renegociação: parcelas em aberto de um cliente viram um novo parcelamento
   $('#renegociar-btn').onclick = async () => {
-    const clients = await api('/api/clients?limit=100').catch(() => ({ data: [] }));
+    const clients = await api('/api/clients?limit=2000').catch(() => ({ data: [] }));
     const form = el(`<form class="form-grid">
       ${field('Cliente *', 'client_id', { options: [{ v: '', t: '— escolha —' }, ...clients.data.map((x) => ({ v: x.id, t: x.name }))] })}
       <div id="ren-parcelas"><small style="color:var(--text-muted)">Escolha o cliente para listar as parcelas em aberto.</small></div>
@@ -6421,7 +6491,7 @@ async function cashflowForm(onSave, preType) {
 
 // ── Formulários financeiros ──
 async function acordoForm(onSave, existing = null) {
-  const clients = await api('/api/clients?limit=100');
+  const clients = await api('/api/clients?limit=2000');
   const e0 = existing || {};
   const form = el(`<form class="form-grid">
     ${field('Cliente *', 'client_id', { value: e0.client_id || '', options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}
@@ -6569,7 +6639,7 @@ function acordoUploadMinuta(agreementId, onDone) {
 }
 
 async function receitaForm(onSave) {
-  const clients = await api('/api/clients?limit=100');
+  const clients = await api('/api/clients?limit=2000');
   const form = el(`<form class="form-grid">
     ${field('Cliente *', 'client_id', { options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}
     ${field('Descrição *', 'descricao')}
@@ -7138,7 +7208,7 @@ const HON_PRESETS = [
 ];
 
 async function propostaForm(onSave, lead = null, existing = null) {
-  const clients = await api('/api/clients?limit=200');
+  const clients = await api('/api/clients?limit=2000');
   const sec = (t) => `<div class="prop-sec">${t}</div>`;
   const honRows = HON_MODS.map((m) => `
     <label class="hon-mod"><input type="checkbox" data-hon="${m.k}"> <span>${m.label}</span></label>
@@ -7536,7 +7606,7 @@ async function propostaDetail(id, onSave) {
 const PHASES = [['inicial','Inicial'],['instrucao','Instrução'],['sentenca','Sentença'],['recurso','Recurso'],['execucao','Execução'],['encerrado','Encerrado']].map(([v,t])=>({v,t}));
 
 async function caseForm(onSave) {
-  const clients = await api('/api/clients?limit=100');
+  const clients = await api('/api/clients?limit=2000');
   const form = el(`<form class="form-grid">
     ${field('Cliente *', 'client_id', { options: clients.data.map((c) => ({ v: c.id, t: c.name })) })}
     ${field('Título *', 'title')}
@@ -8255,7 +8325,7 @@ async function eventDetail(item, onSave) {
 }
 
 async function eventForm(onSave, prefillDate) {
-  const clients = await api('/api/clients?limit=100');
+  const clients = await api('/api/clients?limit=2000');
   const startVal = prefillDate ? `${prefillDate}T09:00` : '';
   const endVal   = prefillDate ? `${prefillDate}T10:00` : '';
   const form = el(`<form class="form-grid">
@@ -8369,7 +8439,7 @@ async function finAuditoria(c) {
 }
 
 async function financialForm(onSave) {
-  const clients = await api('/api/clients?limit=100');
+  const clients = await api('/api/clients?limit=2000');
   const form = el(`<form class="form-grid">
     ${field('Tipo *', 'tipo', { options: [['receita','Receita'],['despesa','Despesa']].map(([v,t])=>({v,t})) })}
     ${field('Descrição *', 'description')}
@@ -8395,7 +8465,7 @@ async function financialForm(onSave) {
 }
 
 async function userForm(onSave) {
-  const [clients, partners] = await Promise.all([api('/api/clients?limit=100'), api('/api/partners').catch(() => [])]);
+  const [clients, partners] = await Promise.all([api('/api/clients?limit=2000'), api('/api/partners').catch(() => [])]);
   const form = el(`<form class="form-grid">
     ${field('Nome *', 'name')}
     ${field('E-mail *', 'email', { type: 'email' })}
@@ -9008,7 +9078,7 @@ function datDateTimeInputValue(value) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 async function dativeCaseForm(onSave) {
-  const clients = await api('/api/clients?limit=100');
+  const clients = await api('/api/clients?limit=2000');
   const form = el(`<form class="form-grid">
     <strong style="color:var(--navy);font-size:13px">Cliente (assistido)</strong>
     <small style="color:var(--text-muted)">Será criada uma ficha na aba Clientes com a etiqueta DATIVO.</small>
@@ -9319,7 +9389,7 @@ async function dativePaymentEditForm(onSave, p) {
 const CONTRACT_STATUS = [['rascunho','Rascunho'],['em_producao','Em produção'],['finalizado','Finalizado'],['assinado','Assinado']].map(([v,t])=>({v,t}));
 
 async function contractForm(onSave) {
-  const clients = await api('/api/clients?limit=100');
+  const clients = await api('/api/clients?limit=2000');
   const form = el(`<form class="form-grid">
     ${field('Cliente', 'client_id', { options: [{ v: '', t: '— sem cliente —' }, ...clients.data.map((c) => ({ v: c.id, t: c.name }))] })}
     ${field('Título', 'title')}
@@ -9654,7 +9724,7 @@ function showClientCredentials(cred, processNumber) {
 
 async function processForm(onSave) {
   const [clients, lawyers, tri] = await Promise.all([
-    api('/api/clients?limit=100'), api('/api/lawyers'), api('/api/processes/tribunais'),
+    api('/api/clients?limit=2000'), api('/api/lawyers'), api('/api/processes/tribunais'),
   ]);
   const triOpts = Object.entries(tri.tribunais).map(([k, v]) => ({ v: k, t: `${v.sigla} — ${v.nome}` }));
   const form = el(`<form class="form-grid">

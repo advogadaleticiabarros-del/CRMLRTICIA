@@ -197,7 +197,7 @@ router.post('/', async (req: Request, res: Response) => {
     client_id, case_id, process_number, opposing_party,
     total_agreement_value, entrada_value, entrada_date, installments_count, first_due_date,
     honorarium_percentage, honorarium_value, sucumbencia_value, sucumbencia_due_date,
-    receiving_method, notes,
+    receiving_method, notes, status: statusInicial, acordo_detectado_id,
     is_extrajudicial, opposing_cnpj, opposing_address, opposing_legal_rep_name, opposing_legal_rep_cpf,
     opposing_lawyer_name, opposing_lawyer_oab, payment_method, payment_flow, agreement_object,
     penalty_percentage, jurisdiction_forum,
@@ -222,11 +222,11 @@ router.post('/', async (req: Request, res: Response) => {
         is_extrajudicial, opposing_cnpj, opposing_address, opposing_legal_rep_name, opposing_legal_rep_cpf,
         opposing_lawyer_name, opposing_lawyer_oab, payment_method, payment_flow, agreement_object,
         penalty_percentage, jurisdiction_forum)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Proposto', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [client_id, case_id ?? null, process_number ?? null, opposing_party.trim(), totalValue,
      round2(entrada_value), entrada_date || null, Number(installments_count) || 1, first_due_date, honPct, honValue,
      round2(sucumbencia_value), sucumbencia_due_date || null,
-     receiving_method || 'Acordo', notes ?? null,
+     receiving_method || 'Acordo', STATUSES.includes(statusInicial) ? statusInicial : 'Proposto', notes ?? null,
      is_extrajudicial ? 1 : 0, opposing_cnpj || null, opposing_address || null,
      opposing_legal_rep_name || null, opposing_legal_rep_cpf || null,
      opposing_lawyer_name || null, opposing_lawyer_oab || null,
@@ -236,7 +236,7 @@ router.post('/', async (req: Request, res: Response) => {
   await logFinancialAudit({
     entityType: 'Agreement', entityId: result.insertId, action: 'created',
     userId: req.user!.id, userName: req.user!.name, clientId: client_id, caseId: case_id ?? null,
-    agreementId: result.insertId, newValue: totalValue, newStatus: 'Proposto',
+    agreementId: result.insertId, newValue: totalValue, newStatus: STATUSES.includes(statusInicial) ? statusInicial : 'Proposto',
     reason: `Acordo criado: ${opposing_party} — R$ ${totalValue}`, ipAddress: req.ip,
   });
 
@@ -252,8 +252,28 @@ router.post('/', async (req: Request, res: Response) => {
     userId: req.user!.id,
   }).catch(() => {});
 
+  if (acordo_detectado_id) {
+    const { resolver } = await import('../services/acordosDetectados');
+    await resolver(Number(acordo_detectado_id), 'registrado', result.insertId).catch(() => {});
+  }
+
   const [rows] = await db.query('SELECT * FROM agreements WHERE id = ?', [result.insertId]) as any;
   res.status(201).json({ ...rows[0], lancamentos_financeiros: lancados });
+});
+
+// ── Acordos detectados nas movimentações ("Acordos a registrar") ─────────────
+router.get('/detectados/pendentes', async (_req: Request, res: Response) => {
+  const { listarPendentes } = await import('../services/acordosDetectados');
+  res.json(await listarPendentes());
+});
+router.post('/detectados/varrer', async (_req: Request, res: Response) => {
+  const { varrerHistorico } = await import('../services/acordosDetectados');
+  res.json(await varrerHistorico(180));
+});
+router.post('/detectados/:id/descartar', async (req: Request, res: Response) => {
+  const { resolver } = await import('../services/acordosDetectados');
+  await resolver(Number(req.params.id), 'descartado');
+  res.json({ success: true });
 });
 
 // ── PUT /api/acordos/:id — atualizar ────────────────────────────────────────

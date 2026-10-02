@@ -411,7 +411,7 @@ Object.assign(ROUTES, {
       const telaCheiaBtn = $('#wa-tela-cheia');
       if (telaCheiaBtn) telaCheiaBtn.onclick = () => window.open(location.pathname + '?foco=1#whatsapp', '_blank', 'noopener');
       $('#wa-nova').onclick = async () => {
-        const clients = await api('/api/clients?limit=100').catch(() => ({ data: [] }));
+        const clients = await api('/api/clients?limit=2000').catch(() => ({ data: [] }));
         const form = el(`<form class="form-grid">
           ${field('Cliente', 'client_id', { options: [{ v: '', t: '— avulso (digitar telefone) —' }, ...clients.data.map((c2) => ({ v: c2.id, t: c2.name }))] })}
           ${field('Nome *', 'name')}
@@ -1126,7 +1126,7 @@ Object.assign(ROUTES, {
 
         const vc = box.querySelector('#wa-vincular-cliente');
         if (vc) vc.onclick = async () => {
-          const clientes = await api('/api/clients?limit=200').catch(() => ({ data: [] }));
+          const clientes = await api('/api/clients?limit=2000').catch(() => ({ data: [] }));
           const form = el(`<form class="form-grid">
             ${field('Cliente *', 'client_id', { options: [{ v: '', t: '— selecione —' }, ...clientes.data.map((c2) => ({ v: c2.id, t: c2.name + (c2.phone ? ` · ${c2.phone}` : '') }))] })}
             <p class="sub">O número +${esc(ativo.phone)} passa a ser o telefone salvo desse cliente — é assim que o CRM reconhece de quem é a conversa.</p>

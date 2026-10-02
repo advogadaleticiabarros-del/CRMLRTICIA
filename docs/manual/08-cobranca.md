@@ -34,6 +34,17 @@ A Visão Geral mostra uma barra de progresso "Meta do mês" (recebido × meta, %
 
 O topo da tela mostra 4 números grandes, de relance, sem precisar rolar: **resultado do mês** (já realizado), **previsão fechada do mês**, **a receber nos próximos 30 dias** e **projeção acumulada de 90 dias**. Adicionado 04/09/2026 — os dados já existiam espalhados em blocos de KPI mais abaixo na mesma tela; isso só resume os 4 que mais importam pra decisão do dia a dia, antes de qualquer outro detalhe.
 
+## Acordos a registrar (desde 02/10/2026)
+
+O sistema passou a ler acordo nas movimentações dos processos: "Homologação de Transação", "homologado acordo", "HOMOLOGO o acordo", "sentença homologatória de acordo", conciliação homologada (→ **homologado**) e "petição/termo de acordo", "as partes celebraram acordo" (→ **juntado**). Não confunde com "Homologação de Decisão de Juiz Leigo" (sentença) nem com "sem acordo"/conciliação infrutífera.
+
+- Cada processo com acordo entra uma vez na fila **Financeiro → Acordos → 🤝 Acordos a registrar** e avisa a equipe no sino (com som).
+- **Registrar** abre o cadastro rápido: cliente (quem você representa), parte contrária, valor total, entrada, nº de parcelas, 1º vencimento, % de honorários (30% sugerido), sucumbência e onde cai o dinheiro (direto ao cliente ou via escritório, gerando repasse). Entra como *Homologado* (ou *Proposto* se só foi juntado) e lança honorários/repasses no financeiro como o cadastro completo.
+- **Não é acordo** tira o processo da fila. **Procurar nos processos** revarre os últimos 180 dias.
+- Varredura inicial feita em 02/10/2026 (script `varrerAcordosDetectados`).
+
+Regras em `src/services/deteccaoAcordo.ts` (testadas); fila em `acordosDetectados.ts`, tabela `acordos_detectados`.
+
 ## Previsão realista do mês (desde 30/09/2026)
 
 Cartão em *Financeiro → Visão geral*, logo abaixo da meta:
@@ -77,6 +88,7 @@ O sistema calcula inadimplência automaticamente e permite renegociar uma parcel
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 02/10/2026 | Claude | Acordos detectados nas movimentações + cadastro rápido de acordo |
 | 30/09/2026 | Claude | Previsão realista do mês (taxa histórica de recebimento) e pipeline de propostas ponderado |
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Adicionado painel de destaque no topo da Visão Geral — resultado do mês, previsão, a receber 30d, projeção 90d |

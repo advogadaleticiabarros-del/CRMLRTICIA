@@ -425,6 +425,9 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
         novas++;
         if (m.movement_date && (!latest || m.movement_date > latest)) latest = m.movement_date;
         await detectDeadline(processId, proc.client_id, m, proc.process_number, ins.insertId, provider.name);
+        // Acordo homologado/juntado → fila "Acordos a registrar" (best-effort).
+        await import('./acordosDetectados').then((x) => x.registrarSeForAcordo(processId, ins.insertId, `${m.title || ''} | ${m.description || ''}`))
+          .catch((e) => console.error('[acordo-detectado]', e?.message || e));
         // Interpretação para o briefing matinal — best-effort, nunca trava a sincronização.
         await interpretarMovimentacao(ins.insertId, `${m.title || ''}\n${m.description || ''}`.trim())
           .catch((e) => console.error(`[movimentação ${ins.insertId}] falha ao interpretar:`, e?.message || e));
@@ -503,6 +506,9 @@ async function saveMovements(processId: number, processNumber: string, movements
       if (ins.affectedRows) {
         novas++;
         await detectDeadline(processId, clientId, m, processNumber, ins.insertId, source);
+        // Acordo homologado/juntado → fila "Acordos a registrar" (best-effort).
+        await import('./acordosDetectados').then((x) => x.registrarSeForAcordo(processId, ins.insertId, `${m.title || ''} | ${m.description || ''}`))
+          .catch((e) => console.error('[acordo-detectado]', e?.message || e));
         if (isTrigger) {
           await resolveMatchingAlerts(processId, toDate(m.movement_date), desc);
         }
