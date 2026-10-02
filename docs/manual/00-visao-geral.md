@@ -51,6 +51,11 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 16. [Ferramentas e acessos](16-ferramentas-acessos.md)
 17. [Decision Log](17-decision-log.md)
 
+## Dashboard abre primeiro e largura total (desde 02/10/2026)
+
+- Ao abrir o CRM (e após entrar por senha ou Face ID), a primeira tela é sempre o **Dashboard** (cockpit: a receber/a pagar, prazos críticos, intimações, movimentações e agenda do dia). No menu: Dashboard e Hoje no topo.
+- **Largura total em todas as telas:** removidos os tetos de largura (1200/1280/1400/1560px) que deixavam faixas vazias nas laterais em monitores largos. Margens fixas e enxutas (24–32px desktop, 16px celular); KPIs e painéis se esticam para preencher a linha inteira (sem buraco no fim da grade); janelas largas aproveitam até 1180px. Bloco "LARGURA TOTAL" no fim de `public/styles.css`.
+
 ## Botão "+ Registrar" (desde 02/10/2026)
 
 No topo de toda tela (equipe do escritório). Pergunta "O que você quer registrar?" e abre o formulário curto certo: **Recebi um pagamento**, Prazo processual, Compromisso, Tarefa, Acordo, Cliente, Possível cliente.
@@ -111,6 +116,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 02/10/2026 | Claude | Dashboard como primeira tela; largura total em todas as telas |
 | 02/10/2026 | Claude | Botão "+ Registrar" único |
 | 02/10/2026 | Claude | Menu enxuto em grupos + "?" de ajuda em cada tela |
 | 02/10/2026 | Claude | Tela "Hoje" como página inicial, com painel de saúde |

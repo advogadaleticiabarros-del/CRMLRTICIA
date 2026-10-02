@@ -240,8 +240,8 @@ async function login(e) {
     TOKEN = data.token; USER = data.user;
     localStorage.setItem('crm_token', TOKEN);
     localStorage.setItem('crm_user', JSON.stringify(USER));
+    if (navForRole().includes('dashboard')) history.replaceState(null, '', '#dashboard');
     showApp();
-    toast(`Entrou com Face ID como ${USER?.name || USER?.email || ''}`);
   } catch (err) {
     $('#login-error').textContent = err.message;
   }
@@ -281,7 +281,7 @@ function logout() {
 }
 const AGENDA_TIPO_PT = { reuniao: 'Reuniões', audiencia: 'Audiências', prazo: 'Prazos', tarefa: 'Tarefas', compromisso: 'Outros compromissos', pessoal: 'Pessoal', recado: 'Recados', medicamento: 'Medicamentos' };
 const NAV_LABELS = {
-  hoje: 'Hoje', dashboard: 'Relatórios', clients: 'Clientes', leads: 'Possíveis clientes',
+  hoje: 'Hoje', dashboard: 'Dashboard', clients: 'Clientes', leads: 'Possíveis clientes',
   propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos e tarefas',
   agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Rentabilidade e custos', correspondente: 'Correspondente',
   documentos: 'Documentos', ia: 'Assistente de IA', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
@@ -295,9 +295,9 @@ const NAV_LABELS = {
 // controlando quem tem acesso: navForRole().includes('whatsapp') decide se
 // o botão aparece, e a rota #whatsapp continua existindo normalmente.
 const NAV_BY_ROLE = {
-  admin:      ['hoje','intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
-  staff:      ['hoje','intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
-  advogado:   ['hoje','intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
+  admin:      ['dashboard','hoje','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['dashboard','hoje','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
+  advogado:   ['dashboard','hoje','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
   estagiario: ['producao','cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -582,7 +582,7 @@ const NAV_SHORT = {
 // sempre fixos; a 4ª vaga fica pra Processos (complementa a busca). Tudo o
 // mais (WhatsApp, Financeiro, Dativo etc.) continua a 1 toque em "Mais" —
 // ela confirmou que quer acesso a tudo, só não precisa disso na barra fixa.
-const BOTTOM_PREFERRED = ['hoje', 'dashboard', 'prazos', 'clients', 'cases', 'agenda', 'dativo', 'propostas', 'financeiro', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppagenda', 'ppfin'];
+const BOTTOM_PREFERRED = ['dashboard', 'hoje', 'prazos', 'clients', 'cases', 'agenda', 'dativo', 'propostas', 'financeiro', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppagenda', 'ppfin'];
 
 function buildNav() {
   const items = navForRole();
@@ -608,13 +608,12 @@ function buildNav() {
     return rs.length ? `<div class="nav-group">${titulo ? `<div class="nav-group-title">${titulo}</div>` : ''}${rs.map(link).join('')}</div>` : '';
   };
   const html = [
-    grupo('', ['hoje']),
+    grupo('', ['dashboard', 'hoje']),
     grupo('Atendimento', ['intakes', 'leads', 'propostas', 'contratos']),
     grupo('Clientes e processos', ['clients', 'cases', 'monitor', 'producao', 'dativo', 'correspondente', 'parcerias']),
     grupo('Agenda e prazos', ['agenda', 'prazos']),
     grupo('Financeiro', ['financeiro', 'repasses']),
     grupo('Documentos', ['documentos', 'ia']),
-    grupo('Relatórios', ['dashboard']),
   ].join('');
   const resto = visiveis.filter((r) => !usados.has(r) && r !== 'config');
   const aberto = localStorage.getItem('crm_nav_mais') === '1';
@@ -1165,7 +1164,7 @@ const AJUDA_TELAS = {
   controladoria: 'Quanto cada cliente e cada área dá de resultado, e os custos do escritório.',
   documentos: 'Todos os documentos do escritório: modelos, peças geradas e arquivos recebidos dos clientes.',
   ia: 'Assistente de IA para gerar petições, pareceres e resumos a partir dos dados do cliente e do processo. Sempre revise antes de usar.',
-  dashboard: 'Números do escritório: comercial, financeiro, processos e produção, para acompanhar como o mês está indo.',
+  dashboard: 'Sua tela inicial: dinheiro a receber e a pagar, prazos críticos, intimações e movimentações a conferir, e a agenda do dia — clique em "Abrir" em cada bloco para resolver. As abas mostram os números por área.',
   newsletter: 'E-mails para a lista de contatos que aceitaram receber novidades.',
   advogados: 'Advogados e números de OAB que o sistema usa para encontrar processos nos tribunais.',
   config: 'Ajustes do escritório: dados, integrações (WhatsApp, Google), usuários, Face ID e automações.',
@@ -10287,7 +10286,9 @@ async function passkeyLogin() {
     TOKEN = data.token; USER = data.user;
     localStorage.setItem('crm_token', TOKEN);
     localStorage.setItem('crm_user', JSON.stringify(USER));
+    if (navForRole().includes('dashboard')) history.replaceState(null, '', '#dashboard');
     showApp();
+    toast(`Entrou com Face ID como ${USER?.name || USER?.email || ''}`);
   } catch (err) {
     // Usuária cancelou o Face ID (ex.: apertou "Cancelar") — não é um erro
     // de verdade, não precisa assustar com mensagem vermelha.
@@ -10522,6 +10523,9 @@ if (new URLSearchParams(location.search).get('foco') === '1') {
 // DOM) já terminou — mais garantido que setTimeout(...,0), que em teoria
 // deveria bastar mas na prática não resolveu.
 function bootApp() {
+  // Ao ABRIR o CRM, a primeira tela é sempre o Dashboard (pedido 02/10/2026),
+  // a menos que o link aponte para uma tela específica com parâmetro.
+  if (TOKEN && USER && navForRole().includes('dashboard') && !location.hash.includes('?')) history.replaceState(null, '', '#dashboard');
   if (TOKEN && USER) showApp(); else { $('#login-view').classList.remove('hidden'); if (typeof prepararPasskey === 'function' && window.PublicKeyCredential) prepararPasskey(); }
   setTimeout(maybeShowIosInstallBanner, 1500);
 }

@@ -2229,3 +2229,32 @@ body.sidebar-collapsed .nav-group-title { visibility: hidden; height: 6px; paddi
 .registrar-op strong { display: block; font-size: 14.5px; }
 .registrar-op small { display: block; color: var(--text-muted); font-size: 12.5px; margin-top: 2px; }
 .registrar-ic { font-size: 22px; line-height: 1; }
+
+
+/* ════════════════════════════════════════════════════════════════════
+   LARGURA TOTAL (02/10/2026) — pedido explícito: nada de faixas vazias nas
+   laterais, 100% da tela em qualquer monitor/tablet/celular. Este bloco
+   fica por ÚLTIMO e substitui os tetos antigos (1200/1280/1400/1560px).
+   Densidade de ferramenta de trabalho: gutter 24px desktop, 16px celular.
+   ════════════════════════════════════════════════════════════════════ */
+.content > .page,
+.content > .page:has(#wa-body) { max-width: none; margin: 0; width: 100%; box-sizing: border-box; padding: 22px 24px 32px; }
+@media (min-width: 1440px) { .content > .page { padding: 24px 32px 36px; } }
+@media (max-width: 880px)  { .content > .page { padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); } }
+.page-header { margin-bottom: 18px; }
+.card { max-width: none; }
+
+/* KPIs: preenchem a linha inteira (auto-fit estica), sem buraco no fim */
+.kpi-grid { grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin-bottom: 18px; }
+@media (min-width: 1440px) { .kpi-grid { gap: 14px; } }
+@media (max-width: 640px)  { .kpi-grid { grid-template-columns: 1fr 1fr; gap: 8px; } }
+
+/* Painéis do cockpit e grades de cartões: ocupam a largura disponível */
+.cockpit-panels { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .cockpit-panels { grid-template-columns: 1fr; } }
+
+/* Tabelas largas rolam dentro do cartão, nunca a página inteira */
+.card > table, .card .table-scroll { width: 100%; }
+
+/* Janelas (modais) largas aproveitam monitores grandes */
+.modal-card.wide { max-width: min(1180px, 96vw); }
