@@ -283,7 +283,16 @@ router.get('/chats', async (req: Request, res: Response) => {
      ${whereQ}
      GROUP BY w.phone
      ORDER BY last_time DESC LIMIT 100`, q ? [like, like, like, like] : []) as any;
-  // "Analisando proposta": proposta enviada/em negociação para o telefone (ou lead dele).
+  await marcarPropostaEmAnalise(rows);
+  res.json(rows);
+});
+
+/**
+ * "Analisando proposta": marca em cada conversa (lista e quadro) se há
+ * proposta enviada/em negociação para o telefone (ou o lead dele) e se o
+ * cliente já abriu o link. Falha aqui nunca derruba a tela.
+ */
+async function marcarPropostaEmAnalise(rows: { phone: string; proposta_analise?: boolean; proposta_vista?: boolean }[]): Promise<void> {
   const [emAnalise] = await db.query(
     `SELECT RIGHT(REGEXP_REPLACE(COALESCE(NULLIF(p.phone,''), l.phone, ''), '[^0-9]', ''), 8) AS tail,
             MAX(p.visualizada_em IS NOT NULL) AS vista
@@ -296,8 +305,7 @@ router.get('/chats', async (req: Request, res: Response) => {
     r.proposta_analise = v !== undefined;
     r.proposta_vista = v === 1;
   }
-  res.json(rows);
-});
+}
 
 // ── POST /api/whatsapp-instance/chats/:phone/pin — fixa/desfixa a conversa ──
 // Sincroniza com o WhatsApp de verdade (best-effort — se a Uazapi falhar,
@@ -902,6 +910,7 @@ router.get('/board', async (_req: Request, res: Response) => {
       proxima_audiencia_dias: r.proxima_audiencia_dias, parcela_vencendo_dias: r.parcela_vencendo_dias,
     });
   }
+  await marcarPropostaEmAnalise(Object.values(board).flat());
   res.json({ stages, board });
 });
 

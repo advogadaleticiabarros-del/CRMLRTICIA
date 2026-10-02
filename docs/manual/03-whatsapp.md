@@ -44,7 +44,7 @@ Cliente com 2+ processos: no bloco **Processo** da ficha aparece *Esta conversa 
 ## Enviar proposta pela conversa e "analisando proposta" (desde 01/10/2026)
 
 - **Enviar proposta** (ficha da conversa): busca a proposta mais recente deste contato (pelo telefone da proposta ou do lead; ignora recusadas/expiradas), mostra título, valor, status e se o cliente já abriu o link, e traz uma mensagem pronta com o link público — editável, mas o link precisa ficar. Ao enviar: a proposta vira *Enviada* (começa o follow-up 48h/5d/7d) e o lead vai para *Proposta Enviada* se ainda estava antes disso.
-- **Bolinha verde piscando**: aparece ao lado do nome na lista de conversas e como selo "Analisando proposta" na ficha enquanto a proposta estiver *Enviada* ou *Em negociação*. O selo diz quando o cliente abriu o link pela última vez, ou "ainda não abriu o link". Sai sozinha quando a proposta é aceita, recusada ou expira.
+- **Bolinha verde piscando**: aparece no card do **quadro (Kanban)** — "Analisando proposta · abriu o link" ou "Proposta enviada · ainda não abriu" — e ao lado do nome na lista de conversas e como selo "Analisando proposta" na ficha enquanto a proposta estiver *Enviada* ou *Em negociação*. O selo diz quando o cliente abriu o link pela última vez, ou "ainda não abriu o link". Sai sozinha quando a proposta é aceita, recusada ou expira.
 - **Monitoramento do link (desde 01/10/2026):** cada abertura do link vira uma visita (`proposta_visitas`). Enquanto a página está aberta e visível, ela manda um sinal a cada 15s com o tempo e até onde a pessoa rolou; ao sair/trocar de aba manda o último. O servidor nunca credita mais tempo que o realmente decorrido desde o sinal anterior. Não guarda IP nem localização — só tempo, % lido e tipo de aparelho (celular/tablet/computador).
 - Na ficha, abaixo do selo verde: "N aberturas · X lendo · leu até o fim / leu Y%" — clique para ver tempo total, maior leitura, primeira/última abertura e a lista das últimas 10 visitas. O mesmo resumo aparece na janela *Enviar proposta*.
 - **Aviso no sino** a cada abertura: "👀 Fulana abriu a proposta" / "reabriu a proposta (3ª vez)".
@@ -145,6 +145,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 02/10/2026 | Claude | Alerta de proposta em análise também no quadro (Kanban) |
 | 01/10/2026 | Claude | Monitoramento do link da proposta: tempo de leitura, reaberturas, % lido, aparelho e aviso no sino a cada abertura |
 | 01/10/2026 | Claude | Botão Enviar proposta com link e texto pronto; bolinha verde "analisando proposta"; registro de quando o cliente abre o link |
 | 01/10/2026 | Claude | Gerar proposta cadastra o lead na hora com os dados da conversa (relato real) |

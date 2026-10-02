@@ -2132,6 +2132,7 @@ Object.assign(ROUTES, {
                     <span class="wc-avatar" style="background:${waCor(c.name)}">${waIniciais(c.name)}</span>
                     <span class="wc-name">${esc(c.name)}</span>
                   </div>
+                  ${c.proposta_analise ? `<div class="wa-prop-badge wc-prop"><span class="wa-prop-dot"></span>${c.proposta_vista ? 'Analisando proposta · abriu o link' : 'Proposta enviada · ainda não abriu'}</div>` : ''}
                   <div class="wc-prev">${Number(c.last_from_me) ? '✓ ' : ''}${esc(String(c.last_body || '').slice(0, 60))}</div>
                   ${et ? `<span class="wa-pill wa-pill-${sev}">${svgIcon(et.icone, 'ic-xs')}${esc(et.texto)}</span>` : ''}
                   <div class="wc-foot">
