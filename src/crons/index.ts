@@ -210,10 +210,17 @@ export function startCronJobs() {
         'SELECT DISTINCT user_id FROM google_accounts WHERE sync_enabled = 1'
       ) as any;
       let fromG = 0, toG = 0;
+      const falhas: string[] = [];
       for (const u of users) {
         const r = await calendarSyncService.fullSync(u.user_id);
         fromG += r.fromGoogle.created + r.fromGoogle.updated;
         toG   += r.toGoogle.created + r.toGoogle.updated;
+        // Antes os erros eram ignorados: o Google recusava a conexão
+        // (invalid_grant) e a rotina seguia "ok" — agenda congelada desde 30/06/2026.
+        if (r.fromGoogle.errors && r.fromGoogle.lastError) falhas.push(`usuário ${u.user_id}: ${r.fromGoogle.lastError}`);
+      }
+      if (falhas.length && !fromG) {
+        throw new Error(`Google Agenda não sincroniza — reconecte a conta Google em Configurações (${falhas.join('; ').slice(0, 300)})`);
       }
       return { contas: users.length, googleParaCrm: fromG, crmParaGoogle: toG };
     });

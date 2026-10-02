@@ -269,6 +269,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: agenda do Google congelada desde 30/06 sem alerta
+
+**Sintoma (achado 02/10/2026):** nenhum evento do Google entrava no CRM desde 30/06/2026; a rotina `agenda:sync-completa` registrava "ok" com `googleParaCrm: 0`. Briefing, fechamento do dia e agenda do CRM trabalhavam com agenda desatualizada.
+
+**Causa raiz:** o Google revogou a autorização (`invalid_grant` — mesma causa do Gmail parado). `listUpcomingEvents` engolia o erro (de listar calendários e de cada calendário) e devolvia lista vazia; a rotina ainda ignorava `fromGoogle.errors`.
+
+**Correção:** se nenhum calendário puder ser lido, o erro sobe; a rotina falha com "reconecte a conta Google" e avisa no sino. **Resolver de vez: reconectar a conta Google em Configurações.**
+
+**Como reconhecer:** `job_runs` com `agenda:sync-completa` em erro "invalid_grant"/"reconecte"; nenhum `calendar_events` com `source='google'` recente.
+
+---
+
 ## Incidente: parte contrária como cliente e processos em duplicidade
 
 **Sintoma (análise 02/10/2026):** 16 "clientes" eram a empresa ré/INSS; 13 processos cadastrados duas vezes.
@@ -367,6 +379,7 @@ pm2 restart crm-juridico && pm2 save
 | 22/09/2026 | Claude | +1 incidente: dropdown de Pagador continuava preso aberto mesmo após o fix de 04/09 — causa raiz diferente (CSS: `display` de classe vencendo `[hidden]` nativo), corrigido com `.msel-panel[hidden]{display:none}` |
 | 22/09/2026 | Claude | +1 incidente: KPIs do Cockpit sempre abriam a Visão geral do Financeiro sem filtro — roteador ganhou suporte a `#rota?tab=x` (`hashParam()`), Inadimplência/A receber/A pagar agora abrem direto na sub-aba certa |
 | 22/09/2026 | Claude | Atualização do incidente acima: "Propostas em análise" levava pro board errado (Propostas em vez de Leads) — corrigido com o mesmo mecanismo + destaque de coluna no Kanban |
+| 02/10/2026 | Claude | +1 incidente: agenda do Google congelada desde 30/06 sem alerta |
 | 02/10/2026 | Claude | +1 incidente: parte contrária como cliente e processos duplicados |
 | 02/10/2026 | Claude | +1 incidente: acordos não puxados e seletores com só 100 clientes |
 | 01/10/2026 | Claude | +1 incidente: Gerar proposta sem efeito para número ainda não cadastrado |

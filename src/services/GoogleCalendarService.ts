@@ -229,18 +229,21 @@ export class GoogleCalendarService {
     // Varre TODOS os calendários do usuário (não só o primary), pulando feriados
     // e aniversários de contatos. Assim nenhum compromisso fica de fora.
     let calendars: calendar_v3.Schema$CalendarListEntry[] = [];
+    let ultimoErro: any = null;
     try {
       const cl = await calendar.calendarList.list({ maxResults: 250, showHidden: false });
       calendars = (cl.data.items ?? []).filter((c) => {
         const id = c.id ?? '';
         return !id.includes('#holiday@') && !id.includes('#contacts@');
       });
-    } catch {
+    } catch (e) {
+      ultimoErro = e;
       calendars = [{ id: 'primary' }];
     }
     if (!calendars.length) calendars = [{ id: 'primary' }];
 
     const all: calendar_v3.Schema$Event[] = [];
+    let lidos = 0;
     for (const cal of calendars) {
       try {
         // Paginação: sem isso, calendários com muitos eventos no período de 25
@@ -258,12 +261,17 @@ export class GoogleCalendarService {
           });
           return { items: response.data.items ?? undefined, nextPageToken: response.data.nextPageToken };
         });
+        lidos++;
         for (const ev of items) {
           (ev as any)._calendarName = cal.summary ?? null;
           all.push(ev);
         }
-      } catch { /* calendário sem acesso de leitura: ignora */ }
+      } catch (e) { ultimoErro = e; /* calendário sem acesso de leitura: ignora */ }
     }
+    // Nenhum calendário pôde ser lido = falha de conexão (ex.: invalid_grant),
+    // não "agenda vazia". Antes isso virava 0 eventos e "ok" — agenda do CRM
+    // congelada de 30/06 a 02/10/2026 sem ninguém perceber.
+    if (!lidos && ultimoErro) throw ultimoErro;
     return all;
   }
 }
