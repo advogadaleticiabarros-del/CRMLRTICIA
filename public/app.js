@@ -279,7 +279,7 @@ function logout() {
 }
 const AGENDA_TIPO_PT = { reuniao: 'Reuniões', audiencia: 'Audiências', prazo: 'Prazos', tarefa: 'Tarefas', compromisso: 'Outros compromissos', pessoal: 'Pessoal', recado: 'Recados', medicamento: 'Medicamentos' };
 const NAV_LABELS = {
-  dashboard: 'Dashboard', clients: 'Clientes', leads: 'Leads',
+  hoje: 'Hoje', dashboard: 'Dashboard', clients: 'Clientes', leads: 'Leads',
   propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos & Tarefas',
   agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Controladoria', correspondente: 'Correspondente',
   documentos: 'Documentos', ia: 'IA Jurídica', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
@@ -293,9 +293,9 @@ const NAV_LABELS = {
 // controlando quem tem acesso: navForRole().includes('whatsapp') decide se
 // o botão aparece, e a rota #whatsapp continua existindo normalmente.
 const NAV_BY_ROLE = {
-  admin:      ['intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
-  staff:      ['intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
-  advogado:   ['intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
+  admin:      ['hoje','intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['hoje','intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
+  advogado:   ['hoje','intakes','dashboard','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
   estagiario: ['producao','cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -562,7 +562,7 @@ function svgIcon(name, extra) {
 
 // Ícone (nome no set SVG) por rota — usado na barra lateral e nas abas inferiores
 const NAV_ICONS = {
-  intakes: 'plus', dashboard: 'home', leads: 'leads', newsletter: 'mail', clients: 'users', propostas: 'file',
+  hoje: 'check', intakes: 'plus', dashboard: 'home', leads: 'leads', newsletter: 'mail', clients: 'users', propostas: 'file',
   contratos: 'contract', documentos: 'docs', ia: 'ia', cases: 'briefcase', producao: 'kanban',
   parcerias: 'swap', monitor: 'activity', fases: 'branch', prazos: 'clock', agenda: 'calendar',
   financeiro: 'wallet', controladoria: 'pie', correspondente: 'pin', dativo: 'scale',
@@ -580,7 +580,7 @@ const NAV_SHORT = {
 // sempre fixos; a 4ª vaga fica pra Processos (complementa a busca). Tudo o
 // mais (WhatsApp, Financeiro, Dativo etc.) continua a 1 toque em "Mais" —
 // ela confirmou que quer acesso a tudo, só não precisa disso na barra fixa.
-const BOTTOM_PREFERRED = ['dashboard', 'prazos', 'clients', 'cases', 'agenda', 'dativo', 'propostas', 'financeiro', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppagenda', 'ppfin'];
+const BOTTOM_PREFERRED = ['hoje', 'dashboard', 'prazos', 'clients', 'cases', 'agenda', 'dativo', 'propostas', 'financeiro', 'leads', 'portal', 'portalFinanceiro', 'ppcases', 'ppupdates', 'ppagenda', 'ppfin'];
 
 function buildNav() {
   const items = navForRole();
@@ -2920,6 +2920,36 @@ const ROUTES = {
     await loadInboxPanel(reloadAll);
     await loadImportQueue(partners, reloadAll);
     if (partners.length) await loadCases();
+  },
+
+  // ── HOJE — página inicial: tudo que precisa de você, numa lista só ─────────
+  async hoje(page) {
+    const nome = (USER?.name || '').split(' ')[0];
+    const dataTxt = new Date().toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long' });
+    page.innerHTML = `
+      <div class="page-header"><div><h2>${new Date().getHours() < 12 ? 'Bom dia' : new Date().getHours() < 18 ? 'Boa tarde' : 'Boa noite'}${nome ? ', ' + esc(nome) : ''}</h2>
+        <p class="sub">${dataTxt} · o que precisa de você hoje</p></div>
+        <button class="btn-sm" id="hoje-atualizar">${svgIcon('refresh')}Atualizar</button></div>
+      <div id="hoje-saude"></div>
+      <div id="hoje-lista"><div class="spinner"></div></div>`;
+    const carregar = async () => {
+      const r = await api('/api/hoje');
+      const falhas = r.saude.filter((x) => !x.ok);
+      $('#hoje-saude').innerHTML = r.saude.length ? (falhas.length
+        ? `<div class="hoje-saude hoje-saude-ruim">${falhas.map((f) => `<a class="hoje-saude-item" href="${f.href}"><span class="hoje-dot ruim"></span><span><strong>${esc(f.nome)} parou</strong><br><small>${esc(f.comoResolver)}</small></span></a>`).join('')}
+            <div class="hoje-saude-ok-lista">${r.saude.filter((x) => x.ok).map((x) => `<span><span class="hoje-dot"></span>${esc(x.nome)}</span>`).join('')}</div></div>`
+        : `<div class="hoje-saude"><span class="hoje-dot"></span>Tudo funcionando: ${r.saude.map((x) => esc(x.nome)).join(' · ')}</div>`) : '';
+      $('#hoje-lista').innerHTML = r.itens.length ? `<div class="hoje-lista">${r.itens.map((i) => `
+          <div class="hoje-item hoje-${i.nivel}">
+            <span class="hoje-ic" aria-hidden="true">${i.icone}</span>
+            <div class="hoje-txt"><strong>${esc(i.titulo)}</strong>${i.detalhe ? `<small>${esc(i.detalhe)}</small>` : ''}</div>
+            <a class="${i.nivel === 'critico' ? 'btn-gold' : 'btn-sm'} hoje-btn" href="${i.acao.href}">${esc(i.acao.label)}</a>
+          </div>`).join('')}</div>
+          <p class="sub" style="margin-top:10px">${r.itens.length} ${r.itens.length === 1 ? 'pendência' : 'pendências'}. Resolva de cima para baixo — a lista diminui conforme você avança.</p>`
+        : `<div class="card hoje-vazio"><div style="font-size:40px">🎉</div><h3>Tudo em dia!</h3><p class="sub">Nenhuma pendência agora. Aproveite para atender um cliente novo ou adiantar uma peça.</p></div>`;
+    };
+    $('#hoje-atualizar').onclick = () => carregar().catch((e) => toast(e.message, 'error'));
+    await carregar();
   },
 
   // Módulo WhatsApp → public/whatsapp.js (Object.assign em ROUTES)

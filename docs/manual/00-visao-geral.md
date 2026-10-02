@@ -51,6 +51,16 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 16. [Ferramentas e acessos](16-ferramentas-acessos.md)
 17. [Decision Log](17-decision-log.md)
 
+## Tela "Hoje" — página inicial (desde 02/10/2026)
+
+Primeira tela ao entrar (admin/advogado/equipe). Uma lista só com tudo que precisa de você, do mais urgente para o mais tranquilo, cada item com o botão que resolve:
+
+- 🔴 prazo que vence hoje, audiências de hoje, prazos a confirmar que vencem em até 5 dias, WhatsApp com alguém esperando 24h+;
+- 🟠 WhatsApp aguardando resposta, leads sem resposta 24h+, parcelas atrasadas, repasses ao cliente, intimações para conferir;
+- 🟡 propostas aguardando resposta (quantas ainda não foram abertas), tarefas atrasadas, processos com cliente a conferir, processos duplicados, acordos para registrar.
+
+Lista vazia = "Tudo em dia 🎉". No topo, o **painel de saúde**: WhatsApp, Google Agenda, e-mail da parceria, e-mail do tribunal, consulta aos tribunais e cópia de segurança — verde quando funciona; vermelho com "o que fazer" quando cai. Regras em `src/services/hojeRegras.ts` (testadas); dados em `GET /api/hoje`.
+
 ## Busca global no celular ("assistente de bolso")
 
 Desde 29/09/2026, a barra de abas do celular tem um botão **Buscar** — de qualquer tela, abre uma busca única que mostra **cliente OU processo** juntos, com a **última movimentação** de cada processo já na lista (sem precisar abrir a ficha). No computador, o mesmo atalho abre com **Cmd/Ctrl+K**. Toque no resultado abre a ficha direto (cliente) ou o detalhe do processo. A última movimentação usa a mais recente entre o que foi lançado manualmente e o que o monitoramento automático captou — o que for mais novo. Só aparece pra quem tem acesso a Clientes/Processos (não aparece no portal do cliente/parceiro).
@@ -91,6 +101,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 02/10/2026 | Claude | Tela "Hoje" como página inicial, com painel de saúde |
 | 03/09/2026 | Claude | Criação do documento — visão geral e mapa dos 13 blocos |
 | 04/09/2026 | Claude | Adicionados fluxograma, Runbook, Onboarding e Ferramentas/acessos; documentação auto-mantida virou regra do projeto (CLAUDE.md) |
 | 04/09/2026 | Claude | Adicionado Decision Log (bloco 17) — documentação completa, 17 de 17 blocos |
