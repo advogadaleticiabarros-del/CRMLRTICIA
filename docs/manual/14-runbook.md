@@ -269,6 +269,16 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: "Face ID não funciona" no celular
+
+**Sintoma (relato 02/10/2026):** Face ID no smartphone "não funcionando".
+
+**Causa encontrada:** o login por Face ID funciona (último uso 02/10 14h35), mas o único aparelho cadastrado (`user_passkeys` id 1, "iPhone", 30/08/2026) está ligado ao usuário **#1 Administrador** (admin@…), não ao **#2 Letícia Elias Barros** — o aparelho fica preso à conta logada no momento do cadastro. Resultado: o Face ID entra na conta genérica (o fechamento do dia chegou como "Dra. Administrador"). A tela de Configurações ainda dizia, errado, que o Safari comum bloqueia o Face ID.
+
+**Correção:** texto da tela corrigido e explicando que o aparelho fica na conta logada; ao entrar por Face ID aparece "Entrou com Face ID como <nome>". Para resolver de vez: entrar com o e-mail/senha da própria conta → Configurações → "Cadastrar este aparelho" (e remover o cadastro antigo da conta Administrador), ou reatribuir `user_passkeys.user_id` com autorização da dona do aparelho (o login identifica o usuário pela credencial no banco, não pelo userHandle).
+
+---
+
 ## Incidente: agenda do Google congelada desde 30/06 sem alerta
 
 **Sintoma (achado 02/10/2026):** nenhum evento do Google entrava no CRM desde 30/06/2026; a rotina `agenda:sync-completa` registrava "ok" com `googleParaCrm: 0`. Briefing, fechamento do dia e agenda do CRM trabalhavam com agenda desatualizada.
@@ -381,6 +391,7 @@ pm2 restart crm-juridico && pm2 save
 | 22/09/2026 | Claude | +1 incidente: dropdown de Pagador continuava preso aberto mesmo após o fix de 04/09 — causa raiz diferente (CSS: `display` de classe vencendo `[hidden]` nativo), corrigido com `.msel-panel[hidden]{display:none}` |
 | 22/09/2026 | Claude | +1 incidente: KPIs do Cockpit sempre abriam a Visão geral do Financeiro sem filtro — roteador ganhou suporte a `#rota?tab=x` (`hashParam()`), Inadimplência/A receber/A pagar agora abrem direto na sub-aba certa |
 | 22/09/2026 | Claude | Atualização do incidente acima: "Propostas em análise" levava pro board errado (Propostas em vez de Leads) — corrigido com o mesmo mecanismo + destaque de coluna no Kanban |
+| 02/10/2026 | Claude | +1 incidente: Face ID ligado à conta Administrador |
 | 02/10/2026 | Claude | +1 incidente: agenda do Google congelada desde 30/06 sem alerta |
 | 02/10/2026 | Claude | +1 incidente: parte contrária como cliente e processos duplicados |
 | 02/10/2026 | Claude | +1 incidente: acordos não puxados e seletores com só 100 clientes |

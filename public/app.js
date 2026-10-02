@@ -241,6 +241,7 @@ async function login(e) {
     localStorage.setItem('crm_token', TOKEN);
     localStorage.setItem('crm_user', JSON.stringify(USER));
     showApp();
+    toast(`Entrou com Face ID como ${USER?.name || USER?.email || ''}`);
   } catch (err) {
     $('#login-error').textContent = err.message;
   }
@@ -1846,7 +1847,7 @@ const ROUTES = {
 
       <div class="card" style="padding:20px;margin-bottom:20px" id="passkey-card">
         <h3 style="color:var(--navy);margin-bottom:2px">Entrar com Face ID</h3>
-        <p class="sub" style="margin:0 0 12px">Cadastre este aparelho para entrar sem digitar e-mail e senha. Só funciona depois de <strong>instalar o CRM na Tela de Início do iPhone</strong> (Adicionar à Tela de Início) — no Safari aberto normalmente, a Apple bloqueia o Face ID por segurança.</p>
+        <p class="sub" style="margin:0 0 12px">Cadastre este aparelho para entrar sem digitar e-mail e senha. <strong>O aparelho fica ligado à conta em que você está agora</strong> (${esc(USER?.name || '')} — ${esc(USER?.email || '')}): entre com a SUA conta antes de cadastrar. Funciona no Safari e no CRM instalado na Tela de Início.</p>
         <div id="passkey-unsupported" class="empty hidden">Este navegador não suporta login por Face ID/biometria (ou o CRM ainda não foi instalado na Tela de Início).</div>
         <div id="passkey-body">
           <button class="btn-sm" id="passkey-register-btn">+ Cadastrar este aparelho</button>
