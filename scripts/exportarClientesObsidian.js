@@ -6,7 +6,7 @@ const dt=v=>v?new Date(v).toISOString().slice(0,10).split('-').reverse().join('/
 const safe=s=>String(s).replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,' ').trim().slice(0,90);
 const RES={acordo:'Acordo',procedente:'Procedente',procedente_parcial:'Procedente em parte',improcedente:'Improcedente',renuncia:'Renúncia',desistencia:'Desistência'};
 (async()=>{
- const [cases]=await db.query("SELECT c.*, cl.name cliente, cl.cpf_cnpj, cl.address, cl.phone, cl.email, cl.tipo FROM cases c JOIN clients cl ON cl.id=c.client_id WHERE c.resultado IS NOT NULL ORDER BY cl.name");
+ const [cases]=await db.query("SELECT c.*, cl.name cliente, cl.cpf_cnpj, cl.address, cl.phone, cl.email, cl.tipo FROM cases c JOIN clients cl ON cl.id=c.client_id WHERE c.resultado IS NOT NULL OR EXISTS (SELECT 1 FROM documents d WHERE d.case_id=c.id AND d.data IS NOT NULL) ORDER BY cl.name");
  for(const c of cases){
   const nome=safe(c.cliente); const dir=path.join(OUT,nome); fs.mkdirSync(path.join(dir,'anexos'),{recursive:true});
   const [ag]=await db.query("SELECT * FROM agreements WHERE case_id=?",[c.id]);
@@ -33,7 +33,7 @@ tags: [cliente, crm]
 **${c.tipo==='PJ'?'CNPJ':'CPF'}:** ${c.cpf_cnpj||'—'} · **Endereço:** ${c.address||'—'}${c.phone?` · **Telefone:** ${c.phone}`:''}${c.email?` · **E-mail:** ${c.email}`:''}
 
 ## Processo ${c.case_number||''}
-- **Caso:** ${c.title} · **Área:** ${c.legal_area||'—'} · **Cliente é:** ${c.polo_cliente==='passivo'?'ré (defesa)':'autora'}
+- **Caso:** ${c.title}${String(c.production_labels||"").includes("dativo")?" · **DATIVO**":""} · **Área:** ${c.legal_area||'—'} · **Cliente é:** ${c.polo_cliente==='passivo'?'ré (defesa)':'autora'}
 - **Valor da causa:** ${brl(c.valor_causa)}
 - **Resultado:** ${RES[c.resultado]||c.resultado} em ${dt(c.resultado_em)} — **obtido:** ${brl(c.valor_obtido)}${pct}
 ${partes.length?'\n### Partes\n'+partes.map(p=>`- **${p.papel}:** ${p.nome}${p.cpf_cnpj?' ('+p.cpf_cnpj+')':''}${p.advogado?' — adv. '+p.advogado+(p.advogado_oab?' OAB '+p.advogado_oab:''):''}`).join('\n')+'\n':''}

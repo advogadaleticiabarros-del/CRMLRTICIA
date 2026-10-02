@@ -29,6 +29,7 @@ router.get('/', async (req: Request, res: Response) => {
   const [rows] = await db.query(
     `SELECT lp.id, lp.process_number, lp.court, lp.court_alias, lp.judicial_area, lp.status, lp.phase, lp.suggested_phase,
             lp.last_movement_at, lp.last_sync_at, lp.monitoring_enabled, lp.source,
+            (SELECT dc.id FROM dative_cases dc WHERE dc.legal_process_id = lp.id OR REGEXP_REPLACE(COALESCE(dc.process_number,''),'[^0-9]','') = REGEXP_REPLACE(lp.process_number,'[^0-9]','') LIMIT 1) AS dative_case_id,
             c.name AS client_name, l.name AS lawyer_name,
             (SELECT pm.title FROM process_movements pm WHERE pm.process_id = lp.id ORDER BY pm.movement_date DESC, pm.id DESC LIMIT 1) AS last_movement_title,
             (SELECT pm.description FROM process_movements pm WHERE pm.process_id = lp.id ORDER BY pm.movement_date DESC, pm.id DESC LIMIT 1) AS last_movement_text
@@ -75,7 +76,8 @@ router.post('/:id/cliente-conferido', async (req: Request, res: Response) => {
 
 router.get('/:id', async (req: Request, res: Response) => {
   const [rows] = await db.query(
-    `SELECT lp.*, c.name AS client_name, l.name AS lawyer_name
+    `SELECT lp.*, c.name AS client_name, l.name AS lawyer_name,
+            (SELECT dc.id FROM dative_cases dc WHERE dc.legal_process_id = lp.id OR REGEXP_REPLACE(COALESCE(dc.process_number,''),'[^0-9]','') = REGEXP_REPLACE(lp.process_number,'[^0-9]','') LIMIT 1) AS dative_case_id
      FROM legal_processes lp
      LEFT JOIN clients c ON c.id = lp.client_id
      LEFT JOIN lawyers l ON l.id = lp.lawyer_id
