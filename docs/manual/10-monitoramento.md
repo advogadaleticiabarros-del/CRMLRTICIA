@@ -90,6 +90,8 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 ---
 ◀ [Repasses e parcerias](09-repasses.md) · [Visão geral](00-visao-geral.md) · Próximo: [Briefing diário](11-briefing.md) ▶
 
-## Rótulo DATIVO no processo (02/10/2026)
+## Rótulos DATIVO e PARCERIA no processo (02/10/2026)
+
+Processo cujo caso é em parceria (`cases.partner_id`) mostra o rótulo **PARCERIA <nome do parceiro>** (ex.: INFINITY LAW) nos mesmos lugares; a API devolve `partner_name`.
 
 Processo monitorado que tem uma demanda de advocacia dativa (ligada por `dative_cases.legal_process_id` ou com o mesmo número de processo) mostra o rótulo **DATIVO** na lista de processos e na ficha do processo. A API devolve `dative_case_id` em `GET /api/processes` e `GET /api/processes/:id`.

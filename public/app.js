@@ -3029,7 +3029,7 @@ const ROUTES = {
       $('#proc-table').innerHTML = rows.length ? `
         <div class="table-scroll"><table><thead><tr><th>Processo</th><th>Cliente</th><th>Tribunal</th><th>Última movimentação</th><th>Data</th><th></th></tr></thead>
         <tbody>${rows.map((p) => { const mv = (p.last_movement_text || p.last_movement_title || '').replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch])); return `<tr>
-          <td>${procNumHtml(p.process_number)}${p.dative_case_id ? ' <span class="badge dativo" title="Advocacia dativa (nomeação)">DATIVO</span>' : ''}<br><small style="color:var(--text-muted)">${p.judicial_area || ''}</small></td>
+          <td>${procNumHtml(p.process_number)}${p.dative_case_id ? ' <span class="badge dativo" title="Advocacia dativa (nomeação)">DATIVO</span>' : ''}${p.partner_name ? ` <span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)" title="Processo em parceria">PARCERIA ${esc(p.partner_name)}</span>` : ''}<br><small style="color:var(--text-muted)">${p.judicial_area || ''}</small></td>
           <td>${p.client_name || '—'}</td><td>${p.court || '—'}</td>
           <td style="max-width:340px"><span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${mv}">${mv || '—'}</span></td>
           <td style="white-space:nowrap">${p.last_movement_at ? fmtDate(p.last_movement_at) : '—'}</td>
@@ -9894,7 +9894,7 @@ async function processDetail(id, onSave) {
     <div style="font-size:13px"><strong>${(m.title || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]))}</strong> ${m.description ? '— ' + clamp(m.description) : ''}</div>
     <small style="color:var(--gold)">abrir na íntegra ›</small></div>`).join('') || '<p class="empty">Sem movimentações ainda</p>';
   const wrap = el(`<div class="form-grid">
-    <div><strong style="font-size:17px">${esc(p.process_number)}</strong>${p.dative_case_id ? ' <span class="badge dativo" title="Advocacia dativa (nomeação)">DATIVO</span>' : ''} <button type="button" class="btn-copy" data-copy="${esc(p.process_number)}" title="Copiar número" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:3px 6px;line-height:0">${svgIcon('clipboard')}</button><br>
+    <div><strong style="font-size:17px">${esc(p.process_number)}</strong>${p.dative_case_id ? ' <span class="badge dativo" title="Advocacia dativa (nomeação)">DATIVO</span>' : ''}${p.partner_name ? ` <span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)" title="Processo em parceria">PARCERIA ${esc(p.partner_name)}</span>` : ''} <button type="button" class="btn-copy" data-copy="${esc(p.process_number)}" title="Copiar número" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:3px 6px;line-height:0">${svgIcon('clipboard')}</button><br>
       <small style="color:var(--text-muted)">${p.court || ''} · ${p.client_name || ''}</small></div>
     <div>${badge(p.status)} ${p.judicial_area ? badge(p.judicial_area) : ''} · última sync ${p.last_sync_at ? fmtDate(p.last_sync_at) : 'nunca'}</div>
     <button class="btn-primary" id="sync-now">Sincronizar agora</button>
