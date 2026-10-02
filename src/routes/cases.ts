@@ -8,6 +8,7 @@ import { montarEndereco } from '../services/contractTemplates';
 import { buildPeticaoInicial, analyzeCaseDrive } from '../services/peticaoBuilder';
 import { revisarPeticaoDoCaso } from '../services/peticaoReviewer';
 import { slaDiasEfetivosSql } from '../services/productionSla';
+import { validarParte, ehParteDoCliente, POLOS } from '../services/partesProcesso';
 
 const router = Router();
 
@@ -354,7 +355,30 @@ router.get('/:id', async (req: Request, res: Response) => {
       (SELECT COUNT(*) FROM legal_pieces WHERE case_id = ? AND status NOT IN ('protocolado','cancelado')) AS pecas_pendentes
   `, [id, id]) as any;
 
-  res.json({ ...rows[0], movements, resumo });
+  const [partes] = await db.query("SELECT * FROM case_partes WHERE case_id = ? ORDER BY FIELD(papel,'contraria','perito','testemunha','outro'), id", [id]) as any;
+  res.json({ ...rows[0], movements, resumo, partes });
+});
+
+// ── Partes do processo (parte contrária, testemunhas, perito) ───────────────
+// Parte contrária fica no caso, nunca no cadastro de clientes.
+router.post('/:id/partes', async (req: Request, res: Response) => {
+  const [[c]] = await db.query(
+    'SELECT c.id, cl.name, cl.cpf_cnpj FROM cases c LEFT JOIN clients cl ON cl.id = c.client_id WHERE c.id = ?', [req.params.id]) as any;
+  if (!c) { res.status(404).json({ error: 'Processo não encontrado' }); return; }
+  const { erro, dados } = validarParte(req.body);
+  if (erro) { res.status(400).json({ error: erro }); return; }
+  if (dados.papel === 'contraria' && ehParteDoCliente(dados, c)) {
+    res.status(400).json({ error: 'Essa pessoa é a cliente do caso — não pode ser a parte contrária' }); return;
+  }
+  const [r] = await db.query(
+    'INSERT INTO case_partes (case_id, papel, nome, cpf_cnpj, endereco, email, advogado, advogado_oab) VALUES (?,?,?,?,?,?,?,?)',
+    [c.id, dados.papel, dados.nome, dados.cpf_cnpj, dados.endereco, dados.email, dados.advogado, dados.advogado_oab]) as any;
+  res.status(201).json({ id: r.insertId, case_id: c.id, ...dados });
+});
+
+router.delete('/:id/partes/:parteId', async (req: Request, res: Response) => {
+  await db.query('DELETE FROM case_partes WHERE id = ? AND case_id = ?', [req.params.parteId, req.params.id]);
+  res.json({ ok: true });
 });
 
 // ── POST /api/cases — criar ─────────────────────────────────────────────────
@@ -419,6 +443,7 @@ router.put('/:id', async (req: Request, res: Response) => {
       setIf(col, v);
     }
   }
+  setIf('polo_cliente', req.body.polo_cliente, !!POLOS[req.body.polo_cliente]);
   if (req.body.prescricao_base !== undefined) setIf('prescricao_base', String(req.body.prescricao_base || '').slice(0, 255) || null);
   if (req.body.valor_causa !== undefined) {
     const { parseValorBR } = await import('../utils/money');

@@ -7938,6 +7938,7 @@ async function caseDetail(id, onSave) {
       </div>
       <button class="btn-gold btn-sm" id="ficha-btn" type="button" style="white-space:nowrap;flex:0 0 auto">${svgIcon('clipboard')} Ficha completa</button>
     </div>
+    <div id="case-partes"></div>
     ${prodHtml}
     ${c.production_stage ? '<div id="case-checklist"></div><div id="prod-panel"><div class="spinner"></div></div>' : ''}
     <hr style="border:none;border-top:1px solid var(--border)">
@@ -8098,6 +8099,7 @@ async function caseDetail(id, onSave) {
     try { await api('/api/cases/' + id, { method: 'PUT', body: JSON.stringify({ phase: form.querySelector('#case-phase').value }) });
       closeModal(); toast('Fase atualizada'); onSave(); } catch (e) { toast(e.message, 'error'); }
   };
+  renderPartesCaso(form.querySelector('#case-partes'), c);
   form.querySelector('#vc-edit').onclick = async () => {
     const atual = Number(c.valor_causa) || '';
     const novo = await uiPrompt('Valor da causa (R$) — o que está em aberto na demanda, não é o que você vai receber:', atual ? String(atual).replace('.', ',') : '');
@@ -10703,4 +10705,50 @@ async function recebimentoForm(onSave, pre = {}) {
     } catch (err) { toast(err.message, 'error'); btn.disabled = false; }
   };
   openModal('Recebi um pagamento', form);
+}
+
+// ── Partes do processo (02/10/2026) ─────────────────────────────────────────
+// Parte contrária, testemunhas e perito ficam no caso — nunca viram cliente.
+// O polo diz de que lado a cliente está (autora ou ré/defesa).
+const PAPEIS_PARTE = { contraria: 'Parte contrária', perito: 'Perito', testemunha: 'Testemunha', outro: 'Outro interessado' };
+function renderPartesCaso(box, c) {
+  if (!box) return;
+  const partes = c.partes || [];
+  const linha = (p) => `<li style="display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">
+    <span style="min-width:0"><small style="color:var(--text-muted)">${PAPEIS_PARTE[p.papel] || p.papel}</small><br><strong>${esc(p.nome)}</strong>${p.cpf_cnpj ? ` · ${esc(p.cpf_cnpj)}` : ''}
+      ${p.endereco ? `<br><small>${esc(p.endereco)}</small>` : ''}${p.advogado ? `<br><small>Adv.: ${esc(p.advogado)}${p.advogado_oab ? ` (OAB ${esc(p.advogado_oab)})` : ''}</small>` : ''}</span>
+    <button type="button" class="btn-sm" data-del-parte="${p.id}" title="Remover">✕</button></li>`;
+  box.innerHTML = `<hr style="border:none;border-top:1px solid var(--border)">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <strong style="font-size:13px;color:var(--navy-deep)">Partes do processo</strong>
+      <label style="font-size:12.5px;display:flex;gap:6px;align-items:center">A cliente é
+        <select id="polo-cliente"><option value="ativo" ${c.polo_cliente !== 'passivo' ? 'selected' : ''}>autora (reclamante)</option><option value="passivo" ${c.polo_cliente === 'passivo' ? 'selected' : ''}>ré (defesa)</option></select></label>
+    </div>
+    ${partes.length ? `<ul style="list-style:none;margin:6px 0;padding:0">${partes.map(linha).join('')}</ul>` : '<p class="sub" style="margin:6px 0">Nenhuma parte contrária cadastrada.</p>'}
+    <button type="button" class="btn-sm" id="add-parte">+ Adicionar parte</button>`;
+  box.querySelector('#polo-cliente').onchange = async (e) => {
+    try { await api('/api/cases/' + c.id, { method: 'PUT', body: JSON.stringify({ polo_cliente: e.target.value }) }); c.polo_cliente = e.target.value; toast('Polo da cliente atualizado'); }
+    catch (err) { toast(err.message, 'error'); }
+  };
+  box.querySelectorAll('[data-del-parte]').forEach((b) => b.onclick = async () => {
+    if (!confirm('Remover esta parte do processo?')) return;
+    await api(`/api/cases/${c.id}/partes/${b.dataset.delParte}`, { method: 'DELETE' });
+    c.partes = partes.filter((p) => String(p.id) !== b.dataset.delParte); renderPartesCaso(box, c);
+  });
+  box.querySelector('#add-parte').onclick = () => {
+    const f = el(`<form class="form-grid" style="margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:10px">
+      <div class="form-row">${field('Papel', 'papel', { value: 'contraria', options: Object.entries(PAPEIS_PARTE).map(([v, t]) => ({ v, t })) })}${field('Nome *', 'nome')}</div>
+      <div class="form-row">${field('CPF/CNPJ', 'cpf_cnpj')}${field('E-mail', 'email')}</div>
+      ${field('Endereço', 'endereco')}
+      <div class="form-row">${field('Advogado(a) da parte', 'advogado')}${field('OAB', 'advogado_oab', { placeholder: 'ES12345' })}</div>
+      <button type="submit" class="btn-primary">Salvar parte</button></form>`);
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        const nova = await api(`/api/cases/${c.id}/partes`, { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(f))) });
+        c.partes = [...partes, nova]; renderPartesCaso(box, c); toast('Parte adicionada');
+      } catch (err) { toast(err.message, 'error'); }
+    };
+    box.querySelector('#add-parte').replaceWith(f);
+  };
 }

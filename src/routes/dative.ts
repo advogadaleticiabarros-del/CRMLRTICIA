@@ -211,7 +211,7 @@ router.post('/cases/:id/extrair-ia', async (req: Request, res: Response) => {
 
   const fields: string[] = []; const params: any[] = [];
   const fillIfEmpty = (col: string, current: any, val: string) => {
-    if (!current && val) { fields.push(`${col} = ?`); params.push(val); }
+    if (!current && val) { fields.push(`${col} = ?`); params.push(val === '' ? null : val); }
   };
   fillIfEmpty('juizo', dc.juizo, ext.juizo);
   fillIfEmpty('vara', dc.vara, ext.vara);
@@ -317,7 +317,7 @@ router.put('/cases/:id', async (req: Request, res: Response) => {
   const fields: string[] = [];
   const params: any[] = [];
   const setIf = (col: string, val: any, valid = true) => {
-    if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val); }
+    if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val === '' ? null : val); }
   };
   setIf('process_number', req.body.process_number);
   setIf('comarca', req.body.comarca?.trim?.());
@@ -448,7 +448,7 @@ router.put('/hearings/:id', async (req: Request, res: Response) => {
   const fields: string[] = [];
   const params: any[] = [];
   const setIf = (col: string, val: any, valid = true) => {
-    if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val); }
+    if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val === '' ? null : val); }
   };
   setIf('dative_case_id', req.body.dative_case_id ? Number(req.body.dative_case_id) : undefined);
   setIf('hearing_date', req.body.hearing_date);
@@ -487,7 +487,7 @@ router.put('/hearings/:id', async (req: Request, res: Response) => {
   if (!existing.length) { res.status(404).json({ error: 'Audiência não encontrada' }); return; }
 
   const fields: string[] = []; const params: any[] = [];
-  const setIf = (col: string, val: any, valid = true) => { if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val); } };
+  const setIf = (col: string, val: any, valid = true) => { if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val === '' ? null : val); } };
   setIf('hearing_date', req.body.hearing_date);
   setIf('comarca', req.body.comarca);
   setIf('type', req.body.type);
@@ -562,7 +562,7 @@ router.put('/payments/:id', async (req: Request, res: Response) => {
   const fields: string[] = [];
   const params: any[] = [];
   const setIf = (col: string, val: any, valid = true) => {
-    if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val); }
+    if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val === '' ? null : val); }
   };
   if (req.body.dative_case_id !== undefined) { fields.push('dative_case_id = ?'); params.push(req.body.dative_case_id ? Number(req.body.dative_case_id) : null); }
   setIf('reference', req.body.reference);
@@ -594,7 +594,7 @@ router.put('/payments/:id', async (req: Request, res: Response) => {
   if (!existing.length) { res.status(404).json({ error: 'Recebimento não encontrado' }); return; }
 
   const fields: string[] = []; const params: any[] = [];
-  const setIf = (col: string, val: any, valid = true) => { if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val); } };
+  const setIf = (col: string, val: any, valid = true) => { if (val !== undefined && valid) { fields.push(`${col} = ?`); params.push(val === '' ? null : val); } };
   setIf('reference', req.body.reference);
   setIf('value', req.body.value !== undefined ? Number(req.body.value) : undefined);
   setIf('expected_date', req.body.expected_date);

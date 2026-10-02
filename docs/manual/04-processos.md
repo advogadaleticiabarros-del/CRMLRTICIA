@@ -140,3 +140,13 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 ---
 ◀ [WhatsApp](03-whatsapp.md) · [Visão geral](00-visao-geral.md) · Próximo: [Dativo](05-dativo.md) ▶
+
+## Partes do processo (parte contrária, testemunhas, perito) — 02/10/2026
+
+Quem está do outro lado do processo **não é cliente** e não entra no cadastro de clientes. Na janela do caso há o bloco **Partes do processo**, onde ficam:
+
+- **A cliente é autora (reclamante) ou ré (defesa)**: campo `cases.polo_cliente` (`ativo`/`passivo`). Use "ré (defesa)" quando o escritório defende a empresa, como no caso Stilo Pet.
+- **+ Adicionar parte**: parte contrária, perito, testemunha ou outro interessado, com CPF/CNPJ, endereço, e-mail e o advogado da parte com a OAB. Fica gravado na tabela `case_partes` (migration 150).
+- O sistema **recusa** cadastrar a própria cliente como parte contrária (mesmo CPF/CNPJ ou mesmo nome).
+
+API: `GET /api/cases/:id` devolve `partes`; `POST /api/cases/:id/partes`; `DELETE /api/cases/:id/partes/:parteId`. Regras puras em `src/services/partesProcesso.ts` (testes em `tests/partesProcesso.test.mjs`).
