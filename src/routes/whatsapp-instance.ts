@@ -509,7 +509,11 @@ router.get('/chats/:phone/proposta', async (req: Request, res: Response) => {
   }
   const { linkProposta, textoEnvioProposta, emAnalise } = await import('../services/propostaWhatsapp');
   const url = linkProposta(p.public_token);
-  res.json({ id: p.id, title: p.title, valor: p.valor, status: p.status, enviada_em: p.enviada_em,
+  const { resumoVisitas } = await import('../services/propostaVisitas');
+  const [vs] = await db.query(
+    'SELECT iniciada_em, segundos, scroll_max, dispositivo FROM proposta_visitas WHERE proposta_id = ? ORDER BY iniciada_em', [p.id]
+  ).catch(() => [[]]) as any;
+  res.json({ leitura: resumoVisitas(vs), visitas: vs.slice(-10).reverse(), id: p.id, title: p.title, valor: p.valor, status: p.status, enviada_em: p.enviada_em,
     visualizada_em: p.visualizada_em, ultima_visualizacao_em: p.ultima_visualizacao_em,
     em_analise: emAnalise(p.status), url, texto: textoEnvioProposta(p.nome || '', p.title || '', url) });
 });

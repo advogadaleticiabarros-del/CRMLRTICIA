@@ -913,10 +913,46 @@
         const response = await fetch('/api/public/proposta/' + encodeURIComponent(token));
         if (!response.ok) throw new Error('not_found');
         render(await response.json());
+        monitorarLeitura();
       } catch {
         content.innerHTML = '<div class="state-box">Proposta não encontrada ou link expirado. Solicite um novo link ao escritório.</div>';
       }
     }
+    // Monitoramento da leitura: registra a abertura e, a cada 15s com a
+    // página visível, o tempo e até onde rolou. ?preview=1 (aberto pela
+    // equipe dentro do CRM) não conta.
+    function monitorarLeitura() {
+      if (new URLSearchParams(location.search).get('preview')) return;
+      const base = '/api/public/proposta/' + encodeURIComponent(token) + '/visita';
+      let chave = null, scroll = 0, ultimo = Date.now();
+      const medirScroll = () => {
+        const h = document.documentElement;
+        const total = h.scrollHeight - h.clientHeight;
+        const pct = total > 0 ? Math.round((h.scrollTop / total) * 100) : 100;
+        if (pct > scroll) scroll = pct;
+      };
+      window.addEventListener('scroll', medirScroll, { passive: true });
+      const sinal = (final) => {
+        if (!chave) return;
+        const agora = Date.now();
+        const segundos = document.visibilityState === 'visible' || final ? Math.round((agora - ultimo) / 1000) : 0;
+        ultimo = agora;
+        const corpo = JSON.stringify({ segundos, scroll });
+        const url = base + '/' + chave + '/sinal';
+        if (final && navigator.sendBeacon) navigator.sendBeacon(url, new Blob([corpo], { type: 'application/json' }));
+        else fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: corpo, keepalive: true }).catch(() => {});
+      };
+      fetch(base, { method: 'POST' }).then((r) => r.ok ? r.json() : null).then((d) => {
+        if (!d) return;
+        chave = d.chave; ultimo = Date.now(); medirScroll();
+        setInterval(() => { if (document.visibilityState === 'visible') sinal(false); }, 15000);
+      }).catch(() => {});
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') sinal(true);
+        else ultimo = Date.now();
+      });
+    }
+
     load();
   </script>
 </body>

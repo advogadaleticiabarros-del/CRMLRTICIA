@@ -48,11 +48,49 @@ router.get('/proposta/:token', async (req: Request, res: Response) => {
       WHERE p.public_token = ?`, [req.params.token]
   ) as any;
   if (!rows.length) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
-  // Marca que o cliente abriu o link (1ª vez e a mais recente) — best-effort.
-  db.query(
-    'UPDATE propostas SET visualizada_em = COALESCE(visualizada_em, NOW()), ultima_visualizacao_em = NOW() WHERE public_token = ?',
-    [req.params.token]).catch(() => {});
   res.json(rows[0]);
+});
+
+// ── Monitoramento do link: abertura (visita) e sinais periódicos ────────────
+// POST /proposta/:token/visita → abre uma visita e avisa a equipe no sino.
+router.post('/proposta/:token/visita', async (req: Request, res: Response) => {
+  const [[p]] = await db.query(
+    `SELECT p.id, p.user_id, p.lead_id, COALESCE(p.contact_name, l.name) AS nome
+       FROM propostas p LEFT JOIN leads l ON l.id = p.lead_id WHERE p.public_token = ?`, [req.params.token]) as any;
+  if (!p) { res.status(404).json({ error: 'Proposta não encontrada' }); return; }
+  const { dispositivo } = await import('../services/propostaVisitas');
+  const chave = (await import('crypto')).randomUUID();
+  const disp = dispositivo(req.get('user-agent'));
+  await db.query('INSERT INTO proposta_visitas (proposta_id, chave, dispositivo) VALUES (?, ?, ?)', [p.id, chave, disp]);
+  await db.query(
+    'UPDATE propostas SET visualizada_em = COALESCE(visualizada_em, NOW()), ultima_visualizacao_em = NOW() WHERE id = ?', [p.id]);
+  const [[c]] = await db.query('SELECT COUNT(*) AS n FROM proposta_visitas WHERE proposta_id = ?', [p.id]) as any;
+  const n = Number(c.n);
+  const [equipe] = await db.query("SELECT id FROM users WHERE role IN ('admin','advogado','comercial') AND active = 1") as any;
+  for (const u of equipe) {
+    await db.query(
+      `INSERT INTO notifications (user_id, title, message, notification_type, channel, scheduled_at, status)
+       VALUES (?, ?, ?, 'proposta_aberta', 'sistema', NOW(), 'pendente')`,
+      [u.id, `👀 ${p.nome || 'Cliente'} ${n === 1 ? 'abriu a proposta' : `reabriu a proposta (${n}ª vez)`}`,
+       `Pelo ${disp}. Acompanhe o tempo de leitura na conversa do WhatsApp.`]).catch(() => {});
+  }
+  res.status(201).json({ chave });
+});
+
+// POST /proposta/:token/visita/:chave/sinal { segundos, scroll } — a cada ~15s com a página visível.
+router.post('/proposta/:token/visita/:chave/sinal', async (req: Request, res: Response) => {
+  const { segundosDoSinal, scrollValido } = await import('../services/propostaVisitas');
+  const seg = segundosDoSinal(req.body?.segundos);
+  const scroll = scrollValido(req.body?.scroll);
+  // Só aceita sinal de visita existente DESTA proposta; o tempo creditado nunca
+  // passa do tempo real desde o sinal anterior (+2s de folga) — não dá pra inflar.
+  await db.query(
+    `UPDATE proposta_visitas v JOIN propostas p ON p.id = v.proposta_id
+        SET v.segundos = v.segundos + LEAST(?, TIMESTAMPDIFF(SECOND, v.ultimo_sinal_em, NOW()) + 2),
+            v.scroll_max = GREATEST(v.scroll_max, ?), v.ultimo_sinal_em = NOW()
+      WHERE v.chave = ? AND p.public_token = ?`,
+    [seg, scroll, req.params.chave, req.params.token]);
+  res.status(204).end();
 });
 
 // ── POST /api/public/proposta/:token/aceitar — cliente aceita ────────────────

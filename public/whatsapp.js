@@ -1024,8 +1024,11 @@ Object.assign(ROUTES, {
         const pintarStatusProp = (pr) => {
           if (!statusProp) return;
           statusProp.innerHTML = pr && pr.em_analise
-            ? `<div class="wa-prop-badge"><span class="wa-prop-dot"></span>Analisando proposta${pr.visualizada_em ? ` · viu ${fmtQuando(pr.ultima_visualizacao_em || pr.visualizada_em)}` : ' · ainda não abriu o link'}</div>`
+            ? `<div class="wa-prop-badge"><span class="wa-prop-dot"></span>Analisando proposta${pr.visualizada_em ? ` · viu ${fmtQuando(pr.ultima_visualizacao_em || pr.visualizada_em)}` : ' · ainda não abriu o link'}</div>
+               ${pr.leitura && pr.leitura.aberturas ? `<button type="button" class="wa-prop-leitura" id="wa-prop-leitura">${pr.leitura.aberturas} abertura${pr.leitura.aberturas > 1 ? 's' : ''} · ${duracaoTxt(pr.leitura.tempoTotalSeg)} lendo · ${pr.leitura.leuAteOFim ? 'leu até o fim' : `leu ${pr.leitura.scrollMax}%`}</button>` : ''}`
             : '';
+          const bl = statusProp.querySelector('#wa-prop-leitura');
+          if (bl) bl.onclick = () => openModal('Leitura da proposta', el(`<div>${leituraHtml(pr.leitura, pr.visitas)}</div>`));
         };
         if (!cx.client) api(`/api/whatsapp-instance/chats/${ativo.phone}/proposta`).then(pintarStatusProp).catch(() => {});
         const ep = box.querySelector('#wa-ctx-enviar-proposta');
@@ -1039,7 +1042,8 @@ Object.assign(ROUTES, {
               <div style="background:var(--bg);border-radius:8px;padding:10px 12px;font-size:13px">
                 <strong>${esc(pr.title || 'Proposta')}</strong> · ${money(pr.valor)} · ${STP[pr.status] || esc(pr.status)}
                 ${pr.enviada_em ? `<br><small style="color:var(--text-muted)">Enviada em ${fmtQuando(pr.enviada_em)}${pr.visualizada_em ? ` · cliente abriu em ${fmtQuando(pr.visualizada_em)}` : ' · ainda não abriu'}</small>` : ''}
-                <br><a href="${esc(pr.url)}" target="_blank" rel="noopener" style="font-size:12px">Ver a proposta como o cliente vê</a>
+                <br><a href="${esc(pr.url)}&preview=1" target="_blank" rel="noopener" style="font-size:12px">Ver a proposta como o cliente vê</a> <small style="color:var(--text-muted)">(sua visualização não conta)</small>
+                ${leituraHtml(pr.leitura, pr.visitas)}
               </div>
               <label>Mensagem (pode editar — o link precisa ficar)<textarea name="texto" rows="9">${esc(pr.texto)}</textarea></label>
               <button type="submit" class="btn-primary">Enviar pelo WhatsApp</button>
@@ -2257,4 +2261,28 @@ function conferirDadosExtraidos(r, phone) {
     } catch (e) { toast(e.message, 'error'); }
   };
   openModal('Conferir dados lidos dos documentos', wrap);
+}
+
+// ── Leitura da proposta pelo cliente (monitoramento do link) ───────────────
+function duracaoTxt(seg) {
+  const s = Math.max(0, Math.floor(Number(seg) || 0));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}min${s % 60 ? ` ${s % 60}s` : ''}`;
+  const m = Math.floor((s % 3600) / 60);
+  return `${Math.floor(s / 3600)}h${m ? ` ${m}min` : ''}`;
+}
+function leituraHtml(l, visitas) {
+  if (!l || !l.aberturas) return '<p class="sub" style="margin-top:8px">O cliente ainda não abriu o link.</p>';
+  const dt = (d) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  return `<div style="margin-top:10px">
+    <div class="kpi-grid">
+      ${kpi('Aberturas', l.aberturas)}
+      ${kpi('Tempo total lendo', duracaoTxt(l.tempoTotalSeg))}
+      ${kpi('Maior leitura', duracaoTxt(l.maiorSessaoSeg))}
+      ${kpi('Até onde leu', l.leuAteOFim ? 'até o fim' : l.scrollMax + '%')}
+    </div>
+    <p class="sub">Primeira vez: ${dt(l.primeira)} · última: ${dt(l.ultima)} · ${esc(l.dispositivos.join(', '))}</p>
+    ${(visitas || []).length ? `<table style="margin-top:6px;font-size:12.5px"><thead><tr><th>Quando</th><th>Tempo</th><th>Leu</th><th>Aparelho</th></tr></thead><tbody>
+      ${visitas.map((v) => `<tr><td>${dt(v.iniciada_em)}</td><td>${duracaoTxt(v.segundos)}</td><td>${v.scroll_max}%</td><td>${esc(v.dispositivo)}</td></tr>`).join('')}</tbody></table>` : ''}
+  </div>`;
 }

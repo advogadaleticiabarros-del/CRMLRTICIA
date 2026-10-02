@@ -45,7 +45,11 @@ Cliente com 2+ processos: no bloco **Processo** da ficha aparece *Esta conversa 
 
 - **Enviar proposta** (ficha da conversa): busca a proposta mais recente deste contato (pelo telefone da proposta ou do lead; ignora recusadas/expiradas), mostra título, valor, status e se o cliente já abriu o link, e traz uma mensagem pronta com o link público — editável, mas o link precisa ficar. Ao enviar: a proposta vira *Enviada* (começa o follow-up 48h/5d/7d) e o lead vai para *Proposta Enviada* se ainda estava antes disso.
 - **Bolinha verde piscando**: aparece ao lado do nome na lista de conversas e como selo "Analisando proposta" na ficha enquanto a proposta estiver *Enviada* ou *Em negociação*. O selo diz quando o cliente abriu o link pela última vez, ou "ainda não abriu o link". Sai sozinha quando a proposta é aceita, recusada ou expira.
-- A abertura do link é registrada em `propostas.visualizada_em` (primeira vez) e `ultima_visualizacao_em`.
+- **Monitoramento do link (desde 01/10/2026):** cada abertura do link vira uma visita (`proposta_visitas`). Enquanto a página está aberta e visível, ela manda um sinal a cada 15s com o tempo e até onde a pessoa rolou; ao sair/trocar de aba manda o último. O servidor nunca credita mais tempo que o realmente decorrido desde o sinal anterior. Não guarda IP nem localização — só tempo, % lido e tipo de aparelho (celular/tablet/computador).
+- Na ficha, abaixo do selo verde: "N aberturas · X lendo · leu até o fim / leu Y%" — clique para ver tempo total, maior leitura, primeira/última abertura e a lista das últimas 10 visitas. O mesmo resumo aparece na janela *Enviar proposta*.
+- **Aviso no sino** a cada abertura: "👀 Fulana abriu a proposta" / "reabriu a proposta (3ª vez)".
+- "Ver a proposta como o cliente vê" abre com `&preview=1` — a sua visualização não conta como visita.
+- `propostas.visualizada_em` / `ultima_visualizacao_em` passam a ser marcadas só por visita real (antes qualquer abertura, inclusive da equipe, contava).
 
 ## Ler dados dos documentos recebidos (desde 30/09/2026)
 
@@ -141,6 +145,7 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 01/10/2026 | Claude | Monitoramento do link da proposta: tempo de leitura, reaberturas, % lido, aparelho e aviso no sino a cada abertura |
 | 01/10/2026 | Claude | Botão Enviar proposta com link e texto pronto; bolinha verde "analisando proposta"; registro de quando o cliente abre o link |
 | 01/10/2026 | Claude | Gerar proposta cadastra o lead na hora com os dados da conversa (relato real) |
 | 30/09/2026 | Claude | Ler dados dos documentos recebidos com tela de conferência antes de gravar |
