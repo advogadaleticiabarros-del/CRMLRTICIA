@@ -175,15 +175,16 @@ router.post('/cases/:caseId/resultado', async (req: Request, res: Response) => {
   receita = Math.round(receita * 100) / 100;
   repasse = Math.round(repasse * 100) / 100;
 
-  // Receita da parceria (êxito/sucumbência) — vence 7 dias após o lançamento.
+  // Receita da parceria (êxito/sucumbência) e repasse ficam "pendentes de data": o vencimento
+  // só é definido quando o valor for efetivamente pago (pedido 02/10/2026).
   await db.query(
     `INSERT INTO financial_records (user_id, client_id, case_id, tipo, description, valor, status, due_date)
-     VALUES (?, ?, ?, 'receita', ?, ?, 'pendente', DATE_ADD(CURDATE(), INTERVAL 7 DAY))`,
+     VALUES (?, ?, ?, 'receita', ?, ?, 'pendente', NULL)`,
     [req.user!.id, c.client_id, c.id, desc, receita]
   );
   await db.query(
     `INSERT INTO repasses (case_id, parceiro, tipo, valor, percentual, descricao, status, data_vencimento)
-     VALUES (?, ?, 'indicacao', ?, ?, ?, 'pendente', DATE_ADD(CURDATE(), INTERVAL 7 DAY))`,
+     VALUES (?, ?, 'indicacao', ?, ?, ?, 'pendente', NULL)`,
     [c.id, c.partner_name, repasse, pct, `Repasse ${kind === 'sucumbencia' ? 'sucumbência' : 'êxito'} — ${c.client_name}`]
   );
 

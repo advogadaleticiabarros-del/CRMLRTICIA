@@ -5771,7 +5771,7 @@ async function finRepasses(c) {
         if (rp.status !== 'repassado' && rp.status !== 'cancelado') acoes.push(`<button class="btn-sm" data-rep-cancel="${rp.id}">Cancelar</button>`);
         return `<tr>
           <td><strong>${rp.parceiro}</strong></td><td>${rp.case_title || '—'}</td><td>${rp.tipo}</td>
-          <td>${money(rp.valor)}</td><td>${fmtDate(rp.data_vencimento)}</td><td>${badge(rp.status)}</td>
+          <td>${money(rp.valor)}</td><td>${rp.data_vencimento ? fmtDate(rp.data_vencimento) : 'sem data'}</td><td>${badge(rp.status)}</td>
           <td style="white-space:nowrap">${acoes.join(' ')}</td></tr>`;
       }).join('')}</tbody></table>`
       : '<div class="empty">Nenhum repasse cadastrado</div>';
@@ -5805,7 +5805,7 @@ async function finRepasses(c) {
     if (!pendentes.length) { toast('Nenhum repasse pendente para esse parceiro', 'error'); return; }
     const total = pendentes.reduce((s, rp) => s + Number(rp.valor || 0), 0);
     const linhas = pendentes.map((rp) => `<tr>
-      <td>${esc(rp.case_title || '—')}</td><td>${esc(rp.tipo)}</td><td>${fmtDate(rp.data_vencimento)}</td>
+      <td>${esc(rp.case_title || '—')}</td><td>${esc(rp.tipo)}</td><td>${rp.data_vencimento ? fmtDate(rp.data_vencimento) : 'sem data'}</td>
       <td style="text-align:right">${money(rp.valor)}</td></tr>`).join('');
     const html = `
       <table style="width:100%;border-collapse:collapse;margin-top:8px">
@@ -6769,7 +6769,7 @@ async function repasseForm(onSave) {
     ${field('Valor *', 'valor', { type: 'number' })}
     ${field('Percentual (%)', 'percentual', { type: 'number' })}
     ${field('Descrição *', 'descricao')}
-    ${field('Vencimento *', 'data_vencimento', { type: 'date' })}
+    ${field('Vencimento (deixe em branco se ainda não tem data)', 'data_vencimento', { type: 'date' })}
     <button type="submit" class="btn-primary">Criar repasse</button>
   </form>`);
   form.onsubmit = async (e) => {

@@ -51,3 +51,7 @@ Manter isso em módulos próprios (em vez de misturar com as parcelas dos seus p
 
 ---
 ◀ [Cobrança e parcelas](08-cobranca.md) · [Visão geral](00-visao-geral.md) · Próximo: [Monitoramento automático](10-monitoramento.md) ▶
+
+## Repasse "sem data" (02/10/2026)
+
+Repasse a parceiro pode ficar **sem vencimento** ("sem data" na lista) enquanto o valor ainda não entrou, como no êxito da parceria Infinity Law (30% de honorários, metade para cada). O vencimento é definido depois, ao editar o repasse. A migration 151 permite `repasses.data_vencimento` nulo. O registro de êxito/sucumbência da parceria (`POST /api/partners/cases/:id/resultado`) agora cria a receita e o repasse sem data, em vez de "hoje + 7 dias".

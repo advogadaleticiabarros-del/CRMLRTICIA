@@ -28,7 +28,7 @@ router.get('/', async (req: Request, res: Response) => {
     `SELECT rp.*, c.title AS case_title
        FROM repasses rp
        LEFT JOIN cases c ON c.id = rp.case_id
-       ${whereSql} ORDER BY rp.data_vencimento ASC LIMIT ? OFFSET ?`,
+       ${whereSql} ORDER BY rp.data_vencimento IS NULL, rp.data_vencimento ASC LIMIT ? OFFSET ?`,
     [...params, limit, offset]
   ) as any;
 
@@ -48,7 +48,7 @@ router.post('/', async (req: Request, res: Response) => {
   if (!case_id) { res.status(400).json({ error: 'case_id é obrigatório' }); return; }
   if (!parceiro || !String(parceiro).trim()) { res.status(400).json({ error: 'parceiro é obrigatório' }); return; }
   if (!descricao || !String(descricao).trim()) { res.status(400).json({ error: 'descricao é obrigatória' }); return; }
-  if (!data_vencimento) { res.status(400).json({ error: 'data_vencimento é obrigatória' }); return; }
+  // Sem vencimento = "pendente de data" (só se define quando o dinheiro entra).
 
   const valorNum = Number(valor) || 0;
   const [result] = await db.query(
@@ -56,7 +56,7 @@ router.post('/', async (req: Request, res: Response) => {
        (case_id, parceiro, tipo, valor, percentual, descricao, status, data_vencimento)
      VALUES (?, ?, ?, ?, ?, ?, 'pendente', ?)`,
     [case_id, parceiro.trim(), TIPOS.includes(tipo) ? tipo : 'indicacao', valorNum,
-     percentual !== undefined ? Number(percentual) : null, descricao.trim(), data_vencimento]
+     percentual !== undefined ? Number(percentual) : null, descricao.trim(), data_vencimento || null]
   ) as any;
 
   await logFinancialAudit({
@@ -87,7 +87,7 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('percentual', req.body.percentual !== undefined ? Number(req.body.percentual) : undefined);
   setIf('descricao', req.body.descricao?.trim?.());
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
-  setIf('data_vencimento', req.body.data_vencimento);
+  setIf('data_vencimento', req.body.data_vencimento === '' ? null : req.body.data_vencimento);
   setIf('comprovante_url', req.body.comprovante_url !== undefined ? (String(req.body.comprovante_url).trim() || null) : undefined);
 
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
