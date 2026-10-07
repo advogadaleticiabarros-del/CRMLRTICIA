@@ -371,6 +371,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: balão do WhatsApp abria o Dashboard
+
+**Sintoma (relato 07/10/2026, urgente):** clicar no balão do WhatsApp no topo abria uma aba nova em `?foco=1#dashboard`, com o Dashboard, em vez da tela do WhatsApp.
+
+**Causa raiz:** em 02/10/2026 (Dashboard como primeira tela), o `bootApp()` passou a trocar o endereço para `#dashboard` em TODA abertura do CRM. O balão abre `?foco=1#whatsapp` numa aba nova, que é uma abertura, e era desviado. Achado junto: `showApp()` comparava a rota com o `?parâmetro` incluído (`financeiro?tab=x`), então todo link com parâmetro também caía na tela inicial.
+
+**Correção:** o Dashboard só é forçado na abertura comum do CRM. São respeitados: link de tela cheia (`?foco=1`), link com parâmetro (`#tela?x=y`) e recarregar a página (F5). `showApp()` ignora o `?parâmetro` ao validar a rota. Testado no navegador (Playwright): balão → WhatsApp; abrir o CRM → Dashboard; endereço antigo `#cases` → Dashboard; `#financeiro?tab=repasses` → Financeiro; F5 mantém a tela.
+
+**Como reconhecer de novo:** um link do CRM que deveria abrir uma tela específica cai no Dashboard. Veja `bootApp()` e `showApp()` em `public/app.js`.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -387,6 +399,7 @@ pm2 restart crm-juridico && pm2 save
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | +1 incidente: balão do WhatsApp abria o Dashboard (e links com parâmetro caíam na tela inicial) |
 | 07/10/2026 | Claude | +1 incidente: botão do WhatsApp fora da tela no celular |
 | 04/09/2026 | Claude | Criação do documento — 6 incidentes reais registrados a partir dos casos de 03/09/2026 |
 | 04/09/2026 | Claude | +1 incidente: campo de Valor (R$) rejeitando centavos — corrigido no helper `field()` |

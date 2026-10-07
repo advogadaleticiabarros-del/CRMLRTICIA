@@ -760,7 +760,7 @@ function showApp() {
   buildNav();
   // rota padrão do papel
   const allowed = navForRole();
-  const current = location.hash.replace('#', '');
+  const current = location.hash.replace('#', '').split('?')[0]; // "#financeiro?tab=x" é a tela financeiro
   if (!allowed.includes(current)) location.hash = '#' + allowed[0];
   else router();
   refreshBell();
@@ -10523,9 +10523,14 @@ if (new URLSearchParams(location.search).get('foco') === '1') {
 // DOM) já terminou — mais garantido que setTimeout(...,0), que em teoria
 // deveria bastar mas na prática não resolveu.
 function bootApp() {
-  // Ao ABRIR o CRM, a primeira tela é sempre o Dashboard (pedido 02/10/2026),
-  // a menos que o link aponte para uma tela específica com parâmetro.
-  if (TOKEN && USER && navForRole().includes('dashboard') && !location.hash.includes('?')) history.replaceState(null, '', '#dashboard');
+  // Ao ABRIR o CRM, a primeira tela é o Dashboard (pedido 02/10/2026). Exceções,
+  // em que a tela do endereço é respeitada: link explícito de tela cheia
+  // ("?foco=1#whatsapp", aberto pelo balão do WhatsApp numa aba nova), link com
+  // parâmetro ("#financeiro?tab=…") e recarregar a página (F5). Antes, forçar o
+  // Dashboard sempre fazia o balão do WhatsApp abrir o Dashboard (07/10/2026).
+  const linkDeTela = new URLSearchParams(location.search).get('foco') === '1' || location.hash.includes('?');
+  const recarregou = performance.getEntriesByType?.('navigation')?.[0]?.type === 'reload';
+  if (TOKEN && USER && navForRole().includes('dashboard') && !linkDeTela && !recarregou) history.replaceState(null, '', '#dashboard');
   if (TOKEN && USER) showApp(); else { $('#login-view').classList.remove('hidden'); if (typeof prepararPasskey === 'function' && window.PublicKeyCredential) prepararPasskey(); }
   setTimeout(maybeShowIosInstallBanner, 1500);
 }
