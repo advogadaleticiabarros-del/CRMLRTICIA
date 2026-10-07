@@ -202,6 +202,23 @@ const DADOS_PAGAMENTO = {
 const EXTENSO_PCT: Record<number, string> = { 5: 'cinco', 10: 'dez', 15: 'quinze', 20: 'vinte', 25: 'vinte e cinco', 30: 'trinta', 40: 'quarenta', 50: 'cinquenta' };
 const extensoPct = (n: number) => `${EXTENSO_PCT[n] ? EXTENSO_PCT[n] + ' por cento' : n + ' por cento'}`;
 
+/**
+ * Percentual para os cálculos feitos pela contabilidade (07/10/2026): de 1% a
+ * 5% sobre o valor dos proventos, escolhido na proposta (honorarios.taxa_calculos_pct).
+ * Qualquer outro valor = não cobra (0).
+ */
+export function taxaCalculosPct(honorarios: any): number {
+  const n = Number(honorarios?.taxa_calculos_pct);
+  return Number.isInteger(n) && n >= 1 && n <= 5 ? n : 0;
+}
+
+/** Frase da taxa de cálculos para o contrato ('' quando não cobra). */
+export function clausulaTaxaCalculos(honorarios: any): string {
+  const p = taxaCalculosPct(honorarios);
+  const ext = ['', 'um', 'dois', 'três', 'quatro', 'cinco'][p];
+  return p ? `A CONTRATANTE pagará, ainda, o percentual de ${p}% (${ext} por cento) sobre o valor dos proventos recebidos, destinado ao custeio dos cálculos elaborados pela contabilidade.` : '';
+}
+
 export interface MenorData { nome?: string | null; nascimento?: string | null; cpf?: string | null }
 
 /** Contrato de honorários — REPRESENTAÇÃO DE MENOR (representante legal + menor representado). */
@@ -243,7 +260,7 @@ CLÁUSULA PRIMEIRA - DO OBJETO DO CONTRATO
 O presente contrato tem por objeto a prestação de serviços advocatícios pela CONTRATADA para o ajuizamento e acompanhamento, em todas as instâncias, de ${acao} em favor do(a) menor REPRESENTADO(A), em face de ${reu}.
 
 CLÁUSULA SEGUNDA - DOS HONORÁRIOS ADVOCATÍCIOS
-A título de honorários de êxito, a CONTRATANTE pagará à CONTRATADA o percentual de ${pct}% (${extensoPct(pct)}) sobre o proveito econômico total obtido em favor do(a) REPRESENTADO(A).
+A título de honorários de êxito, a CONTRATANTE pagará à CONTRATADA o percentual de ${pct}% (${extensoPct(pct)}) sobre o proveito econômico total obtido em favor do(a) REPRESENTADO(A).${clausulaTaxaCalculos(opts.honorarios) ? ' ' + clausulaTaxaCalculos(opts.honorarios) : ''}
 
 PARÁGRAFO PRIMEIRO - Os honorários serão devidos e destacados no momento da liberação dos valores por meio de alvará judicial, autorizando a CONTRATADA, desde já, a requerer ao juízo que o pagamento de seus honorários seja feito por dedução da quantia a ser recebida pelo(a) REPRESENTADO(A), nos termos do art. 22, § 4º, da Lei nº 8.906/94.
 
@@ -396,6 +413,7 @@ export function montarClausulaValores(opts: { honorarios?: any; value?: number; 
   let texto = `Pelos serviços advocatícios descritos na Cláusula Primeira, a CONTRATANTE pagará à CONTRATADA ${segs.join(', e ainda ')}.`;
   if (m.includes('sucumbencia')) texto += ` Os honorários de sucumbência, quando houver, pertencem exclusivamente à CONTRATADA, nos termos do art. 23 da Lei nº 8.906/94.`;
   if (m.includes('arbitrado')) texto += ` Os honorários poderão, ainda, ser arbitrados judicialmente.`;
+  if (clausulaTaxaCalculos(h)) texto += ` ${clausulaTaxaCalculos(h)}`;
   return { texto, exitoUsado: exitoUsado || 30 };
 }
 
@@ -422,7 +440,7 @@ b) [Nº] parcela(s) mensal(is) de R$ [VALOR PARCELA];
 
 c) [se houver] 01 (uma) última parcela de R$ [VALOR ÚLTIMA PARCELA].
 
-A primeira parcela terá vencimento em [DATA 1ª PARCELA], vencendo-se as demais no dia [DIA] dos meses subsequentes.`;
+A primeira parcela terá vencimento em [DATA 1ª PARCELA], vencendo-se as demais no dia [DIA] dos meses subsequentes.${clausulaTaxaCalculos(honorarios) ? '\n\n' + clausulaTaxaCalculos(honorarios) : ''}`;
   }
   const entrada = Number(parc.entrada) || 0;
   const n = parseInt(parc.parcelas) || 0;
@@ -439,7 +457,7 @@ A primeira parcela terá vencimento em [DATA 1ª PARCELA], vencendo-se as demais
 
 ${linhas.join('\n\n')}
 
-${vencimento}`.trim();
+${vencimento}${clausulaTaxaCalculos(honorarios) ? '\n\n' + clausulaTaxaCalculos(honorarios) : ''}`.trim();
 }
 
 /**

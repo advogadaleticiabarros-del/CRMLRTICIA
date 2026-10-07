@@ -7374,6 +7374,9 @@ async function propostaForm(onSave, lead = null, existing = null) {
       <div id="parc-preview" class="parc-preview"></div>
     </div>
 
+    <label>Cálculos (contabilidade) <small style="color:var(--text-muted)">— percentual sobre o valor dos proventos; aparece discriminado na proposta e no contrato</small>
+      <select name="taxa_calculos_pct">${['', 1, 2, 3, 4, 5].map((p) => `<option value="${p}">${p ? p + '% sobre o valor dos proventos' : 'Não cobrar'}</option>`).join('')}</select></label>
+
     ${sec('Outras modalidades (opcional)')}
     <div class="hon-presets">${HON_PRESETS.map((p, i) => `<button type="button" class="btn-sm" data-preset="${i}">${p[0]}</button>`).join('')}</div>
     <div class="hon-grid">${honRows}</div>
@@ -7461,6 +7464,7 @@ async function propostaForm(onSave, lead = null, existing = null) {
     try {
       const h0 = typeof existing.honorarios === 'string' ? JSON.parse(existing.honorarios) : existing.honorarios;
       (h0.meios || []).forEach((m) => { const cb = form.querySelector(`[data-meio="${m}"]`); if (cb) cb.checked = true; });
+      if (h0.taxa_calculos_pct) form.querySelector('[name=taxa_calculos_pct]').value = String(h0.taxa_calculos_pct);
       if (h0.meios_detalhe?.cartao_parcelas) form.querySelector('[name=cartao_parcelas]').value = h0.meios_detalhe.cartao_parcelas;
     } catch {}
   }
@@ -7583,6 +7587,8 @@ async function propostaForm(onSave, lead = null, existing = null) {
     });
     // Meios de pagamento aceitos → proposta + cláusula do contrato
     honorarios.meios = [...form.querySelectorAll('[data-meio]:checked')].map((cb) => cb.dataset.meio);
+    // Cálculos da contabilidade: 1 a 5% sobre os proventos (vazio = não cobra)
+    if (Number(fd.taxa_calculos_pct) >= 1 && Number(fd.taxa_calculos_pct) <= 5) honorarios.taxa_calculos_pct = Number(fd.taxa_calculos_pct);
     if (honorarios.meios.includes('cartao')) {
       honorarios.meios_detalhe = { cartao_parcelas: Number(fd.cartao_parcelas) || 12 };
     }

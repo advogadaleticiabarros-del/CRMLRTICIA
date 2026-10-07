@@ -63,6 +63,16 @@ O que muda por cliente/caso: dados do CONTRATANTE (Cláusula de qualificação) 
 
 Outras causas de família (divórcio, guarda isolada, inventário) continuam no modelo genérico por área.
 
+## Proposta: percentual de cálculos da contabilidade (desde 07/10/2026)
+
+Na **Produção da Proposta**, seção Honorários, há o campo **Cálculos (contabilidade)**: escolha de **1% a 5% sobre o valor dos proventos**, ou "Não cobrar". Fica gravado em `propostas.honorarios.taxa_calculos_pct`.
+
+Quando escolhido, aparece **discriminado**:
+- na **proposta** que o cliente abre: quadro próprio "Cálculos (contabilidade)" com o percentual e, embaixo da tabela, "Cálculos (contabilidade), sobre o valor dos proventos: X%";
+- no **contrato** gerado a partir da proposta aceita (modelo geral, de menor e de pensão): "A CONTRATANTE pagará, ainda, o percentual de X% (por extenso) sobre o valor dos proventos recebidos, destinado ao custeio dos cálculos elaborados pela contabilidade."
+
+Regra em `src/services/contractTemplates.ts` (`taxaCalculosPct`, `clausulaTaxaCalculos`); testes em `tests/taxaCalculos.test.mjs`. Valor fora de 1 a 5 é ignorado (não cobra).
+
 ## FAQ
 
 **Os colchetes `[assim]` num documento gerado por IA são um erro?** Não — é proposital. Marca exatamente o que a IA não conseguiu confirmar nos autos, pra você revisar antes de protocolar. Quantidade e exemplos aparecem antes de abrir o documento.
@@ -82,6 +92,7 @@ Outras causas de família (divórcio, guarda isolada, inventário) continuam no 
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | Proposta: campo "Cálculos (contabilidade)" de 1% a 5% sobre os proventos, discriminado na proposta e no contrato |
 | 30/09/2026 | Claude | Revisão automática logo após gerar petição inicial e minuta da intimação; revisor não revisa mais o próprio parecer |
 | 28/09/2026 | Claude | Selfie do signatário opcional por link (`signature_requests.require_selfie`, migration 137) — exigida pela advogada, obrigatória quando exigida, descartada quando não |
 | 03/09/2026 | Claude | Criação do documento |
