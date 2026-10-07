@@ -17,12 +17,20 @@ router.get('/', async (_req: Request, res: Response) => {
            -- parte do escritório: 30% próprio; em parceria, êxito% × (100 − parte do parceiro)%
            CASE WHEN p.id IS NULL THEN 30
                 ELSE p.success_fee_percent * (100 - p.partner_split_percent) / 100 END AS fee_pct,
-           (SELECT COALESCE(SUM(fr.valor),0) FROM financial_records fr
-             WHERE fr.tipo = 'receita' AND fr.status = 'pago'
-               AND (fr.case_id = c.id OR fr.agreement_id IN (SELECT a.id FROM agreements a WHERE a.case_id = c.id))) AS honorarios_recebidos,
-           (SELECT COALESCE(SUM(fr.valor),0) FROM financial_records fr
-             WHERE fr.tipo = 'receita' AND fr.status = 'pendente'
-               AND (fr.case_id = c.id OR fr.agreement_id IN (SELECT a.id FROM agreements a WHERE a.case_id = c.id))) AS honorarios_a_receber,
+           -- Honorários SÓ DA SUA PARTE (07/10/2026): em caso de parceria, desconta a
+           -- parte da parceira (exceto a entrada, que é do escritório); inclui RPV/alvará.
+           ((SELECT COALESCE(SUM(fr.valor * (CASE WHEN p.id IS NULL OR fr.description LIKE 'Entrada%' THEN 1 ELSE (100 - p.partner_split_percent) / 100 END)),0)
+               FROM financial_records fr
+              WHERE fr.tipo = 'receita' AND fr.status = 'pago'
+                AND (fr.case_id = c.id OR fr.agreement_id IN (SELECT a.id FROM agreements a WHERE a.case_id = c.id)))
+            + (SELECT COALESCE(SUM(aw.valor_escritorio * (CASE WHEN p.id IS NULL THEN 1 ELSE (100 - p.partner_split_percent) / 100 END)),0)
+                 FROM case_awards aw WHERE aw.case_id = c.id AND aw.status = 'recebido')) AS honorarios_recebidos,
+           ((SELECT COALESCE(SUM(fr.valor * (CASE WHEN p.id IS NULL OR fr.description LIKE 'Entrada%' THEN 1 ELSE (100 - p.partner_split_percent) / 100 END)),0)
+               FROM financial_records fr
+              WHERE fr.tipo = 'receita' AND fr.status = 'pendente'
+                AND (fr.case_id = c.id OR fr.agreement_id IN (SELECT a.id FROM agreements a WHERE a.case_id = c.id)))
+            + (SELECT COALESCE(SUM(aw.valor_escritorio * (CASE WHEN p.id IS NULL THEN 1 ELSE (100 - p.partner_split_percent) / 100 END)),0)
+                 FROM case_awards aw WHERE aw.case_id = c.id AND aw.status = 'aguardando')) AS honorarios_a_receber,
            (SELECT COALESCE(SUM(r.valor),0) FROM repasses r WHERE r.case_id = c.id AND r.status <> 'cancelado') AS repasse_parceiro
       FROM cases c
       JOIN clients cl ON cl.id = c.client_id

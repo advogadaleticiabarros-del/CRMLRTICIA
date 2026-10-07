@@ -5622,7 +5622,7 @@ async function finReceitas(c) {
         <label>De<input type="date" id="rec-f-de" /></label>
         <label>Até<input type="date" id="rec-f-ate" /></label>
       </div>
-      <p class="sub" style="margin:8px 0 0">No período, o que já foi <strong>recebido</strong> conta pela data em que o dinheiro entrou; o que está <strong>a receber</strong>, pelo vencimento. Os totais acima seguem o período, a origem e a busca.</p>
+      <p class="sub" style="margin:8px 0 0">No período, o que já foi <strong>recebido</strong> conta pela data em que o dinheiro entrou; o que está <strong>a receber</strong>, pelo vencimento. Os totais acima seguem o período, a origem e a busca. "Seu" já desconta a parte da parceira nos casos em parceria (ex.: Infinity Law, metade dos 30%).</p>
     </div>
     <div class="card"><div id="rec-lista"><div class="spinner"></div></div></div>`;
   tableTools(c.querySelector('.card:last-child'), { findTable: () => c.querySelector('#rec-lista table'), filename: 'a-receber', title: 'A Receber' });
@@ -5653,12 +5653,13 @@ async function finReceitas(c) {
     // Filtros aplicados no servidor (GET /api/financial/a-receber), junto com os totais.
     const all = dados.rows;
     $('#rec-lista').innerHTML = all.length ? `
-      <table><thead><tr><th>Origem</th><th>Descrição</th><th>Cliente</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
+      <table><thead><tr><th>Origem</th><th>Descrição</th><th>Cliente</th><th>Processo</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
       <tbody>${all.map((x) => `<tr>
         <td><span style="font-size:11px;font-weight:700;color:var(--gold)">${FONTE_PT[x.fonte] || x.fonte}</span></td>
         <td><strong>${esc(x.descricao || '—')}</strong></td>
         <td>${esc(x.cliente || '—')}</td>
-        <td><strong>${money(x.valor)}</strong></td>
+        <td style="white-space:nowrap;font-size:12.5px">${x.processo ? esc(x.processo) : '<small style="color:var(--text-muted)">—</small>'}</td>
+        <td><strong>${money(x.valor)}</strong>${Number(x.parceiro) > 0 ? `<br><small style="color:var(--text-muted);white-space:nowrap">seu ${money(x.seu)} · ${esc(x.parceiroNome || 'parceira')} ${money(x.parceiro)}</small>` : ''}</td>
         <td>${fmtDate(x.vencimento)}</td>
         <td>${x.recebido ? `<span class="badge pago">recebido${x.pago_em ? ' ' + fmtDate(x.pago_em) : ''}</span>` : x.vencido ? '<span class="badge vencido">vencido</span>' : '<span class="badge">a receber</span>'}</td>
         <td style="white-space:nowrap">${x.recebido
@@ -5750,11 +5751,15 @@ async function finReceitas(c) {
     dados = r;
     const k = dados.kpis || {};
     const per = (dados.filtro?.de || dados.filtro?.ate) ? ` · ${dados.filtro.de ? fmtDate(dados.filtro.de + 'T12:00') : '…'} a ${dados.filtro.ate ? fmtDate(dados.filtro.ate + 'T12:00') : '…'}` : '';
+    // O que é SEU em destaque; a parte da parceira (ex.: Infinity Law) separada,
+    // porque ela entra na sua conta mas não é sua (vai em Repasses).
+    const sub = (total, parc) => (Number(parc) > 0 ? `<div style="font-size:11.5px;font-weight:500;color:var(--text-muted);margin-top:4px">total ${money(total)} · parceira ${money(parc)}</div>` : '');
     $('#rec-kpis').innerHTML =
-      kpi('Total programado' + per, money(k.programado), 'money') +
-      kpi('Já recebido' + per, money(k.recebido), 'money') +
-      kpi('A receber' + per, money(k.a_receber), 'money') +
-      kpi('Vencido' + per, money(k.vencido), 'money');
+      kpi('Programado — seu' + per, money(k.seu_programado) + sub(k.programado, k.programado - k.seu_programado), 'money') +
+      kpi('Já recebido — seu' + per, money(k.seu_recebido) + sub(k.recebido, k.parceiro_recebido), 'money') +
+      kpi('A receber — seu' + per, money(k.seu_a_receber) + sub(k.a_receber, k.parceiro_a_receber), 'money') +
+      kpi('Vencido — seu' + per, money(k.seu_vencido) + sub(k.vencido, k.vencido - k.seu_vencido), 'money') +
+      kpi('Da parceira (a repassar)' + per, money(k.parceiro_a_receber), 'money');
     render();
     loadConfirmar();
   };
@@ -10843,9 +10848,9 @@ async function dashResultados(c) {
       ${kpi('Taxa de sucesso', pct(r.taxa_sucesso))}
       ${kpi('Obtido sobre a causa (média)', pct(r.pct_obtido_medio))}
       ${kpi('Casos com resultado', `${r.sucessos} de ${r.com_resultado} ganhos`)}
-      ${kpi('Honorários recebidos', money(r.honorarios_recebidos), 'money')}
-      ${kpi('Honorários a receber', money(r.honorarios_a_receber), 'money')}
-      ${kpi('Provisão (em andamento)', money(r.provisao_total), 'money')}
+      ${kpi('Honorários recebidos — seus', money(r.honorarios_recebidos), 'money')}
+      ${kpi('Honorários a receber — seus', money(r.honorarios_a_receber), 'money')}
+      ${kpi('Provisão — sua (em andamento)', money(r.provisao_total), 'money')}
     </div>
     <div class="cockpit-panels" style="margin-bottom:14px">
       <div class="card"><strong style="font-size:13px;color:var(--navy-deep)">Resultados</strong><div style="margin-top:8px">${barras || '<p class="sub">Nenhum resultado registrado.</p>'}</div></div>

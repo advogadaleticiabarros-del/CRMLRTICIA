@@ -55,14 +55,39 @@ export function filtrarAReceber<T extends ItemAReceber>(rows: T[], f: FiltroARec
 }
 
 export function kpisAReceber(rows: ItemAReceber[]) {
-  const soma = (xs: ItemAReceber[]) => Math.round(xs.reduce((s, r) => s + (Number(r.valor) || 0), 0) * 100) / 100;
+  const soma = (xs: ItemAReceber[], campo: 'valor' | 'seu' | 'parceiro' = 'valor') =>
+    Math.round(xs.reduce((s, r) => s + (Number(campo === 'valor' ? r.valor : (r as any)[campo] ?? (campo === 'seu' ? r.valor : 0)) || 0), 0) * 100) / 100;
+  const abertos = rows.filter((r) => !r.recebido), recebidos = rows.filter((r) => r.recebido), vencidos = rows.filter((r) => r.vencido);
   return {
     programado: soma(rows),
-    recebido: soma(rows.filter((r) => r.recebido)),
-    a_receber: soma(rows.filter((r) => !r.recebido)),
-    vencido: soma(rows.filter((r) => r.vencido)),
+    recebido: soma(recebidos),
+    a_receber: soma(abertos),
+    vencido: soma(vencidos),
+    // o que é SEU (já descontada a parte da parceira) e o que vai para a parceira
+    seu_programado: soma(rows, 'seu'),
+    seu_recebido: soma(recebidos, 'seu'),
+    seu_a_receber: soma(abertos, 'seu'),
+    seu_vencido: soma(vencidos, 'seu'),
+    parceiro_a_receber: soma(abertos, 'parceiro'),
+    parceiro_recebido: soma(recebidos, 'parceiro'),
     itens: rows.length,
   };
+}
+
+export interface Parceria { nome: string; split: number; sucumbSplit: number; entrySplit: boolean }
+/**
+ * Quanto de um recebimento é da parceira e quanto é seu. Mesma regra do
+ * repasse (POST /api/partners/cases/:id/resultado): êxito/honorário → split%
+ * (Infinity Law: 50% dos 30% = 15%); sucumbência → sucumbSplit%; entrada da
+ * parceria → só se entrySplit (Infinity: não, a entrada é do escritório).
+ */
+export function separarParceiro(r: { valor: number; descricao?: string | null }, p: Parceria | null): { parceiro: number; seu: number; parceiroNome: string | null } {
+  const valor = Number(r.valor) || 0;
+  if (!p) return { parceiro: 0, seu: valor, parceiroNome: null };
+  const d = String(r.descricao || '');
+  const pct = /^entrada/i.test(d) ? (p.entrySplit ? p.split : 0) : /sucumb/i.test(d) ? p.sucumbSplit : p.split;
+  const parceiro = Math.round(valor * pct) / 100;
+  return { parceiro, seu: Math.round((valor - parceiro) * 100) / 100, parceiroNome: p.nome };
 }
 
 /**

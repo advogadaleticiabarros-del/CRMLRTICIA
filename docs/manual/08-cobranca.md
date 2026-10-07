@@ -90,6 +90,16 @@ Em **Financeiro › A Receber — todas as frentes** há o campo **Mês** (os ú
 
 O filtro roda no servidor: `GET /api/financial/a-receber?mes=AAAA-MM` (ou `de`/`ate`), `status`, `fonte`, `busca`. Regras em `src/services/aReceberFiltro.ts` (testes em `tests/aReceberFiltro.test.mjs`).
 
+## A Receber: o que é seu e o que é da parceira (desde 07/10/2026)
+
+Pedido: "provisão correta do que é meu e do que não será meu". Em caso de **parceria** (ex.: Infinity Law), o dinheiro dos honorários entra na sua conta, mas parte dele é da parceira e vai para Repasses. Agora:
+- cada linha do A Receber mostra o **Processo** e, quando é parceria, embaixo do valor: "seu R$ X · INFINITY LAW R$ Y";
+- os cards mostram **o que é seu** (Programado, Já recebido, A receber, Vencido — seu), com o total e a parte da parceira em letra menor, e um card **"Da parceira (a repassar)"**;
+- regra (`separarParceiro`, `src/services/aReceberFiltro.ts`): êxito/honorários → `partner_split_percent` da parceira (Infinity: 50% dos 30% = 15% para cada); sucumbência → `sucumbencia_split_percent`; **entrada** da parceria fica inteira com o escritório (Infinity: `entry_split` = 0);
+- o painel **Resultados** (Dashboard) também passou a somar só a sua parte nos honorários recebidos/a receber, e passou a incluir RPV/alvará.
+
+O processo de cada linha vem do caso ligado ao lançamento (ou ao acordo), à parcela, à RPV/alvará, ao dativo ou ao correspondente.
+
 ## FAQ
 
 **A despesa pessoal da família aparece no resultado do escritório?** Não deveria — o sistema guarda despesa pessoal/familiar separada por escopo, e o DRE do escritório filtra só `escopo='empresa'`.
@@ -107,6 +117,7 @@ O filtro roda no servidor: `GET /api/financial/a-receber?mes=AAAA-MM` (ou `de`/`
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | A Receber mostra o processo de cada linha e separa o que é seu do que é da parceira (cards e Resultados) |
 | 07/10/2026 | Claude | A Receber: filtro de mês/período, cards seguindo o período; corrigido card Vencido que mostrava R$ 0,00 |
 | 02/10/2026 | Claude | "Recebi um pagamento" pelo botão + e pelo comprovante no WhatsApp |
 | 02/10/2026 | Claude | Acordos detectados nas movimentações + cadastro rápido de acordo |
