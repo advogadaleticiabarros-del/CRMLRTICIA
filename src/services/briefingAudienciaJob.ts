@@ -30,6 +30,40 @@ async function chamarGemini(instrucao: string, arquivos: { mime: string; data: B
   return texto.trim();
 }
 
+/**
+ * Plano B: OpenAI (GPT-5.6) lendo os mesmos PDFs/imagens. Usado quando o Gemini
+ * falha — em 07/10/2026 a conta do Gemini estava no plano gratuito (20
+ * leituras/dia) e esgotou; o briefing da véspera não pode depender disso.
+ */
+async function chamarOpenAI(instrucao: string, arquivos: { mime: string; data: Buffer }[]): Promise<string> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) throw new Error('OPENAI_API_KEY não configurada');
+  const content: any[] = [{ type: 'text', text: instrucao }];
+  arquivos.forEach((a, i) => {
+    const b64 = `data:${a.mime};base64,${a.data.toString('base64')}`;
+    content.push(a.mime === 'application/pdf'
+      ? { type: 'file', file: { filename: `documento-${i + 1}.pdf`, file_data: b64 } }
+      : { type: 'image_url', image_url: { url: b64 } });
+  });
+  const r = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-5.6-luna', messages: [{ role: 'user', content }] }),
+  });
+  const d: any = await r.json();
+  if (!r.ok) throw new Error(d?.error?.message || 'Erro na IA (OpenAI)');
+  const texto = d?.choices?.[0]?.message?.content || '';
+  if (!String(texto).trim()) throw new Error('A IA não devolveu o briefing');
+  return String(texto).trim();
+}
+
+async function chamarIA(instrucao: string, arquivos: { mime: string; data: Buffer }[]): Promise<string> {
+  try { return await chamarGemini(instrucao, arquivos); }
+  catch (e: any) {
+    console.warn('[briefing-audiencia] Gemini falhou, usando OpenAI:', String(e?.message || e).slice(0, 160));
+    return await chamarOpenAI(instrucao, arquivos);
+  }
+}
+
 /** Gera o briefing de um caso para a audiência informada. Não envia nada. */
 export async function gerarBriefingAudiencia(caseId: number, quando: Date, local?: string | null): Promise<{ texto: string; fontes: string[]; foraDoEnvio: string[] }> {
   const [[c]] = await db.query(
@@ -63,7 +97,7 @@ export async function gerarBriefingAudiencia(caseId: number, quando: Date, local
     deFora.length ? `Documentos do caso NÃO enviados à IA (formato ou tamanho): ${deFora.map((d) => d.name).join('; ')}` : '',
     `Movimentações do processo (mais recentes primeiro):\n${linhasMov.join('\n') || 'nenhuma registrada no CRM'}`,
   ].filter(Boolean).join('\n\n');
-  const texto = await chamarGemini(montarInstrucao({
+  const texto = await chamarIA(montarInstrucao({
     cliente: c.cliente, processo: c.case_number || 'sem número', quando: fmtQuando(quando), polo: c.polo_cliente || 'ativo', contexto,
   }), arquivos);
   return { texto, fontes: [...escolhidos.map((d) => d.name), `${linhasMov.length} movimentações`], foraDoEnvio: deFora.map((d) => d.name) };

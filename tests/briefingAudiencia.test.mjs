@@ -31,6 +31,7 @@ test('montarInstrucao: só as fontes do caso, seções pedidas e marcação do q
   assert.match(t, /APENAS/);
   assert.match(t, /⚠️ CONFIRMAR/);
   assert.match(t, /reclamante/i);
+  assert.match(t, /CONCISO/);
 });
 
 test('montarInstrucao: na defesa (cliente reclamada) as perguntas mudam de lado', () => {

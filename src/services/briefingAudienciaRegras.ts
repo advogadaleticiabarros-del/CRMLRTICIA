@@ -60,13 +60,13 @@ REGRAS:
 - Quando citar algo, diga de onde veio entre parênteses, ex.: (inicial), (contestação), (ata 14/05), (movimentação 20/09).
 - Tudo que não estiver claro nas fontes, que for divergente entre elas ou que dependa de checagem antes da audiência, marque com "⚠️ CONFIRMAR:".
 - Se uma fonte importante não estiver disponível (ex.: contestação ainda não juntada ou não anexada ao CRM), diga isso em PROVIDÊNCIAS PENDENTES.
-- Seja conciso e prático: tópicos curtos, linguagem direta, nada de introdução. Texto para WhatsApp: use *negrito* só nos títulos, sem tabelas.
+- Seja CONCISO e prático: no máximo uns 3.500 caracteres no total; tópicos curtos, linguagem direta, nada de introdução; não repita o mesmo ⚠️ CONFIRMAR em várias seções (diga uma vez, em PROVIDÊNCIAS PENDENTES). Texto para WhatsApp: use *negrito* só nos títulos, sem tabelas.
 
 FORMATO (exatamente estas seções, nesta ordem):
 *1. FATOS CENTRAIS* — o essencial do caso em até 6 tópicos.
 *2. PEDIDOS* — o que se pede (e, se constar, o valor de cada pedido).
 *3. PROVAS E DOCUMENTOS-CHAVE* — o que sustenta e o que enfraquece cada lado.
-*4. PERGUNTAS* — ${defesa ? 'perguntas para o preposto da RECLAMADA (preparação), para a reclamante (parte contrária) e para as testemunhas' : 'perguntas para preparar a reclamante (depoimento pessoal), para o preposto da reclamada e para as testemunhas'}.
+*4. PERGUNTAS* (até 5 por grupo, só as que mudam o resultado) — ${defesa ? 'perguntas para o preposto da RECLAMADA (preparação), para a reclamante (parte contrária) e para as testemunhas' : 'perguntas para preparar a reclamante (depoimento pessoal), para o preposto da reclamada e para as testemunhas'}.
 *5. RISCOS* — onde o caso pode perder ou reduzir valor.
 *6. PONTOS CONTROVERTIDOS* — o que está em disputa e precisa ser provado.
 *7. PROVIDÊNCIAS PENDENTES* — o que fazer ou confirmar até a audiência (testemunhas confirmadas, documentos, cálculos, link/endereço, proposta de acordo).

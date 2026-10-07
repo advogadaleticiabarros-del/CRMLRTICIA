@@ -57,7 +57,7 @@ O que **não pode** é o cliente ou o parceiro receberem o aviso duas vezes. Por
 
 **Conteúdo**, em 7 seções: fatos centrais; pedidos; provas e documentos-chave; perguntas (reclamante/preposto/testemunhas, conforme o lado da cliente); riscos; pontos controvertidos; providências pendentes. O que precisa ser checado vem marcado **"⚠️ CONFIRMAR"**, e cada informação cita a fonte entre parênteses.
 
-**Fontes**, só as do caso: petição inicial, contestação, autos e demais documentos anexados ao caso (PDF ou imagem, os mais importantes primeiro, até ~14 MB, lidos pela IA Gemini); movimentações do processo; partes e anotações do caso. Documentos pessoais (RG, CPF, comprovante de residência) ficam de fora.
+**Fontes**, só as do caso: petição inicial, contestação, autos e demais documentos anexados ao caso (PDF ou imagem, os mais importantes primeiro, até ~14 MB, lidos pela IA — Gemini; se o Gemini estiver sem cota, OpenAI); movimentações do processo; partes e anotações do caso. Documentos pessoais (RG, CPF, comprovante de residência) ficam de fora.
 
 **Regras:**
 - é audiência trabalhista quando o caso é da área trabalhista ou o número é da Justiça do Trabalho (segmento 5);
