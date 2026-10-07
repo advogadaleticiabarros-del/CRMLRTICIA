@@ -108,7 +108,8 @@ export async function unirFichas(de: number, para: number): Promise<{ movidos: R
     await db.query(`DELETE FROM \`${t}\` WHERE client_id = ?`, [de]).catch(() => {}); // sobra só o que colidiu (ex.: 1 por cliente)
   }
   const campos = ['cpf_cnpj', 'email', 'phone', 'address', 'birth_date'].filter((c) => c in b);
-  const sets = campos.map((c) => `${c} = COALESCE(NULLIF(${c}, ''), ?)`).join(', ');
+  // birth_date é DATE: NULLIF(data, '') dá erro no MySQL estrito — só COALESCE.
+  const sets = campos.map((c) => (c === 'birth_date' ? `${c} = COALESCE(${c}, ?)` : `${c} = COALESCE(NULLIF(${c}, ''), ?)`)).join(', ');
   const nota = [b.notes, a.notes ? `[Unificada da ficha #${de} "${a.name}" em ${new Date().toLocaleDateString('pt-BR')}] ${a.notes}` : `[Unificada da ficha #${de} "${a.name}"]`].filter(Boolean).join('\n');
   await db.query(`UPDATE clients SET ${sets}${sets ? ', ' : ''}notes = ?${a.is_dative ? ', is_dative = 1' : ''} WHERE id = ?`,
     [...campos.map((c) => a[c] || null), nota, para]);
