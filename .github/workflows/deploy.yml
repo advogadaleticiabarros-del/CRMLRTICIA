@@ -25,7 +25,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          command_timeout: 15m
+          command_timeout: 35m
           script: |
             set -e
             cd ~/app
@@ -42,6 +42,12 @@ jobs:
             done
             npm run build
             npm run migrate
+            # Não reinicia no meio de um backup (07/10/2026): espera até 20 min
+            # enquanto a trava existir (trava com mais de 1h = sobra de queda, ignora).
+            T=~/backups-crm/.backup-em-andamento
+            for i in $(seq 1 40); do
+              if [ -f "$T" ] && [ $(( $(date +%s) - $(stat -c %Y "$T") )) -lt 3600 ]; then echo "Backup em andamento — aguardando ($i/40)"; sleep 30; else break; fi
+            done
             pm2 restart crm-juridico
             pm2 save
 
@@ -58,7 +64,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          command_timeout: 15m
+          command_timeout: 35m
           script: |
             set -e
             cd ~/app
@@ -75,6 +81,12 @@ jobs:
             done
             npm run build
             npm run migrate
+            # Não reinicia no meio de um backup (07/10/2026): espera até 20 min
+            # enquanto a trava existir (trava com mais de 1h = sobra de queda, ignora).
+            T=~/backups-crm/.backup-em-andamento
+            for i in $(seq 1 40); do
+              if [ -f "$T" ] && [ $(( $(date +%s) - $(stat -c %Y "$T") )) -lt 3600 ]; then echo "Backup em andamento — aguardando ($i/40)"; sleep 30; else break; fi
+            done
             pm2 restart crm-juridico
             pm2 save
 
@@ -93,7 +105,7 @@ jobs:
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           timeout: 90s
-          command_timeout: 15m
+          command_timeout: 35m
           script: |
             set -e
             cd ~/app
@@ -110,5 +122,11 @@ jobs:
             done
             npm run build
             npm run migrate
+            # Não reinicia no meio de um backup (07/10/2026): espera até 20 min
+            # enquanto a trava existir (trava com mais de 1h = sobra de queda, ignora).
+            T=~/backups-crm/.backup-em-andamento
+            for i in $(seq 1 40); do
+              if [ -f "$T" ] && [ $(( $(date +%s) - $(stat -c %Y "$T") )) -lt 3600 ]; then echo "Backup em andamento — aguardando ($i/40)"; sleep 30; else break; fi
+            done
             pm2 restart crm-juridico
             pm2 save

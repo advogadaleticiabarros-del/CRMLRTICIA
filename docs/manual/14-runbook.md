@@ -383,6 +383,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: backup travava em silêncio (sem arquivo e sem erro)
+
+**Sintoma (achado em 07/10/2026, na conferência pedida pela usuária):** em 30 dias, 87 de 90 backups foram feitos. Faltaram 16/09 (19h), 02/10 (09h) e 05/10 (02h), e nenhum aviso foi dado. Não houve perda: o backup seguinte saiu horas depois.
+
+**Causa raiz:** nenhuma etapa tinha tempo limite. Em 16/09 e 05/10 o sistema não reiniciou e não houve erro: a geração da cópia começou e nunca terminou (nem o arquivo local foi gravado). Como o registro em `job_runs` só acontece no fim, a falha não aparecia. O painel "Hoje" só acusava após 26 h sem backup, então uma falha isolada passava despercebida. Em 02/10 o horário coincidiu com vários deploys seguidos (`pm2 restart` no meio da cópia).
+
+**Correção:** tempo limite em cada etapa; conferência do arquivo antes de salvar; nova tentativa automática; vigia 45 min depois de cada horário que refaz e avisa; aviso diário às 20h30; deploy espera a trava `~/backups-crm/.backup-em-andamento`. Ver [Onde tudo roda › Backup](13-infraestrutura.md).
+
+**Como reconhecer de novo:** aviso ⚠️ "Backup das XXh não tinha sido feito" no sino/WhatsApp, ou o aviso diário com menos de "3 de 3". Verifique `SELECT * FROM job_runs WHERE job LIKE 'backup%' ORDER BY id DESC LIMIT 10;` e `ls -la ~/backups-crm` na VPS.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -399,6 +411,7 @@ pm2 restart crm-juridico && pm2 save
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | +1 incidente: backup travava em silêncio (3 horários perdidos em 30 dias sem aviso) |
 | 07/10/2026 | Claude | +1 incidente: balão do WhatsApp abria o Dashboard (e links com parâmetro caíam na tela inicial) |
 | 07/10/2026 | Claude | +1 incidente: botão do WhatsApp fora da tela no celular |
 | 04/09/2026 | Claude | Criação do documento — 6 incidentes reais registrados a partir dos casos de 03/09/2026 |

@@ -97,6 +97,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | 23/09/2026 | Claude | Registrada decisão de não integrar o Laya (motor de decisão local) — custo de infraestrutura (serviço Python separado na VPS) maior que o ganho (velocidade que ninguém sente) frente ao Groq/Gemini já em uso |
 | 24/09/2026 | Claude | Registrada decisão de manter `cases` e `legal_processes` separados (achado de prioridade baixa da auditoria do módulo Clientes) — overlap já tem FK de ligação, risco real é lógica de matching duplicada em 3 arquivos, não a separação em si |
 | 29/09/2026 | Claude | Registrada adoção da skill `codebase-design` (módulos profundos) para todo código novo/refatorado |
+| 07/10/2026 | Claude | Backup tratado como crítico (pedido da usuária): retenção avô-pai-filho (3 dias inteiros + 30 diários + 12 mensais no MEGA, cabe na conta gratuita de 21 GB hoje), conferência do arquivo antes de salvar e de apagar antigos, aviso diário. Próximo passo avaliado: tirar as mídias do WhatsApp (~80% de cada cópia) de dentro do banco, guardando-as como arquivos com backup próprio — reduziria cada cópia de ~280 MB para ~60 MB e evitaria estourar o MEGA com o crescimento (~18 MB/dia) |
 | 07/10/2026 | Claude | Provisão de honorários = valor da causa × taxa de sucesso × % médio obtido × honorário do caso (30% ou a parte do escritório na parceria). Escolhida por usar só dados que o CRM já tem e ser explicável na própria tela; dativo e defesa ficam fora porque não seguem a lógica de êxito |
 
 ---

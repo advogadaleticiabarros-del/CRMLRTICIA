@@ -5,7 +5,6 @@ import { notificationService } from '../services/NotificationService';
 import { calendarSyncService } from '../services/CalendarSyncService';
 import { telegramNotificationService } from '../services/TelegramNotificationService';
 import { runMonitoringJob, runDiscoveryJob } from '../services/monitoringService';
-import { runBackup } from '../services/backupService';
 import { sendMorningBriefings, sendMorningBriefingWhatsapp } from '../services/morningBriefingService';
 import { runPropostaFollowups, runFechamentoDefinitivoPropostas } from '../services/propostaFollowupService';
 import { captureDailyMetrics } from '../services/metricsSnapshotService';
@@ -307,40 +306,50 @@ export function startCronJobs() {
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── backup 3x/dia: 02h, 09h, 19h (dump comprimido → MEGA + disco local) ───
-  // CRÍTICO só quando os DOIS destinos falham na mesma execução — a falha de
-  // só um deles ainda protege os dados (o outro destino segue funcionando),
-  // mas precisa de aviso específico: foi assim que o bloqueio de uma conta
-  // MEGA (EBLOCKED) passou dias sem ninguém notar, quando havia um único
-  // destino e a rotina inteira "falhava" de forma genérica.
+  // Reforçado em 07/10/2026 ("o backup não pode falhar nenhum dia"):
+  //  - cada etapa tem tempo limite e o arquivo é conferido antes de salvar;
+  //  - falhou/travou → tenta de novo sozinho (fazerBackup);
+  //  - 45 min depois de cada horário, a vigia confere se a cópia existe e refaz;
+  //  - 20h30, aviso diário "backup realizado" por WhatsApp + sino.
+  // Um destino só (MEGA ou VPS) ainda protege os dados, mas gera aviso próprio.
   const executarBackup = () => {
     runJob('backup:diario', async () => {
-      const { mega, local } = await runBackup();
-
-      if (!mega.ok && !local.ok) {
-        throw new Error(`Backup NÃO realizado em nenhum destino — MEGA: ${mega.message} · Local: ${local.message}`);
-      }
-
-      if (!mega.ok || !local.ok) {
-        const falhou = !mega.ok ? 'MEGA' : 'disco local';
-        const motivo = !mega.ok ? mega.message : local.message;
+      const { fazerBackup } = await import('../services/backupRotina');
+      const r = await fazerBackup();
+      if (!r.m || !r.l) {
+        const falhou = !r.m ? 'MEGA' : 'disco local';
         await runJob('backup:diario:aviso-destino-parcial', async () => {
-          throw new Error(`Backup rodando em UM destino só — ${falhou} falhou: ${motivo}. O outro destino está protegendo os dados normalmente, mas isto precisa ser corrigido antes que também falhe.`);
-        }, { critica: false });
+          throw new Error(`Backup rodando em UM destino só — ${falhou} falhou: ${r.erroMega || r.erroLocal}. O outro destino está protegendo os dados, mas isto precisa ser corrigido antes que também falhe.`);
+        }, { critica: true });
       }
-
-      return {
-        mega: mega.ok ? { arquivo: mega.file, kb: mega.sizeKB } : { erro: mega.message },
-        local: local.ok ? { arquivo: local.file, kb: local.sizeKB } : { erro: local.message },
-      };
+      return r;
     }, { critica: true });
   };
   cron.schedule('0 2 * * *', executarBackup, { timezone: 'America/Sao_Paulo' });
   cron.schedule('0 9 * * *', executarBackup, { timezone: 'America/Sao_Paulo' });
   cron.schedule('0 19 * * *', executarBackup, { timezone: 'America/Sao_Paulo' });
 
-  // ── dia 1 do mês, 03h30: PROVA REAL do backup (restaura num banco temporário)
-  // Backup que não restaura não é backup — por isso é CRÍTICO e não pode calar.
-  cron.schedule('30 3 1 * *', () => {
+  // Vigia: 45 min depois de cada horário, confere se a cópia foi feita; se não, refaz e avisa.
+  cron.schedule('45 2,9,19 * * *', () => {
+    runJob('backup:recuperacao', async () => {
+      const { vigiarBackupsPerdidos } = await import('../services/backupRotina');
+      return await vigiarBackupsPerdidos();
+    }, { critica: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
+  // Aviso diário "backup realizado" (WhatsApp + sino) — pedido 07/10/2026.
+  cron.schedule('30 20 * * *', () => {
+    runJob('backup:aviso-diario', async () => {
+      const { enviarRelatorioDiario } = await import('../services/backupRotina');
+      return await enviarRelatorioDiario();
+    }, { critica: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
+  // ── toda semana (domingo 03h30): PROVA REAL do backup (restaura num banco
+  // temporário). Era mensal; virou semanal em 07/10/2026 — backup que não
+  // restaura não é backup, e um mês sem prova é tempo demais.
+  // (A vigia do peso da mídia abaixo continua junto, agora semanal.)
+  cron.schedule('30 3 * * 0', () => {
     runJob('backup:prova-de-restauracao', async () => {
       const { runRestoreCheckAndNotify } = await import('../services/restoreService');
       return await runRestoreCheckAndNotify();

@@ -28,7 +28,31 @@ Consulte pra entender onde o sistema roda de verdade, como o deploy funciona, ou
 
 ## Backup
 
-Três backups automáticos por dia (madrugada, manhã, noite), criptografados, salvos em dois lugares: localmente na VPS e no MEGA. Cada arquivo tem o carimbo de data/hora no nome.
+Regra da usuária (07/10/2026): **o backup não pode falhar nenhum dia** — são dados sensíveis que não podem ser perdidos.
+
+**Quando:** 3 vezes por dia, às 02h, 09h e 19h (Brasília), em dois lugares: no disco da VPS (`~/backups-crm`) e no MEGA. O arquivo é comprimido e **criptografado** (sem a `ENCRYPTION_KEY` ninguém abre), com data e hora no nome.
+
+**Proteções de cada cópia** (`src/services/backupService.ts`):
+- cada etapa tem **tempo limite** (25 min para gerar a cópia, 25 min para enviar ao MEGA). Antes não tinha, e em 16/09 e 05/10/2026 o backup travou sem arquivo e sem erro;
+- o arquivo é **conferido antes de ser salvo**: abre (decifra), descomprime de ponta a ponta e precisa ter as tabelas principais (clientes, casos, processos, financeiro, documentos) e mais de 50 tabelas. Cópia com defeito não é salva nem empurra cópias boas para fora do histórico;
+- depois de salvar, confere o **tamanho** do arquivo no MEGA e no disco;
+- cópia antiga só é apagada **depois** que a nova está salva e conferida.
+
+**Se falhar** (`src/services/backupRotina.ts`):
+- falhou ou travou → **tenta de novo sozinho** 3 min depois;
+- **vigia** às 02h45, 09h45 e 19h45: se a cópia daquele horário não existe, **refaz na hora** e avisa (sino + WhatsApp);
+- só um destino funcionou (MEGA ou disco) → alerta crítico;
+- o deploy **não reinicia o sistema no meio de um backup**: enquanto existe `~/backups-crm/.backup-em-andamento`, ele espera até 20 min (`.github/workflows/deploy.yml`).
+
+**Aviso diário:** todo dia às **20h30** chega o aviso "Backup do CRM" no WhatsApp (mesmo número do fechamento do dia, `destinoWhatsappPessoal`) e no sino. Diz quantas cópias do dia ficaram completas (3 de 3), o tamanho, quantas cópias há na nuvem, o espaço do MEGA e a última prova de restauração. Começa com ✅ se tudo deu certo; com ⚠️ e a lista do problema se algo falhou.
+
+**Histórico guardado** (`src/services/backupRegras.ts`, regra avô-pai-filho):
+- **MEGA:** todas as cópias dos últimos 3 dias + 1 por dia até 30 dias + 1 por mês até 12 meses (~48 arquivos);
+- **VPS:** todas dos últimos 3 dias + 1 por dia até 14 dias.
+
+**Prova de restauração:** todo **domingo às 03h30** (era mensal até 07/10/2026) o sistema restaura a cópia mais recente num banco de teste e confere que os dados voltam. Falhou → alerta crítico.
+
+**Tamanho:** ~280 MB por cópia em 07/10/2026, dos quais ~80% são mídias do WhatsApp guardadas dentro do banco (`whatsapp_media`, 206 MB). Ver a análise em [Decisões](17-decision-log.md).
 
 ## Histórico: Railway
 
@@ -44,7 +68,9 @@ Alguns dados sensíveis (tokens de integração) ficam cifrados no banco. Acesso
 
 **Onde ficam as chaves de API (Groq, Gemini, Uazapi, Asaas etc.)?** Em variáveis de ambiente na VPS, fora do código-fonte e fora do repositório Git.
 
-**Dá pra restaurar de um backup específico?** Sim — os arquivos de backup diário ficam guardados tanto local quanto no MEGA, com data no nome, prontos pra restauração se necessário.
+**Dá pra restaurar de um backup específico?** Sim — os arquivos ficam no MEGA (até 12 meses, 1 por mês nos mais antigos) e no disco da VPS (14 dias), com data no nome.
+
+**Como sei que o backup de hoje foi feito?** Pelo aviso diário das 20h30 (WhatsApp + sino) e pelo painel de saúde da tela "Hoje".
 
 ## Links relacionados
 - [Monitoramento automático](10-monitoramento.md) — rotinas que rodam nesse servidor
@@ -55,6 +81,7 @@ Alguns dados sensíveis (tokens de integração) ficam cifrados no banco. Acesso
 | Data | Autor | Mudança |
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento; registrado o desligamento do Railway e a migração definitiva pra VPS |
+| 07/10/2026 | Claude | Backup reforçado: tempo limite, conferência do arquivo, nova tentativa automática, vigia de horário perdido, aviso diário 20h30, histórico 30 dias + 12 meses, prova de restauração semanal, deploy espera o backup |
 
 ---
 ◀ [Usuários e acesso](12-usuarios.md) · [Visão geral](00-visao-geral.md)

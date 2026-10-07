@@ -4,16 +4,36 @@ import path from 'path';
 import zlib from 'zlib';
 import mysqldump from 'mysqldump';
 import { env } from '../config/env';
-import { encryptBuffer } from '../utils/crypto';
+import { promisify } from 'util';
+import { Readable } from 'stream';
+import { encryptBuffer, decryptBuffer, isEncryptedBuffer } from '../utils/crypto';
+import { planoRetencao, RETENCAO_MEGA, RETENCAO_LOCAL } from './backupRegras';
+
+const gzipAsync = promisify(zlib.gzip);
 
 // megajs publica os tipos só via "exports"; sob moduleResolution "node" o TS não
 // os resolve, então carregamos via require (tipado como any) para evitar TS7016.
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { Storage } = require('megajs');
 
-const RETENTION_MEGA = 30;        // mantém os últimos N backups no MEGA
-const RETENTION_LOCAL = 14;       // mantém os últimos N backups na VPS (camada rápida de emergência)
+// Retenção (07/10/2026): avô-pai-filho, ver backupRegras.planoRetencao —
+// MEGA: tudo dos últimos 3 dias + 1 por dia até 30 dias + 1 por mês até 12 meses;
+// VPS: tudo dos últimos 3 dias + 1 por dia até 14 dias (camada rápida de emergência).
 const PREFIX = 'crm-backup-';
+
+// Tempo limite de cada etapa. Antes não havia: em 16/09 e 05/10/2026 o backup
+// travou no meio, sem arquivo e sem erro — ninguém soube. Agora, travou, vira
+// erro (alerta) e a recuperação automática tenta de novo.
+const LIMITE_DUMP_MS = 25 * 60_000;
+const LIMITE_MEGA_MS = 25 * 60_000;
+
+function comTempoLimite<T>(p: Promise<T>, ms: number, etapa: string): Promise<T> {
+  let t: NodeJS.Timeout;
+  return Promise.race([
+    p.finally(() => clearTimeout(t)),
+    new Promise<T>((_, rej) => { t = setTimeout(() => rej(new Error(`${etapa} passou de ${Math.round(ms / 60000)} min (travou)`)), ms); }),
+  ]);
+}
 
 // Fora de ~/app: o deploy roda `git reset --hard origin/main` dentro de
 // ~/app a cada push (.github/workflows/deploy.yml) — qualquer coisa salva
@@ -27,10 +47,17 @@ export interface DestinoResultado {
   message?: string;
 }
 
+export interface VerificacaoBackup { ok: boolean; tabelas: number; mbSql: number; message?: string }
+
 export interface BackupMultiDestino {
   mega: DestinoResultado;
   local: DestinoResultado;
+  verificacao: VerificacaoBackup;
 }
+
+// Enquanto existe, um backup está em andamento — o deploy espera (deploy.yml)
+// em vez de reiniciar o sistema no meio da cópia.
+export const ARQUIVO_TRAVA = path.join(LOCAL_BACKUP_DIR, '.backup-em-andamento');
 
 /** Abre a sessão MEGA e devolve a pasta de destino (por node id da URL, ou a raiz). */
 async function openMega(): Promise<{ storage: any; folder: any } | null> {
@@ -57,7 +84,7 @@ async function gerarDumpCifrado(stamp: string): Promise<{ buffer: Buffer; filena
   const tmpPath = path.join(os.tmpdir(), `${PREFIX}${stamp}.sql`);
 
   try {
-    await mysqldump({
+    await comTempoLimite(mysqldump({
       connection: {
         host: env.DB_HOST, port: env.DB_PORT, database: env.DB_NAME,
         user: env.DB_USER, password: env.DB_PASSWORD,
@@ -76,12 +103,13 @@ async function gerarDumpCifrado(stamp: string): Promise<{ buffer: Buffer; filena
       // aparece. Dump fica menos legível a olho nu, mas ninguém lê 60MB de
       // INSERT à mão; o que importa é restaurar.
       dump: { data: { format: false } },
-    });
+    }), LIMITE_DUMP_MS, 'Geração da cópia do banco');
 
     // LGPD: cifra o dump ANTES de sair daqui. O arquivo carrega CPF, laudos
     // médicos e conversas — quem tiver acesso a qualquer um dos destinos não
     // pode lê-lo sem a ENCRYPTION_KEY.
-    const buffer = encryptBuffer(zlib.gzipSync(fs.readFileSync(tmpPath)));
+    // gzip assíncrono: o síncrono travava o sistema inteiro por vários segundos.
+    const buffer = encryptBuffer(await gzipAsync(await fs.promises.readFile(tmpPath)));
     return { buffer, filename };
   } finally {
     // O .sql temporário está em CLARO no disco — apagar sempre, mesmo se falhar.
@@ -89,7 +117,37 @@ async function gerarDumpCifrado(stamp: string): Promise<{ buffer: Buffer; filena
   }
 }
 
-/** Envia o dump para o MEGA e faz a rotação (mantém só os RETENTION_MEGA mais recentes). */
+/**
+ * Confere o arquivo ANTES de mandá-lo para os destinos e antes de apagar
+ * cópias antigas: decifra, descomprime de ponta a ponta (o gzip valida o CRC)
+ * e confere que o dump tem as tabelas principais. Lê em fluxo — não monta o
+ * SQL inteiro na memória.
+ */
+export async function verificarBackup(buffer: Buffer): Promise<VerificacaoBackup> {
+  try {
+    const gz = isEncryptedBuffer(buffer) ? decryptBuffer(buffer) : buffer;
+    const tabelas = new Set<string>();
+    let bytes = 0; let resto = '';
+    const re = /CREATE TABLE[^`]*`([^`]+)`/g;
+    for await (const chunk of Readable.from([gz]).pipe(zlib.createGunzip())) {
+      bytes += chunk.length;
+      const txt = resto + chunk.toString('latin1');
+      let m: RegExpExecArray | null;
+      re.lastIndex = 0;
+      while ((m = re.exec(txt))) tabelas.add(m[1]);
+      resto = txt.slice(-200);
+    }
+    const faltando = ['clients', 'cases', 'legal_processes', 'financial_records', 'documents'].filter((t) => !tabelas.has(t));
+    const mbSql = Math.round(bytes / 1048576);
+    if (faltando.length) return { ok: false, tabelas: tabelas.size, mbSql, message: `Cópia incompleta: faltam as tabelas ${faltando.join(', ')}` };
+    if (tabelas.size < 50) return { ok: false, tabelas: tabelas.size, mbSql, message: `Cópia com só ${tabelas.size} tabelas — esperado mais de 50` };
+    return { ok: true, tabelas: tabelas.size, mbSql };
+  } catch (e: any) {
+    return { ok: false, tabelas: 0, mbSql: 0, message: 'Arquivo de backup não abre: ' + (e?.message || String(e)) };
+  }
+}
+
+/** Envia o dump para o MEGA, confere o tamanho lá e faz a rotação (backupRegras). */
 async function enviarParaMega(buffer: Buffer, filename: string): Promise<DestinoResultado> {
   let session: { storage: any; folder: any } | null = null;
   try {
@@ -97,12 +155,16 @@ async function enviarParaMega(buffer: Buffer, filename: string): Promise<Destino
     if (!session) return { ok: false, message: 'MEGA_EMAIL/MEGA_PASSWORD não configurados' };
     const { folder } = session;
 
-    await folder.upload({ name: filename, size: buffer.length }, buffer).complete;
+    const enviado: any = await comTempoLimite(folder.upload({ name: filename, size: buffer.length }, buffer).complete, LIMITE_MEGA_MS, 'Envio ao MEGA');
+    if (enviado && enviado.size != null && Number(enviado.size) !== buffer.length) {
+      return { ok: false, message: `Arquivo chegou ao MEGA com tamanho diferente (${enviado.size} de ${buffer.length} bytes)` };
+    }
 
+    // Rotação só depois do envio conferido — nunca apaga cópia antiga sem a nova estar lá.
     try {
-      const backups = (folder.children || []).filter((f: any) => f.name && f.name.startsWith(PREFIX));
-      backups.sort((a: any, b: any) => String(b.name).localeCompare(String(a.name)));
-      for (const old of backups.slice(RETENTION_MEGA)) await old.delete(true);
+      const nomes = (folder.children || []).map((f: any) => f.name).filter((n: string) => n && n.startsWith(PREFIX));
+      const { apagar } = planoRetencao(nomes, new Date(), RETENCAO_MEGA);
+      for (const f of (folder.children || []).filter((x: any) => apagar.includes(x.name))) await f.delete(true);
     } catch { /* rotação é best-effort */ }
 
     return { ok: true, file: filename, sizeKB: Math.round(buffer.length / 1024) };
@@ -118,14 +180,13 @@ async function enviarParaLocal(buffer: Buffer, filename: string): Promise<Destin
   try {
     fs.mkdirSync(LOCAL_BACKUP_DIR, { recursive: true });
     const destino = path.join(LOCAL_BACKUP_DIR, filename);
-    fs.writeFileSync(destino, buffer);
+    await fs.promises.writeFile(destino, buffer);
+    if (fs.statSync(destino).size !== buffer.length) return { ok: false, message: 'Arquivo local gravado com tamanho diferente' };
 
     try {
       const arquivos = fs.readdirSync(LOCAL_BACKUP_DIR).filter((f) => f.startsWith(PREFIX));
-      arquivos.sort((a, b) => b.localeCompare(a));
-      for (const old of arquivos.slice(RETENTION_LOCAL)) {
-        fs.unlinkSync(path.join(LOCAL_BACKUP_DIR, old));
-      }
+      const { apagar } = planoRetencao(arquivos, new Date(), RETENCAO_LOCAL);
+      for (const old of apagar) fs.unlinkSync(path.join(LOCAL_BACKUP_DIR, old));
     } catch { /* rotação é best-effort */ }
 
     return { ok: true, file: filename, sizeKB: Math.round(buffer.length / 1024) };
@@ -142,14 +203,38 @@ async function enviarParaLocal(buffer: Buffer, filename: string): Promise<Destin
  */
 export async function runBackup(): Promise<BackupMultiDestino> {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19); // 2026-06-22T18-30-00
-  const { buffer, filename } = await gerarDumpCifrado(stamp);
+  fs.mkdirSync(LOCAL_BACKUP_DIR, { recursive: true });
+  fs.writeFileSync(ARQUIVO_TRAVA, new Date().toISOString());
+  try {
+    const { buffer, filename } = await gerarDumpCifrado(stamp);
 
-  const [mega, local] = await Promise.all([
-    enviarParaMega(buffer, filename),
-    enviarParaLocal(buffer, filename),
-  ]);
+    // Arquivo com defeito não vai para lugar nenhum (e não empurra cópias boas para fora da rotação).
+    const verificacao = await verificarBackup(buffer);
+    if (!verificacao.ok) throw new Error(`Cópia gerada com defeito, não foi salva: ${verificacao.message}`);
 
-  return { mega, local };
+    const [mega, local] = await Promise.all([
+      enviarParaMega(buffer, filename),
+      enviarParaLocal(buffer, filename),
+    ]);
+    return { mega, local, verificacao };
+  } finally {
+    try { fs.unlinkSync(ARQUIVO_TRAVA); } catch { /* ignore */ }
+  }
+}
+
+/** Resumo do MEGA para o aviso diário: quantas cópias, a mais antiga e % do espaço usado. */
+export async function resumoMega(): Promise<{ copias: number; maisAntiga: string | null; usoPct: number | null }> {
+  const session = await openMega();
+  if (!session) return { copias: 0, maisAntiga: null, usoPct: null };
+  const { storage, folder } = session;
+  try {
+    const nomes = (folder.children || []).map((f: any) => String(f.name)).filter((n: string) => n.startsWith(PREFIX)).sort();
+    let usoPct: number | null = null;
+    try { const i = await storage.getAccountInfo(); usoPct = i.spaceTotal ? Math.round((i.spaceUsed / i.spaceTotal) * 100) : null; } catch { /* sem cota */ }
+    return { copias: nomes.length, maisAntiga: nomes[0] || null, usoPct };
+  } finally {
+    try { await storage.close(); } catch { /* ignore */ }
+  }
 }
 
 /** Lista os backups existentes na pasta do MEGA. */
