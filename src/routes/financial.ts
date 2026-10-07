@@ -337,9 +337,8 @@ async function montarAReceber(): Promise<any[]> {
     recebido: r.status === 'recebido', pago_em: r.data_recebimento,
   });
 
-  for (const r of rows) {
-    r.vencido = !r.recebido && r.vencimento && String(r.vencimento).slice(0, 10) < hoje;
-  }
+  const { marcarVencidos } = await import('../services/aReceberFiltro');
+  marcarVencidos(rows, hoje); // vencimento vem como Date do MySQL — comparar em ISO
   rows.sort((a, b) => String(a.vencimento || '').localeCompare(String(b.vencimento || '')));
   return rows;
 }
@@ -348,19 +347,20 @@ async function montarAReceber(): Promise<any[]> {
 // Uma lista só: lançamentos, parcelas de propostas, parcelas de contratos,
 // dativas, correspondente e êxitos. Cada linha diz de onde veio (fonte) para
 // o front chamar o endpoint certo de recebimento. Valores sempre numéricos.
-router.get('/a-receber', async (_req: Request, res: Response) => {
-  const rows = await montarAReceber();
-  const kpis = {
-    programado: rows.reduce((s, r) => s + r.valor, 0),
-    recebido: rows.filter((r) => r.recebido).reduce((s, r) => s + r.valor, 0),
-    a_receber: rows.filter((r) => !r.recebido).reduce((s, r) => s + r.valor, 0),
-    vencido: rows.filter((r) => r.vencido).reduce((s, r) => s + r.valor, 0),
-  };
-  const round2 = (n: number) => Math.round(n * 100) / 100;
-  res.json({
-    kpis: { programado: round2(kpis.programado), recebido: round2(kpis.recebido), a_receber: round2(kpis.a_receber), vencido: round2(kpis.vencido) },
-    rows,
-  });
+// Filtros (07/10/2026): ?status=aberto|vencido|recebido &fonte= &busca= &mes=AAAA-MM
+// (ou &de=AAAA-MM-DD&ate=AAAA-MM-DD). Os totais seguem período, origem e busca.
+// Recebido entra no período pela data em que o dinheiro entrou; a receber, pelo
+// vencimento (regra em services/aReceberFiltro).
+router.get('/a-receber', async (req: Request, res: Response) => {
+  const { filtrarAReceber, kpisAReceber, periodoDoMes } = await import('../services/aReceberFiltro');
+  const q = req.query as Record<string, string>;
+  const periodo = q.mes ? periodoDoMes(q.mes) : null;
+  const filtro = { status: q.status || '', fonte: q.fonte || '', busca: q.busca || '', de: periodo?.de || q.de || '', ate: periodo?.ate || q.ate || '' };
+  const todos = await montarAReceber();
+  // Totais: período + origem + busca, SEM a situação — os próprios cards já
+  // separam recebido / a receber / vencido (senão "A receber" zeraria o "Já recebido").
+  const kpis = kpisAReceber(filtrarAReceber(todos, { ...filtro, status: '' }));
+  res.json({ kpis, rows: filtrarAReceber(todos, filtro), filtro });
 });
 
 // ── GET /api/financial/parcerias/a-receber — itemizado, só parcerias ────────
@@ -418,17 +418,18 @@ router.post('/conciliar', async (req: Request, res: Response) => {
   }
 
   const rows = await montarAReceber();
+  const { dia } = await import('../services/aReceberFiltro');
   const diffDias = (a: string, b: string) => Math.abs((new Date(a).getTime() - new Date(b).getTime()) / 86400000);
   const usados = new Set<string>();
 
   const resultado = trans.filter((t) => t.tipo === 'credito').map((t) => {
     // 1º tenta um recebido com mesmo valor perto da data do crédito
     const conferido = rows.find((r) => r.recebido && !usados.has(`${r.fonte}:${r.id}`) &&
-      Math.abs(r.valor - t.valor) < 0.01 && r.pago_em && diffDias(String(r.pago_em).slice(0, 10), t.data) <= 3);
+      Math.abs(r.valor - t.valor) < 0.01 && dia(r.pago_em) && diffDias(dia(r.pago_em)!, t.data) <= 3);
     if (conferido) { usados.add(`${conferido.fonte}:${conferido.id}`); return { ...t, situacao: 'conferido', item: conferido }; }
     // 2º tenta um PENDENTE com mesmo valor (baixa provavelmente esquecida)
     const sugestao = rows.find((r) => !r.recebido && !usados.has(`${r.fonte}:${r.id}`) &&
-      Math.abs(r.valor - t.valor) < 0.01 && (!r.vencimento || diffDias(String(r.vencimento).slice(0, 10), t.data) <= 15));
+      Math.abs(r.valor - t.valor) < 0.01 && (!dia(r.vencimento) || diffDias(dia(r.vencimento)!, t.data) <= 15));
     if (sugestao) { usados.add(`${sugestao.fonte}:${sugestao.id}`); return { ...t, situacao: 'sugestao', item: sugestao }; }
     return { ...t, situacao: 'sem_correspondencia', item: null };
   });

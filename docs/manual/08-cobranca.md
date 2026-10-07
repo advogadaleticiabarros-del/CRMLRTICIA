@@ -77,6 +77,19 @@ O sistema calcula inadimplência automaticamente e permite renegociar uma parcel
 - **"Inadimplência" (número, no Cockpit e no topo do Financeiro)** — total vencido somando as 6 fontes de receita do escritório (clientes/contratos, parcelas de proposta, dativo, correspondente, parcerias, êxitos). Vem de `getFinanceSummary()`, uma função só, usada nos dois lugares — antes cada tela calculava por conta própria e podiam divergir.
 - **Aba "Inadimplência" (fila de cobrança acionável)** — só parcelas de **cliente** (`parcelas`), porque é a única fonte onde faz sentido "renegociar", escalar pra cobrança jurídica ou marcar tentativa de contato. Dativo, correspondente e parcerias entram no número total acima, mas não têm fila de cobrança própria — são recebíveis de outra natureza (Estado, terceiros), sem esse fluxo de negociação com cliente. Essa fila recalcula sozinha todo dia às 6h50 (antes só atualizava quando alguém clicava "Recalcular agora").
 
+## A Receber: filtro do mês ou período (desde 07/10/2026)
+
+Em **Financeiro › A Receber — todas as frentes** há o campo **Mês** (os últimos 12 meses, o mês atual e os próximos 6), além de **De/Até** para um período livre. Escolher o mês preenche De/Até; mexer em De/Até vira "Período personalizado".
+
+**Qual data conta no período:**
+- o que já foi **recebido** conta pela **data em que o dinheiro entrou**. Ex.: alvará que vencia em setembro e caiu em 02/10 entra em outubro;
+- o que está **a receber** conta pelo **vencimento**;
+- item sem data (ex.: dativo sem previsão) só aparece em "Todo o período".
+
+**Os quatro cards do topo** (Total programado, Já recebido, A receber, Vencido) passam a seguir o **período, a origem e a busca** e mostram o período no título. A **situação** (A receber / Recebidos / Vencidos) filtra só a lista, porque os próprios cards já separam essas situações. Antes, os cards eram sempre de todos os tempos.
+
+O filtro roda no servidor: `GET /api/financial/a-receber?mes=AAAA-MM` (ou `de`/`ate`), `status`, `fonte`, `busca`. Regras em `src/services/aReceberFiltro.ts` (testes em `tests/aReceberFiltro.test.mjs`).
+
 ## FAQ
 
 **A despesa pessoal da família aparece no resultado do escritório?** Não deveria — o sistema guarda despesa pessoal/familiar separada por escopo, e o DRE do escritório filtra só `escopo='empresa'`.
@@ -94,6 +107,7 @@ O sistema calcula inadimplência automaticamente e permite renegociar uma parcel
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | A Receber: filtro de mês/período, cards seguindo o período; corrigido card Vencido que mostrava R$ 0,00 |
 | 02/10/2026 | Claude | "Recebi um pagamento" pelo botão + e pelo comprovante no WhatsApp |
 | 02/10/2026 | Claude | Acordos detectados nas movimentações + cadastro rápido de acordo |
 | 30/09/2026 | Claude | Previsão realista do mês (taxa histórica de recebimento) e pipeline de propostas ponderado |

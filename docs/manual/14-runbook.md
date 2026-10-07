@@ -431,6 +431,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: card "Vencido" do A Receber sempre R$ 0,00
+
+**Sintoma (achado em 07/10/2026, ao criar o filtro do mês):** o card **Vencido** em Financeiro › A Receber mostrava R$ 0,00, mas havia parcelas em aberto vencidas em setembro (ex.: R$ 800 do Vinicius, de 05/09; R$ 55 da Larissa, de 20/09). O filtro "Vencidos" também não as mostrava.
+
+**Causa raiz:** em `montarAReceber` (`src/routes/financial.ts`), o vencimento vem do MySQL como objeto `Date`, e o código comparava `String(Date).slice(0, 10)` (algo como "Sat Sep 05") com a data de hoje em ISO. A comparação nunca dava verdadeira. A conciliação bancária (OFX) tinha a mesma falha nas datas de pagamento e vencimento, e por isso não sugeria baixas.
+
+**Correção:** `marcarVencidos` e `dia()` (`src/services/aReceberFiltro.ts`) convertem a data para ISO antes de comparar; a conciliação usa o mesmo `dia()`. Teste com data vinda como `Date`.
+
+**Como reconhecer de novo:** qualquer comparação de data feita com `String(campoDoBanco)` está errada. Use `toISOString()` ou o helper `dia()`.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -447,6 +459,7 @@ pm2 restart crm-juridico && pm2 save
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | +1 incidente: card Vencido do A Receber sempre zerado (data do banco comparada como texto) |
 | 07/10/2026 | Claude | +1 incidente: lembrete de audiência enviado 2 vezes (cópias da agenda por usuário) |
 | 07/10/2026 | Claude | +1 incidente: "Editar proposta" não abria para propostas "apenas êxito" |
 | 07/10/2026 | Claude | +1 incidente: proposta gerada sem os dados que a cliente mandou (lead já existente) |

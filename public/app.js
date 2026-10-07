@@ -5606,9 +5606,23 @@ async function finReceitas(c) {
         <label>Buscar
           <input type="text" id="rec-f-busca" placeholder="cliente ou descrição" />
         </label>
+        <label>Mês
+          <select id="rec-f-mes">${(() => {
+            const nomes = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
+            const h = new Date(); const ops = [];
+            for (let i = 6; i >= -12; i--) {
+              const d = new Date(h.getFullYear(), h.getMonth() + i, 1);
+              const v = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+              const rot = i === 0 ? ' (este mês)' : i === -1 ? ' (mês passado)' : i === 1 ? ' (próximo mês)' : '';
+              ops.push(`<option value="${v}">${nomes[d.getMonth()]} de ${d.getFullYear()}${rot}</option>`);
+            }
+            return `<option value="">Todo o período</option>${ops.join('')}<option value="personalizado">Período personalizado (De/Até)</option>`;
+          })()}</select>
+        </label>
         <label>De<input type="date" id="rec-f-de" /></label>
         <label>Até<input type="date" id="rec-f-ate" /></label>
       </div>
+      <p class="sub" style="margin:8px 0 0">No período, o que já foi <strong>recebido</strong> conta pela data em que o dinheiro entrou; o que está <strong>a receber</strong>, pelo vencimento. Os totais acima seguem o período, a origem e a busca.</p>
     </div>
     <div class="card"><div id="rec-lista"><div class="spinner"></div></div></div>`;
   tableTools(c.querySelector('.card:last-child'), { findTable: () => c.querySelector('#rec-lista table'), filename: 'a-receber', title: 'A Receber' });
@@ -5636,18 +5650,8 @@ async function finReceitas(c) {
 
   let dados = { kpis: {}, rows: [] };
   const render = () => {
-    const st = $('#rec-f-status').value;
-    const fonte = $('#rec-f-fonte').value;
-    const busca = $('#rec-f-busca').value.trim().toLowerCase();
-    const de = $('#rec-f-de').value, ate = $('#rec-f-ate').value;
-    let all = dados.rows;
-    if (st === 'aberto') all = all.filter((x) => !x.recebido);
-    else if (st === 'vencido') all = all.filter((x) => x.vencido);
-    else if (st === 'recebido') all = all.filter((x) => x.recebido);
-    if (fonte) all = all.filter((x) => x.fonte === fonte);
-    if (busca) all = all.filter((x) => (x.cliente || '').toLowerCase().includes(busca) || (x.descricao || '').toLowerCase().includes(busca));
-    if (de) all = all.filter((x) => x.vencimento && String(x.vencimento).slice(0, 10) >= de);
-    if (ate) all = all.filter((x) => x.vencimento && String(x.vencimento).slice(0, 10) <= ate);
+    // Filtros aplicados no servidor (GET /api/financial/a-receber), junto com os totais.
+    const all = dados.rows;
     $('#rec-lista').innerHTML = all.length ? `
       <table><thead><tr><th>Origem</th><th>Descrição</th><th>Cliente</th><th>Valor</th><th>Vencimento</th><th>Status</th><th></th></tr></thead>
       <tbody>${all.map((x) => `<tr>
@@ -5733,20 +5737,41 @@ async function finReceitas(c) {
     openModal('Registrar RPV / precatório / alvará / acordo', form);
   };
 
+  let seq = 0;
   const load = async () => {
-    dados = await api('/api/financial/a-receber').catch(() => ({ kpis: {}, rows: [] }));
+    const meu = ++seq;
+    const q = new URLSearchParams();
+    const mes = $('#rec-f-mes').value;
+    for (const [k, id] of [['status', 'rec-f-status'], ['fonte', 'rec-f-fonte'], ['busca', 'rec-f-busca']]) { const v = $('#' + id).value.trim(); if (v) q.set(k, v); }
+    if (mes && mes !== 'personalizado') q.set('mes', mes);
+    else { if ($('#rec-f-de').value) q.set('de', $('#rec-f-de').value); if ($('#rec-f-ate').value) q.set('ate', $('#rec-f-ate').value); }
+    const r = await api('/api/financial/a-receber?' + q).catch(() => ({ kpis: {}, rows: [] }));
+    if (meu !== seq) return; // resposta de um filtro antigo — ignora
+    dados = r;
     const k = dados.kpis || {};
+    const per = (dados.filtro?.de || dados.filtro?.ate) ? ` · ${dados.filtro.de ? fmtDate(dados.filtro.de + 'T12:00') : '…'} a ${dados.filtro.ate ? fmtDate(dados.filtro.ate + 'T12:00') : '…'}` : '';
     $('#rec-kpis').innerHTML =
-      kpi('Total programado', money(k.programado), 'money') +
-      kpi('Já recebido', money(k.recebido), 'money') +
-      kpi('A receber', money(k.a_receber), 'money') +
-      kpi('Vencido', money(k.vencido), 'money');
+      kpi('Total programado' + per, money(k.programado), 'money') +
+      kpi('Já recebido' + per, money(k.recebido), 'money') +
+      kpi('A receber' + per, money(k.a_receber), 'money') +
+      kpi('Vencido' + per, money(k.vencido), 'money');
     render();
     loadConfirmar();
   };
 
-  ['rec-f-status', 'rec-f-fonte', 'rec-f-de', 'rec-f-ate'].forEach((id) => { $('#' + id).onchange = render; });
-  $('#rec-f-busca').oninput = render;
+  // Mês escolhido preenche De/Até; mexer em De/Até vira "período personalizado".
+  $('#rec-f-mes').onchange = () => {
+    const m = $('#rec-f-mes').value;
+    if (m && m !== 'personalizado') {
+      const [y, mm] = m.split('-').map(Number);
+      $('#rec-f-de').value = `${m}-01`;
+      $('#rec-f-ate').value = `${m}-${String(new Date(y, mm, 0).getDate()).padStart(2, '0')}`;
+    } else if (!m) { $('#rec-f-de').value = ''; $('#rec-f-ate').value = ''; }
+    load();
+  };
+  ['rec-f-de', 'rec-f-ate'].forEach((id) => { $('#' + id).onchange = () => { $('#rec-f-mes').value = ($('#rec-f-de').value || $('#rec-f-ate').value) ? 'personalizado' : ''; load(); }; });
+  ['rec-f-status', 'rec-f-fonte'].forEach((id) => { $('#' + id).onchange = load; });
+  let tBusca; $('#rec-f-busca').oninput = () => { clearTimeout(tBusca); tBusca = setTimeout(load, 300); };
   $('#new-receita').onclick = () => financialForm(load);
   $('#new-award').onclick = () => awardForm();
   await load();
