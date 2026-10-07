@@ -359,6 +359,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: botão do WhatsApp sumiu do topo no celular
+
+**Sintoma (relato 07/10/2026):** "a janela do WhatsApp sumiu do meu CRM". O WhatsApp não fica no menu lateral, só no ícone de balão no topo, ao lado do sino. No celular esse ícone não aparecia mais.
+
+**Causa raiz:** em 02/10/2026 entrou o botão "+ Registrar" no topo, ao lado de "Descobrir processos". Os dois com texto ocupam ~220px; numa tela de 390px o ícone do WhatsApp passou a começar em x=366 e terminar fora da tela, junto com o sino. No computador continuava visível. Medido com Playwright nas larguras 390, 1366 e 1920.
+
+**Correção:** no celular (≤880px) "+ Registrar" e "Descobrir processos" viram só ícone (42×42), a saudação encolhe com reticências e, abaixo de 380px, some o botão de tela cheia. Verificado em 360, 390, 1366 e 1920px: WhatsApp e sino dentro da tela.
+
+**Como reconhecer de novo:** se algum ícone do topo "sumir" no celular depois de entrar um botão novo no topo, é falta de espaço. Meça a largura do `.topbar-actions` e mantenha os botões do topo só com ícone no celular (`public/styles.css`, bloco "Topo no celular").
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -375,6 +387,7 @@ pm2 restart crm-juridico && pm2 save
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | +1 incidente: botão do WhatsApp fora da tela no celular |
 | 04/09/2026 | Claude | Criação do documento — 6 incidentes reais registrados a partir dos casos de 03/09/2026 |
 | 04/09/2026 | Claude | +1 incidente: campo de Valor (R$) rejeitando centavos — corrigido no helper `field()` |
 | 04/09/2026 | Claude | +1 incidente: dropdown de multi-seleção preso aberto — listener movido pra fase de captura |

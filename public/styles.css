@@ -2258,3 +2258,21 @@ body.sidebar-collapsed .nav-group-title { visibility: hidden; height: 6px; paddi
 
 /* Janelas (modais) largas aproveitam monitores grandes */
 .modal-card.wide { max-width: min(1180px, 96vw); }
+
+/* ── Topo no celular (07/10/2026) ─────────────────────────────────────────
+   Bug: com "+ Registrar" e "Descobrir processos" com texto, o botão do
+   WhatsApp e o sino eram empurrados para fora da tela à direita (largura
+   390px: WhatsApp começava em x=366 e terminava fora). No celular os dois
+   botões dourados viram só ícone e a saudação encolhe com reticências. */
+@media (max-width: 880px) {
+  .topbar-greeting { min-width: 0; flex: 1 1 auto; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .topbar-actions { flex: 0 0 auto; gap: 6px; }
+  .topbar-actions #novo-btn, .topbar-actions #discover-btn {
+    font-size: 0; width: 42px; height: 42px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 12px;
+  }
+  .topbar-actions #novo-btn.hidden { display: none; }
+  .topbar-actions #novo-btn .ic, .topbar-actions #discover-btn .ic { width: 19px; height: 19px; margin: 0; }
+}
+@media (max-width: 380px) {
+  .topbar-actions #fullscreen-btn { display: none; }
+}
