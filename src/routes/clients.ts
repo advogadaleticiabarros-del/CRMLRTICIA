@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { cpfCnpjValido } from '../utils/cpfCnpj';
 import { nomesParecidos } from '../utils/nomeSimilar';
+import { podeVerSenhaInss, normalizarSenhaInss } from '../services/senhaInssCliente';
 
 const router = Router();
 
@@ -130,6 +131,29 @@ router.get('/', async (req: Request, res: Response) => {
 });
 
 // ── GET /api/clients/:id — detalhe com resumo ───────────────────────────────
+// ── Senha do Meu INSS (tabela própria client_credentials) ────────────────────
+// Lida só aqui, sob demanda (botão "mostrar"), e só por admin/advogado/equipe.
+// Cada leitura fica no log de acesso (LGPD), igual à abertura da ficha.
+router.get('/:id/senha-inss', async (req: Request, res: Response) => {
+  if (!podeVerSenhaInss(req.user!.role)) { res.status(403).json({ error: 'Sem permissão para ver a senha' }); return; }
+  const [[r]] = await db.query('SELECT senha_inss FROM client_credentials WHERE client_id = ?', [req.params.id]) as any;
+  import('../services/accessLog')
+    .then(({ logAccess }) => logAccess({ userId: req.user!.id, userName: req.user!.name, clientId: Number(req.params.id), action: 'ver_senha_inss', ip: req.ip }))
+    .catch(() => {});
+  res.json({ senha_inss: r?.senha_inss ?? null });
+});
+
+router.put('/:id/senha-inss', async (req: Request, res: Response) => {
+  if (!podeVerSenhaInss(req.user!.role)) { res.status(403).json({ error: 'Sem permissão para alterar a senha' }); return; }
+  let senha: string | null;
+  try { senha = normalizarSenhaInss(req.body?.senha_inss); } catch (e: any) { res.status(400).json({ error: e.message }); return; }
+  await db.query(
+    `INSERT INTO client_credentials (client_id, senha_inss, updated_by) VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE senha_inss = VALUES(senha_inss), updated_by = VALUES(updated_by)`,
+    [req.params.id, senha, req.user!.id]);
+  res.json({ ok: true });
+});
+
 router.get('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
 
@@ -151,7 +175,9 @@ router.get('/:id', async (req: Request, res: Response) => {
       (SELECT COALESCE(SUM(valor),0) FROM installments WHERE client_id = ? AND status = 'pendente')  AS a_receber
   `, [id, id, id]) as any;
 
-  res.json({ ...rows[0], resumo });
+  // Só diz SE há senha guardada (nunca o valor) — o valor vem de /:id/senha-inss.
+  const [[cred]] = await db.query('SELECT senha_inss IS NOT NULL AS tem FROM client_credentials WHERE client_id = ?', [id]) as any;
+  res.json({ ...rows[0], resumo, tem_senha_inss: !!Number(cred?.tem) });
 });
 
 // ── GET /api/clients/:id/timeline — histórico do cliente (ficha) ────────────

@@ -7028,6 +7028,10 @@ async function clientForm(id, onSave) {
       <input type="checkbox" name="lgpd_consent" ${c.lgpd_consent_at ? 'checked' : ''} style="width:auto">
       Cliente autorizou o tratamento dos dados pessoais (LGPD)${c.lgpd_consent_at ? ` <small style="color:var(--text-muted)">— registrado em ${fmtDate(c.lgpd_consent_at)}</small>` : ''}
     </label>
+    ${id && ['admin', 'advogado', 'staff'].includes(USER?.role) ? `<div class="form-row" style="align-items:flex-end">
+      ${field('Senha do Meu INSS', 'senha_inss', { value: '', type: 'password', placeholder: c.tem_senha_inss ? '•••••••• (guardada)' : 'não informada' })}
+      <button type="button" class="btn-sm" id="ver-senha-inss" style="margin-bottom:12px">${c.tem_senha_inss ? 'Mostrar' : 'Digitar'}</button></div>
+      <p class="sub" style="margin:-10px 0 0">Fica só no banco do CRM, separada do resto da ficha; só advogada e equipe veem, e cada visualização é registrada.</p>` : ''}
     ${field('Número do processo (opcional)', 'process_number', { value: '' })}
     <p class="sub" style="margin:-6px 0 0">Preenchendo aqui, o processo já entra vinculado a ${esc(c.name) || 'este cliente'} e no monitoramento automático — mesma coisa que cadastrar em Processos.</p>
     <button type="submit" class="btn-primary">${id ? 'Salvar' : 'Cadastrar'}</button>
@@ -7064,9 +7068,22 @@ async function clientForm(id, onSave) {
     } catch { /* CNPJ inexistente ou rede fora do ar — segue com preenchimento manual */ }
   };
   attachConflictCheck(form, { skip: !!id });
+  const inpSenha = form.querySelector('[name=senha_inss]');
+  let senhaCarregada = false;
+  const btnSenha = form.querySelector('#ver-senha-inss');
+  if (btnSenha) btnSenha.onclick = async () => {
+    if (inpSenha.type === 'text') { inpSenha.type = 'password'; btnSenha.textContent = 'Mostrar'; return; }
+    if (c.tem_senha_inss && !senhaCarregada) {
+      try { inpSenha.value = (await api(`/api/clients/${id}/senha-inss`)).senha_inss || ''; senhaCarregada = true; } catch (err) { toast(err.message, 'error'); return; }
+    }
+    inpSenha.type = 'text'; btnSenha.textContent = 'Ocultar'; inpSenha.focus();
+  };
+  if (inpSenha) inpSenha.oninput = () => { senhaCarregada = true; };
   form.onsubmit = async (e) => {
     e.preventDefault();
-    const { process_number, cep, ...body } = Object.fromEntries(new FormData(form));
+    const { process_number, cep, senha_inss, ...body } = Object.fromEntries(new FormData(form));
+    // Senha só é gravada se foi aberta/editada (campo vazio sem abrir = não mexer).
+    if (inpSenha && senhaCarregada) await api(`/api/clients/${id}/senha-inss`, { method: 'PUT', body: JSON.stringify({ senha_inss }) }).catch((err) => toast(err.message, 'error'));
     body.lgpd_consent = form.querySelector('[name=lgpd_consent]').checked; // checkbox some do FormData quando desmarcado
     try {
       const saved = id

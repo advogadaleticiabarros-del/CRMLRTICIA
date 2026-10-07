@@ -84,6 +84,18 @@ Regras em `src/services/portalRegras.ts` (testadas).
 
 Desde 24/09/2026, o Portal do Cliente tem uma seção "Meus dados de contato" onde o próprio cliente atualiza e-mail, telefone e endereço sozinho — antes precisava pedir pra advogada fazer manualmente. Escopo restrito de propósito: nome, CPF/CNPJ e status **não** ficam editáveis pelo cliente (mudam a identificação jurídica/qualificação da parte — continuam só no cadastro interno, feito pela equipe).
 
+## Senha do Meu INSS (desde 07/10/2026)
+
+Na edição do cliente há o campo **Senha do Meu INSS**, com o botão **Mostrar/Digitar**. A senha:
+- fica só no banco do CRM, na tabela própria `client_credentials` (migration 152), separada de `clients`. Por isso não aparece em listas, exportações, CSV, nas notas do Obsidian nem no que é mandado para a IA;
+- nunca vai para o Git (o repositório só tem código);
+- só é vista e alterada por **admin, advogado e equipe interna** (`staff`). Comercial, estagiário, parceiro e cliente não veem;
+- é carregada só quando alguém clica em **Mostrar**, e cada visualização fica no log de acesso (`access_logs`, ação `ver_senha_inss`).
+
+API: `GET/PUT /api/clients/:id/senha-inss`. `GET /api/clients/:id` só informa `tem_senha_inss` (sim/não), nunca o valor. Regras em `src/services/senhaInssCliente.ts` (testes em `tests/senhaInssCliente.test.mjs`).
+
+**Não escreva senhas na descrição do caso nem nas observações**: esses textos aparecem em vários lugares. Use sempre este campo.
+
 ## FAQ
 
 **Se eu cadastrar o mesmo CPF duas vezes, o sistema bloqueia?** Não bloqueia — a checagem de conflito de interesses é um aviso, mostrado antes de salvar, mas a decisão final é sua.
@@ -103,6 +115,7 @@ Desde 24/09/2026, o Portal do Cliente tem uma seção "Meus dados de contato" on
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | Campo protegido "Senha do Meu INSS" na ficha (tabela própria, só admin/advogado/equipe, leitura registrada); senhas tiradas das descrições de casos |
 | 30/09/2026 | Claude | Portal como hub: assinatura, checklist com envio, agendamento e mensagens dentro do portal |
 | 03/09/2026 | Claude | Criação do documento |
 | 23/09/2026 | Claude | Log de acesso LGPD ganha tela própria em Configurações (antes só existia gravação, sem consulta) |
