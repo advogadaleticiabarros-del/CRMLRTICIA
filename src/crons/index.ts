@@ -337,6 +337,15 @@ export function startCronJobs() {
     }, { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // Briefing da véspera da audiência trabalhista (07/10/2026): todo dia às 9h,
+  // um briefing por audiência trabalhista de AMANHÃ, pelo WhatsApp do briefing.
+  cron.schedule('0 9 * * *', () => {
+    runJob('audiencia:briefing-vespera', async () => {
+      const { enviarBriefingsDeAmanha } = await import('../services/briefingAudienciaJob');
+      return await enviarBriefingsDeAmanha();
+    }, { critica: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // Aviso diário "backup realizado" (WhatsApp + sino) — pedido 07/10/2026.
   cron.schedule('30 20 * * *', () => {
     runJob('backup:aviso-diario', async () => {

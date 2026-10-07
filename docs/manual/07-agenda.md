@@ -51,10 +51,28 @@ A agenda é **por usuário**. Quando o Administrador e a Dra. Letícia estão li
 
 O que **não pode** é o cliente ou o parceiro receberem o aviso duas vezes. Por isso, toda mensagem para fora (lembrete de audiência ao cliente no WhatsApp, aviso de audiência ao parceiro) agrupa as cópias: **uma audiência = o mesmo cliente (ou caso) no mesmo horário**. Regra em `src/services/audienciaUnica.ts` (testes em `tests/audienciaUnica.test.mjs`).
 
+## Briefing da véspera da audiência trabalhista (desde 07/10/2026)
+
+**Todo dia às 9h**, para cada **audiência trabalhista do dia seguinte**, o CRM monta um briefing e manda pelo **WhatsApp** (os números de "briefing_whatsapp", os mesmos do briefing matinal). O briefing também fica salvo nos documentos do caso.
+
+**Conteúdo**, em 7 seções: fatos centrais; pedidos; provas e documentos-chave; perguntas (reclamante/preposto/testemunhas, conforme o lado da cliente); riscos; pontos controvertidos; providências pendentes. O que precisa ser checado vem marcado **"⚠️ CONFIRMAR"**, e cada informação cita a fonte entre parênteses.
+
+**Fontes**, só as do caso: petição inicial, contestação, autos e demais documentos anexados ao caso (PDF ou imagem, os mais importantes primeiro, até ~14 MB, lidos pela IA Gemini); movimentações do processo; partes e anotações do caso. Documentos pessoais (RG, CPF, comprovante de residência) ficam de fora.
+
+**Regras:**
+- é audiência trabalhista quando o caso é da área trabalhista ou o número é da Justiça do Trabalho (segmento 5);
+- cópias da mesma audiência na agenda de mais de um usuário geram um briefing só;
+- audiência de amanhã **sem caso ligado** gera um aviso no WhatsApp, pedindo para ligar o caso.
+
+**Sob demanda:** no caso, botão **"Briefing da audiência"**. Gera na hora (usa a próxima audiência do caso), com opção de enviar no WhatsApp.
+
+Código: `src/services/briefingAudienciaRegras.ts` (regras, testes em `tests/briefingAudiencia.test.mjs`), `src/services/briefingAudienciaJob.ts` (fontes, IA, envio), cron `audiencia:briefing-vespera`, `POST /api/cases/:id/briefing-audiencia`.
+
 ## Changelog
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | Briefing automático da véspera da audiência trabalhista (WhatsApp, 9h) e botão no caso |
 | 07/10/2026 | Claude | Lembretes e avisos de audiência agrupam as cópias da mesma audiência (agenda de mais de um usuário) — cliente e parceiro recebem uma vez só |
 | 03/09/2026 | Claude | Criação do documento |
 | 01/10/2026 | Claude | Lembretes pessoais por WhatsApp vão só para o número da Jessica |

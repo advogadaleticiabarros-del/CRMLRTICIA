@@ -8015,6 +8015,7 @@ async function caseDetail(id, onSave) {
       <select id="case-phase">${PHASES.map((p)=>`<option value="${p.v}" ${p.v===c.phase?'selected':''}>${p.t}</option>`).join('')}</select>
       <button class="btn-sm" id="upd-phase">Atualizar fase</button>
       <button class="btn-sm" id="gerar-peca" type="button">${svgIcon('ia', 'ic-xs')} Gerar peça</button>
+      <button class="btn-sm" id="briefing-aud" type="button" title="Resumo para a audiência: fatos, pedidos, provas, perguntas, riscos e pendências">${svgIcon('ia', 'ic-xs')} Briefing da audiência</button>
     </div>
     <hr style="border:none;border-top:1px solid var(--border)">
     <strong style="font-size:13px">Equipe do processo</strong>
@@ -8169,6 +8170,26 @@ async function caseDetail(id, onSave) {
       closeModal(); toast('Fase atualizada'); onSave(); } catch (e) { toast(e.message, 'error'); }
   };
   renderPartesCaso(form.querySelector('#case-partes'), c);
+  // Briefing da audiência (o mesmo que chega sozinho no WhatsApp na véspera)
+  const bAud = form.querySelector('#briefing-aud');
+  if (bAud) bAud.onclick = async () => {
+    bAud.disabled = true; const t0 = bAud.innerHTML; bAud.textContent = 'Lendo o processo… (até 1 min)';
+    try {
+      const b = await api(`/api/cases/${c.id}/briefing-audiencia`, { method: 'POST', body: '{}' });
+      const box = el(`<div class="form-grid">
+        <p class="sub">${b.audiencia ? `Audiência: <strong>${fmtDateTime(b.audiencia)}</strong> · ` : ''}Fontes: ${esc((b.fontes || []).join(', '))}${(b.foraDoEnvio || []).length ? ` · <span style="color:var(--red)">não lidos: ${esc(b.foraDoEnvio.join(', '))}</span>` : ''}</p>
+        <pre style="white-space:pre-wrap;font-family:inherit;font-size:13.5px;line-height:1.55;background:var(--surface-2,#f6f3ec);padding:14px;border-radius:10px;max-height:60vh;overflow:auto">${esc(b.texto)}</pre>
+        <div style="display:flex;gap:8px"><button type="button" class="btn-gold" id="brief-wpp">Enviar no WhatsApp</button><button type="button" class="btn-sm" id="brief-copiar">Copiar</button></div></div>`);
+      box.querySelector('#brief-copiar').onclick = () => { navigator.clipboard.writeText(b.texto).then(() => toast('Briefing copiado')); };
+      box.querySelector('#brief-wpp').onclick = async (e) => {
+        e.target.disabled = true;
+        try { await api(`/api/cases/${c.id}/briefing-audiencia`, { method: 'POST', body: JSON.stringify({ enviar: true }) }); toast('Briefing enviado no WhatsApp'); }
+        catch (err) { toast(err.message, 'error'); e.target.disabled = false; }
+      };
+      openModal('Briefing da audiência', box);
+    } catch (e) { toast(e.message, 'error'); }
+    bAud.disabled = false; bAud.innerHTML = t0;
+  };
   form.querySelector('#vc-edit').onclick = async () => {
     const atual = Number(c.valor_causa) || '';
     const novo = await uiPrompt('Valor da causa (R$) — o que está em aberto na demanda, não é o que você vai receber:', atual ? String(atual).replace('.', ',') : '');

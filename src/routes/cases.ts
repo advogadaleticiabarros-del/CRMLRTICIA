@@ -336,6 +336,28 @@ router.patch('/:id/checklist', async (req: Request, res: Response) => {
 });
 
 // ── GET /api/cases/:id — detalhe com movimentações e resumo ─────────────────
+// ── POST /api/cases/:id/briefing-audiencia — briefing da audiência sob demanda ──
+// Mesmo briefing que sai sozinho na véspera (briefingAudienciaJob). Usa a
+// próxima audiência do caso na agenda; { enviar: true } também manda no WhatsApp.
+router.post('/:id/briefing-audiencia', async (req: Request, res: Response) => {
+  const [[ev]] = await db.query(
+    `SELECT start_datetime, COALESCE(video_link, location) AS local FROM calendar_events
+      WHERE case_id = ? AND event_type = 'audiencia' AND start_datetime >= NOW() ORDER BY start_datetime LIMIT 1`, [req.params.id]) as any;
+  try {
+    const { gerarBriefingAudiencia } = await import('../services/briefingAudienciaJob');
+    const b = await gerarBriefingAudiencia(Number(req.params.id), ev?.start_datetime || new Date(), ev?.local || null);
+    if (req.body?.enviar) {
+      const { sendText } = await import('../services/uazapiInstance');
+      const { dividirMensagem } = await import('../services/briefingAudienciaRegras');
+      const [[cfg]] = await db.query("SELECT setting_value FROM office_settings WHERE setting_key = 'briefing_whatsapp'") as any;
+      for (const n of String(cfg?.setting_value || '').split(/[,;\s]+/).map((x) => x.replace(/\D/g, '')).filter((x) => x.length >= 10)) {
+        for (const parte of dividirMensagem(`⚖️ *Briefing da audiência*\n\n${b.texto}`, 3500)) await sendText(n.length <= 11 ? '55' + n : n, parte, 'Briefing de audiência (manual)').catch(() => false);
+      }
+    }
+    res.json({ ...b, audiencia: ev?.start_datetime || null });
+  } catch (e: any) { res.status(400).json({ error: e.message }); }
+});
+
 router.get('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   const [rows] = await db.query(
