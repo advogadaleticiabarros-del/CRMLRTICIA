@@ -407,6 +407,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: "Editar proposta" não abria (propostas "apenas êxito")
+
+**Sintoma (relato 07/10/2026):** clicar em **Editar proposta** não abria nada.
+
+**Causa raiz:** em `propostaForm` (`public/app.js`), o pré-preenchimento de uma proposta marcada "Apenas êxito" usava a caixa `apenasEx` antes de ela ser declarada (`const` mais abaixo). O JavaScript parava com "Cannot access 'apenasEx' before initialization" e o formulário nunca abria. Só acontecia com propostas "apenas êxito"; as demais abriam.
+
+**Correção:** a caixa é declarada antes do pré-preenchimento, e o formulário já abre com "Apenas êxito" marcado e o bloco de valor fixo escondido. Testado no navegador com uma proposta "apenas êxito" e uma comum.
+
+**Como reconhecer de novo:** botão que "não faz nada" costuma ser erro de JavaScript; abra o Console do navegador (F12) e procure a mensagem vermelha.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -423,6 +435,7 @@ pm2 restart crm-juridico && pm2 save
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | +1 incidente: "Editar proposta" não abria para propostas "apenas êxito" |
 | 07/10/2026 | Claude | +1 incidente: proposta gerada sem os dados que a cliente mandou (lead já existente) |
 | 07/10/2026 | Claude | +1 incidente: backup travava em silêncio (3 horários perdidos em 30 dias sem aviso) |
 | 07/10/2026 | Claude | +1 incidente: balão do WhatsApp abria o Dashboard (e links com parâmetro caíam na tela inicial) |

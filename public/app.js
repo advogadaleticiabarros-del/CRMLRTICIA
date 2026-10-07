@@ -7534,12 +7534,22 @@ async function propostaForm(onSave, lead = null, existing = null) {
   });
   syncHon();
 
+  // Modo "Apenas êxito": esconde o bloco de valor fixo/parcelas. Declarado ANTES
+  // do pré-preenchimento — antes vinha depois, e abrir uma proposta "apenas
+  // êxito" para editar travava ("Cannot access 'apenasEx' before initialization").
+  const apenasEx = form.querySelector('#hon-apenas-exito');
+  apenasEx.onchange = () => {
+    form.querySelector('#hon-fixo').style.display = apenasEx.checked ? 'none' : '';
+    form.querySelector('#hon-exito-only').style.display = apenasEx.checked ? 'block' : 'none';
+  };
+
   // Pre-fill honorários se existentes
   if (existing?.honorarios) {
     const hon = typeof existing.honorarios === 'string' ? JSON.parse(existing.honorarios) : existing.honorarios;
     if (hon.apenas_exito && hon.values?.exito) {
       apenasEx.checked = true;
       form.querySelector('[name=exito_only_pct]').value = hon.values.exito;
+      apenasEx.onchange();
     } else if (hon.parcelamento) {
       const p = hon.parcelamento;
       if (p.total) form.querySelector('[name=valor_total]').value = p.total;
@@ -7559,12 +7569,6 @@ async function propostaForm(onSave, lead = null, existing = null) {
     }
   }
 
-  // Modo "Apenas êxito": esconde o bloco de valor fixo/parcelas.
-  const apenasEx = form.querySelector('#hon-apenas-exito');
-  apenasEx.onchange = () => {
-    form.querySelector('#hon-fixo').style.display = apenasEx.checked ? 'none' : '';
-    form.querySelector('#hon-exito-only').style.display = apenasEx.checked ? 'block' : 'none';
-  };
 
   form.onsubmit = async (e) => {
     e.preventDefault();
