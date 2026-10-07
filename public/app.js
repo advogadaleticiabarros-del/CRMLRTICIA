@@ -5659,7 +5659,7 @@ async function finReceitas(c) {
         <td><strong>${esc(x.descricao || '—')}</strong></td>
         <td>${esc(x.cliente || '—')}</td>
         <td style="white-space:nowrap;font-size:12.5px">${x.processo ? esc(x.processo) : '<small style="color:var(--text-muted)">—</small>'}</td>
-        <td><strong>${money(x.valor)}</strong>${Number(x.parceiro) > 0 ? `<br><small style="color:var(--text-muted);white-space:nowrap">seu ${money(x.seu)} · ${esc(x.parceiroNome || 'parceira')} ${money(x.parceiro)}</small>` : ''}</td>
+        <td><strong>${money(Number(x.parceiro) > 0 ? x.seu : x.valor)}</strong>${Number(x.parceiro) > 0 ? `<br><small style="color:var(--text-muted);white-space:nowrap">só a sua parte · total ${money(x.valor)} (${esc(x.parceiroNome || 'parceira')} ${money(x.parceiro)})</small>` : ''}</td>
         <td>${fmtDate(x.vencimento)}</td>
         <td>${x.recebido ? `<span class="badge pago">recebido${x.pago_em ? ' ' + fmtDate(x.pago_em) : ''}</span>` : x.vencido ? '<span class="badge vencido">vencido</span>' : '<span class="badge">a receber</span>'}</td>
         <td style="white-space:nowrap">${x.recebido
