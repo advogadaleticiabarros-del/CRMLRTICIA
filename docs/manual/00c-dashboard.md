@@ -10,7 +10,7 @@ A tela `#dashboard` é a primeira coisa que se vê ao abrir o CRM — 8 painéis
 
 Consulte pra entender o que cada número do Dashboard significa de verdade (a conta por trás do rótulo), pra onde cada clique leva, ou se um problema que você notou já é conhecido.
 
-## Os 8 painéis
+## Os 9 painéis
 
 Abas em `#dashboard` (papel `comercial` só vê Comercial e Agenda):
 
@@ -23,6 +23,7 @@ Abas em `#dashboard` (papel `comercial` só vê Comercial e Agenda):
 | **Agenda** | Recorte "o que vence hoje" — prazos, compromissos e tarefas do dia, separado da Agenda completa. |
 | **Financeiro** | Central de dinheiro — previsto × realizado, projeção de caixa, DRE, inadimplência, resultado por área. |
 | **Produção** | Saúde da esteira de redação de peças — atrasados, pendências abertas, produtividade por pessoa. |
+| **Resultados** | "Resultado por processo" — taxa de sucesso, % obtido sobre o valor da causa, honorários recebidos/a receber por caso e provisão do que ainda deve entrar. Exporta CSV. |
 | **Parceria (protocolados)** | Fechamento mensal por parceiro — o que foi protocolado, pra reconciliar repasse. |
 
 ## Cockpit — o que cada número significa
@@ -51,6 +52,15 @@ Painéis (listas com botão "Abrir →"): Prazos críticos (72h), Intimações a
 6. **KPIs de data aproximada não filtram por data ao chegar no destino** — "A receber até hoje" e "A receber (7 dias)" levam pro mesmo lugar (aba A Receber sem filtro de data aplicado), então não dá pra distinguir um do outro só chegando lá; "A pagar (7 dias)" cai no mês inteiro, não numa janela de 7 dias.
 7. **Painéis Comercial, Processos (Monitoramento), Processual, Agenda e Financeiro não têm nenhum clique** — todo número é só leitura, sem link pra investigar mais fundo (diferente do Cockpit e da Produção). Maior escopo — precisa decidir, painel por painel, pra onde cada número deveria levar.
 
+## Resultados — como cada número é calculado (07/10/2026)
+
+Fonte: `GET /api/dashboards/resultados` → regra pura `src/services/resultadoProcessos.ts` (testes em `tests/resultadoProcessos.test.mjs`). Entram os casos com número de processo (`cases.case_number`), exceto os recusados.
+
+- **Taxa de sucesso** = casos com resultado `acordo`, `procedente` ou `procedente_parcial` ÷ todos os casos com `cases.resultado` preenchido. Defesa (cliente ré) conta.
+- **Obtido sobre a causa (média)** = soma de `valor_obtido` ÷ soma de `valor_causa`, só nos casos de sucesso que têm os dois valores e em que a cliente é autora.
+- **Honorários recebidos / a receber** = soma das receitas (`financial_records`, tipo receita, pago × pendente) ligadas ao caso, direto (`case_id`) ou pelo acordo do caso (`agreement_id`). Inclui entradas de parceria.
+- **Provisão** (só casos em andamento) = valor da causa × taxa de sucesso × média obtida × honorário do caso. O honorário do caso é 30% se o caso é próprio; em parceria é a parte do escritório (`success_fee_percent` × (100 − `partner_split_percent`)%, ex.: Infinity Law = 15%). Ficam fora: **dativo** (o valor vem do arbitramento) e **defesa** (o ganho é economia). Caso sem valor da causa também fica fora, e o painel avisa quantos são.
+
 ## FAQ
 
 **Por que o valor da aba Inadimplência é menor que o KPI "Inadimplência" do Cockpit?** Por design, não por bug: o KPI soma tudo que o escritório tem a receber e está vencido (6 fontes); a aba é só a fila de cobrança acionável de parcelas de cliente (a única fonte onde dá pra renegociar/escalar cobrança). Ver [Cobrança e parcelas](08-cobranca.md#inadimplência-e-renegociação).
@@ -69,6 +79,7 @@ Painéis (listas com botão "Abrir →"): Prazos críticos (72h), Intimações a
 |---|---|---|
 | 22/09/2026 | Claude | Criação do documento — auditoria completa dos 8 painéis a pedido da Dra. Letícia, depois do bug do KPI de Inadimplência |
 | 22/09/2026 | Claude | Resolvidos 5 dos 7 achados: Inadimplência unificada (3 das 4 contas), Movimentações a verificar fecham de vez, Processual/Agenda ganham as listas que já eram calculadas, "Total a protocolar"/"Peças pendentes" compartilham a mesma consulta |
+| 07/10/2026 | Claude | Novo painel **Resultados** ("Resultado por processo"): taxa de sucesso, % obtido, honorários por caso e provisão |
 
 ---
 ◀ [Fluxograma do sistema](00b-fluxograma.md) · [Visão geral](00-visao-geral.md) · Próximo: [Clientes e cadastro](01-clientes.md) ▶

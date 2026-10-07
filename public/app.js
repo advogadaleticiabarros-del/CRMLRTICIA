@@ -1263,7 +1263,7 @@ const ROUTES = {
     const allTabs = [
       ['cockpit', 'Cockpit'], ['comercial', 'Comercial'], ['monitoramento', 'Processos'],
       ['processual', 'Processual'], ['agenda', 'Agenda'], ['financeiro', 'Financeiro'],
-      ['producao', 'Produção'], ['parceria', 'Parceria (protocolados)'],
+      ['producao', 'Produção'], ['resultados', 'Resultados'], ['parceria', 'Parceria (protocolados)'],
     ];
     const visibleTabs = isComercial ? allTabs.filter(([id]) => ['comercial', 'agenda'].includes(id)) : allTabs;
     const startTab = isComercial ? 'comercial' : 'cockpit';
@@ -1273,7 +1273,7 @@ const ROUTES = {
         ${visibleTabs.map(([id, label]) => `<button class="tab${id === startTab ? ' active' : ''}" data-tab="${id}">${label}</button>`).join('')}
       </div>
       <div id="dash-content"></div>`;
-    const tabs = { cockpit: dashCockpit, comercial: dashComercial, monitoramento: dashMonitoramento, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao, parceria: dashParceriaMensal };
+    const tabs = { cockpit: dashCockpit, comercial: dashComercial, monitoramento: dashMonitoramento, processual: dashProcessual, agenda: dashAgenda, financeiro: dashFinanceiro, producao: dashProducao, resultados: dashResultados, parceria: dashParceriaMensal };
     const show = async (name) => {
       document.querySelectorAll('#dash-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
       const c = $('#dash-content'); c.innerHTML = '<div class="spinner"></div>';
@@ -10751,4 +10751,81 @@ function renderPartesCaso(box, c) {
     };
     box.querySelector('#add-parte').replaceWith(f);
   };
+}
+
+// ── Dashboard › Resultados (07/10/2026) ────────────────────────────────────
+// "Resultado por processo": taxa de sucesso, % obtido sobre o valor da causa,
+// honorários por caso e provisão do que ainda deve entrar nos casos em
+// andamento. A conta fica no servidor (services/resultadoProcessos.ts).
+const RESULTADO_LABEL = { acordo: 'Acordo', procedente: 'Procedente', procedente_parcial: 'Procedente em parte', improcedente: 'Improcedente', renuncia: 'Renúncia', desistencia: 'Desistência', arquivado_sem_julgamento: 'Extinto sem julgamento' };
+const RESULTADO_SUCESSO = ['acordo', 'procedente', 'procedente_parcial'];
+async function dashResultados(c) {
+  const { casos, resumo: r } = await api('/api/dashboards/resultados');
+  const pct = (v) => (v == null ? '—' : `${String(v).replace('.', ',')}%`);
+  const total = r.com_resultado || 1;
+  const barras = Object.entries(r.por_resultado).sort((a, b) => b[1] - a[1]).map(([k, n]) => `
+    <div style="display:grid;grid-template-columns:150px 1fr 34px;gap:8px;align-items:center;margin:4px 0">
+      <span style="font-size:13px">${RESULTADO_LABEL[k] || k}</span>
+      <span style="background:var(--surface-2,#f1ede4);border-radius:6px;height:12px;overflow:hidden"><span style="display:block;height:100%;width:${(n / total) * 100}%;background:${RESULTADO_SUCESSO.includes(k) ? 'var(--green,#2e7d4f)' : 'var(--text-muted,#888)'}"></span></span>
+      <strong style="font-size:13px;text-align:right">${n}</strong>
+    </div>`).join('');
+  c.innerHTML = `
+    <div class="kpi-grid">
+      ${kpi('Taxa de sucesso', pct(r.taxa_sucesso))}
+      ${kpi('Obtido sobre a causa (média)', pct(r.pct_obtido_medio))}
+      ${kpi('Casos com resultado', `${r.sucessos} de ${r.com_resultado} ganhos`)}
+      ${kpi('Honorários recebidos', money(r.honorarios_recebidos), 'money')}
+      ${kpi('Honorários a receber', money(r.honorarios_a_receber), 'money')}
+      ${kpi('Provisão (em andamento)', money(r.provisao_total), 'money')}
+    </div>
+    <div class="cockpit-panels" style="margin-bottom:14px">
+      <div class="card"><strong style="font-size:13px;color:var(--navy-deep)">Resultados</strong><div style="margin-top:8px">${barras || '<p class="sub">Nenhum resultado registrado.</p>'}</div></div>
+      <div class="card"><strong style="font-size:13px;color:var(--navy-deep)">Como a provisão é calculada</strong>
+        <p class="sub" style="margin-top:8px;line-height:1.5">Para cada processo em andamento: <strong>valor da causa × taxa de sucesso (${pct(r.taxa_sucesso)}) × média obtida (${pct(r.pct_obtido_medio)}) × honorário do caso</strong> (30%, ou a sua parte na parceria). Ficam fora: dativos (o valor vem do arbitramento) e defesas (cliente ré).
+        ${r.em_andamento_sem_valor ? `<br><strong>${r.em_andamento_sem_valor}</strong> processo(s) em andamento sem valor da causa não entram na conta.` : ''}
+        ${r.repasse_parceiro ? `<br>Repasses a parceiros lançados: <strong>${money(r.repasse_parceiro)}</strong>.` : ''}</p></div>
+    </div>
+    <div class="toolbar">
+      <select id="res-filtro"><option value="todos">Todos os processos (${casos.length})</option><option value="resultado">Com resultado (${r.com_resultado})</option><option value="andamento">Em andamento (${r.em_andamento})</option></select>
+      <input id="res-busca" placeholder="Buscar cliente ou processo…" />
+      <span class="spacer"></span>
+      <button class="btn-ghost" id="res-csv" type="button">${svgIcon('download')} Exportar CSV</button>
+    </div>
+    <div class="card" style="overflow-x:auto"><div id="res-tabela"></div></div>`;
+
+  const situacao = (x) => x.resultado
+    ? `<span class="badge" style="${RESULTADO_SUCESSO.includes(x.resultado) ? 'background:#e3f2e8;color:#1e6b3c' : 'background:#f3e3e3;color:#9b2c2c'}">${RESULTADO_LABEL[x.resultado] || x.resultado}</span>${x.resultado_em ? `<br><small style="color:var(--text-muted)">${fmtDate(x.resultado_em)}</small>` : ''}`
+    : '<span class="badge">Em andamento</span>';
+  const marcas = (x) => [x.dativo ? '<span class="badge dativo">DATIVO</span>' : '', x.partner_name ? '<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">PARCERIA</span>' : '', x.polo_cliente === 'passivo' ? '<span class="badge">DEFESA</span>' : ''].join(' ');
+  const filtrar = () => {
+    const f = $('#res-filtro').value; const q = $('#res-busca').value.trim().toLowerCase();
+    return casos.filter((x) => (f === 'todos' || (f === 'resultado' ? !!x.resultado : !x.resultado))
+      && (!q || `${x.client_name} ${x.case_number} ${x.title}`.toLowerCase().includes(q)));
+  };
+  const render = () => {
+    const lista = filtrar();
+    $('#res-tabela').innerHTML = `<table class="tbl" style="width:100%;min-width:980px">
+      <thead><tr><th>Cliente / processo</th><th>Situação</th><th style="text-align:right">Valor da causa</th><th style="text-align:right">Obtido</th><th style="text-align:right">% da causa</th><th style="text-align:right">Honorários recebidos</th><th style="text-align:right">A receber</th><th style="text-align:right">Provisão</th></tr></thead>
+      <tbody>${lista.map((x) => `<tr>
+        <td><strong>${esc(x.client_name)}</strong> ${marcas(x)}<br><small style="color:var(--text-muted)">${esc(x.case_number)} · ${esc(x.title || '')}</small></td>
+        <td>${situacao(x)}</td>
+        <td style="text-align:right">${x.valor_causa ? money(x.valor_causa) : '—'}</td>
+        <td style="text-align:right">${x.valor_obtido != null ? money(x.valor_obtido) : '—'}</td>
+        <td style="text-align:right">${pct(x.pct_obtido)}</td>
+        <td style="text-align:right">${x.honorarios_recebidos ? money(x.honorarios_recebidos) : '—'}</td>
+        <td style="text-align:right">${x.honorarios_a_receber ? money(x.honorarios_a_receber) : '—'}</td>
+        <td style="text-align:right">${x.provisao != null ? money(x.provisao) : '—'}</td>
+      </tr>`).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text-muted)">Nenhum processo</td></tr>'}</tbody></table>`;
+  };
+  $('#res-filtro').onchange = render;
+  $('#res-busca').oninput = render;
+  $('#res-csv').onclick = () => {
+    const head = ['Cliente', 'Processo', 'Caso', 'Situação', 'Data do resultado', 'Parceria', 'Dativo', 'Defesa', 'Valor da causa', 'Obtido', '% da causa', 'Honorários recebidos', 'A receber', 'Provisão'];
+    const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const num = (v) => (v == null ? '' : String(v).replace('.', ','));
+    const linhas = filtrar().map((x) => [x.client_name, x.case_number, x.title, x.resultado ? (RESULTADO_LABEL[x.resultado] || x.resultado) : 'Em andamento', x.resultado_em ? fmtDate(x.resultado_em) : '', x.partner_name || '', x.dativo ? 'sim' : '', x.polo_cliente === 'passivo' ? 'sim' : '', num(x.valor_causa), num(x.valor_obtido), num(x.pct_obtido), num(x.honorarios_recebidos), num(x.honorarios_a_receber), num(x.provisao)].map(q).join(';'));
+    const blob = new Blob(['﻿' + [head.map(q).join(';'), ...linhas].join('\r\n')], { type: 'text/csv;charset=utf-8' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'resultado-por-processo.csv'; a.click(); URL.revokeObjectURL(a.href);
+  };
+  render();
 }
