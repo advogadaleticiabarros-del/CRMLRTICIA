@@ -157,6 +157,7 @@ A leitura tem duas camadas (`src/services/dadosPropostaConversa.ts`, testes em `
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | Lembrete de audiência ao cliente: trava por cliente + horário + marco (antes era por compromisso da agenda, e cópias da mesma audiência geravam 2 mensagens) |
 | 07/10/2026 | Claude | "Gerar proposta" passa a ler os dados da conversa também quando o contato já é lead (completa só o que está vazio, avisa divergências) e lê dados rotulados sem IA |
 | 02/10/2026 | Claude | Organizar números sem cadastro (triagem em lote com IA) |
 | 02/10/2026 | Claude | Alerta de proposta em análise também no quadro (Kanban) |

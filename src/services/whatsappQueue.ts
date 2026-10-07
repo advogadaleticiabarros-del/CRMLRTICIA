@@ -1,4 +1,5 @@
 import { db } from '../config/database';
+import { agruparAudiencias } from './audienciaUnica';
 
 /**
  * Fila de WhatsApp — o sistema PREPARA as mensagens (cobrança, audiência,
@@ -76,7 +77,7 @@ export async function generateWhatsappQueue(): Promise<number> {
 
   // ── Audiências: 30, 7 e 1 dia antes (cliente com telefone) ────────────────
   const [audiencias] = await db.query(`
-    SELECT ce.id, ce.start_datetime, ce.location, ce.video_link,
+    SELECT ce.id, ce.start_datetime, ce.location, ce.video_link, ce.case_id,
            DATEDIFF(DATE(ce.start_datetime), CURDATE()) AS dias,
            cl.id AS client_id, cl.name, cl.phone
       FROM calendar_events ce
@@ -85,7 +86,14 @@ export async function generateWhatsappQueue(): Promise<number> {
      WHERE ce.event_type = 'audiencia' AND cl.phone IS NOT NULL AND cl.phone <> ''
        AND DATE(ce.start_datetime) IN (DATE_ADD(CURDATE(), INTERVAL 30 DAY), DATE_ADD(CURDATE(), INTERVAL 7 DAY), DATE_ADD(CURDATE(), INTERVAL 1 DAY))`) as any;
 
-  for (const a of audiencias) {
+  // A mesma audiência pode estar na agenda de mais de um usuário (cópias do
+  // Google). Trava (07/10/2026): 1 lembrete por cliente + horário + marco,
+  // não por cópia. Também respeita as chaves antigas (aud_<id do evento>_Nd).
+  for (const g of agruparAudiencias(audiencias as any[])) {
+    const a: any = g.evento;
+    const antigas = g.ids.map((id) => `aud_${id}_${a.dias}d`);
+    const [[ja]] = await db.query('SELECT COUNT(*) AS n FROM whatsapp_queue WHERE ref_key IN (?)', [antigas]) as any;
+    if (Number(ja?.n)) continue;
     const primeiroNome = String(a.name || '').split(' ')[0];
     const online = !!(a.video_link && String(a.video_link).trim());
     const orient = online
@@ -95,7 +103,7 @@ export async function generateWhatsappQueue(): Promise<number> {
     const texto = `Olá, ${primeiroNome}! Lembrete importante: sua audiência será em ${fmtDataHora(a.start_datetime)} (${quando}). ${orient} Qualquer dúvida, me chame por aqui. — Advocacia Letícia Barros`;
     if (await enqueueWhatsapp({
       clientId: a.client_id, name: a.name, phone: a.phone, message: texto,
-      context: 'audiencia', refKey: `aud_${a.id}_${a.dias}d`,
+      context: 'audiencia', refKey: `aud_${g.chave}_${a.dias}d`,
     })) created++;
   }
 

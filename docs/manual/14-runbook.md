@@ -419,6 +419,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: lembrete de audiência enviado 2 vezes ao cliente
+
+**Sintoma (relato 07/10/2026):** a cliente Larissa recebeu às 07:15 e às 07:17 o mesmo "Lembrete importante: sua audiência será em 08/10, 13:00 (amanhã)".
+
+**Causa raiz:** a audiência estava na agenda de dois usuários (Administrador e Dra. Letícia), importada do Google para cada um (compromissos 694 e 772, mesmo `google_event_id`). A fila de WhatsApp travava repetição por **compromisso** (`aud_<id do evento>_1d`), então cada cópia gerou um lembrete. O aviso ao parceiro (portal) tinha a mesma falha. Em 07/10/2026 havia 34 audiências/compromissos futuros duplicados assim.
+
+**Correção:** as rotinas que falam com o cliente e com o parceiro agrupam as cópias por cliente (ou caso) + horário (`src/services/audienciaUnica.ts`). A trava passou a ser `aud_<cliente>_<horário>_<marco>`, e as chaves antigas por evento continuam valendo, para não reenviar o que já foi.
+
+**Como reconhecer de novo:** mensagem automática repetida minutos depois da primeira. Verifique `SELECT ref_key, created_at FROM whatsapp_queue ORDER BY id DESC LIMIT 20;` e se o compromisso aparece duplicado em `calendar_events` com o mesmo `google_event_id`.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -435,6 +447,7 @@ pm2 restart crm-juridico && pm2 save
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | +1 incidente: lembrete de audiência enviado 2 vezes (cópias da agenda por usuário) |
 | 07/10/2026 | Claude | +1 incidente: "Editar proposta" não abria para propostas "apenas êxito" |
 | 07/10/2026 | Claude | +1 incidente: proposta gerada sem os dados que a cliente mandou (lead já existente) |
 | 07/10/2026 | Claude | +1 incidente: backup travava em silêncio (3 horários perdidos em 30 dias sem aviso) |

@@ -45,10 +45,17 @@ Audiências do Dativo e de processos de correspondente **não são cadastradas d
 - [Dativo](05-dativo.md) — audiências dativas
 - [Repasses e parcerias](09-repasses.md) — audiências de correspondente
 
+## Audiência copiada na agenda de mais de um usuário (07/10/2026)
+
+A agenda é **por usuário**. Quando o Administrador e a Dra. Letícia estão ligados à mesma agenda Google, cada compromisso entra **uma vez para cada usuário** (mesmo `google_event_id`, `user_id` diferente). Isso é esperado: cada um vê a própria agenda.
+
+O que **não pode** é o cliente ou o parceiro receberem o aviso duas vezes. Por isso, toda mensagem para fora (lembrete de audiência ao cliente no WhatsApp, aviso de audiência ao parceiro) agrupa as cópias: **uma audiência = o mesmo cliente (ou caso) no mesmo horário**. Regra em `src/services/audienciaUnica.ts` (testes em `tests/audienciaUnica.test.mjs`).
+
 ## Changelog
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | Lembretes e avisos de audiência agrupam as cópias da mesma audiência (agenda de mais de um usuário) — cliente e parceiro recebem uma vez só |
 | 03/09/2026 | Claude | Criação do documento |
 | 01/10/2026 | Claude | Lembretes pessoais por WhatsApp vão só para o número da Jessica |
 | 30/09/2026 | Claude | Tipos Pessoal/Recado/Medicamento, repetição diária e aviso por WhatsApp na hora |

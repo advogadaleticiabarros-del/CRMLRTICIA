@@ -1,5 +1,6 @@
 import { db } from '../config/database';
 import { sendEmail, layout } from './EmailService';
+import { agruparAudiencias } from './audienciaUnica';
 
 /**
  * Alertas de AUDIÊNCIA para o PARCEIRO (portal do parceiro):
@@ -57,7 +58,9 @@ export async function sendPartnerHearingAlerts(): Promise<{ alerts: number; emai
   `) as any;
 
   let alerts = 0, emails = 0;
-  for (const ev of events) {
+  // Cópias da mesma audiência (agenda de mais de um usuário) contam uma vez só.
+  for (const grupo of agruparAudiencias(events.map((e: any) => ({ ...e, client_id: e.client_id ?? null }))) as any[]) {
+    const ev: any = grupo.evento;
     const tipo = `audiencia_parceria_${ev.dias}d`;
 
     // Usuários do portal deste parceiro
@@ -72,8 +75,8 @@ export async function sendPartnerHearingAlerts(): Promise<{ alerts: number; emai
     for (const u of users) {
       // Dedup: já alertado este evento/este marco para este usuário?
       const [[dup]] = await db.query(
-        'SELECT COUNT(*) AS n FROM notifications WHERE calendar_event_id = ? AND user_id = ? AND notification_type = ?',
-        [ev.id, u.id, tipo]
+        'SELECT COUNT(*) AS n FROM notifications WHERE calendar_event_id IN (?) AND user_id = ? AND notification_type = ?',
+        [grupo.ids, u.id, tipo]
       ) as any;
       if (Number(dup?.n)) continue;
 
