@@ -66,19 +66,11 @@ router.post('/:id/cases', async (req: Request, res: Response) => {
 
   // Cliente — dedup por nome (ou cria)
   let clientId: number;
-  const [found] = await db.query('SELECT id FROM clients WHERE LOWER(name) = LOWER(?) LIMIT 1', [nome]) as any;
-  if (found.length) {
-    clientId = found[0].id;
-    if (b.cpf || b.email || b.phone) {
-      await db.query('UPDATE clients SET cpf_cnpj = COALESCE(?, cpf_cnpj), email = COALESCE(?, email), phone = COALESCE(?, phone) WHERE id = ?',
-        [b.cpf || null, b.email || null, b.phone || null, clientId]);
-    }
-  } else {
-    const [ins] = await db.query(
-      "INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, status, notes, created_by) VALUES (?, 'PF', ?, ?, ?, 'ativo', ?, ?)",
-      [nome, b.cpf || null, b.email || null, b.phone || null, `Cliente indicado pela parceria ${partner.name}.`, req.user!.id]
-    ) as any;
-    clientId = ins.insertId;
+  // Uma pessoa = uma ficha (CPF, nome sem acento, telefone, e-mail); completa só o que falta.
+  {
+    const { encontrarOuCriarCliente } = await import('../services/fichaUnica');
+    clientId = (await encontrarOuCriarCliente({ nome, cpf: b.cpf || null, email: b.email || null, phone: b.phone || null,
+      notes: `Cliente indicado pela parceria ${partner.name}.`, createdBy: req.user!.id })).id;
   }
 
   // Casos — um por processo, já na esteira de produção (SLA conta a partir de agora)

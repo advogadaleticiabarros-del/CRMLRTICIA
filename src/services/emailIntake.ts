@@ -213,12 +213,10 @@ export async function confirmIntake(id: number, actorId: number, override?: Pars
       [parsed.cliente.cpf || null, parsed.cliente.email || null, parsed.cliente.telefone || null, clientId]
     );
   } else {
-    const [ins] = await db.query(
-      "INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, status, notes, created_by) VALUES (?, 'PF', ?, ?, ?, 'ativo', ?, ?)",
-      [nome, parsed.cliente.cpf || null, parsed.cliente.email || null, parsed.cliente.telefone || null,
-       `Cliente indicado pela parceria ${partner?.name || ''} (importado do e-mail).`, actorId]
-    ) as any;
-    clientId = ins.insertId;
+    // Uma pessoa = uma ficha (CPF, nome sem acento, telefone, e-mail).
+    const { encontrarOuCriarCliente } = await import('./fichaUnica');
+    clientId = (await encontrarOuCriarCliente({ nome, cpf: parsed.cliente.cpf || null, email: parsed.cliente.email || null,
+      phone: parsed.cliente.telefone || null, notes: `Cliente indicado pela parceria ${partner?.name || ''} (importado do e-mail).`, createdBy: actorId })).id;
   }
 
   // Casos — um por demanda, título distinto, anti-duplicação por título.

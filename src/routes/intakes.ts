@@ -197,11 +197,11 @@ router.post('/:id/convert-client', async (req: Request, res: Response) => {
     return;
   }
 
-  const [result] = await db.query(
-    `INSERT INTO clients (name, tipo, email, phone, status, created_by, notes)
-     VALUES (?, ?, ?, ?, 'ativo', ?, ?)`,
-    [intake.contact_name, tipo === 'PJ' ? 'PJ' : 'PF', intake.email, intake.phone, intake.user_id, intake.report]
-  ) as any;
+  // Uma pessoa = uma ficha: se já é cliente, liga o atendimento à mesma ficha.
+  const { encontrarOuCriarCliente } = await import('../services/fichaUnica');
+  const fic = await encontrarOuCriarCliente({ nome: intake.contact_name, tipo: tipo === 'PJ' ? 'PJ' : 'PF',
+    email: intake.email, phone: intake.phone, notes: intake.report, createdBy: intake.user_id });
+  const result = { insertId: fic.id };
 
   await db.query("UPDATE intakes SET client_id = ?, status = 'convertido' WHERE id = ?", [result.insertId, id]);
 

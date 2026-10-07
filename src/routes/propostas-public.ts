@@ -137,20 +137,10 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
   // 1) Garante o cliente (parte representada) — sem duplicar (dedup por nome)
   let clientId: number | null = p.client_id ?? null;
   if (!clientId && nome) {
-    const [found] = await db.query('SELECT id FROM clients WHERE LOWER(name) = LOWER(?) LIMIT 1', [nome]) as any;
-    if (found.length) {
-      clientId = found[0].id;
-      // completa dados que estiverem vazios
-      await db.query(
-        `UPDATE clients SET cpf_cnpj = COALESCE(cpf_cnpj, ?), phone = COALESCE(phone, ?), email = COALESCE(email, ?), address = COALESCE(address, ?) WHERE id = ?`,
-        [cpf, phone, email, endereco, clientId]
-      );
-    } else {
-      const [ins] = await db.query(
-        "INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, address, status, notes, created_by) VALUES (?, 'PF', ?, ?, ?, ?, 'ativo', 'Cliente da proposta aceita.', ?)",
-        [nome, cpf, email, phone, endereco, p.user_id]
-      ) as any;
-      clientId = ins.insertId;
+    {
+      // Uma pessoa = uma ficha (CPF, nome sem acento, telefone, e-mail); completa só o que falta.
+      const { encontrarOuCriarCliente } = await import('../services/fichaUnica');
+      clientId = (await encontrarOuCriarCliente({ nome, cpf, email, phone, address: endereco, notes: 'Cliente da proposta aceita.', createdBy: p.user_id })).id;
     }
     await db.query('UPDATE propostas SET client_id = ? WHERE id = ?', [clientId, p.id]);
   }

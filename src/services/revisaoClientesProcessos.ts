@@ -40,14 +40,10 @@ export async function trocarCliente(processId: number, nome: string, userId: num
   if (!nm) throw new Error('Informe o nome do cliente');
   const [[lp]] = await db.query('SELECT client_id, case_id FROM legal_processes WHERE id = ?', [processId]) as any;
   if (!lp) throw new Error('Processo não encontrado');
-  const [[existente]] = await db.query('SELECT id FROM clients WHERE LOWER(name) = LOWER(?) LIMIT 1', [nm]) as any;
-  let novoId = existente?.id;
-  if (!novoId) {
-    const [ins] = await db.query(
-      "INSERT INTO clients (name, tipo, status, notes, created_by) VALUES (?, ?, 'ativo', 'Cadastrado na conferência de cliente do processo (parte contrária estava como cliente).', ?)",
-      [nm, isCompanyName(nm) ? 'PJ' : 'PF', userId]) as any;
-    novoId = ins.insertId;
-  }
+  // Uma pessoa = uma ficha (nome sem acento/maiúscula, CPF…).
+  const { encontrarOuCriarCliente } = await import('./fichaUnica');
+  const novoId = (await encontrarOuCriarCliente({ nome: nm, tipo: isCompanyName(nm) ? 'PJ' : 'PF',
+    notes: 'Cadastrado na conferência de cliente do processo (parte contrária estava como cliente).', createdBy: userId })).id;
   const antigo = lp.client_id;
   await db.query('UPDATE legal_processes SET client_id = ?, cliente_conferido = 1 WHERE id = ?', [novoId, processId]);
   if (lp.case_id && antigo) await db.query('UPDATE cases SET client_id = ? WHERE id = ? AND client_id = ?', [novoId, lp.case_id, antigo]);

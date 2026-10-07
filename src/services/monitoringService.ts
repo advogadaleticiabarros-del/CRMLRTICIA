@@ -571,14 +571,13 @@ export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublicatio
   const ensureClient = async (name: string, tipo: 'PF' | 'PJ'): Promise<number | null> => {
     const nm = (name || '').trim();
     if (!nm) return null;
-    const [found] = await db.query('SELECT id FROM clients WHERE LOWER(name) = LOWER(?) LIMIT 1', [nm]) as any;
-    if (found.length) return found[0].id;
-    const [ins] = await db.query(
-      "INSERT INTO clients (name, tipo, status, notes, created_by) VALUES (?, ?, 'ativo', 'Cadastrado automaticamente a partir do DJEN/OAB.', ?)",
-      [nm, tipo, createdBy]
-    ) as any;
-    clientesNovos++;
-    return ins.insertId;
+    // Uma pessoa = uma ficha (fichaUnica): reaproveita a existente; publicação
+    // com várias partes juntas num nome só não vira ficha "misturada".
+    const { encontrarOuCriarCliente, ehVariasPessoas } = await import('./fichaUnica');
+    if (ehVariasPessoas(nm)) return null;
+    const r = await encontrarOuCriarCliente({ nome: nm, tipo, notes: 'Cadastrado automaticamente a partir do DJEN/OAB.', createdBy });
+    if (r.criado) clientesNovos++;
+    return r.id;
   };
 
   let novos = 0;

@@ -290,13 +290,10 @@ router.post('/cases', async (req: Request, res: Response) => {
     await db.query('UPDATE clients SET is_dative = 1 WHERE id = ?', [client_id]);
     clientId = Number(client_id);
   } else {
-    const [newClient] = await db.query(
-      `INSERT INTO clients (name, tipo, cpf_cnpj, phone, email, status, is_dative, created_by, notes)
-       VALUES (?, 'PF', ?, ?, ?, 'ativo', 1, ?, ?)`,
-      [assisted_name.trim(), client_cpf ?? null, client_phone ?? null, client_email ?? null, req.user!.id,
-       `Cliente cadastrado via demanda dativa — ${comarca.trim()}`]
-    ) as any;
-    clientId = newClient.insertId;
+    // Uma pessoa = uma ficha: assistido que já tem ficha usa a mesma (marcada DATIVO).
+    const { encontrarOuCriarCliente } = await import('../services/fichaUnica');
+    clientId = (await encontrarOuCriarCliente({ nome: assisted_name.trim(), cpf: client_cpf ?? null, phone: client_phone ?? null,
+      email: client_email ?? null, isDative: true, createdBy: req.user!.id, notes: `Cliente cadastrado via demanda dativa — ${comarca.trim()}` })).id;
   }
 
   const [result] = await db.query(

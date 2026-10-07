@@ -32,11 +32,10 @@ export async function onContractSigned(contractId: number, actorId: number, acto
     const nome = ov.nome || lead?.name;
     if (nome) {
       const endereco = ov.endereco || (lead ? montarEndereco(lead) : null);
-      const [ins] = await db.query(
-        "INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, address, status, notes, created_by) VALUES (?, 'PF', ?, ?, ?, ?, 'ativo', 'Cadastrado ao confirmar a assinatura do contrato.', ?)",
-        [nome, ov.cpf || lead?.cpf_cnpj || null, ov.email || lead?.email || null, lead?.phone || null, endereco, ct.user_id]
-      ) as any;
-      ct.client_id = ins.insertId;
+      // Uma pessoa = uma ficha: quem já é cliente (outro processo) continua na mesma ficha.
+      const { encontrarOuCriarCliente } = await import('./fichaUnica');
+      ct.client_id = (await encontrarOuCriarCliente({ nome, cpf: ov.cpf || lead?.cpf_cnpj || null, email: ov.email || lead?.email || null,
+        phone: lead?.phone || null, address: endereco, notes: 'Cadastrado ao confirmar a assinatura do contrato.', createdBy: ct.user_id })).id;
       await db.query('UPDATE contracts SET client_id = ? WHERE id = ?', [ct.client_id, contractId]);
       if (ct.lead_id) await db.query('UPDATE leads SET client_id = COALESCE(client_id, ?) WHERE id = ?', [ct.client_id, ct.lead_id]);
     }

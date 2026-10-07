@@ -25,7 +25,8 @@ function rotaConvertClient() {
 
 test('convert-client copia CPF/CNPJ do lead pro cliente', () => {
   const bloco = rotaConvertClient();
-  assert.match(bloco, /INSERT INTO clients[\s\S]*?cpf_cnpj/, 'INSERT em clients deveria incluir cpf_cnpj');
+  // Desde 07/10/2026 a ficha é criada/reaproveitada por fichaUnica.encontrarOuCriarCliente (uma pessoa = uma ficha).
+  assert.match(bloco, /encontrarOuCriarCliente\(\{[\s\S]*?cpf: lead\.cpf_cnpj/, 'deveria passar o CPF do lead para a ficha única');
   assert.match(bloco, /lead\.cpf_cnpj/, 'deveria ler cpf_cnpj do lead');
 });
 

@@ -380,11 +380,11 @@ router.post('/:id/convert-client', async (req: Request, res: Response) => {
   // pelo client_id (ver GET /:id/ficha em clients.ts), e o UPDATE logo
   // abaixo já grava esse vínculo.
   const endereco = montarEndereco(lead);
-  const [result] = await db.query(
-    `INSERT INTO clients (name, tipo, cpf_cnpj, email, phone, address, status, created_by, notes)
-     VALUES (?, ?, ?, ?, ?, ?, 'ativo', ?, ?)`,
-    [lead.name, tipo === 'PJ' ? 'PJ' : 'PF', lead.cpf_cnpj || null, lead.email, lead.phone, endereco, lead.user_id, lead.notes]
-  ) as any;
+  // Uma pessoa = uma ficha: se já é cliente (outro processo), liga o lead à mesma ficha.
+  const { encontrarOuCriarCliente } = await import('../services/fichaUnica');
+  const fic = await encontrarOuCriarCliente({ nome: lead.name, tipo: tipo === 'PJ' ? 'PJ' : 'PF', cpf: lead.cpf_cnpj || null,
+    email: lead.email, phone: lead.phone, address: endereco, notes: lead.notes, createdBy: lead.user_id });
+  const result = { insertId: fic.id };
 
   await db.query(
     "UPDATE leads SET client_id = ?, status = 'convertido' WHERE id = ?",

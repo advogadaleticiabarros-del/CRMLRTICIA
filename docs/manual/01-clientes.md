@@ -96,6 +96,20 @@ API: `GET/PUT /api/clients/:id/senha-inss`. `GET /api/clients/:id` só informa `
 
 **Não escreva senhas na descrição do caso nem nas observações**: esses textos aparecem em vários lugares. Use sempre este campo.
 
+## Uma pessoa = uma ficha (desde 07/10/2026)
+
+Regra da Dra. Letícia: **cada pessoa tem uma ficha só**. Se tem mais de um processo, os processos ficam na mesma ficha.
+
+Toda rotina que cria cliente usa `encontrarOuCriarCliente` (`src/services/fichaUnica.ts`): publicações (DJEN), e-mail de parceria, dativo, cadastro pelo parceiro, proposta aceita, contrato assinado, lead convertido, atendimento convertido e conferência de cliente do processo. Antes de criar, procura a ficha existente:
+1. mesmo CPF/CNPJ;
+2. mesmo nome, ignorando acento, maiúscula e pontuação (se o CPF não diverge);
+3. mesmo telefone (8 últimos dígitos) e mesmo primeiro nome;
+4. mesmo e-mail.
+
+Se achar, usa a mesma ficha e só completa o que estiver vazio. Nome com **várias pessoas juntas** ("FULANA; BELTRANA", "FULANO e CICLANA") não vira ficha. `unirFichas(de, para)` junta duas fichas: move processos, casos, financeiro, documentos e conversas, completa os campos vazios e registra a união nas observações. Testes em `tests/fichaUnica.test.mjs`.
+
+O cadastro manual (botão "+ Novo cliente") continua com o aviso de possível duplicata na tela.
+
 ## FAQ
 
 **Se eu cadastrar o mesmo CPF duas vezes, o sistema bloqueia?** Não bloqueia — a checagem de conflito de interesses é um aviso, mostrado antes de salvar, mas a decisão final é sua.
@@ -115,6 +129,7 @@ API: `GET/PUT /api/clients/:id/senha-inss`. `GET /api/clients/:id` só informa `
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | Uma pessoa = uma ficha: todas as rotinas automáticas reaproveitam a ficha existente (CPF, nome sem acento, telefone, e-mail) |
 | 07/10/2026 | Claude | Campo protegido "Senha do Meu INSS" na ficha (tabela própria, só admin/advogado/equipe, leitura registrada); senhas tiradas das descrições de casos |
 | 30/09/2026 | Claude | Portal como hub: assinatura, checklist com envio, agendamento e mensagens dentro do portal |
 | 03/09/2026 | Claude | Criação do documento |
