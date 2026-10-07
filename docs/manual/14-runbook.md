@@ -395,6 +395,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: proposta gerada sem os dados que a cliente mandou
+
+**Sintoma (relato 07/10/2026, urgente):** a cliente (Mailza) respondeu com nome, CPF, e-mail e endereço, mas ao clicar **Gerar proposta** os dados não vieram.
+
+**Causa raiz:** ela já era lead (etapa "triagem"). A leitura automática só roda para leads em "Documentação pendente", e o botão só lia a conversa quando o número ainda não era lead — com lead existente, abria a proposta só com o que já estava na ficha.
+
+**Correção:** o botão sempre lê a conversa e completa os campos vazios do lead (nunca sobrescreve; divergências viram aviso). Dados rotulados ("CPF: …") são lidos sem IA, então funcionam mesmo se a IA falhar.
+
+**Como reconhecer de novo:** proposta aberta pela conversa sem CPF/e-mail que estão escritos nas mensagens do contato. Veja `POST /api/whatsapp-instance/chats/:phone/lead-para-proposta`.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -411,6 +423,7 @@ pm2 restart crm-juridico && pm2 save
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | +1 incidente: proposta gerada sem os dados que a cliente mandou (lead já existente) |
 | 07/10/2026 | Claude | +1 incidente: backup travava em silêncio (3 horários perdidos em 30 dias sem aviso) |
 | 07/10/2026 | Claude | +1 incidente: balão do WhatsApp abria o Dashboard (e links com parâmetro caíam na tela inicial) |
 | 07/10/2026 | Claude | +1 incidente: botão do WhatsApp fora da tela no celular |

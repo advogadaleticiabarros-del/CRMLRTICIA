@@ -1006,14 +1006,15 @@ Object.assign(ROUTES, {
         if (gp && !cx.client) gp.onclick = async () => {
           gp.disabled = true; const txtGp = gp.innerHTML;
           try {
-            let leadId = cx.lead?.id;
-            if (!leadId) {
-              // Ainda não é lead: cadastra na hora com os dados da conversa.
-              gp.textContent = 'Lendo os dados da conversa…';
-              const r = await api(`/api/whatsapp-instance/chats/${ativo.phone}/lead-para-proposta`, { method: 'POST', body: '{}' });
-              leadId = r.id;
-              if (r.criado) toast(r.dados_lidos ? 'Lead cadastrado com os dados da conversa — confira na proposta' : 'Lead cadastrado — preencha os dados na proposta');
-            }
+            // Sempre lê o que o contato escreveu: cadastra o lead, ou completa o
+            // lead que já existe (antes, lead existente abria a proposta em branco).
+            gp.textContent = 'Lendo os dados da conversa…';
+            const r = await api(`/api/whatsapp-instance/chats/${ativo.phone}/lead-para-proposta`, { method: 'POST', body: '{}' });
+            const leadId = r.id;
+            const NOMES = { cpf_cnpj: 'CPF', email: 'e-mail', cep: 'CEP', street: 'rua', number: 'número', neighborhood: 'bairro', city: 'cidade', state: 'UF', marital_status: 'estado civil', profession: 'profissão' };
+            if (r.criado) toast(r.dados_lidos ? 'Lead cadastrado com os dados da conversa — confira na proposta' : 'Lead cadastrado — preencha os dados na proposta');
+            else if (r.preenchidos?.length) toast(`Dados da conversa adicionados: ${r.preenchidos.map((c) => NOMES[c] || c).join(', ')}`);
+            if (r.divergencias?.length) toast(`Confira: ${r.divergencias.map((d) => `${NOMES[d.campo] || d.campo} na ficha "${d.ficha}", na conversa "${d.conversa}"`).join('; ')}`, 'error');
             const leadCompleto = await api('/api/leads/' + leadId);
             propostaForm(() => {}, leadCompleto);
             if (!cx.lead) renderContexto();

@@ -145,10 +145,19 @@ Alguns eventos disparam mensagem automática pro **contato** (não pro escritór
 - [Monitoramento automático](10-monitoramento.md) — avisos que chegam por aqui
 - [Processos e prazos](04-processos.md) — avisos de marco processual
 
+## "Gerar proposta" lê os dados da conversa (desde 07/10/2026)
+
+Ao clicar **Gerar proposta** na conversa, o CRM sempre lê o que o contato escreveu (as últimas 30 mensagens dele):
+- **ainda não é lead** → cadastra o lead com esses dados;
+- **já é lead** (qualquer etapa) → completa só os campos vazios do lead: CPF, e-mail, CEP, rua, número, bairro, cidade, UF, estado civil, profissão. O que já está na ficha nunca é trocado; se a conversa traz um CPF, e-mail, número ou CEP diferente, aparece o aviso "Confira: … na ficha X, na conversa Y".
+
+A leitura tem duas camadas (`src/services/dadosPropostaConversa.ts`, testes em `tests/dadosPropostaConversa.test.mjs`): primeiro os dados rotulados ou inconfundíveis ("Nome completo:", "CPF:", e-mail, CEP), que não dependem de IA; depois a IA completa o resto. O que veio rotulado vence a IA.
+
 ## Changelog
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | "Gerar proposta" passa a ler os dados da conversa também quando o contato já é lead (completa só o que está vazio, avisa divergências) e lê dados rotulados sem IA |
 | 02/10/2026 | Claude | Organizar números sem cadastro (triagem em lote com IA) |
 | 02/10/2026 | Claude | Alerta de proposta em análise também no quadro (Kanban) |
 | 01/10/2026 | Claude | Monitoramento do link da proposta: tempo de leitura, reaberturas, % lido, aparelho e aviso no sino a cada abertura |

@@ -487,20 +487,18 @@ router.post('/chats/:phone/block', async (req: Request, res: Response) => {
   res.json({ success: true, blocked: block });
 });
 
-// ── POST /chats/:phone/lead-para-proposta — "Gerar proposta" num número que
-// ainda não é lead nem cliente (relato real 01/10/2026: a cliente mandou os
-// dados, mas os botões ficavam desativados porque ninguém tinha cadastrado o
-// lead). Cadastra o lead na hora e preenche com os dados que o contato mandou
-// por escrito na conversa (nome, CPF, e-mail, endereço) — só o que estiver
-// lá, sem inventar. Se já for lead, devolve o existente.
+// ── POST /chats/:phone/lead-para-proposta — "Gerar proposta" na conversa.
+// Lê o que o contato ESCREVEU na conversa (nome, CPF, e-mail, endereço,
+// estado civil, profissão) e: se ainda não é lead, cadastra; se JÁ é lead,
+// completa os campos vazios (07/10/2026: lead em "triagem" mandou os dados e a
+// proposta saiu em branco — antes só lia a conversa quando não havia lead).
+// Nunca sobrescreve o que já está na ficha; o que diverge volta como aviso.
 router.post('/chats/:phone/lead-para-proposta', async (req: Request, res: Response) => {
   const phone = String(req.params.phone).replace(/\D/g, '');
   const tail = `%${phone.slice(-8)}`;
   const semMascara = "REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', '')";
   const [[cl]] = await db.query(`SELECT id FROM clients WHERE ${semMascara} LIKE ? LIMIT 1`, [tail]) as any;
   if (cl) { res.status(400).json({ error: 'Este número já é cliente — use a proposta pela ficha do cliente.' }); return; }
-  const [[existente]] = await db.query(`SELECT id FROM leads WHERE ${semMascara} LIKE ? ORDER BY id DESC LIMIT 1`, [tail]) as any;
-  if (existente) { res.json({ id: existente.id, criado: false }); return; }
 
   const [msgs] = await db.query(
     `SELECT body FROM whatsapp_messages WHERE phone = ? AND from_me = 0 AND body IS NOT NULL AND body <> ''
@@ -508,27 +506,41 @@ router.post('/chats/:phone/lead-para-proposta', async (req: Request, res: Respon
   const texto = msgs.map((m: any) => m.body).reverse().join('\n').slice(0, 6000);
   const [[meta]] = await db.query('SELECT push_name FROM whatsapp_chat_meta WHERE phone = ?', [phone]).catch(() => [[null]]) as any;
 
-  let j: any = {};
+  const { lerDadosRotulados, juntarDados, camposParaPreencher } = await import('../services/dadosPropostaConversa');
+  let ia: any = {};
   if (texto) {
     const { aiComplete } = await import('../services/aiAssistant');
     const r = await aiComplete(`Leia as mensagens que um contato mandou a um escritório de advocacia pelo WhatsApp e devolva APENAS um JSON válido com o que estiver escrito (deixe "" quando não houver — não invente nada):
-{"nome_completo": "", "cpf": "", "email": "", "cep": "", "street": "", "number": "", "neighborhood": "", "city": "", "state": ""}
-"street" é só o nome da rua; "number" o número; "state" a sigla da UF se identificável.
+{"nome_completo": "", "cpf": "", "email": "", "cep": "", "street": "", "number": "", "neighborhood": "", "city": "", "state": "", "marital_status": "solteiro|casado|divorciado|viuvo|uniao_estavel|outro ou vazio", "profession": ""}
+"street" é só o nome da rua (com complemento, se houver); "number" o número; "state" a sigla da UF se identificável.
 
 MENSAGENS:
 ${texto}`, 'groq').catch(() => ({ ok: false } as any));
     if (r.ok && r.text) {
-      try { const c = String(r.text).replace(/```json|```/g, ''); j = JSON.parse(c.slice(c.indexOf('{'), c.lastIndexOf('}') + 1)); } catch { j = {}; }
+      try { const c = String(r.text).replace(/```json|```/g, ''); ia = JSON.parse(c.slice(c.indexOf('{'), c.lastIndexOf('}') + 1)); } catch { ia = {}; }
     }
   }
+  const dados = juntarDados(lerDadosRotulados(texto), ia);
   const s = (v: any, n = 255) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, n) : null);
-  const nome = s(j.nome_completo) || s(meta?.push_name?.replace(/^~\s*/, '')) || `WhatsApp ${phone.slice(-4)}`;
+
+  const [[existente]] = await db.query(`SELECT * FROM leads WHERE ${semMascara} LIKE ? ORDER BY id DESC LIMIT 1`, [tail]) as any;
+  if (existente) {
+    const { preencher, divergencias } = camposParaPreencher(existente, dados);
+    const cols = Object.keys(preencher);
+    if (cols.length) {
+      await db.query(`UPDATE leads SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`, [...cols.map((c) => preencher[c]), existente.id]);
+    }
+    res.json({ id: existente.id, criado: false, preenchidos: cols, divergencias });
+    return;
+  }
+
+  const nome = s(dados.nome_completo) || s(meta?.push_name?.replace(/^~\s*/, '')) || `WhatsApp ${phone.slice(-4)}`;
   const [ins] = await db.query(
-    `INSERT INTO leads (user_id, name, email, phone, source, status, cpf_cnpj, cep, street, number, neighborhood, city, state)
-     VALUES (?, ?, ?, ?, 'whatsapp', 'triagem', ?, ?, ?, ?, ?, ?, ?)`,
-    [(req as any).user.id, nome, s(j.email), phone, s(j.cpf, 20), s(j.cep, 12), s(j.street), s(j.number, 20),
-     s(j.neighborhood), s(j.city), s(j.state, 2)?.toUpperCase() || null]) as any;
-  res.status(201).json({ id: ins.insertId, criado: true, dados_lidos: Object.values(j).some((v) => s(v)) });
+    `INSERT INTO leads (user_id, name, email, phone, source, status, cpf_cnpj, cep, street, number, neighborhood, city, state, marital_status, profession)
+     VALUES (?, ?, ?, ?, 'whatsapp', 'triagem', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [(req as any).user.id, nome, s(dados.email), phone, s(dados.cpf, 20), s(dados.cep, 12), s(dados.street || dados.endereco), s(dados.number, 20),
+     s(dados.neighborhood), s(dados.city), s(dados.state, 2)?.toUpperCase() || null, s(dados.marital_status, 30), s(dados.profession)]) as any;
+  res.status(201).json({ id: ins.insertId, criado: true, dados_lidos: Object.values(dados).some((v) => s(v)) });
 });
 
 // ── GET /chats/:phone/proposta — proposta mais recente deste contato ────────
