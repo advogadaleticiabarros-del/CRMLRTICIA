@@ -714,7 +714,251 @@ ${p.nome}
 CONTRATANTE`;
 }
 
+const UNID = ['', 'um', 'dois', 'três', 'quatro', 'cinco', 'seis', 'sete', 'oito', 'nove', 'dez', 'onze', 'doze', 'treze', 'quatorze', 'quinze', 'dezesseis', 'dezessete', 'dezoito', 'dezenove'];
+const DEZ = ['', '', 'vinte', 'trinta', 'quarenta', 'cinquenta', 'sessenta', 'setenta', 'oitenta', 'noventa'];
+const CEM = ['', 'cento', 'duzentos', 'trezentos', 'quatrocentos', 'quinhentos', 'seiscentos', 'setecentos', 'oitocentos', 'novecentos'];
+
+/** 0..999 por extenso ("cem", "cento e um", "duzentos e cinquenta"). */
+function ate999(n: number): string {
+  if (n === 100) return 'cem';
+  const c = Math.floor(n / 100); const r = n % 100;
+  const dz = r < 20 ? UNID[r] : DEZ[Math.floor(r / 10)] + (r % 10 ? ' e ' + UNID[r % 10] : '');
+  return [CEM[c], dz].filter(Boolean).join(' e ');
+}
+
+/** Valor em reais por extenso, para cláusulas de honorários ("duzentos e cinquenta reais"). */
+export function reaisPorExtenso(valor: number): string {
+  const total = Math.round((Number(valor) || 0) * 100);
+  const inteiro = Math.floor(total / 100); const cent = total % 100;
+  const grupos: string[] = [];
+  const mi = Math.floor(inteiro / 1e6); const mil = Math.floor((inteiro % 1e6) / 1000); const un = inteiro % 1000;
+  if (mi) grupos.push(mi === 1 ? 'um milhão' : `${ate999(mi)} milhões`);
+  if (mil) grupos.push(mil === 1 ? 'mil' : `${ate999(mil)} mil`);
+  if (un) grupos.push(ate999(un));
+  let reais = '';
+  if (grupos.length) {
+    // "e" antes do último grupo quando ele é < 100 ou centena redonda; senão vírgula
+    const ultimo = grupos.length > 1 ? (un && (un < 100 || un % 100 === 0) ? ' e ' : ', ') : '';
+    reais = grupos.length > 1 ? grupos.slice(0, -1).join(', ') + ultimo + grupos[grupos.length - 1] : grupos[0];
+    const soMilhao = mi && !mil && !un;
+    reais += soMilhao ? ' de reais' : inteiro === 1 ? ' real' : ' reais';
+  }
+  const centavos = cent ? `${ate999(cent)} ${cent === 1 ? 'centavo' : 'centavos'}` : '';
+  return [reais, centavos].filter(Boolean).join(' e ') || 'zero reais';
+}
+
+/**
+ * Minuta padrão da área trabalhista (desde 07/10/2026 — "esse será nosso novo
+ * contrato"): Reclamação Trabalhista limitada ao 1º grau até a sentença,
+ * honorários iniciais + êxito sobre o proveito econômico bruto, 2% de cálculos,
+ * sucumbência sem abatimento, retenção com prestação de contas, R$ 100 de
+ * ressarcimento por falta injustificada (sem multa sobre o valor da causa) e
+ * acordo direto sem vedação, mas sem prejuízo dos honorários. Só mudam dados
+ * da cliente e valores. Entrada não paga é descontada ao final do processo.
+ */
+export function buildTemplateTrabalhista(opts: { party?: PartyData; clientName?: string; value?: number; formaPagamento?: string; exitoPct?: number; honorarios?: any; tipoCausa?: string; descricao?: string; contratada?: ContratadaInfo }): string {
+  const money = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const p = f(opts.party || { name: opts.clientName });
+  const adv = opts.contratada || ADVOGADA;
+  const h = opts.honorarios || {};
+  const m: string[] = Array.isArray(h.modalidades) ? h.modalidades : [];
+  const v = h.values || {};
+  const parc = h.parcelamento;
+
+  // Honorários iniciais: parcelamento da proposta > valor do contrato > entrada/fixo > padrão R$ 250
+  let inicial = 250; let forma = '';
+  if (parc && Number(parc.total) > 0) { inicial = Number(parc.total); forma = formaPagamentoTexto(parc, h); }
+  else if (Number(opts.value) > 0) { inicial = Number(opts.value); forma = (opts.formaPagamento || '').trim(); }
+  else if (Number(v.fixo) || Number(v.entrada)) inicial = (Number(v.entrada) || 0) + (Number(v.fixo) || 0);
+  const exito = (m.includes('exito') && Number(v.exito)) ? Number(v.exito) : (Number(opts.exitoPct) || 30);
+  const calc = taxaCalculosPct(h) || 2;
+  const calcExt = ['', 'um', 'dois', 'três', 'quatro', 'cinco'][calc];
+  const espec = (opts.tipoCausa && opts.tipoCausa.trim())
+    ? ` Especificamente, ${opts.tipoCausa.trim()}${opts.descricao && opts.descricao.trim() ? `: ${opts.descricao.trim()}` : ''}.`
+    : '';
+  const formaPag = forma
+    ? `serão pagos da seguinte forma: ${forma}`
+    : 'serão pagos preferencialmente na assinatura deste contrato, por PIX, transferência bancária ou outro meio expressamente aceito pela CONTRATADA';
+  const oab = adv.oab.replace(' sob o nº ', ' ');
+
+  return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS
+
+CONTRATANTE: ${qualificacao(p)}.
+
+CONTRATADA: ${contratadaBloco(adv)}.
+
+As partes acima identificadas têm entre si justo e contratado o presente **Contrato de Prestação de Serviços Advocatícios**, que se regerá pelas cláusulas e condições seguintes:
+
+CLÁUSULA PRIMEIRA - DO OBJETO E DA EXTENSÃO DOS SERVIÇOS
+**1.1.** O presente contrato tem por objeto a prestação de serviços advocatícios pela CONTRATADA em favor da CONTRATANTE, para análise, elaboração, ajuizamento, acompanhamento e patrocínio de **Reclamação Trabalhista**, perante a Justiça do Trabalho competente.${espec}
+**1.2.** Os serviços contratados compreendem, dentro do primeiro grau de jurisdição:
+a) análise das informações e documentos fornecidos pela CONTRATANTE;
+b) orientação jurídica relacionada aos fatos apresentados;
+c) elaboração e protocolo da Reclamação Trabalhista e demais manifestações ordinárias necessárias ao desenvolvimento da demanda;
+d) acompanhamento processual;
+e) participação em audiência(s) para as quais seja necessária a atuação da CONTRATADA;
+f) manifestação sobre documentos, defesa e demais atos processuais ordinários;
+g) elaboração das manifestações necessárias até a prolação da sentença;
+h) orientação da CONTRATANTE quanto às principais etapas processuais e decisões relevantes.
+**1.3.** A atuação contratada limita-se ao **primeiro grau de jurisdição até a prolação da sentença**, não abrangendo, salvo contratação posterior por escrito, a interposição ou acompanhamento de recursos, contrarrazões em segundo grau, sustentação oral, atuação perante o Tribunal Regional do Trabalho, Tribunal Superior do Trabalho, Supremo Tribunal Federal ou Superior Tribunal de Justiça, ação rescisória, liquidação de sentença, cumprimento de sentença, execução, embargos à execução, agravo de petição, incidentes processuais extraordinários ou medidas autônomas.
+**1.4.** Caso, no curso da demanda, seja necessária atuação além dos limites previstos nesta cláusula, os serviços adicionais dependerão de novo ajuste de honorários, mediante aditivo contratual ou contratação específica.
+**1.5.** A eventual celebração de acordo judicial ou extrajudicial no curso da demanda não altera a natureza da contratação nem reduz os honorários contratados, observadas as disposições deste instrumento.
+
+CLÁUSULA SEGUNDA - DOS HONORÁRIOS CONTRATUAIS E DE ÊXITO
+**2.1.** Pelos serviços descritos na Cláusula Primeira, a CONTRATANTE pagará à CONTRATADA:
+**I - Honorários iniciais:** ${money(inicial)} (${reaisPorExtenso(inicial)});
+**II - Honorários de êxito:** ${exito}% (${extensoPct(exito)}) sobre o proveito econômico bruto obtido pela CONTRATANTE em decorrência da atuação profissional, seja por acordo, sentença, pagamento espontâneo, depósito judicial, alvará, requisição de pagamento ou qualquer outra forma de satisfação dos direitos reconhecidos na demanda.
+**2.2.** O percentual de êxito incidirá sobre o valor bruto que a CONTRATANTE tiver direito a receber em razão da demanda, antes de eventuais descontos de natureza tributária, previdenciária, custas, despesas processuais ou outros encargos incidentes sobre o crédito.
+**2.3.** Para fins de cálculo dos honorários de êxito, serão considerados todos os valores decorrentes dos pedidos objeto da atuação profissional, inclusive aqueles pagos em razão de acordo celebrado durante ou após o processo, desde que decorrentes da demanda patrocinada pela CONTRATADA.
+**2.4.** Os honorários de sucumbência eventualmente fixados judicialmente em favor da CONTRATADA pertencem exclusivamente à advogada e **não serão compensados ou abatidos dos honorários contratuais ou de êxito**, salvo ajuste escrito posterior em sentido diverso.
+**2.5.** O pagamento dos honorários contratuais e de êxito independe do recebimento de honorários de sucumbência.
+**2.6.** A CONTRATANTE autoriza expressamente a CONTRATADA, quando receber valores pertencentes à CONTRATANTE em razão da demanda, a efetuar a retenção dos honorários contratuais e de êxito devidos, desde que previamente discriminados na respectiva prestação de contas, com repasse do saldo remanescente à CONTRATANTE.
+**2.7.** A autorização prevista no item anterior constitui autorização expressa para compensação dos honorários contratados com valores recebidos pela CONTRATADA em nome da CONTRATANTE, na forma permitida pela legislação e pelas normas éticas da advocacia.
+**2.8.** Os honorários de êxito serão devidos ainda que a demanda seja encerrada por acordo, transação, reconhecimento do pedido, pagamento espontâneo, composição extrajudicial ou qualquer outra forma de solução que produza proveito econômico para a CONTRATANTE.
+
+CLÁUSULA TERCEIRA - DOS CÁLCULOS E DESPESAS CONTÁBEIS
+**3.1.** Quando houver necessidade de elaboração, conferência ou atualização de cálculos trabalhistas por profissional de contabilidade ou cálculo técnico especializado, será devido o percentual de **${calc}% (${calcExt} por cento) sobre o valor bruto do proveito econômico efetivamente apurado**, destinado ao custeio desse serviço.
+**3.2.** O percentual previsto no item anterior somente será exigido quando houver efetiva necessidade de elaboração ou conferência técnica de cálculos.
+**3.3.** O valor correspondente aos cálculos não integra os honorários advocatícios da CONTRATADA, destinando-se ao custeio do serviço técnico de cálculo.
+
+CLÁUSULA QUARTA - DO PAGAMENTO DOS HONORÁRIOS INICIAIS
+**4.1.** Os honorários iniciais de ${money(inicial)} ${formaPag}.
+**4.2.** Caso os honorários iniciais não sejam pagos na forma do item 4.1, o valor correspondente será descontado ao final do processo, juntamente com os honorários contratuais e de êxito, do valor recebido pela CONTRATANTE em decorrência da demanda, ficando abrangido pela autorização de retenção e compensação prevista na Cláusula Segunda.
+
+CLÁUSULA QUINTA - DO INADIMPLEMENTO
+**5.1.** O atraso no pagamento de qualquer valor devido à CONTRATADA acarretará, independentemente de notificação judicial ou extrajudicial:
+a) multa moratória de 2% (dois por cento) sobre o valor em atraso;
+b) juros de mora de 1% (um por cento) ao mês, calculados proporcionalmente aos dias de atraso;
+c) correção monetária pelo IPCA, ou por outro índice oficial que venha a substituí-lo.
+**5.2.** O inadimplemento superior a 30 (trinta) dias autorizará a CONTRATADA, observados os deveres profissionais e os prazos processuais em curso, a suspender a realização de atos não urgentes que dependam de providência ou pagamento da CONTRATANTE.
+**5.3.** A suspensão prevista no item anterior não autoriza a CONTRATADA a abandonar processo ou deixar de praticar ato necessário à prevenção de prejuízo processual grave, devendo, se for o caso, adotar as providências profissionais cabíveis para resguardar os interesses da CONTRATANTE.
+**5.4.** Persistindo o inadimplemento, a CONTRATADA poderá promover a cobrança dos valores devidos, inclusive judicialmente, sem prejuízo da possibilidade de renúncia ao mandato, observadas as formalidades e os prazos estabelecidos pela legislação profissional.
+**5.5.** O presente contrato constitui título executivo extrajudicial quanto aos honorários nele expressamente estipulados, nos termos do Estatuto da Advocacia.
+
+CLÁUSULA SEXTA - DAS DESPESAS PROCESSUAIS E EXTRAORDINÁRIAS
+**6.1.** Não estão incluídas nos honorários contratados as despesas necessárias à execução do serviço, tais como custas processuais, honorários periciais, despesas com assistente técnico, deslocamentos extraordinários, diligências externas, cópias, autenticações, emolumentos, taxas, despesas postais e demais gastos necessários ao desenvolvimento da demanda.
+**6.2.** As despesas deverão ser suportadas pela CONTRATANTE, mediante solicitação da CONTRATADA ou reembolso, conforme o caso.
+**6.3.** A CONTRATADA não será obrigada a antecipar despesas extraordinárias em nome da CONTRATANTE, salvo se houver ajuste expresso entre as partes.
+
+CLÁUSULA SÉTIMA - DAS OBRIGAÇÕES DA CONTRATANTE
+**7.1.** Constituem obrigações da CONTRATANTE:
+a) fornecer informações verdadeiras, completas e atualizadas;
+b) entregar, em tempo hábil, os documentos solicitados;
+c) informar imediatamente qualquer alteração de endereço, telefone, e-mail ou situação relevante para o processo;
+d) comparecer às audiências e demais atos processuais em que sua presença seja necessária;
+e) cumprir os prazos e orientações que dependam de sua atuação;
+f) comunicar imediatamente qualquer contato realizado pela parte contrária, seus advogados, representantes ou terceiros relacionados à demanda;
+g) manter comunicação ativa com a CONTRATADA durante o andamento do processo.
+**7.2.** A CONTRATADA não será responsabilizada por prejuízos decorrentes da omissão da CONTRATANTE quanto a informações, documentos ou providências que dependam exclusivamente desta.
+
+CLÁUSULA OITAVA - DO COMPARECIMENTO ÀS AUDIÊNCIAS
+**8.1.** A CONTRATANTE declara estar ciente de que seu comparecimento pessoal às audiências é obrigação essencial quando determinado pelo Juízo.
+**8.2.** A CONTRATADA comunicará à CONTRATANTE, pelos canais oficiais informados neste contrato, a data, horário e modalidade da audiência, cabendo à CONTRATANTE adotar as providências necessárias para seu comparecimento.
+**8.3.** Caso a CONTRATANTE esteja impossibilitada de comparecer, deverá comunicar a CONTRATADA imediatamente, apresentando, sempre que possível, justificativa e documentação comprobatória.
+**8.4.** O não comparecimento injustificado da CONTRATANTE a audiência ou ato processual para o qual sua presença seja necessária poderá acarretar consequências processuais previstas na legislação, inclusive aquelas decorrentes da ausência injustificada em audiência trabalhista.
+**8.5.** Além das consequências processuais eventualmente impostas pelo Juízo, o não comparecimento injustificado da CONTRATANTE, quando ocasionar deslocamento, preparação específica ou comparecimento da CONTRATADA ao ato, poderá gerar cobrança de **R$ 100,00 (cem reais)** a título de ressarcimento das despesas e custos operacionais extraordinários efetivamente relacionados ao ato frustrado.
+**8.6.** O valor previsto no item anterior não será cobrado quando o não comparecimento decorrer de motivo relevante, comprovado e comunicado à CONTRATADA tão logo a CONTRATANTE tenha conhecimento da impossibilidade.
+**8.7.** O não comparecimento reiterado, a ausência de comunicação ou a adoção de condutas da CONTRATANTE que causem prejuízo grave ao andamento processual poderão ensejar a rescisão do contrato, observadas as disposições da Cláusula Nona.
+
+CLÁUSULA NONA - DA RESCISÃO, REVOGAÇÃO DO MANDATO E RENÚNCIA
+**9.1.** O contrato poderá ser rescindido por qualquer das partes mediante comunicação escrita.
+**9.2.** A revogação do mandato pela CONTRATANTE não implicará renúncia automática aos honorários contratados.
+**9.3.** Na hipótese de revogação imotivada do mandato pela CONTRATANTE, sem culpa da CONTRATADA, serão devidos:
+a) os honorários vencidos e ainda não pagos;
+b) o reembolso das despesas realizadas em favor da CONTRATANTE;
+c) os honorários proporcionais ao trabalho efetivamente realizado até a data da revogação;
+d) os honorários de êxito que vierem a ser gerados posteriormente em razão do trabalho desenvolvido pela CONTRATADA, na proporção estabelecida neste contrato e observada a legislação aplicável.
+**9.4.** Caso a revogação ocorra após a elaboração e protocolo da ação, realização de audiência ou prática de atos processuais relevantes, será considerado o estágio efetivamente alcançado pela atuação profissional para fins de apuração dos honorários proporcionais.
+**9.5.** A rescisão ou distrato deste contrato não será interpretada como renúncia da CONTRATADA aos honorários já devidos ou àqueles proporcionalmente decorrentes do trabalho realizado.
+**9.6.** Caso a rescisão decorra de falta grave da CONTRATADA devidamente comprovada, serão observados os direitos da CONTRATANTE quanto aos valores eventualmente pagos antecipadamente e ainda não correspondentes a serviços efetivamente prestados.
+**9.7.** A CONTRATADA poderá renunciar ao mandato quando houver motivo juridicamente legítimo ou quebra da relação de confiança, observando os deveres, prazos e formalidades previstos na legislação e nas normas da advocacia.
+
+CLÁUSULA DÉCIMA - DOS ACORDOS E TRANSAÇÕES
+**10.1.** A CONTRATANTE poderá exercer livremente seu direito de aceitar ou recusar propostas de acordo, cabendo à CONTRATADA prestar orientação jurídica sobre os termos e consequências da composição.
+**10.2.** A CONTRATANTE compromete-se a comunicar imediatamente à CONTRATADA qualquer proposta, contato ou tentativa de negociação realizada diretamente pela parte contrária ou por seus representantes.
+**10.3.** A celebração de acordo, judicial ou extrajudicial, não prejudicará os honorários contratuais ou de êxito pactuados neste instrumento.
+**10.4.** Caso a CONTRATANTE celebre acordo diretamente com a parte contrária, sem comunicar previamente a CONTRATADA, os honorários de êxito continuarão sendo devidos quando o acordo decorrer da demanda, da atuação profissional já realizada ou dos direitos objeto do contrato.
+**10.5.** A base de cálculo dos honorários de êxito, nessa hipótese, será o valor econômico efetivamente obtido pela CONTRATANTE no acordo, inclusive valores, bens, parcelas, créditos ou vantagens economicamente mensuráveis.
+**10.6.** A CONTRATADA não poderá obrigar a CONTRATANTE a celebrar acordo, assim como a CONTRATANTE não poderá exigir que a CONTRATADA pratique ato que considere tecnicamente inadequado ou contrário à legislação ou às normas profissionais.
+
+CLÁUSULA DÉCIMA PRIMEIRA - DA ATUAÇÃO DIRETA DA PARTE CONTRÁRIA
+**11.1.** A CONTRATANTE deverá comunicar à CONTRATADA qualquer contato direto realizado pela parte contrária, empregador, prepostos ou respectivos procuradores, especialmente quando houver proposta de acordo, pagamento ou tentativa de encerramento da demanda.
+**11.2.** A realização de acordo diretamente pela CONTRATANTE não afastará os honorários contratados quando preenchidos os requisitos previstos na Cláusula Décima.
+**11.3.** A presente cláusula não impede que a CONTRATANTE exerça pessoalmente seus direitos ou tome decisões sobre a demanda, servindo exclusivamente para preservar a remuneração profissional contratada e permitir a adequada orientação jurídica.
+
+CLÁUSULA DÉCIMA SEGUNDA - DA NATUREZA DA OBRIGAÇÃO
+**12.1.** A prestação dos serviços advocatícios constitui obrigação de meio, não havendo garantia de resultado específico, condenação, valor de indenização, procedência dos pedidos ou celebração de acordo.
+**12.2.** A CONTRATADA compromete-se a empregar técnica, diligência e os meios jurídicos adequados à defesa dos interesses da CONTRATANTE, dentro dos limites da contratação e da legislação aplicável.
+**12.3.** A CONTRATADA não será responsável por decisões judiciais, atos de terceiros, alterações legislativas, indisponibilidade de sistemas eletrônicos, atrasos do Poder Judiciário ou outros fatos alheios à sua atuação profissional.
+
+CLÁUSULA DÉCIMA TERCEIRA - DA COMUNICAÇÃO ENTRE AS PARTES
+**13.1.** As comunicações relacionadas ao processo e à execução deste contrato poderão ocorrer por e-mail, WhatsApp ou outro meio eletrônico informado pelas partes.
+**13.2.** A CONTRATANTE declara estar ciente de que deverá manter seus canais de contato atualizados.
+**13.3.** Considerar-se-ão válidas as comunicações encaminhadas aos canais informados neste contrato, salvo comunicação escrita de alteração.
+
+CLÁUSULA DÉCIMA QUARTA - DA PROTEÇÃO DE DADOS E DO SIGILO PROFISSIONAL
+**14.1.** A CONTRATADA tratará os dados pessoais fornecidos pela CONTRATANTE exclusivamente para finalidades relacionadas à prestação dos serviços advocatícios, cumprimento de obrigações legais, exercício regular de direitos e defesa dos interesses da CONTRATANTE.
+**14.2.** A CONTRATADA observará o sigilo profissional e as normas aplicáveis à proteção de dados pessoais.
+**14.3.** A CONTRATANTE autoriza o tratamento dos dados e documentos necessários à execução deste contrato, inclusive seu compartilhamento com órgãos públicos, Poder Judiciário, peritos, contadores, correspondentes, prestadores de serviços e demais profissionais quando necessário à execução da atividade contratada.
+
+CLÁUSULA DÉCIMA QUINTA - DOS CANAIS OFICIAIS E PREVENÇÃO A FRAUDES
+**15.1.** A CONTRATANTE declara estar ciente de que as comunicações oficiais relacionadas aos honorários e solicitações financeiras vinculadas a este contrato serão realizadas exclusivamente pelos seguintes canais:
+**E-mails autorizados:** ${DADOS_PAGAMENTO.emails}.
+**Telefones/WhatsApp autorizados:** ${DADOS_PAGAMENTO.telefones}.
+**15.2.** A CONTRATADA não se responsabilizará por pagamentos realizados pela CONTRATANTE a terceiros ou por informações fornecidas por pessoas estranhas aos canais oficiais acima indicados.
+**15.3.** A CONTRATANTE compromete-se a conferir o nome do beneficiário antes de qualquer transferência ou pagamento.
+**15.4.** Os pagamentos de honorários serão realizados exclusivamente em conta de titularidade da CONTRATADA, pelas chaves PIX abaixo; eventual alteração bancária será comunicada exclusivamente pelos canais oficiais indicados nesta cláusula.
+**Beneficiária:** ${DADOS_PAGAMENTO.beneficiario} · **Instituição:** ${DADOS_PAGAMENTO.instituicao}
+**PIX CPF:** 134.510.707-23 · **PIX e-mail:** financeiro.advleticiabarros@gmail.com
+
+CLÁUSULA DÉCIMA SEXTA - DA PRESTAÇÃO DE CONTAS E RECEBIMENTO DE VALORES
+**16.1.** Quando a CONTRATADA receber valores pertencentes à CONTRATANTE em razão do processo, realizará a correspondente prestação de contas, discriminando os valores recebidos, os honorários contratuais, os honorários de êxito, as despesas eventualmente descontadas e o saldo destinado à CONTRATANTE.
+**16.2.** A compensação ou retenção de honorários sobre valores recebidos em nome da CONTRATANTE somente ocorrerá nos limites expressamente autorizados neste contrato.
+**16.3.** O saldo remanescente será repassado à CONTRATANTE após a conferência dos valores e dos descontos autorizados.
+
+CLÁUSULA DÉCIMA SÉTIMA - DOS HONORÁRIOS EM CASO DE ACORDO, DESISTÊNCIA OU PAGAMENTO ESPONTÂNEO
+**17.1.** Os honorários de êxito serão devidos quando houver proveito econômico decorrente da demanda, ainda que o processo não alcance sentença.
+**17.2.** Assim, caso a CONTRATANTE obtenha pagamento, acordo ou qualquer vantagem econômica após o ajuizamento da ação, os honorários de êxito serão calculados sobre o respectivo proveito econômico.
+**17.3.** A desistência da ação, quando decorrer de decisão exclusiva da CONTRATANTE e não de culpa da CONTRATADA, não implicará renúncia aos honorários correspondentes ao trabalho já realizado.
+
+CLÁUSULA DÉCIMA OITAVA - DO TÍTULO EXECUTIVO EXTRAJUDICIAL
+**18.1.** O presente contrato escrito constitui título executivo extrajudicial quanto aos honorários nele estipulados, nos termos do artigo 24 da Lei nº 8.906/1994 e da legislação processual aplicável.
+**18.2.** A CONTRATADA poderá promover a cobrança dos honorários vencidos e não pagos pelos meios extrajudiciais ou judiciais cabíveis, observadas as normas profissionais aplicáveis.
+
+CLÁUSULA DÉCIMA NONA - DA CESSÃO E DO SUBSTABELECIMENTO
+**19.1.** Nenhuma das partes poderá ceder ou transferir as obrigações decorrentes deste contrato sem anuência da outra, ressalvadas as hipóteses legalmente admitidas.
+**19.2.** A CONTRATADA poderá substabelecer os poderes recebidos, com ou sem reserva, quando necessário ao adequado desenvolvimento da demanda, observadas as normas profissionais e os interesses da CONTRATANTE.
+
+CLÁUSULA VIGÉSIMA - DA ALTERAÇÃO CONTRATUAL
+**20.1.** Qualquer alteração das condições econômicas, objeto ou extensão dos serviços contratados deverá ser formalizada preferencialmente por escrito, inclusive por meio eletrônico que permita comprovação da manifestação de vontade das partes.
+**20.2.** Eventuais serviços adicionais não previstos neste contrato dependerão de contratação específica.
+
+CLÁUSULA VIGÉSIMA PRIMEIRA - DA VIGÊNCIA
+**21.1.** O presente contrato entra em vigor na data de sua assinatura e permanecerá vigente enquanto subsistirem obrigações decorrentes dos serviços contratados.
+**21.2.** O encerramento da relação profissional não prejudicará os direitos e obrigações já constituídos, especialmente quanto aos honorários decorrentes do trabalho efetivamente realizado.
+
+CLÁUSULA VIGÉSIMA SEGUNDA - DO FORO
+**22.1.** Para dirimir questões decorrentes da interpretação e execução deste contrato, fica eleito o foro da Comarca de ${FORO}, sem prejuízo das regras legais de competência que eventualmente sejam aplicáveis.
+
+E, por estarem justas e contratadas, as partes assinam o presente instrumento, declarando que leram integralmente suas cláusulas, compreenderam seu conteúdo e concordam com todas as condições estabelecidas.
+
+${FORO}, [DATA].
+
+_______________________________________
+${p.nome}
+CONTRATANTE
+CPF nº ${p.cpf}
+
+_______________________________________
+${adv.nome}
+CONTRATADA
+${oab}`;
+}
+
 export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number; formaPagamento?: string; exitoPct?: number; honorarios?: any; tipoCausa?: string; descricao?: string; contratada?: ContratadaInfo }): string {
+  // Área trabalhista (e gestante, também Justiça do Trabalho): minuta própria
+  // de 22 cláusulas desde 07/10/2026. Ver docs/manual/06-documentos.md.
+  if (opts.area === 'trabalhista' || opts.area === 'gestante') return buildTemplateTrabalhista(opts);
   // Padrão fixo do escritório: toda causa de família de pensão alimentícia usa
   // a minuta específica de 19 cláusulas (fixação/majoração + guarda), com
   // honorários de êxito só sobre as diferenças retroativas — só mudam dados

@@ -63,6 +63,41 @@ O que muda por cliente/caso: dados do CONTRATANTE (Cláusula de qualificação) 
 
 Outras causas de família (divórcio, guarda isolada, inventário) continuam no modelo genérico por área.
 
+### Contrato padrão fixo — Trabalhista (desde 07/10/2026)
+
+Pedido: "Esse será nosso novo contrato". Toda proposta/contrato de área **trabalhista** (e **gestante**, que também é Justiça do Trabalho) usa uma minuta fixa de **22 cláusulas** (`buildTemplateTrabalhista` em `src/services/contractTemplates.ts`), no lugar do modelo genérico de 14 cláusulas. As outras áreas continuam com o modelo genérico, e família/pensão com o seu modelo próprio.
+
+O que mudou em relação ao modelo genérico:
+- **Objeto limitado ao 1º grau até a sentença.** Recurso, TRT/TST, liquidação e execução ficam de fora e exigem nova contratação.
+- **Honorários de êxito** sobre o **proveito econômico bruto**, inclusive em acordo, pagamento espontâneo ou solução extrajudicial.
+- **Sucumbência** é da advogada e **não abate** os honorários contratuais nem o êxito.
+- **Retenção** dos honorários sobre o valor recebido em nome da cliente, com autorização expressa e **prestação de contas**.
+- **Entrada não paga é descontada ao final do processo** junto com os honorários contratuais e de êxito (item 4.2). Essa regra existe só neste contrato.
+- **Falta à audiência:** sai a multa de 20% sobre o valor da causa. Fica só o ressarcimento de **R$ 100,00** pelo ato frustrado, que não é cobrado se houver motivo comprovado.
+- **Acordo direto:** sai a proibição de a cliente negociar. Ela pode decidir, deve avisar a advogada, e o êxito continua devido.
+- **Rescisão:** honorários proporcionais e êxito posterior, na forma da Lei 8.906/94.
+- **Dados bancários:** sem o campo "[Nº DA CONTA]" em branco. Só beneficiária, instituição e chaves PIX, e qualquer alteração é comunicada pelos canais oficiais.
+
+**O que vem da proposta (o resto é texto fixo):**
+
+| Item | Origem | Padrão quando a proposta não traz |
+|---|---|---|
+| Honorários iniciais | parcelamento aceito, ou valor do contrato, ou entrada/fixo | R$ 250,00 |
+| Forma de pagamento da entrada | a do parcelamento | "na assinatura, por PIX/transferência" |
+| % de êxito | campo êxito da proposta | 30% |
+| % de cálculos | campo "Cálculos (contabilidade)" | 2% |
+
+Os valores saem por extenso (`reaisPorExtenso`). Testes: `tests/contratoTrabalhistaTemplate.test.mjs`.
+
+## Impressão: rodapé e assinaturas (desde 07/10/2026)
+
+Vale para todo documento impresso pelo CRM em papel timbrado (contrato, procuração, declaração etc., função `printDocs` em `public/app.js`):
+- **Rodapé:** fica em uma linha só, encostado no fim da área da página. Cada página reserva 1,4 cm antes dele, então o texto muda de página antes de chegar ao rodapé e nada fica coberto. O PDF de tabelas (`printTablePDF`, como o A Receber) usa o mesmo rodapé.
+- **Títulos de cláusula** não ficam sozinhos no pé da página.
+- **Assinaturas:** com até 2 assinaturas (ex.: contratante e contratada), o fecho ("E, por estarem justas e contratadas…"), o local/data e as assinaturas formam **um bloco que não se divide**. Se não couber, o bloco inteiro vai para a página seguinte. Com 3 ou mais assinaturas, cada uma é um bloco indivisível separado.
+
+Testes: `tests/impressaoRodapeAssinatura.test.mjs`.
+
 ## Proposta: percentual de cálculos da contabilidade (desde 07/10/2026)
 
 Na **Produção da Proposta**, seção Honorários, há o campo **Cálculos (contabilidade)**: escolha de **1% a 5% sobre o valor dos proventos**, ou "Não cobrar". Fica gravado em `propostas.honorarios.taxa_calculos_pct`.
@@ -102,6 +137,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | Novo contrato padrão trabalhista (22 cláusulas, `buildTemplateTrabalhista`), com a entrada não paga descontada ao final do processo; impressão com rodapé que não cobre o texto e assinaturas sempre juntas |
 | 07/10/2026 | Claude | Excluir proposta criada errada (só as não aceitas) |
 | 07/10/2026 | Claude | Proposta: campo "Cálculos (contabilidade)" de 1% a 5% sobre os proventos, discriminado na proposta e no contrato |
 | 30/09/2026 | Claude | Revisão automática logo após gerar petição inicial e minuta da intimação; revisor não revisa mais o próprio parecer |

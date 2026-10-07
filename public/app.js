@@ -4571,8 +4571,8 @@ function printTablePDF(title, tableEl, periodo) {
       .lh-header img { height: 1.4cm; width: auto; }
       .lh-header .name { font-family: 'Cormorant Garamond', Georgia, serif; font-size: 22pt; font-weight: 700; color: #2b2b2b; letter-spacing: 1.5px; line-height: 1; }
       .lh-header .oab { font-size: 9.5pt; color: #555; white-space: nowrap; letter-spacing: .5px; }
-      .lh-foot-spacer { height: 1.15cm; }
-      .lh-footer-fixed { position: fixed; bottom: 0.7cm; left: 1.8cm; right: 1.8cm; background: #fff; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
+      .lh-foot-spacer { height: 1.4cm; }
+      .lh-footer-fixed { position: fixed; bottom: 0; left: 0; right: 0; white-space: nowrap; line-height: 1.3; background: #fff; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
       .lh-footer-fixed .sep { color: #B8943F; margin: 0 6px; }
       .doc-title { text-align: center; font-size: 14pt; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; margin: 0 0 4px; }
       .doc-periodo { text-align: center; font-size: 10pt; color: #555; margin: 0 0 16px; }
@@ -10057,6 +10057,23 @@ function formatDocHtml(text, signatures) {
   };
   const lines = String(text || '').split('\n');
   let html = ''; let inSig = false; let sigOpen = false; let titleDone = false; let sigBuf = []; let sigComLinha = true;
+  // Até 2 assinaturas (ex.: contratante + contratada): local/data e as
+  // assinaturas vão num grupo indivisível, sempre na mesma página. Com 3+ o
+  // grupo poderia passar de uma página, então cada assinatura vai sozinha.
+  const nSig = lines.filter((l) => /^_{5,}$/.test(l.trim()) || l.trim() === '<<ASSINATURA-SEM-LINHA>>').length;
+  let grupoAberto = false;
+  const abrirGrupo = () => {
+    if (grupoAberto || nSig < 1 || nSig > 2) return;
+    // puxa pra dentro do grupo a linha de local/data logo antes da 1ª assinatura
+    const m = html.match(/<p class="body">([^<]*(\[DATA\]|\d{4})[^<]*)<\/p>((?:<div class="sp"><\/div>)*)$/);
+    let data = m ? `<p class="body">${m[1]}</p>` : '';
+    if (m) html = html.slice(0, html.length - m[0].length);
+    // ...e o fecho ("E, por estarem justas e contratadas..."), pra assinatura nunca abrir página sozinha
+    const fecho = m && html.match(/<p class="body">((?:E,? por estarem|Por estarem|Por ser a expressão)[^<]*)<\/p>((?:<div class="sp"><\/div>)*)$/i);
+    if (fecho) { html = html.slice(0, html.length - fecho[0].length); data = `<p class="body">${fecho[1]}</p><div class="sp"></div>${data}`; }
+    html += `<div class="sig-group">${data}`;
+    grupoAberto = true;
+  };
   const closeSig = () => { if (sigOpen) { html += partyHtml(sigBuf, sigComLinha) + '</div>'; sigOpen = false; sigBuf = []; } };
   // Rodapé de duas colunas SEM espaço de assinatura (ex.: notificante + advogada
   // lado a lado, quando o documento não precisa de assinatura física reservada).
@@ -10079,7 +10096,7 @@ function formatDocHtml(text, signatures) {
     }
     // Linha de assinatura: abre um bloco que NÃO pode quebrar entre páginas.
     if (/^_{5,}$/.test(t)) {
-      closeSig();
+      closeSig(); abrirGrupo();
       html += '<div class="sig-block"><div class="sig-spacer"></div>';
       sigOpen = true; inSig = true; sigBuf = []; sigComLinha = true; continue;
     }
@@ -10087,7 +10104,7 @@ function formatDocHtml(text, signatures) {
     // quando o documento não reserva espaço físico de assinatura, mas ainda
     // precisa do bloco especial pra "Enviar para assinatura" (eletrônica) funcionar.
     if (t === '<<ASSINATURA-SEM-LINHA>>') {
-      closeSig();
+      closeSig(); abrirGrupo();
       html += '<div class="sig-block">';
       sigOpen = true; inSig = true; sigBuf = []; sigComLinha = false; continue;
     }
@@ -10118,6 +10135,7 @@ function formatDocHtml(text, signatures) {
   }
   closeSig();
   closeCols();
+  if (grupoAberto) html += '</div>';
   return html;
 }
 
@@ -10259,14 +10277,24 @@ function printDocs(docs, w) {
       .lh-header .sub { font-size: 7.5pt; color: #B8943F; letter-spacing: 3px; text-transform: uppercase; margin-top: 3px; }
       .lh-header .oab { font-size: 9.5pt; color: #555; white-space: nowrap; letter-spacing: .5px; }
       .lh-spacer-top { height: 0.5cm; }
-      .lh-foot-spacer { height: 1.15cm; }
-      .lh-footer-fixed { position: fixed; bottom: 0.7cm; left: 3cm; right: 2cm; background: #fff; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
+      /* Rodapé: position:fixed na impressão já é relativo à ÁREA da página (dentro
+         das margens do @page) — por isso left/right 0 e bottom 0. Uma linha só
+         (~0.6cm) e o espaço reservado no fim de cada página (tfoot) com folga, pra
+         o texto quebrar de página antes de chegar no rodapé (07/10/2026). */
+      .lh-foot-spacer { height: 1.4cm; }
+      .lh-footer-fixed { position: fixed; bottom: 0; left: 0; right: 0; white-space: nowrap; line-height: 1.3; background: #fff; border-top: 1px solid #B8943F; padding-top: 6px; text-align: center; font-size: 8.5pt; color: #555; }
       .lh-footer-fixed .sep { color: #B8943F; margin: 0 6px; }
       .watermark { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 12cm; height: auto; opacity: 0.035; z-index: -1; }
       .content { font-size: 12pt; line-height: 1.5; color: #000; }
       .content .doc-title { text-align: center; font-size: 13.5pt; font-weight: bold; text-transform: uppercase; letter-spacing: .5px; margin: 0 0 20px; }
       .content .clause { font-weight: bold; margin: 16px 0 5px; }
       .content .section-heading { font-weight: bold; letter-spacing: .3px; margin: 18px 0 6px; }
+      /* Título de cláusula nunca sozinho no pé da página. */
+      .content .clause, .content .section-heading { break-after: avoid; page-break-after: avoid; }
+      /* break-inside:avoid não é respeitado dentro da célula da tabela do papel
+         timbrado (a assinatura saía partida entre páginas). inline-block é
+         indivisível: se não couber, vai inteiro pra página seguinte. */
+      .content .sig-block, .content .sig-group { display: inline-block; width: 100%; vertical-align: top; }
       .content .para { margin: 8px 0; text-align: justify; }
       .content .centro { margin: 8px 0; text-align: center; }
       .content .direita { margin: 8px 0; text-align: right; }

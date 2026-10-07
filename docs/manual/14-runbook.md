@@ -455,6 +455,20 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: rodapé cobrindo o texto e assinatura partida entre páginas na impressão
+
+**Sintoma (07/10/2026, ao trazer o novo contrato trabalhista):** no PDF do contrato, o rodapé do papel timbrado quebrava em 2 linhas e encostava na última linha de cada página. A assinatura da contratada saía partida: o nome ficava numa página e "CONTRATADA / OAB" na seguinte, sozinho.
+
+**Causa raiz:**
+1. O rodapé tem `position: fixed`, e na impressão isso é relativo à **área da página** (que já está dentro das margens do `@page`). Com `left: 3cm; right: 2cm` as margens eram descontadas duas vezes, e o rodapé ficava estreito e quebrava em 2 linhas. O espaço reservado no fim da página (tfoot, 1,15 cm) era menor que o rodapé (`bottom: 0.7cm` + altura).
+2. `break-inside: avoid` **não é respeitado pelo Chrome dentro da célula** da tabela que monta o papel timbrado. Por isso o bloco de assinatura podia se dividir entre páginas.
+
+**Correção:** rodapé com `left/right/bottom: 0`, sem quebra de linha, e espaço reservado de 1,4 cm. Assinatura e grupo de assinaturas viram `inline-block` (indivisível). Com até 2 assinaturas, o fecho, o local/data e as assinaturas vão no mesmo grupo. Títulos de cláusula ganharam `break-after: avoid`. A mesma correção do rodapé foi aplicada ao `printTablePDF`. Verificado imprimindo o contrato no Chrome headless e conferindo as 13 páginas.
+
+**Como reconhecer de novo:** texto atrás do rodapé, ou nome/assinatura partidos entre páginas. Gere o PDF com `chrome --headless --print-to-pdf` a partir do HTML do `printDocs` e olhe o pé das páginas. Não confie em `break-inside: avoid` dentro da tabela do papel timbrado: use `inline-block`.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -471,6 +485,7 @@ pm2 restart crm-juridico && pm2 save
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | +1 incidente: rodapé cobrindo o texto e assinatura partida na impressão |
 | 07/10/2026 | Claude | +1 incidente: card Vencido do A Receber sempre zerado (data do banco comparada como texto) |
 | 07/10/2026 | Claude | +1 incidente: lembrete de audiência enviado 2 vezes (cópias da agenda por usuário) |
 | 07/10/2026 | Claude | +1 incidente: "Editar proposta" não abria para propostas "apenas êxito" |
