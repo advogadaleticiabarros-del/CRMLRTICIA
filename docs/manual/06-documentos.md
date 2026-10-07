@@ -73,6 +73,16 @@ Quando escolhido, aparece **discriminado**:
 
 Regra em `src/services/contractTemplates.ts` (`taxaCalculosPct`, `clausulaTaxaCalculos`); testes em `tests/taxaCalculos.test.mjs`. Valor fora de 1 a 5 é ignorado (não cobra).
 
+## Excluir proposta criada errada (desde 07/10/2026)
+
+Em **Propostas**, cada proposta não aceita tem o botão de lixeira na lista e **Excluir proposta** dentro do detalhe. Pede confirmação, porque não dá para desfazer: a proposta some e o link enviado ao cliente deixa de funcionar.
+
+- **Proposta aceita não pode ser excluída**: ela já gerou contrato e parcelas no Financeiro. O botão nem aparece. Se foi erro, ajuste o contrato e as parcelas.
+- Proposta com parcelas geradas também é bloqueada.
+- Saem junto as visitas ao link (`proposta_visitas`). A exclusão fica registrada na jornada do lead/cliente (`journey_log`, evento `proposal_deleted`), com quem excluiu.
+
+API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (testes em `tests/excluirProposta.test.mjs`).
+
 ## FAQ
 
 **Os colchetes `[assim]` num documento gerado por IA são um erro?** Não — é proposital. Marca exatamente o que a IA não conseguiu confirmar nos autos, pra você revisar antes de protocolar. Quantidade e exemplos aparecem antes de abrir o documento.
@@ -92,6 +102,7 @@ Regra em `src/services/contractTemplates.ts` (`taxaCalculosPct`, `clausulaTaxaCa
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | Excluir proposta criada errada (só as não aceitas) |
 | 07/10/2026 | Claude | Proposta: campo "Cálculos (contabilidade)" de 1% a 5% sobre os proventos, discriminado na proposta e no contrato |
 | 30/09/2026 | Claude | Revisão automática logo após gerar petição inicial e minuta da intimação; revisor não revisa mais o próprio parecer |
 | 28/09/2026 | Claude | Selfie do signatário opcional por link (`signature_requests.require_selfie`, migration 137) — exigida pela advogada, obrigatória quando exigida, descartada quando não |

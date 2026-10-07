@@ -5,6 +5,7 @@ import { logActivity } from '../services/JourneyService';
 import { sendProposalLink, isEmailConfigured } from '../services/EmailService';
 import { ensurePartnerLawyersColumn } from '../services/propostaSchema';
 import { dispararRecusaProposta } from '../services/propostaFollowupService';
+import { motivoBloqueioExclusao } from '../services/excluirProposta';
 
 const router = Router();
 
@@ -122,6 +123,26 @@ router.post('/', async (req: Request, res: Response) => {
 });
 
 // ── PUT /api/propostas/:id ──────────────────────────────────────────────────
+// ── DELETE /api/propostas/:id — exclui proposta criada errada (07/10/2026) ──
+// Só se NÃO foi aceita nem gerou parcelas (regra em services/excluirProposta).
+// Leva junto as visitas ao link; a exclusão fica registrada na jornada do lead/cliente.
+router.delete('/:id', async (req: Request, res: Response) => {
+  const [[p]] = await db.query('SELECT id, title, status, aceito_em, lead_id, client_id, case_id, valor FROM propostas WHERE id = ?', [req.params.id]) as any;
+  const [[parc]] = await db.query('SELECT COUNT(*) AS n FROM installments WHERE proposta_id = ?', [req.params.id]) as any;
+  const bloqueio = motivoBloqueioExclusao(p || null, Number(parc?.n) || 0);
+  if (bloqueio) { res.status(p ? 409 : 404).json({ error: bloqueio }); return; }
+
+  await db.query('DELETE FROM proposta_visitas WHERE proposta_id = ?', [p.id]).catch(() => {});
+  await db.query('DELETE FROM propostas WHERE id = ?', [p.id]);
+  await logActivity({
+    leadId: p.lead_id ?? null, clientId: p.client_id ?? null, caseId: p.case_id ?? null,
+    actorId: req.user!.id, actorName: req.user!.name,
+    eventType: 'proposal_deleted', title: 'Proposta excluída',
+    description: `${p.title || 'Proposta'} (#${p.id}, status ${p.status}, valor ${Number(p.valor) || 0}) — excluída por ${req.user!.name}`,
+  });
+  res.json({ ok: true });
+});
+
 router.put('/:id', async (req: Request, res: Response) => {
   const { id } = req.params;
   const [existing] = await db.query('SELECT id FROM propostas WHERE id = ?', [id]) as any;

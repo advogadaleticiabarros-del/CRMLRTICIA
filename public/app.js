@@ -1477,7 +1477,7 @@ const ROUTES = {
         <tbody>${r.data.map((p) => `<tr>
           <td><strong>${p.title}</strong></td><td>${p.client_name || '—'}</td>
           <td>${money(p.valor)}</td><td>${badge(p.status)}</td><td>${fmtDate(p.validade)}</td>
-          <td style="white-space:nowrap"><button class="btn-sm" data-edit-prop="${p.id}">${svgIcon('edit')} Editar</button> <button class="btn-sm" data-prop="${p.id}">Abrir</button></td></tr>`).join('')}</tbody></table>
+          <td style="white-space:nowrap"><button class="btn-sm" data-edit-prop="${p.id}">${svgIcon('edit')} Editar</button> <button class="btn-sm" data-prop="${p.id}">Abrir</button>${p.status !== 'aceita' ? ` <button class="btn-sm" data-del-prop="${p.id}" data-titulo="${esc(p.title)}" title="Excluir proposta criada errada" aria-label="Excluir proposta" style="color:var(--red,#c0392b)">${svgIcon('trash')}</button>` : ''}</td></tr>`).join('')}</tbody></table>
         <div class="list-foot"><span>${r.total} proposta(s) · página ${r.page} de ${pages}</span>${pagerHtml(r.page, pages)}</div>`
         : '<div class="empty">Nenhuma proposta ainda</div>';
       document.querySelectorAll('[data-edit-prop]').forEach((b) => b.onclick = async () => {
@@ -1485,6 +1485,11 @@ const ROUTES = {
         propostaForm(load, null, prop);
       });
       document.querySelectorAll('[data-prop]').forEach((b) => b.onclick = () => propostaDetail(b.dataset.prop, load));
+      document.querySelectorAll('[data-del-prop]').forEach((b) => b.onclick = async () => {
+        if (!confirm(`Excluir a proposta "${b.dataset.titulo}"?\n\nEla some da lista e o link enviado ao cliente deixa de funcionar. Não dá para desfazer.`)) return;
+        try { await api('/api/propostas/' + b.dataset.delProp, { method: 'DELETE' }); toast('Proposta excluída'); load(); }
+        catch (e) { toast(e.message, 'error'); }
+      });
       document.querySelectorAll('#prop-table [data-page]').forEach((b) => b.onclick = () => {
         propPage = Number(b.dataset.page); load(); $('#page').scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
@@ -7677,6 +7682,7 @@ async function propostaDetail(id, onSave) {
         <button class="btn-sm" data-st="enviada">Marcar enviada</button>
         <button class="btn-sm" data-st="em_negociacao">Em negociação</button>
         <button class="btn-sm" data-st="recusada">Recusar</button>
+        <button class="btn-sm" id="del-prop" style="color:var(--red,#c0392b);border-color:var(--red,#c0392b);margin-left:auto">${svgIcon('trash')} Excluir proposta</button>
       </div>
       <hr style="border:none;border-top:1px solid var(--border)">
       <strong style="font-size:13px">Aceitar e gerar parcelas</strong>
@@ -7729,6 +7735,12 @@ async function propostaDetail(id, onSave) {
   };
   const editPropBtn = form.querySelector('#edit-prop');
   if (editPropBtn) editPropBtn.onclick = () => { closeModal(); propostaForm(onSave, null, p); };
+  const delPropBtn = form.querySelector('#del-prop');
+  if (delPropBtn) delPropBtn.onclick = async () => {
+    if (!confirm(`Excluir a proposta "${p.title}"?\n\nEla some da lista e o link enviado ao cliente deixa de funcionar. Não dá para desfazer.`)) return;
+    try { await api('/api/propostas/' + id, { method: 'DELETE' }); closeModal(); toast('Proposta excluída'); onSave && onSave(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
   openModal('Proposta', form);
 }
 
