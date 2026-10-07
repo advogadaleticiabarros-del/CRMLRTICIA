@@ -74,7 +74,7 @@ Quando um prazo é detectado via DJEN, o sistema pode acionar um "estagiário IA
 O sistema tenta manter uma sugestão de fase processual (inicial, instrução, sentença, recurso, execução, encerrado) recalculada a partir do texto das movimentações mais recentes — é uma sugestão, não substitui a fase que você define manualmente no caso.
 
 
-**Aviso de divergência (desde 28/09/2026):** se a fase sugerida pelas movimentações ficar À FRENTE da fase cadastrada por 3 dias ou mais, os admins recebem um aviso no sino ("Fase do processo pode estar desatualizada"), repetido a cada 14 dias enquanto persistir — antes só aparecia um selo na tela de Processos, que ninguém via sem abri-la. A fase nunca é alterada sozinha. Regras de sugestão em `src/utils/faseProcesso.ts`, com teste.
+**Aviso de divergência (desde 28/09/2026):** se a fase sugerida pelas movimentações ficar À FRENTE da fase cadastrada por 3 dias ou mais, os admins recebem um aviso no sino ("Fase do processo pode estar desatualizada"), repetido a cada 14 dias enquanto persistir — antes só aparecia um selo na tela de Processos, que ninguém via sem abri-la. A fase nunca é alterada sozinha. Regras de sugestão em `src/utils/faseProcesso.ts`, com teste. Desde 07/10/2026, frases que só mencionam um ato futuro (ex.: "venham conclusos para sentença", "recurso apropriado do e-Proc", "eventual sentença") são ignoradas na sugestão.
 ## Prescrição do caso (desde 30/09/2026)
 
 Na ficha do caso, **Prescrição → informar**: data do fato gerador, botão *Sugerir data-limite pela área* e a data-limite. A sugestão é só ponto de partida (o sistema nunca decide prescrição):
@@ -127,6 +127,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 07/10/2026 | Claude | Fase sugerida ignora menções a atos futuros nas intimações do DJEN; "julgado (im)procedente" conta como sentença e "contrarrazões" como recurso |
 | 28/09/2026 | Claude | Tipo de prazo por gatilho específico/título (`deteccaoPrazo.ts`), aviso de fase divergente (`processos:fase-divergente`), busca nacional por OAB passa a reportar falha por tribunal, testes de fase e tribunal — ideias 6, 7, 8 e 9 da auditoria |
 | 28/09/2026 | Claude | Avisos de prazo escalonados (título 🚨 e repetição por urgência), aviso único ao vencer (`prazos:vencidos`) e alerta diário de prazo em processo sem caso (`prazos:sem-caso`) — ideias 2, 4 e 5 da auditoria |
 | 30/09/2026 | Claude | Status de tarefa "aguardando terceiro" (com quem) |

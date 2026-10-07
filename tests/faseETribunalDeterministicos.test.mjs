@@ -33,6 +33,20 @@ test('mais avançada vence: cumprimento de sentença é execução, não senten�
   assert.equal(faseSugeridaDoTexto('Cumprimento de sentença iniciado'), 'execucao');
 });
 
+test('frases-padrão de intimação que só MENCIONAM recurso/sentença futura não mudam a fase (incidente 07/10/2026)', () => {
+  // textos reais do DJEN (JFES) de processos que estavam na perícia
+  assert.equal(faseSugeridaDoTexto('A apresentação dos quesitos, até a data da perícia, deverá ser feita por meio de recurso apropriado do e-Proc, disponível ao consultar o processo'), 'instrucao');
+  assert.equal(faseSugeridaDoTexto('Se a parte é incapaz, dê-se vista ao Ministério Público Federal. Por fim, venham conclusos para sentença. ORIENTAÇÕES GERAIS SOBRE PERÍCIA'), 'instrucao');
+  assert.equal(faseSugeridaDoTexto('cognição sumária determinando o pagamento do referido benefício, na hipótese de eventual sentença de improcedência, não há nada que indique'), null);
+  assert.equal(faseSugeridaDoTexto('Em caso de eventual recurso, intime-se a parte contrária'), null);
+  // e continuam valendo os atos reais
+  assert.equal(faseSugeridaDoTexto('Julgado improcedente o pedido - tipo A'), 'sentenca');
+  assert.equal(faseSugeridaDoTexto('RECURSO INOMINADO - Refer. ao Evento 30'), 'recurso');
+  assert.equal(faseSugeridaDoTexto('Expedida intimação eletrônica - Contrarrazões ao recurso inominado'), 'recurso');
+  assert.equal(faseSugeridaDoTexto('Conclusos para sentença'), 'sentenca');
+  assert.equal(faseSugeridaDoTexto('SENTENÇA: Ante o exposto, JULGO PROCEDENTE o pedido'), 'sentenca');
+});
+
 test('melhorFase escolhe o estágio mais avançado entre todas as movimentações', () => {
   assert.equal(melhorFase(['Citação da ré', 'Audiência de instrução', 'Sentença']), 'sentenca');
   assert.equal(melhorFase(['Sentença', 'Citação da ré']), 'sentenca');

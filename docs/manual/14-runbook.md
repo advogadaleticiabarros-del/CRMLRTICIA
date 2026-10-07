@@ -443,6 +443,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: fase sugerida "recurso"/"sentença" em processo ainda na perícia
+
+**Sintoma (07/10/2026, conferindo os processos da Justiça Federal):** processos do JEF que ainda aguardavam perícia apareciam com fase **Recurso** (Jéssica, Lauriza, Gileno antes do recurso) ou **Sentença** (Elizangela, Wendel). A fase errada chegou a ser aceita no campo `phase`.
+
+**Causa raiz:** `faseSugeridaDoTexto` (`src/utils/faseProcesso.ts`) lia o corpo inteiro da intimação do DJEN. O despacho de perícia da JFES traz frases-padrão que só *mencionam* atos futuros: "quesitos… por meio de **recurso** apropriado do e-Proc", "venham conclusos para **sentença**" e "eventual **sentença** de improcedência". Cada uma bastava para subir a fase.
+
+**Correção:** antes de classificar, essas menções sem ato (recurso apropriado do sistema, "venham conclusos para sentença", "eventual/futura sentença ou recurso", "em caso de recurso") são apagadas do texto. Também passam a contar "julgado (im)procedente" (sentença) e "contrarrazões" (recurso). Os testes usam os textos reais em `tests/faseETribunalDeterministicos.test.mjs`. As fases sugeridas foram recalculadas e as fases erradas, corrigidas.
+
+**Como reconhecer de novo:** a fase sugerida está à frente do que a tela do e-Proc mostra. Rode `faseSugeridaDoTexto` nas movimentações do processo para achar a frase que disparou e acrescente o padrão em `MENCOES_SEM_ATO`, com teste.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -490,6 +502,7 @@ pm2 restart crm-juridico && pm2 save
 | 02/10/2026 | Claude | +1 incidente: acordos não puxados e seletores com só 100 clientes |
 | 01/10/2026 | Claude | +1 incidente: Gerar proposta sem efeito para número ainda não cadastrado |
 | 30/09/2026 | Claude | +1 incidente: revisor de petição revisando o próprio parecer |
+| 07/10/2026 | Claude | +1 incidente: fase sugerida errada por frases-padrão do despacho de perícia (DJEN) |
 | 30/09/2026 | Claude | +1 incidente: fechamento do dia ignorava o retrato da manhã |
 | 22/09/2026 | Claude | Resto da auditoria do Dashboard resolvido: Inadimplência unificada, Movimentações a verificar fecham de vez, Processual/Agenda exibem dado que já era calculado, consulta duplicada de "peças pendentes" compartilhada |
 
