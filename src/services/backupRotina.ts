@@ -115,7 +115,8 @@ export async function enviarRelatorioDiario(agora = new Date()) {
 
   const texto = textoRelatorioDiario({
     dia: fmtDia(diaBrt(agora)),
-    esperados: HORARIOS_BACKUP,
+    // só os horários que já passaram (+40 min de tolerância): às 20h30 são os três
+    esperados: HORARIOS_BACKUP.filter((h) => agora.getTime() >= Date.parse(`${diaBrt(agora)}T${String(h).padStart(2, '0')}:40:00Z`) + BRT_MS),
     feitos: [...porSlot.values()].sort((a, b) => a.hora - b.hora),
     copiasMega: mega.copias,
     maisAntigaMega: antiga ? fmtDia(diaBrt(antiga)) : null,
