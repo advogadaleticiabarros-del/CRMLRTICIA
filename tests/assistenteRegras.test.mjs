@@ -141,3 +141,17 @@ test('processos formatados com número, área e fase; vazio sugere conferir o no
   assert.match(t, /trabalhista/i);
   assert.match(formatarProcessos([], 'Fulano'), /Não encontrei.*Fulano/);
 });
+
+test('processo: número CNJ com máscara e tribunal legível (sem "api_publica_")', () => {
+  const t = formatarProcessos([{ cliente: 'JOSE LOURENCO RIBEIRO', numero: '50331184220254025001', area: 'consumidor', fase: 'inicial', status: 'ativo', titulo: null, tribunal: 'api_publica_trf2' }], '5033118');
+  assert.match(t, /5033118-42\.2025\.4\.02\.5001/);
+  assert.match(t, /TRF2/);
+  assert.doesNotMatch(t, /api_publica/);
+});
+
+test('processo: cliente cadastrado sem processo não parece "nome errado"', () => {
+  const t = formatarProcessos([{ cliente: 'MAILZA DOS SANTOS COSTA', numero: null, area: null, fase: null, status: null, titulo: null, tribunal: null }], 'Mailza');
+  assert.match(t, /MAILZA/);
+  assert.match(t, /nenhum processo cadastrado/i);
+  assert.doesNotMatch(t, /Não encontrei/);
+});

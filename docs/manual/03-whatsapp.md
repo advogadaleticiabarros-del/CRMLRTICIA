@@ -163,8 +163,10 @@ Pedido: "fazer do meu WhatsApp um assistente pessoal do CRM". A Dra. Letícia, d
 |---|---|
 | Foto/PDF de boleto, com ou sem texto ("lança esse boleto") | Lê beneficiário, valor, vencimento e código. Propõe lançar em **Contas a Pagar** (`cashflow_entries`, saída **prevista**). |
 | "Gastei 38,50 de Uber pro fórum" (texto ou áudio) | Propõe lançar o **gasto já pago** (`cashflow_entries`, saída **realizada**, paga na data). Sem data, usa hoje. |
-| "Qual o processo da Mailza?" ou um nº de processo | Responde na hora com cliente, nº, tribunal, área e fase. |
+| "Qual o processo da Mailza?" ou um nº de processo | Responde na hora com cliente, nº (no padrão CNJ), tribunal, área e fase. Se o cliente estiver cadastrado mas sem processo, ele diz isso, em vez de "não encontrei". |
 | "Agenda de amanhã", "o que tenho quinta?" | Mostra compromissos, audiências, prazos e tarefas do dia ou período (até 31 dias). Junta as duas agendas e tira os repetidos. |
+
+Se der algum erro no meio do pedido, ele avisa "Deu um erro aqui…" em vez de ficar calado.
 
 **Confirmação obrigatória.** Nada é gravado sem um **"sim"**. O assistente mostra o que vai lançar: valor, data, categoria e se é do escritório ou pessoal. Depois dele:
 - **"sim"** lança;

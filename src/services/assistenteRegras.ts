@@ -238,10 +238,21 @@ export function formatarAgenda(itens: ItemAgenda[], de: string, ate: string): st
 export interface ProcessoInfo { cliente: string; numero: string | null; area: string | null; fase: string | null; status: string | null; titulo: string | null; tribunal: string | null }
 const FASE_PT: Record<string, string> = { inicial: 'inicial', instrucao: 'instrução', sentenca: 'sentença', recurso: 'recurso', execucao: 'execução', encerrado: 'encerrado' };
 
+/** 20 dígitos → NNNNNNN-DD.AAAA.J.TR.OOOO (padrão CNJ); outro formato fica como veio. */
+export function numeroCNJ(n: string | null): string | null {
+  const d = String(n || '').replace(/\D/g, '');
+  return d.length === 20 ? `${d.slice(0, 7)}-${d.slice(7, 9)}.${d.slice(9, 13)}.${d[13]}.${d.slice(14, 16)}.${d.slice(16)}` : (n || null);
+}
+/** "api_publica_trf2" → "TRF2" */
+const tribunalLegivel = (t: string | null) => (t ? t.replace(/^api_publica_/i, '').toUpperCase() : null);
+
 export function formatarProcessos(lista: ProcessoInfo[], busca: string): string {
-  if (!lista.length) return `Não encontrei processo para "${busca}". Confira o nome (ou mande o nº do processo).`;
-  const linhas = lista.slice(0, 8).map((p) =>
-    `👤 *${p.cliente}*\n📄 ${p.numero || 'sem número (ainda não protocolado)'}${p.tribunal ? ` · ${p.tribunal}` : ''}\n` +
-    `${p.titulo ? p.titulo + '\n' : ''}Área: ${p.area || '—'} · Fase: ${p.fase ? FASE_PT[p.fase] || p.fase : '—'}${p.status && p.status !== 'ativo' ? ` · ${p.status}` : ''}`);
+  if (!lista.length) return `Não encontrei cliente nem processo para "${busca}". Confira o nome (ou mande o nº do processo).`;
+  const linhas = lista.slice(0, 8).map((p) => {
+    if (!p.numero && !p.titulo) return `👤 *${p.cliente}*\n📄 Cliente cadastrado, mas nenhum processo cadastrado no CRM ainda.`;
+    const trib = tribunalLegivel(p.tribunal);
+    return `👤 *${p.cliente}*\n📄 ${numeroCNJ(p.numero) || 'sem número (ainda não protocolado)'}${trib ? ` · ${trib}` : ''}\n` +
+      `${p.titulo ? p.titulo + '\n' : ''}Área: ${p.area || '—'} · Fase: ${p.fase ? FASE_PT[p.fase] || p.fase : '—'}${p.status && p.status !== 'ativo' ? ` · ${p.status}` : ''}`;
+  });
   return linhas.join('\n\n') + (lista.length > 8 ? `\n\n…e mais ${lista.length - 8}. Seja mais específica no nome.` : '');
 }

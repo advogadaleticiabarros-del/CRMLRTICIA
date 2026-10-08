@@ -16,7 +16,8 @@ async function comandantes(): Promise<string[]> {
   return (lista.length ? lista : parseNumerosComandantes(COMANDANTES_PADRAO)).map((n) => (n.length <= 11 ? '55' + n : n));
 }
 
-const repo: AssistenteRepo = {
+/** Exportado também para diagnóstico no servidor (consultas reais, só leitura). */
+export const repo: AssistenteRepo = {
   comandantes,
 
   async pendencias(phone) {
@@ -68,11 +69,12 @@ const repo: AssistenteRepo = {
       `SELECT cl.name AS cliente, COALESCE(lp.process_number, c.case_number) AS numero,
               COALESCE(lp.judicial_area, c.legal_area) AS area, lp.phase AS fase, lp.status AS status,
               c.title AS titulo, COALESCE(lp.court_alias, lp.court) AS tribunal
-         FROM cases c
-         JOIN clients cl ON cl.id = c.client_id
+         FROM clients cl
+         LEFT JOIN cases c ON c.client_id = cl.id
          LEFT JOIN legal_processes lp ON lp.case_id = c.id
         WHERE ${where}
         ORDER BY cl.name, c.id DESC LIMIT 20`, params) as any;
+    // Busca por número: só linhas com processo (cliente sem caso não tem número pra casar).
     return rows as ProcessoInfo[];
   },
 
@@ -157,8 +159,12 @@ async function carregarMidia(mediaId: number | null): Promise<Midia | undefined>
 export async function assistenteNoWebhook(m: { phone: string; texto: string; mediaId: number | null; clientId: number | null }): Promise<boolean> {
   if (ehComandante(m.phone, await comandantes())) {
     const midia = await carregarMidia(m.mediaId);
-    assistente.atenderComandante({ phone: m.phone, texto: m.texto, midia }).catch((e) =>
-      console.error('[assistente] falha ao atender:', e?.message || e));
+    assistente.atenderComandante({ phone: m.phone, texto: m.texto, midia }).catch(async (e) => {
+      // Nunca deixar a Dra. sem resposta: avisa que deu erro (e o motivo vai pro log).
+      console.error('[assistente] falha ao atender:', e?.message || e);
+      const { sendText } = await import('./uazapiInstance');
+      await sendText(m.phone, '⚠️ Deu um erro aqui e não consegui concluir esse pedido. Tente de novo; se repetir, faça pelo CRM.', 'Assistente do CRM').catch(() => {});
+    });
     return true;
   }
   if (m.clientId && m.mediaId) {
