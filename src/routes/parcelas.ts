@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logFinancialAudit } from '../services/FinancialAuditService';
+import { recalcReceita, pagarParcelaContrato } from '../services/baixaAReceber';
 
 const router = Router();
 
@@ -12,25 +13,6 @@ function addDaysStr(dateStr: string, days: number): string {
   const d = new Date(dateStr);
   d.setDate(d.getDate() + days);
   return d.toISOString().split('T')[0];
-}
-
-/** Recalcula total_recebido / saldo_pendente / status da receita a partir das parcelas pagas. */
-async function recalcReceita(receitaId: number): Promise<void> {
-  const [[r]] = await db.query('SELECT valor FROM receitas WHERE id = ?', [receitaId]) as any;
-  if (!r) return;
-  const [[agg]] = await db.query(
-    `SELECT COALESCE(SUM(rb.valor), 0) AS recebido
-       FROM recebimentos rb
-       JOIN parcelas p ON p.id = rb.parcela_id
-      WHERE p.receita_id = ?`, [receitaId]
-  ) as any;
-  const recebido = Number(agg.recebido);
-  const saldo = round2(Number(r.valor) - recebido);
-  const status = recebido <= 0 ? 'aberto' : (recebido >= Number(r.valor) ? 'recebido' : 'parcial');
-  await db.query(
-    'UPDATE receitas SET total_recebido = ?, saldo_pendente = ?, status = ? WHERE id = ?',
-    [round2(recebido), saldo, status, receitaId]
-  );
 }
 
 // ── GET /api/parcelas — lista com filtros ───────────────────────────────────
@@ -181,44 +163,13 @@ router.put('/:id', async (req: Request, res: Response) => {
 
 // ── POST /api/parcelas/:id/pagar — baixa: registra recebimento + recalcula ──
 router.post('/:id/pagar', async (req: Request, res: Response) => {
-  const { id } = req.params;
+  // Regra única em services/baixaAReceber (também usada pelo assistente do WhatsApp).
   const { data_pagamento, valor, metodo, comprovante } = req.body;
-  const [existing] = await db.query('SELECT * FROM parcelas WHERE id = ?', [id]) as any;
-  if (!existing.length) { res.status(404).json({ error: 'Parcela não encontrada' }); return; }
-  const prev = existing[0];
-  if (prev.status === 'pago') { res.json(prev); return; }
-
-  const dataPg = data_pagamento || new Date().toISOString().split('T')[0];
-  const valorPago = valor !== undefined ? Number(valor) : Number(prev.valor_final);
-  const metodoPg = METODOS.includes(metodo) ? metodo : 'pix';
-
-  // Registra o recebimento
-  await db.query(
-    'INSERT INTO recebimentos (parcela_id, data, valor, metodo, comprovante) VALUES (?, ?, ?, ?, ?)',
-    [id, dataPg, valorPago, metodoPg, comprovante ?? null]
-  );
-  // Marca a parcela como paga
-  await db.query(
-    'UPDATE parcelas SET status = ?, data_pagamento = ?, comprovante = COALESCE(?, comprovante) WHERE id = ?',
-    ['pago', dataPg, comprovante ?? null, id]
-  );
-  // Recalcula a receita-mãe
-  await recalcReceita(prev.receita_id);
-  // Resolve eventual inadimplência da parcela
-  await db.query(
-    "UPDATE inadimplencias SET status = 'resolvido', data_resolucao = NOW() WHERE parcela_id = ? AND status <> 'resolvido'",
-    [id]
-  );
-
-  await logFinancialAudit({
-    entityType: 'Parcela', entityId: Number(id), action: 'paid',
-    userId: req.user!.id, userName: req.user!.name, receitaId: prev.receita_id, parcelaId: Number(id),
-    oldStatus: prev.status, newStatus: 'pago', newValue: valorPago,
-    reason: `Parcela ${prev.numero} paga (${metodoPg})`, ipAddress: req.ip,
-  });
-
-  const [rows] = await db.query('SELECT * FROM parcelas WHERE id = ?', [id]) as any;
-  res.json(rows[0]);
+  const r = await pagarParcelaContrato(Number(req.params.id),
+    { data: data_pagamento, valor: valor !== undefined ? Number(valor) : null, metodo, comprovante },
+    { id: req.user!.id, name: req.user!.name, ip: req.ip });
+  if (r.resultado === 'nao_encontrado') { res.status(404).json({ error: 'Parcela não encontrada' }); return; }
+  res.json(r.parcela);
 });
 
 // ── DELETE /api/parcelas/:id ────────────────────────────────────────────────

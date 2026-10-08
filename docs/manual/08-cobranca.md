@@ -100,6 +100,12 @@ Pedido: "provisão correta do que é meu e do que não será meu". Em caso de **
 
 O processo de cada linha vem do caso ligado ao lançamento (ou ao acordo), à parcela, à RPV/alvará, ao dativo ou ao correspondente.
 
+## Baixa: uma regra só, para as telas e para o assistente (desde 08/10/2026)
+
+A baixa de lançamento (`financial_records`), de parcela de proposta (`installments`, com recibo por e-mail) e de parcela de contrato (`parcelas`) agora é feita sempre por `src/services/baixaAReceber.ts`. No contrato, a baixa registra o recebimento, recalcula a receita, resolve a inadimplência e grava a auditoria. As rotas `PATCH /api/financial/:id/pay`, `PATCH /api/financial/installments/:id/pay` e `POST /api/parcelas/:id/pagar` chamam essa função. O assistente do WhatsApp também chama, quando você responde "sim" a um comprovante de cliente (ver [03-whatsapp](03-whatsapp.md)).
+
+Única diferença em relação a antes: dar baixa em algo **já pago** não muda mais a data de pagamento. Antes, reabria a data com "agora".
+
 ## FAQ
 
 **A despesa pessoal da família aparece no resultado do escritório?** Não deveria — o sistema guarda despesa pessoal/familiar separada por escopo, e o DRE do escritório filtra só `escopo='empresa'`.
@@ -117,6 +123,7 @@ O processo de cada linha vem do caso ligado ao lançamento (ou ao acordo), à pa
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 08/10/2026 | Claude | Baixa unificada em `baixaAReceber.ts` (telas + assistente do WhatsApp); baixa repetida não altera a data de pagamento |
 | 07/10/2026 | Claude | A Receber: em caso de parceria, a coluna Valor mostra só a sua parte (total e parte da parceira em letra menor) |
 | 07/10/2026 | Claude | A Receber mostra o processo de cada linha e separa o que é seu do que é da parceira (cards e Resultados) |
 | 07/10/2026 | Claude | A Receber: filtro de mês/período, cards seguindo o período; corrigido card Vencido que mostrava R$ 0,00 |

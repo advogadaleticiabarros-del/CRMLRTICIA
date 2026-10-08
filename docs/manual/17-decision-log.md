@@ -77,6 +77,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Decisão:** instaladas as skills `codebase-design` e `setup-matt-pocock-skills` (github.com/mattpocock/skills). Toda criação ou reestruturação de código passa a seguir os princípios de módulo profundo: muito comportamento atrás de interface pequena, dependências externas (APIs, banco, envio de WhatsApp) injetadas, teste pela mesma interface que o sistema usa. Regra registrada no `CLAUDE.md` (seção "Agent skills"); configuração em `docs/agents/`.
 **Motivo:** pedido da usuária ("vamos usar em tudo que der"). Arquivos grandes como `app.js`/`whatsapp.js` misturam responsabilidades; módulos profundos concentram mudança e bug num lugar só e se encaixam com o TDD já adotado.
 
+### 08/10/2026 — Assistente do WhatsApp: a IA só interpreta, quem grava é o código, e sempre com "sim"
+**Decisão:** o assistente pessoal (03-whatsapp) usa a IA só para **entender o pedido e ler documentos**, sempre em JSON validado por regras puras (`assistenteRegras.ts`). Gravar (contas a pagar, gastos, baixa) só acontece depois do **"sim"** de uma comandante. Baixa de comprovante de cliente **nunca é automática**: a decisão foi da Dra. Letícia, entre "confere e me pergunta" e "baixa sozinho se bater exato".
+**Motivo:** a IA lê valor e data errados de vez em quando, e comprovante falso é golpe comum. Errar um lançamento custa caro, e confirmar custa uma palavra. Só a Dra. Letícia e a Jessica comandam (lista em `office_settings`). Qualquer outro número segue como cliente/lead.
+**Alternativa considerada:** agente de IA com ferramentas que gravam direto (*function calling*). Foi descartada porque é mais difícil de testar e limitar, e um erro de interpretação viraria lançamento real.
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.

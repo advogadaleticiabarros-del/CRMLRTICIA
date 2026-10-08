@@ -145,11 +145,9 @@ router.post('/', async (req: Request, res: Response) => {
 // equipe registrou é normal (era o motivo do "não encontrado" ao tentar
 // baixar um lançamento de outro usuário, mesmo ele existindo).
 router.patch('/:id/pay', async (req: Request, res: Response) => {
-  const [result] = await db.query(
-    "UPDATE financial_records SET status = 'pago', paid_at = NOW() WHERE id = ?",
-    [req.params.id]
-  ) as any;
-  if (!result.affectedRows) { res.status(404).json({ error: 'Lançamento não encontrado' }); return; }
+  const { pagarLancamento } = await import('../services/baixaAReceber');
+  const r = await pagarLancamento(Number(req.params.id));
+  if (r === 'nao_encontrado') { res.status(404).json({ error: 'Lançamento não encontrado' }); return; }
   res.json({ success: true, id: Number(req.params.id), status: 'pago' });
 });
 
@@ -616,32 +614,10 @@ router.post('/renegociar', async (req: Request, res: Response) => {
 
 // ── PATCH /api/financial/installments/:id/pay — dar baixa na parcela ────────
 router.patch('/installments/:id/pay', async (req: Request, res: Response) => {
-  const [result] = await db.query(
-    "UPDATE installments SET status = 'pago', paid_at = NOW() WHERE id = ?",
-    [req.params.id]
-  ) as any;
-  if (!result.affectedRows) { res.status(404).json({ error: 'Parcela não encontrada' }); return; }
-
-  // Recibo automático por e-mail ao cliente (best-effort)
-  try {
-    const [[info]] = await db.query(
-      `SELECT i.valor, i.numero, cl.name, cl.email, pr.title AS proposta
-         FROM installments i
-         JOIN clients cl ON cl.id = i.client_id
-         LEFT JOIN propostas pr ON pr.id = i.proposta_id
-        WHERE i.id = ?`, [req.params.id]) as any;
-    if (info?.email && info.email.includes('@')) {
-      const { sendReceipt } = await import('../services/EmailService');
-      sendReceipt(info.email, {
-        name: info.name,
-        valor: Number(info.valor),
-        referencia: `${info.numero ? info.numero + 'ª parcela' : 'Parcela'}${info.proposta ? ` — ${info.proposta}` : ''}`,
-        pagoEm: new Date(),
-        numeroRecibo: `I${req.params.id}-${new Date().getFullYear()}`,
-      }).catch(() => {});
-    }
-  } catch { /* recibo é best-effort */ }
-
+  // Regra única (com recibo por e-mail) em services/baixaAReceber.
+  const { pagarInstallment } = await import('../services/baixaAReceber');
+  const r = await pagarInstallment(Number(req.params.id));
+  if (r === 'nao_encontrado') { res.status(404).json({ error: 'Parcela não encontrada' }); return; }
   res.json({ success: true, id: Number(req.params.id), status: 'pago' });
 });
 

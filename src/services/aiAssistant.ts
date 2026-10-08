@@ -157,6 +157,32 @@ export async function aiExtractFromFile(
   } catch (e: any) { return { ok: false, message: e.message }; }
 }
 
+/**
+ * Leitura de imagem/PDF com reserva: tenta o Gemini (aiExtractFromFile) e, se ele
+ * falhar (ex.: sem cota — já aconteceu em 07/10/2026), usa a OpenAI com visão.
+ * Usado pelo assistente do WhatsApp para boletos e comprovantes.
+ */
+export async function aiLerArquivo(
+  base64: string, mimeType: string, instruction: string
+): Promise<{ ok: boolean; text?: string; message?: string }> {
+  const g = await aiExtractFromFile(base64, mimeType, instruction).catch((e: any) => ({ ok: false, message: e?.message } as { ok: boolean; text?: string; message?: string }));
+  if (g.ok && g.text) return g;
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return g;
+  try {
+    const anexo = mimeType === 'application/pdf'
+      ? { type: 'file', file: { filename: 'documento.pdf', file_data: `data:application/pdf;base64,${base64}` } }
+      : { type: 'image_url', image_url: { url: `data:${mimeType};base64,${base64}` } };
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-5.6-luna', messages: [{ role: 'user', content: [{ type: 'text', text: instruction }, anexo] }] }),
+    });
+    const d: any = await r.json();
+    if (!r.ok) return { ok: false, message: d?.error?.message || g.message || 'Erro OpenAI (visão)' };
+    return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
+  } catch (e: any) { return { ok: false, message: e.message }; }
+}
+
 /** Tipos canônicos de peça usados para casar o modelo do escritório. */
 export const PIECE_TYPES: { value: string; label: string }[] = [
   { value: 'peticao_inicial', label: 'Petição inicial' },

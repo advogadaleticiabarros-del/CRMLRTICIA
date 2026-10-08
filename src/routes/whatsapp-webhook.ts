@@ -590,6 +590,16 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
     // affectedRows: 1 = inserção nova; 2 = atualizou uma existente (ON DUPLICATE);
     // 0 = update sem mudança nenhuma. Só trata como mensagem NOVA no caso 1.
     if (r.affectedRows === 1 && !msg.fromMe) {
+      // Assistente pessoal do CRM (08/10/2026): mensagem da Dra. Letícia/Jessica
+      // é um pedido ao CRM (lançar conta, consultar processo/agenda…) e não segue
+      // o fluxo de cliente/lead. Foto/PDF de cliente → confere se é comprovante.
+      const textoPuro = String(msg.text || (typeof msg.content === 'string' ? msg.content : '') || '');
+      const { assistenteNoWebhook } = await import('../services/assistenteWhatsappMysql');
+      const doAssistente = await assistenteNoWebhook({ phone, texto: textoPuro, mediaId, clientId }).catch((e) => {
+        console.error('[whatsapp-webhook] assistente falhou:', e?.message || e); return false;
+      });
+      if (doAssistente) return;
+
       // Resposta a uma pergunta de botão em aberto (ex.: newsletter na recusa
       // de proposta) tem prioridade: se houver pendência para este telefone,
       // essa mensagem É a resposta — não é um contato novo qualquer, então

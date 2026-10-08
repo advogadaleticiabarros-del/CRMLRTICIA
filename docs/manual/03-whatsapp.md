@@ -153,10 +153,48 @@ Ao clicar **Gerar proposta** na conversa, o CRM sempre lê o que o contato escre
 
 A leitura tem duas camadas (`src/services/dadosPropostaConversa.ts`, testes em `tests/dadosPropostaConversa.test.mjs`): primeiro os dados rotulados ou inconfundíveis ("Nome completo:", "CPF:", e-mail, CEP), que não dependem de IA; depois a IA completa o resto. O que veio rotulado vence a IA.
 
+## Assistente pessoal do CRM pelo WhatsApp (desde 08/10/2026)
+
+Pedido: "fazer do meu WhatsApp um assistente pessoal do CRM". A Dra. Letícia, do **(44) 99101-1402**, e a Jessica, do **(27) 98879-8093**, mandam mensagem para o número do escritório **(27) 99515-1402** como numa conversa normal: texto, áudio ou foto/PDF. O CRM responde como assistente. A lista de números fica em `office_settings.assistente_whatsapp_numeros` (padrão em `COMANDANTES_PADRAO`). O número é reconhecido com ou sem o 9º dígito. Mensagens desses números **não** entram no fluxo de cliente/lead.
+
+**O que ele faz**
+
+| Pedido (exemplos) | O que acontece |
+|---|---|
+| Foto/PDF de boleto, com ou sem texto ("lança esse boleto") | Lê beneficiário, valor, vencimento e código. Propõe lançar em **Contas a Pagar** (`cashflow_entries`, saída **prevista**). |
+| "Gastei 38,50 de Uber pro fórum" (texto ou áudio) | Propõe lançar o **gasto já pago** (`cashflow_entries`, saída **realizada**, paga na data). Sem data, usa hoje. |
+| "Qual o processo da Mailza?" ou um nº de processo | Responde na hora com cliente, nº, tribunal, área e fase. |
+| "Agenda de amanhã", "o que tenho quinta?" | Mostra compromissos, audiências, prazos e tarefas do dia ou período (até 31 dias). Junta as duas agendas e tira os repetidos. |
+
+**Confirmação obrigatória.** Nada é gravado sem um **"sim"**. O assistente mostra o que vai lançar: valor, data, categoria e se é do escritório ou pessoal. Depois dele:
+- **"sim"** lança;
+- **"não"** cancela;
+- **uma correção** ("é pessoal", "o valor é 300") refaz a proposta;
+- **com 2 ou mais itens aguardando**, ele lista os itens e pede "sim 1", "sim 2"…
+
+Pendências expiram em 48 h (tabela `assistente_pendencias`, migration 153). Um "sim" só confirma pendências do próprio número.
+
+**Comprovante de cliente.** Quando um **cliente** manda foto ou PDF, o assistente segue estes passos:
+1. Se o cliente **tem algo em aberto** no A Receber, a IA lê a imagem. Se não tiver nada em aberto, a IA nem é chamada.
+2. Se for comprovante, ele confere **para quem foi pago** e procura a parcela em aberto **de mesmo valor**. Entre várias, escolhe a de vencimento mais próximo da data do pagamento.
+3. Ele manda às **duas** comandantes: "Comprovante de Fulana, R$ X · bate com: 1/5 Honorários · Dar baixa? sim/não".
+4. Se o PIX foi para outra pessoa, o alerta aparece em destaque: ❌ ATENÇÃO.
+5. O primeiro "sim" dá a baixa e fecha a pergunta da outra.
+6. Se nenhuma parcela tiver o mesmo valor, ele só avisa e lista o que está em aberto. Nunca dá baixa sozinho.
+
+**Como funciona por dentro**
+- **Regras puras:** `src/services/assistenteRegras.ts`, com testes em `tests/assistenteRegras.test.mjs`.
+- **Orquestrador:** `src/services/assistenteWhatsapp.ts`, com testes em `tests/assistenteWhatsapp.test.mjs`. Banco, IA e envio são injetados.
+- **Peças reais:** `src/services/assistenteWhatsappMysql.ts`.
+- **Entrada:** `assistenteNoWebhook`, chamado no webhook da Uazapi.
+- **IA:** o pedido é interpretado pela Groq em modo JSON, com reserva na OpenAI. Boleto e comprovante são lidos pelo Gemini, com reserva na OpenAI com visão (`aiLerArquivo`). Áudio é transcrito pelo Whisper da Groq.
+- **Baixa:** usa a mesma regra das telas (`src/services/baixaAReceber.ts`).
+
 ## Changelog
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 08/10/2026 | Claude | Assistente pessoal do CRM pelo WhatsApp: contas a pagar, gastos, consulta de processo e agenda, conferência de comprovante de cliente com baixa após "sim" |
 | 07/10/2026 | Claude | Lembrete de audiência ao cliente: trava por cliente + horário + marco (antes era por compromisso da agenda, e cópias da mesma audiência geravam 2 mensagens) |
 | 07/10/2026 | Claude | "Gerar proposta" passa a ler os dados da conversa também quando o contato já é lead (completa só o que está vazio, avisa divergências) e lê dados rotulados sem IA |
 | 02/10/2026 | Claude | Organizar números sem cadastro (triagem em lote com IA) |
