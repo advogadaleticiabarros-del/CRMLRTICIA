@@ -263,7 +263,7 @@ export function promptAssistente(opts: {
   return `Você é o assistente pessoal do CRM de um escritório de advocacia (Dra. Letícia Barros). Hoje é ${opts.diaSemana}, ${opts.hoje} (fuso de Brasília).
 A mensagem pode ter erros de digitação, abreviações, falta de acento ou vir de áudio transcrito: interprete pela INTENÇÃO e pelo contexto da conversa (ex.: "dela", "esse", "a mesma" referem-se ao que foi falado antes).
 Responda SOMENTE um JSON, com UMA destas ações:
-LANÇAMENTOS (o sistema pede confirmação antes de gravar):
+AÇÕES (financeiro pede confirmação; agenda, lembrete, tarefa, cadastro e recado são feitos na hora):
 - {"acao":"conta_pagar","descricao":"...","valor":123.45,"data":"AAAA-MM-DD (vencimento)","categoria":"...","escopo":"empresa|pessoal","codigo":"linha digitável, se houver"} → boleto/conta que AINDA vai ser paga.
 - {"acao":"gasto","descricao":"...","valor":123.45,"data":"AAAA-MM-DD","categoria":"...","escopo":"empresa|pessoal"} → algo que JÁ foi pago/gasto.
 - {"acao":"pagar_conta","descricao":"qual conta","valor":null,"data":"AAAA-MM-DD"} → "paguei a conta de luz": dar baixa numa conta a pagar JÁ lançada.
@@ -284,6 +284,7 @@ CONSULTAS (respondidas na hora):
 - {"acao":"contas_vencer","data_inicio":"AAAA-MM-DD","data_fim":"AAAA-MM-DD"} → contas a pagar que vencem no período.
 - {"acao":"responder","texto":"..."} → cumprimento, dúvida, ou pedido fora dessas ações (explique com educação o que você consegue fazer).
 Resolva datas relativas ("amanhã", "sexta", "semana que vem", "dia 15") a partir de hoje. Omita campos que não souber.
+Se a mensagem pedir para MUDAR ou DESFAZER um compromisso, lembrete, tarefa ou recado que a conversa mostra que JÁ foi feito ("✅ ..."), NÃO crie outro: use "responder" explicando que já foi feito e que o ajuste é na Agenda/Tarefas do CRM.
 Categorias de saída: ${cats}. Escopo "empresa" = escritório; "pessoal" = casa/família. Na dúvida, "empresa".
 Valores em número (312.40). Nunca invente valor, data, CPF ou telefone que não estejam na mensagem, na conversa ou no documento.${opts.pendente ? `
 Há um item aguardando confirmação: ${JSON.stringify(opts.pendente)}. Se a mensagem CORRIGIR esse item (ex.: "é pessoal", "o valor é 300", "muda para as 15h", "manda mais curto"), devolva a MESMA ação com TODOS os campos já corrigidos e "corrige": true.` : ''}${opts.documento ? `
@@ -509,4 +510,43 @@ export function formatarAndamento(lista: { processo: string | null; cliente: str
     const movs = p.movimentos.slice(0, 5).map((m) => `• ${dataBR(m.data)} — ${String(m.resumo || m.titulo || '').replace(/\s+/g, ' ').slice(0, 220)}`).join('\n');
     return `${cab}\n${movs}`;
   }).join('\n\n');
+}
+
+/**
+ * Resposta depois de FAZER uma ação que não pede confirmação (desde 08/10/2026:
+ * "só peça confirmação em lançamentos financeiros"). Como não houve prévia,
+ * mostra tudo o que foi gravado/enviado.
+ */
+export function textoFeito(p: any, r: { id?: number | null; criado?: boolean; ok?: boolean } = {}): string {
+  switch (p.tipo) {
+    case 'compromisso': {
+      const [h, m] = String(p.hora).split(':').map(Number);
+      const fim = Math.min(h * 60 + m + Number(p.duracao || 60), 23 * 60 + 59);
+      const ate = `${String(Math.floor(fim / 60)).padStart(2, '0')}:${String(fim % 60).padStart(2, '0')}`;
+      return `✅ Marcado na agenda (e no Google Agenda):\n*${p.titulo}*\n${diaComSemana(p.data)} às ${p.hora} (até ${ate})`
+        + `${p.local ? `\nLocal: ${p.local}` : ''}${p.cliente ? `\nCliente: ${p.cliente}` : ''}\n\nPara mudar, me diga ou ajuste na Agenda do CRM.`;
+    }
+    case 'lembrete':
+      return `✅ Combinado! Te lembro aqui em ${dataBR(p.data)} às ${p.hora}:\n"${p.texto}"`;
+    case 'tarefa':
+      return `✅ Tarefa criada${r.id ? ` (nº ${r.id})` : ''}: *${p.titulo}*${p.data ? `\nPrazo: ${dataBR(p.data)}` : ''}\nPrioridade: ${p.prioridade}`
+        + `${p.cliente ? `\nCliente: ${p.cliente}` : ''}`;
+    case 'cadastro_cliente': {
+      const d = p.dados || {};
+      const linhas = [
+        ['Nome', d.nome], ['CPF', d.cpf], ['RG', d.rg], ['Nascimento', d.nascimento ? dataBR(d.nascimento) : null],
+        ['Endereço', d.endereco], ['E-mail', d.email], ['Telefone', d.telefone ? foneBR(d.telefone) : null],
+        ['Estado civil', d.estado_civil], ['Profissão', d.profissao], ['Nacionalidade', d.nacionalidade],
+      ].filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n');
+      const cab = r.criado ? `✅ Ficha criada${r.id ? ` (nº ${r.id})` : ''}` : `✅ Ficha completada${r.id ? ` (nº ${r.id})` : ''} — ${p.existente?.name || d.nome} (só o que faltava; nada foi apagado)`;
+      const docs = p.midias && p.midias.length ? `\n📎 ${p.midias.length} documento(s) na ficha (Documentos pessoais).` : '';
+      return `${cab}\n${linhas}${docs}`;
+    }
+    case 'mensagem_cliente':
+      return r.ok === false
+        ? `⚠️ Não consegui enviar para ${p.cliente} (${foneBR(p.telefone)}). Tente pelo CRM.`
+        : `✅ Enviado para ${p.cliente} (${foneBR(p.telefone)}):\n\n"${p.texto}"`;
+    default:
+      return '✅ Feito.';
+  }
 }

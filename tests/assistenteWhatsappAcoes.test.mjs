@@ -43,7 +43,7 @@ function montar({ respostasIa = [], leituras = [], abertos = [], contas = [], do
     async criarLembrete(phone, quando, texto) { feito.lembretes.push({ phone, quando, texto }); return 9; },
     async criarTarefa(t) { feito.tarefas.push(t); return 33; },
     async clientePorCpfOuNome() { return existente; },
-    async salvarCadastro(dados, existenteId, midias) { feito.cadastros.push({ dados, existenteId, midias }); return { id: existenteId || 200, criado: !existenteId }; },
+    async salvarCadastro(dados, existenteId, midias) { feito.cadastros.push({ dados, existenteId, midias }); if (!existenteId) existente = { id: 200, name: dados.nome }; return { id: existenteId || 200, criado: !existenteId }; },
     async enviarMensagemCliente(phone, texto) { feito.mensagens.push({ phone, texto }); return true; },
   };
   const ia = {
@@ -97,16 +97,17 @@ test('enviar documento: acha pela palavra (com erro) e manda o arquivo aqui', as
   assert.match(t.ultima(), /Não achei[\s\S]*Procuração — Mailza[\s\S]*RG/);
 });
 
-test('compromisso: confirma e só cria com "sim", ligado ao cliente', async () => {
+// Pedido (08/10/2026): "Só peça confirmação em lançamentos de financeiros,
+// fora isso não precisa pedir". Agenda, lembrete, tarefa, cadastro e recado
+// a cliente são feitos na hora; o financeiro continua com "sim".
+test('compromisso: cria na hora (sem "sim"), ligado ao cliente', async () => {
   const t = montar({ respostasIa: [J({ acao: 'compromisso', titulo: 'Reunião com Mailza', data: '2026-10-09', hora: '14h', evento: 'reuniao', busca: 'mailza' })] });
   await t.fala('marca reuniao com a mailza amanha 14h');
-  assert.match(t.ultima(), /Agenda[\s\S]*sexta, 09\/10\/2026 às 14:00[\s\S]*MAILZA/);
-  assert.strictEqual(t.feito.compromissos.length, 0);
-  await t.fala('sim');
   assert.strictEqual(t.feito.compromissos.length, 1);
   assert.strictEqual(t.feito.compromissos[0].clientId, 1);
   assert.strictEqual(t.feito.compromissos[0].hora, '14:00');
-  assert.match(t.ultima(), /✅/);
+  assert.match(t.ultima(), /✅ Marcado na agenda[\s\S]*sexta, 09\/10\/2026 às 14:00[\s\S]*MAILZA/);
+  assert.strictEqual(t.pend.length, 0, 'não abre pendência');
 });
 
 test('compromisso ou lembrete no passado: avisa', async () => {
@@ -116,19 +117,21 @@ test('compromisso ou lembrete no passado: avisa', async () => {
   assert.strictEqual(t.pend.length, 0);
 });
 
-test('lembrete: vai para quem pediu, na hora certa', async () => {
+test('lembrete: agenda na hora, para quem pediu', async () => {
   const t = montar({ respostasIa: [J({ acao: 'lembrete', texto: 'ligar para o perito', data: '2026-10-09', hora: '09:00' })] });
   await t.fala('me lembra amanha 9h de ligar pro perito');
-  await t.fala('ss');
   assert.deepStrictEqual(t.feito.lembretes, [{ phone: LETICIA, quando: '2026-10-09T09:00', texto: 'ligar para o perito' }]);
+  assert.match(t.ultima(), /✅[\s\S]*09\/10\/2026 às 09:00/);
+  assert.strictEqual(t.pend.length, 0);
 });
 
-test('tarefa com cliente', async () => {
+test('tarefa com cliente: cria na hora', async () => {
   const t = montar({ respostasIa: [J({ acao: 'tarefa', titulo: 'Protocolar réplica', data: '2026-10-15', prioridade: 'alta', busca: 'jose lorenço' })] });
   await t.fala('cria tarefa protocolar replica do jose lorenço ate dia 15, urgente');
-  await t.fala('sim');
   assert.strictEqual(t.feito.tarefas[0].clientId, 2);
   assert.strictEqual(t.feito.tarefas[0].prioridade, 'alta');
+  assert.match(t.ultima(), /✅ Tarefa criada/);
+  assert.strictEqual(t.pend.length, 0);
 });
 
 test('recebimento que bate com parcela em aberto vira baixa da parcela', async () => {
@@ -158,40 +161,37 @@ test('pagar conta: acha a conta com erro de digitação e marca como paga', asyn
   assert.deepStrictEqual(t.feito.pagas, [{ id: 10, data: '2026-10-08' }]);
 });
 
-test('cadastro: RG e depois comprovante de residência viram UMA ficha', async () => {
+test('cadastro na hora: RG cria a ficha e o comprovante enviado depois completa a MESMA', async () => {
   const t = montar({ respostasIa: [
     J({ acao: 'cadastro_cliente', nome: 'Maria da Silva', cpf: '12345678909', rg: '1.234.567', nascimento: '1980-05-10' }),
     J({ acao: 'cadastro_cliente', nome: 'Maria da Silva', endereco: 'Rua X, 10 - Vitória/ES' }),
   ], leituras: ['{"tipo":"outro"}', '{"tipo":"outro"}'] });
   await t.fala('cadastra essa cliente', { midia: { mime: 'image/jpeg', data: Buffer.from('rg') }, mediaId: 501 });
-  await t.fala('', { midia: { mime: 'image/jpeg', data: Buffer.from('comp') }, mediaId: 502 });
-  const abertas = t.pend.filter((p) => p.status === 'aberta');
-  assert.strictEqual(abertas.length, 1, 'continua uma pendência só');
-  assert.strictEqual(abertas[0].payload.dados.endereco, 'Rua X, 10 - Vitória/ES');
-  assert.strictEqual(abertas[0].payload.dados.cpf, '123.456.789-09');
-  assert.deepStrictEqual(abertas[0].payload.midias, [501, 502]);
-  await t.fala('sim');
   assert.strictEqual(t.feito.cadastros.length, 1);
-  assert.deepStrictEqual(t.feito.cadastros[0].midias, [501, 502]);
-  assert.match(t.ultima(), /Ficha criada/);
+  assert.strictEqual(t.feito.cadastros[0].existenteId, null);
+  assert.deepStrictEqual(t.feito.cadastros[0].midias, [501]);
+  assert.match(t.ultima(), /✅ Ficha criada[\s\S]*123\.456\.789-09/);
+  await t.fala('', { midia: { mime: 'image/jpeg', data: Buffer.from('comp') }, mediaId: 502 });
+  assert.strictEqual(t.feito.cadastros.length, 2);
+  assert.strictEqual(t.feito.cadastros[1].existenteId, 200, 'completa a ficha criada, não duplica');
+  assert.deepStrictEqual(t.feito.cadastros[1].midias, [502]);
+  assert.match(t.ultima(), /✅ Ficha completada/);
+  assert.strictEqual(t.pend.length, 0);
 });
 
-test('cadastro de quem já tem ficha: completa, não duplica', async () => {
+test('cadastro de quem já tem ficha: completa na hora, não duplica', async () => {
   const t = montar({ respostasIa: [J({ acao: 'cadastro_cliente', nome: 'Mailza dos Santos Costa', email: 'novo@x.com' })], existente: { id: 1, name: 'MAILZA DOS SANTOS COSTA' } });
   await t.fala('atualiza o email da mailza: novo@x.com');
-  assert.match(t.ultima(), /Já existe a ficha/);
-  await t.fala('sim');
   assert.strictEqual(t.feito.cadastros[0].existenteId, 1);
   assert.match(t.ultima(), /completada/);
 });
 
-test('mensagem ao cliente: mostra o texto e só envia depois do "sim"', async () => {
+test('mensagem ao cliente: envia na hora e mostra o que foi enviado', async () => {
   const t = montar({ respostasIa: [J({ acao: 'mensagem_cliente', busca: 'mailza', texto: 'Olá, Mailza! Sua audiência é dia 10 às 14h. — Dra. Letícia Barros' })] });
   await t.fala('avisa a mailza que a audiencia é dia 10 as 14h');
-  assert.match(t.ultima(), /Enviar para MAILZA[\s\S]*\(27\) 98821-6960[\s\S]*Sua audiência é dia 10/);
-  assert.strictEqual(t.feito.mensagens.length, 0);
-  await t.fala('pode mandar');
   assert.deepStrictEqual(t.feito.mensagens, [{ phone: '5527988216960', texto: 'Olá, Mailza! Sua audiência é dia 10 às 14h. — Dra. Letícia Barros' }]);
+  assert.match(t.ultima(), /✅ Enviado para MAILZA[\s\S]*Sua audiência é dia 10/);
+  assert.strictEqual(t.pend.length, 0);
 });
 
 test('mensagem ao cliente sem telefone cadastrado: avisa', async () => {
@@ -201,15 +201,10 @@ test('mensagem ao cliente sem telefone cadastrado: avisa', async () => {
   assert.strictEqual(t.pend.length, 0);
 });
 
-test('correção de compromisso pendente ("muda pra 15h") substitui', async () => {
-  const t = montar({ respostasIa: [
-    J({ acao: 'compromisso', titulo: 'Reunião', data: '2026-10-09', hora: '14:00' }),
-    J({ acao: 'compromisso', titulo: 'Reunião', data: '2026-10-09', hora: '15:00', corrige: true }),
-  ] });
-  await t.fala('reuniao amanha 14h');
-  await t.fala('muda pra 15h');
-  const abertas = t.pend.filter((p) => p.status === 'aberta');
-  assert.strictEqual(abertas.length, 1);
-  assert.strictEqual(abertas[0].payload.hora, '15:00');
-  assert.match(t.prompts[1], /aguardando confirmação[\s\S]*14:00/);
+test('financeiro continua pedindo "sim": recebimento, pagar conta e lançamentos', async () => {
+  const t = montar({ respostasIa: [J({ acao: 'gasto', descricao: 'Uber', valor: 30 })] });
+  await t.fala('gastei 30 de uber');
+  assert.match(t.ultima(), /Confirma\?/);
+  assert.strictEqual(t.feito.lancados.length, 0);
+  assert.strictEqual(t.pend.length, 1);
 });

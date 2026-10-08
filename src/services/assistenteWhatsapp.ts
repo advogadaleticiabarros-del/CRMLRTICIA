@@ -15,9 +15,9 @@
  */
 import {
   Lancamento, ItemAberto, ItemAgenda, ProcessoInfo, DadosCadastro, ResumoAReceber,
-  interpretarConfirmacao, parseAcao, promptAssistente, lerJson, mesclarCadastro,
+  interpretarConfirmacao, parseAcao, promptAssistente, lerJson,
   PROMPT_LEITURA_DOCUMENTO, parseLeituraDocumento, destinatarioConfere, casarComprovante,
-  textoConfirmacao, formatarAgenda, formatarProcessos, formatarAReceber, formatarContasVencer,
+  textoConfirmacao, textoFeito, formatarAgenda, formatarProcessos, formatarAReceber, formatarContasVencer,
   formatarPrazos, formatarClienteDados, formatarAndamento, moedaBR, dataBR, foneBR,
 } from './assistenteRegras';
 import { encontrarClientes, escolherConta, escolherDocumento, ContaAberta } from './assistenteBusca';
@@ -75,6 +75,9 @@ export interface AssistenteDeps {
   agora?: () => Date;
 }
 
+/** Só o que mexe no financeiro pede "sim" antes. */
+const PEDE_CONFIRMACAO = new Set(['lancamento', 'baixa', 'pagar_conta', 'recebimento']);
+
 const DIAS_SEMANA = ['domingo', 'segunda-feira', 'terça-feira', 'quarta-feira', 'quinta-feira', 'sexta-feira', 'sábado'];
 const ehAudio = (m?: Midia) => !!m && /^(audio|video)\//.test(m.mime);
 const ehDocumento = (m?: Midia) => !!m && (/^image\//.test(m.mime) || m.mime === 'application/pdf');
@@ -123,9 +126,15 @@ export function criarAssistente(deps: AssistenteDeps) {
 
   // ── Execução depois do "sim" ──────────────────────────────────────────────
   async function executar(phone: string, p: Pendencia): Promise<string> {
-    const d = p.payload; const q = quem(phone);
+    const msg = await executarPayload(phone, p.tipo, p.payload);
+    await repo.fecharPendencia(p.id, 'confirmada');
+    return msg;
+  }
+
+  async function executarPayload(phone: string, tipoPend: string, d: any): Promise<string> {
+    const q = quem(phone);
     let msg: string;
-    if (p.tipo === 'baixa') {
+    if (tipoPend === 'baixa') {
       const r = await repo.baixar({ fonte: d.fonte, id: d.id }, { data: d.data, valor: d.valor, quem: q });
       msg = r === 'ja_pago' ? `ℹ️ ${d.descricao} de ${d.cliente} já estava baixada. Nada mudou.`
         : r === 'nao_encontrado' ? `⚠️ Não encontrei mais a parcela "${d.descricao}" de ${d.cliente}. Confira no A Receber.`
@@ -141,23 +150,21 @@ export function criarAssistente(deps: AssistenteDeps) {
       msg = `✅ Recebimento registrado (nº ${id}): ${d.cliente} — ${moedaBR(d.valor)} em ${dataBR(d.data)}.`;
     } else if (d.tipo === 'compromisso') {
       await repo.criarCompromisso({ titulo: d.titulo, data: d.data, hora: d.hora, duracao: d.duracao, evento: d.evento, local: d.local, clientId: d.clientId ?? null }, q);
-      msg = `✅ Marcado na agenda: ${d.titulo} — ${dataBR(d.data)} às ${d.hora}.`;
+      msg = textoFeito(d);
     } else if (d.tipo === 'lembrete') {
       await repo.criarLembrete(phone, `${d.data}T${d.hora}`, d.texto);
-      msg = `✅ Combinado! Te lembro em ${dataBR(d.data)} às ${d.hora}.`;
+      msg = textoFeito(d);
     } else if (d.tipo === 'tarefa') {
       const id = await repo.criarTarefa({ titulo: d.titulo, data: d.data, prioridade: d.prioridade, descricao: d.descricao, clientId: d.clientId ?? null }, q);
-      msg = `✅ Tarefa criada (nº ${id}): ${d.titulo}.`;
+      msg = textoFeito(d, { id });
     } else if (d.tipo === 'cadastro_cliente') {
       const r = await repo.salvarCadastro(d.dados, d.existente?.id ?? null, d.midias || [], q);
-      msg = r.criado ? `✅ Ficha criada (nº ${r.id}): ${d.dados.nome || d.dados.cpf}.` : `✅ Ficha completada (nº ${r.id}): ${d.existente?.name || d.dados.nome}.`;
+      msg = textoFeito(d, r);
     } else if (d.tipo === 'mensagem_cliente') {
-      const ok = await repo.enviarMensagemCliente(d.telefone, d.texto);
-      msg = ok ? `✅ Enviado para ${d.cliente}.` : `⚠️ Não consegui enviar para ${d.cliente} (${foneBR(d.telefone)}). Tente pelo CRM.`;
+      msg = textoFeito(d, { ok: await repo.enviarMensagemCliente(d.telefone, d.texto) });
     } else {
       msg = '⚠️ Não sei executar esse item.';
     }
-    await repo.fecharPendencia(p.id, 'confirmada');
     return msg;
   }
 
@@ -167,8 +174,13 @@ export function criarAssistente(deps: AssistenteDeps) {
       `\n\nResponda *sim 1*, *sim 2*… (ou *não 1* para cancelar).`;
   }
 
-  /** Abre a pendência e manda o texto de confirmação. */
+  /**
+   * Financeiro abre pendência e pede "sim"; o resto (agenda, lembrete, tarefa,
+   * cadastro, recado a cliente) é feito na hora — pedido de 08/10/2026: "Só peça
+   * confirmação em lançamentos de financeiros, fora isso não precisa pedir".
+   */
   async function propor(phone: string, tipoPend: string, payload: any): Promise<void> {
+    if (!PEDE_CONFIRMACAO.has(tipoPend)) { await enviar(phone, await executarPayload(phone, tipoPend, payload)); return; }
     await repo.criarPendencia({ phone, tipo: tipoPend, payload, grupo: null, resumo: resumoDe({ ...payload, tipo: tipoPend === 'baixa' ? 'baixa' : payload.tipo }) });
     await enviar(phone, tipoPend === 'baixa'
       ? `💰 *Recebimento de ${payload.cliente}*: ${moedaBR(payload.valor)} em ${dataBR(payload.data)}\nBate com: *${payload.descricao}* (venc. ${dataBR(payload.vencimento)})\n\nDar baixa nessa parcela? Responda *sim* ou *não*.`
@@ -313,15 +325,10 @@ export function criarAssistente(deps: AssistenteDeps) {
         await propor(m.phone, 'lembrete', acao);
         return;
       case 'cadastro_cliente': {
-        let dados = acao.dados;
-        let midias = m.mediaId && ehDocumento(m.midia) ? [m.mediaId] : [];
-        const aberta = [...pend].reverse().find((p) => p.payload?.tipo === 'cadastro_cliente');
-        if (aberta) {
-          // Documentos chegando em sequência (RG, depois comprovante…) completam a MESMA ficha.
-          if (!corrige) dados = mesclarCadastro(aberta.payload.dados, dados);
-          midias = [...(aberta.payload.midias || []), ...midias];
-          await repo.fecharPendencia(aberta.id, 'substituida');
-        }
+        // Feito na hora: documentos enviados em sequência (RG, depois comprovante…)
+        // completam a MESMA ficha, achada por CPF ou nome — nunca duplica.
+        const dados = acao.dados;
+        const midias = m.mediaId && ehDocumento(m.midia) ? [m.mediaId] : [];
         const existente = await repo.clientePorCpfOuNome(dados);
         await propor(m.phone, 'cadastro_cliente', { tipo: 'cadastro_cliente', dados, existente, midias });
         return;

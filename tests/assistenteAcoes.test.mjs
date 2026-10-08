@@ -134,3 +134,9 @@ test('formatar contas a vencer, prazos, dados do cliente e andamento', () => {
   assert.match(a, /5033118-42\.2025\.4\.02\.5001[\s\S]*22\/10\/2025[\s\S]*Suspenso pela ADPF 1236/);
   assert.match(formatarAndamento([{ processo: '1', cliente: 'X', movimentos: [] }]), /sem movimentação/i);
 });
+
+test('prompt: avisa que só o financeiro pede confirmação e que não deve recriar o que já foi feito', () => {
+  const p = promptAssistente({ hoje: HOJE, diaSemana: 'quinta-feira', mensagem: 'muda pra 15h' });
+  assert.match(p, /financeiro pede confirmação/);
+  assert.match(p, /NÃO crie outro/);
+});

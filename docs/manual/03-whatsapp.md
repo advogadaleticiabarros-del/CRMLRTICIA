@@ -168,21 +168,26 @@ Pedido: "fazer do meu WhatsApp um assistente pessoal do CRM". A Dra. Letícia, d
 | Consulta | "Agenda de amanhã", "prazos da semana" | Agenda: compromissos, audiências, prazos e tarefas, sem repetidos. Prazos: só os pendentes do período. |
 | Consulta | "Quanto tenho a receber este mês?", "quem está em atraso?" | A receber no período (**só a sua parte**, já sem a da parceira) e lista de vencidos. |
 | Consulta | "Quais contas vencem esta semana?" | Contas a pagar previstas, as vencidas e os repasses do período. |
-| Grava | Foto/PDF de boleto ou "boleto de luz 312,40 vence dia 15" | **Contas a Pagar** (saída prevista). |
-| Grava | "Gastei 38,50 de Uber pro fórum" | **Gasto já pago** (saída realizada). |
-| Grava | "Paguei a conta de luz" | Acha a conta em aberto (mesmo escrita errada) e marca como paga. |
-| Grava | "Recebi 500 da Fulana em dinheiro" | Se bate com parcela em aberto da cliente, **dá baixa** nela. Senão, registra como "Recebi um pagamento". |
-| Grava | "Marca reunião com a Mailza sexta 14h" | Cria na agenda **e no Google Agenda**, ligada à cliente. Recusa horário que já passou. |
-| Grava | "Me lembra amanhã 9h de ligar pro perito" | Na hora marcada, manda "⏰ Lembrete" para **quem pediu**. |
-| Grava | "Cria tarefa: protocolar a réplica da Rachel até dia 15" | Tarefa com prazo, prioridade e cliente. |
-| Grava | Foto de RG/CNH + "cadastra essa cliente" | Lê os dados. Fotos mandadas em sequência completam a **mesma** ficha. Se a cliente já existe (CPF ou mesmo nome), **completa sem duplicar**. As fotos vão para Documentos pessoais. |
-| Envia | "Avisa a Mailza que a audiência é dia 10 às 14h" | Escreve a mensagem, mostra o texto exato e só envia depois do "sim". |
+| Financeiro (pede "sim") | Foto/PDF de boleto ou "boleto de luz 312,40 vence dia 15" | **Contas a Pagar** (saída prevista). |
+| Financeiro (pede "sim") | "Gastei 38,50 de Uber pro fórum" | **Gasto já pago** (saída realizada). |
+| Financeiro (pede "sim") | "Paguei a conta de luz" | Acha a conta em aberto (mesmo escrita errada) e marca como paga. |
+| Financeiro (pede "sim") | "Recebi 500 da Fulana em dinheiro" | Se bate com parcela em aberto da cliente, **dá baixa** nela. Senão, registra como "Recebi um pagamento". |
+| Faz na hora | "Marca reunião com a Mailza sexta 14h" | Cria na agenda **e no Google Agenda**, ligada à cliente. Recusa horário que já passou. |
+| Faz na hora | "Me lembra amanhã 9h de ligar pro perito" | Na hora marcada, manda "⏰ Lembrete" para **quem pediu**. |
+| Faz na hora | "Cria tarefa: protocolar a réplica da Rachel até dia 15" | Tarefa com prazo, prioridade e cliente. |
+| Faz na hora | Foto de RG/CNH + "cadastra essa cliente" | Lê os dados. Fotos mandadas em sequência completam a **mesma** ficha. Se a cliente já existe (CPF ou mesmo nome), **completa sem duplicar**. As fotos vão para Documentos pessoais. |
+| Faz na hora | "Avisa a Mailza que a audiência é dia 10 às 14h" | Escreve a mensagem, envia e mostra o texto enviado. |
 
 **Escrita errada.** O pedido pode vir com erro de digitação, abreviação, sem acento ou por áudio. A IA é instruída a interpretar pela intenção e recebe as **últimas mensagens da conversa**, então entende "e o telefone dela?". Nomes de cliente, contas e documentos são achados por **semelhança** (`src/services/assistenteBusca.ts`). Exemplos: "Mailsa" acha Mailza, "raquel" acha Rachel, "jose lorenço" acha José Lourenço, "procurassão" acha a procuração. Se o nome servir para mais de um cliente, ele **pergunta qual** e não chuta. As confirmações também aceitam "sin", "ss", "pode sim", "nn", "naum".
 
 Se der algum erro no meio do pedido, ele avisa "Deu um erro aqui…" em vez de ficar calado.
 
-**Confirmação obrigatória.** Nada é gravado nem enviado sem um **"sim"**. O assistente mostra exatamente o que vai fazer. Depois dele:
+**Confirmação só no financeiro (desde 08/10/2026).** Pedido: "Só peça confirmação em lançamentos de financeiros, fora isso não precisa pedir".
+- **Pedem "sim":** conta a pagar, gasto, "paguei a conta", recebimento e baixa de comprovante de cliente. O assistente mostra o que vai lançar.
+- **Feitos na hora:** agenda, lembrete, tarefa, cadastro e recado a cliente. A resposta mostra tudo o que foi gravado ou enviado.
+- **Mudar algo já feito:** a IA é instruída a não criar um segundo item. Ela avisa que o ajuste é na Agenda ou em Tarefas do CRM.
+
+Depois de uma confirmação do financeiro:
 - **"sim"** lança;
 - **"não"** cancela;
 - **uma correção** ("é pessoal", "o valor é 300", "muda pra 15h") refaz a proposta;
@@ -213,6 +218,7 @@ Pendências expiram em 48 h (tabela `assistente_pendencias`, migration 153). Um 
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 08/10/2026 | Claude | Assistente: só o financeiro pede "sim"; agenda, lembrete, tarefa, cadastro e recado são feitos na hora |
 | 08/10/2026 | Claude | Assistente: todas as ações (andamento, dados e documentos do cliente, prazos, a receber, contas a vencer, pagar conta, recebimento, compromisso, lembrete, tarefa, cadastro, mensagem a cliente) e busca tolerante a erro de digitação |
 | 08/10/2026 | Claude | Assistente pessoal do CRM pelo WhatsApp: contas a pagar, gastos, consulta de processo e agenda, conferência de comprovante de cliente com baixa após "sim" |
 | 07/10/2026 | Claude | Lembrete de audiência ao cliente: trava por cliente + horário + marco (antes era por compromisso da agenda, e cópias da mesma audiência geravam 2 mensagens) |

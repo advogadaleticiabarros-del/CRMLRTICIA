@@ -81,6 +81,10 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Decisão:** o assistente pessoal (03-whatsapp) usa a IA só para **entender o pedido e ler documentos**, sempre em JSON validado por regras puras (`assistenteRegras.ts`). Gravar (contas a pagar, gastos, baixa) só acontece depois do **"sim"** de uma comandante. Baixa de comprovante de cliente **nunca é automática**: a decisão foi da Dra. Letícia, entre "confere e me pergunta" e "baixa sozinho se bater exato".
 **Motivo:** a IA lê valor e data errados de vez em quando, e comprovante falso é golpe comum. Errar um lançamento custa caro, e confirmar custa uma palavra. Só a Dra. Letícia e a Jessica comandam (lista em `office_settings`). Qualquer outro número segue como cliente/lead.
 **Alternativa considerada:** agente de IA com ferramentas que gravam direto (*function calling*). Foi descartada porque é mais difícil de testar e limitar, e um erro de interpretação viraria lançamento real.
+**Revisão (08/10/2026, mesmo dia):** a Dra. Letícia pediu "só peça confirmação em lançamentos de financeiros, fora isso não precisa pedir". O "sim" ficou só para conta a pagar, gasto, pagar conta, recebimento e baixa.
+- **Feitos direto:** agenda, lembrete, tarefa, cadastro e recado a cliente, com resposta detalhada do que foi feito.
+- **Trade-off aceito por ela:** um recado mal interpretado vai direto ao cliente.
+- **Cadastro:** continua sem duplicar, porque cada documento completa a ficha achada por CPF ou nome.
 
 ## FAQ
 
