@@ -156,6 +156,14 @@ export function startCronJobs() {
     }, { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── a cada minuto: lembretes pedidos ao assistente do WhatsApp ("me lembra às 9h…") ──
+  cron.schedule('* * * * *', () => {
+    runJob('assistente:lembretes', async () => {
+      const m = await import('../services/assistenteWhatsappMysql');
+      return m.enviarLembretesAssistente();
+    }, { silencioso: true });
+  });
+
   // ── a cada 5 min: lembrete pessoal/recado/medicamento por WhatsApp ────────
   cron.schedule('*/5 * * * *', () => {
     runJob('agenda:lembretes-pessoais', async () => {

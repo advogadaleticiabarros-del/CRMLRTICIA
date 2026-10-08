@@ -68,10 +68,15 @@ O que **não pode** é o cliente ou o parceiro receberem o aviso duas vezes. Por
 
 Código: `src/services/briefingAudienciaRegras.ts` (regras, testes em `tests/briefingAudiencia.test.mjs`), `src/services/briefingAudienciaJob.ts` (fontes, IA, envio), cron `audiencia:briefing-vespera`, `POST /api/cases/:id/briefing-audiencia`.
 
+## Criar compromisso: uma regra só (desde 08/10/2026)
+
+A criação de evento, com Google Agenda, lembrete no sino e aviso de reunião, saiu da rota `POST /api/calendar/events` para `src/services/agendaEventos.ts` (`criarEventoAgenda`), sem mudar a lógica. A rota e o assistente do WhatsApp ("marca reunião com a Fulana sexta 14h", ver [03-whatsapp](03-whatsapp.md)) usam essa mesma função.
+
 ## Changelog
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 08/10/2026 | Claude | Criação de evento movida para `agendaEventos.ts` (tela + assistente do WhatsApp) |
 | 07/10/2026 | Claude | Briefing automático da véspera da audiência trabalhista (WhatsApp, 9h) e botão no caso |
 | 07/10/2026 | Claude | Lembretes e avisos de audiência agrupam as cópias da mesma audiência (agenda de mais de um usuário) — cliente e parceiro recebem uma vez só |
 | 03/09/2026 | Claude | Criação do documento |

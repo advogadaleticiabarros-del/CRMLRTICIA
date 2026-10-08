@@ -106,6 +106,12 @@ A baixa de lançamento (`financial_records`), de parcela de proposta (`installme
 
 Única diferença em relação a antes: dar baixa em algo **já pago** não muda mais a data de pagamento. Antes, reabria a data com "agora".
 
+Também passaram a ser serviços compartilhados, sem mudar a lógica:
+- a montagem do A Receber (`src/services/aReceberMontar.ts`, `montarAReceber`);
+- o "Recebi um pagamento" (`src/services/recebimentoCliente.ts`).
+
+O assistente do WhatsApp usa os dois em "quanto tenho a receber?" e "recebi 500 da Fulana".
+
 ## FAQ
 
 **A despesa pessoal da família aparece no resultado do escritório?** Não deveria — o sistema guarda despesa pessoal/familiar separada por escopo, e o DRE do escritório filtra só `escopo='empresa'`.
@@ -123,6 +129,7 @@ A baixa de lançamento (`financial_records`), de parcela de proposta (`installme
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 08/10/2026 | Claude | A Receber e "Recebi um pagamento" viraram serviços compartilhados (tela + assistente) |
 | 08/10/2026 | Claude | Baixa unificada em `baixaAReceber.ts` (telas + assistente do WhatsApp); baixa repetida não altera a data de pagamento |
 | 07/10/2026 | Claude | A Receber: em caso de parceria, a coluna Valor mostra só a sua parte (total e parte da parceira em letra menor) |
 | 07/10/2026 | Claude | A Receber mostra o processo de cada linha e separa o que é seu do que é da parceira (cards e Resultados) |

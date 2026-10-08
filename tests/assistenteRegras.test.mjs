@@ -78,7 +78,7 @@ test('parseAcao: aceita JSON dentro de bloco de código', () => {
 
 test('leitura de documento: boleto e comprovante', () => {
   const b = parseLeituraDocumento('{"tipo":"boleto","beneficiario":"EDP ESPIRITO SANTO","valor":"R$ 1.312,40","vencimento":"15/10/2026","linha_digitavel":"8364 0000"}');
-  assert.deepStrictEqual(b, { tipo: 'boleto', descricao: null, beneficiario: 'EDP ESPIRITO SANTO', valor: 1312.4, vencimento: '2026-10-15', data_pagamento: null, linha_digitavel: '8364 0000', destinatario_nome: null, destinatario_chave: null });
+  assert.deepStrictEqual(b, { tipo: 'boleto', descricao: null, beneficiario: 'EDP ESPIRITO SANTO', valor: 1312.4, vencimento: '2026-10-15', data_pagamento: null, linha_digitavel: '8364 0000', destinatario_nome: null, destinatario_chave: null, pessoa: null });
   const c = parseLeituraDocumento('{"tipo":"comprovante","valor":"250,00","data_pagamento":"2026-10-07","destinatario_nome":"LETICIA ELIAS BARROS","destinatario_chave":"***.510.707-**"}');
   assert.strictEqual(c.tipo, 'comprovante');
   assert.strictEqual(c.valor, 250);

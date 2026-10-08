@@ -71,21 +71,9 @@ router.post('/recebimento', async (req: Request, res: Response) => {
   const [[cl]] = await db.query('SELECT id FROM clients WHERE id = ?', [dados.client_id]) as any;
   if (!cl) { res.status(404).json({ error: 'Cliente não encontrado' }); return; }
 
-  const conn = await db.getConnection();
-  let receitaId = 0;
-  try {
-    await conn.beginTransaction();
-    const [r] = await conn.query(
-      `INSERT INTO receitas (client_id, case_id, descricao, tipo, valor, status, data_vencimento, total_recebido, saldo_pendente, criado_por)
-       VALUES (?, ?, ?, 'honorario', ?, 'recebido', ?, ?, 0, ?)`,
-      [dados.client_id, dados.case_id, `${dados.descricao} (${dados.forma})`, dados.valor, dados.data, dados.valor, req.user!.id]) as any;
-    receitaId = r.insertId;
-    await conn.query(
-      `INSERT INTO parcelas (receita_id, numero, total_parcelas, valor, valor_final, status, data_vencimento, data_pagamento)
-       VALUES (?, 1, 1, ?, ?, 'pago', ?, ?)`,
-      [receitaId, dados.valor, dados.valor, dados.data, `${dados.data} 12:00:00`]);
-    await conn.commit();
-  } catch (e) { await conn.rollback(); throw e; } finally { conn.release(); }
+  // Regra única em services/recebimentoCliente (também usada pelo assistente do WhatsApp).
+  const { registrarRecebimentoCliente } = await import('../services/recebimentoCliente');
+  const receitaId = await registrarRecebimentoCliente(dados, { id: req.user!.id, name: req.user!.name, ip: req.ip });
 
   // Comprovante (opcional) → documento do cliente.
   let docId: number | null = null;
@@ -108,12 +96,6 @@ router.post('/recebimento', async (req: Request, res: Response) => {
     }
   } catch { /* comprovante é opcional — o recebimento já foi gravado */ }
 
-  await logFinancialAudit({
-    entityType: 'Receita', entityId: receitaId, action: 'created',
-    userId: req.user!.id, userName: req.user!.name, clientId: dados.client_id, caseId: dados.case_id,
-    receitaId, newValue: dados.valor, newStatus: 'recebido',
-    reason: `Recebimento registrado (${dados.forma})`, ipAddress: req.ip,
-  }).catch(() => {});
   res.status(201).json({ receita_id: receitaId, documento_id: docId, ...dados });
 });
 

@@ -25,8 +25,12 @@ const raiz = path.resolve('.');
 // start_datetime/end_datetime antes de gravar (e não manda o valor cru do
 // body direto pro banco, que era o bug original).
 test('rota POST /api/calendar/events converte start_datetime/end_datetime antes do INSERT', () => {
-  const src = readFileSync(path.join(raiz, 'src/routes/calendar.ts'), 'utf8');
-  const insertBlock = src.slice(src.indexOf("router.post('/events'"), src.indexOf("const eventId = result.insertId"));
+  // Desde 08/10/2026 a rota delega a criação a services/agendaEventos.ts
+  // (mesma regra usada pelo assistente do WhatsApp) — o INSERT mora lá.
+  const rota = readFileSync(path.join(raiz, 'src/routes/calendar.ts'), 'utf8');
+  assert.match(rota.slice(rota.indexOf("router.post('/events'")), /criarEventoAgenda\(userId/);
+  const src = readFileSync(path.join(raiz, 'src/services/agendaEventos.ts'), 'utf8');
+  const insertBlock = src.slice(src.indexOf('export async function criarEventoAgenda'), src.indexOf('const eventId = result.insertId'));
   assert.match(insertBlock, /localParaUtcMysql\(\s*start_datetime\s*\)/,
     'INSERT de calendar_events deve gravar start_datetime já convertido pra UTC');
   assert.match(insertBlock, /localParaUtcMysql\(\s*end_datetime\s*\)/,

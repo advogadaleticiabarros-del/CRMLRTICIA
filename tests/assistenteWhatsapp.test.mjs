@@ -21,7 +21,10 @@ function montar({ respostasIa = [], leituras = [], transcricao = null, abertos =
       for (const p of pend) if (p.id === id || (alvo?.grupo && p.grupo === alvo.grupo && p.status === 'aberta')) p.status = status;
     },
     async lancar(l, quem) { lancados.push({ ...l, quem }); return 900 + lancados.length; },
-    async buscarProcessos(busca) { return /mailza/i.test(busca) ? [{ cliente: 'MAILZA DOS SANTOS COSTA', numero: '0000123-45.2026.5.17.0001', area: 'trabalhista', fase: 'inicial', status: 'ativo', titulo: null, tribunal: 'TRT17' }] : []; },
+    async buscarProcessos() { return []; },
+    async clientes() { return [{ id: 5, name: 'MAILZA DOS SANTOS COSTA' }]; },
+    async historico() { return []; },
+    async processosDoCliente() { return [{ cliente: 'MAILZA DOS SANTOS COSTA', numero: '00001234520265170001', area: 'trabalhista', fase: 'inicial', status: 'ativo', titulo: null, tribunal: 'TRT17' }]; },
     async agenda(de, ate) { return [{ data: de, hora: '14:00', tipo: 'audiencia', titulo: 'Audiência Mailza', local: null }]; },
     async abertosDoCliente() { return abertos; },
     async nomeCliente() { return 'MAILZA DOS SANTOS COSTA'; },

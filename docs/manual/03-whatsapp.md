@@ -157,21 +157,35 @@ A leitura tem duas camadas (`src/services/dadosPropostaConversa.ts`, testes em `
 
 Pedido: "fazer do meu WhatsApp um assistente pessoal do CRM". A Dra. Letícia, do **(44) 99101-1402**, e a Jessica, do **(27) 98879-8093**, mandam mensagem para o número do escritório **(27) 99515-1402** como numa conversa normal: texto, áudio ou foto/PDF. O CRM responde como assistente. A lista de números fica em `office_settings.assistente_whatsapp_numeros` (padrão em `COMANDANTES_PADRAO`). O número é reconhecido com ou sem o 9º dígito. Mensagens desses números **não** entram no fluxo de cliente/lead.
 
-**O que ele faz**
+**O que ele faz.** Desde 08/10/2026 ele cobre todas as ações abaixo ("pode colocar todos"):
 
-| Pedido (exemplos) | O que acontece |
-|---|---|
-| Foto/PDF de boleto, com ou sem texto ("lança esse boleto") | Lê beneficiário, valor, vencimento e código. Propõe lançar em **Contas a Pagar** (`cashflow_entries`, saída **prevista**). |
-| "Gastei 38,50 de Uber pro fórum" (texto ou áudio) | Propõe lançar o **gasto já pago** (`cashflow_entries`, saída **realizada**, paga na data). Sem data, usa hoje. |
-| "Qual o processo da Mailza?" ou um nº de processo | Responde na hora com cliente, nº (no padrão CNJ), tribunal, área e fase. Se o cliente estiver cadastrado mas sem processo, ele diz isso, em vez de "não encontrei". |
-| "Agenda de amanhã", "o que tenho quinta?" | Mostra compromissos, audiências, prazos e tarefas do dia ou período (até 31 dias). Junta as duas agendas e tira os repetidos. |
+| Tipo | Pedido (exemplos) | O que acontece |
+|---|---|---|
+| Consulta | "Qual o processo da Mailza?" ou um nº de processo | Cliente, nº (padrão CNJ), tribunal, área e fase. Cliente sem processo: ele diz isso. |
+| Consulta | "O que aconteceu no processo do José Lourenço?" | Últimas 5 movimentações de cada processo (resumo da IA, se houver). |
+| Consulta | "Me passa o telefone/CPF/endereço da Mailza" | Dados da ficha. **Nunca** a senha do INSS. |
+| Consulta | "Me manda a procuração da Mailza" | Envia o **arquivo** do CRM ali na conversa. Se não achar, lista os que existem. |
+| Consulta | "Agenda de amanhã", "prazos da semana" | Agenda: compromissos, audiências, prazos e tarefas, sem repetidos. Prazos: só os pendentes do período. |
+| Consulta | "Quanto tenho a receber este mês?", "quem está em atraso?" | A receber no período (**só a sua parte**, já sem a da parceira) e lista de vencidos. |
+| Consulta | "Quais contas vencem esta semana?" | Contas a pagar previstas, as vencidas e os repasses do período. |
+| Grava | Foto/PDF de boleto ou "boleto de luz 312,40 vence dia 15" | **Contas a Pagar** (saída prevista). |
+| Grava | "Gastei 38,50 de Uber pro fórum" | **Gasto já pago** (saída realizada). |
+| Grava | "Paguei a conta de luz" | Acha a conta em aberto (mesmo escrita errada) e marca como paga. |
+| Grava | "Recebi 500 da Fulana em dinheiro" | Se bate com parcela em aberto da cliente, **dá baixa** nela. Senão, registra como "Recebi um pagamento". |
+| Grava | "Marca reunião com a Mailza sexta 14h" | Cria na agenda **e no Google Agenda**, ligada à cliente. Recusa horário que já passou. |
+| Grava | "Me lembra amanhã 9h de ligar pro perito" | Na hora marcada, manda "⏰ Lembrete" para **quem pediu**. |
+| Grava | "Cria tarefa: protocolar a réplica da Rachel até dia 15" | Tarefa com prazo, prioridade e cliente. |
+| Grava | Foto de RG/CNH + "cadastra essa cliente" | Lê os dados. Fotos mandadas em sequência completam a **mesma** ficha. Se a cliente já existe (CPF ou mesmo nome), **completa sem duplicar**. As fotos vão para Documentos pessoais. |
+| Envia | "Avisa a Mailza que a audiência é dia 10 às 14h" | Escreve a mensagem, mostra o texto exato e só envia depois do "sim". |
+
+**Escrita errada.** O pedido pode vir com erro de digitação, abreviação, sem acento ou por áudio. A IA é instruída a interpretar pela intenção e recebe as **últimas mensagens da conversa**, então entende "e o telefone dela?". Nomes de cliente, contas e documentos são achados por **semelhança** (`src/services/assistenteBusca.ts`). Exemplos: "Mailsa" acha Mailza, "raquel" acha Rachel, "jose lorenço" acha José Lourenço, "procurassão" acha a procuração. Se o nome servir para mais de um cliente, ele **pergunta qual** e não chuta. As confirmações também aceitam "sin", "ss", "pode sim", "nn", "naum".
 
 Se der algum erro no meio do pedido, ele avisa "Deu um erro aqui…" em vez de ficar calado.
 
-**Confirmação obrigatória.** Nada é gravado sem um **"sim"**. O assistente mostra o que vai lançar: valor, data, categoria e se é do escritório ou pessoal. Depois dele:
+**Confirmação obrigatória.** Nada é gravado nem enviado sem um **"sim"**. O assistente mostra exatamente o que vai fazer. Depois dele:
 - **"sim"** lança;
 - **"não"** cancela;
-- **uma correção** ("é pessoal", "o valor é 300") refaz a proposta;
+- **uma correção** ("é pessoal", "o valor é 300", "muda pra 15h") refaz a proposta;
 - **com 2 ou mais itens aguardando**, ele lista os itens e pede "sim 1", "sim 2"…
 
 Pendências expiram em 48 h (tabela `assistente_pendencias`, migration 153). Um "sim" só confirma pendências do próprio número.
@@ -190,12 +204,16 @@ Pendências expiram em 48 h (tabela `assistente_pendencias`, migration 153). Um 
 - **Peças reais:** `src/services/assistenteWhatsappMysql.ts`.
 - **Entrada:** `assistenteNoWebhook`, chamado no webhook da Uazapi.
 - **IA:** o pedido é interpretado pela Groq em modo JSON, com reserva na OpenAI. Boleto e comprovante são lidos pelo Gemini, com reserva na OpenAI com visão (`aiLerArquivo`). Áudio é transcrito pelo Whisper da Groq.
-- **Baixa:** usa a mesma regra das telas (`src/services/baixaAReceber.ts`).
+- **Mesmas regras das telas:** baixa (`baixaAReceber.ts`), "Recebi um pagamento" (`recebimentoCliente.ts`), compromisso com Google Agenda (`agendaEventos.ts`) e A Receber (`aReceberMontar.ts`).
+- **Gravações:** ficam no nome da advogada com Google conectado (`office_settings.assistente_usuario_id` troca isso).
+- **Lembretes:** ficam em `assistente_lembretes` (migration 154). O cron `assistente:lembretes` roda a cada minuto.
+- **Testes:** `tests/assistenteAcoes.test.mjs`, `tests/assistenteBusca.test.mjs` e `tests/assistenteWhatsappAcoes.test.mjs`.
 
 ## Changelog
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 08/10/2026 | Claude | Assistente: todas as ações (andamento, dados e documentos do cliente, prazos, a receber, contas a vencer, pagar conta, recebimento, compromisso, lembrete, tarefa, cadastro, mensagem a cliente) e busca tolerante a erro de digitação |
 | 08/10/2026 | Claude | Assistente pessoal do CRM pelo WhatsApp: contas a pagar, gastos, consulta de processo e agenda, conferência de comprovante de cliente com baixa após "sim" |
 | 07/10/2026 | Claude | Lembrete de audiência ao cliente: trava por cliente + horário + marco (antes era por compromisso da agenda, e cópias da mesma audiência geravam 2 mensagens) |
 | 07/10/2026 | Claude | "Gerar proposta" passa a ler os dados da conversa também quando o contato já é lead (completa só o que está vazio, avisa divergências) e lê dados rotulados sem IA |
