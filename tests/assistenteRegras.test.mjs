@@ -30,7 +30,7 @@ test('confirmação: sim/não, com número opcional', () => {
   assert.deepStrictEqual(interpretarConfirmacao('Não'), { resposta: 'nao', indice: null });
   assert.deepStrictEqual(interpretarConfirmacao('cancela'), { resposta: 'nao', indice: null });
   assert.strictEqual(interpretarConfirmacao('simone ligou'), null);
-  assert.strictEqual(interpretarConfirmacao('qual o processo da Mailza?'), null);
+  assert.strictEqual(interpretarConfirmacao('qual o processo da Fulana?'), null);
   assert.strictEqual(interpretarConfirmacao('não, é pessoal'), null, 'correção vai pra IA, não é só "não"');
 });
 
@@ -59,7 +59,7 @@ test('parseAcao: conta a pagar sem vencimento vira pergunta', () => {
 });
 
 test('parseAcao: consulta de processo e de agenda', () => {
-  assert.deepStrictEqual(parseAcao('{"acao":"processo","busca":"Mailza"}', HOJE), { tipo: 'processo', busca: 'Mailza' });
+  assert.deepStrictEqual(parseAcao('{"acao":"processo","busca":"Fulana"}', HOJE), { tipo: 'processo', busca: 'Fulana' });
   assert.deepStrictEqual(parseAcao('{"acao":"agenda","data_inicio":"2026-10-09","data_fim":"2026-10-09"}', HOJE), { tipo: 'agenda', de: '2026-10-09', ate: '2026-10-09' });
   assert.deepStrictEqual(parseAcao('{"acao":"agenda"}', HOJE), { tipo: 'agenda', de: HOJE, ate: HOJE });
   // intervalo invertido é corrigido; mais de 31 dias é limitado
@@ -124,19 +124,19 @@ test('texto de confirmação mostra tudo o que será gravado', () => {
 
 test('agenda formatada por dia; vazio diz que não há nada', () => {
   const t = formatarAgenda([
-    { data: '2026-10-09', hora: '14:00', tipo: 'audiencia', titulo: 'Audiência Mailza', local: '3ª Vara do Trabalho' },
+    { data: '2026-10-09', hora: '14:00', tipo: 'audiencia', titulo: 'Audiência Fulana', local: '3ª Vara do Trabalho' },
     { data: '2026-10-09', hora: null, tipo: 'prazo', titulo: 'Contestação — proc. 123', local: null },
   ], '2026-10-09', '2026-10-09');
   assert.match(t, /09\/10/);
-  assert.match(t, /14:00.*Audiência Mailza/);
+  assert.match(t, /14:00.*Audiência Fulana/);
   assert.match(t, /3ª Vara do Trabalho/);
   assert.match(t, /Contestação/);
   assert.match(formatarAgenda([], '2026-10-09', '2026-10-09'), /nada/i);
 });
 
 test('processos formatados com número, área e fase; vazio sugere conferir o nome', () => {
-  const t = formatarProcessos([{ cliente: 'MAILZA DOS SANTOS COSTA', numero: '0000123-45.2026.5.17.0001', area: 'trabalhista', fase: 'inicial', status: 'ativo', titulo: 'Reclamação trabalhista', tribunal: 'TRT17' }], 'Mailza');
-  assert.match(t, /MAILZA/);
+  const t = formatarProcessos([{ cliente: 'FULANA DE TAL SOUZA', numero: '0000123-45.2026.5.17.0001', area: 'trabalhista', fase: 'inicial', status: 'ativo', titulo: 'Reclamação trabalhista', tribunal: 'TRT17' }], 'Fulana');
+  assert.match(t, /FULANA/);
   assert.match(t, /0000123-45\.2026\.5\.17\.0001/);
   assert.match(t, /trabalhista/i);
   assert.match(formatarProcessos([], 'Fulano'), /Não encontrei.*Fulano/);
@@ -150,8 +150,8 @@ test('processo: número CNJ com máscara e tribunal legível (sem "api_publica_"
 });
 
 test('processo: cliente cadastrado sem processo não parece "nome errado"', () => {
-  const t = formatarProcessos([{ cliente: 'MAILZA DOS SANTOS COSTA', numero: null, area: null, fase: null, status: null, titulo: null, tribunal: null }], 'Mailza');
-  assert.match(t, /MAILZA/);
+  const t = formatarProcessos([{ cliente: 'FULANA DE TAL SOUZA', numero: null, area: null, fase: null, status: null, titulo: null, tribunal: null }], 'Fulana');
+  assert.match(t, /FULANA/);
   assert.match(t, /nenhum processo cadastrado/i);
   assert.doesNotMatch(t, /Não encontrei/);
 });

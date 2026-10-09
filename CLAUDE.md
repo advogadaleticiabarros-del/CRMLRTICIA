@@ -1,3 +1,9 @@
+## Contexto do projeto — LEIA PRIMEIRO (regra desde 09/10/2026)
+
+Qualquer sessão ou perfil novo do Claude começa lendo **`docs/contexto/LEIA-PRIMEIRO.md`** (quem é a usuária, regras de trabalho e de negócio, mapa do sistema) e **`docs/contexto/ESTADO.md`** (onde paramos e pendências). `docs/contexto/PROCEDIMENTOS.md` só quando a tarefa precisar.
+
+**Ao terminar cada tarefa:** atualize `docs/contexto/ESTADO.md` (o que entrou, pendências novas ou resolvidas) e faça **commit + push automáticos**. O push publica na VPS sozinho; acompanhe com `gh run watch`. Acessos à VPS: arquivo local `C:\Users\prosy\CLAUDE.md`, fora do git.
+
 ## Uso obrigatório das skills
 
 Antes de iniciar qualquer tarefa, analise quais skills instaladas são realmente aplicáveis. Ative somente as necessárias para a tarefa atual. Não use todas simultaneamente.

@@ -6,13 +6,13 @@ import { criarAssistente } from '../dist/services/assistenteWhatsapp.js';
 
 const LETICIA = '5544991011402';
 const CLIENTES = [
-  { id: 1, name: 'MAILZA DOS SANTOS COSTA' },
+  { id: 1, name: 'FULANA DE TAL SOUZA' },
   { id: 2, name: 'JOSE LOURENCO RIBEIRO' },
   { id: 4, name: 'ANA PAULA DOS SANTOS MAIA TERRA' },
   { id: 5, name: 'ANA MARIA DA SILVA' },
 ];
 
-function montar({ respostasIa = [], leituras = [], abertos = [], contas = [], docs = [], telefone = '5527988216960', existente = null } = {}) {
+function montar({ respostasIa = [], leituras = [], abertos = [], contas = [], docs = [], telefone = '5527900001111', existente = null } = {}) {
   const enviados = []; const pend = []; let seq = 0; const prompts = [];
   const feito = { compromissos: [], lembretes: [], tarefas: [], recebimentos: [], baixas: [], pagas: [], cadastros: [], mensagens: [], docsEnviados: [], lancados: [] };
   const repo = {
@@ -27,9 +27,9 @@ function montar({ respostasIa = [], leituras = [], abertos = [], contas = [], do
     async nomeCliente(id) { return CLIENTES.find((c) => c.id === id)?.name || 'X'; },
     async baixar(item, opts) { feito.baixas.push({ ...item, ...opts }); return 'ok'; },
     async clientes() { return CLIENTES; },
-    async historico() { return [{ deMim: false, texto: 'qual o processo da Mailza?' }]; },
-    async processosDoCliente(id) { return id === 1 ? [{ cliente: 'MAILZA DOS SANTOS COSTA', numero: null, area: null, fase: null, status: null, titulo: null, tribunal: null }] : []; },
-    async dadosCliente(id) { return { name: CLIENTES.find((c) => c.id === id).name, phone: telefone, email: 'm@x.com', cpf_cnpj: '627.009.015-68', address: 'Rua A', birth_date: null, processos: 0 }; },
+    async historico() { return [{ deMim: false, texto: 'qual o processo da Fulana?' }]; },
+    async processosDoCliente(id) { return id === 1 ? [{ cliente: 'FULANA DE TAL SOUZA', numero: null, area: null, fase: null, status: null, titulo: null, tribunal: null }] : []; },
+    async dadosCliente(id) { return { name: CLIENTES.find((c) => c.id === id).name, phone: telefone, email: 'm@x.com', cpf_cnpj: '111.444.777-35', address: 'Rua A', birth_date: null, processos: 0 }; },
     async andamento() { return [{ processo: '50331184220254025001', cliente: 'JOSE LOURENCO RIBEIRO', movimentos: [{ data: '2025-10-22', titulo: 'Suspensão', resumo: 'Suspenso pela ADPF 1236' }] }]; },
     async documentosDoCliente() { return docs; },
     async enviarDocumento(phone, docId, legenda) { feito.docsEnviados.push({ phone, docId, legenda }); return true; },
@@ -37,7 +37,7 @@ function montar({ respostasIa = [], leituras = [], abertos = [], contas = [], do
     async contasAPagar() { return [{ descricao: 'Luz', valor: 312.4, vencimento: '2026-10-15', vencida: false }]; },
     async contasEmAberto() { return contas; },
     async pagarConta(id, data) { feito.pagas.push({ id, data }); return 'ok'; },
-    async prazos() { return [{ data: '2026-10-09', descricao: 'Contestação', processo: null, cliente: 'Mailza' }]; },
+    async prazos() { return [{ data: '2026-10-09', descricao: 'Contestação', processo: null, cliente: 'Fulana' }]; },
     async registrarRecebimento(r) { feito.recebimentos.push(r); return 77; },
     async criarCompromisso(c) { feito.compromissos.push(c); return 55; },
     async criarLembrete(phone, quando, texto) { feito.lembretes.push({ phone, quando, texto }); return 9; },
@@ -58,10 +58,10 @@ function montar({ respostasIa = [], leituras = [], abertos = [], contas = [], do
 const J = (o) => JSON.stringify(o);
 
 test('nome escrito errado acha o cliente; a conversa recente vai junto para a IA', async () => {
-  const t = montar({ respostasIa: [J({ acao: 'cliente_dados', busca: 'mailsa' })] });
-  await t.fala('me passa o telefone da mailsa');
-  assert.match(t.ultima(), /MAILZA[\s\S]*\(27\) 98821-6960/);
-  assert.match(t.prompts[0], /Conversa recente[\s\S]*qual o processo da Mailza/);
+  const t = montar({ respostasIa: [J({ acao: 'cliente_dados', busca: 'fulanna' })] });
+  await t.fala('me passa o telefone da fulanna');
+  assert.match(t.ultima(), /FULANA[\s\S]*\(27\) 90000-1111/);
+  assert.match(t.prompts[0], /Conversa recente[\s\S]*qual o processo da Fulana/);
 });
 
 test('nome ambíguo: pergunta qual, sem chutar', async () => {
@@ -71,9 +71,9 @@ test('nome ambíguo: pergunta qual, sem chutar', async () => {
 });
 
 test('processo por nome usa a ficha do cliente; por número busca direto', async () => {
-  const t = montar({ respostasIa: [J({ acao: 'processo', busca: 'mailza' }), J({ acao: 'processo', busca: '5033118-42' })] });
-  await t.fala('processo da mailza');
-  assert.match(t.ultima(), /MAILZA[\s\S]*nenhum processo cadastrado/);
+  const t = montar({ respostasIa: [J({ acao: 'processo', busca: 'fulana' }), J({ acao: 'processo', busca: '5033118-42' })] });
+  await t.fala('processo da fulana');
+  assert.match(t.ultima(), /FULANA[\s\S]*nenhum processo cadastrado/);
   await t.fala('de quem é o 5033118-42?');
   assert.match(t.ultima(), /5033118-42\.2025\.4\.02\.5001 · TRF2/);
 });
@@ -88,25 +88,25 @@ test('andamento, prazos, a receber e contas a vencer respondem na hora', async (
 });
 
 test('enviar documento: acha pela palavra (com erro) e manda o arquivo aqui', async () => {
-  const docs = [{ id: 31, name: 'Procuração — Mailza', type: 'gerado', created_at: '2026-10-01' }, { id: 32, name: 'RG', type: 'anexo', created_at: '2026-10-01' }];
-  const t = montar({ respostasIa: [J({ acao: 'enviar_documento', busca: 'mailza', documento: 'procurasao' }), J({ acao: 'enviar_documento', busca: 'mailza', documento: 'sentença' })], docs });
-  await t.fala('me manda a procurasao da mailza');
+  const docs = [{ id: 31, name: 'Procuração — Fulana', type: 'gerado', created_at: '2026-10-01' }, { id: 32, name: 'RG', type: 'anexo', created_at: '2026-10-01' }];
+  const t = montar({ respostasIa: [J({ acao: 'enviar_documento', busca: 'fulana', documento: 'procurasao' }), J({ acao: 'enviar_documento', busca: 'fulana', documento: 'sentença' })], docs });
+  await t.fala('me manda a procurasao da fulana');
   assert.deepStrictEqual(t.feito.docsEnviados.map((d) => d.docId), [31]);
   assert.strictEqual(t.feito.docsEnviados[0].phone, LETICIA);
   await t.fala('e a sentença?');
-  assert.match(t.ultima(), /Não achei[\s\S]*Procuração — Mailza[\s\S]*RG/);
+  assert.match(t.ultima(), /Não achei[\s\S]*Procuração — Fulana[\s\S]*RG/);
 });
 
 // Pedido (08/10/2026): "Só peça confirmação em lançamentos de financeiros,
 // fora isso não precisa pedir". Agenda, lembrete, tarefa, cadastro e recado
 // a cliente são feitos na hora; o financeiro continua com "sim".
 test('compromisso: cria na hora (sem "sim"), ligado ao cliente', async () => {
-  const t = montar({ respostasIa: [J({ acao: 'compromisso', titulo: 'Reunião com Mailza', data: '2026-10-09', hora: '14h', evento: 'reuniao', busca: 'mailza' })] });
-  await t.fala('marca reuniao com a mailza amanha 14h');
+  const t = montar({ respostasIa: [J({ acao: 'compromisso', titulo: 'Reunião com Fulana', data: '2026-10-09', hora: '14h', evento: 'reuniao', busca: 'fulana' })] });
+  await t.fala('marca reuniao com a fulana amanha 14h');
   assert.strictEqual(t.feito.compromissos.length, 1);
   assert.strictEqual(t.feito.compromissos[0].clientId, 1);
   assert.strictEqual(t.feito.compromissos[0].hora, '14:00');
-  assert.match(t.ultima(), /✅ Marcado na agenda[\s\S]*sexta, 09\/10\/2026 às 14:00[\s\S]*MAILZA/);
+  assert.match(t.ultima(), /✅ Marcado na agenda[\s\S]*sexta, 09\/10\/2026 às 14:00[\s\S]*FULANA/);
   assert.strictEqual(t.pend.length, 0, 'não abre pendência');
 });
 
@@ -136,8 +136,8 @@ test('tarefa com cliente: cria na hora', async () => {
 
 test('recebimento que bate com parcela em aberto vira baixa da parcela', async () => {
   const abertos = [{ fonte: 'contrato', id: 11, descricao: '1/5 — Honorários', valor: 250, vencimento: '2026-10-10' }];
-  const t = montar({ respostasIa: [J({ acao: 'recebimento', busca: 'mailza', valor: 250, forma: 'dinheiro' })], abertos });
-  await t.fala('recebi 250 da mailza em dinheiro');
+  const t = montar({ respostasIa: [J({ acao: 'recebimento', busca: 'fulana', valor: 250, forma: 'dinheiro' })], abertos });
+  await t.fala('recebi 250 da fulana em dinheiro');
   assert.match(t.ultima(), /1\/5 — Honorários[\s\S]*Dar baixa/);
   await t.fala('sim');
   assert.deepStrictEqual(t.feito.baixas.map((b) => b.id), [11]);
@@ -145,9 +145,9 @@ test('recebimento que bate com parcela em aberto vira baixa da parcela', async (
 });
 
 test('recebimento sem parcela correspondente vira recebimento avulso', async () => {
-  const t = montar({ respostasIa: [J({ acao: 'recebimento', busca: 'mailza', valor: 500, forma: 'pix', descricao: 'consulta' })] });
-  await t.fala('a mailza me pagou 500 de consulta');
-  assert.match(t.ultima(), /Recebimento de cliente[\s\S]*MAILZA[\s\S]*R\$ 500,00/);
+  const t = montar({ respostasIa: [J({ acao: 'recebimento', busca: 'fulana', valor: 500, forma: 'pix', descricao: 'consulta' })] });
+  await t.fala('a fulana me pagou 500 de consulta');
+  assert.match(t.ultima(), /Recebimento de cliente[\s\S]*FULANA[\s\S]*R\$ 500,00/);
   await t.fala('sim');
   assert.deepStrictEqual(t.feito.recebimentos[0], { clientId: 1, valor: 500, data: '2026-10-08', forma: 'PIX', descricao: 'consulta' });
 });
@@ -180,23 +180,23 @@ test('cadastro na hora: RG cria a ficha e o comprovante enviado depois completa 
 });
 
 test('cadastro de quem já tem ficha: completa na hora, não duplica', async () => {
-  const t = montar({ respostasIa: [J({ acao: 'cadastro_cliente', nome: 'Mailza dos Santos Costa', email: 'novo@x.com' })], existente: { id: 1, name: 'MAILZA DOS SANTOS COSTA' } });
-  await t.fala('atualiza o email da mailza: novo@x.com');
+  const t = montar({ respostasIa: [J({ acao: 'cadastro_cliente', nome: 'Fulana de Tal Souza', email: 'novo@x.com' })], existente: { id: 1, name: 'FULANA DE TAL SOUZA' } });
+  await t.fala('atualiza o email da fulana: novo@x.com');
   assert.strictEqual(t.feito.cadastros[0].existenteId, 1);
   assert.match(t.ultima(), /completada/);
 });
 
 test('mensagem ao cliente: envia na hora e mostra o que foi enviado', async () => {
-  const t = montar({ respostasIa: [J({ acao: 'mensagem_cliente', busca: 'mailza', texto: 'Olá, Mailza! Sua audiência é dia 10 às 14h. — Dra. Letícia Barros' })] });
-  await t.fala('avisa a mailza que a audiencia é dia 10 as 14h');
-  assert.deepStrictEqual(t.feito.mensagens, [{ phone: '5527988216960', texto: 'Olá, Mailza! Sua audiência é dia 10 às 14h. — Dra. Letícia Barros' }]);
-  assert.match(t.ultima(), /✅ Enviado para MAILZA[\s\S]*Sua audiência é dia 10/);
+  const t = montar({ respostasIa: [J({ acao: 'mensagem_cliente', busca: 'fulana', texto: 'Olá, Fulana! Sua audiência é dia 10 às 14h. — Dra. Letícia Barros' })] });
+  await t.fala('avisa a fulana que a audiencia é dia 10 as 14h');
+  assert.deepStrictEqual(t.feito.mensagens, [{ phone: '5527900001111', texto: 'Olá, Fulana! Sua audiência é dia 10 às 14h. — Dra. Letícia Barros' }]);
+  assert.match(t.ultima(), /✅ Enviado para FULANA[\s\S]*Sua audiência é dia 10/);
   assert.strictEqual(t.pend.length, 0);
 });
 
 test('mensagem ao cliente sem telefone cadastrado: avisa', async () => {
-  const t = montar({ respostasIa: [J({ acao: 'mensagem_cliente', busca: 'mailza', texto: 'Oi' })], telefone: null });
-  await t.fala('manda oi pra mailza');
+  const t = montar({ respostasIa: [J({ acao: 'mensagem_cliente', busca: 'fulana', texto: 'Oi' })], telefone: null });
+  await t.fala('manda oi pra fulana');
   assert.match(t.ultima(), /não tem telefone/i);
   assert.strictEqual(t.pend.length, 0);
 });

@@ -51,9 +51,9 @@ E, por estarem justas e contratadas, as partes assinam o presente instrumento.
 Vitória/ES, [DATA].
 
 _______________________________________
-MAILZA DOS SANTOS COSTA
+FULANA DE TAL SOUZA
 CONTRATANTE
-CPF nº 627.009.015-68
+CPF nº 111.444.777-35
 
 _______________________________________
 LETÍCIA ELIAS BARROS
@@ -66,7 +66,7 @@ test('até 2 assinaturas: local/data e as duas assinaturas vão juntos num só g
   assert.ok(h.includes('<div class="sig-group">'), h);
   assert.match(g, /^<div class="sig-group"><p class="body">E, por estarem justas e contratadas[^<]*<\/p><div class="sp"><\/div><p class="body">Vitória\/ES, \[DATA\]\.<\/p>/);
   assert.ok(h.includes('<p class="body">Cláusulas...</p>'), 'texto anterior fica fora do grupo');
-  assert.ok(g.indexOf('MAILZA') > 0 && g.indexOf('LETÍCIA') > g.indexOf('MAILZA'));
+  assert.ok(g.indexOf('FULANA') > 0 && g.indexOf('LETÍCIA') > g.indexOf('FULANA'));
   assert.ok(h.trimEnd().endsWith('</div></div>'));
 });
 
@@ -78,7 +78,7 @@ test('3+ assinaturas: sem grupo (não caberia numa página); cada assinatura seg
 });
 
 test('assinatura eletrônica continua entrando no lugar da linha', () => {
-  const h = formatDocHtml(contrato, { 'MAILZA DOS SANTOS COSTA': { image: 'data:x', signedAt: '2026-10-07T12:00:00Z', code: 'ABC' } });
+  const h = formatDocHtml(contrato, { 'FULANA DE TAL SOUZA': { image: 'data:x', signedAt: '2026-10-07T12:00:00Z', code: 'ABC' } });
   assert.match(h, /<img class="sig-photo" src="data:x"/);
 });
 

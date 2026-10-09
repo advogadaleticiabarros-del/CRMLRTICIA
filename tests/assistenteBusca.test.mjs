@@ -6,7 +6,7 @@ import assert from 'node:assert';
 import { encontrarClientes, escolherConta, escolherDocumento, normalizar } from '../dist/services/assistenteBusca.js';
 
 const CLIENTES = [
-  { id: 1, name: 'MAILZA DOS SANTOS COSTA' },
+  { id: 1, name: 'FULANA DE TAL SOUZA' },
   { id: 2, name: 'JOSE LOURENCO RIBEIRO' },
   { id: 3, name: 'José de Paulo Silva' },
   { id: 4, name: 'ANA PAULA DOS SANTOS MAIA TERRA' },
@@ -21,8 +21,8 @@ test('normalizar: sem acento, minúsculo, só letras/números', () => {
 });
 
 test('clientes: acha com erro de digitação e sem acento', () => {
-  assert.strictEqual(encontrarClientes('Mailsa', CLIENTES).unico?.id, 1);
-  assert.strictEqual(encontrarClientes('mailza costa', CLIENTES).unico?.id, 1);
+  assert.strictEqual(encontrarClientes('Fulanna', CLIENTES).unico?.id, 1);
+  assert.strictEqual(encontrarClientes('fulana souza', CLIENTES).unico?.id, 1);
   assert.strictEqual(encontrarClientes('jose lorenço', CLIENTES).unico?.id, 2);
   assert.strictEqual(encontrarClientes('raquel', CLIENTES).unico?.id, 7);
   assert.strictEqual(encontrarClientes('jessica layana', CLIENTES).unico?.id, 8);
@@ -60,7 +60,7 @@ test('conta a pagar: acha pela descrição com erro ou pelo valor', () => {
 });
 
 const DOCS = [
-  { id: 1, name: 'Procuração — Mailza', type: 'gerado', created_at: '2026-10-01' },
+  { id: 1, name: 'Procuração — Fulana', type: 'gerado', created_at: '2026-10-01' },
   { id: 2, name: 'Contrato de honorários assinado', type: 'anexo', created_at: '2026-10-02' },
   { id: 3, name: 'Petição inicial — proc. 5033118', type: 'peticao_inicial', created_at: '2026-09-02' },
   { id: 4, name: 'RG frente e verso', type: 'anexo', created_at: '2026-09-01' },

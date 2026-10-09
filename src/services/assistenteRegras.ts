@@ -421,7 +421,7 @@ const diaComSemana = (iso: string) => `${DIAS_CURTOS[new Date(iso + 'T12:00:00Z'
 const RODAPE = '\n\nConfirma? Responda *sim* ou *não* (ou me diga o que corrigir).';
 const EVENTO_PT: Record<string, string> = { reuniao: 'Reunião', audiencia: 'Audiência', compromisso: 'Compromisso', pessoal: 'Pessoal' };
 
-/** Telefone para leitura: "5527988216960" → "(27) 98821-6960". */
+/** Telefone para leitura: "5527900001111" → "(27) 90000-1111". */
 export function foneBR(v: string | null | undefined): string {
   let d = String(v || '').replace(/\D/g, '');
   if (d.startsWith('55') && d.length >= 12) d = d.slice(2);

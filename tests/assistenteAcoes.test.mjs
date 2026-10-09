@@ -33,15 +33,15 @@ test('contas a vencer e prazos: padrão hoje + 7 dias', () => {
 });
 
 test('consultas por cliente exigem a busca', () => {
-  assert.deepStrictEqual(P({ acao: 'cliente_dados', busca: 'Mailza' }), { tipo: 'cliente_dados', busca: 'Mailza' });
+  assert.deepStrictEqual(P({ acao: 'cliente_dados', busca: 'Fulana' }), { tipo: 'cliente_dados', busca: 'Fulana' });
   assert.deepStrictEqual(P({ acao: 'andamento', busca: 'José Lourenço' }), { tipo: 'andamento', busca: 'José Lourenço' });
-  assert.deepStrictEqual(P({ acao: 'enviar_documento', busca: 'Mailza', documento: 'procuração' }), { tipo: 'enviar_documento', busca: 'Mailza', documento: 'procuração' });
+  assert.deepStrictEqual(P({ acao: 'enviar_documento', busca: 'Fulana', documento: 'procuração' }), { tipo: 'enviar_documento', busca: 'Fulana', documento: 'procuração' });
   assert.strictEqual(P({ acao: 'cliente_dados' }).tipo, 'responder');
 });
 
 test('compromisso: precisa de data e hora; duração padrão 1h', () => {
-  assert.deepStrictEqual(P({ acao: 'compromisso', titulo: 'Reunião com Mailza', data: '2026-10-09', hora: '14:00', evento: 'reuniao', busca: 'Mailza' }),
-    { tipo: 'compromisso', titulo: 'Reunião com Mailza', data: '2026-10-09', hora: '14:00', duracao: 60, evento: 'reuniao', local: null, busca: 'Mailza' });
+  assert.deepStrictEqual(P({ acao: 'compromisso', titulo: 'Reunião com Fulana', data: '2026-10-09', hora: '14:00', evento: 'reuniao', busca: 'Fulana' }),
+    { tipo: 'compromisso', titulo: 'Reunião com Fulana', data: '2026-10-09', hora: '14:00', duracao: 60, evento: 'reuniao', local: null, busca: 'Fulana' });
   assert.match(P({ acao: 'compromisso', titulo: 'Reunião', data: '2026-10-09' }).texto, /horário/i);
   assert.strictEqual(P({ acao: 'compromisso', titulo: 'X', data: '2026-10-09', hora: '9h' }).hora, '09:00');
   assert.strictEqual(P({ acao: 'compromisso', titulo: 'X', data: '2026-10-09', hora: '14:30', evento: 'festa' }).evento, 'compromisso');
@@ -89,19 +89,19 @@ test('mesclar cadastro: completa o que falta, não apaga o que já tinha', () =>
 });
 
 test('mensagem ao cliente: precisa de cliente e texto', () => {
-  assert.deepStrictEqual(P({ acao: 'mensagem_cliente', busca: 'Mailza', texto: 'Olá, Mailza! Sua audiência é dia 10 às 14h.' }),
-    { tipo: 'mensagem_cliente', busca: 'Mailza', texto: 'Olá, Mailza! Sua audiência é dia 10 às 14h.' });
-  assert.strictEqual(P({ acao: 'mensagem_cliente', busca: 'Mailza' }).tipo, 'responder');
+  assert.deepStrictEqual(P({ acao: 'mensagem_cliente', busca: 'Fulana', texto: 'Olá, Fulana! Sua audiência é dia 10 às 14h.' }),
+    { tipo: 'mensagem_cliente', busca: 'Fulana', texto: 'Olá, Fulana! Sua audiência é dia 10 às 14h.' });
+  assert.strictEqual(P({ acao: 'mensagem_cliente', busca: 'Fulana' }).tipo, 'responder');
 });
 
 test('textos de confirmação mostram exatamente o que vai acontecer', () => {
-  assert.match(textoConfirmacao({ tipo: 'compromisso', titulo: 'Reunião com Mailza', data: '2026-10-09', hora: '14:00', duracao: 60, evento: 'reuniao', local: null, cliente: 'MAILZA DOS SANTOS COSTA' }),
-    /Agenda[\s\S]*Reunião com Mailza[\s\S]*sexta, 09\/10\/2026 às 14:00[\s\S]*MAILZA[\s\S]*\*sim\*/);
+  assert.match(textoConfirmacao({ tipo: 'compromisso', titulo: 'Reunião com Fulana', data: '2026-10-09', hora: '14:00', duracao: 60, evento: 'reuniao', local: null, cliente: 'FULANA DE TAL SOUZA' }),
+    /Agenda[\s\S]*Reunião com Fulana[\s\S]*sexta, 09\/10\/2026 às 14:00[\s\S]*FULANA[\s\S]*\*sim\*/);
   assert.match(textoConfirmacao({ tipo: 'lembrete', texto: 'ligar para o perito', data: '2026-10-09', hora: '09:00' }), /Lembrete[\s\S]*ligar para o perito[\s\S]*09\/10\/2026 às 09:00/);
   assert.match(textoConfirmacao({ tipo: 'tarefa', titulo: 'Protocolar réplica', data: '2026-10-15', prioridade: 'alta', cliente: 'Rachel', descricao: null }), /Tarefa[\s\S]*Protocolar réplica[\s\S]*15\/10\/2026[\s\S]*alta/);
   assert.match(textoConfirmacao({ tipo: 'recebimento', cliente: 'FULANA', valor: 500, data: HOJE, forma: 'Dinheiro', descricao: 'Pagamento recebido' }), /Recebimento[\s\S]*FULANA[\s\S]*R\$ 500,00[\s\S]*Dinheiro/);
   assert.match(textoConfirmacao({ tipo: 'pagar_conta', id: 10, descricao: 'Conta de luz EDP', valor: 312.4, vencimento: '2026-10-15', data: HOJE }), /Marcar como paga[\s\S]*Conta de luz EDP[\s\S]*R\$ 312,40/);
-  assert.match(textoConfirmacao({ tipo: 'mensagem_cliente', cliente: 'MAILZA', telefone: '5527988216960', texto: 'Olá!' }), /Enviar para[\s\S]*MAILZA[\s\S]*"Olá!"/);
+  assert.match(textoConfirmacao({ tipo: 'mensagem_cliente', cliente: 'FULANA', telefone: '5527900001111', texto: 'Olá!' }), /Enviar para[\s\S]*FULANA[\s\S]*"Olá!"/);
   const cad = textoConfirmacao({ tipo: 'cadastro_cliente', dados: { nome: 'Maria', cpf: '123.456.789-09', rg: null, nascimento: '1980-05-10', endereco: null, email: null, telefone: null, estado_civil: null, profissao: null, nacionalidade: null }, existente: { id: 5, name: 'MARIA' }, midias: [1, 2] });
   assert.match(cad, /Já existe a ficha[\s\S]*MARIA[\s\S]*completar/i);
   assert.match(cad, /2 documento/);
@@ -109,9 +109,9 @@ test('textos de confirmação mostram exatamente o que vai acontecer', () => {
 });
 
 test('prompt: avisa que pode ter erro de digitação e leva a conversa recente', () => {
-  const p = promptAssistente({ hoje: HOJE, diaSemana: 'quinta-feira', mensagem: 'e o telefone dela?', historico: [{ deMim: false, texto: 'qual o processo da Mailza?' }, { deMim: true, texto: '👤 MAILZA DOS SANTOS COSTA' }] });
+  const p = promptAssistente({ hoje: HOJE, diaSemana: 'quinta-feira', mensagem: 'e o telefone dela?', historico: [{ deMim: false, texto: 'qual o processo da Fulana?' }, { deMim: true, texto: '👤 FULANA DE TAL SOUZA' }] });
   assert.match(p, /erros de digitação/i);
-  assert.match(p, /Conversa recente[\s\S]*Mailza[\s\S]*MAILZA/);
+  assert.match(p, /Conversa recente[\s\S]*Fulana[\s\S]*FULANA/);
   for (const a of ['a_receber', 'contas_vencer', 'cliente_dados', 'andamento', 'enviar_documento', 'prazos', 'compromisso', 'lembrete', 'tarefa', 'recebimento', 'pagar_conta', 'cadastro_cliente', 'mensagem_cliente']) {
     assert.ok(p.includes(`"${a}"`), a);
   }
@@ -126,9 +126,9 @@ test('formatar a receber: sua parte, vencidos e lista', () => {
 test('formatar contas a vencer, prazos, dados do cliente e andamento', () => {
   assert.match(formatarContasVencer([{ descricao: 'Luz', valor: 312.4, vencimento: '2026-10-15', vencida: false }], HOJE, '2026-10-15'), /15\/10 — Luz — R\$ 312,40/);
   assert.match(formatarContasVencer([], HOJE, '2026-10-15'), /Nenhuma conta/);
-  assert.match(formatarPrazos([{ data: '2026-10-09', descricao: 'Contestação', processo: '0001', cliente: 'Mailza' }], HOJE, '2026-10-15'), /09\/10[\s\S]*Contestação[\s\S]*Mailza/);
-  const d = formatarClienteDados({ name: 'MAILZA DOS SANTOS COSTA', phone: '27988216960', email: 'm@x.com', cpf_cnpj: '627.009.015-68', address: 'Rua A', birth_date: '1980-09-27', processos: 0 });
-  assert.match(d, /MAILZA[\s\S]*\(27\) 98821-6960[\s\S]*627\.009\.015-68[\s\S]*Rua A[\s\S]*27\/09\/1980/);
+  assert.match(formatarPrazos([{ data: '2026-10-09', descricao: 'Contestação', processo: '0001', cliente: 'Fulana' }], HOJE, '2026-10-15'), /09\/10[\s\S]*Contestação[\s\S]*Fulana/);
+  const d = formatarClienteDados({ name: 'FULANA DE TAL SOUZA', phone: '27900001111', email: 'm@x.com', cpf_cnpj: '111.444.777-35', address: 'Rua A', birth_date: '1980-09-27', processos: 0 });
+  assert.match(d, /FULANA[\s\S]*\(27\) 90000-1111[\s\S]*111.444.777-35[\s\S]*Rua A[\s\S]*27\/09\/1980/);
   assert.doesNotMatch(d, /senha/i);
   const a = formatarAndamento([{ processo: '50331184220254025001', cliente: 'JOSE', movimentos: [{ data: '2025-10-22', titulo: 'Suspensão', resumo: 'Suspenso pela ADPF 1236' }] }]);
   assert.match(a, /5033118-42\.2025\.4\.02\.5001[\s\S]*22\/10\/2025[\s\S]*Suspenso pela ADPF 1236/);

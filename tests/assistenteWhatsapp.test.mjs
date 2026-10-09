@@ -22,12 +22,12 @@ function montar({ respostasIa = [], leituras = [], transcricao = null, abertos =
     },
     async lancar(l, quem) { lancados.push({ ...l, quem }); return 900 + lancados.length; },
     async buscarProcessos() { return []; },
-    async clientes() { return [{ id: 5, name: 'MAILZA DOS SANTOS COSTA' }]; },
+    async clientes() { return [{ id: 5, name: 'FULANA DE TAL SOUZA' }]; },
     async historico() { return []; },
-    async processosDoCliente() { return [{ cliente: 'MAILZA DOS SANTOS COSTA', numero: '00001234520265170001', area: 'trabalhista', fase: 'inicial', status: 'ativo', titulo: null, tribunal: 'TRT17' }]; },
-    async agenda(de, ate) { return [{ data: de, hora: '14:00', tipo: 'audiencia', titulo: 'Audiência Mailza', local: null }]; },
+    async processosDoCliente() { return [{ cliente: 'FULANA DE TAL SOUZA', numero: '00001234520265170001', area: 'trabalhista', fase: 'inicial', status: 'ativo', titulo: null, tribunal: 'TRT17' }]; },
+    async agenda(de, ate) { return [{ data: de, hora: '14:00', tipo: 'audiencia', titulo: 'Audiência Fulana', local: null }]; },
     async abertosDoCliente() { return abertos; },
-    async nomeCliente() { return 'MAILZA DOS SANTOS COSTA'; },
+    async nomeCliente() { return 'FULANA DE TAL SOUZA'; },
     async baixar(item, opts) { baixas.push({ ...item, ...opts }); return 'ok'; },
   };
   const ia = {
@@ -98,11 +98,11 @@ test('pendência de um número não é confirmada pelo outro', async () => {
 });
 
 test('consulta de processo e de agenda respondem na hora', async () => {
-  const t = montar({ respostasIa: ['{"acao":"processo","busca":"Mailza"}', '{"acao":"agenda","data_inicio":"2026-10-09","data_fim":"2026-10-09"}'] });
-  await t.a.atenderComandante({ phone: LETICIA, texto: 'qual o processo da Mailza?' });
+  const t = montar({ respostasIa: ['{"acao":"processo","busca":"Fulana"}', '{"acao":"agenda","data_inicio":"2026-10-09","data_fim":"2026-10-09"}'] });
+  await t.a.atenderComandante({ phone: LETICIA, texto: 'qual o processo da Fulana?' });
   assert.match(t.enviados[0].texto, /0000123-45\.2026\.5\.17\.0001/);
   await t.a.atenderComandante({ phone: LETICIA, texto: 'agenda de amanhã' });
-  assert.match(t.enviados[1].texto, /Audiência Mailza/);
+  assert.match(t.enviados[1].texto, /Audiência Fulana/);
   assert.strictEqual(t.pend.length, 0, 'consulta não cria pendência');
 });
 
@@ -141,7 +141,7 @@ test('comprovante de cliente: pergunta às duas e a baixa só sai com o "sim" de
   await t.a.conferirComprovanteCliente({ clientId: 5, mediaId: 77, midia: { mime: 'image/jpeg', data: Buffer.from('x') } });
   assert.strictEqual(t.enviados.length, 2);
   assert.deepStrictEqual(t.enviados.map((e) => e.phone).sort(), [JESSICA, LETICIA].sort());
-  assert.match(t.enviados[0].texto, /MAILZA[\s\S]*R\$ 250,00[\s\S]*✅[\s\S]*1\/5 — Honorários[\s\S]*Dar baixa\?/);
+  assert.match(t.enviados[0].texto, /FULANA[\s\S]*R\$ 250,00[\s\S]*✅[\s\S]*1\/5 — Honorários[\s\S]*Dar baixa\?/);
   assert.strictEqual(t.baixas.length, 0);
   await t.a.atenderComandante({ phone: JESSICA, texto: 'sim' });
   assert.strictEqual(t.baixas.length, 1);
