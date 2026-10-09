@@ -469,6 +469,38 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: assistente do WhatsApp respondeu errado ou "não sei" (08/10/2026)
+
+**Sintoma:** na primeira conversa real com a Dra. Letícia:
+- "Qual o número do processo do Luiz Felipe" voltou a **agenda** da pergunta anterior; repetida com "?", veio uma resposta genérica;
+- "Qual o vencimento do próximo acordo?" voltou a lista de **prazos**;
+- "acordo do Huber" e "e dos acordos?" responderam "não tenho a informação";
+- "Quais os meus próximos recebimentos?" **pediu o período** em vez de responder.
+
+**Causa raiz:**
+1. Não existia consulta de **acordos**, então a IA encaixava a pergunta em "prazos" ou dizia que não sabia.
+2. A conversa recente ia **depois** das instruções e a mensagem atual não estava destacada. A IA (Groq) às vezes respondia à pergunta anterior.
+3. O prompt não proibia pedir o período, e "a receber" só dava o total, sem a lista.
+
+**Correção:**
+- nova ação `acordos`, com busca por cliente;
+- prompt com "PEDIDO ATUAL" por último, instrução de não repetir a resposta anterior, proibição de pedir período e exemplos dos pedidos que falharam;
+- "a receber" passou a listar os próximos recebimentos.
+
+Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases reais, com a mesma conversa anterior, na IA de produção.
+
+**Como reconhecer de novo:** a resposta não bate com a pergunta. Puxe a conversa (`whatsapp_messages` do número da comandante) e rode `promptAssistente` + `parseAcao` com a frase e o histórico reais. Se faltar ação para o pedido, crie a ação. Se a IA confundir, acrescente a frase aos **Exemplos** do prompt, com teste.
+
+## Incidente: "Fechamento do dia, Dra. Administrador"
+
+**Sintoma (08/10/2026):** o fechamento do dia chegou no WhatsApp como "Dra. Administrador".
+
+**Causa:** usava o primeiro nome do primeiro usuário da lista, que é o usuário técnico "Administrador".
+
+**Correção:** `nomeSaudacao` (`eveningClosingService.ts`) usa o nome da advogada cadastrada e nunca "Administrador". Testes em `tests/fechamentoNomeSaudacao.test.mjs`.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -485,6 +517,7 @@ pm2 restart crm-juridico && pm2 save
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 09/10/2026 | Claude | +2 incidentes: assistente respondendo errado/sem resposta; fechamento do dia com "Dra. Administrador" |
 | 07/10/2026 | Claude | +1 incidente: rodapé cobrindo o texto e assinatura partida na impressão |
 | 07/10/2026 | Claude | +1 incidente: card Vencido do A Receber sempre zerado (data do banco comparada como texto) |
 | 07/10/2026 | Claude | +1 incidente: lembrete de audiência enviado 2 vezes (cópias da agenda por usuário) |

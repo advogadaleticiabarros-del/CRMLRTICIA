@@ -166,7 +166,8 @@ Pedido: "fazer do meu WhatsApp um assistente pessoal do CRM". A Dra. Letícia, d
 | Consulta | "Me passa o telefone/CPF/endereço da Mailza" | Dados da ficha. **Nunca** a senha do INSS. |
 | Consulta | "Me manda a procuração da Mailza" | Envia o **arquivo** do CRM ali na conversa. Se não achar, lista os que existem. |
 | Consulta | "Agenda de amanhã", "prazos da semana" | Agenda: compromissos, audiências, prazos e tarefas, sem repetidos. Prazos: só os pendentes do período. |
-| Consulta | "Quanto tenho a receber este mês?", "quem está em atraso?" | A receber no período (**só a sua parte**, já sem a da parceira) e lista de vencidos. |
+| Consulta | "Quanto tenho a receber este mês?", "quais os meus próximos recebimentos?", "quem está em atraso?" | Total no período (**só a sua parte**, já sem a da parceira), **lista dos próximos recebimentos** por data e os vencidos. Sem período, usa o mês atual: ele não pergunta. |
+| Consulta | "Quando vence o acordo do Huber?", "qual o próximo acordo?", "e dos acordos?" | Parcelas em aberto de cada acordo: data, nº da parcela e honorários (contratuais e sucumbenciais da mesma data somados). Primeiro o mais urgente; os vencidos aparecem marcados. |
 | Consulta | "Quais contas vencem esta semana?" | Contas a pagar previstas, as vencidas e os repasses do período. |
 | Financeiro (pede "sim") | Foto/PDF de boleto ou "boleto de luz 312,40 vence dia 15" | **Contas a Pagar** (saída prevista). |
 | Financeiro (pede "sim") | "Gastei 38,50 de Uber pro fórum" | **Gasto já pago** (saída realizada). |
@@ -177,6 +178,8 @@ Pedido: "fazer do meu WhatsApp um assistente pessoal do CRM". A Dra. Letícia, d
 | Faz na hora | "Cria tarefa: protocolar a réplica da Rachel até dia 15" | Tarefa com prazo, prioridade e cliente. |
 | Faz na hora | Foto de RG/CNH + "cadastra essa cliente" | Lê os dados. Fotos mandadas em sequência completam a **mesma** ficha. Se a cliente já existe (CPF ou mesmo nome), **completa sem duplicar**. As fotos vão para Documentos pessoais. |
 | Faz na hora | "Avisa a Mailza que a audiência é dia 10 às 14h" | Escreve a mensagem, envia e mostra o texto enviado. |
+
+**Foco no pedido atual (desde 09/10/2026).** A conversa recente vai junto só para entender referências. O pedido atual vem por último e destacado, com a instrução de não repetir a resposta anterior. A IA também recebe exemplos dos pedidos que falharam em 08/10.
 
 **Escrita errada.** O pedido pode vir com erro de digitação, abreviação, sem acento ou por áudio. A IA é instruída a interpretar pela intenção e recebe as **últimas mensagens da conversa**, então entende "e o telefone dela?". Nomes de cliente, contas e documentos são achados por **semelhança** (`src/services/assistenteBusca.ts`). Exemplos: "Mailsa" acha Mailza, "raquel" acha Rachel, "jose lorenço" acha José Lourenço, "procurassão" acha a procuração. Se o nome servir para mais de um cliente, ele **pergunta qual** e não chuta. As confirmações também aceitam "sin", "ss", "pode sim", "nn", "naum".
 
@@ -218,6 +221,7 @@ Pendências expiram em 48 h (tabela `assistente_pendencias`, migration 153). Um 
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 09/10/2026 | Claude | Assistente: consulta de acordos, lista de próximos recebimentos, foco no pedido atual (corrige respostas erradas de 08/10) |
 | 08/10/2026 | Claude | Assistente: só o financeiro pede "sim"; agenda, lembrete, tarefa, cadastro e recado são feitos na hora |
 | 08/10/2026 | Claude | Assistente: todas as ações (andamento, dados e documentos do cliente, prazos, a receber, contas a vencer, pagar conta, recebimento, compromisso, lembrete, tarefa, cadastro, mensagem a cliente) e busca tolerante a erro de digitação |
 | 08/10/2026 | Claude | Assistente pessoal do CRM pelo WhatsApp: contas a pagar, gastos, consulta de processo e agenda, conferência de comprovante de cliente com baixa após "sim" |

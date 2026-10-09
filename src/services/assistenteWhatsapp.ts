@@ -18,7 +18,7 @@ import {
   interpretarConfirmacao, parseAcao, promptAssistente, lerJson,
   PROMPT_LEITURA_DOCUMENTO, parseLeituraDocumento, destinatarioConfere, casarComprovante,
   textoConfirmacao, textoFeito, formatarAgenda, formatarProcessos, formatarAReceber, formatarContasVencer,
-  formatarPrazos, formatarClienteDados, formatarAndamento, moedaBR, dataBR, foneBR,
+  formatarPrazos, formatarClienteDados, formatarAndamento, formatarAcordos, ItemAcordo, moedaBR, dataBR, foneBR,
 } from './assistenteRegras';
 import { encontrarClientes, escolherConta, escolherDocumento, ContaAberta } from './assistenteBusca';
 
@@ -61,6 +61,8 @@ export interface AssistenteRepo {
   clientePorCpfOuNome(d: DadosCadastro): Promise<ClienteRef | null>;
   salvarCadastro(d: DadosCadastro, existenteId: number | null, midias: number[], quem: string): Promise<{ id: number; criado: boolean }>;
   enviarMensagemCliente(phone: string, texto: string): Promise<boolean>;
+  /** Parcelas em aberto de acordos (de um cliente, ou de todos). */
+  acordos(clientId: number | null): Promise<ItemAcordo[]>;
 }
 export interface AssistenteIa {
   /** Prompt → texto JSON (null = IA indisponível). */
@@ -257,6 +259,17 @@ export function criarAssistente(deps: AssistenteDeps) {
           if (!lista.length) { await enviar(m.phone, `${c.name} não tem processo cadastrado no CRM ainda.`); return; }
         }
         await enviar(m.phone, lista.length ? formatarAndamento(lista) : `Não achei processo "${acao.busca}".`);
+        return;
+      }
+      case 'acordos': {
+        let clientId: number | null = null;
+        if (acao.busca) {
+          const c = await resolverCliente(acao.busca);
+          if (typeof c === 'string') { await enviar(m.phone, c); return; }
+          clientId = c.id;
+        }
+        const itens = await repo.acordos(clientId);
+        await enviar(m.phone, !itens.length && acao.busca ? `🤝 Não há acordo com parcela em aberto para ${acao.busca}.` : formatarAcordos(itens, hoje()));
         return;
       }
       case 'cliente_dados': {

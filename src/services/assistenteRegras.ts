@@ -81,7 +81,8 @@ export type Acao =
   | { tipo: 'enviar_documento'; busca: string; documento: string }
   | Compromisso | Lembrete | Tarefa | RecebimentoPedido | PagarConta
   | { tipo: 'cadastro_cliente'; dados: DadosCadastro }
-  | { tipo: 'mensagem_cliente'; busca: string; texto: string };
+  | { tipo: 'mensagem_cliente'; busca: string; texto: string }
+  | { tipo: 'acordos'; busca: string | null };
 
 export function lerJson(texto: string): any | null {
   const t = String(texto || '').replace(/```(?:json)?/g, '');
@@ -184,6 +185,7 @@ export function parseAcao(texto: string, hoje: string): Acao | null {
     return { tipo: 'a_receber', de, ate: ate < de ? de : ate, atrasados: j.atrasados === true };
   }
   if (acao === 'contas_vencer') return { tipo: 'contas_vencer', ...periodo(7) };
+  if (acao === 'acordos') return { tipo: 'acordos', busca };
   if (acao === 'prazos') return { tipo: 'prazos', ...periodo(7) };
   if (acao === 'cliente_dados') return busca ? { tipo: 'cliente_dados', busca } : pedeCliente('nome completo ou parte do nome');
   if (acao === 'andamento') return busca ? { tipo: 'andamento', busca } : pedeCliente('ou o nº do processo');
@@ -282,16 +284,26 @@ CONSULTAS (respondidas na hora):
 - {"acao":"prazos","data_inicio":"AAAA-MM-DD","data_fim":"AAAA-MM-DD"} → prazos processuais do período.
 - {"acao":"a_receber","data_inicio":"AAAA-MM-DD","data_fim":"AAAA-MM-DD","atrasados":true|false} → quanto tem a receber / quem está em atraso.
 - {"acao":"contas_vencer","data_inicio":"AAAA-MM-DD","data_fim":"AAAA-MM-DD"} → contas a pagar que vencem no período.
+- {"acao":"acordos","busca":"cliente ou null"} → qualquer pergunta sobre ACORDO (vencimento, próxima parcela, data de pagamento, "e dos acordos?"). Sem cliente → todos os acordos em aberto.
 - {"acao":"responder","texto":"..."} → cumprimento, dúvida, ou pedido fora dessas ações (explique com educação o que você consegue fazer).
 Resolva datas relativas ("amanhã", "sexta", "semana que vem", "dia 15") a partir de hoje. Omita campos que não souber.
+NUNCA pergunte o período nem peça para a Dra. repetir: sem período, deixe as datas de fora que o sistema usa o padrão (mês atual, próximos 7 dias).
+Use "responder" só para cumprimento ou algo realmente fora das ações; se der para encaixar numa ação, use a ação.
+Exemplos:
+"Qual o número do processo do Luiz Felipe" → {"acao":"processo","busca":"Luiz Felipe"}
+"Qual o vencimento do próximo acordo?" → {"acao":"acordos"}
+"data de pagamento do acordo do Huber" → {"acao":"acordos","busca":"Huber"}
+"Quais os meus próximos recebimentos?" → {"acao":"a_receber"}
+"quem tá me devendo" → {"acao":"a_receber","atrasados":true}
+"agenda de amanhã" → {"acao":"agenda","data_inicio":"(amanhã)","data_fim":"(amanhã)"}
 Se a mensagem pedir para MUDAR ou DESFAZER um compromisso, lembrete, tarefa ou recado que a conversa mostra que JÁ foi feito ("✅ ..."), NÃO crie outro: use "responder" explicando que já foi feito e que o ajuste é na Agenda/Tarefas do CRM.
 Categorias de saída: ${cats}. Escopo "empresa" = escritório; "pessoal" = casa/família. Na dúvida, "empresa".
 Valores em número (312.40). Nunca invente valor, data, CPF ou telefone que não estejam na mensagem, na conversa ou no documento.${opts.pendente ? `
 Há um item aguardando confirmação: ${JSON.stringify(opts.pendente)}. Se a mensagem CORRIGIR esse item (ex.: "é pessoal", "o valor é 300", "muda para as 15h", "manda mais curto"), devolva a MESMA ação com TODOS os campos já corrigidos e "corrige": true.` : ''}${opts.documento ? `
 Documento enviado junto (lido por IA): ${JSON.stringify(opts.documento)}. Boleto/conta sem outra instrução → "conta_pagar"; comprovante de algo já pago → "gasto"; documento pessoal (RG, CNH, CPF, comprovante de residência, CTPS) → "cadastro_cliente" com os dados lidos.` : ''}${hist ? `
-Conversa recente (para entender o contexto):
+Conversa recente — serve SÓ para entender referências ("ela", "esse", "e dos acordos?"). Não repita a resposta anterior: responda ao PEDIDO ATUAL.
 ${hist}` : ''}
-Mensagem: """${String(opts.mensagem || '').slice(0, 2000)}"""`;
+PEDIDO ATUAL (responda a ESTE): """${String(opts.mensagem || '').slice(0, 2000)}"""`;
 }
 
 // ── Leitura de documento (boleto, conta, comprovante) ──────────────────────
@@ -473,6 +485,8 @@ export function textoConfirmacao(p: any): string {
 export interface ResumoAReceber {
   de: string; ate: string; atrasados: boolean; aReceber: number; qtd: number; vencidoTotal: number;
   vencidos: { cliente: string; descricao: string; valor: number; vencimento: string | null }[];
+  /** Itens a receber no período, para listar ("quais os meus próximos recebimentos?"). */
+  proximos?: { cliente: string; descricao: string; valor: number; vencimento: string | null }[];
 }
 
 export function formatarAReceber(r: ResumoAReceber): string {
@@ -481,7 +495,11 @@ export function formatarAReceber(r: ResumoAReceber): string {
     ? `🔴 *Vencido (em atraso): ${moedaBR(r.vencidoTotal)}*\n${lista}${r.vencidos.length > 10 ? `\n…e mais ${r.vencidos.length - 10}.` : ''}`
     : '🟢 Ninguém em atraso.';
   if (r.atrasados) return atraso;
-  return `📊 *A receber de ${dataBR(r.de).slice(0, 5)} a ${dataBR(r.ate).slice(0, 5)}*: ${moedaBR(r.aReceber)} (${r.qtd} ${r.qtd === 1 ? 'item' : 'itens'}, só a sua parte)\n\n${atraso}`;
+  const prox = [...(r.proximos || [])].sort((a, b) => String(a.vencimento).localeCompare(String(b.vencimento)));
+  const lp = prox.length
+    ? `\n\n🗓️ *Próximos recebimentos*\n${prox.slice(0, 12).map((v) => `• ${dataBR(v.vencimento).slice(0, 5)} — ${v.cliente} — ${v.descricao} — ${moedaBR(v.valor)}`).join('\n')}${prox.length > 12 ? `\n…e mais ${prox.length - 12}.` : ''}`
+    : '';
+  return `📊 *A receber de ${dataBR(r.de).slice(0, 5)} a ${dataBR(r.ate).slice(0, 5)}*: ${moedaBR(r.aReceber)} (${r.qtd} ${r.qtd === 1 ? 'item' : 'itens'}, só a sua parte)${lp}\n\n${atraso}`;
 }
 
 export function formatarContasVencer(contas: { descricao: string; valor: number; vencimento: string | null; vencida: boolean }[], de: string, ate: string): string {
@@ -549,4 +567,54 @@ export function textoFeito(p: any, r: { id?: number | null; criado?: boolean; ok
     default:
       return '✅ Feito.';
   }
+}
+
+// ── Acordos (parcelas a receber de acordos judiciais/extrajudiciais) ───────
+
+export interface ItemAcordo {
+  agreementId: number; cliente: string; empresa: string | null; processo: string | null;
+  vencimento: string; parcela: string | null; valor: number;
+}
+
+const quandoTxt = (v: string, hoje: string) => {
+  if (v === hoje) return '*hoje*';
+  if (v < hoje) return `⚠️ venceu ${dataBR(v).slice(0, 5)}`;
+  return dataBR(v).slice(0, 5);
+};
+
+/** Consulta "quando vence o acordo do Fulano?": por acordo, as próximas parcelas — o mais urgente primeiro. */
+export function formatarAcordos(itens: ItemAcordo[], hoje: string): string {
+  if (!itens.length) return '🤝 Nenhum acordo com parcela em aberto.';
+  const porAcordo = new Map<number, ItemAcordo[]>();
+  for (const i of [...itens].sort((a, b) => a.vencimento.localeCompare(b.vencimento))) {
+    if (!porAcordo.has(i.agreementId)) porAcordo.set(i.agreementId, []);
+    porAcordo.get(i.agreementId)!.push(i);
+  }
+  const blocos = [...porAcordo.values()].map((l) => {
+    const c = l[0];
+    const linhas = l.slice(0, 4).map((i) => `• ${quandoTxt(i.vencimento, hoje)} — ${i.parcela || 'parcela'} — honorários ${moedaBR(i.valor)}`);
+    return `🤝 *${c.cliente}*${c.empresa ? ` — ${c.empresa}` : ''}${c.processo ? `\n📄 ${numeroCNJ(c.processo)}` : ''}\n${linhas.join('\n')}`
+      + `${l.length > 4 ? `\n…e mais ${l.length - 4} parcela(s) até ${dataBR(l[l.length - 1].vencimento)}` : ''}`;
+  });
+  return blocos.join('\n\n');
+}
+
+/**
+ * Aviso diário (pedido 09/10/2026): "me informe sempre 2 dias antes, 1 dia antes e
+ * no dia que um acordo está para vencer". Junta também o que venceu nos últimos 7
+ * dias e ainda não foi baixado. Sem nada para avisar → null (não manda mensagem).
+ */
+export function montarAvisoAcordos(itens: ItemAcordo[], hoje: string): string | null {
+  const d1 = somaDias(hoje, 1); const d2 = somaDias(hoje, 2); const semana = somaDias(hoje, -7);
+  const linha = (i: ItemAcordo) => `• ${i.cliente}${i.empresa ? ` (${i.empresa})` : ''} — ${i.parcela || 'parcela'} — honorários ${moedaBR(i.valor)}`;
+  const grupo = (titulo: string, l: ItemAcordo[]) => (l.length ? `*${titulo}*\n${l.map(linha).join('\n')}` : '');
+  const blocos = [
+    grupo(`Hoje (${dataBR(hoje).slice(0, 5)})`, itens.filter((i) => i.vencimento === hoje)),
+    grupo(`Amanhã (${dataBR(d1).slice(0, 5)})`, itens.filter((i) => i.vencimento === d1)),
+    grupo(`Em 2 dias (${dataBR(d2).slice(0, 5)})`, itens.filter((i) => i.vencimento === d2)),
+    grupo('⚠️ Venceu e ainda não foi baixado', itens.filter((i) => i.vencimento < hoje && i.vencimento >= semana)
+      .map((i) => ({ ...i, parcela: `${i.parcela || 'parcela'} (venceu ${dataBR(i.vencimento).slice(0, 5)})` }))),
+  ].filter(Boolean);
+  if (!blocos.length) return null;
+  return `🤝 *Acordos para ficar de olho no pagamento*\n\n${blocos.join('\n\n')}\n\nQuando cair, me diga "recebi o acordo do Fulano" que eu dou baixa.`;
 }

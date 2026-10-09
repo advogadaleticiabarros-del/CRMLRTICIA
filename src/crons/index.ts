@@ -156,6 +156,14 @@ export function startCronJobs() {
     }, { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── 8h: acordos que vencem hoje, amanhã e em 2 dias (e os vencidos sem baixa) ──
+  cron.schedule('0 8 * * *', () => {
+    runJob('acordos:aviso-vencimento', async () => {
+      const m = await import('../services/assistenteWhatsappMysql');
+      return m.avisarAcordosAVencer();
+    });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── a cada minuto: lembretes pedidos ao assistente do WhatsApp ("me lembra às 9h…") ──
   cron.schedule('* * * * *', () => {
     runJob('assistente:lembretes', async () => {

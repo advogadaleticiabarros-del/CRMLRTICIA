@@ -112,6 +112,16 @@ Também passaram a ser serviços compartilhados, sem mudar a lógica:
 
 O assistente do WhatsApp usa os dois em "quanto tenho a receber?" e "recebi 500 da Fulana".
 
+## Aviso de acordos a vencer (desde 09/10/2026)
+
+Pedido: "me informe sempre 2 dias antes, 1 dia antes e no dia que um acordo está para vencer, para que eu fique de olho no pagamento". Todo dia às **8h** chega no WhatsApp da Dra. Letícia (44) 99101-1402 uma mensagem "🤝 Acordos para ficar de olho no pagamento" com:
+- as parcelas de acordo que vencem **hoje**, **amanhã** e **em 2 dias**;
+- as que **venceram nos últimos 7 dias e ainda não foram baixadas**.
+
+Cada linha mostra o cliente, a empresa, o nº da parcela e os honorários daquela data (contratuais e sucumbenciais somados). Quando não há nada perto de vencer, nenhuma mensagem é enviada. É uma mensagem por dia (`sent_reminders`, chave `acordo_aviso_AAAA-MM-DD`). Para trocar o número, mude `office_settings.acordo_aviso_numeros`.
+
+As parcelas vêm de `financial_records` ligados a `agreements`, as mesmas do A Receber. Os textos ficam em `montarAvisoAcordos` (`src/services/assistenteRegras.ts`) e o envio em `avisarAcordosAVencer` (`assistenteWhatsappMysql.ts`), no cron `acordos:aviso-vencimento`.
+
 ## FAQ
 
 **A despesa pessoal da família aparece no resultado do escritório?** Não deveria — o sistema guarda despesa pessoal/familiar separada por escopo, e o DRE do escritório filtra só `escopo='empresa'`.
@@ -129,6 +139,7 @@ O assistente do WhatsApp usa os dois em "quanto tenho a receber?" e "recebi 500 
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 09/10/2026 | Claude | Aviso diário (8h) de parcelas de acordo que vencem hoje, amanhã e em 2 dias, e das vencidas sem baixa |
 | 08/10/2026 | Claude | A Receber e "Recebi um pagamento" viraram serviços compartilhados (tela + assistente) |
 | 08/10/2026 | Claude | Baixa unificada em `baixaAReceber.ts` (telas + assistente do WhatsApp); baixa repetida não altera a data de pagamento |
 | 07/10/2026 | Claude | A Receber: em caso de parceria, a coluna Valor mostra só a sua parte (total e parte da parceira em letra menor) |

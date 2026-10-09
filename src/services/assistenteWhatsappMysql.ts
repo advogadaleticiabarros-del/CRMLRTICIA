@@ -1,6 +1,6 @@
 import { db } from '../config/database';
 import { criarAssistente, AssistenteRepo, AssistenteIa, Midia, Pendencia, AndamentoInfo } from './assistenteWhatsapp';
-import { COMANDANTES_PADRAO, parseNumerosComandantes, ehComandante, chaveFone, ItemAgenda, ProcessoInfo, DadosCadastro } from './assistenteRegras';
+import { COMANDANTES_PADRAO, parseNumerosComandantes, ehComandante, chaveFone, ItemAgenda, ProcessoInfo, DadosCadastro, ItemAcordo, montarAvisoAcordos } from './assistenteRegras';
 import { semelhanca } from './assistenteBusca';
 import { abertosDoCliente, baixarItemCliente } from './baixaAReceber';
 
@@ -39,6 +39,35 @@ const SQL_PROCESSOS = `SELECT cl.name AS cliente, COALESCE(lp.process_number, c.
    FROM clients cl
    JOIN cases c ON c.client_id = cl.id
    LEFT JOIN legal_processes lp ON lp.case_id = c.id`;
+
+/**
+ * Parcelas em aberto de acordos (financial_records ligados a agreements), somando
+ * na mesma data os honorários contratuais e os sucumbenciais do mesmo acordo.
+ */
+export async function acordosEmAberto(clientId: number | null): Promise<ItemAcordo[]> {
+  const [rows] = await db.query(
+    `SELECT a.id AS ag, COALESCE(cl.name, '—') AS cliente, a.opposing_party AS empresa, COALESCE(a.process_number, c.case_number) AS processo,
+            fr.due_date, fr.valor, fr.description
+       FROM financial_records fr
+       JOIN agreements a ON a.id = fr.agreement_id
+       LEFT JOIN clients cl ON cl.id = a.client_id
+       LEFT JOIN cases c ON c.id = a.case_id
+      WHERE fr.status IN ('pendente','vencido') AND fr.due_date IS NOT NULL ${clientId ? 'AND a.client_id = ?' : ''}
+      ORDER BY fr.due_date`, clientId ? [clientId] : []) as any;
+  const grupos = new Map<string, ItemAcordo>();
+  for (const r of rows) {
+    const venc = isoDia(r.due_date)!;
+    const k = `${r.ag}|${venc}`;
+    const parcela = (String(r.description || '').match(/\((\d+ª parcela)\)/) || [])[1] || null;
+    const g = grupos.get(k);
+    if (g) { g.valor = Math.round((g.valor + Number(r.valor)) * 100) / 100; if (!g.parcela && parcela) g.parcela = parcela; }
+    else {
+      const empresa = r.empresa || (String(r.description || '').split(' — ').pop() || null);
+      grupos.set(k, { agreementId: r.ag, cliente: r.cliente, empresa, processo: r.processo || null, vencimento: venc, parcela, valor: Number(r.valor) || 0 });
+    }
+  }
+  return [...grupos.values()];
+}
 
 /** Exportado também para diagnóstico no servidor (consultas reais, só leitura). */
 export const repo: AssistenteRepo = {
@@ -204,7 +233,8 @@ export const repo: AssistenteRepo = {
       .sort((a: any, b: any) => String(isoDia(a.vencimento)).localeCompare(String(isoDia(b.vencimento))))
       .map((r: any) => ({ cliente: r.cliente || '—', descricao: r.descricao, valor: Number(r.seu ?? r.valor) || 0, vencimento: isoDia(r.vencimento) }));
     const soma = (l: any[], k: string) => Math.round(l.reduce((s, r) => s + (Number(r[k] ?? r.valor) || 0), 0) * 100) / 100;
-    return { aReceber: soma(noPeriodo, 'seu'), qtd: noPeriodo.length, vencidoTotal: soma(vencidos, 'valor'), vencidos };
+    const proximos = noPeriodo.map((r: any) => ({ cliente: r.cliente || '—', descricao: r.descricao, valor: Number(r.seu ?? r.valor) || 0, vencimento: isoDia(r.vencimento) }));
+    return { aReceber: soma(noPeriodo, 'seu'), qtd: noPeriodo.length, vencidoTotal: soma(vencidos, 'valor'), vencidos, proximos };
   },
 
   async contasAPagar(de, ate) {
@@ -315,6 +345,10 @@ export const repo: AssistenteRepo = {
     return { id: id!, criado: !existenteId };
   },
 
+  async acordos(clientId) {
+    return acordosEmAberto(clientId);
+  },
+
   async enviarMensagemCliente(phone, texto) {
     const { sendText } = await import('./uazapiInstance');
     return sendText(phone, texto, 'Assistente (Dra. Letícia)');
@@ -390,4 +424,22 @@ export async function enviarLembretesAssistente(): Promise<{ enviados: number }>
     if (u.affectedRows) await enviarTexto(r.phone, `⏰ *Lembrete:* ${r.texto}`).catch(() => {});
   }
   return { enviados: rows.length };
+}
+
+/**
+ * Cron diário (8h): avisa 2 dias antes, 1 dia antes e no dia do vencimento de
+ * parcela de acordo, e o que venceu sem baixa (pedido de 09/10/2026: "para que
+ * eu fique de olho no pagamento"). Vai para office_settings.acordo_aviso_numeros
+ * (padrão: o número da Dra. Letícia). Uma vez por dia (sent_reminders).
+ */
+export async function avisarAcordosAVencer(): Promise<{ enviado: boolean }> {
+  const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const texto = montarAvisoAcordos(await acordosEmAberto(null), hoje);
+  if (!texto) return { enviado: false };
+  const [dup] = await db.query('INSERT IGNORE INTO sent_reminders (ref_key, channel) VALUES (?, ?)', [`acordo_aviso_${hoje}`, 'whatsapp']) as any;
+  if (!dup.affectedRows) return { enviado: false };
+  const [[cfg]] = await db.query("SELECT setting_value FROM office_settings WHERE setting_key = 'acordo_aviso_numeros'").catch(() => [[null]]) as any;
+  const numeros = parseNumerosComandantes(cfg?.setting_value || '5544991011402').map((n) => (n.length <= 11 ? '55' + n : n));
+  for (const n of numeros) await enviarTexto(n, texto).catch(() => {});
+  return { enviado: true };
 }

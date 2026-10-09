@@ -127,6 +127,13 @@ async function fraseDoDia(ctx: ContextoDia): Promise<string> {
   return frase;
 }
 
+/** Primeiro nome para "Dra. ___": a advogada cadastrada; nunca "Administrador". */
+export function nomeSaudacao(users: { name: string; role: string }[], u: { name: string; role: string }): string {
+  const adv = u.role === 'advogado' ? u : users.find((x) => x.role === 'advogado');
+  const nome = String((adv || u).name || '').split(' ')[0];
+  return !nome || /^administrador$/i.test(nome) ? 'Letícia' : nome;
+}
+
 async function numerosWhatsapp(): Promise<string[]> {
   return [await destinoWhatsappPessoal()];
 }
@@ -141,7 +148,7 @@ const lista = (itens: string[], vazio: string) => (itens.length ? itens.map(esc)
  */
 export async function sendEveningClosing(): Promise<{ sent: number; failed: number; whatsapp: boolean }> {
   const [users] = await db.query(
-    `SELECT id, name, email FROM users WHERE active = 1 AND role IN ('admin','advogado') AND email IS NOT NULL AND email <> '' ORDER BY id`
+    `SELECT id, name, email, role FROM users WHERE active = 1 AND role IN ('admin','advogado') AND email IS NOT NULL AND email <> '' ORDER BY id`
   ) as any;
 
   let sent = 0, failed = 0, whatsapp = false, whatsappTentado = false;
@@ -151,7 +158,9 @@ export async function sendEveningClosing(): Promise<{ sent: number; failed: numb
       const c = classificarDia(manha, await estadoAtualDasTarefas(u.id), await estadoDasTarefasDaManha(manha));
       const amanha = await prioridadesDeAmanha(u.id);
       const frase = await fraseDoDia(await contextoDoDia(u.id, c));
-      const firstName = (u.name || 'Dra.').split(' ')[0];
+      // Saudação com o nome da advogada, não do usuário técnico "Administrador"
+      // (08/10/2026: chegou "Fechamento do dia, Dra. Administrador").
+      const firstName = nomeSaudacao(users, u);
 
       const h3 = (t: string) => `<h3 style="color:#1f3047;font-size:15px">${t}</h3>`;
       const body = `
