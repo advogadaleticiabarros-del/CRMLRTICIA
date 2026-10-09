@@ -56,6 +56,17 @@
   4. método no repo;
   5. testes.
 
+## Perfil novo / outro computador: preparar o ambiente
+1. `git pull` na `main`. Tudo o que importa está no GitHub; nada de trabalho fica só no computador.
+2. **Skills:**
+   - As de engenharia (`codebase-design`, `code-review`, `diagnosing-bugs`, `domain-modeling` etc.) já vêm no repositório, em `.claude/skills/`.
+   - As do **Superpowers** (`test-driven-development`, `systematic-debugging`, `writing-plans`...) ficam fora do git de propósito. Para reinstalar: `npx skills add obra/superpowers`. A lista e a origem de cada uma estão em `skills-lock.json`.
+3. **Fora do git, de propósito:**
+   - acessos e chaves: `C:\Users\prosy\CLAUDE.md` e `.env`;
+   - `.claude/worktrees/` (rascunhos antigos, já incorporados à `main`);
+   - `.superpowers/` (relatórios de execução das tarefas).
+4. Para conferir se está tudo salvo: `git status -sb` deve mostrar `## main...origin/main`, sem arquivos pendentes.
+
 ## Onde ficam as coisas
 | Preciso de… | Arquivo |
 |---|---|

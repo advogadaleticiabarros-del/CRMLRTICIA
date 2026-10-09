@@ -6,6 +6,7 @@
 
 ## Últimas entregas (mais recentes primeiro)
 - **09/10:**
+  - Repositório conferido: tudo no GitHub. As skills de engenharia foram versionadas em `.claude/skills/` e `skills-lock.json`, e as pastas locais (`worktrees`, `.superpowers`) foram para o `.gitignore`. O branch local `worktree-aceite-publico-e-excluir-contrato` está obsoleto: tudo dele já está na `main`. O LEIA-PRIMEIRO ganhou a seção "Perfil novo".
   - Documentos de contexto (`docs/contexto/`) e dados pessoais reais tirados dos testes.
   - Assistente: consulta de **acordos**, lista de **próximos recebimentos**, foco no pedido atual, IA OpenAI primeiro.
   - **Aviso diário às 8h** das parcelas de acordo que vencem hoje, amanhã e em 2 dias, e das vencidas sem baixa (cron `acordos:aviso-vencimento`).

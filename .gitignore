@@ -33,3 +33,8 @@ _*.js
 .claude/skills/verification-before-completion/
 .claude/skills/writing-plans/
 .claude/skills/writing-skills/
+
+# Locais do Claude/Superpowers (não vão para o repositório)
+.claude/worktrees/
+.superpowers/
+scripts/spike-*-resultado.json
