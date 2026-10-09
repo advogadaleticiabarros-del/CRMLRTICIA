@@ -86,6 +86,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 - **Trade-off aceito por ela:** um recado mal interpretado vai direto ao cliente.
 - **Cadastro:** continua sem duplicar, porque cada documento completa a ficha achada por CPF ou nome.
 
+### 09/10/2026 — Assistente do WhatsApp interpreta pela OpenAI (Luna), Groq de reserva
+**Decisão:** inverter a ordem só no assistente: OpenAI GPT-5.6 Luna primeiro, Groq JSON depois. Nas outras partes do CRM continua valendo Gemini/Groq como base gratuita.
+**Motivo:** a conversa real de 08/10 teve respostas erradas vindas da Groq. No teste de 09/10, a Groq bateu no limite gratuito por minuto depois de 7 perguntas seguidas (o prompt tem cerca de 3 mil tokens), e o Gemini estava sem cota. A Luna acertou o caso que faltava. O custo fica em torno de US$ 0,0006 por mensagem.
+**Alternativa considerada:** manter a Groq primeiro e só reduzir o prompt. Foi descartada porque o prompt longo, com exemplos, é justamente o que faz entender pedido escrito errado.
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.

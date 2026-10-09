@@ -211,7 +211,7 @@ Pendências expiram em 48 h (tabela `assistente_pendencias`, migration 153). Um 
 - **Orquestrador:** `src/services/assistenteWhatsapp.ts`, com testes em `tests/assistenteWhatsapp.test.mjs`. Banco, IA e envio são injetados.
 - **Peças reais:** `src/services/assistenteWhatsappMysql.ts`.
 - **Entrada:** `assistenteNoWebhook`, chamado no webhook da Uazapi.
-- **IA:** o pedido é interpretado pela Groq em modo JSON, com reserva na OpenAI. Boleto e comprovante são lidos pelo Gemini, com reserva na OpenAI com visão (`aiLerArquivo`). Áudio é transcrito pelo Whisper da Groq.
+- **IA:** desde 09/10/2026 o pedido é interpretado pela **OpenAI (GPT-5.6 Luna)**, com a Groq de reserva. A Groq gratuita estourava o limite por minuto com o pedido longo do assistente, e as respostas erradas de 08/10 vieram dela. Custo: frações de centavo por mensagem. Boleto e comprovante são lidos pelo Gemini, com reserva na OpenAI com visão (`aiLerArquivo`). Áudio é transcrito pelo Whisper da Groq.
 - **Mesmas regras das telas:** baixa (`baixaAReceber.ts`), "Recebi um pagamento" (`recebimentoCliente.ts`), compromisso com Google Agenda (`agendaEventos.ts`) e A Receber (`aReceberMontar.ts`).
 - **Gravações:** ficam no nome da advogada com Google conectado (`office_settings.assistente_usuario_id` troca isso).
 - **Lembretes:** ficam em `assistente_lembretes` (migration 154). O cron `assistente:lembretes` roda a cada minuto.
@@ -221,6 +221,7 @@ Pendências expiram em 48 h (tabela `assistente_pendencias`, migration 153). Um 
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 09/10/2026 | Claude | Assistente: interpretação pela OpenAI primeiro (Groq de reserva) |
 | 09/10/2026 | Claude | Assistente: consulta de acordos, lista de próximos recebimentos, foco no pedido atual (corrige respostas erradas de 08/10) |
 | 08/10/2026 | Claude | Assistente: só o financeiro pede "sim"; agenda, lembrete, tarefa, cadastro e recado são feitos na hora |
 | 08/10/2026 | Claude | Assistente: todas as ações (andamento, dados e documentos do cliente, prazos, a receber, contas a vencer, pagar conta, recebimento, compromisso, lembrete, tarefa, cadastro, mensagem a cliente) e busca tolerante a erro de digitação |

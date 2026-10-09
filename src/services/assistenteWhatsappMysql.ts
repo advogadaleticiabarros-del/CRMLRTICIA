@@ -1,6 +1,6 @@
 import { db } from '../config/database';
 import { criarAssistente, AssistenteRepo, AssistenteIa, Midia, Pendencia, AndamentoInfo } from './assistenteWhatsapp';
-import { COMANDANTES_PADRAO, parseNumerosComandantes, ehComandante, chaveFone, ItemAgenda, ProcessoInfo, DadosCadastro, ItemAcordo, montarAvisoAcordos } from './assistenteRegras';
+import { COMANDANTES_PADRAO, parseNumerosComandantes, ehComandante, chaveFone, ItemAgenda, ProcessoInfo, DadosCadastro, ItemAcordo, montarAvisoAcordos, lerJson } from './assistenteRegras';
 import { semelhanca } from './assistenteBusca';
 import { abertosDoCliente, baixarItemCliente } from './baixaAReceber';
 
@@ -355,13 +355,20 @@ export const repo: AssistenteRepo = {
   },
 };
 
-const ia: AssistenteIa = {
+/**
+ * IA do assistente. Interpretação: OpenAI (GPT-5.6 Luna) primeiro e Groq de
+ * reserva — desde 09/10/2026: as respostas erradas de 08/10 vieram da Groq, e o
+ * prompt do assistente (~3 mil tokens) estoura o limite gratuito por minuto da
+ * Groq em poucas perguntas seguidas (o Gemini estava sem cota). Custo da Luna:
+ * frações de centavo por mensagem. Exportada para diagnóstico no servidor.
+ */
+export const iaAssistente: AssistenteIa = {
   async interpretar(prompt) {
     const { aiCompleteJson, aiComplete } = await import('./aiAssistant');
-    const r = await aiCompleteJson(prompt, 'groq').catch(() => ({ ok: false } as any));
-    if (r.ok && r.text) return r.text;
     const o = await aiComplete(prompt, 'openai').catch(() => ({ ok: false } as any));
-    return o.ok && o.text ? o.text : null;
+    if (o.ok && o.text && lerJson(o.text)) return o.text;
+    const r = await aiCompleteJson(prompt, 'groq').catch(() => ({ ok: false } as any));
+    return r.ok && r.text ? r.text : null;
   },
   async lerDocumento(midia, instrucao) {
     if (midia.data.length > 8 * 1024 * 1024) return null;
@@ -381,6 +388,7 @@ async function enviarTexto(phone: string, texto: string): Promise<void> {
   await sendText(phone, texto, 'Assistente do CRM');
 }
 
+const ia = iaAssistente;
 const assistente = criarAssistente({ repo, ia, enviar: enviarTexto });
 
 async function carregarMidia(mediaId: number | null): Promise<Midia | undefined> {
