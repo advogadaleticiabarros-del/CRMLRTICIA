@@ -106,6 +106,28 @@ test('executarDumpEmFluxo avisa quando um comando passa do limite do MySQL', asy
   await assert.rejects(executarDumpEmFluxo(gz, async () => {}, 500), /maior que o limite/);
 });
 
+test('executarDumpEmFluxo reconhece o CREATE TABLE no formato REAL da lib mysqldump (cabeçalho com #)', async () => {
+  // Formato exato gravado pela lib (node_modules/mysqldump): 3 linhas "# ..." antes de cada tabela.
+  // A 1ª versão da correção exigia o comando COMEÇANDO com CREATE TABLE e deu falso
+  // "Dump sem CREATE TABLE" na prova real de 12/10/2026.
+  const sql = [
+    '# ------------------------------------------------------------',
+    '# SCHEMA DUMP FOR TABLE: clients',
+    '# ------------------------------------------------------------',
+    '',
+    'CREATE TABLE IF NOT EXISTS `clients` (`id` int);',
+    '',
+    '# ------------------------------------------------------------',
+    '# DATA DUMP FOR TABLE: clients',
+    '# ------------------------------------------------------------',
+    '',
+    "INSERT INTO `clients` (`id`) VALUES (1);",
+  ].join('\n');
+  const r = await executarDumpEmFluxo(zlib.gzipSync(Buffer.from(sql)), async () => {});
+  assert.equal(r.temCreateTable, true);
+  assert.equal(r.comandos, 2);
+});
+
 test('executarDumpEmFluxo acusa dump sem CREATE TABLE', async () => {
   const r = await executarDumpEmFluxo(zlib.gzipSync(Buffer.from('SELECT 1;')), async () => {});
   assert.equal(r.temCreateTable, false);

@@ -25,9 +25,12 @@ export async function executarDumpEmFluxo(
 
   let comandos = 0;
   let temCreateTable = false;
+  // A lib mysqldump põe linhas "# SCHEMA DUMP FOR TABLE: x" antes de cada
+  // CREATE TABLE (o MySQL as trata como comentário) — elas fazem parte do comando.
+  const ehCreateTable = /^(?:\s*#[^\n]*\n)*\s*CREATE TABLE/i;
   const rodar = async (lista: string[]) => {
     for (const c of lista) {
-      if (!temCreateTable && /^CREATE TABLE/i.test(c)) temCreateTable = true;
+      if (!temCreateTable && ehCreateTable.test(c)) temCreateTable = true;
       await executar(c);
       comandos++;
     }
