@@ -395,6 +395,18 @@ pm2 restart crm-juridico && pm2 save
 
 ---
 
+## Incidente: prova de restauração falhando com "Cannot create a string longer than 0x1fffffe8 characters"
+
+**Sintoma (11/10/2026, aviso diário com ⚠️ "a última prova de restauração FALHOU"):** os backups das 02h, 09h e 19h continuavam sendo gravados no MEGA e no disco, e conferidos. Mas a prova semanal (domingo 03h30), que restaura a cópia num banco de teste, falhou com `Cannot create a string longer than 0x1fffffe8 characters`. **Risco real:** o caminho de restauração do sistema não conseguia mais abrir o backup.
+
+**Causa raiz (medida em 12/10/2026):** `restoreService.ts` descomprimia o dump inteiro num **único texto** (`gunzipSync(...).toString()`). O Node aceita no máximo ~512 MB por texto, e o dump de 12/10 tem **656 MB de SQL** (o arquivo `.gz.enc` tem 321 MB). Quem fez crescer foi a mídia do WhatsApp guardada no banco: `whatsapp_media` tem 252 MB e entraram 112 MB em setembro e 131 MB em outubro. O "MB" do aviso diário é o tamanho comprimido, por isso o problema não aparecia nele.
+
+**Correção:** a restauração lê o dump **em fluxo**, comando por comando (`src/services/restoreFluxo.ts` + `src/utils/divisorSql.ts`). A memória guarda só o comando atual, então o tamanho total do backup deixa de importar. Cada comando é conferido contra o `max_allowed_packet` do MySQL (64 MB): um registro maior que isso dá erro claro. Hoje o maior é um documento de 22,9 MB, que vira cerca de 46 MB em hex. As migrations usam o mesmo divisor; um teste prova que o resultado é idêntico ao do algoritmo antigo em todas as migrations. A primeira versão da correção (`9ba16ea`) restaurou o dump inteiro na prova real, mas acusou falsamente "Dump sem CREATE TABLE". A lib grava 3 linhas `# SCHEMA DUMP FOR TABLE` antes de cada tabela, e a conferência exigia o comando começando com `CREATE TABLE`. Corrigido no commit seguinte; o teste agora usa o formato real da lib. Validação a seco com o backup de produção de 12/10: 106 tabelas, 159.278 registros, maior comando de 45,8 MB, lido em 17 s.
+
+**Como reconhecer de novo:** aviso diário com "a última prova de restauração FALHOU". Veja a mensagem em `SELECT message FROM job_runs WHERE job='backup:prova-de-restauracao' ORDER BY id DESC LIMIT 1;`. Para refazer a prova na hora: `cd ~/app && npm run restore:test:prod` (como `crmapp`). Se a mensagem for "maior que o limite", algum registro (documento ou mídia) passou de ~32 MB: aumente o `max_allowed_packet` do MySQL na VPS (`/etc/mysql/mysql.conf.d/mysqld.cnf`) ou tire esse arquivo do banco.
+
+---
+
 ## Incidente: proposta gerada sem os dados que a cliente mandou
 
 **Sintoma (relato 07/10/2026, urgente):** a cliente (Mailza) respondeu com nome, CPF, e-mail e endereço, mas ao clicar **Gerar proposta** os dados não vieram.
@@ -517,6 +529,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 12/10/2026 | Claude | +1 incidente: prova de restauração do backup falhando (dump de 656 MB passou do limite de texto do Node) — restauração agora em fluxo |
 | 09/10/2026 | Claude | +2 incidentes: assistente respondendo errado/sem resposta; fechamento do dia com "Dra. Administrador" |
 | 07/10/2026 | Claude | +1 incidente: rodapé cobrindo o texto e assinatura partida na impressão |
 | 07/10/2026 | Claude | +1 incidente: card Vencido do A Receber sempre zerado (data do banco comparada como texto) |

@@ -2,9 +2,12 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 09/10/2026. Último commit: este arquivo; antes dele, `5ed8f16` (fix assistente: OpenAI primeiro).
+**Última atualização:** 12/10/2026. Último commit: este arquivo; antes dele, os fixes do backup (restauração em fluxo).
 
 ## Últimas entregas (mais recentes primeiro)
+- **12/10:**
+  - **Backup:** a prova de restauração de 11/10 falhou porque o dump chegou a 656 MB de SQL e o código o lia num único texto (limite do Node: 512 MB). A restauração agora lê em fluxo, comando por comando (`restoreFluxo.ts`, `divisorSql.ts`). As cópias de 02h, 09h e 19h nunca pararam. Prova real refeita em 12/10 e aprovada: 106 tabelas, 171 clientes, 88 casos e 8 usuários, iguais à produção. Detalhes no runbook.
+  - Observação: em 01/10 a prova contou 185 clientes; hoje a produção tem 171. A diferença é da produção (fichas removidas ou unificadas no período), não do backup. As cópias antigas continuam no MEGA, se for preciso conferir.
 - **09/10:**
   - Repositório conferido: tudo no GitHub. As skills de engenharia foram versionadas em `.claude/skills/` e `skills-lock.json`, e as pastas locais (`worktrees`, `.superpowers`) foram para o `.gitignore`. O branch local `worktree-aceite-publico-e-excluir-contrato` está obsoleto: tudo dele já está na `main`. O LEIA-PRIMEIRO ganhou a seção "Perfil novo".
   - Documentos de contexto (`docs/contexto/`) e dados pessoais reais tirados dos testes.
@@ -48,6 +51,9 @@
   - parcela 2/5 da Larissa (R$ 55) vencida desde 20/09.
 
 ## Próximos passos sugeridos (se ela não pedir outra coisa)
+- **Backup, antes de dezembro (prioridade):** o MEGA de 20 GB lota entre o fim de novembro e dezembro. Cada cópia tem 321 MB e cresce cerca de 130 MB por mês por causa da mídia do WhatsApp no banco. Saídas possíveis:
+  - tirar `whatsapp_media` do banco (arquivos com backup próprio; cada cópia cairia para cerca de 60 MB);
+  - ou ela assinar um plano pago do MEGA, que é decisão dela.
 - **Assistente:**
   - observar as conversas reais de 09/10 em diante (PROCEDIMENTOS §5);
   - transformar frases que falharem em exemplos e testes.

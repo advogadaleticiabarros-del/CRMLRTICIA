@@ -50,9 +50,9 @@ Regra da usuária (07/10/2026): **o backup não pode falhar nenhum dia** — sã
 - **MEGA:** todas as cópias dos últimos 3 dias + 1 por dia até 30 dias + 1 por mês até 12 meses (~48 arquivos);
 - **VPS:** todas dos últimos 3 dias + 1 por dia até 14 dias.
 
-**Prova de restauração:** todo **domingo às 03h30** (era mensal até 07/10/2026) o sistema restaura a cópia mais recente num banco de teste e confere que os dados voltam. Falhou → alerta crítico.
+**Prova de restauração:** todo **domingo às 03h30** (era mensal até 07/10/2026) o sistema restaura a cópia mais recente num banco de teste e confere que os dados voltam. Falhou → alerta crítico. Desde 12/10/2026 a restauração lê o dump em fluxo, comando por comando (`restoreFluxo.ts`), sem limite de tamanho total. O limite que resta é de cerca de 32 MB por arquivo dentro do banco (`max_allowed_packet` de 64 MB, e o binário dobra de tamanho em hex).
 
-**Tamanho:** ~280 MB por cópia em 07/10/2026, dos quais ~80% são mídias do WhatsApp guardadas dentro do banco (`whatsapp_media`, 206 MB). Ver a análise em [Decisões](17-decision-log.md).
+**Tamanho:** 321 MB por cópia em 12/10/2026 (656 MB de SQL descomprimido), dos quais ~80% são mídias do WhatsApp guardadas dentro do banco (`whatsapp_media`, 252 MB, crescendo ~130 MB/mês). No MEGA (conta de 20 GB), 5,3 GB em 21 cópias em 12/10. Com a retenção completa (~48 cópias) e esse crescimento, **a conta lota entre o fim de novembro e dezembro de 2026**; o aviso diário acusa a partir de 85%. Ver a análise em [Decisões](17-decision-log.md).
 
 ## Histórico: Railway
 
@@ -82,6 +82,7 @@ Alguns dados sensíveis (tokens de integração) ficam cifrados no banco. Acesso
 |---|---|---|
 | 03/09/2026 | Claude | Criação do documento; registrado o desligamento do Railway e a migração definitiva pra VPS |
 | 07/10/2026 | Claude | Backup reforçado: tempo limite, conferência do arquivo, nova tentativa automática, vigia de horário perdido, aviso diário 20h30, histórico 30 dias + 12 meses, prova de restauração semanal, deploy espera o backup |
+| 12/10/2026 | Claude | Prova de restauração em fluxo (o dump passou de 512 MB e a prova falhava); tamanho atual e previsão de lotação do MEGA |
 
 ---
 ◀ [Usuários e acesso](12-usuarios.md) · [Visão geral](00-visao-geral.md)
