@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { db } from './database';
+import { DivisorSql } from '../utils/divisorSql';
 
 /**
  * Aplica as migrations pendentes NO BOOT.
@@ -40,45 +41,9 @@ export interface ResultadoMigrations {
  * aspas. Assim nenhum comentário volta a derrubar um deploy.
  */
 export function dividirStatements(sql: string): string[] {
-  const out: string[] = [];
-  let atual = '';
-  let aspas: '"' | "'" | '`' | null = null;
-
-  for (let i = 0; i < sql.length; i++) {
-    const c = sql[i];
-    const prox = sql[i + 1];
-
-    if (aspas) {
-      atual += c;
-      if (c === '\\') { if (prox !== undefined) { atual += prox; i++; } continue; } // escape
-      if (c === aspas) aspas = null;
-      continue;
-    }
-
-    // comentário `-- ...` FORA de aspas: descarta até o fim da linha
-    if (c === '-' && prox === '-') {
-      while (i < sql.length && sql[i] !== '\n') i++;
-      atual += '\n';
-      continue;
-    }
-    // comentário /* ... */
-    if (c === '/' && prox === '*') {
-      i += 2;
-      while (i < sql.length && !(sql[i] === '*' && sql[i + 1] === '/')) i++;
-      i++;
-      continue;
-    }
-
-    if (c === '"' || c === "'" || c === '`') { aspas = c as any; atual += c; continue; }
-
-    if (c === ';') { const s = atual.trim(); if (s) out.push(s); atual = ''; continue; }
-
-    atual += c;
-  }
-
-  const resto = atual.trim();
-  if (resto) out.push(resto);
-  return out;
+  // Mesmo divisor que a restauração do backup usa em fluxo (utils/divisorSql.ts).
+  const divisor = new DivisorSql();
+  return [...divisor.push(sql), ...divisor.finalizar()];
 }
 
 export async function runMigrations(): Promise<ResultadoMigrations> {

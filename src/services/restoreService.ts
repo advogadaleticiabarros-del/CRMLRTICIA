@@ -1,9 +1,8 @@
-import zlib from 'zlib';
 import mysql from 'mysql2/promise';
 import { env } from '../config/env';
 import { db } from '../config/database';
 import { decryptBuffer, isEncryptedBuffer } from '../utils/crypto';
-import { dividirStatements } from '../config/migrations';
+import { executarDumpEmFluxo } from './restoreFluxo';
 
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const { Storage } = require('megajs');
@@ -57,8 +56,6 @@ export async function verifyLatestBackup(): Promise<RestoreReport> {
     } catch (e: any) {
       return { ok: false, file: latest.name, message: `Backup cifrado e não foi possível decifrar: ${e?.message}. A ENCRYPTION_KEY mudou?` };
     }
-    const sql = zlib.gunzipSync(gz).toString('utf8');
-    if (!sql.includes('CREATE TABLE')) return { ok: false, file: latest.name, message: 'Dump sem CREATE TABLE — arquivo corrompido?' };
     console.log(`   Backup ${cifrado ? 'CIFRADO' : 'em claro (antigo)'}: ${latest.name}`);
 
     // 3. Restaura num banco temporário isolado
@@ -70,11 +67,15 @@ export async function verifyLatestBackup(): Promise<RestoreReport> {
     await conn.query(`CREATE DATABASE ${TEST_DB} CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
     await conn.query(`USE ${TEST_DB}`);
     await conn.query('SET FOREIGN_KEY_CHECKS=0');
-    // Executa statement por statement (não o dump inteiro numa query só) —
-    // um dump de dezenas de MB estoura o max_allowed_packet do MySQL numa
-    // query única. Reaproveita o mesmo splitter (respeita aspas/comentários)
-    // já usado pras migrations em vez de duplicar a lógica.
-    for (const stmt of dividirStatements(sql)) await conn.query(stmt);
+    // Executa comando por comando, lendo o dump EM FLUXO (restoreFluxo.ts).
+    // Antes o SQL inteiro virava um único texto e, com 656 MB, passou do
+    // limite do Node (~512 MB) — a prova de 11/10/2026 falhou por isso.
+    // Cada comando precisa caber no max_allowed_packet do MySQL; se não
+    // couber, o backup não restauraria e isso vira erro claro.
+    const [[pacote]]: any = await conn.query('SELECT @@max_allowed_packet AS n');
+    const c = conn;
+    const exec = await executarDumpEmFluxo(gz, (cmd) => c.query(cmd), Number(pacote.n) - 1024);
+    if (!exec.temCreateTable) return { ok: false, file: latest.name, message: 'Dump sem CREATE TABLE — arquivo corrompido?' };
     await conn.query('SET FOREIGN_KEY_CHECKS=1');
 
     // 4. Prova real: tabelas e linhas-chave existem?
