@@ -243,7 +243,7 @@ export interface PecaModelo { titulo: string; assunto: string | null; teses: str
  * mesmo sem nenhuma palavra em comum. Sem OPENAI_API_KEY, devolve null (o
  * chamador cai no matching por palavra-chave).
  */
-export async function aiEmbed(text: string): Promise<number[] | null> {
+export async function aiEmbed(text: string, dimensoes?: number): Promise<number[] | null> {
   const key = process.env.OPENAI_API_KEY;
   const teor = (text || '').trim();
   if (!key || !teor) return null;
@@ -251,7 +251,8 @@ export async function aiEmbed(text: string): Promise<number[] | null> {
     const model = process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
     const r = await fetch('https://api.openai.com/v1/embeddings', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-      body: JSON.stringify({ model, input: teor.slice(0, 8000) }),
+      // `dimensoes` encurta o vetor (o Cérebro usa 256 para caber na memória).
+      body: JSON.stringify({ model, input: teor.slice(0, 8000), ...(dimensoes ? { dimensions: dimensoes } : {}) }),
     });
     const d: any = await r.json();
     if (!r.ok) return null;
@@ -432,6 +433,10 @@ ${teor}`;
       : modeloOffice
         ? `\nMODELO DO ESCRITÓRIO — "${modeloOffice.name}" (SIGA fielmente esta estrutura, estilo e cláusulas; substitua os campos {{...}} e adapte ao caso concreto):\n${modeloOffice.content}\n`
         : '';
+    // Cérebro: teses e notas da casa no Obsidian que tenham a ver com esta intimação.
+    const blocoCerebro = await import('./cerebroServico')
+      .then((m) => m.contextoDoCerebro(`${suggestedType} ${teor}`, { cliente: client?.name || null, area: caseArea }, 'o Estagiário'))
+      .catch(() => '');
     const minutaPrompt = `Você é advogado(a) brasileiro(a) redigindo uma peça para protocolo. Sua tarefa:
 1) Leia a intimação e os DOCUMENTOS DO PROCESSO abaixo.
 2) Identifique fatos relevantes, pedidos e fundamentos jurídicos aplicáveis.
@@ -440,7 +445,7 @@ REGRAS ANTI-INVENÇÃO (obrigatórias): use SOMENTE o que está no texto/autos. 
 
 Cliente: ${client?.name || '[cliente]'}${client?.cpf_cnpj ? ', CPF/CNPJ ' + client.cpf_cnpj : ''}
 Advogada subscritora: ${adv}
-${blocoModelo}${contexto ? `\nDOCUMENTOS DO PROCESSO (contexto):\n${contexto}\n` : ''}
+${blocoModelo}${blocoCerebro}${contexto ? `\nDOCUMENTOS DO PROCESSO (contexto):\n${contexto}\n` : ''}
 INTIMAÇÃO A RESPONDER:
 ${teor}`;
     const minuta = await aiComplete(minutaPrompt, 'openai');

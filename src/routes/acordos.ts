@@ -89,6 +89,54 @@ router.patch('/repasses/:payoutId/marcar-repassado', async (req: Request, res: R
   res.json(row);
 });
 
+// ── Prestação de contas da parcela (texto padrão + envio pelo WhatsApp) ─────
+async function dadosPrestacao(payoutId: string, pix: string | null, banco: string | null) {
+  const [[po]] = await db.query('SELECT * FROM agreement_client_payouts WHERE id = ?', [payoutId]) as any;
+  if (!po) return null;
+  const [[a]] = await db.query('SELECT * FROM agreements WHERE id = ?', [po.agreement_id]) as any;
+  if (!a) return null;
+  const [[cl]] = await db.query('SELECT name, phone FROM clients WHERE id = ?', [a.client_id]) as any;
+  const [todas] = await db.query('SELECT * FROM agreement_client_payouts WHERE agreement_id = ? ORDER BY data_prevista ASC, id ASC', [a.id]) as any;
+  const digitos = String(a.process_number || '').replace(/\D/g, '');
+  const [[proc]] = digitos ? await db.query("SELECT court FROM legal_processes WHERE REGEXP_REPLACE(process_number, '[^0-9]', '') = ? LIMIT 1", [digitos]).catch(() => [[null]]) as any : [[null]];
+  const { textoPrestacaoContas } = await import('../services/prestacaoContas');
+  const texto = textoPrestacaoContas({
+    cliente: cl?.name || '', processo: a.process_number || null, vara: proc?.court || null,
+    total: Number(a.total_agreement_value) || 0, pctHonorarios: Number(a.honorarium_percentage) || 0, honorariosTotal: Number(a.honorarium_value) || 0,
+    parcelas: todas.map((x: any) => ({
+      rotulo: x.tranche_label, data: x.data_prevista ? new Date(x.data_prevista).toISOString().slice(0, 10) : null,
+      bruto: Number(x.valor_bruto) || 0, honorarios: Number(x.valor_honorarios) || 0, liquido: Number(x.valor_liquido) || 0,
+      repassada: x.status === 'repassado',
+    })),
+    atual: Math.max(0, todas.findIndex((x: any) => x.id === po.id)),
+    pix, banco,
+  });
+  return { texto, cliente: cl?.name || '', telefone: cl?.phone || null };
+}
+
+// GET /api/acordos/repasses/:payoutId/prestacao?pix=…&banco=…
+router.get('/repasses/:payoutId/prestacao', async (req: Request, res: Response) => {
+  const d = await dadosPrestacao(req.params.payoutId, (req.query.pix as string) || null, (req.query.banco as string) || null);
+  if (!d) { res.status(404).json({ error: 'Repasse não encontrado' }); return; }
+  res.json(d);
+});
+
+// POST /api/acordos/repasses/:payoutId/prestacao/enviar  { texto }
+router.post('/repasses/:payoutId/prestacao/enviar', async (req: Request, res: Response) => {
+  const d = await dadosPrestacao(req.params.payoutId, null, null);
+  if (!d) { res.status(404).json({ error: 'Repasse não encontrado' }); return; }
+  const texto = String(req.body?.texto || '').trim() || d.texto;
+  let fone = String(d.telefone || '').replace(/\D/g, '');
+  if (fone && fone.length <= 11) fone = '55' + fone;
+  if (fone.length < 12) { res.status(400).json({ error: 'O cliente não tem telefone (WhatsApp) cadastrado. Copie o texto e envie manualmente.' }); return; }
+  const { sendText } = await import('../services/uazapiInstance');
+  const ok = await sendText(fone, texto.slice(0, 4000), (req as any).user?.name || 'Equipe');
+  if (!ok) { res.status(400).json({ error: 'Não deu para enviar: confira se o WhatsApp está conectado.' }); return; }
+  const { registrarAcaoAgente } = await import('../services/usoIa');
+  registrarAcaoAgente('financeiro', `enviou a prestação de contas do acordo a ${d.cliente}`);
+  res.json({ success: true });
+});
+
 // ── POST /api/acordos/:id/gerar-termo — Termo de Acordo Extrajudicial ───────
 // Reusa o mecanismo de document_templates (mesmo de Procuração/Contrato de
 // Honorários) com o modelo inserido na migration 076.

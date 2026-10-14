@@ -73,6 +73,18 @@ export const AGENTES: AgenteJuridico[] = [
     descricao: 'Vai conferir, antes de a peça chegar à Dra., se cada julgado e lei citados existem e dizem o que a peça afirma.' },
   { id: 'testador', resumo: 'Testa os agentes com casos reais (em construção)', nome: 'Dr. Tomás', cargo: 'Testador dos agentes', depto: 'Qualidade', cor: '#57534e', jobs: [], emConstrucao: true,
     descricao: 'Vai rodar casos reais anonimizados a cada mudança e impedir que um agente que piorou entre no ar.' },
+  { id: 'cerebro', nome: 'Cérebro', cargo: 'Biblioteca do escritório', resumo: 'Absorve o Obsidian, responde e repassa a quem precisa', depto: 'Gestão', cor: '#0d9488',
+    jobs: ['cerebro:indexar'],
+    descricao: 'Lê o cofre do Obsidian inteiro (modelos, fichas de clientes, manual, anotações). Todos perguntam a ele: busca pelo sentido e pelo contexto (cliente, processo, área), responde citando a nota e diz quando não sabe. Repassa as teses da casa ao Estagiário e organiza o cofre (links quebrados, notas soltas, sem etiqueta, títulos repetidos, mapa do cofre).' },
+  { id: 'produtor', nome: 'Dra. Bianca', cargo: 'Produtora de propostas', resumo: 'Monta a proposta pela tabela e pede aprovação à Dra.', depto: 'Comercial', cor: '#f97316',
+    jobs: ['comercial:produtor-proposta'],
+    descricao: 'Quando o possível cliente chega em "documentação pendente": pede os dados que faltam (CPF, RG, endereço…), estuda o caso, puxa o valor de tabela (tabela do escritório ou a média das propostas aceitas da área), aplica a política de parcelamento e manda o resumo à Dra. no WhatsApp. Ela responde "aprovar", "ajustar" ou "recusar"; aprovada, a proposta vai ao cliente.' },
+  { id: 'fechador', nome: 'Dr. Felipe', cargo: 'Fechador de contratos', resumo: 'Leva o contrato da revisão até a assinatura', depto: 'Comercial', cor: '#0284c7',
+    jobs: ['comercial:fechador-contrato'],
+    descricao: 'Depois do aceite: lembra a Dra. de revisar o contrato pronto há mais de 1 dia, lembra o cliente de assinar em D+1 e D+3 e avisa a Dra. se a assinatura parar por 7 dias.' },
+  { id: 'coletor', nome: 'Dra. Camila', cargo: 'Coletora de documentos e provas', resumo: 'Pede, confere e cobra documentos e provas', depto: 'Comercial', cor: '#65a30d',
+    jobs: ['comercial:coletor-documentos'],
+    descricao: 'Com o contrato assinado, pede ao cliente: documento com foto, comprovante de endereço, Carteira de Trabalho em PDF mostrando o contrato, extrato do FGTS em PDF, as provas conforme o assunto falado (ponto, prints, áudios, testemunhas, CAT…), conversas do WhatsApp e a transcrição da reunião. Confere o que chegou, cobra em D+2, D+5 e D+10 e, completo, escreve o relato do cliente a partir das conversas.' },
 ];
 
 export interface RunJob { job: string; status: 'ok' | 'erro' | string; message: string | null; ran_at: Date | string }

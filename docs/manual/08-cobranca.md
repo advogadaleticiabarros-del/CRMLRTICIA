@@ -122,6 +122,21 @@ Cada linha mostra o cliente, a empresa, o nº da parcela e os honorários daquel
 
 As parcelas vêm de `financial_records` ligados a `agreements`, as mesmas do A Receber. Os textos ficam em `montarAvisoAcordos` (`src/services/assistenteRegras.ts`) e o envio em `avisarAcordosAVencer` (`assistenteWhatsappMysql.ts`), no cron `acordos:aviso-vencimento`.
 
+## Prestação de contas do acordo (desde 14/10/2026)
+
+Em **Acordo → Repasses ao cliente**, o botão de cada parcela pendente agora se chama **"Recebi e repassei"**. Ao clicar:
+1. a parcela fica marcada como repassada;
+2. abre a **Prestação de contas** com o texto padrão, já formatado para o WhatsApp:
+   - número do processo e vara;
+   - resumo do acordo: total, honorários com o percentual e total líquido;
+   - a parcela do momento: recebido, honorários, repassado e Pix;
+   - o **cronograma completo** do acordo, com ✅ nas parcelas já repassadas;
+   - quanto já foi repassado e quanto falta (ou "acordo quitado").
+3. Os campos **Pix** e **Banco** entram no texto. O Pix já vem com o telefone do cliente.
+4. O texto pode ser editado. **Copiar texto** copia; o botão **Enviar prestação de contas…** manda direto ao WhatsApp do cliente.
+
+Parcelas já repassadas têm o botão **Prestação de contas**, para gerar o texto de novo. Texto em `src/services/prestacaoContas.ts` (testes em `tests/prestacaoContas.test.mjs`); API `GET /api/acordos/repasses/:id/prestacao` e `POST …/prestacao/enviar`.
+
 ## FAQ
 
 **A despesa pessoal da família aparece no resultado do escritório?** Não deveria — o sistema guarda despesa pessoal/familiar separada por escopo, e o DRE do escritório filtra só `escopo='empresa'`.
@@ -139,6 +154,7 @@ As parcelas vêm de `financial_records` ligados a `agreements`, as mesmas do A R
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 14/10/2026 | Claude | Prestação de contas padrão do acordo: "Recebi e repassei" abre o texto para copiar e o botão de envio pelo WhatsApp |
 | 09/10/2026 | Claude | Aviso diário (8h) de parcelas de acordo que vencem hoje, amanhã e em 2 dias, e das vencidas sem baixa |
 | 08/10/2026 | Claude | A Receber e "Recebi um pagamento" viraram serviços compartilhados (tela + assistente) |
 | 08/10/2026 | Claude | Baixa unificada em `baixaAReceber.ts` (telas + assistente do WhatsApp); baixa repetida não altera a data de pagamento |

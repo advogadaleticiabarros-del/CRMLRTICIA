@@ -75,6 +75,28 @@ Menu **Escritório virtual**: uma sala em 3D (isométrica) com os **20 agentes**
 
 Clicar no cartão abre o histórico do agente. Os números vêm de `metricasDosAgentes` em `src/routes/escritorio.ts`.
 
+**Cérebro** (desde 14/10/2026): a biblioteca do escritório. Fica numa mesa dentro da biblioteca, com um 🧠 em cima. Clicar nele abre três abas:
+- **Perguntar:** responde com base nas notas do Obsidian, citando a nota usada; se não achar, diz "não encontrei".
+- **Atualizar do Obsidian:** você escolhe a pasta do cofre e ele lê as notas `.md` (só o que mudou; nota apagada no cofre sai da biblioteca).
+- **Organizar o cofre:** links quebrados, títulos repetidos, notas soltas, sem etiqueta ou vazias, e o "Mapa do cofre.md" para baixar e colocar no Obsidian.
+
+Ele também repassa as teses da casa ao **Enzo** antes de cada minuta. A rotina `cerebro:indexar` (a cada 10 min) calcula o sentido de cada trecho para a busca. Código em `cerebro.ts` (regras), `cerebroServico.ts` e `routes/cerebro.ts`; tabelas `cerebro_notas` e `cerebro_trechos` (migration 157).
+
+**Esteira comercial** (desde 14/10/2026), de hora em hora das 8h às 19h, com trava para nada sair duas vezes (`esteira_avisos`, migration 158):
+- **Dra. Bianca, produtora de propostas:**
+  - pega o possível cliente em "documentação pendente" ainda sem proposta;
+  - pede os dados que faltam para o contrato e checa conflito de interesses (se a pessoa é parte contrária em algum caso);
+  - puxa o valor de tabela: a tabela da Dra. em `office_settings.tabela_honorarios` ou, sem ela, a mediana das propostas aceitas da área; êxito de 30%;
+  - aplica a política de parcelamento (`office_settings.politica_parcelamento`) e manda o resumo **só para a Dra.** no WhatsApp;
+  - ela responde **aprovar 123**, **ajustar 123 total 1500, entrada 500, 5x, êxito 30%** ou **recusar 123**; só depois do "aprovar" a proposta vai ao cliente.
+- **Dr. Felipe, fechador de contratos:** lembra a Dra. de revisar o contrato pronto há mais de 1 dia; lembra o cliente de assinar em D+1 e D+3; avisa a Dra. se parar 7 dias.
+- **Dra. Camila, coletora de documentos e provas:**
+  - com o contrato assinado, pede: documento com foto, comprovante de endereço, Carteira de Trabalho em PDF mostrando o contrato, extrato do FGTS em PDF, as provas conforme o assunto (ponto, prints, áudios, testemunhas, CAT…), conversas do WhatsApp e a transcrição da reunião;
+  - confere o que chegou e cobra em D+2, D+5 e D+10;
+  - completo, escreve o **relato do cliente** a partir das conversas do WhatsApp e avisa a Dra.
+
+Regras em `esteiraComercial.ts`; banco e envio em `esteiraComercialServico.ts`. Ao cliente só saem pedidos e lembretes; a proposta, só com a aprovação da Dra.
+
 **Métricas da IA** (botão azul), por período de 7, 30 ou 90 dias:
 - possíveis clientes e quantos a IA qualificou;
 - decisões lidas;
@@ -157,6 +179,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 14/10/2026 | Claude | Cérebro (biblioteca do Obsidian) e esteira comercial (Dra. Bianca, Dr. Felipe, Dra. Camila) |
 | 14/10/2026 | Claude | Nomes com Dr./Dra. (menos Laya e o estagiário) |
 | 14/10/2026 | Claude | Agentes de terno e quadro de cartões (status, o que faz, números do dia, última ação) abaixo da sala |
 | 14/10/2026 | Claude | Escritório virtual (sala com 20 agentes ao vivo) e Métricas da IA |

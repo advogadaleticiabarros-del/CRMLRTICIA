@@ -16,6 +16,13 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 14/10/2026 — Esteira comercial: valor de tabela pelo histórico e aprovação só da Dra.
+**Valor de tabela:** o CRM não tinha tabela de honorários. A Dra. Bianca usa a tabela configurada (`office_settings.tabela_honorarios`) e, sem ela, a **mediana das propostas aceitas da área nos últimos 12 meses**: é a prática real do escritório, não um valor inventado. Sem histórico para a área, propõe só êxito (30% + sucumbência).
+**Política de parcelamento:** ponto de partida provisório (sem entrada mínima, até 10 parcelas, parcela mínima de R$ 100) até a Dra. definir a dela em `office_settings.politica_parcelamento`. Como toda proposta passa pela aprovação dela, o provisório nunca chega ao cliente sem ser visto.
+**Aprovação:** o comando "aprovar/ajustar/recusar" é reconhecido antes da IA do assistente e só vale vindo do número da Dra.
+**Conflito de interesses:** checado em `case_partes` antes de propor (ideia do agente Legal Client Intake, do repositório agency-agents).
+**Ao cliente:** só saem pedidos de dados e documentos e lembretes, como decidido na manhã de 14/10.
+
 ### 14/10/2026 — Laya volta para o CRM jurídico (revê a decisão de 23/09/2026)
 **Decisão:** a Jessica pediu a Laya ("nossa assistente") no CRM jurídico, como já funciona no CRM comercial. A decisão de 23/09 ("não usar a Laya") fica revista.
 **O que mudou desde 23/09:** a Laya já roda em produção no CRM comercial como serviço local (`systemone`, PM2 `laya`). O custo de ter mais um serviço deixou de ser hipotético, e o ganho medido lá é poupar chamadas de IA paga.

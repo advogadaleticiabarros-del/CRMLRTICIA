@@ -26,6 +26,7 @@ import clientRoutes from './routes/clients';
 import buscaRoutes from './routes/busca';
 import hojeRoutes from './routes/hoje';
 import escritorioRoutes from './routes/escritorio';
+import cerebroRoutes from './routes/cerebro';
 import intakeRoutes from './routes/intakes';
 import leadRoutes from './routes/leads';
 import propostaRoutes from './routes/propostas';
@@ -178,6 +179,7 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.use('/api/busca',                 authenticate, requireStaff, buscaRoutes);
   app.use('/api/hoje',                  authenticate, requireStaff, hojeRoutes);
   app.use('/api/escritorio',            authenticate, requireStaff, escritorioRoutes);
+  app.use('/api/cerebro',               authenticate, requireStaff, cerebroRoutes);
   app.use('/api/intakes',               authenticate, requireStaff, intakeRoutes);
   app.use('/api/leads',                 authenticate, requireStaff, leadRoutes);
   app.use('/api/propostas',             authenticate, requireStaff, propostaRoutes);

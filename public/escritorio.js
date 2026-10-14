@@ -9,7 +9,7 @@
 // animações de CSS (digitar, andar, piscar) não reiniciarem.
 (function () {
   const NS = 'http://www.w3.org/2000/svg';
-  const LARG = 62, ALT = 36, W = 22, D = 10;
+  const LARG = 62, ALT = 36, W = 22, D = 11.5;
   const COLS = 4, ESPACO = 2.3, LIN_ESP = 1.75;
   const ESPINHA_X = 9.7, ALA_X = 15.4, CORREDOR_ALA_Y = 3.85;
   const VELOCIDADE = 1.5;
@@ -40,6 +40,14 @@
     const col = i % COLS, lin = Math.floor(i / COLS);
     const bx = 0.9 + col * ESPACO, by = 1.0 + lin * LIN_ESP;
     return { bx, by, lin, assento: { x: bx + 0.62, y: by - 0.38 } };
+  };
+  // Mesas fora da grade: o Cérebro trabalha dentro da biblioteca.
+  const MESAS_ESPECIAIS = { cerebro: { bx: 10.5, by: 2.3 } };
+  /** Mesa do agente: especial ou a próxima vaga da grade (as especiais não ocupam vaga). */
+  const mesaDoAgente = (lista, i) => {
+    const esp = MESAS_ESPECIAIS[lista[i].id];
+    if (esp) return { bx: esp.bx, by: esp.by, lin: null, assento: { x: esp.bx + 0.62, y: esp.by - 0.38 } };
+    return mesaDe(i - lista.slice(0, i).filter((a) => MESAS_ESPECIAIS[a.id]).length);
   };
   const corredorDaLinha = (lin) => 1.0 + lin * LIN_ESP - 0.75;
   const MESA_REUNIAO = { x: 18.7, y: 1.7 };
@@ -99,6 +107,10 @@
     pesquisador: { cabelo: 'rabo', corCabelo: '#5b3a1a', feminina: true, extra: 'oculos', terno: '#115e59' },
     verificador: { cabelo: 'chanel', corCabelo: '#1f1a17', feminina: true, terno: '#881337', pele: '#8d5524', peleSombra: '#6b3f1b' },
     testador:    { cabelo: 'curto', corCabelo: '#57534e', feminina: false, extra: 'headset', terno: '#292524' },
+    cerebro:     { cabelo: 'curto', corCabelo: '#d1d5db', feminina: false, extra: 'oculos', terno: '#134e4a' },
+    produtor:    { cabelo: 'longo', corCabelo: '#7c2d12', feminina: true, terno: '#7c2d12' },
+    fechador:    { cabelo: 'curto', corCabelo: '#1c1917', feminina: false, terno: '#0c4a6e', pele: '#c68642', peleSombra: '#a0692f' },
+    coletor:     { cabelo: 'rabo', corCabelo: '#3f2a1d', feminina: true, extra: 'oculos', terno: '#365314' },
     voce:        { cabelo: 'longo', corCabelo: '#5a3825', feminina: true, terno: '#1e293b' },
   };
 
@@ -355,8 +367,8 @@
   const novo = (tag, attrs = {}) => { const n = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) n.setAttribute(k, v); return n; };
 
   // Agente desenhado na mesa: cadeira, boneco (se sentado), mesa, monitor, crachá.
-  function htmlMesa(a, i, sentado, pose) {
-    const { bx, by } = mesaDe(i);
+  function htmlMesa(a, i, m, sentado, pose) {
+    const { bx, by } = m;
     const nb = iso(bx + 0.12, by + 0.2), topoMesa = iso(bx + 0.62, by + 0.12);
     const trabalhando = a.status === 'trabalhando';
     return caixa(bx + 0.32, by - 0.2, 0.6, 0.1, 44, '#4338ca', '#3730a3', '#312e81')
@@ -379,7 +391,8 @@
       <text x="3" y="3" fill="#f8fafc" font-size="11" font-weight="700" text-anchor="middle">${esc(a.nome)}</text>
       <circle class="luz-${a.status}" cx="50" cy="-1" r="4.2" fill="${COR_STATUS[a.status]}"/>
       ${a.id === 'laya' ? `<g transform="translate(0 -34)"><g class="diamante"><polygon points="-11,-4 -6,-11 6,-11 11,-4 0,11" fill="#a5f3fc" stroke="#0891b2" stroke-width="1.2" stroke-linejoin="round"/><polygon points="-11,-4 11,-4 0,11" fill="#67e8f9"/><polygon points="-6,-11 -2,-4 2,-4 6,-11" fill="#ecfeff"/></g></g>` : ''}
-      ${balao ? `<g class="balao"><rect x="-92" y="${-22 - balao.length * 14 - (a.id === 'laya' ? 26 : 0)}" width="184" height="${balao.length * 14 + 10}" rx="10" fill="#fff" stroke="${a.cor}" stroke-width="1.5"/>${balao.map((l, k) => `<text x="0" y="${-22 - balao.length * 14 - (a.id === 'laya' ? 26 : 0) + 16 + k * 14}" font-size="11" fill="#0f172a" text-anchor="middle">${esc(l)}</text>`).join('')}</g>` : ''}`;
+      ${a.id === 'cerebro' ? '<g transform="translate(0 -34)"><g class="diamante"><circle r="13" fill="#ccfbf1" stroke="#0d9488" stroke-width="1.5"/><text y="5" font-size="15" text-anchor="middle">🧠</text></g></g>' : ''}
+      ${balao ? `<g class="balao"><rect x="-92" y="${-22 - balao.length * 14 - (['laya', 'cerebro'].includes(a.id) ? 26 : 0)}" width="184" height="${balao.length * 14 + 10}" rx="10" fill="#fff" stroke="${a.cor}" stroke-width="1.5"/>${balao.map((l, k) => `<text x="0" y="${-22 - balao.length * 14 - (['laya', 'cerebro'].includes(a.id) ? 26 : 0) + 16 + k * 14}" font-size="11" fill="#0f172a" text-anchor="middle">${esc(l)}</text>`).join('')}</g>` : ''}`;
   }
 
   function montarSala(container, agentesIniciais, aoSelecionar) {
@@ -405,7 +418,7 @@
     const estados = {};
     const porId = {};
     const criarAgente = (a, i) => {
-      const m = mesaDe(i);
+      const m = mesaDoAgente(agentes, i);
       const mesa = novo('g', { class: 'mesa', tabindex: '0', role: 'button', 'aria-label': `Mesa de ${a.nome}` });
       mesa.addEventListener('click', (ev) => { ev.stopPropagation(); aoSelecionar(a.id); });
       mesa.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); aoSelecionar(a.id); } });
@@ -490,7 +503,7 @@
       let naSala = 0;
       const cabecas = {};
       agentes.forEach((a, i) => {
-        const m = mesaDe(i), e = estados[a.id], r = porId[a.id];
+        const m = mesaDoAgente(agentes, i), e = estados[a.id], r = porId[a.id];
         if (!e || !r) return;
         const naMesa = e.atividade === 'mesa' && !e.caminho.length;
         const irPara = (atividade, destino, vaga) => {
@@ -519,7 +532,7 @@
         const sentado = e.atividade === 'mesa' && !e.andando && Math.hypot(e.pos.x - m.assento.x, e.pos.y - m.assento.y) < 0.05;
         const poseMesa = a.status === 'desligado' ? 'dormindo' : a.status === 'trabalhando' ? 'digitando' : 'sentado';
         const assMesa = `${sentado}|${poseMesa}|${a.status}|${a.cor}`;
-        if (assMesa !== r.assinaturaMesa) { r.mesa.innerHTML = htmlMesa(a, i, sentado, poseMesa); r.assinaturaMesa = assMesa; }
+        if (assMesa !== r.assinaturaMesa) { r.mesa.innerHTML = htmlMesa(a, i, m, sentado, poseMesa); r.assinaturaMesa = assMesa; }
 
         let pose = 'andando';
         if (!e.andando) pose = { cafe: 'cafe', biblioteca: 'lendo', pebolim: 'pebolim', videogame: 'jogando', reuniao: 'empe', sala: 'empe' }[e.atividade] || 'andando';
@@ -612,7 +625,96 @@
     return h < 24 ? `há ${h} h` : `há ${Math.round(h / 24)} d`;
   };
   const quando = (iso) => iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+  // ── Cérebro: perguntar, atualizar do Obsidian e organizar o cofre ─────────
+  async function abrirCerebro() {
+    const corpo = el(`<div>
+      <div class="pi-abas"><button data-aba="perguntar" class="on">🧠 Perguntar</button><button data-aba="importar">⬆️ Atualizar do Obsidian</button><button data-aba="organizar">🗂️ Organizar o cofre</button></div>
+      <div id="cb-resumo" style="font-size:12.5px;color:var(--text-muted);margin-bottom:10px"></div>
+      <div id="cb-aba"></div></div>`);
+    openModal('🧠 Cérebro · Biblioteca do escritório', corpo, { wide: true });
+    const resumo = async () => {
+      try {
+        const r = await api('/api/cerebro/resumo');
+        corpo.querySelector('#cb-resumo').textContent = r.notas
+          ? `${r.notas} notas na biblioteca · ${r.indexados} de ${r.trechos} trechos já entendidos pelo sentido · atualizado em ${quando(r.ultimaAtualizacao)}`
+          : 'A biblioteca está vazia: use "Atualizar do Obsidian" para o Cérebro ler o cofre.';
+      } catch { /* resumo é só informativo */ }
+    };
+    const abas = {
+      perguntar(box) {
+        box.innerHTML = `<form id="cb-form" class="form-grid">
+            <label style="grid-column:1/-1">Pergunta<textarea name="pergunta" rows="3" required placeholder="Ex.: qual a nossa tese de horas extras para vigilante 12x36?"></textarea></label>
+            <label>Cliente (opcional)<input name="cliente" placeholder="Nome do cliente"></label>
+            <label>Processo (opcional)<input name="processo" placeholder="Número do processo"></label>
+            <button class="btn-primary" type="submit" style="grid-column:1/-1">Perguntar ao Cérebro</button></form>
+          <div id="cb-resp" style="margin-top:12px"></div>`;
+        box.querySelector('#cb-form').onsubmit = async (e) => {
+          e.preventDefault();
+          const out = box.querySelector('#cb-resp'); out.innerHTML = '<div class="spinner"></div>';
+          try {
+            const r = await api('/api/cerebro/perguntar', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(e.target))) });
+            out.innerHTML = `<div class="pi-card"><p style="white-space:pre-wrap;line-height:1.55;margin:0">${esc(r.resposta)}</p></div>
+              ${r.fontes.length ? `<h4 style="margin:12px 0 4px;color:var(--navy)">Fontes (notas do Obsidian)</h4><ul class="ev-hist">${r.fontes.map((f) => `<li><span><b>${esc(f.caminho || f.titulo)}</b><br><small style="color:var(--text-muted)">${esc(f.trecho)}</small></span></li>`).join('')}</ul>` : ''}`;
+          } catch (err) { out.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+        };
+      },
+      importar(box) {
+        box.innerHTML = `<p style="font-size:14px;line-height:1.55">Escolha a pasta do cofre do Obsidian (<b>CRMLeticia</b>). O Cérebro lê só as notas <b>.md</b>; anexos e as pastas internas do Obsidian ficam de fora. Só o que mudou é reprocessado, e notas apagadas no cofre saem da biblioteca.</p>
+          <input type="file" id="cb-pasta" webkitdirectory multiple hidden><button class="btn-primary" id="cb-escolher">Escolher a pasta do cofre…</button>
+          <div id="cb-prog" style="margin-top:12px;font-size:13.5px"></div>`;
+        const input = box.querySelector('#cb-pasta');
+        box.querySelector('#cb-escolher').onclick = () => input.click();
+        input.onchange = async () => {
+          const prog = box.querySelector('#cb-prog');
+          const arquivos = [...input.files].filter((f) => /\.md$/i.test(f.name))
+            .map((f) => ({ f, caminho: f.webkitRelativePath.split('/').slice(1).join('/') }))
+            .filter((x) => x.caminho && !x.caminho.split('/').some((p) => p.startsWith('.')));
+          if (!arquivos.length) { prog.textContent = 'Nenhuma nota .md encontrada nessa pasta.'; return; }
+          const soma = { novas: 0, atualizadas: 0, iguais: 0 };
+          for (let i = 0; i < arquivos.length; i += 40) {
+            const lote = await Promise.all(arquivos.slice(i, i + 40).map(async (x) => ({ caminho: x.caminho, texto: await x.f.text() })));
+            const r = await api('/api/cerebro/importar', { method: 'POST', body: JSON.stringify({ notas: lote }) });
+            soma.novas += r.novas; soma.atualizadas += r.atualizadas; soma.iguais += r.iguais;
+            prog.textContent = `Lendo… ${Math.min(i + 40, arquivos.length)} de ${arquivos.length} notas`;
+          }
+          const fim = await api('/api/cerebro/concluir', { method: 'POST', body: JSON.stringify({ caminhos: arquivos.map((x) => x.caminho) }) });
+          prog.innerHTML = `✅ Pronto: ${soma.novas} novas, ${soma.atualizadas} atualizadas, ${soma.iguais} sem mudança, ${fim.apagadas} removidas. O Cérebro termina de entender o sentido dos trechos nos próximos minutos.`;
+          resumo();
+        };
+      },
+      async organizar(box) {
+        box.innerHTML = '<div class="spinner"></div>';
+        try {
+          const r = await api('/api/cerebro/organizacao');
+          const lista = (titulo, itens, fmt) => `<div class="pi-card"><h4>${titulo} (${itens.length})</h4>${itens.length ? `<ul class="ev-hist" style="max-height:180px">${itens.slice(0, 40).map((x) => `<li><span>${fmt(x)}</span></li>`).join('')}</ul>` : '<p class="pi-vazio">Nada a corrigir. 👍</p>'}</div>`;
+          box.innerHTML = `<p style="font-size:13.5px">${r.totalNotas} notas em ${r.pastas.length} pasta(s). Sugestões do Cérebro para deixar o cofre organizado:</p>
+            <div class="pi-grade">
+              ${lista('🔗 Links quebrados', r.linksQuebrados, (x) => `${esc(x.nota)} → <b>[[${esc(x.link)}]]</b>`)}
+              ${lista('👯 Títulos repetidos', r.titulosRepetidos, (x) => `<b>${esc(x.titulo)}</b>: ${x.caminhos.map(esc).join(' · ')}`)}
+              ${lista('🏝️ Notas soltas (sem link)', r.orfas, esc)}
+              ${lista('🏷️ Sem etiqueta', r.semTags, esc)}
+              ${lista('📭 Vazias', r.vazias, esc)}
+            </div>
+            <button class="btn-primary" id="cb-mapa" style="margin-top:12px">⬇️ Baixar "Mapa do cofre.md" (índice para colocar no Obsidian)</button>`;
+          box.querySelector('#cb-mapa').onclick = () => {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([r.mapaDoCofre], { type: 'text/markdown' }));
+            a.download = 'Mapa do cofre.md'; a.click(); URL.revokeObjectURL(a.href);
+          };
+        } catch (err) { box.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+      },
+    };
+    const mostrar = (nome) => {
+      corpo.querySelectorAll('[data-aba]').forEach((b) => b.classList.toggle('on', b.dataset.aba === nome));
+      abas[nome](corpo.querySelector('#cb-aba'));
+    };
+    corpo.querySelectorAll('[data-aba]').forEach((b) => b.onclick = () => mostrar(b.dataset.aba));
+    resumo();
+    mostrar('perguntar');
+  }
+
   async function abrirAgente(id) {
+    if (id === 'cerebro') { abrirCerebro(); return; }
     const corpo = el('<div><div class="spinner"></div></div>');
     openModal('Agente', corpo, { wide: true });
     try {
@@ -707,7 +809,7 @@
       let agentes = r.agentes;
       const sala = montarSala($('#ev-sala'), agentes, abrirAgente);
       let reunidos = false;
-      const DESTAQUES = ['laya', 'secretaria', 'leitor', 'djen', 'prazos', 'estagiario'];
+      const DESTAQUES = ['cerebro', 'laya', 'secretaria', 'leitor', 'produtor', 'coletor', 'prazos', 'estagiario'];
       const desenharBarra = (quandoAtualizou) => {
         const trab = agentes.filter((a) => a.status === 'trabalhando').length;
         const erros = agentes.filter((a) => a.status === 'erro').length;

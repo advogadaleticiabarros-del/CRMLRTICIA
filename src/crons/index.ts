@@ -47,6 +47,30 @@ export function startCronJobs() {
     });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── Cérebro: a cada 10 min calcula o vetor de significado dos trechos do
+  // cofre Obsidian que chegaram e ainda não têm (busca por sentido).
+  cron.schedule('*/10 * * * *', () => {
+    runJob('cerebro:indexar', async () => {
+      const { indexarPendentes } = await import('../services/cerebroServico');
+      return indexarPendentes(200);
+    }, { silencioso: true });
+  });
+
+  // ── Esteira comercial (escritório virtual), de hora em hora em horário
+  // comercial. Cada passo tem trava em esteira_avisos: nada sai duas vezes.
+  //  • Produtor de proposta: monta a proposta e pede aprovação à Dra.
+  //  • Fechador de contrato: revisão pendente e lembretes de assinatura.
+  //  • Coletor de documentos: pede, confere, cobra e escreve o relato.
+  cron.schedule('5 8-19 * * *', () => {
+    runJob('comercial:produtor-proposta', async () => (await import('../services/esteiraComercialServico')).produzirPropostas(3));
+  }, { timezone: 'America/Sao_Paulo' });
+  cron.schedule('20 8-19 * * *', () => {
+    runJob('comercial:fechador-contrato', async () => (await import('../services/esteiraComercialServico')).acompanharContratos());
+  }, { timezone: 'America/Sao_Paulo' });
+  cron.schedule('35 8-19 * * *', () => {
+    runJob('comercial:coletor-documentos', async () => (await import('../services/esteiraComercialServico')).coletarDocumentos());
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── a cada 20 min: verifica se a conexão do WhatsApp caiu ── CRÍTICO ──────
   // Antes só existia o religamento único no boot acima — se a sessão caísse
   // no meio do dia (ex.: WhatsApp deslogado por "outro aparelho", como já

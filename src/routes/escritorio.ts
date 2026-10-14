@@ -103,6 +103,19 @@ async function metricasDosAgentes(): Promise<Record<string, MetricaAgente[]>> {
     assistente: m([await execHoje(jobsDe('assistente')), 'lembretes hoje']),
     parcerias: m([await execHoje(jobsDe('parcerias')), 'avisos hoje']),
     relatorios: m([await execHoje(jobsDe('relatorios')), 'rotinas hoje']),
+    cerebro: m(
+      [await n('SELECT COUNT(*) AS n FROM cerebro_notas'), 'notas na biblioteca'],
+      [await n(`SELECT COUNT(*) AS n FROM agente_acoes WHERE agente = 'cerebro' AND texto LIKE 'respondeu%' AND ${local('created_at')} = ${HOJE}`), 'perguntas hoje'],
+      [await n(`SELECT COUNT(*) AS n FROM agente_acoes WHERE agente = 'cerebro' AND texto LIKE 'repassou%' AND ${local('created_at')} = ${HOJE}`), 'repasses hoje']),
+    produtor: m(
+      [await n(`SELECT COUNT(*) AS n FROM agente_acoes WHERE agente = 'produtor' AND texto LIKE 'montou%' AND ${local('created_at')} = ${HOJE}`), 'propostas montadas hoje'],
+      [await n("SELECT COUNT(*) AS n FROM propostas WHERE status = 'rascunho' AND observacoes LIKE 'Produzida pelo agente%'"), 'esperando aprovação']),
+    fechador: m(
+      [await n("SELECT COUNT(*) AS n FROM contracts WHERE status = 'em_producao'"), 'contratos para revisar'],
+      [await n("SELECT COUNT(*) AS n FROM contracts WHERE status = 'finalizado'"), 'esperando assinatura']),
+    coletor: m(
+      [await n('SELECT COUNT(*) AS n FROM coletas_documentos WHERE concluido_em IS NULL'), 'coletas em andamento'],
+      [await n('SELECT COUNT(*) AS n FROM coletas_documentos WHERE concluido_em >= NOW() - INTERVAL 30 DAY'), 'completas em 30 dias']),
     guardiao: m(
       [await n(`SELECT COUNT(*) AS n FROM job_runs WHERE job = 'backup:diario' AND status = 'ok' AND ${local('ran_at')} = ${HOJE}`), 'cópias hoje'],
       [await n("SELECT COUNT(*) AS n FROM job_runs WHERE job = 'backup:prova-de-restauracao' AND status = 'ok' AND ran_at >= NOW() - INTERVAL 30 DAY"), 'provas de restauração em 30 dias']),

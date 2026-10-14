@@ -389,7 +389,10 @@ async function enviarTexto(phone: string, texto: string): Promise<void> {
 }
 
 const ia = iaAssistente;
-const assistente = criarAssistente({ repo, ia, enviar: enviarTexto });
+const assistente = criarAssistente({
+  repo, ia, enviar: enviarTexto,
+  comercial: { comando: async (phone, texto) => (await import('./esteiraComercialServico')).comandoProposta(phone, texto) },
+});
 
 async function carregarMidia(mediaId: number | null): Promise<Midia | undefined> {
   if (!mediaId) return undefined;

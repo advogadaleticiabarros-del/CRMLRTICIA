@@ -6737,7 +6737,7 @@ async function acordoRepassesModal(agreementId) {
       <td>${money(r.valor_honorarios)}</td>
       <td>${money(r.valor_liquido)}</td>
       <td>${badge(r.status === 'repassado' ? 'Repassado' : 'Pendente')}</td>
-      <td>${r.status === 'pendente' ? `<button class="btn-sm" data-payout-mark="${r.id}">Marcar como repassado</button>` : ''}</td>
+      <td>${r.status === 'pendente' ? `<button class="btn-sm" data-payout-mark="${r.id}">Recebi e repassei</button>` : `<button class="btn-sm" data-prestacao="${r.id}">Prestação de contas</button>`}</td>
     </tr>`).join('')}</tbody></table></div>`
     : '<div class="empty">Nenhum repasse gerado para este acordo.</div>'}
   </div>`);
@@ -6745,11 +6745,51 @@ async function acordoRepassesModal(agreementId) {
     try {
       await api(`/api/acordos/repasses/${b.dataset.payoutMark}/marcar-repassado`, { method: 'PATCH', body: '{}' });
       toast('Repasse marcado');
-      closeModal();
-      acordoRepassesModal(agreementId);
+      prestacaoContasModal(b.dataset.payoutMark, () => acordoRepassesModal(agreementId));
     } catch (e) { toast(e.message, 'error'); }
   });
+  wrap.querySelectorAll('[data-prestacao]').forEach((b) => b.onclick = () => prestacaoContasModal(b.dataset.prestacao, () => acordoRepassesModal(agreementId)));
   openModal('Repasses ao cliente', wrap);
+}
+
+// Prestação de contas padrão da parcela (texto em src/services/prestacaoContas.ts):
+// o texto fica pronto para copiar e um botão manda direto ao WhatsApp do cliente.
+async function prestacaoContasModal(payoutId, voltar) {
+  const carregar = (pix = '', banco = '') => api(`/api/acordos/repasses/${payoutId}/prestacao?pix=${encodeURIComponent(pix)}&banco=${encodeURIComponent(banco)}`);
+  let d;
+  try { d = await carregar(); } catch (e) { toast(e.message, 'error'); return; }
+  const pixInicial = String(d.telefone || '').replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+  const box = el(`<div>
+    <div class="form-row">${field('Pix usado no repasse', 'pix', { value: pixInicial })}${field('Banco', 'banco', { value: '' })}</div>
+    <textarea id="pc-texto" rows="18" style="width:100%;font-family:inherit;font-size:13.5px;line-height:1.45"></textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">
+      <button type="button" class="btn-ghost" id="pc-copiar">📋 Copiar texto</button>
+      ${voltar ? '<button type="button" class="btn-ghost" id="pc-voltar">← Voltar aos repasses</button>' : ''}
+    </div>
+    <button type="button" class="btn-gold" id="pc-enviar" style="width:100%;margin-top:12px">📲 Enviar prestação de contas para ${esc(d.cliente || 'o cliente')} no WhatsApp</button>
+  </div>`);
+  const area = box.querySelector('#pc-texto');
+  const atualizar = async () => {
+    try { area.value = (await carregar(box.querySelector('[name=pix]').value, box.querySelector('[name=banco]').value)).texto; } catch (e) { toast(e.message, 'error'); }
+  };
+  await atualizar();
+  box.querySelector('[name=pix]').onchange = atualizar;
+  box.querySelector('[name=banco]').onchange = atualizar;
+  box.querySelector('#pc-copiar').onclick = async () => {
+    try { await navigator.clipboard.writeText(area.value); toast('Texto copiado'); }
+    catch { area.select(); document.execCommand('copy'); toast('Texto copiado'); }
+  };
+  if (voltar) box.querySelector('#pc-voltar').onclick = () => { closeModal(); voltar(); };
+  const enviar = box.querySelector('#pc-enviar');
+  enviar.onclick = async () => {
+    enviar.disabled = true; enviar.textContent = 'Enviando…';
+    try {
+      await api(`/api/acordos/repasses/${payoutId}/prestacao/enviar`, { method: 'POST', body: JSON.stringify({ texto: area.value }) });
+      toast('Prestação de contas enviada no WhatsApp');
+      enviar.textContent = '✅ Enviada';
+    } catch (e) { toast(e.message, 'error'); enviar.disabled = false; enviar.textContent = 'Tentar enviar de novo'; }
+  };
+  openModal('Prestação de contas', box, { wide: true });
 }
 
 // Envia a minuta própria (docx/pdf) como base64 — não há multer no projeto.

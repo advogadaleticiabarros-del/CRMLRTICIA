@@ -75,6 +75,8 @@ export interface AssistenteDeps {
   ia: AssistenteIa;
   enviar(phone: string, texto: string): Promise<void>;
   agora?: () => Date;
+  /** Produtor de proposta: "aprovar 123" / "ajustar 123 …" / "recusar 123". null = não é comando de proposta. */
+  comercial?: { comando(phone: string, texto: string): Promise<string | null> };
 }
 
 /** Só o que mexe no financeiro pede "sim" antes. */
@@ -197,6 +199,11 @@ export function criarAssistente(deps: AssistenteDeps) {
       const t = await ia.transcrever(m.midia!);
       if (!t) { await enviar(m.phone, '🎧 Não consegui entender o áudio. Pode mandar de novo ou escrever?'); return; }
       msg = [msg, t].filter(Boolean).join(' ');
+    }
+
+    if (deps.comercial && msg && !(m.midia && !ehAudio(m.midia))) {
+      const r = await deps.comercial.comando(m.phone, msg);
+      if (r) { await enviar(m.phone, r); return; }
     }
 
     const pend = await repo.pendencias(m.phone);
