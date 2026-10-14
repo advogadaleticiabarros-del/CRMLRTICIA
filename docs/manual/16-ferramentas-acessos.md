@@ -38,6 +38,10 @@ Consulte antes de mexer em qualquer integração externa, pra saber o que depend
 
 Atenção: o repositório `aayushch/laya` é outro projeto com o mesmo nome (app de computador que junta notificações) e não é este serviço.
 
+**Ferramentas de desenvolvimento (Claude Code), instaladas em 14/10/2026:**
+- **Agentes do agency-agents** (`.claude/agents/`): `legal-client-intake`, `legal-document-review`, `sales-proposal-strategist` e `customer-success-manager`. São subagentes do Claude Code para estudar e melhorar o atendimento, a revisão de documentos, as propostas e o pós-venda. Licença MIT (AgentLand Contributors); a fonte está no fim de cada arquivo. Foram escritos para os EUA: no escritório, valem as regras brasileiras e da OAB.
+- **codebase-memory-mcp 0.11.0**: mapa do código, só no computador da Jessica. Fica em `%LOCALAPPDATA%\Programs\codebase-memory-mcp`, configurado no perfil `.claude-conta-2` do Claude Code (servidor MCP, hooks e a skill `codebase-memory`). Ajuda o Claude a achar o código certo gastando menos. Não roda na VPS e não envia código para fora. Para remover: `codebase-memory-mcp uninstall`.
+
 **Contagem de uso de IA** (desde 14/10/2026): toda chamada que dá certo à OpenAI, Groq, Gemini ou Laya soma 1 em `ia_uso_diario`. É a base das "Métricas da IA" no Escritório virtual.
 
 ## Onde as chaves ficam
@@ -64,6 +68,7 @@ Nunca no código-fonte nem no Git — só em variáveis de ambiente na VPS (`.en
 | Data | Autor | Mudança |
 |---|---|---|
 | 04/09/2026 | Claude | Criação do documento |
+| 14/10/2026 | Claude | Agentes do agency-agents em `.claude/agents/` e codebase-memory-mcp no computador da Jessica |
 | 14/10/2026 | Claude | Laya (`LAYA_URL`) na qualificação do possível cliente, com o serviço ainda a instalar na VPS; contagem de uso de IA por provedor |
 
 ---
