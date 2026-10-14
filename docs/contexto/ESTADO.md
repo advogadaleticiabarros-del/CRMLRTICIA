@@ -2,9 +2,11 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 12/10/2026. Último commit: este arquivo; antes dele, os fixes do backup (restauração em fluxo).
+**Última atualização:** 14/10/2026. Último commit: mapa de agentes do escritório virtual (só documentação).
 
 ## Últimas entregas (mais recentes primeiro)
+- **14/10:**
+  - **Escritório virtual com agentes, etapa 1:** pesquisa e mapa de 27 agentes em 6 departamentos, com o que já existe no CRM, portões da Dra., fontes oficiais de jurisprudência e ordem de construção. Está em `docs/escritorio-virtual/01-mapa-de-agentes.md`. Ainda não há código. Aguarda as 5 decisões da Dra. listadas no fim do documento.
 - **12/10:**
   - **Backup:** a prova de restauração de 11/10 falhou porque o dump chegou a 656 MB de SQL e o código o lia num único texto (limite do Node: 512 MB). A restauração agora lê em fluxo, comando por comando (`restoreFluxo.ts`, `divisorSql.ts`). As cópias de 02h, 09h e 19h nunca pararam. Prova real refeita em 12/10 e aprovada: 106 tabelas, 171 clientes, 88 casos e 8 usuários, iguais à produção. Detalhes no runbook.
   - Observação: em 01/10 a prova contou 185 clientes; hoje a produção tem 171. A diferença é da produção (fichas removidas ou unificadas no período), não do backup. As cópias antigas continuam no MEGA, se for preciso conferir.
@@ -51,6 +53,7 @@
   - parcela 2/5 da Larissa (R$ 55) vencida desde 20/09.
 
 ## Próximos passos sugeridos (se ela não pedir outra coisa)
+- **Escritório virtual, Fase 1:** controller (orquestrador), caixa de aprovação única, prazo interno com escalonamento, pesquisador e verificador de jurisprudência, testador. Detalhes em `docs/escritorio-virtual/01-mapa-de-agentes.md`.
 - **Backup, antes de dezembro (prioridade):** o MEGA de 20 GB lota entre o fim de novembro e dezembro. Cada cópia tem 321 MB e cresce cerca de 130 MB por mês por causa da mídia do WhatsApp no banco. Saídas possíveis:
   - tirar `whatsapp_media` do banco (arquivos com backup próprio; cada cópia cairia para cerca de 60 MB);
   - ou ela assinar um plano pago do MEGA, que é decisão dela.
