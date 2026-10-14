@@ -9,6 +9,7 @@
   - **Cérebro:** biblioteca do Obsidian. Pergunta, importação do cofre pelo navegador, relatório de organização com Mapa do cofre; repassa notas ao Enzo nas minutas (migration 157).
   - **Esteira comercial:** Dra. Bianca (proposta com valor de tabela pelo histórico, política de parcelamento, conflito de interesses e aprovação no WhatsApp da Dra.), Dr. Felipe (revisão e assinatura) e Dra. Camila (documentos e provas, cobrança, relato do cliente). Migration 158.
   - **Prestação de contas padrão:** "Recebi e repassei" abre o texto e o botão de envio pelo WhatsApp.
+  - **Ficha "Escritório Virtual.md"** na raiz do cofre Obsidian (fora do git): agentes, comandos da Dra., prestação de contas, Cérebro e pendências. Atualize-a sempre que um agente mudar.
   - **Instalados:** 4 agentes do agency-agents (`.claude/agents/`) e o codebase-memory-mcp (computador da Jessica, perfil `.claude-conta-2`). O OpenMontage (vídeos) e o Trail-Code ficaram de fora (ver conversa de 14/10).
   - **Falta a Dra. definir:** a tabela de honorários (`tabela_honorarios`) e a política de parcelamento (`politica_parcelamento`). Até lá vale a mediana das propostas aceitas e o padrão provisório (até 10x, parcela mínima R$ 100).
 - **14/10 (noite):** agentes de terno e quadro de cartões abaixo da sala, no formato do print do CRM comercial. Nomes passaram a Dr./Dra. + nome (escolha da Jessica); Laya e Enzo sem título. O script `scripts/instalar-laya-vps.sh` ficou fora do commit: falta corrigir o passo 6 (o reinício deve ser pelo PM2 do crmapp), e a edição foi bloqueada pelo modo automático.
