@@ -25,6 +25,7 @@ import authRoutes from './routes/auth';
 import clientRoutes from './routes/clients';
 import buscaRoutes from './routes/busca';
 import hojeRoutes from './routes/hoje';
+import escritorioRoutes from './routes/escritorio';
 import intakeRoutes from './routes/intakes';
 import leadRoutes from './routes/leads';
 import propostaRoutes from './routes/propostas';
@@ -176,6 +177,7 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   // com a última movimentação já na resposta — usada pela busca do celular.
   app.use('/api/busca',                 authenticate, requireStaff, buscaRoutes);
   app.use('/api/hoje',                  authenticate, requireStaff, hojeRoutes);
+  app.use('/api/escritorio',            authenticate, requireStaff, escritorioRoutes);
   app.use('/api/intakes',               authenticate, requireStaff, intakeRoutes);
   app.use('/api/leads',                 authenticate, requireStaff, leadRoutes);
   app.use('/api/propostas',             authenticate, requireStaff, propostaRoutes);

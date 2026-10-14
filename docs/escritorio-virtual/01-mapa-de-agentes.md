@@ -181,7 +181,7 @@ Pangea/BNP do CNJ (precedentes qualificados), Portal de Dados Abertos do STJ, po
 
 | Fase | Conteúdo | Situação |
 |---|---|---|
-| **1. Fundação** | ⭐ Leitor de sentença · ⭐ Secretária particular (1ª função) · ⭐ aviso de IA no contrato · Secretária com aprovação por resposta · prazo interno com escalonamento · Auditor de prazos · Pesquisador + Verificador · Testador com casos reais | **em andamento** |
+| **1. Fundação** | ⭐ Leitor de sentença · ⭐ Secretária particular (1ª função) · ⭐ aviso de IA no contrato · ⭐ Escritório virtual visual (menu) + Métricas da IA · ⭐ Laya na qualificação (falta instalar o serviço na VPS) · Secretária com aprovação por resposta · prazo interno com escalonamento · Auditor de prazos · Pesquisador + Verificador · Testador com casos reais | **em andamento** |
 | **2. Produção trabalhista** | Especialista trabalhista ponta a ponta, Especialista em recursos, Revisor por peça, Preparador e Conferente de protocolo, calendário forense TRT17 | |
 | **3. Demais áreas e leitura** | Especialistas previdenciário, família e consumidor; Leitor de laudo e de ata; Calculista de valores; Execução | |
 | **4. Cliente** | Recepcionista automática, Triador, Conflito de interesses, Coletor de documentos, Avisador, Comunicador de resultado | |

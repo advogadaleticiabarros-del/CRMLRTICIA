@@ -1,5 +1,7 @@
 import { db } from '../config/database';
 import { parseMovimentacaoJson, PROMPT_MOVIMENTACAO_JSON } from './movimentacaoIa';
+import { registrarUsoIa, registrarAcaoAgente } from './usoIa';
+import { PERGUNTAS_LEAD, lerQualificacaoLaya, perguntarLaya, depsLayaPadrao } from './laya';
 
 /**
  * Cliente de IA compartilhado (grátis se houver chave Gemini/Groq).
@@ -33,6 +35,7 @@ async function callGemini(prompt: string, json = false): Promise<{ ok: boolean; 
   });
   const d: any = await r.json();
   if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro Gemini' };
+  registrarUsoIa('gemini');
   const text = d?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || '';
   return { ok: true, text };
 }
@@ -53,6 +56,7 @@ async function callGroq(prompt: string, json = false): Promise<{ ok: boolean; te
   });
   const d: any = await r.json();
   if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro Groq' };
+  registrarUsoIa('groq');
   return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
 }
 
@@ -75,6 +79,7 @@ async function callOpenAI(prompt: string, tier: 'default' | 'smart' = 'default')
   });
   const d: any = await r.json();
   if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro OpenAI' };
+  registrarUsoIa(tier === 'smart' ? 'openai_smart' : 'openai');
   return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
 }
 
@@ -152,6 +157,7 @@ export async function aiExtractFromFile(
     });
     const d: any = await r.json();
     if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro Gemini (visão)' };
+    registrarUsoIa('gemini');
     const text = d?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || '';
     return { ok: true, text };
   } catch (e: any) { return { ok: false, message: e.message }; }
@@ -179,6 +185,7 @@ export async function aiLerArquivo(
     });
     const d: any = await r.json();
     if (!r.ok) return { ok: false, message: d?.error?.message || g.message || 'Erro OpenAI (visão)' };
+    registrarUsoIa('openai');
     return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
   } catch (e: any) { return { ok: false, message: e.message }; }
 }
@@ -248,6 +255,7 @@ export async function aiEmbed(text: string): Promise<number[] | null> {
     });
     const d: any = await r.json();
     if (!r.ok) return null;
+    registrarUsoIa('openai');
     return d?.data?.[0]?.embedding || null;
   } catch { return null; }
 }
@@ -574,6 +582,26 @@ export async function qualificarLead(
 ): Promise<{ ok: boolean; qualification?: LeadQualification; message?: string }> {
   const teor = (texto || '').trim();
   if (teor.length < 15) return { ok: false, message: 'Texto insuficiente para qualificar' };
+
+  // Laya primeiro (grátis, no próprio servidor). Só com certeza nas três
+  // respostas ela decide sozinha; senão a IA paga qualifica como sempre.
+  const deps = depsLayaPadrao();
+  if (deps.url) {
+    registrarUsoIa('laya');
+    const daLaya = lerQualificacaoLaya(await perguntarLaya(`Cliente: ${teor.slice(0, 1500)}`, PERGUNTAS_LEAD, deps));
+    if (daLaya) {
+      try {
+        await db.query(
+          'UPDATE leads SET legal_area = COALESCE(legal_area, ?), ai_urgency = ?, ai_value_range = ? WHERE id = ?',
+          [daLaya.legal_area, daLaya.ai_urgency, daLaya.ai_value_range, leadId]
+        );
+        registrarAcaoAgente('laya', `qualificou um possível cliente sozinha: ${daLaya.legal_area || 'área a definir'}, urgência ${daLaya.ai_urgency}`);
+        return { ok: true, qualification: daLaya };
+      } catch (e: any) {
+        return { ok: false, message: e.message };
+      }
+    }
+  }
 
   const prompt = `Você é assistente comercial de um escritório de advocacia. Leia o relato de um lead (possível cliente) abaixo e responda EXATAMENTE neste formato, sem texto fora dele:
 ÁREA: <uma destas: trabalhista, gestante, familia, civel, previdenciario, consumidor, outro>

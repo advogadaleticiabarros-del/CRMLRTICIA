@@ -16,6 +16,21 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 14/10/2026 — Laya volta para o CRM jurídico (revê a decisão de 23/09/2026)
+**Decisão:** a Jessica pediu a Laya ("nossa assistente") no CRM jurídico, como já funciona no CRM comercial. A decisão de 23/09 ("não usar a Laya") fica revista.
+**O que mudou desde 23/09:** a Laya já roda em produção no CRM comercial como serviço local (`systemone`, PM2 `laya`). O custo de ter mais um serviço deixou de ser hipotético, e o ganho medido lá é poupar chamadas de IA paga.
+**Como entrou:** a Laya é perguntada primeiro, sem custo, na qualificação do possível cliente. Ela só decide sozinha com confiança de 0,75 ou mais nas três respostas (área, urgência e valor); senão a IA paga qualifica como antes. Sem `LAYA_URL`, nada muda.
+**Pendente:** instalar o serviço na VPS do jurídico. Ver [Ferramentas e acessos](16-ferramentas-acessos.md).
+
+### 14/10/2026 — Escritório virtual no próprio CRM, não com o ExpxAgents
+**Decisão:** a sala dos agentes e as Métricas da IA são uma tela do CRM (`public/escritorio.js` e `/api/escritorio`). Os agentes são as rotinas automáticas e os serviços que já existem.
+**Motivo:** o status de cada agente sai do que aconteceu de verdade (`job_runs`, `agente_acoes`, `automation_runs`), sem simulação. Uma ferramenta à parte não enxergaria esses dados.
+**Status:**
+- trabalhando: rodou com sucesso nos últimos 15 min;
+- erro: a última execução falhou nas últimas 26h;
+- parado: rodou nas últimas 26h;
+- desligado: nada nas últimas 26h, ou agente ainda em construção.
+
 ### 14/10/2026 — Escritório virtual: 5 decisões da Dra. e o Leitor de sentença
 **Decisões da Dra. (ela aprovou "tudo de acordo com a sugestão"; mapa em `docs/escritorio-virtual/`):**
 1. **Ao cliente sem revisão da Dra.:** só status neutro e lembretes (documento, audiência, parcela). Conteúdo jurídico passa por ela.
@@ -124,6 +139,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | 23/09/2026 | Claude | Registrada decisão de não integrar o Laya (motor de decisão local) — custo de infraestrutura (serviço Python separado na VPS) maior que o ganho (velocidade que ninguém sente) frente ao Groq/Gemini já em uso |
 | 24/09/2026 | Claude | Registrada decisão de manter `cases` e `legal_processes` separados (achado de prioridade baixa da auditoria do módulo Clientes) — overlap já tem FK de ligação, risco real é lógica de matching duplicada em 3 arquivos, não a separação em si |
 | 29/09/2026 | Claude | Registrada adoção da skill `codebase-design` (módulos profundos) para todo código novo/refatorado |
+| 14/10/2026 | Claude | Laya volta (revê 23/09) e escritório virtual dentro do CRM |
 | 14/10/2026 | Claude | Registradas as 5 decisões do escritório virtual e por que o prazo de recurso do Leitor de sentença vem de tabela fixa, não da IA |
 | 07/10/2026 | Claude | Backup tratado como crítico (pedido da usuária): retenção avô-pai-filho (3 dias inteiros + 30 diários + 12 mensais no MEGA, cabe na conta gratuita de 21 GB hoje), conferência do arquivo antes de salvar e de apagar antigos, aviso diário. Próximo passo avaliado: tirar as mídias do WhatsApp (~80% de cada cópia) de dentro do banco, guardando-as como arquivos com backup próprio — reduziria cada cópia de ~280 MB para ~60 MB e evitaria estourar o MEGA com o crescimento (~18 MB/dia) |
 | 07/10/2026 | Claude | Provisão de honorários = valor da causa × taxa de sucesso × % médio obtido × honorário do caso (30% ou a parte do escritório na parceria). Escolhida por usar só dados que o CRM já tem e ser explicável na própria tela; dativo e defesa ficam fora porque não seguem a lógica de êxito |

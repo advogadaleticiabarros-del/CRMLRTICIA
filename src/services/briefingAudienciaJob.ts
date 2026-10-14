@@ -10,6 +10,7 @@
  */
 import { db } from '../config/database';
 import { agruparAudiencias } from './audienciaUnica';
+import { registrarUsoIa } from './usoIa';
 import { ehAudienciaTrabalhista, selecionarDocumentos, montarInstrucao, dividirMensagem, janelaDeAmanha } from './briefingAudienciaRegras';
 
 const LIMITE_DOCS_BYTES = 14 * 1024 * 1024; // cabe num envio ao Gemini (base64 ≈ +33%)
@@ -25,6 +26,7 @@ async function chamarGemini(instrucao: string, arquivos: { mime: string; data: B
   });
   const d: any = await r.json();
   if (!r.ok) throw new Error(d?.error?.message || 'Erro na IA (Gemini)');
+  registrarUsoIa('gemini');
   const texto = d?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || '';
   if (!texto.trim()) throw new Error('A IA não devolveu o briefing');
   return texto.trim();
@@ -51,6 +53,7 @@ async function chamarOpenAI(instrucao: string, arquivos: { mime: string; data: B
   });
   const d: any = await r.json();
   if (!r.ok) throw new Error(d?.error?.message || 'Erro na IA (OpenAI)');
+  registrarUsoIa('openai');
   const texto = d?.choices?.[0]?.message?.content || '';
   if (!String(texto).trim()) throw new Error('A IA não devolveu o briefing');
   return String(texto).trim();

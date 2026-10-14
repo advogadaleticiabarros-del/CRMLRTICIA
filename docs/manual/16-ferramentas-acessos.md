@@ -29,6 +29,16 @@ Consulte antes de mexer em qualquer integração externa, pra saber o que depend
 | **GitHub** | Código-fonte + deploy automático (GitHub Actions) | Nenhum push novo chega em produção sem isso |
 | **Hostinger VPS** | Onde o sistema roda de fato | Sistema inteiro fora do ar (ver [Onde tudo roda](13-infraestrutura.md)) |
 | **VAPID (push)** | Notificação push do navegador | Notificação push no navegador (o resto do sistema continua normal) |
+| **Laya** (modelo de decisão local, grátis) | Qualifica o possível cliente (área, urgência, valor) antes da IA paga. Endereço na variável `LAYA_URL` (ex.: `http://127.0.0.1:8765`), serviço `laya` no PM2 | Nada quebra: sem a Laya, a qualificação volta para a IA de sempre. No Escritório virtual ela aparece "desligada" |
+
+**Laya: situação em 14/10/2026.** O código do CRM já usa a Laya (`src/services/laya.ts`), mas o serviço ainda **não está instalado na VPS do jurídico**. Ele roda só na VPS do CRM comercial (`comercial.prosystemnet.com`, outro servidor, em 127.0.0.1:8765). Para ligar no jurídico:
+1. Instalar na VPS o mesmo serviço da comercial: modelo `systemone`, PM2 `laya`, ouvindo só em 127.0.0.1.
+2. Pôr `LAYA_URL=http://127.0.0.1:8765` no `.env`.
+3. Reiniciar o PM2.
+
+Atenção: o repositório `aayushch/laya` é outro projeto com o mesmo nome (app de computador que junta notificações) e não é este serviço.
+
+**Contagem de uso de IA** (desde 14/10/2026): toda chamada que dá certo à OpenAI, Groq, Gemini ou Laya soma 1 em `ia_uso_diario`. É a base das "Métricas da IA" no Escritório virtual.
 
 ## Onde as chaves ficam
 
@@ -54,6 +64,7 @@ Nunca no código-fonte nem no Git — só em variáveis de ambiente na VPS (`.en
 | Data | Autor | Mudança |
 |---|---|---|
 | 04/09/2026 | Claude | Criação do documento |
+| 14/10/2026 | Claude | Laya (`LAYA_URL`) na qualificação do possível cliente, com o serviço ainda a instalar na VPS; contagem de uso de IA por provedor |
 
 ---
 ◀ [Onboarding](15-onboarding.md) · [Visão geral](00-visao-geral.md) · Próximo: [Decision Log](17-decision-log.md) ▶

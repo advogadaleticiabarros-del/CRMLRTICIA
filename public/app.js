@@ -287,6 +287,7 @@ const NAV_LABELS = {
   documentos: 'Documentos', ia: 'Assistente de IA', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
   contratos: 'Contratos', intakes: 'Novo atendimento', newsletter: 'Newsletter',
   monitor: 'Andamentos nos tribunais', fases: 'Fases dos processos', producao: 'Peças em produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB', whatsapp: 'WhatsApp',
+  escritorio: 'Escritório virtual',
   portal: 'Meus Processos', portalFinanceiro: 'Valores a Pagar',
   ppcases: 'Meus Indicados', ppclients: 'Fichas dos Clientes', ppupdates: 'Atualizações', ppagenda: 'Audiências', ppfin: 'Financeiro',
 };
@@ -295,9 +296,9 @@ const NAV_LABELS = {
 // controlando quem tem acesso: navForRole().includes('whatsapp') decide se
 // o botão aparece, e a rota #whatsapp continua existindo normalmente.
 const NAV_BY_ROLE = {
-  admin:      ['dashboard','hoje','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
-  staff:      ['dashboard','hoje','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
-  advogado:   ['dashboard','hoje','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
+  admin:      ['dashboard','hoje','escritorio','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['dashboard','hoje','escritorio','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
+  advogado:   ['dashboard','hoje','escritorio','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
   estagiario: ['producao','cases','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
@@ -568,7 +569,7 @@ const NAV_ICONS = {
   contratos: 'contract', documentos: 'docs', ia: 'ia', cases: 'briefcase', producao: 'kanban',
   parcerias: 'swap', monitor: 'activity', fases: 'branch', prazos: 'clock', agenda: 'calendar',
   financeiro: 'wallet', controladoria: 'pie', correspondente: 'pin', dativo: 'scale',
-  advogados: 'cap', config: 'gear', repasses: 'banknote', whatsapp: 'chat',
+  advogados: 'cap', config: 'gear', repasses: 'banknote', whatsapp: 'chat', escritorio: 'users',
   portal: 'folder', portalFinanceiro: 'banknote',
   ppcases: 'briefcase', ppclients: 'users', ppupdates: 'activity', ppagenda: 'clock', ppfin: 'wallet',
 };
@@ -1125,6 +1126,7 @@ let routeToken = 0;
 // na aba padrão (ex.: clicar em "Inadimplência" no Cockpit).
 // ── "?" em cada tela (02/10/2026): para que serve, em português simples ────
 const AJUDA_TELAS = {
+  escritorio: 'A equipe de agentes do escritório trabalhando ao vivo: quem está digitando está trabalhando agora; clique num agente para ver o que ele fez. "Métricas da IA" mostra o trabalho de cada agente, as suas intervenções e quanto da IA saiu sem custo.',
   hoje: 'Tudo que precisa de você hoje, do mais urgente para o mais tranquilo. Clique no botão de cada item para resolver; quando a lista esvazia, o dia está em dia.',
   intakes: 'Comece aqui quando alguém novo procurar o escritório: registra o primeiro atendimento e já cria o possível cliente.',
   leads: 'Pessoas que procuraram o escritório e ainda não são clientes. Arraste o cartão de coluna conforme a conversa avança (primeiro contato, proposta, contrato…).',

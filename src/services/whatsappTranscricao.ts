@@ -4,6 +4,7 @@
 
 import { db } from '../config/database';
 import { aiExtractFromFile } from './aiAssistant';
+import { registrarUsoIa } from './usoIa';
 
 export interface MediaRow {
   id: number;
@@ -31,6 +32,7 @@ export async function transcreverAudio(media: MediaRow): Promise<TranscricaoResu
     });
     const d: any = await r.json();
     if (!r.ok) return { ok: false, erro: d?.error?.message || 'Falha na transcrição' };
+    registrarUsoIa('groq');
     const texto = String(d.text || '').trim();
     if (!texto) return { ok: false, erro: 'Não foi possível entender o áudio' };
     return { ok: true, texto };

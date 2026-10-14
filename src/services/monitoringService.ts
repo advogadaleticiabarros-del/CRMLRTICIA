@@ -11,6 +11,7 @@ import { logTimeline } from './TimelineService';
 import { runIntimacaoPlaybooks } from './automationService';
 import { interpretarMovimentacao, extrairNomeacaoDativa, extrairArbitramentoDativo, aiComplete, aiCompleteJson } from './aiAssistant';
 import { lerDecisaoEAvisar, ResultadoLeitura, chaveLeitura, TEXTO_MINIMO_LEITURA } from './leitorDecisao';
+import { registrarAcaoAgente } from './usoIa';
 import { sendText, avisarFalhaEnvioWhatsapp } from './uazapiInstance';
 
 // ── Sugestão de fase processual a partir do texto das movimentações ──────────
@@ -125,12 +126,13 @@ async function lerDecisaoDoMarco(
 ): Promise<ResultadoLeitura> {
   const [[proc]] = await db.query('SELECT court FROM legal_processes WHERE id = ?', [processId]) as any;
   const publicada = toDate(m.movement_date);
-  return lerDecisaoEAvisar({
+  const tipo = tipoGatilho === 'Recurso (apelação)' ? 'sentenca' : 'acordao';
+  const r = await lerDecisaoEAvisar({
     processId,
     processo: processNumber || '(sem número)',
     cliente: await buscarNomeCliente(clientId),
     orgao: proc?.court || null,
-    tipo: tipoGatilho === 'Recurso (apelação)' ? 'sentenca' : 'acordao',
+    tipo,
     texto: m.description || '',
     publicadaEm: publicada ? publicada.toISOString().slice(0, 10) : null,
   }, {
@@ -151,6 +153,11 @@ async function lerDecisaoDoMarco(
     },
     hojeISO: () => new Date().toISOString().slice(0, 10),
   });
+  if (r === 'enviado') {
+    registrarAcaoAgente('leitor', `leu ${tipo === 'acordao' ? 'o acórdão' : 'a sentença'} do proc. ${processNumber || '?'} e mandou à Dra.`);
+    registrarAcaoAgente('secretaria', `entregou à Dra. a leitura da decisão do proc. ${processNumber || '?'}`);
+  }
+  return r;
 }
 
 /**

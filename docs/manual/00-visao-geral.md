@@ -51,6 +51,37 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 16. [Ferramentas e acessos](16-ferramentas-acessos.md)
 17. [Decision Log](17-decision-log.md)
 
+## Escritório virtual e Métricas da IA (desde 14/10/2026)
+
+Menu **Escritório virtual**: uma sala em 3D (isométrica) com os **20 agentes** do escritório em estilo minifigura, trabalhando ao vivo:
+- 🟢 **trabalhando:** o agente digita na mesa e mostra num balão o que acabou de fazer;
+- 🟡 **disponível:** ele circula pela copa, biblioteca, pebolim e videogame;
+- ⚪ **desligado:** cochila na mesa (inclui os agentes ainda em construção);
+- 🔴 **com erro:** fica na mesa com ⚠️.
+
+**Na sala:**
+- a pessoa logada anda pelas setas ou clicando no chão;
+- perto de um agente, pode **ver o trabalho dele** (histórico das últimas ações) ou **chamá-lo ao gabinete da Dra.**;
+- **Reunir a equipe** leva todos para a sala de reunião;
+- o relógio marca a hora real de Brasília e a janela muda de dia para noite.
+
+**Métricas da IA** (botão azul), por período de 7, 30 ou 90 dias:
+- possíveis clientes e quantos a IA qualificou;
+- decisões lidas;
+- movimentações analisadas;
+- suas intervenções (prazos confirmados e descartados);
+- Laya acionada e % de IA sem custo;
+- trabalho por agente, prazos detectados, resultado das decisões lidas, propostas e automações;
+- gráficos por dia da IA paga (OpenAI), da Laya e da IA grátis (Groq e Gemini).
+
+**De onde vêm os dados:**
+- **agentes e status:** `src/services/escritorioVirtual.ts`; cada agente é dono de rotinas de `job_runs` e/ou registra ações em `agente_acoes` (migration 156);
+- **API:** `GET /api/escritorio`, `/agente/:id` e `/painel-ia`;
+- **contagem de IA:** `ia_uso_diario`;
+- **tela:** `public/escritorio.js`.
+
+Testes em `tests/escritorioVirtual.test.mjs`, `painelIa.test.mjs`, `laya.test.mjs` e `escritorioFrontend.test.mjs`.
+
 ## Dashboard abre primeiro e largura total (desde 02/10/2026)
 
 - Ao abrir o CRM (e após entrar por senha ou Face ID), a primeira tela é sempre o **Dashboard** (cockpit: a receber/a pagar, prazos críticos, intimações, movimentações e agenda do dia). No menu: Dashboard e Hoje no topo.
@@ -116,6 +147,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 14/10/2026 | Claude | Escritório virtual (sala com 20 agentes ao vivo) e Métricas da IA |
 | 02/10/2026 | Claude | Menu sem títulos de seção (lista única) |
 | 02/10/2026 | Claude | Dashboard como primeira tela; largura total em todas as telas |
 | 02/10/2026 | Claude | Botão "+ Registrar" único |

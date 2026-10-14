@@ -2,10 +2,16 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 14/10/2026. Último commit: Leitor de sentença, Secretária particular, aviso de IA nos contratos e mapa v2.
+**Última atualização:** 14/10/2026. Último commit: Escritório virtual (sala + Métricas da IA) e Laya.
 
 ## Últimas entregas (mais recentes primeiro)
-- **14/10:**
+- **14/10 (tarde):**
+  - **Escritório virtual** (menu): sala isométrica com 20 agentes ao vivo, no estilo do CRM comercial. O status vem de `job_runs`, `agente_acoes` e `automation_runs`.
+  - **Métricas da IA** no formato dos prints da Jessica (`/api/escritorio/painel-ia`).
+  - **Contagem de uso de IA:** `ia_uso_diario` (migration 156).
+  - **Laya** na qualificação do possível cliente: primeiro grátis, IA paga só sem certeza. O código está pronto; **falta instalar o serviço na VPS do jurídico** (ver 16-ferramentas).
+  - **Leitor aplicado às decisões dos últimos 15 dias**, no boot e às 7h50. A Dra. ainda não tinha recebido nenhuma leitura porque só valia para sentença nova.
+- **14/10 (manhã):**
   - **Escritório virtual.** O mapa v2 tem 67 agentes em 10 departamentos e está em `docs/escritorio-virtual/01-mapa-de-agentes.md`. A Dra. aprovou as 5 decisões "de acordo com a sugestão" (registradas no decision log).
   - **Leitor de sentença e Secretária particular** (`leitorDecisao.ts`, `secretariaParticular.ts`, migration 155 `decisao_leituras`). Com a íntegra do DJEN, a sentença ou o acórdão chega resumido no WhatsApp: resultado, ganhos e perdas, valor, pontos de atenção e prazos de recurso com data. O prazo vem de tabela fixa e não da IA.
   - **Aviso de uso de IA** nos 4 contratos padrão (`AVISO_USO_IA`).
@@ -55,6 +61,7 @@
   - parcela 2/5 da Larissa (R$ 55) vencida desde 20/09.
 
 ## Próximos passos sugeridos (se ela não pedir outra coisa)
+- **Laya na VPS do jurídico:** instalar o serviço `systemone` (o mesmo da VPS comercial), em 127.0.0.1:8765, e pôr `LAYA_URL` no `.env`. O auto mode bloqueou ações em produção nesta sessão, então precisa de permissão para fazer pelo Claude.
 - **Escritório virtual, Fase 1 (em andamento).** Próximos passos:
   1. Secretária com aprovação por resposta no WhatsApp ("recorrer" / "não recorrer" vira tarefa e prazo).
   2. Prazo interno com escalonamento e Auditor de prazos.
