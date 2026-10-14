@@ -25,6 +25,7 @@ Consulte quando precisar saber COM QUE FREQUÊNCIA algo roda sozinho, o que faze
 | `prazos:sem-caso` | 7h20 | **Novo (28/09/2026).** Alerta escalonado dos prazos confirmados em processo sem caso vinculado que vencem em até 30 dias |
 | `processos:fase-divergente` | 7h40 | **Novo (28/09/2026).** Avisa quando a fase sugerida pelas movimentações fica à frente da fase cadastrada por 3+ dias (repete a cada 14) |
 | `backup:diario` | 2h, 9h, 19h | Backup criptografado do banco (local + MEGA) |
+| `leitor:decisoes-recentes` | no boot e 7h50 | **Novo (14/10/2026).** Lê sentenças/acórdãos dos últimos 15 dias ainda não lidos e manda a leitura à Dra. no WhatsApp (até 12 por rodada). Ver [Processos](04-processos.md#leitor-de-sentença-e-secretária-particular-desde-14102026) |
 
 ## Limpeza de texto na entrada
 

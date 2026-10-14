@@ -190,7 +190,7 @@ export interface DepsLeitor {
 export type ResultadoLeitura = 'enviado' | 'sem_texto' | 'ia_falhou' | 'ja_lido';
 
 /** Mesma decisão republicada (ou com espaçamento diferente) gera a mesma chave. */
-function chaveLeitura(e: EntradaDecisao): string {
+export function chaveLeitura(e: Pick<EntradaDecisao, 'processId' | 'tipo' | 'texto'>): string {
   const normal = semAcento(e.texto).replace(/\s+/g, ' ').slice(0, 2000);
   return crypto.createHash('sha256').update(`${e.processId}|${e.tipo}|${normal}`).digest('hex');
 }

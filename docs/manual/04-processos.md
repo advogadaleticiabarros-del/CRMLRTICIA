@@ -85,6 +85,11 @@ Quando chega a **íntegra** de uma sentença ou acórdão (DJEN), o **Leitor** l
 - **IA fora do formato:** nada é enviado como leitura, e vale o aviso curto. Ninguém recebe um resumo inventado.
 - **Decisão republicada** com o mesmo texto: não manda de novo. A trava é a tabela `decisao_leituras`, que guarda cada leitura (migration 155).
 - **IA usada:** OpenAI (Luna), com Groq/Gemini de reserva.
+- **Decisões que já estavam no banco** (rotina `leitor:decisoes-recentes`, desde 14/10/2026):
+  - quando roda: ao ligar o servidor e todo dia às 7h50;
+  - o que lê: sentenças e acórdãos dos últimos 15 dias que ainda não foram lidos, com no máximo 12 envios por rodada;
+  - quem já foi lido é pulado sem gastar IA;
+  - também refaz as leituras que falharam na hora porque a IA estava fora do ar.
 
 Regras em `src/services/leitorDecisao.ts` e `src/services/secretariaParticular.ts`, com testes em `tests/leitorDecisao.test.mjs`.
 
@@ -150,6 +155,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 14/10/2026 | Claude | Leitor aplicado também às decisões dos últimos 15 dias (`leitor:decisoes-recentes`, no boot e às 7h50); a Dra. ainda não tinha recebido nenhuma leitura |
 | 14/10/2026 | Claude | Leitor de sentença e Secretária particular: sentença/acórdão chegam à Dra. resumidos, com ganhos/perdas, valor e prazos de recurso (tabela fixa + `contarPrazo`) |
 | 07/10/2026 | Claude | Fase sugerida ignora menções a atos futuros nas intimações do DJEN; "julgado (im)procedente" conta como sentença e "contrarrazões" como recurso |
 | 28/09/2026 | Claude | Tipo de prazo por gatilho específico/título (`deteccaoPrazo.ts`), aviso de fase divergente (`processos:fase-divergente`), busca nacional por OAB passa a reportar falha por tribunal, testes de fase e tribunal — ideias 6, 7, 8 e 9 da auditoria |

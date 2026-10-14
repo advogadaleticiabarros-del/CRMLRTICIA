@@ -10,7 +10,7 @@ import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
 import { runIntimacaoPlaybooks } from './automationService';
 import { interpretarMovimentacao, extrairNomeacaoDativa, extrairArbitramentoDativo, aiComplete, aiCompleteJson } from './aiAssistant';
-import { lerDecisaoEAvisar, ResultadoLeitura } from './leitorDecisao';
+import { lerDecisaoEAvisar, ResultadoLeitura, chaveLeitura, TEXTO_MINIMO_LEITURA } from './leitorDecisao';
 import { sendText, avisarFalhaEnvioWhatsapp } from './uazapiInstance';
 
 // ── Sugestão de fase processual a partir do texto das movimentações ──────────
@@ -151,6 +151,40 @@ async function lerDecisaoDoMarco(
     },
     hojeISO: () => new Date().toISOString().slice(0, 10),
   });
+}
+
+/**
+ * Lê as sentenças/acórdãos dos últimos `dias` que já estão no banco e ainda
+ * não foram lidos (a Dra. pediu o Leitor aplicado já, não só nas próximas).
+ * Pula sem chamar a IA o que já está em `decisao_leituras`. Limite de envios
+ * por rodada para não despejar mensagens de uma vez.
+ */
+export async function lerDecisoesRecentes(dias = 15, maxEnvios = 12): Promise<{ lidas: number; enviadas: number; puladas: number }> {
+  const [rows] = await db.query(
+    `SELECT pm.process_id, pm.movement_date, pm.title, pm.description, lp.client_id, lp.process_number
+       FROM process_movements pm
+       JOIN legal_processes lp ON lp.id = pm.process_id
+      WHERE pm.movement_date >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+        AND CHAR_LENGTH(pm.description) >= ?
+        AND (pm.title LIKE '%senten%' OR pm.description LIKE '%senten%' OR pm.description LIKE '%ac_rd_o%')
+      ORDER BY pm.movement_date ASC`,
+    [dias, TEXTO_MINIMO_LEITURA]
+  ) as any;
+  let lidas = 0, enviadas = 0, puladas = 0;
+  for (const r of rows) {
+    if (enviadas >= maxEnvios) break;
+    const trig = identificarGatilho(r.title, r.description);
+    if (!trig?.marco) continue;
+    const tipo = trig.type === 'Recurso (apelação)' ? 'sentenca' : 'acordao';
+    const [ja] = await db.query('SELECT 1 FROM decisao_leituras WHERE chave = ? LIMIT 1',
+      [chaveLeitura({ processId: r.process_id, tipo, texto: r.description })]) as any;
+    if (ja.length) { puladas++; continue; }
+    lidas++;
+    const m = { movement_date: r.movement_date ? new Date(r.movement_date).toISOString() : null, title: r.title, description: r.description };
+    const res = await lerDecisaoDoMarco(r.process_id, r.client_id, m, r.process_number, trig.type).catch(() => 'ia_falhou');
+    if (res === 'enviado') enviadas++;
+  }
+  return { lidas, enviadas, puladas };
 }
 
 /** Cria "prazo a confirmar" (DJEN) ou alerta (DataJud) quando a movimentação contém palavra-gatilho. Nunca derruba o sync. */

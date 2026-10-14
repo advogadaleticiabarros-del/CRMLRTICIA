@@ -30,6 +30,23 @@ export function startCronJobs() {
     });
   }, 8000);
 
+  // ── Leitor de sentença: no boot e às 7h50, lê as sentenças/acórdãos dos
+  // últimos 15 dias ainda não lidos (as já lidas são puladas sem gastar IA).
+  // Cobre as decisões que chegaram antes do Leitor existir e qualquer uma
+  // cuja leitura falhou na hora (IA fora do ar).
+  setTimeout(() => {
+    runJob('leitor:decisoes-recentes', async () => {
+      const { lerDecisoesRecentes } = await import('../services/monitoringService');
+      return lerDecisoesRecentes();
+    });
+  }, 60000);
+  cron.schedule('50 7 * * *', () => {
+    runJob('leitor:decisoes-recentes', async () => {
+      const { lerDecisoesRecentes } = await import('../services/monitoringService');
+      return lerDecisoesRecentes();
+    });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── a cada 20 min: verifica se a conexão do WhatsApp caiu ── CRÍTICO ──────
   // Antes só existia o religamento único no boot acima — se a sessão caísse
   // no meio do dia (ex.: WhatsApp deslogado por "outro aparelho", como já

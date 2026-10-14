@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert';
 import {
-  justicaDoNumero, ehJuizado, recursosCabiveis, parseLeituraDecisao, lerDecisaoEAvisar, TEXTO_MINIMO_LEITURA,
+  justicaDoNumero, ehJuizado, recursosCabiveis, parseLeituraDecisao, lerDecisaoEAvisar, TEXTO_MINIMO_LEITURA, chaveLeitura,
 } from '../dist/services/leitorDecisao.js';
 import { montarMensagemDecisao } from '../dist/services/secretariaParticular.js';
 
@@ -204,6 +204,12 @@ test('lerDecisaoEAvisar: mesma decisão já lida (republicação) → não manda
   const r = await lerDecisaoEAvisar(ENTRADA, f.deps);
   assert.strictEqual(r, 'ja_lido');
   assert.strictEqual(f.enviados.length, 0);
+});
+
+test('chaveLeitura: é a mesma que o Leitor grava (permite pular decisão já lida sem chamar a IA)', async () => {
+  const f = depsFalsas();
+  await lerDecisaoEAvisar(ENTRADA, f.deps);
+  assert.strictEqual(chaveLeitura(ENTRADA), f.registrados[0].chave);
 });
 
 test('lerDecisaoEAvisar: a chave de leitura é a mesma para o mesmo texto com espaços diferentes', async () => {
