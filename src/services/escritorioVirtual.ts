@@ -14,6 +14,8 @@ export interface AgenteJuridico {
   cargo: string;
   depto: string;
   cor: string;
+  /** Uma linha curta do que faz (cartão abaixo da sala). */
+  resumo: string;
   /** Rotinas automáticas (nome em runJob) que são trabalho deste agente. */
   jobs: string[];
   descricao: string;
@@ -22,54 +24,54 @@ export interface AgenteJuridico {
 }
 
 export const AGENTES: AgenteJuridico[] = [
-  { id: 'laya', nome: 'Laya', cargo: 'o cérebro (IA grátis)', depto: 'Gestão', cor: '#a855f7', jobs: [],
+  { id: 'laya', resumo: 'IA grátis do servidor · qualifica e aprende', nome: 'Laya', cargo: 'o cérebro (IA grátis)', depto: 'Gestão', cor: '#a855f7', jobs: [],
     descricao: 'Modelo de decisão que roda no próprio servidor, sem custo. Classifica possíveis clientes (área, urgência, valor) antes de chamar a IA paga e aprende com as correções da equipe.' },
-  { id: 'secretaria', nome: 'Clara', cargo: 'Secretária da Dra.', depto: 'Gestão', cor: '#db2777',
+  { id: 'secretaria', resumo: 'Entrega tudo à Dra. já resumido', nome: 'Clara', cargo: 'Secretária da Dra.', depto: 'Gestão', cor: '#db2777',
     jobs: ['briefing:matinal', 'briefing:matinal-whatsapp', 'briefing:fechamento-dia', 'audiencia:briefing-vespera'],
     descricao: 'Recebe o trabalho de todos os agentes e entrega à Dra. já resumido: briefing das 7h, fechamento do dia, véspera de audiência e as sentenças lidas.' },
-  { id: 'leitor', nome: 'Lucas', cargo: 'Leitor de sentenças', depto: 'Leitura', cor: '#0ea5e9', jobs: ['leitor:decisoes-recentes'],
+  { id: 'leitor', resumo: 'Lê sentenças e acórdãos · prazos de recurso', nome: 'Lucas', cargo: 'Leitor de sentenças', depto: 'Leitura', cor: '#0ea5e9', jobs: ['leitor:decisoes-recentes'],
     descricao: 'Lê a íntegra de cada sentença e acórdão: resultado para o cliente, o que ganhamos e perdemos, valor, pontos de atenção e prazos de recurso com data.' },
-  { id: 'djen', nome: 'Davi', cargo: 'Vigia do DJEN', depto: 'Monitoramento', cor: '#2563eb', jobs: ['monitoramento:descoberta-oab'],
+  { id: 'djen', resumo: 'Varre o DJEN pela OAB da Dra. · 3x ao dia', nome: 'Davi', cargo: 'Vigia do DJEN', depto: 'Monitoramento', cor: '#2563eb', jobs: ['monitoramento:descoberta-oab'],
     descricao: 'Varre o Diário de Justiça Eletrônico 3 vezes ao dia atrás de toda publicação na OAB da Dra., inclusive de processos ainda não cadastrados.' },
-  { id: 'tribunais', nome: 'Tereza', cargo: 'Vigia dos tribunais', depto: 'Monitoramento', cor: '#1d4ed8',
+  { id: 'tribunais', resumo: 'Consulta os processos nos tribunais · de hora em hora', nome: 'Tereza', cargo: 'Vigia dos tribunais', depto: 'Monitoramento', cor: '#1d4ed8',
     jobs: ['monitoramento:processos', 'monitoramento:processos-pre-briefing', 'monitoramento:vigia'],
     descricao: 'Consulta cada processo no DataJud e nas APIs dos tribunais de hora em hora e confere se a consulta não travou.' },
-  { id: 'email', nome: 'Edu', cargo: 'Vigia do e-mail', depto: 'Monitoramento', cor: '#0891b2', jobs: ['monitoramento:processos-email', 'parceria:sync-gmail'],
+  { id: 'email', resumo: 'Lê intimações do e-mail do tribunal', nome: 'Edu', cargo: 'Vigia do e-mail', depto: 'Monitoramento', cor: '#0891b2', jobs: ['monitoramento:processos-email', 'parceria:sync-gmail'],
     descricao: 'Lê as intimações que chegam por e-mail do tribunal e o e-mail da parceria.' },
-  { id: 'carteira', nome: 'Vítor', cargo: 'Vigia da carteira', depto: 'Monitoramento', cor: '#0f766e', jobs: ['carteira:vigia', 'processos:fase-divergente'],
+  { id: 'carteira', resumo: 'Processo parado, prescrição e fase desatualizada', nome: 'Vítor', cargo: 'Vigia da carteira', depto: 'Monitoramento', cor: '#0f766e', jobs: ['carteira:vigia', 'processos:fase-divergente'],
     descricao: 'Avisa processo parado há 30/60 dias, prescrição chegando e fase do processo desatualizada.' },
-  { id: 'prazos', nome: 'Paula', cargo: 'Controle de prazos', depto: 'Controladoria', cor: '#dc2626',
+  { id: 'prazos', resumo: 'Conta prazos em dias úteis e escala os avisos', nome: 'Paula', cargo: 'Controle de prazos', depto: 'Controladoria', cor: '#dc2626',
     jobs: ['prazos:alertas', 'prazos:contadores', 'prazos:sem-caso', 'prazos:vencidos'],
     descricao: 'Conta os prazos em dias úteis, escala os avisos conforme o vencimento chega e avisa prazo em processo sem caso.' },
-  { id: 'estagiario', nome: 'Enzo', cargo: 'Estagiário', depto: 'Produção', cor: '#f59e0b', jobs: [],
+  { id: 'estagiario', resumo: 'Analisa a intimação e deixa a minuta pronta', nome: 'Enzo', cargo: 'Estagiário', depto: 'Produção', cor: '#f59e0b', jobs: [],
     descricao: 'A cada intimação, analisa o que pede e deixa a minuta da peça pronta para a Dra. revisar.' },
-  { id: 'agenda', nome: 'Agnes', cargo: 'Agenda e audiências', depto: 'Controladoria', cor: '#7c3aed',
+  { id: 'agenda', resumo: 'Agenda, audiências e Google Agenda', nome: 'Agnes', cargo: 'Agenda e audiências', depto: 'Controladoria', cor: '#7c3aed',
     jobs: ['agenda:eventos-proximos', 'agenda:lembretes-pessoais', 'agenda:repeticao-diaria', 'agenda:sync-completa', 'agenda:sync-incremental'],
     descricao: 'Mantém a agenda sincronizada com o Google e lembra audiências e compromissos.' },
-  { id: 'financeiro', nome: 'Fábio', cargo: 'Cobrança e financeiro', depto: 'Financeiro', cor: '#16a34a',
+  { id: 'financeiro', resumo: 'Régua de cobrança, parcelas e acordos', nome: 'Fábio', cargo: 'Cobrança e financeiro', depto: 'Financeiro', cor: '#16a34a',
     jobs: ['financeiro:inadimplencia-recalcular', 'financeiro:pagamentos-parados', 'financeiro:recorrentes', 'financeiro:recorrentes-boot', 'financeiro:regua-cobranca', 'financeiro:vencidos', 'acordos:aviso-vencimento'],
     descricao: 'Régua de cobrança, parcelas vencidas, contas recorrentes e aviso das parcelas de acordo.' },
-  { id: 'comercial', nome: 'Carla', cargo: 'Propostas', depto: 'Comercial', cor: '#ea580c',
+  { id: 'comercial', resumo: 'Propostas: follow-up e encerramento', nome: 'Carla', cargo: 'Propostas', depto: 'Comercial', cor: '#ea580c',
     jobs: ['propostas:followup', 'propostas:fechamento-definitivo', 'comercial:propostas-expiradas'],
     descricao: 'Acompanha as propostas enviadas, faz o follow-up e encerra as que expiraram.' },
-  { id: 'whatsapp', nome: 'Wagner', cargo: 'Recepção do WhatsApp', depto: 'Atendimento', cor: '#22c55e',
+  { id: 'whatsapp', resumo: 'Fila do WhatsApp e conversas esperando', nome: 'Wagner', cargo: 'Recepção do WhatsApp', depto: 'Atendimento', cor: '#22c55e',
     jobs: ['whatsapp:fila', 'whatsapp:conversas-paradas', 'whatsapp:lembrete-pendencia', 'whatsapp:midias-falhadas', 'whatsapp:verificar-conexao', 'whatsapp:reconectar', 'whatsapp:peso-midia', 'notificacoes:despachar'],
     descricao: 'Envia as mensagens da fila, cobra conversa esperando resposta e vigia a conexão do WhatsApp.' },
-  { id: 'assistente', nome: 'Aurora', cargo: 'Assistente de comando', depto: 'Gestão', cor: '#e11d48', jobs: ['assistente:lembretes'],
+  { id: 'assistente', resumo: 'Faz o que a Dra. e a Jessica pedem no WhatsApp', nome: 'Aurora', cargo: 'Assistente de comando', depto: 'Gestão', cor: '#e11d48', jobs: ['assistente:lembretes'],
     descricao: 'Faz o que a Dra. e a Jessica pedem pelo WhatsApp: lançar, consultar, lembrar.' },
-  { id: 'parcerias', nome: 'Pietra', cargo: 'Parcerias', depto: 'Financeiro', cor: '#9333ea', jobs: ['parceria:alerta-audiencias', 'parceria:resumo-semanal'],
+  { id: 'parcerias', resumo: 'Audiências e resumo semanal das parcerias', nome: 'Pietra', cargo: 'Parcerias', depto: 'Financeiro', cor: '#9333ea', jobs: ['parceria:alerta-audiencias', 'parceria:resumo-semanal'],
     descricao: 'Avisa audiências dos casos de parceria e manda o resumo semanal ao parceiro.' },
-  { id: 'relatorios', nome: 'Rita', cargo: 'Relatórios e notícias', depto: 'Gestão', cor: '#64748b',
+  { id: 'relatorios', resumo: 'Números do dia, relatório mensal e jornal jurídico', nome: 'Rita', cargo: 'Relatórios e notícias', depto: 'Gestão', cor: '#64748b',
     jobs: ['relatorio:mensal-envio', 'metricas:retrato-boot', 'metricas:retrato-diario', 'briefing:jornal-juridico'],
     descricao: 'Tira o retrato diário dos números, envia o relatório mensal e o jornal jurídico.' },
-  { id: 'guardiao', nome: 'Bento', cargo: 'Guardião (backup)', depto: 'Qualidade', cor: '#475569',
+  { id: 'guardiao', resumo: 'Backup 3x ao dia e prova de restauração', nome: 'Bento', cargo: 'Guardião (backup)', depto: 'Qualidade', cor: '#475569',
     jobs: ['backup:diario', 'backup:aviso-diario', 'backup:diario:aviso-destino-parcial', 'backup:prova-de-restauracao', 'backup:recuperacao', 'manutencao:job-runs-antigos', 'manutencao:monitoring-logs-antigos', 'lgpd:expurgo-mensal'],
     descricao: 'Cópia de segurança 3 vezes ao dia, prova de restauração e limpeza de dados antigos (LGPD).' },
-  { id: 'pesquisador', nome: 'Júlia', cargo: 'Pesquisa de jurisprudência', depto: 'Produção', cor: '#0d9488', jobs: [], emConstrucao: true,
+  { id: 'pesquisador', resumo: 'Jurisprudência só de fonte oficial (em construção)', nome: 'Júlia', cargo: 'Pesquisa de jurisprudência', depto: 'Produção', cor: '#0d9488', jobs: [], emConstrucao: true,
     descricao: 'Vai buscar precedentes só em fonte oficial (Pangea/CNJ, STJ, TST, TRT17, TJES), com número, órgão, data, link e trecho.' },
-  { id: 'verificador', nome: 'Vera', cargo: 'Verificadora de citações', depto: 'Qualidade', cor: '#be123c', jobs: [], emConstrucao: true,
+  { id: 'verificador', resumo: 'Confere cada citação antes da Dra. (em construção)', nome: 'Vera', cargo: 'Verificadora de citações', depto: 'Qualidade', cor: '#be123c', jobs: [], emConstrucao: true,
     descricao: 'Vai conferir, antes de a peça chegar à Dra., se cada julgado e lei citados existem e dizem o que a peça afirma.' },
-  { id: 'testador', nome: 'Tomás', cargo: 'Testador dos agentes', depto: 'Qualidade', cor: '#57534e', jobs: [], emConstrucao: true,
+  { id: 'testador', resumo: 'Testa os agentes com casos reais (em construção)', nome: 'Tomás', cargo: 'Testador dos agentes', depto: 'Qualidade', cor: '#57534e', jobs: [], emConstrucao: true,
     descricao: 'Vai rodar casos reais anonimizados a cada mudança e impedir que um agente que piorou entre no ar.' },
 ];
 
@@ -132,11 +134,17 @@ export function statusDoAgente(
   return { status, ultima, execucoes24h };
 }
 
+export interface MetricaAgente { n: number; rotulo: string }
+
 export interface AgenteNaSala extends SituacaoAgente {
-  id: string; nome: string; cargo: string; depto: string; cor: string; descricao: string; emConstrucao: boolean;
+  id: string; nome: string; cargo: string; depto: string; cor: string; resumo: string; descricao: string; emConstrucao: boolean;
+  metricas: MetricaAgente[];
 }
 
-export function montarEscritorio(runs: RunJob[], acoes: AcaoAgente[], agora: Date, extras: { layaOnline: boolean }): AgenteNaSala[] {
+export function montarEscritorio(
+  runs: RunJob[], acoes: AcaoAgente[], agora: Date,
+  extras: { layaOnline: boolean; metricas?: Record<string, MetricaAgente[]> },
+): AgenteNaSala[] {
   return AGENTES.map((a) => {
     let s = statusDoAgente(a, runs, acoes, agora);
     if (a.id === 'laya' && !extras.layaOnline) {
@@ -144,6 +152,9 @@ export function montarEscritorio(runs: RunJob[], acoes: AcaoAgente[], agora: Dat
     } else if (a.id === 'laya' && s.status === 'desligado') {
       s = { ...s, status: 'parado', ultima: s.ultima || { texto: 'Pronta, esperando o próximo possível cliente', em: null } };
     }
-    return { id: a.id, nome: a.nome, cargo: a.cargo, depto: a.depto, cor: a.cor, descricao: a.descricao, emConstrucao: !!a.emConstrucao, ...s };
+    return {
+      id: a.id, nome: a.nome, cargo: a.cargo, depto: a.depto, cor: a.cor, resumo: a.resumo, descricao: a.descricao,
+      emConstrucao: !!a.emConstrucao, metricas: extras.metricas?.[a.id] || [], ...s,
+    };
   });
 }

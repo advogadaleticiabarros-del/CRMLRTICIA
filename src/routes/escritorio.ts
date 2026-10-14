@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
-import { AGENTES, montarEscritorio, textoDaRotina, type AcaoAgente, type RunJob } from '../services/escritorioVirtual';
+import { AGENTES, montarEscritorio, textoDaRotina, type AcaoAgente, type MetricaAgente, type RunJob } from '../services/escritorioVirtual';
 import { serieDiaria, resumoUsoIa } from '../services/painelIaRegras';
 
 /**
@@ -43,13 +43,79 @@ async function acoesDesde(horas: number): Promise<AcaoAgente[]> {
   return [...proprias, ...estagiario];
 }
 
+// "Hoje" no horário de Brasília (o banco grava em UTC), como em routes/hoje.ts.
+const local = (col: string) => `DATE(CONVERT_TZ(${col},'+00:00','-03:00'))`;
+const HOJE = "DATE(CONVERT_TZ(NOW(),'+00:00','-03:00'))";
+
+/** Números de cada agente para o cartão abaixo da sala. Cada consulta é isolada. */
+async function metricasDosAgentes(): Promise<Record<string, MetricaAgente[]>> {
+  const n = (sql: string, params: any[] = []) => safe(async () => {
+    const [[r]] = await db.query(sql, params) as any;
+    return Number(r?.n || 0);
+  }, 0);
+  const execHoje = (jobs: string[]) => n(
+    `SELECT COUNT(*) AS n FROM job_runs WHERE status = 'ok' AND job IN (${jobs.map(() => '?').join(',')}) AND ${local('ran_at')} = ${HOJE}`, jobs);
+  const acoesHoje = (agente: string) => n(`SELECT COUNT(*) AS n FROM agente_acoes WHERE agente = ? AND ${local('created_at')} = ${HOJE}`, [agente]);
+  const { getBriefingExtras } = await import('../services/briefingExtras');
+  const extras: any = await safe(() => getBriefingExtras(), null);
+  const jobsDe = (id: string) => AGENTES.find((a) => a.id === id)?.jobs || [];
+  const m = (...pares: Array<[number, string]>) => pares.map(([valor, rotulo]) => ({ n: valor, rotulo }));
+
+  return {
+    laya: m(
+      [await n(`SELECT COALESCE(SUM(chamadas),0) AS n FROM ia_uso_diario WHERE provedor = 'laya' AND dia = ${HOJE}`), 'consultas hoje'],
+      [await acoesHoje('laya'), 'decidiu sozinha hoje'],
+      [await n(`SELECT COALESCE(SUM(chamadas),0) AS n FROM ia_uso_diario WHERE provedor = 'laya'`), 'consultas no total']),
+    secretaria: m(
+      [await acoesHoje('secretaria'), 'leituras entregues hoje'],
+      [await execHoje(jobsDe('secretaria')), 'resumos enviados hoje']),
+    leitor: m(
+      [await n(`SELECT COUNT(*) AS n FROM decisao_leituras WHERE ${local('created_at')} = ${HOJE}`), 'decisões lidas hoje'],
+      [await n('SELECT COUNT(*) AS n FROM decisao_leituras'), 'lidas no total']),
+    djen: m(
+      [await n(`SELECT COUNT(*) AS n FROM process_movements WHERE source = 'djen_oab' AND ${local('created_at')} = ${HOJE}`), 'publicações novas hoje'],
+      [await execHoje(jobsDe('djen')), 'varreduras hoje']),
+    tribunais: m(
+      [await n(`SELECT COUNT(*) AS n FROM process_movements WHERE source <> 'djen_oab' AND ${local('created_at')} = ${HOJE}`), 'movimentações novas hoje'],
+      [await n("SELECT COUNT(*) AS n FROM legal_processes WHERE status = 'ativo' AND monitoring_enabled = 1"), 'processos vigiados']),
+    email: m([await execHoje(jobsDe('email')), 'leituras do e-mail hoje']),
+    carteira: m(
+      [await n(`SELECT COUNT(*) AS n FROM vigia_alertas WHERE ${local('created_at')} = ${HOJE}`), 'avisos hoje'],
+      [await n('SELECT COUNT(*) AS n FROM vigia_alertas WHERE created_at >= NOW() - INTERVAL 30 DAY'), 'avisos em 30 dias']),
+    prazos: m(
+      [await n("SELECT COUNT(*) AS n FROM detected_deadlines WHERE status = 'a_confirmar'"), 'prazos a confirmar'],
+      [await n("SELECT COUNT(*) AS n FROM deadlines WHERE status = 'pendente' AND deadline_date BETWEEN NOW() AND NOW() + INTERVAL 7 DAY"), 'vencem em 7 dias']),
+    estagiario: m(
+      [await n(`SELECT COUNT(*) AS n FROM automation_runs WHERE rule_key = 'estagiario_intimacao' AND status = 'ok' AND ${local('created_at')} = ${HOJE}`), 'minutas hoje'],
+      [await n("SELECT COUNT(*) AS n FROM automation_runs WHERE rule_key = 'estagiario_intimacao' AND status = 'ok' AND created_at >= NOW() - INTERVAL 30 DAY"), 'minutas em 30 dias']),
+    agenda: m(
+      [await n(`SELECT COUNT(*) AS n FROM calendar_events WHERE sync_status <> 'cancelado' AND ${local('start_datetime')} = ${HOJE}`), 'compromissos hoje'],
+      [await n("SELECT COUNT(*) AS n FROM calendar_events WHERE event_type = 'audiencia' AND sync_status <> 'cancelado' AND start_datetime BETWEEN NOW() AND NOW() + INTERVAL 7 DAY"), 'audiências em 7 dias']),
+    financeiro: m(
+      [Number(extras?.parcelasAtrasadas?.qtd || 0), 'parcelas atrasadas'],
+      [Number(extras?.repassesCliente?.qtd || 0), 'repasses a fazer']),
+    comercial: m(
+      [await n("SELECT COUNT(*) AS n FROM propostas WHERE status IN ('enviada','em_negociacao')"), 'propostas em aberto'],
+      [await n("SELECT COUNT(*) AS n FROM propostas WHERE status = 'aceita' AND updated_at >= NOW() - INTERVAL 30 DAY"), 'aceitas em 30 dias']),
+    whatsapp: m(
+      [await n(`SELECT COUNT(*) AS n FROM whatsapp_messages WHERE ${local('created_at')} = ${HOJE}`), 'mensagens hoje'],
+      [Array.isArray(extras?.whatsappAguardando) ? extras.whatsappAguardando.length : 0, 'esperando resposta']),
+    assistente: m([await execHoje(jobsDe('assistente')), 'lembretes hoje']),
+    parcerias: m([await execHoje(jobsDe('parcerias')), 'avisos hoje']),
+    relatorios: m([await execHoje(jobsDe('relatorios')), 'rotinas hoje']),
+    guardiao: m(
+      [await n(`SELECT COUNT(*) AS n FROM job_runs WHERE job = 'backup:diario' AND status = 'ok' AND ${local('ran_at')} = ${HOJE}`), 'cópias hoje'],
+      [await n("SELECT COUNT(*) AS n FROM job_runs WHERE job = 'backup:prova-de-restauracao' AND status = 'ok' AND ran_at >= NOW() - INTERVAL 30 DAY"), 'provas de restauração em 30 dias']),
+  };
+}
+
 router.get('/', async (_req: Request, res: Response) => {
   const runs = await safe(async () => {
     const [r] = await db.query('SELECT job, status, message, ran_at FROM job_runs WHERE ran_at >= NOW() - INTERVAL 26 HOUR ORDER BY ran_at DESC LIMIT 5000') as any;
     return r as RunJob[];
   }, []);
   const acoes = await acoesDesde(26);
-  const agentes = montarEscritorio(runs, acoes, new Date(), { layaOnline: await layaOnline() });
+  const agentes = montarEscritorio(runs, acoes, new Date(), { layaOnline: await layaOnline(), metricas: await metricasDosAgentes() });
   res.json({ agentes, atualizadoEm: new Date().toISOString() });
 });
 

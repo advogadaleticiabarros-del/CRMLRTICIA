@@ -65,6 +65,16 @@ Menu **Escritório virtual**: uma sala em 3D (isométrica) com os **20 agentes**
 - **Reunir a equipe** leva todos para a sala de reunião;
 - o relógio marca a hora real de Brasília e a janela muda de dia para noite.
 
+**Visual:** todos de terno (desde 14/10/2026, pedido da Jessica). A cor de cada agente aparece na gravata dos homens, no lenço das mulheres e no crachá.
+
+**Quadro de cartões** (abaixo da sala), um por agente:
+- status: Trabalhando agora, Parado, Desligado ou Com erro;
+- o que ele faz, em uma linha;
+- os números reais do dia, por exemplo: decisões lidas hoje, prazos a confirmar, publicações novas no DJEN, minutas do estagiário, parcelas atrasadas, cópias de segurança;
+- a última ação, com "há X min".
+
+Clicar no cartão abre o histórico do agente. Os números vêm de `metricasDosAgentes` em `src/routes/escritorio.ts`.
+
 **Métricas da IA** (botão azul), por período de 7, 30 ou 90 dias:
 - possíveis clientes e quantos a IA qualificou;
 - decisões lidas;
@@ -147,6 +157,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 14/10/2026 | Claude | Agentes de terno e quadro de cartões (status, o que faz, números do dia, última ação) abaixo da sala |
 | 14/10/2026 | Claude | Escritório virtual (sala com 20 agentes ao vivo) e Métricas da IA |
 | 02/10/2026 | Claude | Menu sem títulos de seção (lista única) |
 | 02/10/2026 | Claude | Dashboard como primeira tela; largura total em todas as telas |

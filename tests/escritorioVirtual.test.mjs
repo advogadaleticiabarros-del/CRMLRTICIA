@@ -14,6 +14,20 @@ test('AGENTES: ids únicos, toda rotina pertence a um agente só, e Laya, Secret
   for (const id of ['laya', 'secretaria', 'leitor']) assert.ok(ids.includes(id), id);
 });
 
+test('AGENTES: todo agente tem um resumo curto do que faz (linha do cartão)', () => {
+  for (const a of AGENTES) {
+    assert.ok(a.resumo && a.resumo.length <= 70, `${a.id}: ${a.resumo}`);
+  }
+});
+
+test('montarEscritorio: leva o resumo e as métricas de cada agente para o cartão', () => {
+  const lista = montarEscritorio([], [], AGORA, { layaOnline: true, metricas: { leitor: [{ n: 2, rotulo: 'decisões lidas hoje' }] } });
+  const leitor = lista.find((a) => a.id === 'leitor');
+  assert.ok(leitor.resumo);
+  assert.deepStrictEqual(leitor.metricas, [{ n: 2, rotulo: 'decisões lidas hoje' }]);
+  assert.deepStrictEqual(lista.find((a) => a.id === 'djen').metricas, []);
+});
+
 test('statusDoAgente: rodou há 5 min com sucesso → trabalhando, com a última ação', () => {
   const s = statusDoAgente(
     { id: 'x', jobs: ['monitoramento:processos'] },

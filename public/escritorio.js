@@ -15,7 +15,8 @@
   const VELOCIDADE = 1.5;
   const AMARELO = '#f6c90e', AMARELO_SOMBRA = '#d9ac00';
   const COR_STATUS = { trabalhando: '#22c55e', parado: '#eab308', desligado: '#94a3b8', erro: '#ef4444' };
-  const ROTULO_STATUS = { trabalhando: 'Trabalhando', parado: 'Disponível', desligado: 'Desligado', erro: 'Com erro' };
+  const ROTULO_STATUS = { trabalhando: 'Trabalhando agora', parado: 'Parado', desligado: 'Desligado', erro: 'Com erro' };
+  const COR_TEXTO_STATUS = { trabalhando: '#16a34a', parado: '#ca8a04', desligado: '#64748b', erro: '#dc2626' };
 
   const iso = (x, y) => ({ x: (x - y) * LARG, y: (x + y) * ALT });
   const pts = (...p) => p.map((q) => `${q.x},${q.y}`).join(' ');
@@ -75,28 +76,30 @@
       + `<polygon points="${pts(up(a, z + h), up(b, z + h), up(c, z + h), up(e, z + h))}" fill="${topo}"/></g>`;
   }
 
+  // Todos de terno (escritório de advocacia): a cor do agente vai na gravata
+  // (eles) ou no lenço/broche (elas) e no crachá.
   const VISUAL = {
-    laya:        { cabelo: 'ondulado', corCabelo: '#6b21a8', feminina: true, estampa: 'circuito', calca: '#0f172a' },
-    secretaria:  { cabelo: 'coque', corCabelo: '#3f2a1d', feminina: true, estampa: 'agenda', extra: 'oculos', calca: '#831843' },
-    leitor:      { cabelo: 'curto', corCabelo: '#1c1917', feminina: false, estampa: 'lupa', extra: 'oculos', calca: '#0c4a6e' },
-    djen:        { cabelo: 'curto', corCabelo: '#78350f', feminina: false, estampa: 'jornal', calca: '#1e3a8a', pele: '#c68642', peleSombra: '#a0692f' },
-    tribunais:   { cabelo: 'chanel', corCabelo: '#9ca3af', feminina: true, estampa: 'balanca', extra: 'oculos', calca: '#1e293b' },
-    email:       { cabelo: 'bone', corCabelo: '#2b2b2b', feminina: false, estampa: 'envelope', calca: '#164e63' },
-    carteira:    { cabelo: 'curto', corCabelo: '#292524', feminina: false, estampa: 'lupa', calca: '#134e4a', pele: '#e0ac69', peleSombra: '#b8864b' },
-    prazos:      { cabelo: 'rabo', corCabelo: '#111827', feminina: true, estampa: 'relogio', extra: 'headset', calca: '#7f1d1d' },
-    estagiario:  { cabelo: 'cacheado', corCabelo: '#1c1410', feminina: false, estampa: 'livro', calca: '#1d4ed8', pele: '#8d5524', peleSombra: '#6b3f1b' },
-    agenda:      { cabelo: 'longo', corCabelo: '#b45309', feminina: true, estampa: 'agenda', calca: '#4c1d95' },
-    financeiro:  { cabelo: 'curto', corCabelo: '#3f2a1d', feminina: false, estampa: 'cifrao', extra: 'oculos', calca: '#14532d' },
-    comercial:   { cabelo: 'longo', corCabelo: '#1f1a17', feminina: true, estampa: 'gravata', calca: '#7c2d12' },
-    whatsapp:    { cabelo: 'curto', corCabelo: '#1c1917', feminina: false, estampa: 'balao', extra: 'headset', calca: '#166534' },
-    assistente:  { cabelo: 'blackpower', corCabelo: '#1c1410', feminina: true, estampa: 'coracao', extra: 'headset', calca: '#881337', pele: '#7a4a2a', peleSombra: '#5a3520' },
-    parcerias:   { cabelo: 'ondulado', corCabelo: '#7c2d12', feminina: true, estampa: 'aperto', calca: '#581c87' },
-    relatorios:  { cabelo: 'chanel', corCabelo: '#facc15', feminina: true, estampa: 'grafico', extra: 'oculos', calca: '#334155' },
-    guardiao:    { cabelo: 'moicano', corCabelo: '#ef4444', feminina: false, estampa: 'escudo', calca: '#1f2937' },
-    pesquisador: { cabelo: 'rabo', corCabelo: '#5b3a1a', feminina: true, estampa: 'livro', extra: 'oculos', calca: '#115e59' },
-    verificador: { cabelo: 'chanel', corCabelo: '#1f1a17', feminina: true, estampa: 'check', calca: '#881337', pele: '#8d5524', peleSombra: '#6b3f1b' },
-    testador:    { cabelo: 'curto', corCabelo: '#57534e', feminina: false, estampa: 'circuito', extra: 'headset', calca: '#292524' },
-    voce:        { cabelo: 'longo', corCabelo: '#5a3825', feminina: true, estampa: 'estrela', calca: '#1e293b' },
+    laya:        { cabelo: 'ondulado', corCabelo: '#6b21a8', feminina: true, terno: '#1e1b4b' },
+    secretaria:  { cabelo: 'coque', corCabelo: '#3f2a1d', feminina: true, extra: 'oculos', terno: '#831843' },
+    leitor:      { cabelo: 'curto', corCabelo: '#1c1917', feminina: false, extra: 'oculos', terno: '#1e293b' },
+    djen:        { cabelo: 'curto', corCabelo: '#78350f', feminina: false, terno: '#1e3a8a', pele: '#c68642', peleSombra: '#a0692f' },
+    tribunais:   { cabelo: 'chanel', corCabelo: '#9ca3af', feminina: true, extra: 'oculos', terno: '#334155' },
+    email:       { cabelo: 'curto', corCabelo: '#2b2b2b', feminina: false, terno: '#164e63' },
+    carteira:    { cabelo: 'curto', corCabelo: '#292524', feminina: false, terno: '#3f3f46', pele: '#e0ac69', peleSombra: '#b8864b' },
+    prazos:      { cabelo: 'rabo', corCabelo: '#111827', feminina: true, extra: 'headset', terno: '#111827' },
+    estagiario:  { cabelo: 'cacheado', corCabelo: '#1c1410', feminina: false, terno: '#475569', pele: '#8d5524', peleSombra: '#6b3f1b' },
+    agenda:      { cabelo: 'longo', corCabelo: '#b45309', feminina: true, terno: '#4c1d95' },
+    financeiro:  { cabelo: 'curto', corCabelo: '#3f2a1d', feminina: false, extra: 'oculos', terno: '#14532d' },
+    comercial:   { cabelo: 'longo', corCabelo: '#1f1a17', feminina: true, terno: '#7c2d12' },
+    whatsapp:    { cabelo: 'curto', corCabelo: '#1c1917', feminina: false, extra: 'headset', terno: '#1f2937' },
+    assistente:  { cabelo: 'blackpower', corCabelo: '#1c1410', feminina: true, extra: 'headset', terno: '#0f172a', pele: '#7a4a2a', peleSombra: '#5a3520' },
+    parcerias:   { cabelo: 'ondulado', corCabelo: '#7c2d12', feminina: true, terno: '#581c87' },
+    relatorios:  { cabelo: 'chanel', corCabelo: '#facc15', feminina: true, extra: 'oculos', terno: '#374151' },
+    guardiao:    { cabelo: 'curto', corCabelo: '#57534e', feminina: false, terno: '#18181b' },
+    pesquisador: { cabelo: 'rabo', corCabelo: '#5b3a1a', feminina: true, extra: 'oculos', terno: '#115e59' },
+    verificador: { cabelo: 'chanel', corCabelo: '#1f1a17', feminina: true, terno: '#881337', pele: '#8d5524', peleSombra: '#6b3f1b' },
+    testador:    { cabelo: 'curto', corCabelo: '#57534e', feminina: false, extra: 'headset', terno: '#292524' },
+    voce:        { cabelo: 'longo', corCabelo: '#5a3825', feminina: true, terno: '#1e293b' },
   };
 
   function cabelo(tipo, cor, corAgente) {
@@ -115,32 +118,10 @@
     }
   }
 
-  function estampa(tipo) {
-    switch (tipo) {
-      case 'gravata': return '<path d="M -2 -44 L 2 -44 L 3 -40 L 0 -26 L -3 -40 Z" fill="#dc2626"/>';
-      case 'coracao': return '<path d="M 0 -30 C -8 -36 -5 -42 0 -38 C 5 -42 8 -36 0 -30 Z" fill="#fff"/>';
-      case 'circuito': return '<g stroke="#fbcfe8" stroke-width="1.2" fill="none"><path d="M -8 -40 H -2 V -32 H 6"/><circle cx="6" cy="-32" r="1.5" fill="#fbcfe8"/></g>';
-      case 'agenda': return '<g><rect x="-6" y="-40" width="12" height="11" rx="1" fill="#fff"/><rect x="-6" y="-40" width="12" height="3" fill="#ef4444"/></g>';
-      case 'lupa': return '<g><circle cx="-2" cy="-36" r="6" fill="none" stroke="#fff" stroke-width="2.4"/><path d="M 2 -32 L 8 -26" stroke="#fff" stroke-width="3" stroke-linecap="round"/></g>';
-      case 'estrela': return '<path d="M 0 -40 L 2.4 -35 L 7.8 -34.4 L 3.8 -30.8 L 4.9 -25.5 L 0 -28.2 L -4.9 -25.5 L -3.8 -30.8 L -7.8 -34.4 L -2.4 -35 Z" fill="#fbbf24"/>';
-      case 'balanca': return '<g stroke="#fff" stroke-width="1.6" fill="none"><path d="M 0 -42 V -28 M -8 -38 H 8"/><path d="M -8 -38 L -11 -32 H -5 Z M 8 -38 L 5 -32 H 11 Z" fill="#fff"/></g>';
-      case 'jornal': return '<g><rect x="-7" y="-41" width="14" height="12" rx="1" fill="#fff"/><path d="M -5 -37 H 5 M -5 -34 H 5 M -5 -31 H 2" stroke="#94a3b8" stroke-width="1.2"/></g>';
-      case 'envelope': return '<g><rect x="-7" y="-40" width="14" height="10" rx="1" fill="#fff"/><path d="M -7 -40 L 0 -34 L 7 -40" stroke="#94a3b8" fill="none"/></g>';
-      case 'relogio': return '<g><circle cx="0" cy="-35" r="6" fill="#fff"/><path d="M 0 -35 V -39 M 0 -35 H 3" stroke="#111" stroke-width="1.3"/></g>';
-      case 'livro': return '<g><rect x="-6" y="-41" width="12" height="12" rx="1" fill="#fde68a"/><path d="M 0 -41 V -29" stroke="#92400e"/></g>';
-      case 'cifrao': return '<text x="0" y="-29" font-size="14" font-weight="900" fill="#fff" text-anchor="middle">$</text>';
-      case 'balao': return '<g><rect x="-7" y="-41" width="14" height="9" rx="4" fill="#fff"/><path d="M -3 -32 L -5 -28 L 1 -32 Z" fill="#fff"/></g>';
-      case 'aperto': return '<text x="0" y="-30" font-size="11" text-anchor="middle">🤝</text>';
-      case 'grafico': return '<g><rect x="-6" y="-34" width="3" height="5" fill="#fff"/><rect x="-1.5" y="-38" width="3" height="9" fill="#fff"/><rect x="3" y="-41" width="3" height="12" fill="#fff"/></g>';
-      case 'escudo': return '<path d="M 0 -42 L 7 -39 L 6 -32 Q 4 -28 0 -26 Q -4 -28 -6 -32 L -7 -39 Z" fill="#fff"/>';
-      case 'check': return '<path d="M -6 -35 L -2 -31 L 6 -40" stroke="#fff" stroke-width="2.6" fill="none" stroke-linecap="round"/>';
-      default: return '';
-    }
-  }
-
   /** Minifigura. Origem: sentado = altura do tampo; em pé = pés no chão. */
   function minifig(id, cor, pose, atraso) {
-    const v = VISUAL[id] || { corCabelo: '#333', feminina: true, estampa: '', calca: '#333' };
+    const v = VISUAL[id] || { corCabelo: '#333', feminina: true, terno: '#1e293b' };
+    const terno = v.terno || '#1e293b';
     const emPe = ['andando', 'cafe', 'lendo', 'pebolim', 'empe'].includes(pose);
     const d = `style="animation-delay:${atraso}s"`;
     const bracos = pose === 'digitando' || pose === 'pebolim' || pose === 'jogando' ? 'bracos-rapidos' : pose === 'andando' ? 'bracos-andando' : '';
@@ -149,16 +130,22 @@
     const xicara = pose === 'cafe' || pose === 'sentado';
     return `<g class="fig pose-${pose}" ${d}>`
       + (emPe ? `<g><ellipse cx="0" cy="0" rx="15" ry="5" fill="rgba(15,23,42,.18)"/>
-          <g class="perna perna-e" ${d}><rect x="-12" y="-24" width="11" height="24" rx="2" fill="${v.calca}"/><rect x="-12" y="-4" width="11" height="4" rx="1" fill="rgba(0,0,0,.3)"/></g>
-          <g class="perna perna-d" ${d}><rect x="1" y="-24" width="11" height="24" rx="2" fill="${v.calca}"/><rect x="1" y="-4" width="11" height="4" rx="1" fill="rgba(0,0,0,.3)"/></g>
-          <rect x="-14" y="-28" width="28" height="5" rx="1.5" fill="${v.calca}"/></g>` : '')
+          <g class="perna perna-e" ${d}><rect x="-12" y="-24" width="11" height="24" rx="2" fill="${terno}"/><rect x="-12" y="-4" width="11" height="4" rx="1" fill="#111"/></g>
+          <g class="perna perna-d" ${d}><rect x="1" y="-24" width="11" height="24" rx="2" fill="${terno}"/><rect x="1" y="-4" width="11" height="4" rx="1" fill="#111"/></g>
+          <rect x="-14" y="-28" width="28" height="5" rx="1.5" fill="${terno}"/></g>` : '')
       + `<g${emPe ? ' transform="translate(0 -14)"' : ''}>
-        <g transform="translate(-13 -42)"><g class="braco braco-e ${bracos}" ${d}><path d="M 0 0 Q -7 6 -6 18 L 0 20 Q -1 10 4 4 Z" fill="${cor}"/><circle cx="-3" cy="22" r="4.2" fill="${pele}"/><circle cx="-3" cy="24" r="1.8" fill="${peleSombra}"/></g></g>
-        <g transform="translate(13 -42)"><g class="braco braco-d ${bracos} ${xicara ? 'gole' : ''}" ${d}><path d="M 0 0 Q 7 6 6 18 L 0 20 Q 1 10 -4 4 Z" fill="${cor}"/><circle cx="3" cy="22" r="4.2" fill="${pele}"/><circle cx="3" cy="24" r="1.8" fill="${peleSombra}"/>
+        <g transform="translate(-13 -42)"><g class="braco braco-e ${bracos}" ${d}><path d="M 0 0 Q -7 6 -6 18 L 0 20 Q -1 10 4 4 Z" fill="${terno}"/><path d="M -6.4 16.5 L 0.2 18.5 L 0 20 L -6 18 Z" fill="#fff"/><circle cx="-3" cy="22" r="4.2" fill="${pele}"/><circle cx="-3" cy="24" r="1.8" fill="${peleSombra}"/></g></g>
+        <g transform="translate(13 -42)"><g class="braco braco-d ${bracos} ${xicara ? 'gole' : ''}" ${d}><path d="M 0 0 Q 7 6 6 18 L 0 20 Q 1 10 -4 4 Z" fill="${terno}"/><path d="M 6.4 16.5 L -0.2 18.5 L 0 20 L 6 18 Z" fill="#fff"/><circle cx="3" cy="22" r="4.2" fill="${pele}"/><circle cx="3" cy="24" r="1.8" fill="${peleSombra}"/>
           ${xicara ? '<g><rect x="-1" y="14" width="8" height="8" rx="1.5" fill="#fff" stroke="#cbd5e1"/><path d="M 7 16 q 3 2 0 4" stroke="#cbd5e1" fill="none"/></g>' : ''}</g></g>
-        <path d="M -12 -46 L 12 -46 L 16 -14 L -16 -14 Z" fill="${cor}"/>
-        <path d="M -12 -46 L 12 -46 L 12.6 -42 L -12.6 -42 Z" fill="rgba(255,255,255,.18)"/>
-        ${estampa(v.estampa)}
+        <path d="M -12 -46 L 12 -46 L 16 -14 L -16 -14 Z" fill="${terno}"/>
+        <path d="M -6.5 -46 L 6.5 -46 L 0 -31 Z" fill="#fff"/>
+        ${v.feminina
+          ? `<path d="M -5 -46 Q 0 -40 5 -46 L 3 -42 Q 0 -38 -3 -42 Z" fill="${cor}"/><circle cx="7" cy="-37" r="2" fill="${cor}"/>`
+          : `<path d="M -1.8 -45 L 1.8 -45 L 2.8 -40 L 0 -31 L -2.8 -40 Z" fill="${cor}"/><path d="M -1.8 -45 L 1.8 -45 L 1.2 -43 L -1.2 -43 Z" fill="rgba(0,0,0,.25)"/>`}
+        <path d="M -6.5 -46 L -1 -33 L -8 -38 L -10 -46 Z" fill="rgba(0,0,0,.28)"/>
+        <path d="M 6.5 -46 L 1 -33 L 8 -38 L 10 -46 Z" fill="rgba(0,0,0,.28)"/>
+        <circle cx="0" cy="-26" r="1.1" fill="rgba(255,255,255,.55)"/><circle cx="0" cy="-20" r="1.1" fill="rgba(255,255,255,.55)"/>
+        <path d="M -12 -46 L 12 -46 L 12.6 -42 L -12.6 -42 Z" fill="rgba(255,255,255,.12)"/>
         ${pose === 'lendo' ? `<g><path d="M -14 -26 L 0 -22 L 14 -26 L 14 -12 L 0 -8 L -14 -12 Z" fill="#fff" stroke="#94a3b8"/><path d="M 0 -22 V -8" stroke="#94a3b8"/><path d="M -14 -26 L 0 -22 L 14 -26" stroke="${cor}" stroke-width="2" fill="none"/></g>` : ''}
         ${pose === 'jogando' ? '<g><rect x="-10" y="-24" width="20" height="9" rx="4" fill="#111827"/><circle cx="-5" cy="-19.5" r="1.5" fill="#22c55e"/><circle cx="5" cy="-19.5" r="1.5" fill="#ef4444"/></g>' : ''}
         <rect x="-5" y="-49" width="10" height="4" fill="${peleSombra}"/>
@@ -299,6 +286,18 @@
     .pi-tabela td{border-bottom:1px solid var(--border);padding:5px 4px}
     .pi-tabela td:last-child{text-align:right;font-weight:700}
     @media (max-width:600px){.pi-barra{grid-template-columns:96px 1fr 34px}}
+    .ev-cartoes{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;margin-top:14px}
+    .ev-cartao{border:1px solid var(--border);border-radius:12px;padding:12px;background:var(--surface);cursor:pointer;display:flex;flex-direction:column;gap:6px;min-height:150px;text-align:left;color:var(--text);font:inherit}
+    .ev-cartao:hover{border-color:var(--gold)}
+    .ev-cartao:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+    .ev-cartao header{display:flex;align-items:center;gap:7px}
+    .ev-cartao header b{font-size:14px;flex:1}
+    .ev-cartao header .bola{width:9px;height:9px;border-radius:50%;flex:none}
+    .ev-cartao header small{font-size:11px;font-weight:700;white-space:nowrap}
+    .ev-cartao .faz{font-size:12px;color:#5b7bb4;line-height:1.35}
+    .ev-cartao .nums{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--text-muted);margin-top:2px}
+    .ev-cartao .nums b{color:var(--text);font-size:14px;margin-right:3px}
+    .ev-cartao .ult{margin-top:auto;font-size:11.5px;color:#5b7bb4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   `;
   const CSS_SALA = `
     .bracos-rapidos.braco-e{animation:ev-digita .38s ease-in-out infinite alternate}
@@ -604,6 +603,13 @@
   }
 
   // ── Painel de um agente ───────────────────────────────────────────────────
+  const haQuanto = (iso) => {
+    const min = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+    if (min < 1) return 'agora';
+    if (min < 60) return `há ${min} min`;
+    const h = Math.round(min / 60);
+    return h < 24 ? `há ${h} h` : `há ${Math.round(h / 24)} d`;
+  };
   const quando = (iso) => iso ? new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
   async function abrirAgente(id) {
     const corpo = el('<div><div class="spinner"></div></div>');
@@ -695,7 +701,8 @@
           <p class="sub">Ande com as setas do teclado ou clicando no chão. Chegue perto de um agente para ver o trabalho dele ou chamá-lo ao gabinete.</p></div></div>
         <div class="ev-barra" id="ev-barra"></div>
         <div class="ev-wrap"><div class="ev-zoom"><button type="button" id="ev-menos" aria-label="Diminuir">−</button><span id="ev-zv">100%</span><button type="button" id="ev-mais" aria-label="Aumentar">+</button></div><div id="ev-sala"></div></div>
-        <div class="ev-legenda">${Object.entries(ROTULO_STATUS).map(([s, t]) => `<span><i style="background:${COR_STATUS[s]}"></i>${t}</span>`).join('')}</div>`;
+        <div class="ev-legenda">${Object.entries(ROTULO_STATUS).map(([s, t]) => `<span><i style="background:${COR_STATUS[s]}"></i>${t}</span>`).join('')}</div>
+        <div class="ev-cartoes" id="ev-cartoes"></div>`;
       let agentes = r.agentes;
       const sala = montarSala($('#ev-sala'), agentes, abrirAgente);
       let reunidos = false;
@@ -713,7 +720,20 @@
         $('#ev-metricas').onclick = () => abrirPainelIa();
         $('#ev-reunir').onclick = () => { reunidos = !reunidos; sala.reunir(reunidos); desenharBarra(quandoAtualizou); };
       };
+      const desenharCartoes = () => {
+        const caixa = $('#ev-cartoes');
+        caixa.innerHTML = agentes.map((a) => `
+          <button type="button" class="ev-cartao" data-agente="${a.id}" aria-label="${esc(a.nome)}: ${ROTULO_STATUS[a.status]}">
+            <header><span class="bola" style="background:${a.cor}"></span><b>${esc(a.nome)}</b>
+              <small style="color:${COR_TEXTO_STATUS[a.status]}">● ${ROTULO_STATUS[a.status]}</small></header>
+            <div class="faz">${esc(a.cargo)} · ${esc(a.resumo || '')}</div>
+            ${(a.metricas || []).length ? `<div class="nums">${a.metricas.map((m) => `<span><b>${m.n}</b>${esc(m.rotulo)}</span>`).join('')}</div>` : ''}
+            <div class="ult" title="${esc(a.ultima?.texto || '')}">${a.ultima ? `${esc(a.ultima.texto)}${a.ultima.em ? ` · ${haQuanto(a.ultima.em)}` : ''}` : 'Aguardando a primeira tarefa'}</div>
+          </button>`).join('');
+        caixa.querySelectorAll('[data-agente]').forEach((b) => b.onclick = () => abrirAgente(b.dataset.agente));
+      };
       desenharBarra('agora');
+      desenharCartoes();
       let zoom = 1;
       const svg = $('#ev-sala svg');
       const aplicarZoom = () => { svg.style.width = `${zoom * 100}%`; $('#ev-zv').textContent = `${Math.round(zoom * 100)}%`; };
@@ -722,7 +742,7 @@
       // Atualiza o status a cada 30 s enquanto a tela estiver aberta.
       const timer = setInterval(async () => {
         if (!document.body.contains(svg)) { clearInterval(timer); return; }
-        try { const n = await api('/api/escritorio'); agentes = n.agentes; sala.atualizar(agentes); desenharBarra('agora'); } catch { /* tenta de novo na próxima */ }
+        try { const n = await api('/api/escritorio'); agentes = n.agentes; sala.atualizar(agentes); desenharBarra('agora'); desenharCartoes(); } catch { /* tenta de novo na próxima */ }
       }, 30000);
     },
   });

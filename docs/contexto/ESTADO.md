@@ -5,6 +5,7 @@
 **Última atualização:** 14/10/2026. Último commit: Escritório virtual (sala + Métricas da IA) e Laya.
 
 ## Últimas entregas (mais recentes primeiro)
+- **14/10 (noite):** agentes de terno e quadro de cartões abaixo da sala, no formato do print do CRM comercial. A Jessica pediu para "mudar os nomes"; aguardando ela dizer quais. O script `scripts/instalar-laya-vps.sh` ficou fora do commit: falta corrigir o passo 6 (o reinício deve ser pelo PM2 do crmapp), e a edição foi bloqueada pelo modo automático.
 - **14/10 (tarde):**
   - **Escritório virtual** (menu): sala isométrica com 20 agentes ao vivo, no estilo do CRM comercial. O status vem de `job_runs`, `agente_acoes` e `automation_runs`.
   - **Métricas da IA** no formato dos prints da Jessica (`/api/escritorio/painel-ia`).
