@@ -65,7 +65,7 @@ Menu **Escritório virtual**: uma sala em 3D (isométrica) com os **20 agentes**
 - **Reunir a equipe** leva todos para a sala de reunião;
 - o relógio marca a hora real de Brasília e a janela muda de dia para noite.
 
-**Visual:** todos de terno (desde 14/10/2026, pedido da Jessica). A cor de cada agente aparece na gravata dos homens, no lenço das mulheres e no crachá.
+**Nomes:** Dra. ou Dr. + nome (Dra. Clara, Dr. Lucas, Dr. Davi, Dra. Paula…), escolha da Jessica em 14/10/2026. A Laya (a IA) e o Enzo (estagiário) ficam sem título. **Visual:** todos de terno (desde 14/10/2026, pedido da Jessica). A cor de cada agente aparece na gravata dos homens, no lenço das mulheres e no crachá.
 
 **Quadro de cartões** (abaixo da sala), um por agente:
 - status: Trabalhando agora, Parado, Desligado ou Com erro;
@@ -157,6 +157,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 14/10/2026 | Claude | Nomes com Dr./Dra. (menos Laya e o estagiário) |
 | 14/10/2026 | Claude | Agentes de terno e quadro de cartões (status, o que faz, números do dia, última ação) abaixo da sala |
 | 14/10/2026 | Claude | Escritório virtual (sala com 20 agentes ao vivo) e Métricas da IA |
 | 02/10/2026 | Claude | Menu sem títulos de seção (lista única) |

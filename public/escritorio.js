@@ -373,10 +373,11 @@
 
   function htmlCracha(a) {
     const balao = a.status === 'trabalhando' && a.ultima ? quebrar(a.ultima.texto) : null;
-    return `<rect x="-52" y="-12" width="104" height="22" rx="11" fill="#0f172a" opacity="0.92"/>
-      <circle cx="-40" cy="-1" r="6.5" fill="${a.cor}"/><text x="-40" y="2" font-size="7.5" font-weight="800" fill="#fff" text-anchor="middle">${esc(a.nome[0])}</text>
+    const inicial = a.nome.replace(/^Dra?\.\s*/, '')[0] || '?';
+    return `<rect x="-60" y="-12" width="120" height="22" rx="11" fill="#0f172a" opacity="0.92"/>
+      <circle cx="-48" cy="-1" r="6.5" fill="${a.cor}"/><text x="-48" y="2" font-size="7.5" font-weight="800" fill="#fff" text-anchor="middle">${esc(inicial)}</text>
       <text x="3" y="3" fill="#f8fafc" font-size="11" font-weight="700" text-anchor="middle">${esc(a.nome)}</text>
-      <circle class="luz-${a.status}" cx="42" cy="-1" r="4.2" fill="${COR_STATUS[a.status]}"/>
+      <circle class="luz-${a.status}" cx="50" cy="-1" r="4.2" fill="${COR_STATUS[a.status]}"/>
       ${a.id === 'laya' ? `<g transform="translate(0 -34)"><g class="diamante"><polygon points="-11,-4 -6,-11 6,-11 11,-4 0,11" fill="#a5f3fc" stroke="#0891b2" stroke-width="1.2" stroke-linejoin="round"/><polygon points="-11,-4 11,-4 0,11" fill="#67e8f9"/><polygon points="-6,-11 -2,-4 2,-4 6,-11" fill="#ecfeff"/></g></g>` : ''}
       ${balao ? `<g class="balao"><rect x="-92" y="${-22 - balao.length * 14 - (a.id === 'laya' ? 26 : 0)}" width="184" height="${balao.length * 14 + 10}" rx="10" fill="#fff" stroke="${a.cor}" stroke-width="1.5"/>${balao.map((l, k) => `<text x="0" y="${-22 - balao.length * 14 - (a.id === 'laya' ? 26 : 0) + 16 + k * 14}" font-size="11" fill="#0f172a" text-anchor="middle">${esc(l)}</text>`).join('')}</g>` : ''}`;
   }
