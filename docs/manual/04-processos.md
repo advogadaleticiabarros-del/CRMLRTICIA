@@ -65,6 +65,29 @@ Motivo: em 02/10/2026 havia 61 prazos a confirmar, o mais antigo de 17/08. Regra
 
 Sentença publicada ou acórdão publicado avisam o escritório por WhatsApp **imediatamente**, além de qualquer prazo. Cada processo só avisa **uma vez** por tipo de marco — mesmo que o mesmo evento apareça de novo por outra fonte ou seja republicado pelo tribunal. Quando o processo não tem cliente vinculado, a mensagem tenta mostrar as partes identificadas na publicação em vez de só o número.
 
+## Leitor de sentença e Secretária particular (desde 14/10/2026)
+
+Quando chega a **íntegra** de uma sentença ou acórdão (DJEN), o **Leitor** lê a decisão inteira. A **Secretária particular** manda à Dra. e à Jessica, no WhatsApp, uma mensagem com:
+
+- **resultado para o cliente:** ✅ favorável, 🟡 em parte, ❌ desfavorável ou ⚪ sem cliente vinculado;
+- resumo em linguagem simples;
+- o que **ganhamos** e o que **perdemos**;
+- valor da condenação, sucumbência e justiça gratuita;
+- **pontos de atenção**, como pedido não analisado, omissão (cabe embargos) ou erro material;
+- **prazos de recurso com data:**
+  - embargos: 5 dias úteis;
+  - recurso principal: RO ou RR 8 dias na JT; recurso inominado 10 dias no JEF/JEC; apelação ou REsp/RE 15 dias no rito comum; PU/TNU 15 dias contra acórdão de Turma Recursal do JEF;
+- sugestão de próximo passo.
+
+**Como funciona por dentro:**
+- **O recurso e o prazo vêm de uma tabela fixa, não da IA.** O vencimento é calculado com `contarPrazo`, em dias úteis com feriados e a suspensão de 20/12 a 20/01. É contado a partir da data da publicação, por isso é uma estimativa conservadora. **O prazo oficial continua sendo o "prazo a confirmar"** da tela Prazos.
+- **Andamento curto** (DataJud traz só "Julgado procedente"): segue o aviso curto de antes, "⚖️ Sentença publicada". Quando a íntegra chegar pelo DJEN, o Leitor manda a leitura completa.
+- **IA fora do formato:** nada é enviado como leitura, e vale o aviso curto. Ninguém recebe um resumo inventado.
+- **Decisão republicada** com o mesmo texto: não manda de novo. A trava é a tabela `decisao_leituras`, que guarda cada leitura (migration 155).
+- **IA usada:** OpenAI (Luna), com Groq/Gemini de reserva.
+
+Regras em `src/services/leitorDecisao.ts` e `src/services/secretariaParticular.ts`, com testes em `tests/leitorDecisao.test.mjs`.
+
 ## Estagiário IA
 
 Quando um prazo é detectado via DJEN, o sistema pode acionar um "estagiário IA" — análise automática da intimação com sugestão do que fazer, seguindo os mesmos playbooks configurados pra cada tipo de prazo.
@@ -114,7 +137,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 **Um processo pode ficar sem cliente vinculado pra sempre?** Só até alguém vincular manualmente — acontece quando a publicação tem mais de uma parte possível e o sistema não arrisca adivinhar.
 
-**Se a mesma sentença aparecer de novo numa sincronização futura, avisa de novo?** Não — cada processo só dispara aviso de "Sentença publicada"/"Acórdão publicado" uma vez, para sempre (salvo o caso raro de uma segunda sentença real no mesmo processo).
+**Se a mesma sentença aparecer de novo numa sincronização futura, avisa de novo?** O aviso curto ("Sentença publicada"/"Acórdão publicado") sai uma vez por processo, para sempre. A leitura completa do Leitor sai uma vez por decisão: a mesma decisão republicada não repete. Uma decisão nova no mesmo processo, como a de embargos, é lida e enviada.
 
 **O texto das movimentações sempre vem limpo?** A partir de 03/09/2026 sim — antes disso, publicações do DJEN podiam chegar com HTML bruto e entidades não decodificadas; hoje são limpas automaticamente na entrada (ver [Monitoramento automático](10-monitoramento.md)).
 
@@ -127,6 +150,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 14/10/2026 | Claude | Leitor de sentença e Secretária particular: sentença/acórdão chegam à Dra. resumidos, com ganhos/perdas, valor e prazos de recurso (tabela fixa + `contarPrazo`) |
 | 07/10/2026 | Claude | Fase sugerida ignora menções a atos futuros nas intimações do DJEN; "julgado (im)procedente" conta como sentença e "contrarrazões" como recurso |
 | 28/09/2026 | Claude | Tipo de prazo por gatilho específico/título (`deteccaoPrazo.ts`), aviso de fase divergente (`processos:fase-divergente`), busca nacional por OAB passa a reportar falha por tribunal, testes de fase e tribunal — ideias 6, 7, 8 e 9 da auditoria |
 | 28/09/2026 | Claude | Avisos de prazo escalonados (título 🚨 e repetição por urgência), aviso único ao vencer (`prazos:vencidos`) e alerta diário de prazo em processo sem caso (`prazos:sem-caso`) — ideias 2, 4 e 5 da auditoria |

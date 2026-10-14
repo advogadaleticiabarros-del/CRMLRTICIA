@@ -188,6 +188,10 @@ ${p.nome}
 CPF nº ${p.cpf}`;
 }
 
+// Aviso de uso de IA, presente em todo contrato padrão (Recomendação 001/2024
+// do CFOAB: transparência com o cliente). Decisão da Dra. em 14/10/2026.
+export const AVISO_USO_IA = 'A CONTRATANTE declara estar ciente de que a CONTRATADA utiliza ferramentas de inteligência artificial como apoio na organização, pesquisa e redação dos trabalhos, sempre sob revisão e responsabilidade técnica da advogada, que responde integralmente pelos atos praticados, preservados o sigilo profissional e a proteção dos dados pessoais.';
+
 // Dados de pagamento oficiais (Cláusula Décima)
 const DADOS_PAGAMENTO = {
   emails: 'advogadaleticia.barros@gmail.com ou financeiro.advleticiabarros@gmail.com',
@@ -284,6 +288,8 @@ O não comparecimento injustificado da CONTRATANTE a uma audiência ou ato para 
 
 CLÁUSULA NONA - DA NATUREZA DA OBRIGAÇÃO
 O presente contrato configura obrigação de meio, não garantindo resultado específico, inexistindo responsabilidade da CONTRATADA por decisões judiciais desfavoráveis.
+
+PARÁGRAFO ÚNICO - ${AVISO_USO_IA}
 
 CLÁUSULA DÉCIMA - DA VIGÊNCIA E RESCISÃO
 O contrato vige da assinatura até o final da demanda. A rescisão imotivada por parte da CONTRATANTE a obrigará ao pagamento de honorários proporcionais ao trabalho realizado, além de multa contratual.
@@ -642,6 +648,8 @@ PARÁGRAFO SEGUNDO – Poderão ser compartilhados dados estritamente necessári
 
 PARÁGRAFO TERCEIRO – Permanecerá resguardado o sigilo profissional nos termos da legislação aplicável à advocacia.
 
+PARÁGRAFO QUARTO – ${AVISO_USO_IA}
+
 CLÁUSULA DÉCIMA QUARTA – DOS CANAIS OFICIAIS E DA PREVENÇÃO A FRAUDES
 
 A CONTRATADA não se responsabiliza por prejuízos decorrentes de golpes praticados por terceiros que se apresentem falsamente como advogados, funcionários, colaboradores ou representantes do escritório.
@@ -900,6 +908,7 @@ CLÁUSULA DÉCIMA QUARTA - DA PROTEÇÃO DE DADOS E DO SIGILO PROFISSIONAL
 **14.1.** A CONTRATADA tratará os dados pessoais fornecidos pela CONTRATANTE exclusivamente para finalidades relacionadas à prestação dos serviços advocatícios, cumprimento de obrigações legais, exercício regular de direitos e defesa dos interesses da CONTRATANTE.
 **14.2.** A CONTRATADA observará o sigilo profissional e as normas aplicáveis à proteção de dados pessoais.
 **14.3.** A CONTRATANTE autoriza o tratamento dos dados e documentos necessários à execução deste contrato, inclusive seu compartilhamento com órgãos públicos, Poder Judiciário, peritos, contadores, correspondentes, prestadores de serviços e demais profissionais quando necessário à execução da atividade contratada.
+**14.4.** ${AVISO_USO_IA}
 
 CLÁUSULA DÉCIMA QUINTA - DOS CANAIS OFICIAIS E PREVENÇÃO A FRAUDES
 **15.1.** A CONTRATANTE declara estar ciente de que as comunicações oficiais relacionadas aos honorários e solicitações financeiras vinculadas a este contrato serão realizadas exclusivamente pelos seguintes canais:
@@ -1016,6 +1025,8 @@ As partes se obrigam por si, seus herdeiros e sucessores a cumprir o presente co
 
 CLÁUSULA OITAVA - DA POLÍTICA DE PRIVACIDADE E PROTEÇÃO DE DADOS
 Em cumprimento à Lei Geral de Proteção de Dados Pessoais (LGPD), a CONTRATADA se obriga a respeitar a privacidade da CONTRATANTE, mantendo em sigilo todos os dados pessoais fornecidos em função deste contrato.
+
+PARÁGRAFO ÚNICO - ${AVISO_USO_IA}
 
 CLÁUSULA NONA - DO TÍTULO EXECUTIVO
 O presente contrato constitui título executivo extrajudicial, nos termos do artigo 24 da Lei nº 8.906/94 (Estatuto da Advocacia e da OAB) e do art. 784 do Código de Processo Civil.

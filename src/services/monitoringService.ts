@@ -9,7 +9,8 @@ import { notificationService } from './NotificationService';
 import { telegramNotificationService } from './TelegramNotificationService';
 import { logTimeline } from './TimelineService';
 import { runIntimacaoPlaybooks } from './automationService';
-import { interpretarMovimentacao, extrairNomeacaoDativa, extrairArbitramentoDativo } from './aiAssistant';
+import { interpretarMovimentacao, extrairNomeacaoDativa, extrairArbitramentoDativo, aiComplete, aiCompleteJson } from './aiAssistant';
+import { lerDecisaoEAvisar, ResultadoLeitura } from './leitorDecisao';
 import { sendText, avisarFalhaEnvioWhatsapp } from './uazapiInstance';
 
 // ── Sugestão de fase processual a partir do texto das movimentações ──────────
@@ -108,6 +109,50 @@ function toDate(val: string | null): Date | null {
 // MARCO do processo (não rotina): a advogada quer saber na hora, no WhatsApp,
 // e não só como mais um item numa lista de prazos/alertas.
 
+/** IA do Leitor: OpenAI (Luna) primeiro, que aguenta sentença longa; Groq/Gemini em modo JSON de reserva. */
+async function iaLeitor(prompt: string): Promise<string | null> {
+  const r = await aiComplete(prompt, 'openai').catch(() => null);
+  if (r?.ok && r.text) return r.text;
+  const j = await aiCompleteJson(prompt, 'groq').catch(() => null);
+  return j?.ok && j.text ? j.text : null;
+}
+
+/** Liga o Leitor de decisões (regras em leitorDecisao.ts) ao banco e ao WhatsApp do escritório. */
+async function lerDecisaoDoMarco(
+  processId: number, clientId: number | null,
+  m: { movement_date: string | null; title?: string; description?: string },
+  processNumber: string | undefined, tipoGatilho: string,
+): Promise<ResultadoLeitura> {
+  const [[proc]] = await db.query('SELECT court FROM legal_processes WHERE id = ?', [processId]) as any;
+  const publicada = toDate(m.movement_date);
+  return lerDecisaoEAvisar({
+    processId,
+    processo: processNumber || '(sem número)',
+    cliente: await buscarNomeCliente(clientId),
+    orgao: proc?.court || null,
+    tipo: tipoGatilho === 'Recurso (apelação)' ? 'sentenca' : 'acordao',
+    texto: m.description || '',
+    publicadaEm: publicada ? publicada.toISOString().slice(0, 10) : null,
+  }, {
+    ia: iaLeitor,
+    registrar: async (chave, l) => {
+      const [r] = await db.query(
+        `INSERT IGNORE INTO decisao_leituras (process_id, chave, tipo, resultado, favoravel, leitura)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [processId, chave, l.tipo, l.resultado, l.favoravel_ao_cliente, JSON.stringify(l)]
+      ) as any;
+      return r.affectedRows === 1;
+    },
+    enviar: async (texto) => {
+      for (const num of ESCRITORIO_WHATSAPP_NUMEROS) {
+        const ok = await sendText(num, texto).catch(() => false);
+        if (!ok) await avisarFalhaEnvioWhatsapp('prazo_processual', num);
+      }
+    },
+    hojeISO: () => new Date().toISOString().slice(0, 10),
+  });
+}
+
 /** Cria "prazo a confirmar" (DJEN) ou alerta (DataJud) quando a movimentação contém palavra-gatilho. Nunca derruba o sync. */
 async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string; metadata?: { parties?: Array<{ nome?: string | null }> } | null }, processNumber?: string, movementId: number | null = null, source?: string): Promise<void> {
   try {
@@ -126,11 +171,16 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     // movimentação e/ou processo"). INSERT IGNORE decide atomicamente: só
     // quem inserir de verdade (afetou 1 linha) manda a mensagem.
     if (trig.marco) {
+      // Leitor de sentença/acórdão: com a íntegra (DJEN), a Dra. recebe a
+      // decisão resumida, com ganhos/perdas e prazos de recurso. Só o nome do
+      // andamento (DataJud) → cai no aviso curto abaixo, como antes.
+      const leitura = await lerDecisaoDoMarco(processId, clientId, m, processNumber, trig.type)
+        .catch((e) => { console.error('[leitor-decisao]', e?.message || e); return 'ia_falhou' as const; });
       const [marcaResp] = await db.query(
         'INSERT IGNORE INTO marco_processual_avisos (process_id, marco_type) VALUES (?, ?)',
         [processId, trig.type]
       ) as any;
-      if (marcaResp.affectedRows === 1) {
+      if (marcaResp.affectedRows === 1 && leitura !== 'enviado' && leitura !== 'ja_lido') {
         const marco = trig.type === 'Recurso (apelação)' ? 'Sentença publicada' : 'Acórdão publicado';
         const clienteNome = await buscarNomeCliente(clientId);
         // Sem cliente vinculado: o DJEN já manda as partes da publicação

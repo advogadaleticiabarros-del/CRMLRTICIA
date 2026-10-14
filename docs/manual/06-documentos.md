@@ -89,6 +89,16 @@ O que mudou em relação ao modelo genérico:
 
 Os valores saem por extenso (`reaisPorExtenso`). Testes: `tests/contratoTrabalhistaTemplate.test.mjs`.
 
+## Aviso de uso de IA nos contratos (desde 14/10/2026)
+
+Todo contrato padrão gerado a partir de 14/10/2026 informa o cliente de que o escritório usa inteligência artificial como apoio, sempre com revisão e responsabilidade da advogada. A recomendação de transparência é da Recomendação 001/2024 do CFOAB. O texto é único (`AVISO_USO_IA` em `contractTemplates.ts`) e entra:
+- no contrato trabalhista: item 14.4;
+- no de pensão: parágrafo quarto da cláusula 13ª;
+- no genérico: parágrafo único da cláusula 8ª;
+- no de menor: parágrafo único da cláusula 9ª.
+
+Contratos já gerados não mudam. Teste em `tests/contratoAvisoIa.test.mjs`.
+
 ## Impressão: rodapé e assinaturas (desde 07/10/2026)
 
 Vale para todo documento impresso pelo CRM em papel timbrado (contrato, procuração, declaração etc., função `printDocs` em `public/app.js`):
@@ -137,6 +147,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 14/10/2026 | Claude | Aviso de uso de IA (`AVISO_USO_IA`) nos 4 contratos padrão: trabalhista 14.4, pensão § 4º da cl. 13ª, genérico § único da cl. 8ª, menor § único da cl. 9ª |
 | 07/10/2026 | Claude | Novo contrato padrão trabalhista (22 cláusulas, `buildTemplateTrabalhista`), com a entrada não paga descontada ao final do processo; impressão com rodapé que não cobre o texto e assinaturas sempre juntas |
 | 07/10/2026 | Claude | Excluir proposta criada errada (só as não aceitas) |
 | 07/10/2026 | Claude | Proposta: campo "Cálculos (contabilidade)" de 1% a 5% sobre os proventos, discriminado na proposta e no contrato |

@@ -1,170 +1,196 @@
-# Escritório virtual — mapa de agentes (etapa 1)
+# Escritório virtual — mapa de agentes (v2)
 
-**Data:** 14/10/2026 · **Status:** proposta para a Dra. Letícia aprovar · **Base:** leitura do código do CRM + pesquisa das regras da OAB/CNJ e das fontes oficiais de jurisprudência.
+**Data:** 14/10/2026 · **Status:** aprovado pela Dra. ("faça tudo de acordo com a sua sugestão") e em construção · **Base:** código do CRM, regras da OAB/CNJ e pesquisa sobre a estrutura de escritórios (controladoria, paralegal, backoffice) e sobre agentes jurídicos de IA.
 
-## Resumo em 5 linhas
+## Resumo
 
-1. O escritório virtual **não começa do zero**: o CRM já faz cerca de metade do trabalho (monitorar tribunais, detectar prazo, minutar, revisar, cobrar, avisar). Os agentes novos se encaixam nele.
-2. São **27 agentes em 6 departamentos**. 13 já existem (alguns em parte), 14 são novos.
-3. Tudo gira sozinho, **menos 7 decisões que por lei e por ética são da advogada** (ver "Portões da Dra."). A principal é aprovar e protocolar a peça. O protocolo usa o certificado digital em nome dela.
-4. **Jurisprudência só de fonte oficial e conferida.** Um agente pesquisa e **outro, independente, confere** cada citação antes de a peça chegar à Dra. Tribunais já multaram advogados por citar julgados inventados por IA.
-5. Ordem sugerida: primeiro o **orquestrador, a caixa de aprovação e o pesquisador com verificador**. Depois os especialistas por área.
+- **67 agentes em 10 departamentos.** Cobrem o escritório inteiro: atendimento, contrato, monitoramento, leitura de decisões, prazos, produção, cliente, financeiro, secretaria e qualidade.
+- Situação hoje: **27 já existem**, 17 existem em parte e 23 são novos. O CRM já é a espinha dorsal.
+- **Primeiros agentes novos entregues em 14/10/2026: o Leitor de sentença e a Secretária particular.** A sentença ou o acórdão chega à Dra. resumido, com o que ganhamos e o que perdemos, o valor e os prazos de recurso com data.
+- Tudo gira sozinho, **menos 7 portões da Dra.** (ver abaixo). O principal é aprovar e protocolar.
+
+Legenda: ✅ existe · 🟡 existe em parte · 🆕 novo · ⭐ entregue nesta etapa
 
 ---
 
-## Como um processo gira sozinho (fluxo principal)
+## Fluxo principal: do processo ao resultado
 
 ```
-Intimação/publicação chega (DJEN, DataJud, e-mail do tribunal)
-  → [Monitor] lê e classifica o ato (já existe)
-  → [Calculista de prazos] calcula o prazo fatal e o PRAZO INTERNO (2 dias úteis antes)
-  → [Controller] decide o que fazer pelo playbook e abre o card na esteira com dono e SLA
-  → [Especialista da área] minuta a peça
-        ↔ [Pesquisador de jurisprudência] traz precedentes de fonte oficial
-  → [Verificador de citações] confere cada lei e julgado; se algo não bater, a peça VOLTA
-  → [Revisor sênior] aplica o checklist da peça (tempestividade, pedidos, documentos)
-  → [Preparador de protocolo] monta os PDFs e os anexos no padrão do tribunal
-  → ★ DRA. APROVA E PROTOCOLA (1 toque; ela pode editar antes)
-  → [Monitor] vê a juntada no tribunal e fecha o prazo sozinho
-  → [Relacionamento] avisa o cliente em linguagem simples
-  → [Treinador] compara a minuta com o que ela protocolou e aprende
+Publicação/movimentação chega  →  MONITORAMENTO (vigias de DJEN, tribunais, e-mail, INSS, pauta)
+  → LEITURA (Leitor de sentença, de decisão, de laudo, de ata)
+  → SECRETÁRIA PARTICULAR entrega à Dra. já resumido, com prazo e sugestão
+  → CONTROLADORIA calcula o prazo fatal e o interno, confere duas vezes e distribui
+  → PRODUÇÃO (especialista da área + pesquisador + verificador + revisor + preparador)
+  → ★ DRA. APROVA E PROTOCOLA
+  → Conferente de protocolo vê a juntada e fecha o prazo
+  → RELACIONAMENTO explica ao cliente
+  → FINANCEIRO (alvará → repasse → honorários)
+  → TREINADOR aprende com as correções da Dra.
 ```
 
-**Rede de segurança:** se a peça não estiver aprovada até o prazo interno, o aviso escala: sino, WhatsApp da Dra., WhatsApp da Jessica e, na véspera do prazo fatal, aviso a cada hora. Nenhum prazo pode vencer em silêncio.
+---
+
+## 1. Atendimento e recepção
+
+| # | Agente | O que faz | Hoje |
+|---|---|---|---|
+| 1 | Recepcionista | Responde 24h no WhatsApp e separa cliente de possível cliente. | 🟡 triagem existe; não responde sozinho |
+| 2 | Transcritor de áudios | Converte em texto os áudios do cliente. | ✅ `whatsappTranscricao` |
+| 3 | Triador jurídico | Entrevista por área (datas, salário, CNIS, filhos…). Checa prescrição e viabilidade e recomenda aceitar ou recusar. | 🟡 qualificação de lead existe |
+| 4 | Checador de conflito de interesses | Verifica se a pessoa já é parte contrária em algum caso do escritório. | 🆕 (usa `case_partes`) |
+| 5 | Agendador de consultas | Marca o atendimento na agenda da Dra. | 🟡 `agendaSlots` |
+| 6 | Ouvidoria e satisfação | Faz pesquisa de satisfação e recebe reclamações. | 🆕 |
+
+## 2. Comercial e contratos
+
+| # | Agente | O que faz | Hoje |
+|---|---|---|---|
+| 7 | Comercial | Monta e envia a proposta. | ✅ |
+| 8 | Follow-up de propostas | Cobra quem abriu e não respondeu. | ✅ `propostaFollowupService` |
+| 9 | Redator de contrato e procuração | Gera contrato, procuração e declaração pelo padrão de cada área. | ✅ ⭐ agora com aviso de uso de IA |
+| 10 | Coletor de assinaturas | Envia o link, acompanha e lembra quem não assinou. | ✅ |
+| 11 | Onboarding | Boas-vindas, explica como o processo anda e alerta para os canais oficiais (golpe do falso advogado). | 🟡 tarefas D+1/D+5 |
+| 12 | Coletor de documentos | Pede a lista da área, lê o que chega e cobra o que falta. | 🟡 `extracaoDocumentos` |
+
+## 3. Monitoramento de processos
+
+| # | Agente | O que faz | Hoje |
+|---|---|---|---|
+| 13 | Vigia do DJEN | Busca toda publicação pela OAB, 3 vezes ao dia. | ✅ |
+| 14 | Vigia dos tribunais | Consulta o DataJud e as APIs dos tribunais de hora em hora. | ✅ |
+| 15 | Vigia do e-mail do tribunal | Lê as intimações que chegam por e-mail. | ✅ |
+| 16 | Vigia do e-Proc/PJe | Consulta pública direta quando o DataJud atrasa. | 🆕 avaliar por tribunal |
+| 17 | Vigia do Meu INSS | Acompanha requerimentos, exigências e perícias administrativas. | 🆕 |
+| 18 | Vigia de pauta | Avisa quando um recurso entra em pauta de julgamento, para memoriais e sustentação oral. | 🆕 |
+| 19 | Vigia de processo parado e prescrição | Avisa processo parado há 30 ou 60 dias e prescrição próxima. | ✅ `carteira:vigia` |
+| 20 | Vigia de alvarás, RPV e precatórios | Detecta a expedição e acompanha até o pagamento. | 🆕 |
+| 21 | Conferente cruzado | Detecta movimento visto numa fonte sem a intimação correspondente na outra. | ✅ `movement_alerts` |
+| 22 | Vigia do sistema | Robôs, WhatsApp, backup e rotinas travadas. | ✅ |
+
+## 4. Leitura de decisões e documentos
+
+| # | Agente | O que faz | Hoje |
+|---|---|---|---|
+| 23 | **Leitor de sentença e acórdão** | Lê a íntegra e extrai resultado para o cliente, ganhos e perdas, valor, sucumbência, gratuidade, pontos de atenção e sugestão. O recurso e o prazo vêm de tabela fixa. | ⭐ **entregue** |
+| 24 | Leitor de decisões e despachos | Tutela, liminar, perícia designada, "manifeste-se em X dias". | 🟡 `movimentacaoIa` |
+| 25 | Leitor de laudo pericial | Laudo médico (INSS), insalubridade, contábil: aponta contradições e sugere quesitos complementares ou impugnação. | 🆕 |
+| 26 | Leitor de ata de audiência | Resume o que foi decidido, os prazos dados e as provas a produzir. | 🆕 |
+| 27 | Leitor de documentos do cliente | CTPS, CNIS, holerites, certidões → ficha. | ✅ |
+
+## 5. Controladoria (prazos e distribuição)
+
+| # | Agente | O que faz | Hoje |
+|---|---|---|---|
+| 28 | Calculista de prazos | Prazo fatal e prazo interno (2 dias úteis antes). | 🟡 falta calendário por tribunal e portarias |
+| 29 | Auditor de prazos | Segunda contagem independente: se as duas divergirem, alerta. | 🆕 |
+| 30 | Controller (distribuidor) | Escolhe o playbook, abre o card, define o responsável e o SLA, escala atrasos. | 🟡 automações e playbooks |
+| 31 | Agenda e audiências | Audiências, perícias e sincronização com o Google. | ✅ |
+| 32 | Preparador de audiência | Roteiro, perguntas, testemunhas, documentos e link da sala. | 🟡 briefing da véspera |
+| 33 | Gestor de correspondentes | Contrata e acompanha diligências e audiências em outra comarca. | 🟡 portal do correspondente |
+
+## 6. Produção jurídica
+
+| # | Agente | O que faz | Hoje |
+|---|---|---|---|
+| 34 | Especialista trabalhista (**área-piloto**) | Inicial, réplica, RO, contrarrazões, ED. | 🟡 Estagiário IA + 176 modelos |
+| 35 | Especialista previdenciário | JEF, impugnação de laudo, recurso à Turma Recursal. | 🆕 |
+| 36 | Especialista família | Alimentos, guarda, divórcio, execução de alimentos. | 🆕 |
+| 37 | Especialista consumidor | JEC, bancos, negativação. | 🆕 |
+| 38 | Estagiário | Peças simples: ciência, juntada, manifestação, pedido de prazo. | 🟡 |
+| 39 | Especialista em recursos | Cabimento, preparo, custas, depósito recursal. | 🆕 |
+| 40 | Especialista em execução | Liquidação, cumprimento de sentença, penhora e pesquisa de bens. | 🆕 |
+| 41 | Negociador de acordos | Calcula o piso e o teto, monta a contraproposta e a minuta. A Dra. decide. | 🆕 |
+| 42 | Pesquisador de jurisprudência | Só fonte oficial, com número, órgão, data, link e trecho. | 🆕 |
+| 43 | Verificador de citações | Separado do redator: confere se cada julgado e lei existem e dizem o que a peça afirma. | 🆕 |
+| 44 | Calculista de valores | Liquidação trabalhista (dados para o PJe-Calc), atrasados do INSS, correção. | 🆕 |
+| 45 | Revisor sênior | Checklist por tipo de peça. | 🟡 `peticaoReviewer` |
+| 46 | Preparador de protocolo | PDFs, anexos no limite do tribunal, nomes dos arquivos. | 🆕 |
+| 47 | Conferente de protocolo | Vê a juntada no tribunal e fecha o prazo sozinho. | 🆕 |
+
+## 7. Relacionamento com o cliente
+
+| # | Agente | O que faz | Hoje |
+|---|---|---|---|
+| 48 | Relacionamento | Andamentos em linguagem simples e "como está meu processo?". | 🟡 rascunho |
+| 49 | Avisador de compromissos | Lembra o cliente de audiência, perícia e documento pendente. | 🆕 (status neutro: automático) |
+| 50 | Comunicador de resultado | Explica a sentença ao cliente **depois** que a Dra. aprova o texto. | 🆕 |
+
+## 8. Financeiro
+
+| # | Agente | O que faz | Hoje |
+|---|---|---|---|
+| 51 | Faturamento e cobrança | Parcelas, boleto/Pix, régua e acordos. | ✅ |
+| 52 | Recuperação de inadimplentes | Negocia atrasados dentro de limites que a Dra. definir. | 🟡 |
+| 53 | Conciliação | Extrato do banco e cartão contra os lançamentos. | ✅ |
+| 54 | Alvarás e repasses | Alvará → levantamento → repasse (30% + sucumbência; parceria 15/15). | 🟡 |
+| 55 | Dativo | Nomeação, arbitramento, cobrança do Estado. | ✅ |
+| 56 | Contas a pagar | Lança e lembra contas; baixa só com "sim". | ✅ |
+| 57 | Fiscal | Recibos e notas, apoio ao carnê-leão. | 🆕 |
+| 58 | Controladoria financeira | Rentabilidade por caso, relatório executivo mensal. | ✅ |
+
+## 9. Gestão e secretaria
+
+| # | Agente | O que faz | Hoje |
+|---|---|---|---|
+| 59 | **Secretária particular da Dra.** | Recebe o trabalho de todos os agentes e entrega à Dra. mastigado, numa caixa única no WhatsApp. Primeira função: a sentença lida. Próximas: aprovar ou recusar com uma resposta ("recorrer", "não recorrer", "aprovar peça"). | ⭐ **entregue (1ª função)** |
+| 60 | Chefe de gabinete | Briefing das 7h, tela "Hoje", fechamento do dia. | ✅ |
+| 61 | Assistente de comando | A Dra. e a Jessica mandam fazer pelo WhatsApp. | ✅ |
+| 62 | Gestor de conhecimento | Biblioteca de teses e modelos (Obsidian → CRM). | 🟡 |
+| 63 | Radar jurídico | Súmulas novas, temas repetitivos e mudanças de lei que afetam processos da carteira. | 🟡 `legalNewsService` |
+
+## 10. Qualidade, treino e testes
+
+| # | Agente | O que faz | Hoje |
+|---|---|---|---|
+| 64 | Treinador | Compara a minuta da IA com o que a Dra. protocolou e propõe ajustes nos modelos. Ela aprova. | 🆕 |
+| 65 | Testador | Banco de casos anonimizados com a resposta certa. Um agente que piora não entra no ar. | 🟡 836 testes automáticos; falta o banco de casos reais |
+| 66 | Compliance OAB/LGPD | Trilha de quem fez o quê, portões respeitados, aviso de IA, publicidade. | 🟡 |
+| 67 | Auditor de custo de IA | Gasto por agente e alerta de exagero. | 🆕 |
+
+Marketing (Orbit) segue separado.
 
 ---
 
-## Os 27 agentes
+## Portões da Dra. (nunca saem sem ela)
 
-Legenda: ✅ já existe · 🟡 existe em parte · 🆕 novo
+1. Aceitar ou recusar caso.
+2. Aprovar e protocolar peça. O certificado é dela e fica com ela.
+3. Acordo.
+4. Não recorrer, desistir ou renunciar.
+5. Mensagem ao cliente com conteúdo jurídico. Status neutro e lembretes saem automáticos.
+6. Pagamentos e repasses.
+7. Mudança em modelo ou playbook sugerida pelo Treinador.
 
-### 1. Recepção e comercial
+## Decisões aprovadas (14/10/2026)
 
-| # | Agente | O que faz | Situação no CRM |
-|---|---|---|---|
-| 1 | **Recepcionista** | Responde no WhatsApp 24h, identifica se a pessoa é cliente ou possível cliente, informa horário e marca atendimento. | 🟡 Há triagem de quem não tem cadastro (`triagemSemCadastro`) e lembrete de mensagem sem resposta, mas **nada responde ao cliente sozinho**. |
-| 2 | **Triador jurídico** | Entrevista o possível cliente com roteiro por área. Checa prescrição, viabilidade e documentos e entrega uma ficha de triagem com recomendação de aceitar ou não. | 🟡 Há sugestão de prescrição por área e checklist por área. Falta o roteiro de entrevista. |
-| 3 | **Comercial** | Gera a proposta, acompanha a abertura, faz o follow-up e transforma em contrato com assinatura eletrônica. | ✅ Proposta, follow-up, contrato padrão e assinatura (`propostaFollowupService`, `contractFlow`). |
-| 4 | **Coletor de documentos** | Manda a lista de documentos da área, lê o que chega (RG, CTPS, CNIS, laudos), preenche a ficha e cobra o que falta. | 🟡 A extração de documentos (`extracaoDocumentos`) e as tarefas D+1/D+5 do contrato existem. Falta cobrar sozinho. |
-| 5 | **Relacionamento com o cliente** | Avisa o andamento em linguagem simples e responde "como está meu processo?". Avisa audiência e perícia e manda pesquisa de satisfação. | 🟡 Hoje gera só **rascunho** para a equipe enviar. |
+| Decisão | Ficou assim |
+|---|---|
+| O que vai ao cliente sem a Dra. ver | Só status neutro e lembretes |
+| Jurisprudência | Só fontes oficiais gratuitas no começo |
+| Certificado digital no servidor | Não; o protocolo é o toque dela |
+| Área-piloto | Trabalhista |
+| Aviso de IA no contrato | Feito: está nos 4 contratos padrão |
 
-### 2. Controladoria jurídica (o coração)
+## Fontes oficiais de jurisprudência
 
-| # | Agente | O que faz | Situação |
-|---|---|---|---|
-| 6 | **Monitor de tribunais** | Lê DJEN, DataJud e e-mail do tribunal. Classifica o ato (sentença, decisão, citação…). | ✅ `monitoringService`, `djen`, `datajud`, `courtEmailMonitorService`, `movimentacaoIa`. |
-| 7 | **Calculista de prazos** | Calcula o prazo fatal e o prazo interno. | 🟡 O CPC e os feriados nacionais estão prontos (`DeadlineCounterService`). **Faltam:** feriados municipais e do tribunal, portarias de suspensão, regras da CLT (art. 775), JEF e prazo em dobro. |
-| 8 | **Controller (distribuidor)** | Para cada evento, escolhe o playbook, abre o card, define o responsável e controla o SLA e o prazo interno. | 🟡 Há automações e playbooks (`automationService`, `playbooksNegocio`, `productionSla`). Falta ser o "cérebro" único que liga tudo. |
-| 9 | **Agenda e audiências** | Marca audiências e perícias, prepara o roteiro, avisa cliente e testemunhas e manda o link da sala virtual. | 🟡 Agenda, briefing da véspera e audiência sem duplicar existem. Falta o aviso ao cliente e às testemunhas. |
-| 10 | **Administrativo INSS** | Acompanha requerimentos e exigências no Meu INSS e agenda perícias. | 🆕 A senha do cliente já fica protegida em `client_credentials`. |
-
-### 3. Produção jurídica
-
-| # | Agente | O que faz | Situação |
-|---|---|---|---|
-| 11 | **Especialista trabalhista** | Minuta iniciais, contestações e recursos (RO, embargos, AIRR). | 🟡 Há o Estagiário IA e o gerador de petição (`peticaoBuilder`). Tem 176 modelos, a maioria trabalhista. |
-| 12 | **Especialista previdenciário** | Iniciais no JEF, impugnação de laudo e recursos à Turma Recursal. | 🆕 Como especialista: usa o mesmo motor, com playbook e modelos próprios. |
-| 13 | **Especialista família** | Alimentos, guarda, divórcio e execução de alimentos. | 🆕 Idem. |
-| 14 | **Especialista consumidor** | Iniciais no JEC, bancos (BMG etc.) e negativação. | 🆕 Idem. |
-| 15 | **Estagiário** | Faz as tarefas simples: juntada, ciência, manifestação sobre laudo, petição de prazo, cumprimento de sentença padrão. | 🟡 O Estagiário IA faz a análise e a minuta da intimação. |
-| 16 | **Pesquisador de jurisprudência** | Busca precedentes **só em fonte oficial** e entrega número, órgão, data, link e o trecho que sustenta a tese. | 🆕 **Novo e crítico.** Fontes na seção abaixo. |
-| 17 | **Verificador de citações** | Agente separado do redator. Abre cada julgado e lei citados na fonte oficial, confere se existem e se dizem o que a peça afirma, e confere se a lei está vigente. O que não confere é retirado ou marcado em [colchete]. | 🆕 **Novo e crítico.** Hoje existe a camada anti-invenção para *dados do caso*, mas não para *jurisprudência*. |
-| 18 | **Calculista de valores** | Faz a liquidação trabalhista, os atrasados previdenciários, a correção (IPCA-E/SELIC) e o valor da causa. | 🆕 Na JT, prepara os dados para o PJe-Calc. A contabilidade externa valida quando houver valor alto. |
-| 19 | **Revisor sênior** | Aplica checklist por tipo de peça: tempestividade, preparo e custas, pedidos com valor, procuração nos autos, coerência com a tese do caso. | ✅ em parte (`peticaoReviewer`, que roda sozinho). Falta o checklist por tipo de peça. |
-| 20 | **Preparador de protocolo** | Gera o PDF, divide e nomeia os anexos no limite do tribunal e entrega à Dra. o "pacote pronto para protocolar". | 🆕 |
-
-### 4. Financeiro
-
-| # | Agente | O que faz | Situação |
-|---|---|---|---|
-| 21 | **Faturamento e cobrança** | Emite parcelas, gera boleto/Pix, faz a régua de cobrança e avisa acordos. | ✅ Asaas, Pix, lembretes e aviso de acordos das 8h. |
-| 22 | **Conciliação** | Bate o extrato do banco e o cartão com os lançamentos. | ✅ `bankStatementService`, `cardStatementService`. |
-| 23 | **Alvarás e repasses** | Detecta alvará ou RPV expedidos, cobra o levantamento, calcula o repasse (30% + sucumbência, parceria 15/15) e prepara o pagamento. | 🟡 Há repasses e recebimento. Falta detectar o alvará e montar o repasse do começo ao fim. |
-| 24 | **Dativo** | Detecta a nomeação e o arbitramento e cobra o Estado. | ✅ |
-
-### 5. Qualidade, treino e testes
-
-| # | Agente | O que faz | Situação |
-|---|---|---|---|
-| 25 | **Treinador** | Compara cada minuta da IA com a versão que a Dra. protocolou e extrai as preferências dela (estrutura, teses, tom). Propõe mudanças nos playbooks e modelos. **A Dra. aprova antes de valer.** | 🆕 |
-| 26 | **Testador (QA dos agentes)** | Mantém um banco de casos de teste com intimações reais **anonimizadas** e a resposta certa. Roda sempre que um prompt, modelo ou regra muda. Mede acerto de prazo, de tipo de ato e citações 100% verificadas. Um agente que piora não entra no ar. | 🆕 Usa o padrão dos ~805 testes do CRM. |
-| 27 | **Compliance (OAB/LGPD)** | Registra em log o que cada agente fez e com qual fonte. Garante que nada saiu sem passar pelo portão da Dra. Inclui no contrato o aviso de uso de IA. Confere publicidade (Provimento 205/2021) e dados sensíveis. | 🟡 Há log de acesso e de automações. Falta a trilha por agente. |
-
-**Fora da lista, mas já em operação:**
-- **Vigia de sistema:** saúde do sistema, backup e rotinas travadas. Já existe.
-- **Chefe de gabinete:** briefing das 7h, tela "Hoje", fechamento do dia e assistente no WhatsApp. Já existe. Vira a **caixa de aprovação única** da Dra.
-- **Marketing:** o Orbit continua separado.
+Pangea/BNP do CNJ (precedentes qualificados), Portal de Dados Abertos do STJ, portais do TST, TRT17, TJES, TRF2 e TNU, Planalto/LexML (lei vigente) e DataJud (andamentos). **Regra:** sem número, órgão, data, link oficial e trecho conferido, o precedente não entra na peça.
 
 ---
 
-## Portões da Dra. (o que NUNCA sai sem ela)
+## Ordem de construção
 
-A Recomendação 001/2024 do Conselho Federal da OAB diz que **o julgamento profissional não pode ser feito pela IA sem supervisão humana**. O advogado responde pelo que protocola. Por isso, estes 7 passos ficam com ela. Todos chegam numa caixa única (WhatsApp ou tela "Hoje"), com resumo e botão de aprovar.
-
-1. **Aceitar ou recusar** um caso novo.
-2. **Aprovar e protocolar** qualquer peça. O certificado digital é dela e o PJe exige certificado em nome do advogado.
-3. **Acordo:** aceitar, propor ou recusar.
-4. **Não recorrer, desistir ou renunciar** a prazo.
-5. **Mensagem ao cliente com conteúdo jurídico novo**, como uma chance de êxito ou o resultado de uma sentença. Status neutro ("seu processo teve andamento, está tudo em dia") pode sair automático, se ela autorizar.
-6. **Pagamentos e repasses.** Já funciona assim no assistente: o "sim" só vale no financeiro.
-7. **Mudança em playbook ou modelo** sugerida pelo Treinador.
-
-O resto roda sozinho.
-
----
-
-## Fontes de jurisprudência (só oficiais)
-
-| Fonte | Para quê | Como acessar |
+| Fase | Conteúdo | Situação |
 |---|---|---|
-| **Pangea/BNP do CNJ** (pangeabnp.pdpj.jus.br) | Precedentes qualificados: repetitivos, repercussão geral, IRDR, IAC, súmulas (art. 927 do CPC). É a fonte que mais pesa. | Portal público. A API ainda não foi confirmada: avaliar na implementação. |
-| **Portal de Dados Abertos do STJ** | Espelhos e íntegras de acórdãos, precedentes qualificados. Formato legível por máquina. | Download de datasets. |
-| **Jurisprudência do TST, TRT17, TJES, TRF2 e TNU** | Entendimento local e regional: o que a vara e o tribunal dela decidem. | Portais de pesquisa de cada tribunal. Integração por tribunal. |
-| **Planalto / LexML** | Texto de lei vigente, para conferir artigo citado. | Público. |
-| **DataJud (CNJ)** | Metadados e movimentação, não acórdãos. | Já integrado. |
-
-**Regra do pesquisador:** sem número do processo, órgão julgador, data, link oficial e trecho literal conferido, **o precedente não entra na peça**. Bases pagas (Jusbrasil, Escavador, Judit) servem para *achar*, mas a citação final é sempre conferida na fonte oficial.
-
-**Por que tanto cuidado:** TJPR, TJSC, TSE, Justiça Federal do Paraná e Justiça do Trabalho já multaram por litigância de má-fé quem citou julgado inexistente gerado por IA. As multas chegaram a 10% do valor da causa e a dez salários mínimos, e os casos foram enviados à OAB.
-
----
-
-## Como construir (recomendação técnica)
-
-- **Dentro do CRM**, como módulos TypeScript que reagem a eventos. Motivo: os dados, as rotinas automáticas, o WhatsApp e as regras de negócio já estão lá, e o deploy na VPS é automático. As squads do ExpxAgents servem para tarefas pontuais no Claude Code, não para um escritório rodando 24h.
-- **Cada agente é um módulo profundo:** interface pequena (`receber evento → devolver ação`) e dependências injetadas (IA, banco, fontes de jurisprudência, WhatsApp). Isso permite testar cada um com o banco de casos do Testador antes de entrar no ar.
-- **Modelos de IA por tipo de tarefa:**
-  - modelo forte para redigir e verificar peças;
-  - modelo barato para triagem, classificação e mensagens simples.
-- **Trilha de auditoria:** cada ação grava qual agente agiu, qual fonte usou, qual versão do prompt e quem aprovou.
-
----
-
-## Ordem de construção sugerida
-
-| Fase | O que entra | Por quê |
-|---|---|---|
-| **1. Fundação** | Controller (orquestrador) + caixa de aprovação única + prazo interno com escalonamento + Pesquisador + Verificador + Testador | Sem isso, nada pode rodar sozinho com segurança. |
-| **2. Produção** | Especialista trabalhista (área com mais modelos) → previdenciário → família → consumidor; calendário forense completo; Preparador de protocolo; checklist do Revisor por peça | Coloca o fluxo principal de ponta a ponta. |
-| **3. Cliente** | Recepcionista com resposta automática, Triador, Coletor de documentos, Relacionamento, Administrativo INSS | O cliente passa a ser atendido sem a Jessica no meio. |
-| **4. Aprendizado** | Treinador; Alvarás e repasses de ponta a ponta; protocolo automático via MNI (só onde o tribunal permitir) | Melhora contínua e o último passo manual. |
-
----
-
-## Decisões que são da Dra.
-
-1. **O que pode ir ao cliente sem ela ver?** Sugestão: só status neutro e lembretes (documento, audiência, parcela). Conteúdo jurídico passa por ela.
-2. **Orçamento de IA e de bases pagas.** Usar só fontes oficiais gratuitas no começo, ou também uma base paga para achar precedentes mais rápido?
-3. **Certificado digital no servidor (protocolo automático).** Sugestão: **não, por enquanto.** Um certificado A1 instalado no servidor permite que qualquer pessoa com acesso ao servidor assine como ela. O protocolo continua sendo o toque dela, com o pacote já pronto.
-4. **Por qual área começar.** Sugestão: trabalhista, que tem mais modelos e mais volume.
-5. **Aviso de IA no contrato.** A OAB recomenda informar o cliente sobre o uso de IA. Sugestão: incluir uma cláusula no contrato padrão.
+| **1. Fundação** | ⭐ Leitor de sentença · ⭐ Secretária particular (1ª função) · ⭐ aviso de IA no contrato · Secretária com aprovação por resposta · prazo interno com escalonamento · Auditor de prazos · Pesquisador + Verificador · Testador com casos reais | **em andamento** |
+| **2. Produção trabalhista** | Especialista trabalhista ponta a ponta, Especialista em recursos, Revisor por peça, Preparador e Conferente de protocolo, calendário forense TRT17 | |
+| **3. Demais áreas e leitura** | Especialistas previdenciário, família e consumidor; Leitor de laudo e de ata; Calculista de valores; Execução | |
+| **4. Cliente** | Recepcionista automática, Triador, Conflito de interesses, Coletor de documentos, Avisador, Comunicador de resultado | |
+| **5. Dinheiro e aprendizado** | Vigia de alvarás/RPV, repasse de ponta a ponta, Fiscal, Treinador, Auditor de custo, vigias de pauta e do INSS | |
 
 ## Fontes consultadas
 
-- Recomendação 001/2024 do CFOAB e diretrizes do TED da OAB/SP (mai/2026): oabsp.org.br/jornaldaadvocacia, cj.estrategia.com/portal/uso-da-inteligencia-artificial-na-advocacia
-- Plano nacional da OAB para IA (jun/2026): migalhas.com.br/quentes/458194
-- Multas por jurisprudência falsa: tjsc.jus.br (jurisprudência falsa gerada por IA), lex.com.br (TJPR; JF Londrina), conjur.com.br (TSE)
-- Resolução CNJ 615/2025 (IA no Judiciário): mattosfilho.com.br/unico/uso-inteligencia-artificial-judiciario
-- Pangea/BNP: cnj.jus.br/cnj-relanca-o-banco-nacional-de-precedentes-bnp
-- Dados Abertos do STJ: cnj.jus.br/portal-de-dados-abertos-do-stj-oferece-informacoes-em-formato-legivel-por-maquina
-- Certificado digital no PJe e MNI: cnj.jus.br/certificacao-digital, trf1.jus.br (MNI Orientações), csjt.jus.br (MNI no PJe-JT)
+- Recomendação 001/2024 do CFOAB e diretrizes do TED da OAB/SP (mai/2026); plano nacional de IA da OAB (jun/2026).
+- Multas por jurisprudência falsa gerada por IA: TJSC, TJPR, TSE, JF Londrina, Justiça do Trabalho.
+- Resolução CNJ 615/2025; Pangea/BNP (Res. CNJ 444/2022); Portal de Dados Abertos do STJ; certificado digital e MNI no PJe (CNJ, TRF1, CSJT).
+- Estrutura de escritório: controladoria jurídica (ADVBOX), paralegal e backoffice (Company Hero; vagas reais).
+- Agentes jurídicos de IA em 2026: Migalhas, iaLocus, Glade (guia de jun/2026: revisão humana antes de sair do escritório; autonomia total da entrada ao protocolo falha).

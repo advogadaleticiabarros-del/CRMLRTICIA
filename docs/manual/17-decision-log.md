@@ -16,6 +16,19 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 14/10/2026 — Escritório virtual: 5 decisões da Dra. e o Leitor de sentença
+**Decisões da Dra. (ela aprovou "tudo de acordo com a sugestão"; mapa em `docs/escritorio-virtual/`):**
+1. **Ao cliente sem revisão da Dra.:** só status neutro e lembretes (documento, audiência, parcela). Conteúdo jurídico passa por ela.
+2. **Jurisprudência:** começar só com fontes oficiais gratuitas (Pangea/BNP, Dados Abertos do STJ, portais dos tribunais, Planalto/LexML). Base paga fica para depois.
+3. **Certificado digital no servidor:** não. Quem tivesse acesso ao servidor assinaria como ela. O protocolo continua sendo o toque dela, com o pacote pronto.
+4. **Área-piloto dos especialistas:** trabalhista.
+5. **Aviso de uso de IA no contrato:** `AVISO_USO_IA` em `contractTemplates.ts`, presente nos 4 contratos padrão (Recomendação 001/2024 do CFOAB).
+
+**Leitor de sentença: o recurso e o prazo NÃO vêm da IA.** A IA só lê a decisão (resultado, ganhos e perdas, valor, sucumbência). O recurso cabível sai de uma tabela fixa: CLT 8 dias, Juizados 10 dias, CPC 15 dias e embargos 5 dias. O vencimento sai de `contarPrazo`.
+**Motivo:** prazo errado é o pior erro possível, e uma tabela testada não alucina. O tipo (sentença ou acórdão) vem da leitura da IA, não do gatilho de palavras, porque uma sentença que cita um "acórdão" enganaria o gatilho.
+**Alternativa descartada:** pedir o prazo à IA.
+**Quando reconsiderar:** quando o calendário forense por tribunal existir (feriados municipais e portarias). Aí o vencimento passa a usá-lo.
+
 ### 24/09/2026 — `cases` e `legal_processes` continuam separados; overlap conhecido não é "consertado" por migration
 **Decisão:** ao investigar o achado de prioridade baixa da auditoria do módulo Clientes ("resolver sobreposição de schema entre `cases` e `legal_processes`"), decidido **não fundir nem migrar as tabelas** — a separação já é proposital e já tem um FK de ligação (`legal_processes.case_id → cases.id`, migration 011). `cases` é o processo/caso do escritório (financeiro, fase, documentos, cliente); `legal_processes` é a camada de **monitoramento automático** (DataJud/DJEN: movimentações, sincronização, nº do processo no tribunal) — nem todo `legal_process` tem um `case` (descoberta automática por OAB antes de alguém confirmar o caso) e nem todo `case` tem monitoramento ligado (processo antigo, cadastrado manualmente, sem acompanhar).
 **Risco real encontrado (não é o problema descrito originalmente):** o vínculo entre as duas nem sempre passa por `case_id` — em pelo menos 3 lugares (`src/routes/partner-portal.ts:160`, `src/routes/processes.ts:160`, `src/scripts/seed-partner-portal.ts:17`) o código faz um "ou" manual: `lp.case_id = c.id OR c.case_number = lp.process_number`, reimplementado de forma levemente diferente em cada arquivo. Isso é dívida técnica real (lógica de matching duplicada, nenhuma garantia de que os dois números continuem iguais se um for editado depois), mas trocar o schema pra resolver isso é uma refatoração de risco alto (FK em produção, múltiplas rotas dependentes) sem pedido explícito da usuária.
@@ -111,6 +124,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | 23/09/2026 | Claude | Registrada decisão de não integrar o Laya (motor de decisão local) — custo de infraestrutura (serviço Python separado na VPS) maior que o ganho (velocidade que ninguém sente) frente ao Groq/Gemini já em uso |
 | 24/09/2026 | Claude | Registrada decisão de manter `cases` e `legal_processes` separados (achado de prioridade baixa da auditoria do módulo Clientes) — overlap já tem FK de ligação, risco real é lógica de matching duplicada em 3 arquivos, não a separação em si |
 | 29/09/2026 | Claude | Registrada adoção da skill `codebase-design` (módulos profundos) para todo código novo/refatorado |
+| 14/10/2026 | Claude | Registradas as 5 decisões do escritório virtual e por que o prazo de recurso do Leitor de sentença vem de tabela fixa, não da IA |
 | 07/10/2026 | Claude | Backup tratado como crítico (pedido da usuária): retenção avô-pai-filho (3 dias inteiros + 30 diários + 12 mensais no MEGA, cabe na conta gratuita de 21 GB hoje), conferência do arquivo antes de salvar e de apagar antigos, aviso diário. Próximo passo avaliado: tirar as mídias do WhatsApp (~80% de cada cópia) de dentro do banco, guardando-as como arquivos com backup próprio — reduziria cada cópia de ~280 MB para ~60 MB e evitaria estourar o MEGA com o crescimento (~18 MB/dia) |
 | 07/10/2026 | Claude | Provisão de honorários = valor da causa × taxa de sucesso × % médio obtido × honorário do caso (30% ou a parte do escritório na parceria). Escolhida por usar só dados que o CRM já tem e ser explicável na própria tela; dativo e defesa ficam fora porque não seguem a lógica de êxito |
 
