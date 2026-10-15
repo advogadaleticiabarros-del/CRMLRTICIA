@@ -62,7 +62,8 @@ export async function importarNotas(lote: Array<{ caminho: string; texto: string
 export async function removerAusentes(caminhos: string[]): Promise<number> {
   const manter = new Set(caminhos.map((c) => c.replace(/\\/g, '/')));
   const [rows] = await db.query('SELECT id, caminho FROM cerebro_notas') as any;
-  const apagar = rows.filter((r: any) => !manter.has(r.caminho)).map((r: any) => r.id);
+  // Notas "CRM/…" são escritas pelo próprio CRM (ex.: guia de tom de voz) e não existem no cofre.
+  const apagar = rows.filter((r: any) => !manter.has(r.caminho) && !String(r.caminho).startsWith('CRM/')).map((r: any) => r.id);
   for (let i = 0; i < apagar.length; i += 200) {
     const parte = apagar.slice(i, i + 200);
     await db.query(`DELETE FROM cerebro_notas WHERE id IN (${parte.map(() => '?').join(',')})`, parte);

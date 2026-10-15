@@ -71,6 +71,23 @@ export function startCronJobs() {
     runJob('comercial:coletor-documentos', async () => (await import('../services/esteiraComercialServico')).coletarDocumentos());
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── Dra. Lívia: estuda o tom de voz da equipe toda segunda às 7h30 (e 2 min
+  // depois do boot, se ainda não houver guia). Sociedade dos agentes:
+  // conversas a cada 10 min (a partir das ações reais) e reunião às 18h15.
+  cron.schedule('30 7 * * 1', () => {
+    runJob('atendente:tom-de-voz', async () => (await import('../services/atendenteServico')).estudarTomDeVoz());
+  }, { timezone: 'America/Sao_Paulo' });
+  setTimeout(async () => {
+    const { guiaAtual, estudarTomDeVoz } = await import('../services/atendenteServico');
+    if (!(await guiaAtual().catch(() => ({ guia: null }))).guia) runJob('atendente:tom-de-voz', () => estudarTomDeVoz());
+  }, 120_000);
+  cron.schedule('*/10 * * * *', () => {
+    runJob('sociedade:conversas', async () => (await import('../services/sociedadeServico')).gerarConversas(), { silencioso: true });
+  });
+  cron.schedule('15 18 * * *', () => {
+    runJob('sociedade:reuniao', async () => (await import('../services/sociedadeServico')).reuniaoDiaria());
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── a cada 20 min: verifica se a conexão do WhatsApp caiu ── CRÍTICO ──────
   // Antes só existia o religamento único no boot acima — se a sessão caísse
   // no meio do dia (ex.: WhatsApp deslogado por "outro aparelho", como já

@@ -27,7 +27,7 @@ export const AGENTES: AgenteJuridico[] = [
   { id: 'laya', resumo: 'IA grátis do servidor · qualifica e aprende', nome: 'Laya', cargo: 'o cérebro (IA grátis)', depto: 'Gestão', cor: '#a855f7', jobs: [],
     descricao: 'Modelo de decisão que roda no próprio servidor, sem custo. Classifica possíveis clientes (área, urgência, valor) antes de chamar a IA paga e aprende com as correções da equipe.' },
   { id: 'secretaria', resumo: 'Entrega tudo à Dra. já resumido', nome: 'Dra. Clara', cargo: 'Secretária da Dra.', depto: 'Gestão', cor: '#db2777',
-    jobs: ['briefing:matinal', 'briefing:matinal-whatsapp', 'briefing:fechamento-dia', 'audiencia:briefing-vespera'],
+    jobs: ['briefing:matinal', 'briefing:matinal-whatsapp', 'briefing:fechamento-dia', 'audiencia:briefing-vespera', 'sociedade:conversas', 'sociedade:reuniao'],
     descricao: 'Recebe o trabalho de todos os agentes e entrega à Dra. já resumido: briefing das 7h, fechamento do dia, véspera de audiência e as sentenças lidas.' },
   { id: 'leitor', resumo: 'Lê sentenças e acórdãos · prazos de recurso', nome: 'Dr. Lucas', cargo: 'Leitor de sentenças', depto: 'Leitura', cor: '#0ea5e9', jobs: ['leitor:decisoes-recentes'],
     descricao: 'Lê a íntegra de cada sentença e acórdão: resultado para o cliente, o que ganhamos e perdemos, valor, pontos de atenção e prazos de recurso com data.' },
@@ -85,6 +85,9 @@ export const AGENTES: AgenteJuridico[] = [
   { id: 'coletor', nome: 'Dra. Camila', cargo: 'Coletora de documentos e provas', resumo: 'Pede, confere e cobra documentos e provas', depto: 'Comercial', cor: '#65a30d',
     jobs: ['comercial:coletor-documentos'],
     descricao: 'Com o contrato assinado, pede ao cliente: documento com foto, comprovante de endereço, Carteira de Trabalho em PDF mostrando o contrato, extrato do FGTS em PDF, as provas conforme o assunto falado (ponto, prints, áudios, testemunhas, CAT…), conversas do WhatsApp e a transcrição da reunião. Confere o que chegou, cobra em D+2, D+5 e D+10 e, completo, escreve o relato do cliente a partir das conversas.' },
+  { id: 'atendente', nome: 'Dra. Lívia', cargo: 'Atendente do WhatsApp', resumo: 'Atende no tom da Dra. e faz as perguntas certas', depto: 'Atendimento', cor: '#c026d3',
+    jobs: ['atendente:tom-de-voz'],
+    descricao: 'Atende clientes e possíveis clientes no WhatsApp do escritório no tom de voz da Dra. (aprendido das conversas reais da equipe), faz as perguntas certas de cada área, responde o status neutro do processo e encaminha o que é jurídico. Nunca dá opinião jurídica nem fala de valores. Começa em modo rascunho: a equipe aprova antes de sair, e cada correção vira memória dela.' },
 ];
 
 export interface RunJob { job: string; status: 'ok' | 'erro' | string; message: string | null; ran_at: Date | string }

@@ -111,6 +111,7 @@
     produtor:    { cabelo: 'longo', corCabelo: '#7c2d12', feminina: true, terno: '#7c2d12' },
     fechador:    { cabelo: 'curto', corCabelo: '#1c1917', feminina: false, terno: '#0c4a6e', pele: '#c68642', peleSombra: '#a0692f' },
     coletor:     { cabelo: 'rabo', corCabelo: '#3f2a1d', feminina: true, extra: 'oculos', terno: '#365314' },
+    atendente:   { cabelo: 'ondulado', corCabelo: '#3f2a1d', feminina: true, extra: 'headset', terno: '#701a75' },
     voce:        { cabelo: 'longo', corCabelo: '#5a3825', feminina: true, terno: '#1e293b' },
   };
 
@@ -405,6 +406,9 @@
     const camada = novo('g'); svg.appendChild(camada);
     const gRotulos = novo('g', { style: 'pointer-events:none' }); svg.appendChild(gRotulos);
     const gPerto = novo('g'); svg.appendChild(gPerto);
+    // Conversas entre agentes (do mural): uma fala por vez, com linha até o colega.
+    const gConversa = novo('g', { style: 'pointer-events:none' }); svg.appendChild(gConversa);
+    let conversas = [], assConversa = '', quadrosConversa = 0;
     container.appendChild(svg);
 
     // Placa do gabinete
@@ -596,9 +600,32 @@
       nos.sort((x, y) => x.k - y.k);
       const ordem = nos.map((n) => n.k.toFixed(2)).join(',');
       if (ordem !== ordemAnterior) { nos.forEach((n) => camada.appendChild(n.node)); ordemAnterior = ordem; }
+      desenharConversa(cabecas);
       desenharRelogio();
       setTimeout(() => requestAnimationFrame(quadro), 40);
     };
+    function desenharConversa(cabecas) {
+      const vis = conversas.filter((c) => cabecas[c.de] && cabecas[c.para] && c.falas.length);
+      if (!vis.length) { if (assConversa) { gConversa.innerHTML = ''; assConversa = ''; } return; }
+      const dur = vis.map((c) => c.falas.length * 5000 + 2500), ciclo = dur.reduce((x, y) => x + y, 0);
+      let resto = Date.now() % ciclo, idx = 0;
+      while (resto >= dur[idx]) { resto -= dur[idx]; idx++; }
+      const c = vis[idx], fi = Math.min(c.falas.length - 1, Math.floor(resto / 5000)), f = c.falas[fi];
+      const quem = f.quem === c.para ? c.para : c.de, outro = quem === c.de ? c.para : c.de;
+      const chave = `${c.id}-${fi}`;
+      quadrosConversa++;
+      // Redesenha quando a fala muda (com o "pop") e a cada 10 quadros para acompanhar quem anda.
+      if (chave === assConversa && quadrosConversa % 10) return;
+      const nova = chave !== assConversa; assConversa = chave;
+      const ha = cabecas[quem], ou = cabecas[outro], cor = (agentes.find((a) => a.id === quem) || {}).cor || '#6366f1';
+      const linhas = quebrar(f.texto, 32, 3), w = 214, h = linhas.length * 13 + 16, bx = ha.x - w / 2, by = ha.y - 46 - h;
+      gConversa.innerHTML = `<g class="${nova ? 'balao' : ''}">
+        <line x1="${r1(ha.x)}" y1="${r1(ha.y - 14)}" x2="${r1(ou.x)}" y2="${r1(ou.y - 14)}" stroke="${cor}" stroke-width="1.5" stroke-dasharray="4 5" opacity=".6"/>
+        <rect x="${r1(bx)}" y="${r1(by)}" width="${w}" height="${h}" rx="${h / 2}" fill="#eef2ff" stroke="${cor}" stroke-width="2"/>
+        <circle cx="${r1(ha.x - 6)}" cy="${r1(by + h + 7)}" r="5" fill="#eef2ff" stroke="${cor}" stroke-width="1.5"/>
+        ${linhas.map((l, k) => `<text x="${r1(ha.x)}" y="${r1(by + 14 + k * 13)}" font-size="10.5" fill="#1e1b4b" text-anchor="middle">${esc(l)}</text>`).join('')}
+        <text x="${r1(ou.x)}" y="${r1(ou.y - 30)}" font-size="14" text-anchor="middle">💭</text></g>`;
+    }
     const parar = () => { vivo = false; window.removeEventListener('keydown', baixa); window.removeEventListener('keyup', sobe); };
     requestAnimationFrame(quadro);
 
@@ -608,6 +635,7 @@
         agentes = novos;
         novos.forEach((a, i) => { if (!ids.has(a.id)) criarAgente(a, i); });
       },
+      mostrarConversas(lista) { conversas = lista || []; assConversa = ''; },
       reunir(sim) {
         for (const k of Object.keys(chamados)) delete chamados[k];
         if (sim) agentes.filter((a) => a.status !== 'desligado').forEach((a) => { chamados[a.id] = 'reuniao'; });
@@ -713,8 +741,106 @@
     mostrar('perguntar');
   }
 
+  // ── Dra. Lívia: respostas para aprovar e o tom de voz aprendido ───────────
+  const INTENCAO_PT = { novo_caso: 'caso novo', andamento: 'andamento', documentos: 'documentos', agendar: 'agendar', financeiro: 'financeiro', outro: 'outro' };
+  async function abrirAtendente() {
+    const corpo = el(`<div>
+      <div class="pi-abas"><button data-aba="pendente" class="on">💬 Para aprovar</button><button data-aba="enviada">✅ Enviadas</button><button data-aba="tom">🗣️ Tom de voz</button></div>
+      <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px">Modo rascunho: a Dra. Lívia prepara a resposta no seu tom; nada sai sem alguém da equipe enviar. Quando você ajusta o texto antes de enviar, ela aprende.</p>
+      <div id="at-aba"></div></div>`);
+    openModal('💬 Dra. Lívia · Atendente do WhatsApp', corpo, { wide: true });
+    const box = () => corpo.querySelector('#at-aba');
+    const abas = {
+      async pendente() {
+        box().innerHTML = '<div class="spinner"></div>';
+        const lista = await api('/api/atendente/rascunhos?status=pendente');
+        if (!lista.length) { box().innerHTML = '<p class="pi-vazio">Nenhuma resposta esperando aprovação. 👍</p>'; return; }
+        box().innerHTML = lista.map((r) => {
+          const alertas = (typeof r.alertas === 'string' ? JSON.parse(r.alertas || '[]') : r.alertas) || [];
+          return `<div class="pi-card" style="margin-bottom:10px" data-rasc="${r.id}">
+            <h4 style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${r.urgente ? '<span style="color:var(--red)">🚨 URGENTE</span>' : ''}${esc(r.nome || '+' + r.phone)}
+              <small style="font-weight:600;color:var(--text-muted)">· ${INTENCAO_PT[r.intencao] || r.intencao}${r.area ? ' · ' + esc(r.area) : ''} · ${quando(r.created_at)}</small></h4>
+            ${r.urgente && r.motivo_urgencia ? `<p style="margin:0 0 6px;color:var(--red);font-size:13px">${esc(r.motivo_urgencia)}</p>` : ''}
+            <p style="margin:0 0 6px;font-size:13px;background:var(--bg);padding:8px;border-radius:8px"><b>Cliente:</b> ${esc(String(r.mensagem_cliente).slice(0, 600))}</p>
+            ${alertas.length ? `<p style="margin:0 0 6px;color:#b45309;font-size:12.5px">⚠️ Confira antes de enviar: ${alertas.map(esc).join(', ')}</p>` : ''}
+            <textarea rows="4" style="width:100%;font-family:inherit;font-size:13.5px">${esc(r.resposta)}</textarea>
+            <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+              <button type="button" class="btn-gold" data-enviar="${r.id}">📲 Enviar</button>
+              <button type="button" class="btn-ghost" data-descartar="${r.id}">Descartar</button>
+            </div></div>`;
+        }).join('');
+        box().querySelectorAll('[data-enviar]').forEach((b) => b.onclick = async () => {
+          const card = b.closest('[data-rasc]'); b.disabled = true; b.textContent = 'Enviando…';
+          try {
+            await api(`/api/atendente/rascunhos/${b.dataset.enviar}/enviar`, { method: 'POST', body: JSON.stringify({ texto: card.querySelector('textarea').value }) });
+            toast('Resposta enviada'); card.remove();
+          } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = '📲 Enviar'; }
+        });
+        box().querySelectorAll('[data-descartar]').forEach((b) => b.onclick = async () => {
+          const motivo = prompt('Por que descartar? (opcional: a Dra. Lívia aprende com isso)') || '';
+          try { await api(`/api/atendente/rascunhos/${b.dataset.descartar}/descartar`, { method: 'POST', body: JSON.stringify({ motivo }) }); b.closest('[data-rasc]').remove(); }
+          catch (e) { toast(e.message, 'error'); }
+        });
+      },
+      async enviada() {
+        box().innerHTML = '<div class="spinner"></div>';
+        const [a, b] = await Promise.all([api('/api/atendente/rascunhos?status=enviada'), api('/api/atendente/rascunhos?status=editada')]);
+        const lista = [...a, ...b].sort((x, y) => String(y.decidido_em).localeCompare(String(x.decidido_em)));
+        box().innerHTML = lista.length ? `<ul class="ev-hist">${lista.map((r) => `<li><time>${quando(r.decidido_em)}</time><span><b>${esc(r.nome || r.phone)}</b> ${r.status === 'editada' ? '<small style="color:#b45309">(ajustada por ' + esc(r.decidido_por || '') + ')</small>' : '<small style="color:var(--green)">(aprovada por ' + esc(r.decidido_por || '') + ')</small>'}<br>${esc(r.resposta_final || r.resposta)}</span></li>`).join('')}</ul>` : '<p class="pi-vazio">Nada enviado ainda.</p>';
+      },
+      async tom() {
+        box().innerHTML = '<div class="spinner"></div>';
+        const g = await api('/api/atendente/guia');
+        box().innerHTML = `${g.texto ? `<div class="pi-card"><div style="white-space:pre-wrap;font-size:13.5px;line-height:1.55">${esc(g.texto)}</div></div>` : '<p class="pi-vazio">O guia ainda não foi gerado.</p>'}
+          <button class="btn-primary" id="at-estudar" style="margin-top:10px">🔎 Estudar as conversas de novo</button>
+          <p style="font-size:12px;color:var(--text-muted)">Lê as mensagens dos últimos 90 dias que a equipe escreveu (sem as automáticas), tira CPF, telefone e e-mail e atualiza o guia. Também roda sozinho toda segunda às 7h30.</p>`;
+        box().querySelector('#at-estudar').onclick = async (ev) => {
+          ev.target.disabled = true; ev.target.textContent = 'Estudando…';
+          try { const r = await api('/api/atendente/estudar-tom', { method: 'POST', body: '{}' }); toast(r.guia ? `Guia atualizado com ${r.conversas} conversas` : 'Ainda não há conversas suficientes'); abas.tom(); }
+          catch (e) { toast(e.message, 'error'); ev.target.disabled = false; }
+        };
+      },
+    };
+    const mostrar = (nome) => {
+      corpo.querySelectorAll('[data-aba]').forEach((b) => b.classList.toggle('on', b.dataset.aba === nome));
+      abas[nome]().catch((e) => { box().innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
+    };
+    corpo.querySelectorAll('[data-aba]').forEach((b) => b.onclick = () => mostrar(b.dataset.aba));
+    mostrar('pendente');
+  }
+
+  // ── Mural da equipe: reunião, conversas e memórias ────────────────────────
+  async function abrirMural(agentes) {
+    const nome = (id) => (agentes.find((a) => a.id === id) || {}).nome || id;
+    const cor = (id) => (agentes.find((a) => a.id === id) || {}).cor || '#64748b';
+    const corpo = el('<div><div class="spinner"></div></div>');
+    openModal('💬 Mural da equipe', corpo, { wide: true });
+    const carregar = async () => {
+      const m = await api('/api/escritorio/mural');
+      const r = m.reuniao;
+      corpo.innerHTML = `
+        <div class="pi-card" style="margin-bottom:10px"><h4>🤝 Reunião da equipe ${r ? `· ${new Date(r.dia).toLocaleDateString('pt-BR', { timeZone: 'UTC' })}` : ''}</h4>
+          ${r ? `<p style="font-size:13.5px;line-height:1.55">${esc(r.ata)}</p>
+            ${r.falas.length ? `<ul class="ev-hist" style="max-height:220px">${r.falas.map((f) => `<li><span><b style="color:${cor(f.agente)}">${esc(nome(f.agente))}:</b> ${esc(f.texto)}</span></li>`).join('')}</ul>` : ''}
+            ${r.ideias.length ? `<h4 style="margin-top:10px">💡 Ideias para a Dra.</h4><ul class="ev-hist">${r.ideias.map((i) => `<li><span><b style="color:${cor(i.agente)}">${esc(nome(i.agente))}:</b> ${esc(i.ideia)}</span></li>`).join('')}</ul>` : ''}`
+            : '<p class="pi-vazio">A primeira reunião acontece hoje às 18h15, ou agora pelo botão abaixo.</p>'}
+          <button class="btn-primary" id="mu-reuniao" style="margin-top:8px">🤝 Fazer a reunião agora</button></div>
+        <div class="pi-grade">
+          <div class="pi-card"><h4>💬 Conversas entre a equipe</h4>${m.conversas.length ? `<ul class="ev-hist" style="max-height:340px">${m.conversas.map((c) => `<li><time>${quando(c.created_at)}</time><span><small style="color:var(--text-muted)">${esc(c.tema)}</small>${c.falas.map((f) => `<br><b style="color:${cor(f.quem)}">${esc(nome(f.quem))}:</b> ${esc(f.texto)}`).join('')}</span></li>`).join('')}</ul>` : '<p class="pi-vazio">As conversas aparecem conforme a equipe trabalha.</p>'}</div>
+          <div class="pi-card"><h4>🧠 O que a equipe aprendeu</h4>${m.memorias.length ? `<ul class="ev-hist" style="max-height:340px">${m.memorias.map((x) => `<li><time>${quando(x.created_at)}</time><span><b style="color:${cor(x.agente)}">${esc(nome(x.agente))}:</b> ${esc(x.texto)}</span></li>`).join('')}</ul>` : '<p class="pi-vazio">As memórias nascem das reuniões e das suas correções.</p>'}</div>
+        </div>`;
+      corpo.querySelector('#mu-reuniao').onclick = async (ev) => {
+        ev.target.disabled = true; ev.target.textContent = 'A equipe está reunida…';
+        try { const x = await api('/api/escritorio/reuniao', { method: 'POST', body: '{}' }); toast(x.reuniao ? 'Reunião registrada' : (x.motivo || 'Não foi possível agora')); await carregar(); }
+        catch (e) { toast(e.message, 'error'); ev.target.disabled = false; }
+      };
+    };
+    try { await carregar(); } catch (e) { corpo.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
   async function abrirAgente(id) {
     if (id === 'cerebro') { abrirCerebro(); return; }
+    if (id === 'atendente') { abrirAtendente(); return; }
     const corpo = el('<div><div class="spinner"></div></div>');
     openModal('Agente', corpo, { wide: true });
     try {
@@ -809,7 +935,7 @@
       let agentes = r.agentes;
       const sala = montarSala($('#ev-sala'), agentes, abrirAgente);
       let reunidos = false;
-      const DESTAQUES = ['cerebro', 'laya', 'secretaria', 'leitor', 'produtor', 'coletor', 'prazos', 'estagiario'];
+      const DESTAQUES = ['atendente', 'cerebro', 'laya', 'secretaria', 'leitor', 'produtor', 'coletor', 'prazos', 'estagiario'];
       const desenharBarra = (quandoAtualizou) => {
         const trab = agentes.filter((a) => a.status === 'trabalhando').length;
         const erros = agentes.filter((a) => a.status === 'erro').length;
@@ -818,9 +944,11 @@
           <small style="color:var(--text-muted)">atualizado ${quandoAtualizou}</small>
           ${DESTAQUES.map((id) => agentes.find((a) => a.id === id)).filter(Boolean).map((a) => `<button type="button" class="ev-chip" data-agente="${a.id}" style="border-color:${a.cor};color:${a.cor}"><span class="bola" style="background:${COR_STATUS[a.status]}"></span>${esc(a.nome)} · ${esc(a.cargo)}</button>`).join('')}
           <button type="button" class="ev-chip cheio" id="ev-metricas" style="background:#2563eb">📊 Métricas da IA</button>
+          <button type="button" class="ev-chip cheio" id="ev-mural" style="background:#7c3aed">💬 Mural da equipe</button>
           <button type="button" class="ev-chip cheio" id="ev-reunir" style="background:#b45309">🤝 ${reunidos ? 'Encerrar reunião' : 'Reunir a equipe'}</button>`;
         $('#ev-barra').querySelectorAll('[data-agente]').forEach((b) => b.onclick = () => abrirAgente(b.dataset.agente));
         $('#ev-metricas').onclick = () => abrirPainelIa();
+        $('#ev-mural').onclick = () => abrirMural(agentes);
         $('#ev-reunir').onclick = () => { reunidos = !reunidos; sala.reunir(reunidos); desenharBarra(quandoAtualizou); };
       };
       const desenharCartoes = () => {
@@ -837,6 +965,10 @@
       };
       desenharBarra('agora');
       desenharCartoes();
+      // Conversas reais da equipe passam em balões na sala (atualiza a cada 2 min).
+      const carregarConversas = () => api('/api/escritorio/mural').then((m) => sala.mostrarConversas(m.conversas.slice(0, 8))).catch(() => {});
+      carregarConversas();
+      const timerConversas = setInterval(() => { if (!document.body.contains($('#ev-sala svg'))) { clearInterval(timerConversas); return; } carregarConversas(); }, 120000);
       let zoom = 1;
       const svg = $('#ev-sala svg');
       const aplicarZoom = () => { svg.style.width = `${zoom * 100}%`; $('#ev-zv').textContent = `${Math.round(zoom * 100)}%`; };

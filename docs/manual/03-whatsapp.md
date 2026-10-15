@@ -217,10 +217,39 @@ Pendências expiram em 48 h (tabela `assistente_pendencias`, migration 153). Um 
 - **Lembretes:** ficam em `assistente_lembretes` (migration 154). O cron `assistente:lembretes` roda a cada minuto.
 - **Testes:** `tests/assistenteAcoes.test.mjs`, `tests/assistenteBusca.test.mjs` e `tests/assistenteWhatsappAcoes.test.mjs`.
 
+## Dra. Lívia, a atendente (desde 15/10/2026, modo rascunho)
+
+**Quando entra:** quando chega mensagem de cliente ou de possível cliente no número do escritório. Ela espera 90 segundos, para juntar mensagens seguidas, e prepara **uma resposta em rascunho**.
+
+**Quando não entra:**
+- mensagem da Dra., da Jessica ou de parceiro;
+- só emoji ou figurinha;
+- alguém da equipe respondeu naquela conversa nas últimas 2 horas, porque a pessoa assumiu.
+
+**Como escreve:**
+- **No tom da Dra.:** segue o "Guia de tom de voz", gerado das mensagens que a equipe escreveu à mão nos últimos 90 dias. As automáticas e as dos agentes ficam de fora, e CPF, telefone, e-mail e número de processo são apagados antes de ir à IA. O estudo roda toda segunda às 7h30 e o guia também fica no Cérebro.
+- **Perguntas certas por área**, no máximo 2 por mensagem: trabalhista, gestante, previdenciário, família, consumidor, cível ou geral.
+- **Cliente que pergunta do processo:** recebe só o status neutro, a última movimentação em palavras simples.
+
+**O que ela nunca faz:** opinião jurídica, promessa de resultado ou falar de honorários e valores. Se o rascunho tiver algo assim, aparece "⚠️ Confira antes de enviar".
+
+**Urgência** (prazo, audiência, intimação, gestante demitida, benefício cortado): o rascunho fica marcado 🚨 e a Dra. recebe um aviso no WhatsApp.
+
+**Onde aprovar:** Escritório virtual → **Dra. Lívia** → **Para aprovar**:
+- **Enviar:** manda o texto como está ou editado. Se você editou, ela grava a correção e passa a escrever daquele jeito.
+- **Descartar:** pode dizer o motivo, e ela também aprende com isso.
+
+A aba **Tom de voz** mostra o guia e tem o botão "Estudar as conversas de novo".
+
+**Desligar de emergência:** `ATENDENTE_DESLIGADO=1` no `.env` e reiniciar.
+
+Código: regras em `atendente.ts` e `tomDeVoz.ts`; banco e envio em `atendenteServico.ts`; API em `/api/atendente`; tabela `atendente_rascunhos` (migration 159).
+
 ## Changelog
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 15/10/2026 | Claude | Dra. Lívia, atendente em modo rascunho, no tom de voz da Dra. (guia aprendido das conversas reais) e aprendendo com as correções |
 | 09/10/2026 | Claude | Assistente: interpretação pela OpenAI primeiro (Groq de reserva) |
 | 09/10/2026 | Claude | Assistente: consulta de acordos, lista de próximos recebimentos, foco no pedido atual (corrige respostas erradas de 08/10) |
 | 08/10/2026 | Claude | Assistente: só o financeiro pede "sim"; agenda, lembrete, tarefa, cadastro e recado são feitos na hora |

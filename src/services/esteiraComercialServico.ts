@@ -201,11 +201,11 @@ async function nomesDosArquivos(clientId: number, caseId: number): Promise<strin
 /** Relato do cliente para o depoimento, a partir das conversas e áudios transcritos no WhatsApp. */
 async function gerarRelato(coleta: any, nome: string, fone: string | null): Promise<number | null> {
   if (!fone) return null;
+  // Áudios e imagens já chegam transcritos/descritos dentro do próprio body.
   const [msgs] = await db.query(
-    `SELECT m.direction, m.content, m.transcription, m.sent_at FROM whatsapp_messages m
-       JOIN whatsapp_conversations c ON c.id = m.conversation_id
-      WHERE RIGHT(REGEXP_REPLACE(c.phone_number, '[^0-9]', ''), 8) = ? ORDER BY m.sent_at ASC LIMIT 400`, [fone.slice(-8)]) as any;
-  const linhas = msgs.map((m: any) => `${m.direction === 'incoming' ? 'Cliente' : 'Escritório'}: ${String(m.transcription || m.content || '').replace(/\s+/g, ' ').slice(0, 600)}`)
+    `SELECT from_me, body FROM whatsapp_messages
+      WHERE RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 8) = ? ORDER BY msg_time ASC LIMIT 400`, [fone.slice(-8)]) as any;
+  const linhas = msgs.map((m: any) => `${m.from_me ? 'Escritório' : 'Cliente'}: ${String(m.body || '').replace(/\s+/g, ' ').slice(0, 600)}`)
     .filter((l: string) => l.length > 12);
   if (!linhas.length) return null;
   const r = await aiComplete(`Você é assistente jurídico(a). A partir da conversa de WhatsApp abaixo entre o escritório e ${nome}, escreva o RELATO DO CLIENTE para preparar o depoimento e a petição: fatos em ordem cronológica, datas, valores, nomes de pessoas citadas (testemunhas, chefes), provas mencionadas e o que ainda falta esclarecer. Use SOMENTE o que está na conversa; não invente. Marque [confirmar] o que estiver incerto.

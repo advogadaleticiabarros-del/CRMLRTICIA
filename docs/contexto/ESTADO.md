@@ -5,6 +5,11 @@
 **Última atualização:** 14/10/2026. Último commit: Escritório virtual (sala + Métricas da IA) e Laya.
 
 ## Últimas entregas (mais recentes primeiro)
+- **15/10:**
+  - **Dra. Lívia, atendente do WhatsApp (modo rascunho):** usa o tom de voz aprendido das conversas reais da equipe, faz as perguntas certas por área e aprende com as correções. Aprovação em Escritório virtual → Dra. Lívia. Para desligar: `ATENDENTE_DESLIGADO=1`.
+  - **Sociedade dos agentes:** conversas a partir das ações reais (a cada 10 min), reunião diária às 18h15 com ata e ideias, memória persistente e Mural da equipe. Migration 159.
+  - **Corrigido:** o relato do cliente da Dra. Camila lia a tabela antiga de mensagens (era da migration 012; o certo é a 084).
+  - **Próximo passo:** depois de uma semana de rascunhos aprovados, avaliar com a Dra. se a Lívia passa a responder sozinha.
 - **14/10 (fim do dia):**
   - **Cérebro:** biblioteca do Obsidian. Pergunta, importação do cofre pelo navegador, relatório de organização com Mapa do cofre; repassa notas ao Enzo nas minutas (migration 157).
   - **Esteira comercial:** Dra. Bianca (proposta com valor de tabela pelo histórico, política de parcelamento, conflito de interesses e aprovação no WhatsApp da Dra.), Dr. Felipe (revisão e assinatura) e Dra. Camila (documentos e provas, cobrança, relato do cliente). Migration 158.

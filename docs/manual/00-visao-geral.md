@@ -97,6 +97,21 @@ Ele também repassa as teses da casa ao **Enzo** antes de cada minuta. A rotina 
 
 Regras em `esteiraComercial.ts`; banco e envio em `esteiraComercialServico.ts`. Ao cliente só saem pedidos e lembretes; a proposta, só com a aprovação da Dra.
 
+**Sociedade dos agentes** (desde 15/10/2026): a equipe conversa, se reúne e lembra.
+- **Conversas entre colegas:** a cada 10 minutos, as ações reais viram conversa. Exemplos:
+  - o Dr. Lucas avisa a Dra. Paula do prazo da sentença que leu;
+  - a Dra. Camila avisa o Enzo que os documentos estão completos;
+  - a Dra. Bianca passa a proposta ao Dr. Felipe.
+
+  Os textos usam só os fatos da ação, sem inventar nada (`sociedadeAgentes.ts`). Aparecem em balões na sala, com uma linha até o colega, e no Mural.
+- **Reunião da equipe:** todo dia às 18h15, ou pelo botão "Fazer a reunião agora" no Mural. A Dra. Clara conduz:
+  - a IA escreve a ata, as falas e as ideias **só a partir do que cada agente fez no dia**;
+  - o que cada um aprendeu vai para a memória.
+- **Memória que não se apaga** (`agente_memorias`): aprendizados das reuniões e as correções que a equipe faz nas respostas da Dra. Lívia. Elas entram nas próximas respostas.
+- **Botão "💬 Mural da equipe":** última reunião com ideias para a Dra., conversas e o que a equipe aprendeu.
+
+Importante: os agentes não têm consciência. É uma simulação de equipe com memória persistente, baseada no trabalho real.
+
 **Métricas da IA** (botão azul), por período de 7, 30 ou 90 dias:
 - possíveis clientes e quantos a IA qualificou;
 - decisões lidas;
@@ -179,6 +194,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 15/10/2026 | Claude | Dra. Lívia (atendente, modo rascunho, tom de voz da Dra.) e sociedade dos agentes (conversas, reunião diária, memória, Mural) |
 | 14/10/2026 | Claude | Cérebro (biblioteca do Obsidian) e esteira comercial (Dra. Bianca, Dr. Felipe, Dra. Camila) |
 | 14/10/2026 | Claude | Nomes com Dr./Dra. (menos Laya e o estagiário) |
 | 14/10/2026 | Claude | Agentes de terno e quadro de cartões (status, o que faz, números do dia, última ação) abaixo da sala |

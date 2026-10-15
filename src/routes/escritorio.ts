@@ -116,6 +116,10 @@ async function metricasDosAgentes(): Promise<Record<string, MetricaAgente[]>> {
     coletor: m(
       [await n('SELECT COUNT(*) AS n FROM coletas_documentos WHERE concluido_em IS NULL'), 'coletas em andamento'],
       [await n('SELECT COUNT(*) AS n FROM coletas_documentos WHERE concluido_em >= NOW() - INTERVAL 30 DAY'), 'completas em 30 dias']),
+    atendente: m(
+      [await n("SELECT COUNT(*) AS n FROM atendente_rascunhos WHERE status = 'pendente'"), 'respostas para aprovar'],
+      [await n(`SELECT COUNT(*) AS n FROM atendente_rascunhos WHERE status IN ('enviada','editada') AND ${local('decidido_em')} = ${HOJE}`), 'enviadas hoje'],
+      [await n("SELECT COUNT(*) AS n FROM agente_memorias WHERE agente = 'atendente'"), 'aprendizados']),
     guardiao: m(
       [await n(`SELECT COUNT(*) AS n FROM job_runs WHERE job = 'backup:diario' AND status = 'ok' AND ${local('ran_at')} = ${HOJE}`), 'cópias hoje'],
       [await n("SELECT COUNT(*) AS n FROM job_runs WHERE job = 'backup:prova-de-restauracao' AND status = 'ok' AND ran_at >= NOW() - INTERVAL 30 DAY"), 'provas de restauração em 30 dias']),
@@ -130,6 +134,16 @@ router.get('/', async (_req: Request, res: Response) => {
   const acoes = await acoesDesde(26);
   const agentes = montarEscritorio(runs, acoes, new Date(), { layaOnline: await layaOnline(), metricas: await metricasDosAgentes() });
   res.json({ agentes, atualizadoEm: new Date().toISOString() });
+});
+
+// ── Mural da equipe: conversas entre agentes, última reunião e memórias ─────
+router.get('/mural', async (_req: Request, res: Response) => {
+  try { res.json(await (await import('../services/sociedadeServico')).mural()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Reunião da equipe agora (botão "Reunir a equipe")
+router.post('/reuniao', async (_req: Request, res: Response) => {
+  try { res.json(await (await import('../services/sociedadeServico')).reuniaoDiaria(true)); } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 router.get('/agente/:id', async (req: Request, res: Response) => {

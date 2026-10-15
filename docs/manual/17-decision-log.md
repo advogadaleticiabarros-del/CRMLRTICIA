@@ -16,6 +16,20 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 15/10/2026 — Atendente em modo rascunho e "sociedade" dos agentes ancorada no trabalho real
+**Atendente (Dra. Lívia):**
+- Começa em **modo rascunho**: nenhuma mensagem sai sem alguém da equipe enviar. A primeira semana serve para calibrar o tom.
+- Depois de aprovado, o caminho para responder sozinha é trocar o envio do rascunho por envio direto, mantendo as travas de "promete resultado" e "fala de valores".
+- **Ela para quando a equipe fala:** não entra se uma pessoa respondeu nas últimas 2 horas.
+- **Tom de voz** aprendido só das mensagens escritas por pessoas: as dos agentes saem com "Agente" no `sent_by` e não entram no estudo, para ela não aprender com ela mesma. Dados pessoais são mascarados antes de ir à IA.
+
+**Sociedade:**
+- As conversas entre agentes saem de **modelos de frase preenchidos com os fatos da ação real**, sem IA. Assim não há como inventar caso ou número.
+- A IA só escreve a **reunião diária**, a partir das ações e dos números do dia, com instrução explícita de não inventar.
+- A "consciência" pedida é uma simulação: personalidade constante e memória persistente (`agente_memorias`), não consciência de verdade. Foi dito assim à Jessica.
+
+**Alternativa descartada:** conversas livres geradas por IA a todo momento. Seria caro e com risco de inventar fatos sobre clientes.
+
 ### 14/10/2026 — Esteira comercial: valor de tabela pelo histórico e aprovação só da Dra.
 **Valor de tabela:** o CRM não tinha tabela de honorários. A Dra. Bianca usa a tabela configurada (`office_settings.tabela_honorarios`) e, sem ela, a **mediana das propostas aceitas da área nos últimos 12 meses**: é a prática real do escritório, não um valor inventado. Sem histórico para a área, propõe só êxito (30% + sucumbência).
 **Política de parcelamento:** ponto de partida provisório (sem entrada mínima, até 10 parcelas, parcela mínima de R$ 100) até a Dra. definir a dela em `office_settings.politica_parcelamento`. Como toda proposta passa pela aprovação dela, o provisório nunca chega ao cliente sem ser visto.
@@ -146,6 +160,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | 23/09/2026 | Claude | Registrada decisão de não integrar o Laya (motor de decisão local) — custo de infraestrutura (serviço Python separado na VPS) maior que o ganho (velocidade que ninguém sente) frente ao Groq/Gemini já em uso |
 | 24/09/2026 | Claude | Registrada decisão de manter `cases` e `legal_processes` separados (achado de prioridade baixa da auditoria do módulo Clientes) — overlap já tem FK de ligação, risco real é lógica de matching duplicada em 3 arquivos, não a separação em si |
 | 29/09/2026 | Claude | Registrada adoção da skill `codebase-design` (módulos profundos) para todo código novo/refatorado |
+| 15/10/2026 | Claude | Atendente em modo rascunho e sociedade dos agentes ancorada no trabalho real |
 | 14/10/2026 | Claude | Laya volta (revê 23/09) e escritório virtual dentro do CRM |
 | 14/10/2026 | Claude | Registradas as 5 decisões do escritório virtual e por que o prazo de recurso do Leitor de sentença vem de tabela fixa, não da IA |
 | 07/10/2026 | Claude | Backup tratado como crítico (pedido da usuária): retenção avô-pai-filho (3 dias inteiros + 30 diários + 12 mensais no MEGA, cabe na conta gratuita de 21 GB hoje), conferência do arquivo antes de salvar e de apagar antigos, aviso diário. Próximo passo avaliado: tirar as mídias do WhatsApp (~80% de cada cópia) de dentro do banco, guardando-as como arquivos com backup próprio — reduziria cada cópia de ~280 MB para ~60 MB e evitaria estourar o MEGA com o crescimento (~18 MB/dia) |

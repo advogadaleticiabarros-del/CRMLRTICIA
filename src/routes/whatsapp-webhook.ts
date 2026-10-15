@@ -628,6 +628,12 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
         // não atrasa a resposta do webhook.
         detectarDadosParaProposta(phone, String(body)).catch(() => {});
       }
+      // Dra. Lívia (atendente): prepara a resposta em rascunho para a equipe
+      // aprovar. Espera 90 s para juntar mensagens seguidas; nunca envia sozinha.
+      if (!respondeuPendencia) {
+        import('../services/atendenteServico').then((m) => m.agendarRascunho(phone, clientId, !!ehParceiro))
+          .catch((e) => console.error('[whatsapp-webhook] atendente:', e?.message || e));
+      }
     }
   } catch (e: any) {
     // Best-effort: nunca derruba o webhook — mas logar é essencial, senão um
