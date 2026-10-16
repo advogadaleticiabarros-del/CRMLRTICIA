@@ -43,7 +43,7 @@ export interface ParseWarning { line: number; reason: string; }
 export interface ParseResult { rows: ParsedRow[]; warnings: ParseWarning[]; }
 
 export function parseNubankCsv(csvText: string): ParseResult {
-  const text = String(csvText || '').replace(/^﻿/, '');
+  const text = String(csvText || '').replace(/^\uFEFF/, '');
   const lines = text.split(/\r\n|\n|\r/).map((l) => l.trim()).filter((l) => l.length > 0);
   if (!lines.length) throw new Error('Arquivo CSV vazio');
 

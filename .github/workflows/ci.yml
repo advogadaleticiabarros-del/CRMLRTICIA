@@ -1,0 +1,76 @@
+name: Testes
+
+# Portão de qualidade (16/10/2026): nada vai para a VPS sem passar aqui.
+# - Em qualquer branch que não seja a main: roda sozinho (para testar antes).
+# - Na main: o deploy.yml chama este workflow e só publica se ele passar.
+# Sobe um MySQL descartável, aplica TODAS as migrations num banco vazio (prova
+# que o banco nasce do zero) e roda tipos, lint, testes (inclusive os que
+# precisam de banco) e a checagem de vulnerabilidades das bibliotecas.
+on:
+  push:
+    branches-ignore: [main]
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-somente-teste
+          MYSQL_DATABASE: crm_juridico_ci
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-somente-teste"
+          --health-interval=5s --health-timeout=5s --health-retries=30
+    env:
+      NODE_ENV: test
+      TZ: America/Sao_Paulo
+      JWT_SECRET: ci-chave-de-teste-nao-usar-em-producao
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_NAME: crm_juridico_ci
+      DB_USER: root
+      DB_PASSWORD: ci-somente-teste
+      # Nenhuma chave real aqui: IA, WhatsApp e e-mail ficam desligados nos testes.
+      ATENDENTE_DESLIGADO: '1'
+      COPILOTO_DESLIGADO: '1'
+      NEGOCIADOR_DESLIGADO: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Tipos (TypeScript)
+        run: npm run typecheck
+
+      - name: Lint (só erros de verdade travam)
+        run: npm run lint
+
+      - name: Compilar
+        run: npm run build
+
+      - name: Banco do zero (todas as migrations)
+        run: npm run migrate
+
+      - name: Admin de teste
+        run: npm run seed:admin:prod
+        env:
+          ADMIN_EMAIL: ci@teste.local
+          ADMIN_PASSWORD: Ci-Teste-123456
+          ADMIN_NAME: Admin CI
+
+      - name: Testes (unitários + integração com banco)
+        run: npm test
+
+      - name: Vulnerabilidades (críticas e altas travam)
+        run: npm audit --omit=dev --audit-level=high

@@ -9406,7 +9406,7 @@ async function dativeCaseDetail(id, onSave) {
   form.querySelectorAll('[data-hedit]').forEach((row) => {
     row.onclick = () => {
       const h = (d.hearings || []).find((x) => String(x.id) === row.dataset.hedit);
-      if (h) dativeHearingEditForm(h, () => dativeCaseDetail(id, onSave));
+      if (h) dativeHearingEditForm(() => dativeCaseDetail(id, onSave), h);
     };
   });
   const moverBtn = form.querySelector('#dat-mover-esteira');
@@ -9503,23 +9503,6 @@ async function dativeCaseDetail(id, onSave) {
   openModal('Demanda dativa', form);
 }
 
-// Edita uma audiência já lançada — valor, data, tipo, status.
-async function dativeHearingEditForm(h, onSave) {
-  const dt = h.hearing_date ? String(h.hearing_date).replace(' ', 'T').slice(0, 16) : '';
-  const form = el(`<form class="form-grid">
-    <div class="form-row">${field('Data/hora', 'hearing_date', { type: 'datetime-local', value: dt })}${field('Tipo', 'type', { value: h.type || '' })}</div>
-    <div class="form-row">${field('Comarca', 'comarca', { value: h.comarca || '' })}${field('Valor do ato (R$)', 'act_value', { type: 'number', value: h.act_value ?? 0 })}</div>
-    ${field('Status', 'status', { value: h.status, options: [['agendada','Agendada'],['realizada','Realizada'],['adiada','Adiada'],['cancelada','Cancelada']].map(([v,t])=>({v,t})) })}
-    <button type="submit" class="btn-primary">Salvar audiência</button>
-  </form>`);
-  form.onsubmit = async (e) => {
-    e.preventDefault();
-    try { await api('/api/dative/hearings/' + h.id, { method: 'PUT', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
-      closeModal(); toast('Audiência atualizada'); onSave(); } catch (err) { toast(err.message, 'error'); }
-  };
-  openModal('Editar audiência', form);
-}
-
 async function dativeHearingForm(onSave) {
   const cases = await api('/api/dative/cases');
   if (!cases.length) { toast('Cadastre uma demanda antes', 'error'); return; }
@@ -9583,6 +9566,10 @@ async function dativeCaseEditForm(onSave, d) {
   openModal('Editar demanda dativa', form);
 }
 
+// Edita uma audiência já lançada (demanda, data, tipo, comarca, valor, status, observações).
+// Ordem dos parâmetros: (onSave, h). Até 16/10/2026 havia uma 2ª função com o
+// mesmo nome e a ordem trocada; o navegador ficava só com esta, e a edição pela
+// ficha da demanda gravava em "/hearings/undefined" (achado pelo lint).
 async function dativeHearingEditForm(onSave, h) {
   if (!h) return;
   const cases = await api('/api/dative/cases');

@@ -9,6 +9,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
     "migrate": "node dist/scripts/migrate.js",
     "migrate:dev": "ts-node src/scripts/migrate.ts",
     "seed:admin": "ts-node src/scripts/seed-admin.ts",
@@ -45,7 +46,7 @@
     "mysql2": "^3.11.3",
     "mysqldump": "^3.2.0",
     "node-cron": "^3.0.3",
-    "nodemailer": "^9.0.3",
+    "nodemailer": "^10.1.2",
     "otplib": "^13.4.1",
     "pdfkit": "^0.19.1",
     "qrcode": "^1.5.4",
@@ -54,6 +55,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.17",
@@ -63,10 +65,13 @@
     "@types/node-cron": "^3.0.11",
     "@types/nodemailer": "^8.0.1",
     "@types/qrcode": "^1.5.6",
+    "eslint": "^9.39.5",
+    "globals": "^17.13.0",
     "mammoth": "^1.12.0",
     "nodemon": "^3.1.7",
     "ts-node": "^10.9.2",
-    "typescript": "^5.6.2"
+    "typescript": "^5.6.2",
+    "typescript-eslint": "^8.71.2"
   },
   "overrides": {
     "mysql2": "^3.11.3"
