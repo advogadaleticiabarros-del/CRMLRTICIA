@@ -16,6 +16,20 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: Laya "online" no PM2, mas sem responder
+
+**Sintoma (16/10/2026):** `pm2 ls` do crmapp mostra `laya` online, mas `pm2 pid laya` vem vazio, os logs estão vazios e `curl http://127.0.0.1:8765/` não conecta. No Escritório virtual a Laya aparece desligada.
+
+**Causa raiz:** o serviço foi iniciado com `sudo -u crmapp pm2 start …` a partir de `/root`. O PM2 grava a pasta de onde foi chamado como pasta de trabalho, e o crmapp não tem permissão em `/root`. O processo nunca chega a nascer.
+
+**Como confirmar:** `sudo -u crmapp -H bash -lc "pm2 describe laya" | grep "exec cwd"` mostra `/root`.
+
+**Correção:** apagar e iniciar de novo a partir da pasta do crmapp: `sudo -u crmapp -H bash -lc "cd ~ && pm2 delete laya; pm2 start /opt/laya/bin/laya-serve --name laya --interpreter none --cwd /home/crmapp …"` (com as variáveis `LAYA_*` do script) e depois `pm2 save`. Na primeira vez ela baixa o modelo (cerca de 650 MB) e responde em cerca de 1 minuto.
+
+**Prevenção:** o `scripts/instalar-laya-vps.sh` já entra em `~` e passa `--cwd /home/crmapp`.
+
+---
+
 ## Incidente: mensagem automática chegando duas vezes
 
 **Sintoma:** o mesmo aviso (briefing de fechamento, lembrete, notificação) chega duplicado no WhatsApp/e-mail, no mesmo dia.

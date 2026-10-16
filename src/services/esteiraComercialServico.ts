@@ -11,6 +11,8 @@ import {
   mensagemCobrancaDocumentos, marcoCobranca,
   type PoliticaParcelamento, type TabelaHonorarios, type PropostaAceita, type ItemDocumento,
 } from './esteiraComercial';
+import { referenciaOab, textoReferencia } from './tabelaOabRj';
+import { calcularCapacidade, linhaCapacidade, interpretarComandoMontar } from './copilotoComercial';
 
 /**
  * Esteira comercial com banco e WhatsApp (regras em esteiraComercial.ts).
@@ -34,13 +36,13 @@ async function marcar(ref: string, marco: string): Promise<boolean> {
   return r.affectedRows === 1;
 }
 
-async function configuracao(): Promise<{ tabela: TabelaHonorarios; politica: PoliticaParcelamento }> {
+export async function configuracao(): Promise<{ tabela: TabelaHonorarios; politica: PoliticaParcelamento }> {
   const [rows] = await db.query("SELECT setting_key, setting_value FROM office_settings WHERE setting_key IN ('tabela_honorarios','politica_parcelamento')").catch(() => [[]]) as any;
   const ler = (k: string) => { try { return JSON.parse(rows.find((r: any) => r.setting_key === k)?.setting_value || 'null'); } catch { return null; } };
   return { tabela: ler('tabela_honorarios') || {}, politica: { ...POLITICA_PADRAO, ...(ler('politica_parcelamento') || {}) } };
 }
 
-async function historicoAceitas(): Promise<PropostaAceita[]> {
+export async function historicoAceitas(): Promise<PropostaAceita[]> {
   const [rows] = await db.query("SELECT legal_area, honorarios FROM propostas WHERE status = 'aceita' AND aceito_em >= NOW() - INTERVAL 365 DAY").catch(() => [[]]) as any;
   return rows.map((r: any) => {
     let h: any = {};
@@ -62,42 +64,72 @@ async function conflitosDeInteresse(nome: string, cpf: string | null): Promise<s
   return rows.map((r: any) => `${r.title} (parte contrária)`);
 }
 
+const COLUNAS_LEAD = `l.id, l.user_id, l.client_id, l.name, l.phone, l.email, l.cpf_cnpj, l.street, l.cep, l.legal_area, l.case_summary, l.notes,
+  l.capacidade_sinais`;
+
+/** Monta UMA proposta (rascunho), manda à Dra. aprovar e pede ao cliente os dados que faltam. */
+async function produzirUma(l: any, cfg: { tabela: TabelaHonorarios; politica: PoliticaParcelamento }, hist: PropostaAceita[]): Promise<number> {
+  const resumo = String(l.case_summary || l.notes || '').trim() || null;
+  const ref = referenciaOab(l.legal_area, resumo);
+  const v = valoresDeTabela(l.legal_area, hist, cfg.tabela, ref);
+  const parc = aplicarPolitica(v, cfg.politica);
+  const honorarios = montarHonorarios({ exito: v.exito, parcelamento: parc }, parc.total ? isoMaisDias(30) : null);
+  const [ins] = await db.query(
+    `INSERT INTO propostas (user_id, client_id, lead_id, title, valor, status, validade, description, legal_area, contact_name, cpf, phone, email, honorarios, observacoes)
+     VALUES (?, ?, ?, ?, ?, 'rascunho', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [l.user_id, l.client_id ?? null, l.id, `Proposta — ${l.name}`, parc.total, isoMaisDias(15), resumo, l.legal_area,
+     l.name, l.cpf_cnpj || null, l.phone || null, l.email || null, JSON.stringify(honorarios),
+     `Produzida pelo agente Produtor de proposta${v.origem === 'oab_rj' && ref ? ` (referência OAB/RJ ${ref.codigo})` : ''}; aguardando aprovação da Dra. no WhatsApp.`]) as any;
+  const conflitos = await conflitosDeInteresse(l.name, l.cpf_cnpj);
+  let capacidade: string | null = null;
+  try {
+    const s = typeof l.capacidade_sinais === 'string' ? JSON.parse(l.capacidade_sinais) : l.capacidade_sinais;
+    if (s?.sinais) capacidade = linhaCapacidade(calcularCapacidade(s.sinais));
+  } catch { /* sem qualificação ainda */ }
+  await sendText(NUMERO_DRA, mensagemAprovacao({
+    id: ins.insertId, nome: l.name, area: l.legal_area, tipoCausa: null, resumo, exito: v.exito, parcelamento: parc, origem: v.origem, conflitos,
+    referencia: v.origem === 'oab_rj' ? textoReferencia(ref) : null, capacidade,
+  }), 'Agente Produtor de proposta');
+  registrarAcaoAgente('produtor', `montou a proposta nº ${ins.insertId} de ${l.name} e pediu aprovação à Dra.`);
+  // Dados que o contrato vai precisar: pede uma vez ao possível cliente.
+  const fone = foneWa(l.phone);
+  if (fone && (!l.cpf_cnpj || (!l.street && !l.cep)) && await marcar(`lead:${l.id}`, 'dados_pedidos')) {
+    const primeiro = String(l.name || '').split(/\s+/)[0];
+    await sendText(fone, `Olá, ${primeiro}! Para prepararmos sua proposta e o contrato, me envie por aqui, por favor: nome completo, CPF, RG, estado civil, profissão e endereço com CEP. Obrigada!`, 'Agente Produtor de proposta');
+  }
+  return ins.insertId;
+}
+
 /** Possíveis clientes em "documentação pendente" sem proposta: pede dados, monta a proposta e manda à Dra. aprovar. */
 export async function produzirPropostas(limite = 3) {
   const [leads] = await db.query(
-    `SELECT l.id, l.user_id, l.client_id, l.name, l.phone, l.email, l.cpf_cnpj, l.street, l.cep, l.legal_area, l.case_summary, l.notes
+    `SELECT ${COLUNAS_LEAD}
        FROM leads l
       WHERE l.status = 'documentacao_pendente' AND l.legal_area IS NOT NULL AND l.updated_at >= NOW() - INTERVAL 30 DAY
         AND NOT EXISTS (SELECT 1 FROM propostas p WHERE p.lead_id = l.id)
       ORDER BY l.updated_at ASC LIMIT ?`, [limite]) as any;
   if (!leads.length) return { produzidas: 0 };
-  const { tabela, politica } = await configuracao();
+  const cfg = await configuracao();
   const hist = await historicoAceitas();
   let produzidas = 0;
   for (const l of leads) {
     if (!(await marcar(`lead:${l.id}`, 'proposta_produzida'))) continue;
-    const v = valoresDeTabela(l.legal_area, hist, tabela);
-    const parc = aplicarPolitica(v, politica);
-    const honorarios = montarHonorarios({ exito: v.exito, parcelamento: parc }, parc.total ? isoMaisDias(30) : null);
-    const resumo = String(l.case_summary || l.notes || '').trim() || null;
-    const [ins] = await db.query(
-      `INSERT INTO propostas (user_id, client_id, lead_id, title, valor, status, validade, description, legal_area, contact_name, cpf, phone, email, honorarios, observacoes)
-       VALUES (?, ?, ?, ?, ?, 'rascunho', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [l.user_id, l.client_id ?? null, l.id, `Proposta — ${l.name}`, parc.total, isoMaisDias(15), resumo, l.legal_area,
-       l.name, l.cpf_cnpj || null, l.phone || null, l.email || null, JSON.stringify(honorarios),
-       'Produzida pelo agente Produtor de proposta; aguardando aprovação da Dra. no WhatsApp.']) as any;
-    const conflitos = await conflitosDeInteresse(l.name, l.cpf_cnpj);
-    await sendText(NUMERO_DRA, mensagemAprovacao({ id: ins.insertId, nome: l.name, area: l.legal_area, tipoCausa: null, resumo, exito: v.exito, parcelamento: parc, origem: v.origem, conflitos }), 'Agente Produtor de proposta');
-    registrarAcaoAgente('produtor', `montou a proposta nº ${ins.insertId} de ${l.name} e pediu aprovação à Dra.`);
-    // Dados que o contrato vai precisar: pede uma vez ao possível cliente.
-    const fone = foneWa(l.phone);
-    if (fone && (!l.cpf_cnpj || (!l.street && !l.cep)) && await marcar(`lead:${l.id}`, 'dados_pedidos')) {
-      const primeiro = String(l.name || '').split(/\s+/)[0];
-      await sendText(fone, `Olá, ${primeiro}! Para prepararmos sua proposta e o contrato, me envie por aqui, por favor: nome completo, CPF, RG, estado civil, profissão e endereço com CEP. Obrigada!`, 'Agente Produtor de proposta');
-    }
+    await produzirUma(l, cfg, hist);
     produzidas++;
   }
   return { produzidas };
+}
+
+/** "montar proposta 45" (pedido da Dra., sugerido pelo Dr. Otávio): monta agora para o possível cliente 45. */
+export async function montarPropostaDoLead(leadId: number): Promise<string> {
+  const [[l]] = await db.query(`SELECT ${COLUNAS_LEAD} FROM leads l WHERE l.id = ?`, [leadId]) as any;
+  if (!l) return `Não achei o possível cliente nº ${leadId}.`;
+  if (!l.legal_area) return `${l.name} ainda está sem área do direito no CRM. Preencha a área e mande de novo.`;
+  const [[ja]] = await db.query("SELECT id, status FROM propostas WHERE lead_id = ? AND status IN ('rascunho','enviada','em_negociacao') ORDER BY id DESC LIMIT 1", [leadId]) as any;
+  if (ja) return `${l.name} já tem a proposta nº ${ja.id} (${ja.status}). Use *aprovar ${ja.id}*, *ajustar ${ja.id} …* ou *recusar ${ja.id}*.`;
+  await marcar(`lead:${l.id}`, 'proposta_produzida');
+  const id = await produzirUma(l, await configuracao(), await historicoAceitas());
+  return `✅ A Dra. Bianca montou a proposta nº ${id} de ${l.name}. O resumo para aprovar acabou de chegar aqui.`;
 }
 
 async function propostaPorId(id: number) {
@@ -113,6 +145,11 @@ async function propostaPorId(id: number) {
  * null = não é comando de proposta (o assistente segue normal).
  */
 export async function comandoProposta(phone: string, texto: string): Promise<string | null> {
+  const leadMontar = interpretarComandoMontar(texto);
+  if (leadMontar) {
+    if (String(phone).replace(/\D/g, '').slice(-8) !== NUMERO_DRA.slice(-8)) return 'Só a Dra. Letícia pede para montar proposta.';
+    return montarPropostaDoLead(leadMontar);
+  }
   const cmd = interpretarComandoProposta(texto);
   if (!cmd) return null;
   const p = await propostaPorId(cmd.id);

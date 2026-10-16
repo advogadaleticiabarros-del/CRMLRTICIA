@@ -94,6 +94,30 @@ Ele também repassa as teses da casa ao **Enzo** antes de cada minuta. A rotina 
   - com o contrato assinado, pede: documento com foto, comprovante de endereço, Carteira de Trabalho em PDF mostrando o contrato, extrato do FGTS em PDF, as provas conforme o assunto (ponto, prints, áudios, testemunhas, CAT…), conversas do WhatsApp e a transcrição da reunião;
   - confere o que chegou e cobra em D+2, D+5 e D+10;
   - completo, escreve o **relato do cliente** a partir das conversas do WhatsApp e avisa a Dra.
+- **Dr. Otávio, copiloto comercial da Dra. (desde 16/10/2026):**
+  - **Qualificação em %:** para cada possível cliente cadastrado, a IA só extrai os sinais da conversa. A conta é regra fixa (`copilotoComercial.ts`) e dá três números: **capacidade de pagar**, **potencial do caso** e **chance de fechar**, mais a forma sugerida (entrada + parcelas, entrada menor ou só êxito). Os sinais são:
+    - situação de trabalho, salário e verbas a receber;
+    - valor estimado da causa e urgência;
+    - quem decide e engajamento;
+    - forma de pagamento preferida e se achou caro.
+
+    Fica gravada no lead (`capacidade_pct`, `potencial_pct`, `fechamento_pct`, `capacidade_sinais`; migration 161), é refeita no máximo a cada 20 minutos e aparece na mensagem de aprovação da proposta.
+  - **Perguntas sutis:** a Dra. Lívia encaixa uma por vez, sem citar valores, o que ainda falta saber: se está trabalhando, o salário, se recebeu a rescisão ou o FGTS, se decide sozinha(o), se prefere Pix, cartão ou parcelado.
+  - **Copiloto:** a cada mensagem nova, nos dois sentidos (inclusive a que a Dra. digita no celular ou envia pela tela do CRM), ele espera 2 minutos. Se a Dra. ou a equipe falou na conversa nas últimas 24 h e aparece a intenção de proposta, manda **só para a Dra.** no WhatsApp:
+    - a %;
+    - a sugestão de valores (tabela da Dra., senão a OAB/RJ, senão o histórico);
+    - a forma de pagamento conforme a capacidade;
+    - a próxima mensagem no tom dela;
+    - o comando **montar proposta N**, que faz a Dra. Bianca montar na hora.
+
+    A intenção é reconhecida por frases como "quanto custa?", "dá pra parcelar?", "quero contratar" ou, da Dra., "vou te mandar a proposta". O aviso sai uma vez por dia por conversa e nada vai ao cliente. Para desligar: `COPILOTO_DESLIGADO=1`.
+  - **Painel:** Escritório virtual → Dr. Otávio, com os qualificados do maior para o menor e o porquê de cada %.
+- **Tabela de honorários da OAB/RJ (desde 16/10/2026):** é o parâmetro das propostas (`tabelaOabRj.ts`), com 18 itens das áreas do escritório.
+  - **Valor de cada item:** o mínimo da tabela e a sugestão média RJ/MG/SP. O sugerido é o maior dos dois.
+  - **Ordem de uso:** a tabela da Dra. (`tabela_honorarios`), depois a OAB/RJ, depois a mediana das propostas aceitas e, por último, só êxito.
+  - **Itens fixos:** 1/3 de entrada (art. 22, §3º, do Estatuto) e o resto em 4x. É provisório até a Dra. definir as regras de pagamento.
+  - **Reclamante trabalhista (14.11 e 14.18):** cobrado sobre o valor econômico, então fica só êxito de 30%, com o mínimo da tabela.
+  - **Piso ético:** o da OAB/ES, seccional onde o serviço é prestado (CED, art. 48, §6º). A tabela da OAB/ES é em URH, a "Unidade Referencial de Honorários", cujo valor muda todo mês (outubro/2026: R$ 216,22).
 - **Dr. Rafael, negociação (desde 16/10/2026):** quando o possível cliente responde à proposta com objeção, ele prepara a resposta em rascunho. Detalhes em `03-whatsapp.md`.
 - **Dra. Helena, analista de documentos (desde 16/10/2026):**
   - **Quando roda:** quando a Dra. Camila completa os documentos, de novo quando chega documento novo (rotina `analista:documentos-novos`, de hora em hora das 8h às 19h) e pelo botão "Analisar" na janela dela.
@@ -212,6 +236,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/10/2026 | Claude | Dr. Otávio (qualificação em % e copiloto da Dra. nas conversas, comando "montar proposta N") e tabela da OAB/RJ como parâmetro das propostas |
 | 16/10/2026 | Claude | Dr. Rafael (objeções à proposta, ética da OAB, modo rascunho) e Dra. Helena (análise crítica dos documentos contra a história contada) |
 | 15/10/2026 | Claude | Dra. Lívia (atendente, modo rascunho, tom de voz da Dra.) e sociedade dos agentes (conversas, reunião diária, memória, Mural) |
 | 14/10/2026 | Claude | Cérebro (biblioteca do Obsidian) e esteira comercial (Dra. Bianca, Dr. Felipe, Dra. Camila) |

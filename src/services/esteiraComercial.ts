@@ -16,7 +16,7 @@ const r2 = (n: number) => Math.round(n * 100) / 100;
 
 // ── Produtor de proposta ────────────────────────────────────────────────────
 
-export interface ValoresTabela { total: number; entrada: number; parcelas: number; exito: number; origem: 'tabela' | 'historico' | 'padrao' }
+export interface ValoresTabela { total: number; entrada: number; parcelas: number; exito: number; origem: 'tabela' | 'oab_rj' | 'historico' | 'padrao' }
 export type TabelaHonorarios = Record<string, { total: number; entrada: number; parcelas: number; exito: number }>;
 export interface PropostaAceita { area: string; total: number; entrada: number; parcelas: number }
 
@@ -25,9 +25,22 @@ export const EXITO_PADRAO = 30;
 
 const mediana = (xs: number[]) => { const s = [...xs].sort((a, b) => a - b); return s.length ? s[Math.floor((s.length - 1) / 2)] : 0; };
 
-export function valoresDeTabela(area: string, historico: PropostaAceita[], tabela: TabelaHonorarios): ValoresTabela {
+/**
+ * Ordem: a tabela da Dra. → a referência da OAB/RJ (parâmetro escolhido em
+ * 16/10/2026) → a mediana das propostas aceitas → só êxito.
+ * OAB/RJ "fixo": 1/3 de entrada (art. 22, §3º, do Estatuto, citado na própria
+ * tabela) e o resto em 4x, provisório até a Dra. definir as regras de pagamento.
+ * OAB/RJ "percentual" (reclamante): só êxito, como o escritório já cobra.
+ */
+export function valoresDeTabela(area: string, historico: PropostaAceita[], tabela: TabelaHonorarios,
+  referencia?: { sugerido: number; tipo: 'fixo' | 'percentual' } | null): ValoresTabela {
   const t = tabela[area];
   if (t && (t.total > 0 || t.exito > 0)) return { total: t.total, entrada: t.entrada, parcelas: t.parcelas, exito: t.exito || EXITO_PADRAO, origem: 'tabela' };
+  if (referencia) {
+    if (referencia.tipo === 'percentual') return { total: 0, entrada: 0, parcelas: 1, exito: EXITO_PADRAO, origem: 'oab_rj' };
+    const total = r2(referencia.sugerido);
+    return { total, entrada: r2(total / 3), parcelas: 4, exito: EXITO_PADRAO, origem: 'oab_rj' };
+  }
   const h = historico.filter((x) => x.area === area && x.total > 0);
   if (h.length) {
     return {
@@ -70,13 +83,17 @@ export function montarHonorarios(o: { exito: number; parcelamento: Parcelamento 
   };
 }
 
-const ORIGEM_PT = { tabela: 'tabela do escritório', historico: 'média das propostas aceitas da área', padrao: 'sem tabela para a área: só êxito' };
+const ORIGEM_PT = { tabela: 'tabela do escritório', oab_rj: 'tabela de honorários da OAB/RJ', historico: 'média das propostas aceitas da área', padrao: 'sem tabela para a área: só êxito' };
 
 export function mensagemAprovacao(d: {
   id: number; nome: string; area: string; tipoCausa: string | null; resumo: string | null;
   exito: number; parcelamento: Parcelamento; origem: ValoresTabela['origem'];
   /** Casos em que a pessoa aparece como parte contrária (checagem de conflito de interesses). */
   conflitos?: string[];
+  /** Linha de qualificação do Dr. Otávio (chance de fechar, capacidade, potencial). */
+  capacidade?: string | null;
+  /** Item da tabela da OAB/RJ usado como parâmetro. */
+  referencia?: string | null;
 }): string {
   const p = d.parcelamento;
   const valores = p.total
@@ -95,6 +112,8 @@ export function mensagemAprovacao(d: {
     ...valores,
     `Êxito: ${d.exito}% + sucumbência`,
     `_Valores: ${ORIGEM_PT[d.origem]}._`,
+    d.referencia || null,
+    d.capacidade ? `\n${d.capacidade}` : null,
     d.conflitos === undefined ? null
       : d.conflitos.length ? `\n⚠️ *CONFLITO DE INTERESSES:* esta pessoa é parte contrária em: ${d.conflitos.join('; ')}. Confira antes de aprovar.`
         : '✔️ Conflito de interesses: nenhum (não é parte contrária em caso do escritório).',

@@ -587,6 +587,14 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
         console.error('[whatsapp-webhook] falha ao transcrever mídia recebida:', e?.message || e));
     }
 
+    // Dr. Otávio (copiloto comercial): mensagem nova nos dois sentidos (inclusive
+    // a que a Dra. digita no celular) → qualifica em % e, se a conversa chegou
+    // na proposta, sugere à Dra. Espera 2 min para juntar a conversa.
+    if (r.affectedRows === 1) {
+      import('../services/copilotoServico').then((m) => m.agendarCopiloto(phone))
+        .catch((e) => console.error('[whatsapp-webhook] copiloto:', e?.message || e));
+    }
+
     // affectedRows: 1 = inserção nova; 2 = atualizou uma existente (ON DUPLICATE);
     // 0 = update sem mudança nenhuma. Só trata como mensagem NOVA no caso 1.
     if (r.affectedRows === 1 && !msg.fromMe) {

@@ -16,6 +16,22 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 16/10/2026 — Qualificação em % por regra fixa, copiloto só para a Dra. e OAB/RJ como parâmetro
+**Qualificação em %:**
+- A IA só lê os sinais da conversa (situação de trabalho, salário, verbas, valor da causa, quem decide, pagamento preferido).
+- A porcentagem sai de pesos fixos e testados. Assim dá para explicar à Dra. por que deu aquele número (lista de motivos) e ajustar os pesos depois.
+- Alternativa descartada: pedir a % direto à IA, que daria um número sem explicação e diferente a cada vez.
+
+**Copiloto:**
+- Pedido da Jessica: um atendimento só, conduzido pela Dra. Por isso o Dr. Otávio nunca fala com o cliente. Ele sugere à Dra., em particular, e só quando ela (ou alguém da equipe) está na conversa.
+- Quando a conversa é só da Lívia, a esteira normal segue.
+- Uma sugestão por dia por conversa, para não virar ruído.
+
+**OAB/RJ:**
+- Parâmetro escolhido pela Jessica para as propostas. Fica acima do histórico e abaixo da tabela própria da Dra.
+- O piso ético continua sendo o da OAB/ES (CED, art. 48, §6º), cuja tabela é em URH. Comparar com a OAB/ES fica para quando ela trouxer essa tabela.
+- O pagamento (1/3 de entrada e 4x) é provisório até as regras de pagamento serem estudadas.
+
 ### 16/10/2026 — Negociação ética (Dr. Rafael) e análise de documentos por regras (Dra. Helena)
 **Dr. Rafael:**
 - As regras de resposta vêm do Código de Ética da OAB (arts. 7º, 9º e 48, §6º) e do Provimento 205/2021, e as técnicas de venda foram adaptadas a eles: acolher, entender o que está por trás, esclarecer e propor o próximo passo.

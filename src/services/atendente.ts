@@ -48,7 +48,7 @@ export interface ContatoAtendente {
   processos: Array<{ numero: string | null; ultimaMov: string | null }>;
 }
 
-export function montarPromptAtendente(d: { guia: string; correcoes: string[]; contato: ContatoAtendente; conversa: string[]; perguntas: string[] }): string {
+export function montarPromptAtendente(d: { guia: string; correcoes: string[]; contato: ContatoAtendente; conversa: string[]; perguntas: string[]; perguntaSutil?: string | null }): string {
   const c = d.contato;
   const quem = c.tipo === 'cliente' ? `CLIENTE do escritório: ${c.nome || 'sem nome'}${c.area ? ` (área ${c.area})` : ''}.`
     : c.tipo === 'possivel_cliente' ? `POSSÍVEL CLIENTE já cadastrado: ${c.nome || 'sem nome'}${c.area ? ` (área ${c.area})` : ''}.`
@@ -64,7 +64,11 @@ ${c.processos.length ? `PROCESSOS (status para responder "como está meu process
 
 PERGUNTAS CERTAS PARA ESTE TIPO DE CASO (faça no máximo 2 por mensagem, só as que ainda não foram respondidas):
 ${d.perguntas.map((p) => `- ${p}`).join('\n')}
-
+${d.perguntaSutil ? `
+PERGUNTA SUTIL (para a Dra. saber a melhor forma de atender): quando o caso já estiver entendido e a conversa permitir, encaixe com naturalidade, no lugar de uma das perguntas acima:
+- ${d.perguntaSutil}
+Uma por vez, com leveza, sem citar valores e sem parecer interrogatório. Se a pessoa estiver aflita ou com urgência, deixe para depois.
+` : ''}
 REGRAS (obrigatórias):
 - Você NUNCA dá opinião jurídica, nunca diz se a pessoa "tem direito" e nunca promete resultado.
 - Nunca fale de honorários, valores ou percentuais: diga que a Dra. explica isso na proposta.

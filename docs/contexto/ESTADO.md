@@ -2,10 +2,19 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 16/10/2026. Último commit: Dr. Rafael (negociação) e Dra. Helena (analista de documentos).
+**Última atualização:** 16/10/2026. Último commit: Dr. Otávio (copiloto e qualificação em %) e tabela da OAB/RJ.
 
 ## Últimas entregas (mais recentes primeiro)
 - **16/10:**
+  - **Laya instalada e ligada** na VPS do jurídico (PM2 `laya` do crmapp, 127.0.0.1:8765, `LAYA_URL` no `.env`). Ela só decide com confiança de 0,75 ou mais; abaixo disso decide a IA paga.
+  - **Dr. Otávio (copiloto comercial):**
+    - qualifica o possível cliente em % (capacidade de pagar, potencial, chance de fechar), com perguntas sutis feitas pela Lívia;
+    - na conversa da Dra., quando aparece a intenção de proposta, sugere só a ela a %, os valores, a forma de pagamento e a próxima mensagem;
+    - comando `montar proposta N`. Migration 161; para desligar, `COPILOTO_DESLIGADO=1`.
+  - **Tabela da OAB/RJ** como parâmetro das propostas (`tabelaOabRj.ts`, 18 itens), depois da tabela própria da Dra. e antes do histórico.
+  - **Falta (Jessica e a Dra.):**
+    - estudar as regras de pagamento (hoje é 1/3 de entrada + 4x, provisório);
+    - trazer a tabela da OAB/ES em URH (outubro/2026: R$ 216,22) para conferir o piso ético.
   - **Dr. Rafael (negociação):** responde às objeções à proposta enviada, em rascunho na fila da Lívia, dentro da ética da OAB. Avisa a Dra. quando pedem desconto. Para desligar: `NEGOCIADOR_DESLIGADO=1`.
   - **Dra. Helena (analista de documentos):** cruza cada foto e PDF com a história contada, por regras fixas, mais um segundo olhar da IA. O relatório fica no caso e a Dra. recebe o resumo; ao cliente vai só o pedido de reenvio. Roda quando a coleta completa e quando chega documento novo. Migration 160.
   - **Observar:** as primeiras análises reais, porque a leitura de PDF depende do Gemini ou da OpenAI com visão. Ajustar o prompt se a IA ler mal a CTPS Digital ou o extrato do FGTS.
@@ -78,7 +87,6 @@
   - parcela 2/5 da Larissa (R$ 55) vencida desde 20/09.
 
 ## Próximos passos sugeridos (se ela não pedir outra coisa)
-- **Laya na VPS do jurídico (16/10):** já existe o ambiente `/opt/laya`, com Python 3.12 e pip. A VPS tem folga: 5,2 GB de memória livre, 22 GB de disco e 2 núcleos. O passo 6 do `scripts/instalar-laya-vps.sh` foi corrigido para reiniciar pelo PM2 do crmapp. Falta rodar o script, que instala torch CPU + `laya[serve]` 0.4.8 do PyPI, sobe o PM2 `laya`, testa e só então põe `LAYA_URL` e reinicia o CRM. O modo automático do Claude bloqueia a instalação de código externo em produção, então rodar como root na VPS: `bash /root/instalar-laya-vps.sh` (ou liberar a permissão).
 - **Escritório virtual, Fase 1 (em andamento).** Próximos passos:
   1. Secretária com aprovação por resposta no WhatsApp ("recorrer" / "não recorrer" vira tarefa e prazo).
   2. Prazo interno com escalonamento e Auditor de prazos.

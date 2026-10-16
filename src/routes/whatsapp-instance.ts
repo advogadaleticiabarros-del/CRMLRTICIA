@@ -827,6 +827,8 @@ router.post('/chats/:phone/send', async (req: Request, res: Response) => {
   const ok = await sendText(req.params.phone, text, req.user!.name, replyTo);
   if (!ok) { res.status(400).json({ error: 'Instância desconectada — conecte na aba Conexão' }); return; }
   res.json({ success: true });
+  // Dr. Otávio (copiloto): a Dra. falou em proposta pela tela do CRM? Ele sugere a ela.
+  import('../services/copilotoServico').then((m) => m.agendarCopiloto(req.params.phone)).catch(() => {});
 });
 
 // ── POST /api/whatsapp-instance/chats/:phone/send-media — envia arquivo ─────

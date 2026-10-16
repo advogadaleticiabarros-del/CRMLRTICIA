@@ -31,10 +31,11 @@ Consulte antes de mexer em qualquer integração externa, pra saber o que depend
 | **VAPID (push)** | Notificação push do navegador | Notificação push no navegador (o resto do sistema continua normal) |
 | **Laya** (modelo de decisão local, grátis) | Qualifica o possível cliente (área, urgência, valor) antes da IA paga. Endereço na variável `LAYA_URL` (ex.: `http://127.0.0.1:8765`), serviço `laya` no PM2 | Nada quebra: sem a Laya, a qualificação volta para a IA de sempre. No Escritório virtual ela aparece "desligada" |
 
-**Laya: situação em 14/10/2026.** O código do CRM já usa a Laya (`src/services/laya.ts`), mas o serviço ainda **não está instalado na VPS do jurídico**. Ele roda só na VPS do CRM comercial (`comercial.prosystemnet.com`, outro servidor, em 127.0.0.1:8765). Para ligar no jurídico:
-1. Instalar na VPS o mesmo serviço da comercial: modelo `systemone`, PM2 `laya`, ouvindo só em 127.0.0.1.
-2. Pôr `LAYA_URL=http://127.0.0.1:8765` no `.env`.
-3. Reiniciar o PM2.
+**Laya: instalada na VPS do jurídico em 16/10/2026.**
+- **Onde está:** `laya` 0.4.8 + torch CPU em `/opt/laya`, PM2 `laya` do usuário crmapp, só em 127.0.0.1:8765. O modelo `multilingual` (cerca de 650 MB) fica em `/home/crmapp/.cache/huggingface`. `LAYA_URL=http://127.0.0.1:8765` está no `.env`.
+- **Para reinstalar:** `bash scripts/instalar-laya-vps.sh` como root. O script testa a Laya antes de mexer no CRM.
+- **Problema já visto:** se a Laya aparecer "online" no PM2 sem PID e sem log, ela foi iniciada a partir de `/root`, que o crmapp não abre. Inicie de `~` com `--cwd /home/crmapp` (o script já faz).
+- **No primeiro teste**, ela respondeu com confiança baixa (0,38). Abaixo de 0,75 o CRM não aceita a resposta dela e usa a IA paga (`CONFIANCA_MINIMA` em `laya.ts`). É de propósito: a Laya só decide quando tem certeza.
 
 Atenção: o repositório `aayushch/laya` é outro projeto com o mesmo nome (app de computador que junta notificações) e não é este serviço.
 
@@ -69,6 +70,7 @@ Nunca no código-fonte nem no Git — só em variáveis de ambiente na VPS (`.en
 |---|---|---|
 | 04/09/2026 | Claude | Criação do documento |
 | 14/10/2026 | Claude | Agentes do agency-agents em `.claude/agents/` e codebase-memory-mcp no computador da Jessica |
+| 16/10/2026 | Claude | Laya instalada e ligada na VPS do jurídico (PM2 do crmapp); correção da pasta de trabalho no script |
 | 14/10/2026 | Claude | Laya (`LAYA_URL`) na qualificação do possível cliente, com o serviço ainda a instalar na VPS; contagem de uso de IA por provedor |
 
 ---

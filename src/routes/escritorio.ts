@@ -124,6 +124,10 @@ async function metricasDosAgentes(): Promise<Record<string, MetricaAgente[]>> {
       [await n("SELECT COUNT(*) AS n FROM atendente_rascunhos WHERE agente = 'negociador' AND status = 'pendente'"), 'respostas para aprovar'],
       [await n("SELECT COUNT(*) AS n FROM propostas WHERE status = 'em_negociacao'"), 'em negociação'],
       [await n("SELECT COUNT(*) AS n FROM propostas WHERE status = 'aceita' AND id IN (SELECT proposta_id FROM atendente_rascunhos WHERE agente = 'negociador') AND updated_at >= NOW() - INTERVAL 30 DAY"), 'fechadas após objeção (30 dias)']),
+    copiloto: m(
+      [await n(`SELECT COUNT(*) AS n FROM leads WHERE ${local('capacidade_em')} = ${HOJE}`), 'qualificados hoje'],
+      [await n(`SELECT COUNT(*) AS n FROM agente_acoes WHERE agente = 'copiloto' AND texto LIKE 'sugeriu%' AND ${local('created_at')} = ${HOJE}`), 'sugestões à Dra. hoje'],
+      [await n("SELECT COUNT(*) AS n FROM leads WHERE fechamento_pct >= 70 AND status NOT IN ('perdida','convertido','fechada','contrato_assinado','newsletter')"), 'com chance alta (70%+)']),
     analista: m(
       [await n(`SELECT COUNT(*) AS n FROM analises_documentos WHERE ${local('created_at')} = ${HOJE}`), 'análises hoje'],
       [await n('SELECT COALESCE(SUM(graves),0) AS n FROM analises_documentos WHERE created_at >= NOW() - INTERVAL 30 DAY'), 'pontos graves em 30 dias'],
@@ -152,6 +156,11 @@ router.get('/mural', async (_req: Request, res: Response) => {
 // Reunião da equipe agora (botão "Reunir a equipe")
 router.post('/reuniao', async (_req: Request, res: Response) => {
   try { res.json(await (await import('../services/sociedadeServico')).reuniaoDiaria(true)); } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Dr. Otávio: possíveis clientes qualificados em % ────────────────────────
+router.get('/copiloto', async (_req: Request, res: Response) => {
+  try { res.json(await (await import('../services/copilotoServico')).qualificados()); } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Dra. Helena: análises dos documentos ────────────────────────────────────

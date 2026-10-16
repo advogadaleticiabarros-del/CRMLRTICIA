@@ -241,6 +241,15 @@ Pendências expiram em 48 h (tabela `assistente_pendencias`, migration 153). Um 
 
 A aba **Tom de voz** mostra o guia e tem o botão "Estudar as conversas de novo".
 
+**Perguntas sutis (desde 16/10/2026):** com possível cliente, ela recebe do Dr. Otávio a próxima pergunta que falta para a qualificação em %:
+- se está trabalhando;
+- o salário;
+- se recebeu a rescisão ou o FGTS;
+- quem decide;
+- Pix, cartão ou parcelado.
+
+Ela encaixa uma por vez, quando o caso já está entendido, sem citar valores e deixando para depois se a pessoa estiver aflita.
+
 **Desligar de emergência:** `ATENDENTE_DESLIGADO=1` no `.env` e reiniciar.
 
 Código: regras em `atendente.ts` e `tomDeVoz.ts`; banco e envio em `atendenteServico.ts`; API em `/api/atendente`; tabela `atendente_rascunhos` (migration 159).
@@ -284,6 +293,7 @@ Código: regras em `negociador.ts`, banco e envio em `negociadorServico.ts`. A c
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/10/2026 | Claude | Lívia faz as perguntas sutis da qualificação em %; webhook e envio manual acionam o copiloto da Dra. (Dr. Otávio) |
 | 16/10/2026 | Claude | Dr. Rafael: resposta às objeções da proposta em modo rascunho, dentro da ética da OAB, com aviso à Dra. quando pedem desconto |
 | 15/10/2026 | Claude | Dra. Lívia, atendente em modo rascunho, no tom de voz da Dra. (guia aprendido das conversas reais) e aprendendo com as correções |
 | 09/10/2026 | Claude | Assistente: interpretação pela OpenAI primeiro (Groq de reserva) |

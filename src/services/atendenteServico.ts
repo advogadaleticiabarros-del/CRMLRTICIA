@@ -5,6 +5,7 @@ import { registrarAcaoAgente } from './usoIa';
 import { COMANDANTES_PADRAO, parseNumerosComandantes } from './assistenteRegras';
 import { trechosDeConversa, promptGuia, parseGuia, guiaEmTexto, ehMensagemHumana } from './tomDeVoz';
 import { PERGUNTAS_POR_AREA, deveResponder, montarPromptAtendente, parseRespostaAtendente, alertasDaResposta, type ContatoAtendente } from './atendente';
+import { calcularCapacidade, perguntasQueFaltam } from './copilotoComercial';
 
 /**
  * Dra. Lívia com banco, IA e WhatsApp (regras em atendente.ts e tomDeVoz.ts).
@@ -76,6 +77,15 @@ async function contatoDe(phone: string, clientId: number | null): Promise<Contat
   return l ? { tipo: 'possivel_cliente', nome: l.name, area: l.legal_area, processos: [] } : { tipo: 'novo', nome: null, area: null, processos: [] };
 }
 
+/** A próxima pergunta sutil que o Dr. Otávio ainda precisa (situação, salário, verbas, decisão, pagamento). */
+async function perguntaSutilDo(phone: string): Promise<string | null> {
+  const [[l]] = await db.query(
+    "SELECT capacidade_sinais FROM leads WHERE RIGHT(REGEXP_REPLACE(COALESCE(phone,''), '[^0-9]', ''), 8) = ? ORDER BY id DESC LIMIT 1", [fim8(phone)]).catch(() => [[null]]) as any;
+  let sinais = {};
+  try { const s = typeof l?.capacidade_sinais === 'string' ? JSON.parse(l.capacidade_sinais) : l?.capacidade_sinais; sinais = s?.sinais || {}; } catch { /* sem qualificação */ }
+  return perguntasQueFaltam(calcularCapacidade(sinais), 1)[0] || null;
+}
+
 export async function gerarRascunho(phone: string, clientId: number | null, parceiro: boolean): Promise<number | null> {
   const [msgs] = await db.query(
     'SELECT from_me, body, sent_by, msg_time FROM whatsapp_messages WHERE phone = ? ORDER BY msg_time DESC LIMIT 30', [phone]) as any;
@@ -101,6 +111,7 @@ export async function gerarRascunho(phone: string, clientId: number | null, parc
     guia, correcoes: mem.map((m: any) => m.texto), contato,
     conversa: lista.map((m: any) => `${m.from_me ? 'Escritório' : 'Cliente'}: ${String(m.body || '').replace(/\s+/g, ' ').slice(0, 500)}`),
     perguntas: PERGUNTAS_POR_AREA[area] || PERGUNTAS_POR_AREA.geral,
+    perguntaSutil: contato.tipo === 'cliente' ? null : await perguntaSutilDo(phone),
   });
   const r = await aiComplete(prompt, 'openai');
   const resp = r.ok && r.text ? parseRespostaAtendente(r.text) : null;

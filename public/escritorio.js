@@ -113,6 +113,7 @@
     coletor:     { cabelo: 'rabo', corCabelo: '#3f2a1d', feminina: true, extra: 'oculos', terno: '#365314' },
     atendente:   { cabelo: 'ondulado', corCabelo: '#3f2a1d', feminina: true, extra: 'headset', terno: '#701a75' },
     negociador:  { cabelo: 'curto', corCabelo: '#3f2a1d', feminina: false, extra: 'headset', terno: '#78350f', pele: '#e0ac69', peleSombra: '#b8864b' },
+    copiloto:    { cabelo: 'curto', corCabelo: '#9ca3af', feminina: false, extra: 'oculos', terno: '#1e3a8a', pele: '#c68642', peleSombra: '#a0692f' },
     analista:    { cabelo: 'coque', corCabelo: '#1c1917', feminina: true, extra: 'oculos', terno: '#450a0a' },
     voce:        { cabelo: 'longo', corCabelo: '#5a3825', feminina: true, terno: '#1e293b' },
   };
@@ -883,8 +884,35 @@
     try { await carregar(); } catch (e) { corpo.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
   }
 
+  // ── Dr. Otávio: possíveis clientes qualificados em % ──────────────────────
+  const STATUS_LEAD_PT = { triagem: 'triagem', atendimento_inicial: 'atendimento', reuniao: 'reunião', documentacao_pendente: 'documentação', proposta: 'proposta', proposta_em_analise: 'proposta em análise', contrato_assinado: 'contrato assinado', convertido: 'cliente', fechada: 'fechada' };
+  const corPct = (n) => (n >= 70 ? 'var(--green)' : n >= 40 ? '#b45309' : 'var(--red)');
+  async function abrirCopiloto() {
+    const corpo = el('<div><div class="spinner"></div></div>');
+    openModal('🧭 Dr. Otávio · Copiloto comercial da Dra.', corpo, { wide: true });
+    try {
+      const lista = await api('/api/escritorio/copiloto');
+      corpo.innerHTML = `
+        <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px">Chance de fechar = capacidade de pagar + potencial do caso + engajamento, a partir da conversa. Quando a conversa da Dra. chega na proposta, ele manda a sugestão só para ela no WhatsApp; ela responde <b>montar proposta N</b>. Estimativa: confira na conversa.</p>
+        ${lista.length ? lista.map((l) => {
+          const s = lerJson(l.capacidade_sinais, {});
+          return `<details class="pi-card" style="margin-bottom:8px">
+            <summary style="cursor:pointer;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <b style="font-size:20px;color:${corPct(l.fechamento_pct)};min-width:52px">${l.fechamento_pct}%</b>
+              <span><b>${esc(l.name)}</b> <small style="color:var(--text-muted)">nº ${l.id} · ${esc(l.legal_area || 'sem área')} · ${esc(STATUS_LEAD_PT[l.status] || l.status)} · ${quando(l.capacidade_em)}</small><br>
+              <small>capacidade de pagar <b style="color:${corPct(l.capacidade_pct)}">${l.capacidade_pct}%</b> · potencial do caso <b style="color:${corPct(l.potencial_pct)}">${l.potencial_pct}%</b>${s.confianca != null ? ` · confiança ${Math.round(s.confianca * 100)}%` : ''}</small></span>
+            </summary>
+            ${s.modalidade ? `<p style="margin:8px 0 4px;font-size:13.5px"><b>Forma sugerida:</b> ${esc(s.modalidade)}</p>` : ''}
+            ${(s.motivos || []).length ? `<ul class="ev-hist">${s.motivos.map((x) => `<li><span>${esc(x)}</span></li>`).join('')}</ul>` : ''}
+            ${(s.faltam || []).length ? `<p style="margin:6px 0 0;font-size:12.5px;color:var(--text-muted)">Ainda falta saber: ${s.faltam.map(esc).join(', ').replace(/_/g, ' ')}</p>` : ''}
+          </details>`;
+        }).join('') : '<p class="pi-vazio">Ninguém qualificado ainda: a qualificação acontece conforme os possíveis clientes conversam.</p>'}`;
+    } catch (e) { corpo.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
   async function abrirAgente(id) {
     if (id === 'cerebro') { abrirCerebro(); return; }
+    if (id === 'copiloto') { abrirCopiloto(); return; }
     if (id === 'atendente' || id === 'negociador') { abrirAtendente(); return; }
     if (id === 'analista') { abrirAnalista(); return; }
     const corpo = el('<div><div class="spinner"></div></div>');
@@ -981,7 +1009,7 @@
       let agentes = r.agentes;
       const sala = montarSala($('#ev-sala'), agentes, abrirAgente);
       let reunidos = false;
-      const DESTAQUES = ['atendente', 'negociador', 'analista', 'cerebro', 'laya', 'secretaria', 'leitor', 'produtor', 'coletor', 'prazos', 'estagiario'];
+      const DESTAQUES = ['copiloto', 'atendente', 'negociador', 'analista', 'cerebro', 'laya', 'secretaria', 'leitor', 'produtor', 'coletor', 'prazos', 'estagiario'];
       const desenharBarra = (quandoAtualizou) => {
         const trab = agentes.filter((a) => a.status === 'trabalhando').length;
         const erros = agentes.filter((a) => a.status === 'erro').length;
