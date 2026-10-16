@@ -551,6 +551,18 @@ export function startCronJobs() {
   // dias — é só telemetria técnica (rotina rodou/deu erro), sem ligação com
   // cliente/processo/financeiro. Sozinha já tinha passado de 21 mil linhas em
   // 3 semanas e era o maior consumidor de espaço do banco no Railway.
+  // Alarme de disco (Dr. Bento): todo dia às 8h05; avisa a partir de 85%.
+  // Em 16/10/2026 o cache de build do Docker do Orbit levou o disco a 81% sem ninguém ver.
+  cron.schedule('5 8 * * *', () => {
+    runJob('manutencao:disco', async () => {
+      const { usoDoDisco, avisoDisco } = await import('../services/discoServidor');
+      const u = usoDoDisco('/');
+      const aviso = avisoDisco(u);
+      if (aviso) await (await import('../services/backupRotina')).avisarBackup(aviso.titulo, aviso.texto);
+      return { ...u, avisou: !!aviso };
+    }, { silencioso: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   cron.schedule('0 3 * * 0', () => {
     runJob('manutencao:job-runs-antigos', async () => {
       const [r] = await db.query('DELETE FROM job_runs WHERE ran_at < NOW() - INTERVAL 60 DAY') as any;

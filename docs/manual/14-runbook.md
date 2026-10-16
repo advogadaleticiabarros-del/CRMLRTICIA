@@ -16,6 +16,24 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: disco do servidor cheio
+
+**Sintoma (16/10/2026):** o disco da VPS estava em 81% (19 GB livres de 96 GB), sem nenhum aviso. Sem espaço, o backup e o banco param.
+
+**Causa raiz:** 55 GB de cache de build do Docker do Orbit. Cada atualização do Orbit guarda as etapas da montagem para a próxima ficar mais rápida, mas o Docker nunca apaga as antigas (eram 110 registros). Não é conteúdo nem dado: o Orbit em uso, o banco dele e o CRM ficam fora disso.
+
+**Como confirmar:** `df -h /` e `docker system df`. A linha "Build Cache" mostra o tamanho e quanto é "RECLAIMABLE" (pode sair).
+
+**Correção:** `docker builder prune -f`, que apaga só o cache sem uso. Em 16/10 o disco foi de 81% para 27%. Efeito colateral: a próxima atualização do Orbit demora alguns minutos a mais.
+
+**Cuidado:** os `.tar` em `/tmp` (capas, reels, vídeos `pxv*`, `subir*`) são **conteúdo do Orbit** copiado para o servidor, não pacotes de atualização. Não apague sem confirmar com a Jessica (somavam 1,8 GB em 16/10).
+
+**Prevenção:**
+- **Faxina semanal** no crontab do root: `0 4 * * 0 docker builder prune -f --filter until=168h`, que mantém só a última semana. Log em `/var/log/docker-builder-prune.log`.
+- **Alarme de disco** no CRM: rotina `manutencao:disco`, todo dia às 8h05 (`discoServidor.ts`). Avisa no sino e no WhatsApp a partir de 85% e marca como urgente a partir de 92%.
+
+---
+
 ## Incidente: Laya "online" no PM2, mas sem responder
 
 **Sintoma (16/10/2026):** `pm2 ls` do crmapp mostra `laya` online, mas `pm2 pid laya` vem vazio, os logs estão vazios e `curl http://127.0.0.1:8765/` não conecta. No Escritório virtual a Laya aparece desligada.

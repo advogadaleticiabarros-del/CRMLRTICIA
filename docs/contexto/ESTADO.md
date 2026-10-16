@@ -6,6 +6,9 @@
 
 ## Últimas entregas (mais recentes primeiro)
 - **16/10:**
+  - **Disco da VPS:** foi de 81% para 27%, depois de limpar 55 GB de cache de build do Docker do Orbit.
+    - **Prevenção:** faxina semanal no crontab do root (domingo 4h) e alarme `manutencao:disco` no CRM (8h05, avisa a partir de 85%).
+    - **Ficou de fora:** os `.tar` em `/tmp` (1,8 GB) são conteúdo do Orbit e foram mantidos. A Jessica decide se apaga.
   - **Laya instalada e ligada** na VPS do jurídico (PM2 `laya` do crmapp, 127.0.0.1:8765, `LAYA_URL` no `.env`). Ela só decide com confiança de 0,75 ou mais; abaixo disso decide a IA paga.
   - **Dr. Otávio (copiloto comercial):**
     - qualifica o possível cliente em % (capacidade de pagar, potencial, chance de fechar), com perguntas sutis feitas pela Lívia;
