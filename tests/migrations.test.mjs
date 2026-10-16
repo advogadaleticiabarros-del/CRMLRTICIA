@@ -6,6 +6,20 @@ import path from 'node:path';
 process.env.JWT_SECRET = 'x'.repeat(32);
 const { dividirStatements } = await import('../dist/config/migrations.js');
 
+// ── 16/10/2026: o `npm run migrate` tinha um divisor próprio (split por ';') ──
+test('migration 127 (COMMENT com ; dentro do texto) vira 4 comandos inteiros', () => {
+  const sql = fs.readFileSync(path.resolve('migrations/127_card_statement_import.sql'), 'utf8');
+  const st = dividirStatements(sql);
+  assert.equal(st.length, 4);
+  assert.ok(st[0].includes("'positivo = compra; negativo = pagamento/estorno (reduz a fatura)'"));
+});
+
+test('npm run migrate usa o mesmo executor do boot (não tem divisor próprio)', () => {
+  const src = fs.readFileSync(path.resolve('src/scripts/migrate.ts'), 'utf8');
+  assert.match(src, /runMigrations/);
+  assert.doesNotMatch(src, /\.split\(';'\)/);
+});
+
 // ── O bug que derrubou a migration 068 em produção ──────────────────────────
 test('comentário INLINE com ; não corta o comando ao meio (bug da 068)', () => {
   const sql = `CREATE TABLE t (
