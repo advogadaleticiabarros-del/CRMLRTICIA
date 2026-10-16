@@ -41,11 +41,13 @@ echo "== 4/6 Serviço no PM2 do crmapp (nome: laya, só em 127.0.0.1:${PORTA})"
 # Mesmo PM2 do crm-juridico (usuário crmapp): sobe junto com ele depois de
 # um reinício da VPS. Poucas threads e um modelo carregado por vez, porque a
 # Laya divide a máquina com o CRM.
-comoCrm() { sudo -u crmapp -H bash -lc "$1"; }
+# "cd ~" antes de tudo: rodando a partir de /root, o PM2 grava /root como pasta
+# de trabalho, que o crmapp não abre, e a Laya fica "online" sem processo (16/10).
+comoCrm() { sudo -u crmapp -H bash -lc "cd ~ && $1"; }
 comoCrm "pm2 describe laya >/dev/null 2>&1 && pm2 delete laya >/dev/null || true"
 comoCrm "LAYA_HOST=127.0.0.1 LAYA_PORT=${PORTA} LAYA_MODELS=multilingual LAYA_DEFAULT_MODEL=multilingual \
   LAYA_DEVICE=cpu LAYA_THREADS=2 OMP_NUM_THREADS=2 LAYA_MAX_LOADED=1 LAYA_PRELOAD=1 \
-  pm2 start ${LAYA_DIR}/bin/laya-serve --name laya --interpreter none --update-env && pm2 save >/dev/null"
+  pm2 start ${LAYA_DIR}/bin/laya-serve --name laya --interpreter none --cwd /home/crmapp --update-env && pm2 save >/dev/null"
 
 echo "== 5/6 Esperando a Laya responder (1ª vez baixa o modelo, pode levar alguns minutos)"
 for i in $(seq 1 90); do
