@@ -50,7 +50,10 @@ test('parseCardCsv: cabeçalho não reconhecido rejeita com mensagem clara', () 
 });
 
 test('importCardStatement: categoriza por regra, exclui pagamento/estorno do gasto, dedup funciona', async (t) => {
-  const filename = `teste_${crypto.randomUUID()}.csv`;
+  // Nome no padrão do Nubank (com o vencimento): é dele que sai o mês da fatura.
+  // Até 16/10/2026 o nome não tinha data e o mês caía no atual; o teste nunca tinha
+  // rodado porque só roda com banco (o CI passou a ter).
+  const filename = `Nubank_2031-02-08_${crypto.randomUUID().slice(0, 8)}.csv`;
   const csv = [
     'date,title,amount',
     '2031-02-05,Drogasil1520,"128,13"',
@@ -96,7 +99,7 @@ test('reviewCardEntry: confirma categoria e opcionalmente salva regra pro comerc
   const marker = `TESTE MARCA ${crypto.randomUUID().slice(0, 8)}`;
   const csv = `date,title,amount\n2031-02-10,${marker},"42,00"`;
   try {
-    await importCardStatement(csv, 'r.csv', 1);
+    await importCardStatement(csv, 'Nubank_2031-02-08.csv', 1);
     const entries = await getCardEntries(MONTH);
     const row = entries.find((e) => e.title === marker);
     assert.strictEqual(row.review_status, 'pendente');

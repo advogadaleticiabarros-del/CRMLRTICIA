@@ -69,6 +69,14 @@ jobs:
           ADMIN_PASSWORD: Ci-Teste-123456
           ADMIN_NAME: Admin CI
 
+      - name: Dados fictícios para os testes de integração
+        run: node scripts/ci-semear.mjs
+
+      - name: Mapa da API em dia (docs/api/rotas.md)
+        run: |
+          npm run docs:api
+          git diff --exit-code docs/api/rotas.md || { echo "::error::docs/api/rotas.md está desatualizado: rode npm run docs:api e faça commit"; exit 1; }
+
       - name: Testes (unitários + integração com banco)
         run: npm test
 
