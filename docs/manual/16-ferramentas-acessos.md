@@ -43,6 +43,27 @@ Atenção: o repositório `aayushch/laya` é outro projeto com o mesmo nome (app
 - **Agentes do agency-agents** (`.claude/agents/`): `legal-client-intake`, `legal-document-review`, `sales-proposal-strategist` e `customer-success-manager`. São subagentes do Claude Code para estudar e melhorar o atendimento, a revisão de documentos, as propostas e o pós-venda. Licença MIT (AgentLand Contributors); a fonte está no fim de cada arquivo. Foram escritos para os EUA: no escritório, valem as regras brasileiras e da OAB.
 - **codebase-memory-mcp 0.11.0**: mapa do código, só no computador da Jessica. Fica em `%LOCALAPPDATA%\Programs\codebase-memory-mcp`, configurado no perfil `.claude-conta-2` do Claude Code (servidor MCP, hooks e a skill `codebase-memory`). Ajuda o Claude a achar o código certo gastando menos. Não roda na VPS e não envia código para fora. Para remover: `codebase-memory-mcp uninstall`.
 
+**Ferramentas de qualidade (desde 16/10/2026), todas no CI antes do deploy** (ver [13-infraestrutura](13-infraestrutura.md), "Portão de qualidade"):
+
+| Comando | O que faz |
+|---|---|
+| `npm run typecheck` | Confere os tipos do TypeScript. |
+| `npm run lint` | ESLint 9 (`eslint.config.mjs`): barra só erro de verdade; o estilo é aviso. |
+| `npm test` | Testes unitários e de integração. Os de integração precisam de MySQL; sem banco eles se pulam. |
+| `npm run test:e2e` | Playwright: o navegador entra no CRM, abre 9 telas e cadastra um cliente (`e2e/`). Precisa de banco e de `npx playwright install chromium`. |
+| `npm run docs:api` | Gera `docs/api/rotas.md` (mapa das rotas e do acesso a cada uma). Rode quando criar ou mudar uma rota. |
+| `npm audit --omit=dev` | Vulnerabilidades das bibliotecas. Em 16/10 eram 0 críticas e 0 altas. Restam 5 moderadas na `uuid`, usada por dentro do `googleapis` e do `node-cron`; corrigir exige trocar a versão principal dessas duas, e a falha só aparece num uso que o CRM não faz. |
+
+**Rastreador de erros próprio** (desde 16/10/2026), no lugar do Sentry:
+- **Por que próprio:** os dados de clientes não saem do servidor (LGPD) e não precisa de conta.
+- **O que pega:**
+  - erro do servidor (tratador do Express, promessa sem tratamento);
+  - erro da tela (JavaScript, promessa sem tratamento, resposta 5xx).
+- **Como guarda:** tabela `erros_sistema` (migration 162). O mesmo erro vira um registro com contador, e CPF, telefone, e-mail, processo e token são mascarados.
+- **Aviso:** pelo canal do backup (sino + WhatsApp), na 1ª vez e, se continuar, a cada 6 h.
+- **Onde ver:** Escritório virtual → Dr. Bento → Erros do sistema.
+- **Código:** `errosSistema.ts` (regras), `errosServico.ts` e `routes/erros.ts`.
+
 **Contagem de uso de IA** (desde 14/10/2026): toda chamada que dá certo à OpenAI, Groq, Gemini ou Laya soma 1 em `ia_uso_diario`. É a base das "Métricas da IA" no Escritório virtual.
 
 ## Onde as chaves ficam
@@ -70,6 +91,7 @@ Nunca no código-fonte nem no Git — só em variáveis de ambiente na VPS (`.en
 |---|---|---|
 | 04/09/2026 | Claude | Criação do documento |
 | 14/10/2026 | Claude | Agentes do agency-agents em `.claude/agents/` e codebase-memory-mcp no computador da Jessica |
+| 16/10/2026 | Claude | Ferramentas de qualidade (lint, testes com banco, ponta a ponta, mapa da API, auditoria de bibliotecas) e rastreador de erros próprio; nodemailer 10 |
 | 16/10/2026 | Claude | Laya instalada e ligada na VPS do jurídico (PM2 do crmapp); correção da pasta de trabalho no script |
 | 14/10/2026 | Claude | Laya (`LAYA_URL`) na qualificação do possível cliente, com o serviço ainda a instalar na VPS; contagem de uso de IA por provedor |
 

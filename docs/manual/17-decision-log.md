@@ -16,6 +16,21 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 16/10/2026 — Portão de qualidade: o que entrou e o que ficou de fora de propósito
+**Entrou:**
+- **CI antes do deploy:** tipos, lint, banco do zero, testes com banco, vulnerabilidades e ponta a ponta. Antes, o deploy publicava sem rodar nenhum teste.
+- No primeiro dia o CI já achou três problemas reais: a função duplicada da dativa, o executor de migrations que não recriava o banco e dois testes errados que nunca tinham rodado.
+
+**Rastreador de erros próprio em vez do Sentry:** os erros carregam contexto de clientes. Mandar para um serviço de fora seria tratamento de dado pessoal por terceiro (LGPD), e exigiria conta. O próprio CRM agrupa, mascara e avisa pelo canal que já existe (o do backup). Se um dia precisar de mais (desempenho, rastreio entre serviços), o Sentry pode entrar com a máscara já pronta.
+
+**Lint só com erros de verdade:** ligar todas as regras geraria milhares de avisos de estilo e o lint seria ignorado. As regras que travam são as de bug: função ou variável duplicada, código inalcançável, chave repetida, atribuição em condição.
+
+**Ficaram de fora de propósito:**
+- **BDD (Gherkin):** o escritório é pequeno e os testes já descrevem a regra em português. O glossário (`GLOSSARY.md`) cumpre o papel de alinhar o vocabulário.
+- **Pull Request obrigatório e proteção de branch:** só a Jessica e o Claude mexem no código. A revisão seria do próprio autor, e as contas logadas não podem mudar as configurações do repositório. O CI faz a parte automática da revisão.
+- **OpenAPI/Swagger completo:** 460 rotas escritas à mão iam desatualizar. Em vez disso, `docs/api/rotas.md` é gerado do código e conferido no CI.
+- **Atualizar `googleapis` e `node-cron` de versão principal** (5 vulnerabilidades moderadas na `uuid`): a falha só aparece num uso que o CRM não faz, e trocar as duas mexe no Google Agenda e em todas as rotinas. Fica para uma tarefa própria, com teste.
+
 ### 16/10/2026 — Qualificação em % por regra fixa, copiloto só para a Dra. e OAB/RJ como parâmetro
 **Qualificação em %:**
 - A IA só lê os sinais da conversa (situação de trabalho, salário, verbas, valor da causa, quem decide, pagamento preferido).

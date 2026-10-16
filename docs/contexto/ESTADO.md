@@ -6,6 +6,15 @@
 
 ## Últimas entregas (mais recentes primeiro)
 - **16/10:**
+  - **Portão de qualidade (CI):** o deploy só acontece se passar o workflow `Testes`: tipos, lint (ESLint), todas as migrations num banco vazio, 969 testes com banco (nenhum pulado), vulnerabilidades e ponta a ponta com Playwright (login, 9 telas, cadastro de cliente). Detalhes em `docs/manual/13-infraestrutura.md`.
+    - **Achados no primeiro dia** (registrados no runbook):
+      - editar audiência pela ficha da dativa não salvava (função duplicada);
+      - `npm run migrate` não recriava o banco (migration 127);
+      - 2 testes da fatura nunca tinham rodado.
+    - **Bibliotecas:** críticas e altas zeradas (`nodemailer` 10 e correções seguras). Restam 5 moderadas na `uuid` (via `googleapis` e `node-cron`), pendentes de uma tarefa própria.
+    - **Rastreador de erros próprio** (sem Sentry, por LGPD), em Escritório virtual → Dr. Bento → Erros do sistema. Migration 162.
+    - **Documentação:** `GLOSSARY.md` e `docs/api/rotas.md`, gerado por `npm run docs:api` e conferido no CI.
+    - **Ficaram de fora de propósito:** BDD, PR obrigatório e Swagger completo (decision log).
   - **Peça no papel timbrado (15/10):** a "Manifestação para informar dados bancários" da Larissa Barros da Cruz (proc. 0020093-03.2025.5.04.0541, VT de Palmeira das Missões/RS), em `Desktop\LETÍCIA\`.
     - **Modelo padrão de juntada de conta** (palavras da Jessica): fica no Obsidian, em `Modelos de Peças\Trabalhista\modelo-manifestacao-dados-bancarios-juntada-de-conta.docx`, com os campos entre colchetes e os dados bancários da Dra. já preenchidos.
     - **Formatação:** Times New Roman 12, espaçamento 1,5, justificado, recuo de 2,5 cm, fecho e assinatura que não se separam. O timbrado original é `Desktop\LETÍCIA\PAPEL TIMBRADO.docx`.

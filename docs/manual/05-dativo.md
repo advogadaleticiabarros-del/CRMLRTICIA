@@ -69,6 +69,7 @@ Desde 25/09/2026, a listagem de demandas dativas tem busca por **nome do assisti
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/10/2026 | Claude | Corrigido: editar audiência pela ficha da demanda não salvava (duas funções com o mesmo nome e parâmetros trocados; ver runbook). Agora edita demanda, data, tipo, comarca, valor, status e observações |
 | 25/09/2026 | Claude | Busca por nome do assistido + filtro por comarca na listagem de demandas; novo status `aguardando_liberacao_requerimento` entre `concluida` e `a_receber` (migration 135) |
 | 20/09/2026 | Claude | Adicionado status `recusada` (motivo obrigatório, reversível) — `POST /api/dative/cases/:id/reject` e `/reject/revert`; recusada some dos totais financeiros e de "demandas ativas"; filtro por status na listagem agora inclui Recusada |
 | 03/09/2026 | Claude | Criação do documento; registrada a correção de duplicidade por comparação de número de processo |

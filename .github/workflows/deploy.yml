@@ -9,7 +9,13 @@ on:
     branches: [main]
 
 jobs:
+  # Portão de qualidade (16/10/2026): tipos, lint, banco do zero, testes com
+  # banco, vulnerabilidades e ponta a ponta. Se falhar, NADA vai para a VPS.
+  testes:
+    uses: ./.github/workflows/ci.yml
+
   deploy:
+    needs: testes
     runs-on: ubuntu-latest
     steps:
       # A conexão SSH (não o script) falha de vez em quando por instabilidade

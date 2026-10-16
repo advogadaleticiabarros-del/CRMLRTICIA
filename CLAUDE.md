@@ -44,6 +44,8 @@ Antes de iniciar qualquer tarefa, analise quais skills instaladas são realmente
 
 - Use `verification-before-completion` antes de afirmar que qualquer tarefa foi concluída. Execute os testes, build, lint e verificações aplicáveis. Nunca informe que algo funciona sem evidência recente.
 
+- **Portão de qualidade (desde 16/10/2026):** o push na `main` só publica se o workflow **Testes** passar (tipos, lint, banco do zero, testes com banco, vulnerabilidades, ponta a ponta). Antes do push, rode `npm run lint` e `npm test`. Criou ou mudou rota? Rode `npm run docs:api`. Mudança grande ou arriscada? Teste antes num branch (o CI roda sozinho em qualquer branch, sem publicar). Ver `docs/manual/13-infraestrutura.md`.
+
 ### Banco de dados
 
 - Use `supabase-postgres-best-practices` ao criar ou alterar tabelas, migrations, consultas SQL, índices, relacionamentos, políticas de acesso, funções, triggers ou rotinas de banco de dados. A skill deve ser usada para Postgres mesmo que o sistema não esteja hospedado no Supabase.

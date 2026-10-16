@@ -16,6 +16,42 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: editar audiência pela ficha da demanda dativa não salvava
+
+**Sintoma:** na ficha de uma demanda dativa, clicar numa audiência para editar abria o formulário errado e, ao salvar, dava erro: o CRM tentava gravar em `/api/dative/hearings/undefined`. Pela lista geral de audiências funcionava.
+
+**Causa raiz:** `public/app.js` tinha **duas funções com o mesmo nome**, `dativeHearingEditForm`, com os parâmetros em ordem trocada: `(h, onSave)` e `(onSave, h)`. No navegador vale a última. A chamada da ficha da demanda usava a ordem da primeira e passava os dados trocados.
+
+**Como foi achado (16/10/2026):** pelo lint (regra `no-redeclare`), no primeiro dia do portão de qualidade.
+
+**Correção:** ficou uma função só, a mais completa (`onSave, h`), e a chamada da ficha foi acertada. O lint no CI impede uma nova função duplicada.
+
+---
+
+## Incidente: `npm run migrate` falhava num banco novo (migration 127)
+
+**Sintoma:** ao montar o banco do zero (CI de 16/10/2026), o `npm run migrate` parava na `127_card_statement_import.sql` com "error in your SQL syntax near 'positivo = compra".
+
+**Causa raiz:** havia **dois executores de migrations**. O do boot (`src/config/migrations.ts`) divide os comandos respeitando aspas e comentários. O do `npm run migrate` (`src/scripts/migrate.ts`) era uma cópia antiga que cortava em todo `;`, inclusive o `;` dentro do texto de um COMMENT. Em produção não aparecia porque o boot aplicava a migration primeiro.
+
+**Risco que existia:** recriar o banco do zero (ex.: desastre, servidor novo) pararia na 127.
+
+**Correção:** o `npm run migrate` agora chama o mesmo `runMigrations` do boot. O teste em `tests/migrations.test.mjs` trava a regressão, e o CI monta o banco do zero a cada push.
+
+---
+
+## Incidente: testes de integração travavam o CI
+
+**Sintoma:** com banco no CI, o `npm test` ficava parado para sempre logo depois dos testes de agenda pessoal.
+
+**Causa raiz:** os testes que usam o banco abrem a conexão (pool do MySQL) e não fecham. O processo do arquivo de teste nunca termina.
+
+**Correção:** `npm test` roda com `--test-force-exit` (termina ao fim dos testes mesmo com conexão aberta) e `--test-timeout=120000` (nenhum teste passa de 2 minutos).
+
+**Junto:** dois testes da fatura do cartão nunca tinham rodado (sem banco, eram pulados) e estavam errados desde 01/09. O nome do arquivo de teste não tinha a data de vencimento, e o mês caía no atual. Foram corrigidos; o código estava certo.
+
+---
+
 ## Incidente: disco do servidor cheio
 
 **Sintoma (16/10/2026):** o disco da VPS estava em 81% (19 GB livres de 96 GB), sem nenhum aviso. Sem espaço, o backup e o banco param.

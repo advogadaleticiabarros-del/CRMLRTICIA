@@ -29,9 +29,28 @@ Consulte pra entender onde o sistema roda de verdade, como o deploy funciona, ou
   - **Alarme** `manutencao:disco` no CRM: todo dia às 8h05, avisa a partir de 85%.
   - **Histórico:** em 16/10 o cache tinha chegado a 55 GB. Ver o runbook, "disco do servidor cheio".
 
+## Portão de qualidade (CI), desde 16/10/2026
+
+Nada vai para a VPS sem passar pelo workflow **Testes** (`.github/workflows/ci.yml`). Ele roda num servidor descartável do GitHub, com um MySQL vazio só para o teste, nesta ordem:
+
+| Etapa | O que garante | Trava o deploy? |
+|---|---|---|
+| Tipos (`npm run typecheck`) | O TypeScript compila sem erro | sim |
+| Lint (`npm run lint`, ESLint) | Sem erro de verdade: função duplicada, código inalcançável, chave repetida… O estilo só gera aviso | sim |
+| Banco do zero (`npm run migrate`) | **Todas** as migrations rodam num banco vazio, ou seja, o banco pode ser recriado num desastre | sim |
+| Dados fictícios (`scripts/ci-semear.mjs`) | Um cliente e um caso fictícios para os testes de integração. O script se recusa a rodar fora de um banco `_ci` | — |
+| Mapa da API em dia | `docs/api/rotas.md` bate com o código (`npm run docs:api`) | sim |
+| Testes (`npm test`) | Unitários **e de integração com banco** (969 em 16/10, nenhum pulado) | sim |
+| Vulnerabilidades (`npm audit --audit-level=high`) | Nenhuma biblioteca de produção com falha alta ou crítica | sim |
+| Ponta a ponta (`npm run test:e2e`, Playwright) | Um navegador de verdade entra no CRM, abre as 9 telas principais exigindo que carreguem de fato, e cadastra um cliente | sim |
+
+- **Em branch** que não seja a `main`, o workflow roda sozinho e não publica nada, para testar antes.
+- **Na `main`**, o `deploy.yml` chama o workflow e só publica se ele passar (`needs: testes`).
+- **Se falhar:** a aba Actions do GitHub mostra a etapa. O relatório do teste de ponta a ponta, com prints da tela, fica para baixar por 7 dias.
+
 ## Deploy — como uma mudança chega em produção
 
-1. O código é enviado (`git push`) para a `main` no GitHub.
+1. O código é enviado (`git push`) para a `main` no GitHub. Primeiro passa pelo portão de qualidade acima.
 2. O GitHub Actions (`.github/workflows/deploy.yml`) entra na VPS por SSH e faz, em ordem: puxa o código, `npm install`, compila, roda as migrations e reinicia o PM2 `crm-juridico`.
    - **Espera o backup:** se houver backup em andamento, espera até 20 minutos antes de reiniciar. Por isso um deploy às vezes demora: em 16/10, um deploy levou cerca de 15 minutos, provavelmente por coincidir com o backup.
    - **Conexão:** se a primeira conexão SSH falhar, tenta mais duas vezes.
@@ -95,6 +114,7 @@ Alguns dados sensíveis (tokens de integração) ficam cifrados no banco. Acesso
 | 03/09/2026 | Claude | Criação do documento; registrado o desligamento do Railway e a migração definitiva pra VPS |
 | 07/10/2026 | Claude | Backup reforçado: tempo limite, conferência do arquivo, nova tentativa automática, vigia de horário perdido, aviso diário 20h30, histórico 30 dias + 12 meses, prova de restauração semanal, deploy espera o backup |
 | 12/10/2026 | Claude | Prova de restauração em fluxo (o dump passou de 512 MB e a prova falhava); tamanho atual e previsão de lotação do MEGA |
+| 16/10/2026 | Claude | Portão de qualidade (CI) antes do deploy: tipos, lint, banco do zero, testes com banco, vulnerabilidades e ponta a ponta |
 | 16/10/2026 | Claude | Laya no servidor; capacidade medida; faxina semanal do cache do Docker e alarme de disco; deploy descrito como é hoje (GitHub Actions automático) |
 
 ---
