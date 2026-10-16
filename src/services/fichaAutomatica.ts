@@ -52,6 +52,7 @@ export function promptFichaConversa(mensagens: string[]): string {
   return `Abaixo estão mensagens que uma pessoa (cliente ou possível cliente) mandou a um escritório de advocacia pelo WhatsApp.
 Extraia os DADOS CADASTRAIS DELA MESMA que estiverem escritos. Nunca invente, complete nem deduza.
 Ignore dados de outras pessoas (empresa, filhos, ex-cônjuge, testemunhas) e endereços que não sejam o dela.
+NUNCA use o nome ou os dados da advogada ou do escritório (Dra. Letícia Elias Barros): quando a pessoa cita a advogada, isso não é o nome dela.
 Responda SOMENTE com JSON:
 {"campos": {"<campo>": {"valor": "...", "confianca": "alta|baixa"}}}
 Campos possíveis: nome (nome completo dela), cpf, rg, data_nascimento (dd/mm/aaaa), email,
@@ -157,6 +158,38 @@ const tokens = (s: string) => semAcento(s).replace(/[^a-z\s]/g, ' ').split(/\s+/
 export function nomeMaisCompleto(atual: string, novo: string): boolean {
   const a = tokens(atual), n = tokens(novo);
   return n.length > a.length && a.length > 0 && a.every((w) => n.includes(w)) && a[0] === n[0];
+}
+
+/** Nome da advogada/escritório: o cliente cita ("a Dra. Letícia Elias Barros") e a IA pode confundir. */
+const NOME_DO_ESCRITORIO = /\bleticia\b.*\bbarros\b|\bbarros\b.*\bleticia\b|advocacia|advogad/;
+
+/**
+ * Tira o que é do ESCRITÓRIO, e não do cliente (visto em produção em 16/10/2026):
+ *  - o nome da Dra. Letícia como "nome completo" do cliente;
+ *  - CPF, e-mail e CEP que o próprio escritório escreveu na conversa (chave Pix
+ *    da Dra., e-mail do escritório, endereço do escritório). Se o escritório só
+ *    repetiu um dado do cliente, a perda é deixar o campo vazio, nunca gravar errado.
+ */
+export function removerDadosDoEscritorio(
+  sugestoes: Partial<Record<CampoFicha, SugestaoFicha>>, textoDoEscritorio: string,
+): Partial<Record<CampoFicha, SugestaoFicha>> {
+  const out = { ...sugestoes };
+  if (out.nome && NOME_DO_ESCRITORIO.test(semAcento(out.nome.valor))) delete out.nome;
+  const doEscritorio = extrairTodos(textoDoEscritorio);
+  for (const c of ['cpf', 'email', 'cep'] as const) {
+    if (out[c] && doEscritorio[c].has(chave(c, out[c]!.valor))) delete out[c];
+  }
+  return out;
+}
+
+/** Todos os CPFs, e-mails e CEPs de um texto (para saber o que o escritório escreveu). */
+function extrairTodos(texto: string): Record<'cpf' | 'email' | 'cep', Set<string>> {
+  const t = String(texto || '');
+  return {
+    cpf: new Set([...t.matchAll(/(?<!\d)(\d{3})\.?(\d{3})\.?(\d{3})-?(\d{2})(?!\d)/g)].map((m) => m.slice(1).join(''))),
+    email: new Set([...t.matchAll(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g)].map((m) => chave('email', m[0].replace(/\.$/, '')))),
+    cep: new Set([...t.matchAll(/(?<!\d)(\d{5})-?(\d{3})(?!\d)/g)].map((m) => m[1] + m[2])),
+  };
 }
 
 /**

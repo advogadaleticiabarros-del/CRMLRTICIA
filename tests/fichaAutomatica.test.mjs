@@ -93,6 +93,20 @@ test('documentoDoContato: RG do marido não vira a ficha; nome curto do WhatsApp
   assert.strictEqual(documentoDoContato('Maria Teste', null), true);
 });
 
+test('removerDadosDoEscritorio: nome da Dra. e dados que o escritório escreveu não viram ficha do cliente', async () => {
+  const { removerDadosDoEscritorio } = await import('../dist/services/fichaAutomatica.js');
+  const s = (valor) => ({ valor, confianca: 'alta', fontes: ['conversa'] });
+  const sugestoes = { nome: s('Letícia Elias Barros'), cpf: s('529.982.247-25'), email: s('escritorio@teste.com'), cep: s('29100-000'), city: s('Vitória') };
+  const r = removerDadosDoEscritorio(sugestoes, 'Pix da Dra.: 52998224725. Contato: Escritorio@Teste.com');
+  assert.strictEqual(r.nome, undefined, 'nome da advogada');
+  assert.strictEqual(r.cpf, undefined, 'CPF que o escritório mandou');
+  assert.strictEqual(r.email, undefined, 'e-mail que o escritório mandou');
+  assert.strictEqual(r.cep.valor, '29100-000', 'o que o escritório não escreveu fica');
+  assert.strictEqual(r.city.valor, 'Vitória');
+  const ok = removerDadosDoEscritorio({ nome: s('Maria Aparecida Teste') }, 'Olá! Aqui é do escritório da Dra. Letícia.');
+  assert.strictEqual(ok.nome.valor, 'Maria Aparecida Teste');
+});
+
 test('resumoFicha e prompt', () => {
   const t = resumoFicha('Maria', ['cpf', 'email'], [{ campo: 'city', atual: null, sugerido: 'X', fontes: [], motivo: 'leitura incerta' }]);
   assert.match(t, /CPF, e-mail/);

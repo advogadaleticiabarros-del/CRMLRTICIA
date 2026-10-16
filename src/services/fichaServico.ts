@@ -4,7 +4,7 @@ import { registrarAcaoAgente } from './usoIa';
 import { COMANDANTES_PADRAO, parseNumerosComandantes } from './assistenteRegras';
 import { PROMPT_EXTRACAO, parseExtracao, mesclarExtracoes, type Extracao } from './extracaoDocumentos';
 import {
-  CAMPOS_FICHA, extrairDoTexto, promptFichaConversa, parseFichaConversa, juntarSugestoes, decidir, resumoFicha, documentoDoContato,
+  CAMPOS_FICHA, extrairDoTexto, promptFichaConversa, parseFichaConversa, juntarSugestoes, decidir, resumoFicha, documentoDoContato, removerDadosDoEscritorio,
   type CampoFicha, type SugestaoFicha,
 } from './fichaAutomatica';
 
@@ -76,10 +76,13 @@ async function lerArquivo(ref: string, fonte: string, mime: string, carregar: ()
 async function lerDocumentos(phone: string, clienteId: number | null) {
   const k = fim8(phone);
   const lidas: { fonte: string; r: Extracao | null }[] = [];
+  // Só o que o CLIENTE mandou: contrato, procuração e proposta enviados pelo
+  // escritório têm os dados da Dra. e não podem virar a ficha do cliente.
   const [midias] = await db.query(
-    `SELECT id, file_name, mime, LENGTH(data) AS tam FROM whatsapp_media
-      WHERE RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 8) = ? AND (mime LIKE 'image/%' OR mime = 'application/pdf')
-      ORDER BY created_at DESC LIMIT ?`, [k, MAX_ARQUIVOS]) as any;
+    `SELECT wm.id, wm.file_name, wm.mime, LENGTH(wm.data) AS tam FROM whatsapp_media wm
+      WHERE RIGHT(REGEXP_REPLACE(wm.phone, '[^0-9]', ''), 8) = ? AND (wm.mime LIKE 'image/%' OR wm.mime = 'application/pdf')
+        AND NOT EXISTS (SELECT 1 FROM whatsapp_messages w WHERE w.media_id = wm.id AND w.from_me = 1)
+      ORDER BY wm.created_at DESC LIMIT ?`, [k, MAX_ARQUIVOS]) as any;
   for (const m of midias) {
     const fonte = m.file_name || `arquivo ${m.id}`;
     const r = await lerArquivo(`ficha:media:${m.id}`, fonte, m.mime, async () => {
@@ -145,7 +148,13 @@ export async function completarFicha(phone: string, opts: { forcar?: boolean; si
     const r = await aiComplete(promptFichaConversa(textos), 'openai');
     if (r.ok && r.text) conversa = parseFichaConversa(r.text);
   }
-  const sugestoes = juntarSugestoes(mesclarExtracoes(docs), conversa, extrairDoTexto(textoTodo));
+  // O que o escritório escreveu na conversa (chave Pix da Dra., e-mail do escritório…) não é do cliente.
+  const [doEscritorio] = await db.query(
+    `SELECT body FROM whatsapp_messages WHERE RIGHT(REGEXP_REPLACE(phone, '[^0-9]', ''), 8) = ? AND from_me = 1 AND body <> '' ORDER BY msg_time DESC LIMIT 200`,
+    [fim8(phone)]) as any;
+  const sugestoes = removerDadosDoEscritorio(
+    juntarSugestoes(mesclarExtracoes(docs), conversa, extrairDoTexto(textoTodo)),
+    doEscritorio.map((m: any) => String(m.body)).join('\n'));
 
   // Simulação: mostra o que faria, sem gravar nada (para conferir a leitura com dados reais).
   if (opts.simular) {
