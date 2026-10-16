@@ -34,13 +34,17 @@ test('login: senha errada não entra; senha certa entra', async ({ page }) => {
 
 const TELAS = ['hoje', 'dashboard', 'clients', 'leads', 'cases', 'propostas', 'agenda', 'financeiro', 'escritorio'];
 
-test('telas principais abrem sem erro de JavaScript nem 5xx', async ({ page }) => {
+test('telas principais carregam de verdade, sem erro de JavaScript nem 5xx', async ({ page }) => {
   const erros = vigiar(page);
   await entrar(page);
   for (const tela of TELAS) {
+    // Marca a tela anterior para não confundir o conteúdo velho com o novo.
+    await page.evaluate(() => { const p = document.querySelector('#page'); if (p) p.innerHTML = ''; });
     await page.evaluate((t) => { location.hash = '#' + t; }, tela);
-    await page.waitForLoadState('networkidle', { timeout: 20_000 }).catch(() => {});
-    await expect(page.locator('main.content'), `tela ${tela}`).not.toBeEmpty();
+    // Tela que carregou tem título (.page-header h2); se a tela falha, o router
+    // troca tudo por <div class="empty">mensagem</div> e não há título.
+    await expect(page.locator('#page .page-header h2').first(), `tela ${tela} não carregou`).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#page .spinner'), `tela ${tela} ficou carregando`).toHaveCount(0, { timeout: 20_000 });
   }
   expect(erros, erros.join('\n')).toEqual([]);
 });
