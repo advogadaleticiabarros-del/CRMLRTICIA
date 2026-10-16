@@ -931,7 +931,33 @@
         ${r.historico.length ? `<ul class="ev-hist">${r.historico.map((h) => `<li><time>${quando(h.em)}</time><span class="${h.erro ? 'erro' : ''}">${h.erro ? '❌ ' : ''}${esc(h.texto)}</span></li>`).join('')}</ul>`
           : `<p class="pi-vazio">${a.emConstrucao ? 'Este agente ainda está em construção.' : 'Nada registrado nos últimos dias.'}</p>`}`;
       if (id === 'guardiao') corpo.appendChild(await secaoErros());
+      if (id === 'coletor') corpo.prepend(await secaoFicha());
     } catch (e) { corpo.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
+  // ── Dra. Camila: ficha automática (o que não foi gravado sozinho) ──────────
+  const CAMPO_FICHA_PT = { nome: 'Nome completo', cpf: 'CPF', rg: 'RG', data_nascimento: 'Nascimento', email: 'E-mail', estado_civil: 'Estado civil', profissao: 'Profissão', cep: 'CEP', street: 'Rua', number: 'Número', neighborhood: 'Bairro', city: 'Cidade', state: 'UF' };
+  async function secaoFicha() {
+    const box = el('<div class="pi-card" style="margin-bottom:12px"></div>');
+    const carregar = async () => {
+      const lista = await api('/api/escritorio/ficha-pendencias');
+      box.innerHTML = `<h4 style="margin:0 0 4px">📇 Ficha automática: dados para conferir ${lista.length ? `(${lista.length})` : ''}</h4>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">O que o lead ou o cliente manda (texto, foto, PDF) entra sozinho na ficha quando o campo está vazio. Aqui fica só o que precisa de você: o cadastro já tinha outro valor, a leitura ficou incerta ou o CPF não confere.</p>
+        ${lista.length ? `<div class="table-wrap"><table><thead><tr><th>Quem</th><th>Campo</th><th>Hoje</th><th>Sugerido</th><th>Por quê</th><th></th></tr></thead><tbody>
+          ${lista.map((p) => `<tr data-pend="${p.id}"><td>${esc(p.nome || p.phone)}<br><small style="color:var(--text-muted)">${p.alvo === 'lead' ? 'possível cliente' : 'cliente'}</small></td>
+            <td>${esc(CAMPO_FICHA_PT[p.campo] || p.campo)}</td><td>${esc(p.valor_atual || '—')}</td><td><b>${esc(p.sugerido)}</b><br><small style="color:var(--text-muted)">${esc(p.fontes || '')}</small></td>
+            <td><small>${esc(p.motivo)}</small></td>
+            <td style="white-space:nowrap"><button class="btn-sm" data-acao="aplicar">✅ Aplicar</button> <button class="btn-ghost" data-acao="ignorar">Ignorar</button></td></tr>`).join('')}
+          </tbody></table></div>` : '<p class="pi-vazio">Nada para conferir. 👍</p>'}`;
+      box.querySelectorAll('[data-acao]').forEach((b) => b.onclick = async () => {
+        const id = b.closest('[data-pend]').dataset.pend;
+        b.disabled = true;
+        try { await api(`/api/escritorio/ficha-pendencias/${id}/${b.dataset.acao}`, { method: 'POST', body: '{}' }); toast(b.dataset.acao === 'aplicar' ? 'Ficha atualizada' : 'Ignorado'); await carregar(); }
+        catch (e) { toast(e.message, 'error'); b.disabled = false; }
+      });
+    };
+    try { await carregar(); } catch (e) { box.innerHTML = `<p class="pi-vazio">${esc(e.message)}</p>`; }
+    return box;
   }
 
   // ── Dr. Bento: erros do sistema (rastreador próprio, sem serviço de fora) ──

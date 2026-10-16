@@ -70,6 +70,12 @@ export function startCronJobs() {
   cron.schedule('35 8-19 * * *', () => {
     runJob('comercial:coletor-documentos', async () => (await import('../services/esteiraComercialServico')).coletarDocumentos());
   }, { timezone: 'America/Sao_Paulo' });
+  // Ficha automática (Dra. Camila): de meia em meia hora, lê o que leads e clientes
+  // mandaram (texto, foto, PDF) e completa a ficha. Também completa as fichas antigas.
+  cron.schedule('10,40 7-21 * * *', () => {
+    runJob('ficha:completar', async () => (await import('../services/fichaServico')).varrerFichas());
+  }, { timezone: 'America/Sao_Paulo' });
+
   // Dra. Helena: documento novo depois da análise → confere de novo contra a história.
   cron.schedule('50 8-19 * * *', () => {
     runJob('analista:documentos-novos', async () => (await import('../services/analistaServico')).reanalisarComNovos());

@@ -5,7 +5,9 @@
  * Regras de leitura/mescla em `extracaoDocumentos.ts`.
  */
 import { db } from '../config/database';
-import { aiExtractFromFile } from './aiAssistant';
+// aiLerArquivo: Gemini e, sem cota, OpenAI com visão. Até 16/10/2026 era só o
+// Gemini (aiExtractFromFile); sem cota, o botão de ler documentos falhava calado.
+import { aiLerArquivo } from './aiAssistant';
 import { PROMPT_EXTRACAO, parseExtracao, mesclarExtracoes, CAMPOS_EXTRAIDOS, type CampoExtraido } from './extracaoDocumentos';
 
 const MAX_ARQUIVOS = 6;
@@ -50,7 +52,7 @@ export async function lerDadosDosDocumentos(phone: string) {
   for (const m of midias) {
     const fonte = m.file_name || `arquivo ${m.id}`;
     if (!m.data || m.data.length > MAX_BYTES) { falhas.push(`${fonte} (grande demais)`); continue; }
-    const r = await aiExtractFromFile(Buffer.from(m.data).toString('base64'), m.mime, PROMPT_EXTRACAO);
+    const r = await aiLerArquivo(Buffer.from(m.data).toString('base64'), m.mime, PROMPT_EXTRACAO);
     const parsed = r.ok && r.text ? parseExtracao(r.text) : null;
     if (!parsed) { falhas.push(fonte); continue; }
     lidas.push({ fonte, r: parsed });

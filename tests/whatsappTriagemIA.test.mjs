@@ -24,12 +24,13 @@ test('SQL novo da triagem não referencia tabela/coluna inexistente', () => {
 });
 
 test('parceiro reconhecido por telefone tem prioridade sobre a triagem de lead', () => {
-  const bloco = webhookSrc.match(/const ehParceiro[\s\S]*?detectarDadosParaProposta\(phone, String\(body\)\)\.catch\(\(\) => \{\}\);\s*\}/);
+  const bloco = webhookSrc.match(/const ehParceiro[\s\S]*?agendarFicha\(phone\)\)/);
   assert.ok(bloco, 'bloco de decisão parceiro/lead não encontrado em whatsapp-webhook.ts');
   const idxParceiro = bloco[0].indexOf('ehParceiro');
   const idxNotify = bloco[0].indexOf('notifyNewWhatsappContact');
   assert.ok(idxParceiro < idxNotify, 'a checagem de parceiro precisa vir antes de notifyNewWhatsappContact');
   assert.match(bloco[0], /marcarComoParceiro\(phone\)/);
+  assert.match(bloco[0], /if \(!ehParceiro\)/, 'parceiro não tem a ficha preenchida como cliente');
 });
 
 test('reconhecimento de parceiro é determinístico (telefone), não usa IA', () => {

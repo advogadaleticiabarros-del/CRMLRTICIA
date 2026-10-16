@@ -1282,8 +1282,8 @@ function leadUrgencyBadge(aiUrgency) {
 }
 
 // Sinaliza no card de "Documentação Pendente" que o CPF já foi preenchido
-// (manualmente ou detectado automaticamente na conversa do WhatsApp — ver
-// detectarDadosParaProposta no webhook) — já dá pra gerar a proposta sem
+// (manualmente ou lido automaticamente do que o lead mandou no WhatsApp — ver
+// fichaServico.ts, a ficha automática) — já dá pra gerar a proposta sem
 // precisar perguntar os dados de novo.
 function leadDadosProntoBadge(status, cpfCnpj) {
   if (status !== 'documentacao_pendente' || !cpfCnpj) return '';

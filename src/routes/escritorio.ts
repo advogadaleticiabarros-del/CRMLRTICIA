@@ -114,6 +114,8 @@ async function metricasDosAgentes(): Promise<Record<string, MetricaAgente[]>> {
       [await n("SELECT COUNT(*) AS n FROM contracts WHERE status = 'em_producao'"), 'contratos para revisar'],
       [await n("SELECT COUNT(*) AS n FROM contracts WHERE status = 'finalizado'"), 'esperando assinatura']),
     coletor: m(
+      [await n(`SELECT COUNT(*) AS n FROM agente_acoes WHERE agente = 'coletor' AND texto LIKE 'completou a ficha%' AND ${local('created_at')} = ${HOJE}`), 'fichas completadas hoje'],
+      [await n("SELECT COUNT(*) AS n FROM ficha_pendencias WHERE status = 'pendente'"), 'dados para conferir'],
       [await n('SELECT COUNT(*) AS n FROM coletas_documentos WHERE concluido_em IS NULL'), 'coletas em andamento'],
       [await n('SELECT COUNT(*) AS n FROM coletas_documentos WHERE concluido_em >= NOW() - INTERVAL 30 DAY'), 'completas em 30 dias']),
     atendente: m(
@@ -157,6 +159,26 @@ router.get('/mural', async (_req: Request, res: Response) => {
 // Reunião da equipe agora (botão "Reunir a equipe")
 router.post('/reuniao', async (_req: Request, res: Response) => {
   try { res.json(await (await import('../services/sociedadeServico')).reuniaoDiaria(true)); } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Dra. Camila: ficha automática (o que não foi gravado sozinho) ───────────
+router.get('/ficha-pendencias', async (_req: Request, res: Response) => {
+  try { res.json(await (await import('../services/fichaServico')).listarPendencias()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+router.post('/ficha-pendencias/:id/:acao', async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const acao = req.params.acao === 'aplicar' ? 'aplicar' : req.params.acao === 'ignorar' ? 'ignorar' : null;
+  if (!Number.isInteger(id) || id <= 0 || !acao) { res.status(400).json({ error: 'Pedido inválido' }); return; }
+  try {
+    const r = await (await import('../services/fichaServico')).decidirPendencia(id, acao, req.user?.name || 'equipe');
+    if (!r.ok) { res.status(400).json({ error: r.erro }); return; }
+    res.json(r);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+// Completar a ficha de um contato agora (botão), mesmo sem mensagem nova.
+router.post('/ficha/:phone', async (req: Request, res: Response) => {
+  try { res.json(await (await import('../services/fichaServico')).completarFicha(String(req.params.phone), { forcar: true })); }
+  catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 // ── Dr. Otávio: possíveis clientes qualificados em % ────────────────────────

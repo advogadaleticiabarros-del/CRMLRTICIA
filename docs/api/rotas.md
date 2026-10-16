@@ -4,7 +4,7 @@
 > Acesso: **público** (sem login), **logado** (qualquer usuário), **equipe** (admin, advogada, staff), **admin**.
 > Dentro de cada rota pode haver checagem extra (ex.: dono do registro, papel parceiro).
 
-**460 rotas em 76 grupos.**
+**463 rotas em 76 grupos.**
 
 ## `/api/access-logs` · admin · `src/routes/accessLogs.ts`
 
@@ -456,6 +456,9 @@
 | GET | `/api/escritorio` |
 | GET | `/api/escritorio/mural` |
 | POST | `/api/escritorio/reuniao` |
+| GET | `/api/escritorio/ficha-pendencias` |
+| POST | `/api/escritorio/ficha-pendencias/:id/:acao` |
+| POST | `/api/escritorio/ficha/:phone` |
 | GET | `/api/escritorio/copiloto` |
 | GET | `/api/escritorio/analista` |
 | POST | `/api/escritorio/analista/:caseId` |
