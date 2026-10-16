@@ -74,7 +74,7 @@
   - parcela 2/5 da Larissa (R$ 55) vencida desde 20/09.
 
 ## Próximos passos sugeridos (se ela não pedir outra coisa)
-- **Laya na VPS do jurídico:** instalar o serviço `systemone` (o mesmo da VPS comercial), em 127.0.0.1:8765, e pôr `LAYA_URL` no `.env`. O auto mode bloqueou ações em produção nesta sessão, então precisa de permissão para fazer pelo Claude.
+- **Laya na VPS do jurídico (16/10):** já existe o ambiente `/opt/laya`, com Python 3.12 e pip. A VPS tem folga: 5,2 GB de memória livre, 22 GB de disco e 2 núcleos. O passo 6 do `scripts/instalar-laya-vps.sh` foi corrigido para reiniciar pelo PM2 do crmapp. Falta rodar o script, que instala torch CPU + `laya[serve]` 0.4.8 do PyPI, sobe o PM2 `laya`, testa e só então põe `LAYA_URL` e reinicia o CRM. O modo automático do Claude bloqueia a instalação de código externo em produção, então rodar como root na VPS: `bash /root/instalar-laya-vps.sh` (ou liberar a permissão).
 - **Escritório virtual, Fase 1 (em andamento).** Próximos passos:
   1. Secretária com aprovação por resposta no WhatsApp ("recorrer" / "não recorrer" vira tarefa e prazo).
   2. Prazo interno com escalonamento e Auditor de prazos.
