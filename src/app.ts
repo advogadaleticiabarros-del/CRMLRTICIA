@@ -26,6 +26,7 @@ import clientRoutes from './routes/clients';
 import buscaRoutes from './routes/busca';
 import hojeRoutes from './routes/hoje';
 import escritorioRoutes from './routes/escritorio';
+import errosRoutes from './routes/erros';
 import cerebroRoutes from './routes/cerebro';
 import atendenteRoutes from './routes/atendente';
 import intakeRoutes from './routes/intakes';
@@ -180,6 +181,7 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.use('/api/busca',                 authenticate, requireStaff, buscaRoutes);
   app.use('/api/hoje',                  authenticate, requireStaff, hojeRoutes);
   app.use('/api/escritorio',            authenticate, requireStaff, escritorioRoutes);
+  app.use('/api/erros',                 authenticate, errosRoutes);
   app.use('/api/cerebro',               authenticate, requireStaff, cerebroRoutes);
   app.use('/api/atendente',             authenticate, requireStaff, atendenteRoutes);
   app.use('/api/intakes',               authenticate, requireStaff, intakeRoutes);
@@ -306,9 +308,13 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
 
   // Error handler global
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
     console.error('Erro não tratado:', err.message);
     res.status(500).json({ error: 'Erro interno do servidor' });
+    // Rastreador de erros (Dr. Bento): grava, agrupa e avisa a equipe.
+    import('./services/errosServico').then((m) => m.registrarErro({
+      origem: 'servidor', mensagem: err.message, pilha: err.stack || null, rota: `${req.method} ${req.originalUrl || req.url}`, usuario: req.user?.name || null,
+    })).catch(() => {});
   });
 
   return app;

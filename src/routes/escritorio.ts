@@ -134,7 +134,8 @@ async function metricasDosAgentes(): Promise<Record<string, MetricaAgente[]>> {
       [await n('SELECT COUNT(*) AS n FROM documento_leituras'), 'documentos lidos']),
     guardiao: m(
       [await n(`SELECT COUNT(*) AS n FROM job_runs WHERE job = 'backup:diario' AND status = 'ok' AND ${local('ran_at')} = ${HOJE}`), 'cópias hoje'],
-      [await n("SELECT COUNT(*) AS n FROM job_runs WHERE job = 'backup:prova-de-restauracao' AND status = 'ok' AND ran_at >= NOW() - INTERVAL 30 DAY"), 'provas de restauração em 30 dias']),
+      [await n("SELECT COUNT(*) AS n FROM job_runs WHERE job = 'backup:prova-de-restauracao' AND status = 'ok' AND ran_at >= NOW() - INTERVAL 30 DAY"), 'provas de restauração em 30 dias'],
+      [await n('SELECT COUNT(*) AS n FROM erros_sistema WHERE resolvido = 0'), 'erros do sistema em aberto']),
   };
 }
 

@@ -38,3 +38,5 @@ _*.js
 .claude/worktrees/
 .superpowers/
 scripts/spike-*-resultado.json
+playwright-report/
+test-results/

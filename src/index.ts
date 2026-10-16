@@ -9,11 +9,17 @@ import { setIo } from './services/waSocket';
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 // Defesa em profundidade: nunca derruba o servidor por um erro não tratado de uma rota.
+// Rastreador de erros (16/10/2026): além do log, grava e avisa a equipe.
+const rastrear = (e: any) => import('./services/errosServico')
+  .then((m) => m.registrarErro({ origem: 'servidor', mensagem: e?.message || String(e), pilha: e?.stack || null }))
+  .catch(() => {});
 process.on('unhandledRejection', (reason) => {
   console.error('unhandledRejection:', reason);
+  rastrear(reason);
 });
 process.on('uncaughtException', (err) => {
   console.error('uncaughtException:', err);
+  rastrear(err);
 });
 
 async function bootstrap() {
@@ -101,9 +107,10 @@ async function bootstrap() {
   setIo(io);
   console.log('🔌 Socket.IO ativo (tempo real do WhatsApp)');
 
-  // 5. Inicia as rotinas automáticas (prazos, notificações, sync)
-  startCronJobs();
-  console.log('⏰ Cron jobs iniciados');
+  // 5. Inicia as rotinas automáticas (prazos, notificações, sync).
+  // CRONS_DESLIGADOS=1 só no teste de ponta a ponta do CI (sem WhatsApp, IA nem backup).
+  if (process.env.CRONS_DESLIGADOS === '1') console.log('⏸️  Cron jobs desligados (CRONS_DESLIGADOS=1)');
+  else { startCronJobs(); console.log('⏰ Cron jobs iniciados'); }
 
   // 6. Shutdown gracioso
   const shutdown = async (signal: string) => {

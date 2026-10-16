@@ -20,6 +20,10 @@ async function api(path, opts = {}) {
   if (res.status === 401 && tinhaToken) { logout(); throw new Error('Sessão expirada'); }
   const data = res.status === 204 ? null : await res.json();
   if (!res.ok) {
+    if (res.status >= 500 && !path.startsWith('/api/erros')) {
+      const rota = path.split('?')[0].replace(/\/\d+(?=\/|$)/g, '/:id');
+      enviarErroTela(`Erro ${res.status} em ${(opts.method || 'GET').toUpperCase()} ${rota}: ${data?.error || ''}`, null, rota);
+    }
     const err = new Error(data?.error || 'Erro na requisição');
     err.status = res.status;               // permite tratar 400/429 etc.
     if (data) Object.assign(err, data);    // ex.: err.pendencias (bloqueio de etapa)
@@ -27,6 +31,35 @@ async function api(path, opts = {}) {
   }
   return data;
 }
+
+// ── Rastreador de erros da tela (16/10/2026) ──
+// Manda ao servidor (Escritório virtual → Dr. Bento → Erros do sistema) o erro
+// que a pessoa não vê: JavaScript quebrado, promessa sem tratamento, resposta 5xx.
+// Só com login; o mesmo erro no máximo 1 vez por minuto; nunca quebra a tela.
+const errosEnviados = new Map();
+function enviarErroTela(mensagem, pilha, local) {
+  try {
+    if (!TOKEN || !mensagem) return;
+    const chave = `${mensagem}|${local || ''}`;
+    if ((errosEnviados.get(chave) || 0) > Date.now() - 60000) return;
+    errosEnviados.set(chave, Date.now());
+    fetch(API + '/api/erros', {
+      method: 'POST', keepalive: true,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${TOKEN}` },
+      body: JSON.stringify({ mensagem: String(mensagem).slice(0, 500), pilha: pilha ? String(pilha).slice(0, 3000) : null, local, tela: location.hash || location.pathname, navegador: navigator.userAgent.slice(0, 200) }),
+    }).catch(() => {});
+  } catch { /* rastrear nunca pode quebrar a tela */ }
+}
+window.addEventListener('error', (e) => {
+  if (!e.message) return;
+  enviarErroTela(e.message, e.error && e.error.stack, e.filename ? `${e.filename}:${e.lineno}` : null);
+});
+window.addEventListener('unhandledrejection', (e) => {
+  const r = e.reason;
+  // Erro de validação (400, 404, 409, 429…) é mensagem para o usuário, não bug.
+  if (r && r.status && r.status < 500) return;
+  enviarErroTela((r && r.message) || String(r), r && r.stack, null);
+});
 
 // ── Utils ──
 const $ = (sel) => document.querySelector(sel);

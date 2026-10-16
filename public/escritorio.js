@@ -930,7 +930,35 @@
         <h4 style="margin:14px 0 0;color:var(--navy)">Trabalho recente</h4>
         ${r.historico.length ? `<ul class="ev-hist">${r.historico.map((h) => `<li><time>${quando(h.em)}</time><span class="${h.erro ? 'erro' : ''}">${h.erro ? '❌ ' : ''}${esc(h.texto)}</span></li>`).join('')}</ul>`
           : `<p class="pi-vazio">${a.emConstrucao ? 'Este agente ainda está em construção.' : 'Nada registrado nos últimos dias.'}</p>`}`;
+      if (id === 'guardiao') corpo.appendChild(await secaoErros());
     } catch (e) { corpo.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
+  // ── Dr. Bento: erros do sistema (rastreador próprio, sem serviço de fora) ──
+  async function secaoErros() {
+    const box = el('<div style="margin-top:16px"></div>');
+    const carregar = async (todos = false) => {
+      const lista = await api(`/api/erros${todos ? '?todos=1' : ''}`);
+      box.innerHTML = `
+        <h4 style="margin:0 0 4px;color:var(--navy);display:flex;gap:8px;align-items:center;flex-wrap:wrap">🐞 Erros do sistema
+          <small style="font-weight:600;color:var(--text-muted)">${lista.length ? `${lista.filter((x) => !x.resolvido).length} em aberto` : ''}</small>
+          <button class="btn-ghost" style="margin-left:auto;font-size:12px" data-todos>${todos ? 'Só os em aberto' : 'Ver também os resolvidos'}</button></h4>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">Erros do servidor e das telas, agrupados (o mesmo erro soma as vezes). CPF, telefone, e-mail e processo já chegam mascarados. A equipe é avisada na 1ª vez e, se continuar, a cada 6 h.</p>
+        ${lista.length ? lista.map((x) => `<details class="pi-card" style="margin-bottom:6px;${x.resolvido ? 'opacity:.6' : ''}">
+          <summary style="cursor:pointer"><b>${x.origem === 'tela' ? '🖥️' : '⚙️'} ${esc(x.mensagem)}</b>
+            <small style="color:var(--text-muted)"> · ${x.vezes}x · último ${quando(x.ultimo_em)}${x.local ? ` · ${esc(x.local)}` : ''}${x.resolvido ? ' · resolvido' : ''}</small></summary>
+          ${x.usuario ? `<p style="font-size:12.5px;margin:6px 0">Com quem: ${esc(x.usuario)} · desde ${quando(x.primeiro_em)}</p>` : ''}
+          ${x.detalhe ? `<pre style="white-space:pre-wrap;font-size:11.5px;max-height:220px;overflow:auto;background:var(--bg);padding:8px;border-radius:8px">${esc(x.detalhe)}</pre>` : ''}
+          ${x.resolvido ? '' : `<button class="btn-ghost" style="font-size:12px" data-resolver="${x.id}">✅ Marcar como resolvido</button>`}
+        </details>`).join('') : '<p class="pi-vazio">Nenhum erro registrado. 👍</p>'}`;
+      box.querySelector('[data-todos]').onclick = () => carregar(!todos).catch((e) => toast(e.message, 'error'));
+      box.querySelectorAll('[data-resolver]').forEach((b) => b.onclick = async () => {
+        try { await api(`/api/erros/${b.dataset.resolver}/resolvido`, { method: 'POST', body: '{}' }); await carregar(todos); }
+        catch (e) { toast(e.message, 'error'); }
+      });
+    };
+    try { await carregar(); } catch (e) { box.innerHTML = `<p class="pi-vazio">${esc(e.message)}</p>`; }
+    return box;
   }
 
   // ── Métricas da IA ────────────────────────────────────────────────────────

@@ -74,3 +74,23 @@ jobs:
 
       - name: Vulnerabilidades (críticas e altas travam)
         run: npm audit --omit=dev --audit-level=high
+
+      - name: Navegador para o teste de ponta a ponta
+        run: npx playwright install --with-deps chromium
+
+      - name: Ponta a ponta (login, telas principais, cadastro de cliente)
+        run: npx playwright test
+        env:
+          ADMIN_EMAIL: ci@teste.local
+          ADMIN_PASSWORD: Ci-Teste-123456
+          CORS_ORIGIN: http://127.0.0.1:3001
+
+      - name: Relatório do teste de ponta a ponta (se falhar)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: relatorio-ponta-a-ponta
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
