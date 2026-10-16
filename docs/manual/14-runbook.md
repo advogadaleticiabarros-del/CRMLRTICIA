@@ -16,6 +16,22 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: os dados que o lead manda não entravam na ficha
+
+**Sintoma:** o lead ou o cliente mandava CPF, endereço e fotos de documentos pelo WhatsApp, e a equipe sempre tinha que preencher a ficha à mão. Em 16/10/2026, dos leads dos últimos 60 dias, 5 estavam sem CPF e 4 deles tinham o CPF escrito na conversa. Entre os clientes do período, 36 de 73 estavam sem CPF.
+
+**Causa raiz (duas):**
+1. A leitura de fotos e PDFs (`lerDadosDosDocumentos`) só lia pelo Gemini, que estava sem cota. O botão falhava calado e nenhuma rotina a chamava.
+2. A leitura do texto (`detectarDadosParaProposta`, no webhook) só rodava para lead na etapa "documentação pendente", lia **uma mensagem por vez** e só gravava se essa mesma mensagem tivesse **nome e CPF juntos**. Disparou 0 vezes em 60 dias.
+
+**Correção:** ficha automática (`fichaAutomatica.ts` e `fichaServico.ts`; ver [02-leads](02-leads.md)). Lê a conversa inteira e os arquivos do cliente, para lead e cliente, a cada mensagem e de meia em meia hora. Só preenche o vazio; o resto vira pendência para a Dra. Camila.
+
+**Cuidado descoberto na simulação com dados reais:** a primeira versão lia também os arquivos enviados **pelo escritório** (contrato, procuração) e aceitava o nome da Dra. citado pelo cliente. Ela teria gravado o nome da Dra. e um endereço que não era do cliente. Antes de qualquer gravação em produção, entrou a regra que descarta os dados do escritório.
+
+**Como conferir se está funcionando:** Escritório virtual → Dra. Camila, onde aparecem "fichas completadas hoje", "dados para conferir" e o histórico. A rotina `ficha:completar` fica em `job_runs`. Para testar um contato sem gravar: `completarFicha(telefone, { simular: true })`.
+
+---
+
 ## Incidente: editar audiência pela ficha da demanda dativa não salvava
 
 **Sintoma:** na ficha de uma demanda dativa, clicar numa audiência para editar abria o formulário errado e, ao salvar, dava erro: o CRM tentava gravar em `/api/dative/hearings/undefined`. Pela lista geral de audiências funcionava.

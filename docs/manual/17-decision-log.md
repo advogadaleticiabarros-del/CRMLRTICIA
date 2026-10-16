@@ -16,6 +16,13 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 16/10/2026 — Ficha automática grava sozinha, mas só o vazio
+- A Jessica pediu que o CRM preencha sozinho o que o lead manda ("sempre tenho que completar manualmente"). Vale também a regra da casa: "todo dado enviado vai inteiro para a ficha, sem perguntar".
+- **Por isso grava sem confirmação**, mas só campo **vazio** e lido com segurança.
+- **Sobrescrever nunca é automático:** o que diverge do cadastro vira pendência para alguém aplicar. Um dado errado na ficha vai para o contrato e para a petição; um campo vazio só atrasa.
+- **Os dados do escritório são descartados por regra, sem lista fixa no código:** nome da advogada, CPF, e-mail e CEP que o próprio escritório escreveu, e arquivos enviados pelo escritório. Assim não é preciso pôr o CPF da Dra. no repositório.
+- **Alternativa descartada:** manter a tela de sugestões com confirmação campo a campo, que já existia e ninguém usava. A Jessica quer automático.
+
 ### 16/10/2026 — Portão de qualidade: o que entrou e o que ficou de fora de propósito
 **Entrou:**
 - **CI antes do deploy:** tipos, lint, banco do zero, testes com banco, vulnerabilidades e ponta a ponta. Antes, o deploy publicava sem rodar nenhum teste.

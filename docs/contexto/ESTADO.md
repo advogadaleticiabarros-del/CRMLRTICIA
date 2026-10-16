@@ -6,6 +6,11 @@
 
 ## Últimas entregas (mais recentes primeiro)
 - **16/10:**
+  - **Ficha automática:** o que o lead ou o cliente manda no WhatsApp (texto, foto, PDF) entra sozinho na ficha. Só preenche o vazio; o que diverge vai para a Dra. Camila conferir. Roda a cada mensagem e de meia em meia hora, e completa também as fichas antigas.
+    - **Causa antiga:** a leitura de documentos nunca foi ligada e lia só pelo Gemini (sem cota); a do texto só rodava em "documentação pendente".
+    - **Simulação com dados reais:** antes de gravar, mostrou que a 1ª versão pegaria dados do escritório. Corrigido antes de qualquer gravação.
+    - Migration 163. Ver `docs/manual/02-leads.md`.
+  - **GitHub:** a conta `prosystemcomercial-JESSICA` passou a ser recusada no push ("You must verify your email address"). Os pushes saem pela `alcancelegalmkt-collab`, que é a conta ativa no `gh`. A Jessica precisa verificar o e-mail em github.com/settings/emails.
   - **Portão de qualidade (CI):** o deploy só acontece se passar o workflow `Testes`: tipos, lint (ESLint), todas as migrations num banco vazio, 969 testes com banco (nenhum pulado), vulnerabilidades e ponta a ponta com Playwright (login, 9 telas, cadastro de cliente). Detalhes em `docs/manual/13-infraestrutura.md`.
     - **Achados no primeiro dia** (registrados no runbook):
       - editar audiência pela ficha da dativa não salvava (função duplicada);

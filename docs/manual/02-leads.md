@@ -20,6 +20,42 @@ Novo Lead → Primeiro Contato → Atendimento Realizado → Documentação Pend
 2. O escritório é **avisado automaticamente** (alerta interno) assim que o lead entra.
 3. Se houver texto suficiente no resumo do caso (ou nas observações), a **IA qualifica sozinha**: sugere área jurídica, urgência e faixa de valor estimado — acontece em segundo plano, não trava o cadastro.
 
+## Ficha automática (desde 16/10/2026)
+
+O que o lead **ou o cliente** manda no WhatsApp entra sozinho na ficha, em qualquer etapa: texto, fotos (RG, CNH, comprovante) e PDFs.
+
+**Quando:** 2 minutos depois de cada mensagem (para juntar as que vêm em sequência) e na rotina `ficha:completar`, às 10 e às 40 de cada hora, das 7h às 21h. A rotina também completa as fichas antigas (mensagens dos últimos 90 dias).
+
+**Como lê:**
+- **Conversa inteira:** a IA lê o texto. CPF, e-mail e CEP também são lidos por regra fixa; o CPF só vale se passar no dígito verificador.
+- **Arquivos que o cliente mandou:** lidos pelo Gemini e, sem cota, pela OpenAI com visão. Cada arquivo é lido uma vez só (cache em `documento_leituras`).
+
+**Campos:**
+- **Lead:** nome completo, CPF, RG, nascimento, e-mail, estado civil, profissão, CEP, rua, número, bairro, cidade e UF.
+- **Cliente:** nome, CPF, e-mail, nascimento e endereço (numa linha só).
+
+**O que grava sozinho:** só campo **vazio** e lido com segurança. O nome curto do WhatsApp ("Maria") vira o completo do documento ("Maria Aparecida de Souza") quando um contém o outro.
+
+**O que nunca grava sozinho (vira pendência):**
+- campo que já tem outro valor;
+- leitura incerta;
+- CPF que não confere no dígito verificador;
+- nome diferente do cadastro.
+
+As pendências ficam em **Escritório virtual → Dra. Camila**, com "Aplicar" ou "Ignorar".
+
+**O que é descartado:**
+- documento de outra pessoa (o RG do marido): o nome do documento não bate com o do contato;
+- o nome da advogada ou do escritório;
+- CPF, e-mail e CEP que **o próprio escritório escreveu** na conversa (chave Pix da Dra., e-mail do escritório);
+- arquivos que o escritório enviou (contrato, procuração, proposta).
+
+**Aviso:** a equipe recebe no sino "📇 Ficha de Fulano completada", com o que entrou e o que precisa conferir. Lead em "documentação pendente" que passa a ter CPF continua avisando "Dados recebidos para a proposta".
+
+**Desligar:** `FICHA_DESLIGADA=1` no `.env` desliga a leitura a cada mensagem; a rotina continua.
+
+Código: regras em `fichaAutomatica.ts` (`tests/fichaAutomatica.test.mjs`), banco e leitura em `fichaServico.ts`; tabelas `ficha_pendencias` e `ficha_varredura` (migration 163).
+
 ## Cronômetro de primeira resposta
 
 O sistema mede quanto tempo o escritório demora pra responder um lead novo, por dois sinais (o que vier primeiro conta):
@@ -68,6 +104,7 @@ Cada lead pode ter propostas comerciais vinculadas (enviada, em negociação, ac
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/10/2026 | Claude | Ficha automática: texto, fotos e PDFs de lead e cliente viram cadastro sozinhos (só o vazio; o resto vira pendência na Dra. Camila). Substitui a detecção que só rodava em "documentação pendente" e nunca disparou |
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Quadro Kanban corrigido: era grid de 5 colunas fixas, as 4 últimas etapas quebravam pra 2ª linha desalinhada — agora rola horizontalmente com setas de navegação (ver [Runbook](14-runbook.md)) |
 | 24/09/2026 | Claude | Converter lead em cliente passa a copiar CPF/CNPJ e endereço também — antes só nome/e-mail/telefone/observações |
