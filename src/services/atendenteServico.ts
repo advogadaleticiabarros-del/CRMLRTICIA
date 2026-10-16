@@ -87,11 +87,18 @@ export async function gerarRascunho(phone: string, clientId: number | null, parc
   const ehComandante = (await comandantes()).some((c) => fim8(c) === fim8(phone));
   if (!deveResponder({ comandante: ehComandante, parceiro, texto: ultimaCliente.body, ultimaHumanaHaMin })) return null;
 
+  const guia = (await guiaAtual()).texto;
+  // Objeção a uma proposta enviada: quem responde é o Dr. Rafael (negociação).
+  const negociacao = await import('./negociadorServico')
+    .then((m) => m.tentarNegociacao({ phone, clientId, lista, guia }))
+    .catch((e) => { console.error('[negociador] falhou:', e?.message || e); return null; });
+  if (negociacao) return negociacao;
+
   const contato = await contatoDe(phone, clientId);
   const [mem] = await db.query("SELECT texto FROM agente_memorias WHERE agente = 'atendente' ORDER BY id DESC LIMIT 8").catch(() => [[]]) as any;
   const area = String(contato.area || '').toLowerCase();
   const prompt = montarPromptAtendente({
-    guia: (await guiaAtual()).texto, correcoes: mem.map((m: any) => m.texto), contato,
+    guia, correcoes: mem.map((m: any) => m.texto), contato,
     conversa: lista.map((m: any) => `${m.from_me ? 'Escritório' : 'Cliente'}: ${String(m.body || '').replace(/\s+/g, ' ').slice(0, 500)}`),
     perguntas: PERGUNTAS_POR_AREA[area] || PERGUNTAS_POR_AREA.geral,
   });
@@ -131,21 +138,26 @@ export async function enviarRascunho(id: number, texto: string, quem: string): P
   if (!r) return { ok: false, erro: 'Rascunho não encontrado' };
   if (r.status !== 'pendente') return { ok: false, erro: `Este rascunho já está como "${r.status}".` };
   const final = String(texto || r.resposta).trim();
-  // "Agente" no sent_by: o estudo de tom de voz não aprende com o texto da própria Lívia.
-  const ok = await sendText(r.phone, final.slice(0, 4000), `Agente Dra. Lívia (aprovado por ${quem})`);
+  const agente = r.agente === 'negociador' ? 'negociador' : 'atendente';
+  // "Agente" no sent_by: o estudo de tom de voz não aprende com o texto dos agentes.
+  const ok = await sendText(r.phone, final.slice(0, 4000), `Agente ${agente === 'negociador' ? 'Dr. Rafael' : 'Dra. Lívia'} (aprovado por ${quem})`);
   if (!ok) return { ok: false, erro: 'Não deu para enviar: confira se o WhatsApp está conectado.' };
   const editada = final !== String(r.resposta).trim();
   await db.query("UPDATE atendente_rascunhos SET status = ?, resposta_final = ?, decidido_por = ?, decidido_em = NOW() WHERE id = ?",
     [editada ? 'editada' : 'enviada', final, quem, id]);
   if (editada) {
-    await db.query("INSERT INTO agente_memorias (agente, tipo, texto) VALUES ('atendente', 'correcao', ?)",
-      [`Em vez de "${String(r.resposta).slice(0, 220)}", a equipe enviou "${final.slice(0, 220)}".`]);
+    await db.query("INSERT INTO agente_memorias (agente, tipo, texto) VALUES (?, 'correcao', ?)",
+      [agente, `Em vez de "${String(r.resposta).slice(0, 220)}", a equipe enviou "${final.slice(0, 220)}".`]);
   }
-  registrarAcaoAgente('atendente', `teve a resposta para ${r.nome || r.phone} ${editada ? 'ajustada e enviada' : 'aprovada e enviada'} por ${quem}`);
+  registrarAcaoAgente(agente, `teve a resposta para ${r.nome || r.phone} ${editada ? 'ajustada e enviada' : 'aprovada e enviada'} por ${quem}`);
   return { ok: true };
 }
 
 export async function descartarRascunho(id: number, quem: string, motivo: string | null) {
+  const [[r]] = await db.query('SELECT agente FROM atendente_rascunhos WHERE id = ?', [id]) as any;
   await db.query("UPDATE atendente_rascunhos SET status = 'descartada', decidido_por = ?, decidido_em = NOW() WHERE id = ? AND status = 'pendente'", [quem, id]);
-  if (motivo && motivo.trim()) await db.query("INSERT INTO agente_memorias (agente, tipo, texto) VALUES ('atendente', 'correcao', ?)", [`Resposta descartada: ${motivo.trim().slice(0, 400)}`]);
+  if (motivo && motivo.trim()) {
+    await db.query("INSERT INTO agente_memorias (agente, tipo, texto) VALUES (?, 'correcao', ?)",
+      [r?.agente === 'negociador' ? 'negociador' : 'atendente', `Resposta descartada: ${motivo.trim().slice(0, 400)}`]);
+  }
 }

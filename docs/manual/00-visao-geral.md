@@ -94,6 +94,24 @@ Ele também repassa as teses da casa ao **Enzo** antes de cada minuta. A rotina 
   - com o contrato assinado, pede: documento com foto, comprovante de endereço, Carteira de Trabalho em PDF mostrando o contrato, extrato do FGTS em PDF, as provas conforme o assunto (ponto, prints, áudios, testemunhas, CAT…), conversas do WhatsApp e a transcrição da reunião;
   - confere o que chegou e cobra em D+2, D+5 e D+10;
   - completo, escreve o **relato do cliente** a partir das conversas do WhatsApp e avisa a Dra.
+- **Dr. Rafael, negociação (desde 16/10/2026):** quando o possível cliente responde à proposta com objeção, ele prepara a resposta em rascunho. Detalhes em `03-whatsapp.md`.
+- **Dra. Helena, analista de documentos (desde 16/10/2026):**
+  - **Quando roda:** quando a Dra. Camila completa os documentos, de novo quando chega documento novo (rotina `analista:documentos-novos`, de hora em hora das 8h às 19h) e pelo botão "Analisar" na janela dela.
+  - **O que lê:** cada foto e PDF do cliente, do WhatsApp e do CRM. A IA só lê; a leitura de cada arquivo é guardada em `documento_leituras` para não pagar duas vezes.
+  - **O que cruza** com a história contada (relato da Dra. Camila, resumo do atendimento e falas do cliente no WhatsApp), por regras fixas em `analistaDocumentos.ts`:
+    - nome e CPF;
+    - empresa e CNPJ;
+    - datas de entrada e saída: registro depois da data contada pode indicar período sem carteira;
+    - salário: o contado maior que o do documento pode indicar pagamento por fora;
+    - "sem carteira" contra uma CTPS com o contrato;
+    - meses sem depósito de FGTS (a favor do cliente);
+    - comprovante de endereço com mais de 3 meses ou em nome de outra pessoa;
+    - gestação começando antes ou depois da dispensa, contando 30 dias de aviso;
+    - prescrição de 2 anos, vencida ou a até 90 dias de vencer;
+    - documento ilegível, cortado ou com sinal de alteração.
+  - **Segundo olhar:** a IA aponta o que as regras não cobrem, marcado "conferir".
+  - **Resultado:** relatório nos documentos do caso ("Análise dos documentos — Nome"), registro em `analises_documentos` (migration 160) e resumo à Dra. no WhatsApp (🔴 graves, 🟡 atenção, 🟢 a favor).
+  - **Ao cliente:** só o pedido neutro de reenvio (ilegível, cortado, comprovante antigo), uma vez por dia. Divergência e prescrição vão só para a Dra. O botão da tela não manda nada ao cliente.
 
 Regras em `esteiraComercial.ts`; banco e envio em `esteiraComercialServico.ts`. Ao cliente só saem pedidos e lembretes; a proposta, só com a aprovação da Dra.
 
@@ -194,6 +212,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/10/2026 | Claude | Dr. Rafael (objeções à proposta, ética da OAB, modo rascunho) e Dra. Helena (análise crítica dos documentos contra a história contada) |
 | 15/10/2026 | Claude | Dra. Lívia (atendente, modo rascunho, tom de voz da Dra.) e sociedade dos agentes (conversas, reunião diária, memória, Mural) |
 | 14/10/2026 | Claude | Cérebro (biblioteca do Obsidian) e esteira comercial (Dra. Bianca, Dr. Felipe, Dra. Camila) |
 | 14/10/2026 | Claude | Nomes com Dr./Dra. (menos Laya e o estagiário) |

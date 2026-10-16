@@ -70,6 +70,10 @@ export function startCronJobs() {
   cron.schedule('35 8-19 * * *', () => {
     runJob('comercial:coletor-documentos', async () => (await import('../services/esteiraComercialServico')).coletarDocumentos());
   }, { timezone: 'America/Sao_Paulo' });
+  // Dra. Helena: documento novo depois da análise → confere de novo contra a história.
+  cron.schedule('50 8-19 * * *', () => {
+    runJob('analista:documentos-novos', async () => (await import('../services/analistaServico')).reanalisarComNovos());
+  }, { timezone: 'America/Sao_Paulo' });
 
   // ── Dra. Lívia: estuda o tom de voz da equipe toda segunda às 7h30 (e 2 min
   // depois do boot, se ainda não houver guia). Sociedade dos agentes:

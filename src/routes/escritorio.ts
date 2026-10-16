@@ -120,6 +120,14 @@ async function metricasDosAgentes(): Promise<Record<string, MetricaAgente[]>> {
       [await n("SELECT COUNT(*) AS n FROM atendente_rascunhos WHERE status = 'pendente'"), 'respostas para aprovar'],
       [await n(`SELECT COUNT(*) AS n FROM atendente_rascunhos WHERE status IN ('enviada','editada') AND ${local('decidido_em')} = ${HOJE}`), 'enviadas hoje'],
       [await n("SELECT COUNT(*) AS n FROM agente_memorias WHERE agente = 'atendente'"), 'aprendizados']),
+    negociador: m(
+      [await n("SELECT COUNT(*) AS n FROM atendente_rascunhos WHERE agente = 'negociador' AND status = 'pendente'"), 'respostas para aprovar'],
+      [await n("SELECT COUNT(*) AS n FROM propostas WHERE status = 'em_negociacao'"), 'em negociação'],
+      [await n("SELECT COUNT(*) AS n FROM propostas WHERE status = 'aceita' AND id IN (SELECT proposta_id FROM atendente_rascunhos WHERE agente = 'negociador') AND updated_at >= NOW() - INTERVAL 30 DAY"), 'fechadas após objeção (30 dias)']),
+    analista: m(
+      [await n(`SELECT COUNT(*) AS n FROM analises_documentos WHERE ${local('created_at')} = ${HOJE}`), 'análises hoje'],
+      [await n('SELECT COALESCE(SUM(graves),0) AS n FROM analises_documentos WHERE created_at >= NOW() - INTERVAL 30 DAY'), 'pontos graves em 30 dias'],
+      [await n('SELECT COUNT(*) AS n FROM documento_leituras'), 'documentos lidos']),
     guardiao: m(
       [await n(`SELECT COUNT(*) AS n FROM job_runs WHERE job = 'backup:diario' AND status = 'ok' AND ${local('ran_at')} = ${HOJE}`), 'cópias hoje'],
       [await n("SELECT COUNT(*) AS n FROM job_runs WHERE job = 'backup:prova-de-restauracao' AND status = 'ok' AND ran_at >= NOW() - INTERVAL 30 DAY"), 'provas de restauração em 30 dias']),
@@ -144,6 +152,22 @@ router.get('/mural', async (_req: Request, res: Response) => {
 // Reunião da equipe agora (botão "Reunir a equipe")
 router.post('/reuniao', async (_req: Request, res: Response) => {
   try { res.json(await (await import('../services/sociedadeServico')).reuniaoDiaria(true)); } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Dra. Helena: análises dos documentos ────────────────────────────────────
+router.get('/analista', async (_req: Request, res: Response) => {
+  try { res.json(await (await import('../services/analistaServico')).analisesRecentes()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+// Analisar um caso agora (botão na tela). Não manda pedido de reenvio ao cliente.
+router.post('/analista/:caseId', async (req: Request, res: Response) => {
+  const id = Number(req.params.caseId);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: 'Caso inválido' }); return; }
+  try {
+    const r = await (await import('../services/analistaServico')).analisarCaso(id, { avisar: req.body?.avisar === true, pedirReenvio: false });
+    if (!r.ok) { res.status(400).json({ error: r.erro }); return; }
+    res.json(r);
+  } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 router.get('/agente/:id', async (req: Request, res: Response) => {

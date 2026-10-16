@@ -112,6 +112,8 @@
     fechador:    { cabelo: 'curto', corCabelo: '#1c1917', feminina: false, terno: '#0c4a6e', pele: '#c68642', peleSombra: '#a0692f' },
     coletor:     { cabelo: 'rabo', corCabelo: '#3f2a1d', feminina: true, extra: 'oculos', terno: '#365314' },
     atendente:   { cabelo: 'ondulado', corCabelo: '#3f2a1d', feminina: true, extra: 'headset', terno: '#701a75' },
+    negociador:  { cabelo: 'curto', corCabelo: '#3f2a1d', feminina: false, extra: 'headset', terno: '#78350f', pele: '#e0ac69', peleSombra: '#b8864b' },
+    analista:    { cabelo: 'coque', corCabelo: '#1c1917', feminina: true, extra: 'oculos', terno: '#450a0a' },
     voce:        { cabelo: 'longo', corCabelo: '#5a3825', feminina: true, terno: '#1e293b' },
   };
 
@@ -742,13 +744,15 @@
   }
 
   // ── Dra. Lívia: respostas para aprovar e o tom de voz aprendido ───────────
-  const INTENCAO_PT = { novo_caso: 'caso novo', andamento: 'andamento', documentos: 'documentos', agendar: 'agendar', financeiro: 'financeiro', outro: 'outro' };
+  const INTENCAO_PT = { novo_caso: 'caso novo', andamento: 'andamento', documentos: 'documentos', agendar: 'agendar', financeiro: 'financeiro', negociacao: 'objeção na proposta', outro: 'outro' };
+  const OBJECAO_PT = { preco: 'preço', pensar: '"vou pensar"', consultar_alguem: 'consultar a família', prazo: 'prazo', garantia: 'quer garantia', confianca: 'confiança', outro_advogado: 'outro advogado/sindicato', medo_empresa: 'medo da empresa', custo_se_perder: 'custo se perder' };
+  const lerJson = (v, padrao) => { try { return (typeof v === 'string' ? JSON.parse(v || 'null') : v) || padrao; } catch { return padrao; } };
   async function abrirAtendente() {
     const corpo = el(`<div>
       <div class="pi-abas"><button data-aba="pendente" class="on">💬 Para aprovar</button><button data-aba="enviada">✅ Enviadas</button><button data-aba="tom">🗣️ Tom de voz</button></div>
-      <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px">Modo rascunho: a Dra. Lívia prepara a resposta no seu tom; nada sai sem alguém da equipe enviar. Quando você ajusta o texto antes de enviar, ela aprende.</p>
+      <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px">Modo rascunho: a Dra. Lívia (atendimento) e o Dr. Rafael (objeções à proposta) preparam a resposta no seu tom; nada sai sem alguém da equipe enviar. Quando você ajusta o texto antes de enviar, eles aprendem.</p>
       <div id="at-aba"></div></div>`);
-    openModal('💬 Dra. Lívia · Atendente do WhatsApp', corpo, { wide: true });
+    openModal('💬 Dra. Lívia e Dr. Rafael · Respostas do WhatsApp', corpo, { wide: true });
     const box = () => corpo.querySelector('#at-aba');
     const abas = {
       async pendente() {
@@ -756,10 +760,14 @@
         const lista = await api('/api/atendente/rascunhos?status=pendente');
         if (!lista.length) { box().innerHTML = '<p class="pi-vazio">Nenhuma resposta esperando aprovação. 👍</p>'; return; }
         box().innerHTML = lista.map((r) => {
-          const alertas = (typeof r.alertas === 'string' ? JSON.parse(r.alertas || '[]') : r.alertas) || [];
+          const alertas = lerJson(r.alertas, []);
+          const rafael = r.agente === 'negociador';
+          const objecoes = lerJson(r.objecoes, []);
           return `<div class="pi-card" style="margin-bottom:10px" data-rasc="${r.id}">
             <h4 style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${r.urgente ? '<span style="color:var(--red)">🚨 URGENTE</span>' : ''}${esc(r.nome || '+' + r.phone)}
-              <small style="font-weight:600;color:var(--text-muted)">· ${INTENCAO_PT[r.intencao] || r.intencao}${r.area ? ' · ' + esc(r.area) : ''} · ${quando(r.created_at)}</small></h4>
+              <small style="font-weight:600;color:var(--text-muted)">· ${rafael ? '🤝 Dr. Rafael' : '💬 Dra. Lívia'} · ${INTENCAO_PT[r.intencao] || r.intencao}${r.area ? ' · ' + esc(r.area) : ''} · ${quando(r.created_at)}</small></h4>
+            ${rafael ? `<p style="margin:0 0 6px;font-size:13px"><b>Proposta nº ${esc(r.proposta_id || '')}</b> · objeção: ${objecoes.map((o) => esc(OBJECAO_PT[o] || o)).join(', ') || '—'}</p>` : ''}
+            ${rafael && r.encaminhar === 'dra' ? `<p style="margin:0 0 6px;color:#b45309;font-size:13px">💲 A Dra. foi avisada no WhatsApp: ${esc(r.motivo_urgencia || 'pediu outra condição')}</p>` : ''}
             ${r.urgente && r.motivo_urgencia ? `<p style="margin:0 0 6px;color:var(--red);font-size:13px">${esc(r.motivo_urgencia)}</p>` : ''}
             <p style="margin:0 0 6px;font-size:13px;background:var(--bg);padding:8px;border-radius:8px"><b>Cliente:</b> ${esc(String(r.mensagem_cliente).slice(0, 600))}</p>
             ${alertas.length ? `<p style="margin:0 0 6px;color:#b45309;font-size:12.5px">⚠️ Confira antes de enviar: ${alertas.map(esc).join(', ')}</p>` : ''}
@@ -777,7 +785,7 @@
           } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = '📲 Enviar'; }
         });
         box().querySelectorAll('[data-descartar]').forEach((b) => b.onclick = async () => {
-          const motivo = prompt('Por que descartar? (opcional: a Dra. Lívia aprende com isso)') || '';
+          const motivo = prompt('Por que descartar? (opcional: o agente aprende com isso)') || '';
           try { await api(`/api/atendente/rascunhos/${b.dataset.descartar}/descartar`, { method: 'POST', body: JSON.stringify({ motivo }) }); b.closest('[data-rasc]').remove(); }
           catch (e) { toast(e.message, 'error'); }
         });
@@ -838,9 +846,47 @@
     try { await carregar(); } catch (e) { corpo.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
   }
 
+  // ── Dra. Helena: análise dos documentos x história contada ────────────────
+  const NIVEL_ACHADO = { grave: ['🔴', 'var(--red)'], atencao: ['🟡', '#b45309'], favoravel: ['🟢', 'var(--green)'], info: ['ℹ️', 'var(--text-muted)'] };
+  async function abrirAnalista() {
+    const corpo = el('<div><div class="spinner"></div></div>');
+    openModal('🔎 Dra. Helena · Analista de documentos', corpo, { wide: true });
+    const carregar = async () => {
+      const r = await api('/api/escritorio/analista');
+      corpo.innerHTML = `
+        <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px">Ela lê cada foto e PDF do cliente (WhatsApp e CRM) e cruza com a história contada. Roda sozinha quando a Dra. Camila completa os documentos e de novo quando chega documento novo. Leitura automática: confira no original antes de usar.</p>
+        <div class="pi-card" style="margin-bottom:10px"><h4>Analisar um caso agora</h4>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <select id="an-caso" style="flex:1;min-width:220px">${r.casos.map((c) => `<option value="${c.id}">${esc(c.cliente)} · ${esc(c.title)}</option>`).join('')}</select>
+            <label style="font-size:13px;display:flex;gap:4px;align-items:center"><input type="checkbox" id="an-avisar"> avisar a Dra. no WhatsApp</label>
+            <button class="btn-primary" id="an-rodar">🔎 Analisar</button>
+          </div></div>
+        ${r.analises.length ? r.analises.map((a) => {
+          const achados = lerJson(a.achados, []);
+          return `<details class="pi-card" style="margin-bottom:8px"${a === r.analises[0] ? ' open' : ''}>
+            <summary style="cursor:pointer;font-weight:700">${esc(a.cliente)} <small style="color:var(--text-muted);font-weight:600">· ${a.documentos} documento(s) · ${a.graves} grave(s) · ${a.atencao} de atenção · ${quando(a.created_at)}</small></summary>
+            ${achados.length ? `<ul class="ev-hist" style="margin-top:8px">${achados.map((x) => `<li><span><b style="color:${(NIVEL_ACHADO[x.nivel] || NIVEL_ACHADO.info)[1]}">${(NIVEL_ACHADO[x.nivel] || NIVEL_ACHADO.info)[0]} ${esc(x.tema)}:</b> ${esc(x.texto)}${x.fontes && x.fontes.length ? ` <small style="color:var(--text-muted)">(${x.fontes.map(esc).join(', ')})</small>` : ''}</span></li>`).join('')}</ul>`
+              : '<p style="margin:8px 0 0;color:var(--green)">✅ Documentos coerentes com a história contada.</p>'}
+          </details>`;
+        }).join('') : '<p class="pi-vazio">Nenhuma análise ainda.</p>'}`;
+      corpo.querySelector('#an-rodar').onclick = async (ev) => {
+        const caso = corpo.querySelector('#an-caso').value;
+        if (!caso) return;
+        ev.target.disabled = true; ev.target.textContent = 'Lendo os documentos…';
+        try {
+          const x = await api(`/api/escritorio/analista/${caso}`, { method: 'POST', body: JSON.stringify({ avisar: corpo.querySelector('#an-avisar').checked }) });
+          toast(`${x.documentos} documento(s) lidos: ${x.graves} grave(s), ${x.atencao} de atenção`);
+          await carregar();
+        } catch (e) { toast(e.message, 'error'); ev.target.disabled = false; ev.target.textContent = '🔎 Analisar'; }
+      };
+    };
+    try { await carregar(); } catch (e) { corpo.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
   async function abrirAgente(id) {
     if (id === 'cerebro') { abrirCerebro(); return; }
-    if (id === 'atendente') { abrirAtendente(); return; }
+    if (id === 'atendente' || id === 'negociador') { abrirAtendente(); return; }
+    if (id === 'analista') { abrirAnalista(); return; }
     const corpo = el('<div><div class="spinner"></div></div>');
     openModal('Agente', corpo, { wide: true });
     try {
@@ -935,7 +981,7 @@
       let agentes = r.agentes;
       const sala = montarSala($('#ev-sala'), agentes, abrirAgente);
       let reunidos = false;
-      const DESTAQUES = ['atendente', 'cerebro', 'laya', 'secretaria', 'leitor', 'produtor', 'coletor', 'prazos', 'estagiario'];
+      const DESTAQUES = ['atendente', 'negociador', 'analista', 'cerebro', 'laya', 'secretaria', 'leitor', 'produtor', 'coletor', 'prazos', 'estagiario'];
       const desenharBarra = (quandoAtualizou) => {
         const trab = agentes.filter((a) => a.status === 'trabalhando').length;
         const erros = agentes.filter((a) => a.status === 'erro').length;

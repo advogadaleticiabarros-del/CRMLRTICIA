@@ -245,10 +245,46 @@ A aba **Tom de voz** mostra o guia e tem o botão "Estudar as conversas de novo"
 
 Código: regras em `atendente.ts` e `tomDeVoz.ts`; banco e envio em `atendenteServico.ts`; API em `/api/atendente`; tabela `atendente_rascunhos` (migration 159).
 
+## Dr. Rafael, negociação (desde 16/10/2026, modo rascunho)
+
+**Quando entra:** no lugar da Dra. Lívia, quando duas condições se juntam:
+- quem escreve tem uma proposta **enviada ou em negociação**, dentro da validade (com 15 dias de folga);
+- as mensagens desde a última resposta do escritório trazem uma **objeção**.
+
+As objeções reconhecidas são: preço, "vou pensar", consultar a família, prazo, quer garantia, confiança ("é golpe?"), outro advogado, sindicato ou Defensoria, medo da empresa e custo se perder. A proposta passa a "em negociação".
+
+**Como responde:**
+1. Acolhe.
+2. Se precisar, faz uma pergunta para entender o que está por trás.
+3. Esclarece com os valores da proposta **aprovada**.
+4. Propõe um próximo passo sem pressão.
+
+Quando o assunto é tempo, usa o texto da **marcha processual**: "o processo tem dia para começar, mas não tem dia para terminar".
+
+**Ética (Código de Ética da OAB, art. 7º, 9º e 48, §6º; Provimento 205/2021):**
+- não promete resultado nem prazo;
+- informa que há riscos e que a Dra. os explica;
+- não dá desconto;
+- não pressiona ("só hoje", "últimas vagas");
+- não fala mal de colega, do sindicato ou da Defensoria;
+- não usa gratuidade como isca;
+- respeita o "não".
+
+Se o rascunho escapar disso, aparece "⚠️ Confira antes de enviar". Os alertas são promete resultado, promete prazo, oferece desconto, pressão de venda, fala mal de colega e valor fora da proposta.
+
+**A Dra. é avisada no WhatsApp** quando o cliente pede desconto ou outra condição, ou quando a dúvida é de risco ou custo. O aviso já traz o comando para mudar a proposta (`ajustar 12 …` e depois `aprovar 12`).
+
+**Onde aprovar:** na mesma fila da Dra. Lívia (Escritório virtual → Dra. Lívia ou Dr. Rafael → Para aprovar). O cartão mostra "🤝 Dr. Rafael", a proposta e a objeção. As correções viram memória dele (`agente_memorias`, agente `negociador`).
+
+**Desligar:** `NEGOCIADOR_DESLIGADO=1` no `.env` (a Lívia volta a responder tudo).
+
+Código: regras em `negociador.ts`, banco e envio em `negociadorServico.ts`. A coluna `agente` em `atendente_rascunhos` vem da migration 160.
+
 ## Changelog
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/10/2026 | Claude | Dr. Rafael: resposta às objeções da proposta em modo rascunho, dentro da ética da OAB, com aviso à Dra. quando pedem desconto |
 | 15/10/2026 | Claude | Dra. Lívia, atendente em modo rascunho, no tom de voz da Dra. (guia aprendido das conversas reais) e aprendendo com as correções |
 | 09/10/2026 | Claude | Assistente: interpretação pela OpenAI primeiro (Groq de reserva) |
 | 09/10/2026 | Claude | Assistente: consulta de acordos, lista de próximos recebimentos, foco no pedido atual (corrige respostas erradas de 08/10) |

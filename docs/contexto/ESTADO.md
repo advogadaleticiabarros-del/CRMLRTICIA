@@ -2,9 +2,13 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 14/10/2026. Último commit: Escritório virtual (sala + Métricas da IA) e Laya.
+**Última atualização:** 16/10/2026. Último commit: Dr. Rafael (negociação) e Dra. Helena (analista de documentos).
 
 ## Últimas entregas (mais recentes primeiro)
+- **16/10:**
+  - **Dr. Rafael (negociação):** responde às objeções à proposta enviada, em rascunho na fila da Lívia, dentro da ética da OAB. Avisa a Dra. quando pedem desconto. Para desligar: `NEGOCIADOR_DESLIGADO=1`.
+  - **Dra. Helena (analista de documentos):** cruza cada foto e PDF com a história contada, por regras fixas, mais um segundo olhar da IA. O relatório fica no caso e a Dra. recebe o resumo; ao cliente vai só o pedido de reenvio. Roda quando a coleta completa e quando chega documento novo. Migration 160.
+  - **Observar:** as primeiras análises reais, porque a leitura de PDF depende do Gemini ou da OpenAI com visão. Ajustar o prompt se a IA ler mal a CTPS Digital ou o extrato do FGTS.
 - **15/10:**
   - **Dra. Lívia, atendente do WhatsApp (modo rascunho):** usa o tom de voz aprendido das conversas reais da equipe, faz as perguntas certas por área e aprende com as correções. Aprovação em Escritório virtual → Dra. Lívia. Para desligar: `ATENDENTE_DESLIGADO=1`.
   - **Sociedade dos agentes:** conversas a partir das ações reais (a cada 10 min), reunião diária às 18h15 com ata e ideias, memória persistente e Mural da equipe. Migration 159.

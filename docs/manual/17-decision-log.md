@@ -16,6 +16,21 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 16/10/2026 — Negociação ética (Dr. Rafael) e análise de documentos por regras (Dra. Helena)
+**Dr. Rafael:**
+- As regras de resposta vêm do Código de Ética da OAB (arts. 7º, 9º e 48, §6º) e do Provimento 205/2021, e as técnicas de venda foram adaptadas a eles: acolher, entender o que está por trás, esclarecer e propor o próximo passo.
+- Ficou de fora a pressão por urgência ou escassez, porque o Provimento proíbe.
+- Pedido explícito da Jessica: dizer sempre que "o processo tem dia para começar, mas não tem dia para terminar".
+- **Desconto nunca é do agente:** só a Dra. muda valores (o piso é a tabela da OAB/ES). O agente avisa a Dra., e ela usa o comando "ajustar" que já existia.
+- Usa a mesma fila de rascunhos da Lívia (coluna `agente`), em vez de uma tela nova: um lugar só para aprovar.
+
+**Dra. Helena:**
+- **A IA só lê o documento.** As conferências (nome, CPF, empresa, datas, salário, FGTS, gestação, prescrição) são regras fixas e testadas. Assim, um ponto grave não depende de a IA "lembrar" de olhar.
+- A IA entra num segundo olhar, sempre marcado "conferir".
+- **Nunca acusa o cliente:** indício de alteração e divergência vão só para a Dra. Ao cliente sai apenas o pedido neutro de reenvio.
+
+**Alternativa descartada:** um prompt único pedindo à IA para "achar inconsistências". Seria caro, sem garantia de cobertura e difícil de testar.
+
 ### 15/10/2026 — Atendente em modo rascunho e "sociedade" dos agentes ancorada no trabalho real
 **Atendente (Dra. Lívia):**
 - Começa em **modo rascunho**: nenhuma mensagem sai sem alguém da equipe enviar. A primeira semana serve para calibrar o tom.

@@ -254,6 +254,8 @@ export async function coletarDocumentos() {
       await db.query('UPDATE coletas_documentos SET concluido_em = NOW(), relato_doc_id = ? WHERE id = ?', [relato, co.id]);
       await sendText(NUMERO_DRA, `📁 Documentos completos: *${co.name}*. ${relato ? 'O relato do cliente (das conversas do WhatsApp) já está nos documentos do caso.' : ''} O caso pode ir para a criação da peça.`, 'Agente Coletor de documentos');
       registrarAcaoAgente('coletor', `reuniu todos os documentos de ${co.name}${relato ? ' e escreveu o relato do cliente' : ''}`);
+      // Documentos completos: a Dra. Helena confere cada um contra a história contada.
+      await import('./analistaServico').then((m) => m.analisarCaso(co.case_id)).catch((e) => console.error('[analista] falhou:', e?.message || e));
       concluidas++;
       continue;
     }
