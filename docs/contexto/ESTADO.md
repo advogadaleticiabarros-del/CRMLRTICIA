@@ -6,6 +6,10 @@
 
 ## Últimas entregas (mais recentes primeiro)
 - **16/10:**
+  - **Peça no papel timbrado (15/10):** a "Manifestação para informar dados bancários" da Larissa Barros da Cruz (proc. 0020093-03.2025.5.04.0541, VT de Palmeira das Missões/RS), em `Desktop\LETÍCIA\`.
+    - **Modelo padrão de juntada de conta** (palavras da Jessica): fica no Obsidian, em `Modelos de Peças\Trabalhista\modelo-manifestacao-dados-bancarios-juntada-de-conta.docx`, com os campos entre colchetes e os dados bancários da Dra. já preenchidos.
+    - **Formatação:** Times New Roman 12, espaçamento 1,5, justificado, recuo de 2,5 cm, fecho e assinatura que não se separam. O timbrado original é `Desktop\LETÍCIA\PAPEL TIMBRADO.docx`.
+  - **Interrompido (retomar quando ela pedir):** o resumo de acerto da "cliente Larissa", com sentença de R$ 373. Provavelmente é a Larissa Barros da Cruz; confirmar antes.
   - **Disco da VPS:** foi de 81% para 27%, depois de limpar 55 GB de cache de build do Docker do Orbit.
     - **Prevenção:** faxina semanal no crontab do root (domingo 4h) e alarme `manutencao:disco` no CRM (8h05, avisa a partir de 85%).
     - **Ficou de fora:** os `.tar` em `/tmp` (1,8 GB) são conteúdo do Orbit e foram mantidos. A Jessica decide se apaga.

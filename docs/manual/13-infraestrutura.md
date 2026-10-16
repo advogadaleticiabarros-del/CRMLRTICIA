@@ -18,13 +18,25 @@ Consulte pra entender onde o sistema roda de verdade, como o deploy funciona, ou
 - **Banco**: MySQL, rodando localmente na mesma VPS (não é um serviço de banco externo).
 - **Documentos**: armazenados no MEGA (nuvem separada do servidor) — não ocupam disco da VPS.
 - **A mesma VPS também hospeda** o Orbit (ecossistema de marketing), num container Docker separado, sem interferir no CRM.
+- **Laya** (desde 16/10/2026): o modelo de decisão grátis roda no PM2 do crmapp (processo `laya`), só em 127.0.0.1:8765. O CRM fala com ela por `LAYA_URL`. Detalhes em [16-ferramentas-acessos](16-ferramentas-acessos.md).
+- **Capacidade (medida em 16/10/2026):**
+  - **Processador:** 2 núcleos, quase ociosos.
+  - **Memória:** 8 GB, com cerca de 4 GB livres. Os maiores consumidores são a Laya (1,7 GB) e o MySQL (1,3 GB).
+  - **Disco:** 96 GB, em 27% depois da limpeza do cache do Docker.
+  - **Arquivos no banco:** documentos enviados ao CRM e mídias do WhatsApp ficam no MySQL (colunas `data`). Os backups vão para o MEGA.
+- **Disco:**
+  - **Faxina semanal** do cache de build do Docker (Orbit) no crontab do root: domingo às 4h, `docker builder prune -f --filter until=168h`.
+  - **Alarme** `manutencao:disco` no CRM: todo dia às 8h05, avisa a partir de 85%.
+  - **Histórico:** em 16/10 o cache tinha chegado a 55 GB. Ver o runbook, "disco do servidor cheio".
 
 ## Deploy — como uma mudança chega em produção
 
-1. Código é enviado (`git push`) pro repositório no GitHub.
-2. A VPS puxa o código sozinha (mecanismo de auto-pull ainda não totalmente mapeado — não é cron nem systemd tradicional, possivelmente integração própria do painel da Hostinger).
-3. **Passo que ainda não é automático**: o processo (`pm2 restart crm-juridico`) precisa ser reiniciado manualmente pra rodar o código novo — o `git pull` sozinho não recarrega a aplicação. Até isso acontecer, o site continua servindo a versão anterior.
-4. Ao reiniciar, o sistema aplica sozinho qualquer migration de banco pendente ("Banco em dia (N migrations aplicadas)" no log).
+1. O código é enviado (`git push`) para a `main` no GitHub.
+2. O GitHub Actions (`.github/workflows/deploy.yml`) entra na VPS por SSH e faz, em ordem: puxa o código, `npm install`, compila, roda as migrations e reinicia o PM2 `crm-juridico`.
+   - **Espera o backup:** se houver backup em andamento, espera até 20 minutos antes de reiniciar. Por isso um deploy às vezes demora: em 16/10, um deploy levou cerca de 15 minutos, provavelmente por coincidir com o backup.
+   - **Conexão:** se a primeira conexão SSH falhar, tenta mais duas vezes.
+   - **Para acompanhar:** `gh run watch`.
+3. Ao reiniciar, o sistema aplica sozinho qualquer migration de banco pendente ("Banco em dia (N migrations aplicadas)" no log).
 
 ## Backup
 
@@ -83,6 +95,7 @@ Alguns dados sensíveis (tokens de integração) ficam cifrados no banco. Acesso
 | 03/09/2026 | Claude | Criação do documento; registrado o desligamento do Railway e a migração definitiva pra VPS |
 | 07/10/2026 | Claude | Backup reforçado: tempo limite, conferência do arquivo, nova tentativa automática, vigia de horário perdido, aviso diário 20h30, histórico 30 dias + 12 meses, prova de restauração semanal, deploy espera o backup |
 | 12/10/2026 | Claude | Prova de restauração em fluxo (o dump passou de 512 MB e a prova falhava); tamanho atual e previsão de lotação do MEGA |
+| 16/10/2026 | Claude | Laya no servidor; capacidade medida; faxina semanal do cache do Docker e alarme de disco; deploy descrito como é hoje (GitHub Actions automático) |
 
 ---
 ◀ [Usuários e acesso](12-usuarios.md) · [Visão geral](00-visao-geral.md)

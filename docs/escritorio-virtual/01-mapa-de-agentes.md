@@ -7,6 +7,11 @@
 - **67 agentes em 10 departamentos.** Cobrem o escritório inteiro: atendimento, contrato, monitoramento, leitura de decisões, prazos, produção, cliente, financeiro, secretaria e qualidade.
 - Situação hoje: **27 já existem**, 17 existem em parte e 23 são novos. O CRM já é a espinha dorsal.
 - **Primeiros agentes novos entregues em 14/10/2026: o Leitor de sentença e a Secretária particular.** A sentença ou o acórdão chega à Dra. resumido, com o que ganhamos e o que perdemos, o valor e os prazos de recurso com data.
+- **Entregues depois:**
+  - **14/10:** Cérebro e a esteira comercial (Bianca, Felipe, Camila).
+  - **15/10:** Dra. Lívia (atendente) e a sociedade dos agentes.
+  - **16/10:** Dr. Rafael (objeções), Dra. Helena (análise de documentos) e Dr. Otávio (qualificação em % e copiloto). A Laya também foi instalada no servidor.
+  - **Total na sala hoje:** 28 agentes, sendo 3 ainda em construção (Júlia, Vera e Tomás).
 - Tudo gira sozinho, **menos 7 portões da Dra.** (ver abaixo). O principal é aprovar e protocolar.
 
 Legenda: ✅ existe · 🟡 existe em parte · 🆕 novo · ⭐ entregue nesta etapa
@@ -50,7 +55,10 @@ Publicação/movimentação chega  →  MONITORAMENTO (vigias de DJEN, tribunais
 | 9 | Redator de contrato e procuração | Gera contrato, procuração e declaração pelo padrão de cada área. | ✅ ⭐ agora com aviso de uso de IA |
 | 10 | Coletor de assinaturas | Envia o link, acompanha e lembra quem não assinou. | ✅ |
 | 11 | Onboarding | Boas-vindas, explica como o processo anda e alerta para os canais oficiais (golpe do falso advogado). | 🟡 tarefas D+1/D+5 |
-| 12 | Coletor de documentos | Pede a lista da área, lê o que chega e cobra o que falta. | 🟡 `extracaoDocumentos` |
+| 12 | Coletor de documentos | Pede a lista da área, lê o que chega e cobra o que falta. | ✅ Dra. Camila (14/10) |
+| 12a | **Negociação (objeções)**: Dr. Rafael | Responde às objeções da proposta enviada ("tá caro", "vou pensar", prazo, garantia, sindicato) com a ética da OAB. Explica a marcha processual, não dá desconto (avisa a Dra.) e trabalha em rascunho. | ⭐ **entregue 16/10** (`negociador.ts`) |
+| 12b | **Analista de documentos**: Dra. Helena | Cruza cada documento com a história contada: nome, CPF, empresa, datas, salário por fora, carteira, FGTS, comprovante, gestação, prescrição, ilegível ou alterado. | ⭐ **entregue 16/10** (`analistaDocumentos.ts`) |
+| 12c | **Copiloto comercial da Dra.**: Dr. Otávio | Qualifica em % (capacidade de pagar, potencial, chance de fechar), com perguntas sutis feitas pela Lívia. Na conversa da Dra., quando aparece a intenção de proposta, sugere só a ela os valores (OAB/RJ), a forma de pagamento e a próxima mensagem. Comando "montar proposta N". | ⭐ **entregue 16/10** (`copilotoComercial.ts`, `tabelaOabRj.ts`) |
 
 ## 3. Monitoramento de processos
 
@@ -181,10 +189,10 @@ Pangea/BNP do CNJ (precedentes qualificados), Portal de Dados Abertos do STJ, po
 
 | Fase | Conteúdo | Situação |
 |---|---|---|
-| **1. Fundação** | ⭐ Leitor de sentença · ⭐ Secretária particular (1ª função) · ⭐ aviso de IA no contrato · ⭐ Escritório virtual visual (menu) + Métricas da IA · ⭐ Laya na qualificação (falta instalar o serviço na VPS) · Secretária com aprovação por resposta · prazo interno com escalonamento · Auditor de prazos · Pesquisador + Verificador · Testador com casos reais | **em andamento** |
+| **1. Fundação** | ⭐ Leitor de sentença · ⭐ Secretária particular (1ª função) · ⭐ aviso de IA no contrato · ⭐ Escritório virtual visual (menu) + Métricas da IA · ⭐ Laya na qualificação (instalada na VPS em 16/10) · Secretária com aprovação por resposta · prazo interno com escalonamento · Auditor de prazos · Pesquisador + Verificador · Testador com casos reais | **em andamento** |
 | **2. Produção trabalhista** | Especialista trabalhista ponta a ponta, Especialista em recursos, Revisor por peça, Preparador e Conferente de protocolo, calendário forense TRT17 | |
 | **3. Demais áreas e leitura** | Especialistas previdenciário, família e consumidor; Leitor de laudo e de ata; Calculista de valores; Execução | |
-| **4. Cliente** | Recepcionista automática, Triador, Conflito de interesses, Coletor de documentos, Avisador, Comunicador de resultado | |
+| **4. Cliente** | Recepcionista automática, Triador, ~~Conflito de interesses~~ ✅, ~~Coletor de documentos~~ ✅, ~~Negociação~~ ✅, ~~Analista de documentos~~ ✅, ~~Qualificação em % e copiloto~~ ✅, Avisador, Comunicador de resultado | em andamento (adiantado) |
 | **5. Dinheiro e aprendizado** | Vigia de alvarás/RPV, repasse de ponta a ponta, Fiscal, Treinador, Auditor de custo, vigias de pauta e do INSS | |
 
 ## Fontes consultadas
