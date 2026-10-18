@@ -15,6 +15,10 @@ function vigiar(page) {
 }
 
 async function entrar(page) {
+  // A janela "Bem-vinda ao seu CRM" abre uma vez por aparelho, 0,9 s depois do
+  // login, e ocupa o lugar de qualquer outra janela. O navegador do teste é
+  // sempre novo: marca como já vista, como no computador da Dra.
+  await page.addInitScript(() => { try { localStorage.setItem('crm_welcomed', '1'); } catch { /* sem storage */ } });
   await page.goto('/');
   await page.locator('#login-email').fill(EMAIL);
   await page.locator('#login-password').fill(SENHA);
