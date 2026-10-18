@@ -15,6 +15,17 @@ test('relacoes: dativo, parceria e próprio ao mesmo tempo; dativo recusado não
   assert.match(r[2].detalhe, /1 caso/, 'o caso 10 é do dativo, não próprio');
 });
 
+test('relacoes: processo monitorado sem caso é próprio; o de parceria ou de dativo não', () => {
+  const r = relacoes({
+    dativos: [{ id: 1, legal_process_id: 7, status: 'em_andamento' }],
+    casos: [{ id: 11, partner_id: 3, partner_name: 'Infinity' }],
+    processos: [{ id: 5, case_id: null }, { id: 6, case_id: 11 }, { id: 7, case_id: null }],
+  });
+  assert.deepStrictEqual(r.map((x) => x.tipo), ['dativo', 'parceria', 'proprio']);
+  assert.match(r[2].detalhe, /^1 processo\(s\) sem caso cadastrado/);
+  assert.deepStrictEqual(relacoes({ dativos: [], casos: [], processos: [{ id: 9, case_id: null }] }).map((x) => x.tipo), ['proprio']);
+});
+
 test('relacoes: cliente sem caso nenhum não ganha rótulo', () => {
   assert.deepStrictEqual(relacoes({ dativos: [], casos: [] }), []);
   assert.strictEqual(relacoes({ isDative: 1, dativos: [], casos: [] })[0].tipo, 'dativo');

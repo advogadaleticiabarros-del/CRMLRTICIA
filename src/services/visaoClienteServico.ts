@@ -53,7 +53,7 @@ export async function montarVisao(clientId: number) {
        FROM cases c LEFT JOIN partners p ON p.id = c.partner_id WHERE c.client_id = ? ORDER BY c.created_at DESC`, [clientId]);
   const idsCasos = casos.map((c: any) => Number(c.id));
   const dativos = await q(
-    `SELECT id, process_number, comarca, vara, area, assunto, status, nomeacao_date, estimated_value, arbitrated_value, case_id, assisted_name
+    `SELECT id, process_number, comarca, vara, area, assunto, status, nomeacao_date, estimated_value, arbitrated_value, case_id, legal_process_id, assisted_name
        FROM dative_cases WHERE client_id = ? ORDER BY nomeacao_date DESC`, [clientId]);
   const idsDativos = dativos.map((d: any) => Number(d.id));
 
@@ -117,7 +117,7 @@ export async function montarVisao(clientId: number) {
       rg: lead?.rg || null, estado_civil: lead?.marital_status || null, profissao: lead?.profession || null, resumo: lead?.case_summary || null,
       lgpd: !!cliente.lgpd_consent_at, created_at: cliente.created_at,
     },
-    relacoes: relacoes({ isDative: cliente.is_dative, dativos, casos }),
+    relacoes: relacoes({ isDative: cliente.is_dative, dativos, casos, processos }),
     alertas: alertas({ prazos, parcelas: naoDativo.map((r: any) => ({ valor: r.seu ?? r.valor, status: r.recebido ? 'pago' : 'pendente', due_date: r.vencimento })), repassesCliente, audiencias }, hoje),
     financeiro: { ...financeiro, parteParceiroAReceber: parteParceiro },
     casos, processos, dativos, pagamentosDativo, acordos, repassesCliente, repassesParceiro: receitasParceiro,

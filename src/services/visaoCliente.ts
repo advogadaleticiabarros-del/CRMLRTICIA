@@ -21,8 +21,10 @@ const dia = (v: any): string | null => {
 /** Dativo (nomeação do juízo), parceria (caso com parceiro) e/ou próprio (caso do escritório). */
 export function relacoes(d: {
   isDative?: boolean | number | null;
-  dativos: Array<{ id: number; case_id?: number | null; comarca?: string | null; status?: string | null }>;
+  dativos: Array<{ id: number; case_id?: number | null; legal_process_id?: number | null; comarca?: string | null; status?: string | null }>;
   casos: Array<{ id: number; partner_id?: number | null; partner_name?: string | null }>;
+  /** Processos monitorados: os que não são de parceria nem de dativo também contam como próprios (visto em 18/10/2026). */
+  processos?: Array<{ id: number; case_id?: number | null }>;
 }): Relacao[] {
   const out: Relacao[] = [];
   const dativosAtivos = d.dativos.filter((x) => x.status !== 'recusada');
@@ -37,7 +39,14 @@ export function relacoes(d: {
     out.push({ tipo: 'parceria', rotulo: 'Parceria', detalhe: `${parceria.length} caso(s)${nomes.length ? ` com ${nomes.join(', ')}` : ''}` });
   }
   const proprios = d.casos.filter((c) => !c.partner_id && !casosDativos.has(c.id));
-  if (proprios.length) out.push({ tipo: 'proprio', rotulo: 'Próprio', detalhe: `${proprios.length} caso(s) do escritório` });
+  // Processo monitorado sem caso (ou de caso próprio), que não é de dativo nem de parceria.
+  const casosParceria = new Set(parceria.map((c) => c.id));
+  const procDativos = new Set(d.dativos.map((x) => x.legal_process_id).filter(Boolean));
+  const procSoltos = (d.processos || []).filter((p) => !procDativos.has(p.id) && !(p.case_id && (casosParceria.has(p.case_id) || casosDativos.has(p.case_id) || proprios.some((c) => c.id === p.case_id))));
+  if (proprios.length || procSoltos.length) {
+    const partes = [proprios.length ? `${proprios.length} caso(s)` : '', procSoltos.length ? `${procSoltos.length} processo(s) sem caso cadastrado` : ''].filter(Boolean);
+    out.push({ tipo: 'proprio', rotulo: 'Próprio', detalhe: `${partes.join(' e ')} do escritório` });
+  }
   return out;
 }
 
