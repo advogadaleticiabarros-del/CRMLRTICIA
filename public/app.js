@@ -1304,6 +1304,7 @@ const ROUTES = {
     const startTab = isComercial ? 'comercial' : 'cockpit';
     page.innerHTML = `
       <div class="page-header"><div><h2>Dashboards</h2><p class="sub">Visão gerencial do escritório</p></div></div>
+      <div id="dash-busca"></div>
       <div class="tabs" id="dash-tabs">
         ${visibleTabs.map(([id, label]) => `<button class="tab${id === startTab ? ' active' : ''}" data-tab="${id}">${label}</button>`).join('')}
       </div>
@@ -1315,6 +1316,8 @@ const ROUTES = {
       try { await tabs[name](c); } catch (e) { c.innerHTML = `<div class="empty">${e.message}</div>`; }
     };
     document.querySelectorAll('#dash-tabs .tab').forEach((t) => t.onclick = () => show(t.dataset.tab));
+    // Pesquisar cliente e ver tudo dele (visaoCliente.js) — fora do papel comercial, que não vê financeiro.
+    if (!isComercial && typeof montarBuscaCliente === 'function') montarBuscaCliente($('#dash-busca'));
     await show(startTab);
   },
 
@@ -7956,6 +7959,7 @@ async function fichaCliente(id, onSave) {
   const wrap = el(`<div>
     <div style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap">
       <button class="btn-gold btn-sm" id="fc-edit" type="button">${svgIcon('edit')}Editar cadastro</button>
+      <button class="btn-sm" id="fc-tudo" type="button" title="Dativo, parceria, processos, financeiro, acordos, movimentações, prazos e documentos">🔎 Tudo do cliente</button>
       <button class="btn-sm" id="fc-print" type="button">${svgIcon('printer')}Imprimir / PDF</button>
       <button class="btn-sm" id="fc-copy" type="button">Copiar</button>
       <button class="btn-sm" id="fc-export-lgpd" type="button" title="Baixa um arquivo com tudo que o escritório guarda sobre este cliente — direito de portabilidade, LGPD art. 18">${svgIcon('download')}Baixar dados (LGPD)</button>
@@ -7966,6 +7970,7 @@ async function fichaCliente(id, onSave) {
     <div id="fc-body" style="max-height:65vh;overflow:auto">${html}</div>
   </div>`);
   wrap.querySelector('#fc-edit').onclick = () => { closeModal(); clientForm(id, onSave); };
+  wrap.querySelector('#fc-tudo').onclick = () => { if (typeof visaoCliente === 'function') visaoCliente(id); };
   wrap.querySelector('#fc-portal-msgs').onclick = () => { closeModal(); portalMensagensEquipe(id, f.client?.name || f.name || 'Cliente'); };
   // Ideia 9 da auditoria do módulo Clientes (23/09/2026): upload direto na
   // ficha, sem precisar ir até a tela genérica de Documentos — reaproveita o

@@ -7,8 +7,13 @@ import { db } from '../config/database';
  * conciliação OFX e pelo assistente do WhatsApp ("quanto tenho a receber?").
  * Movida de routes/financial.ts em 08/10/2026 sem mudar a lógica.
  */
-export async function montarAReceber(): Promise<any[]> {
+export async function montarAReceber(filtro: { clientId?: number } = {}): Promise<any[]> {
   const rows: any[] = [];
+  // Filtro por cliente (18/10/2026, visão completa do cliente): mesma conta da
+  // tela A Receber, só restrita a um cliente. Sem filtro, nada muda.
+  // Só inteiro positivo entra no SQL (o valor é interpolado, não vai por parâmetro).
+  const cid = Number.isInteger(Number(filtro.clientId)) && Number(filtro.clientId) > 0 ? Number(filtro.clientId) : null;
+  const so = (col: string) => (cid ? ` AND ${col} = ${cid}` : '');
   const N = (x: any) => Number(x) || 0;
   const hoje = new Date().toISOString().split('T')[0];
   // Cada linha diz de qual PROCESSO é e quanto é da PARCEIRA (07/10/2026:
@@ -22,7 +27,7 @@ export async function montarAReceber(): Promise<any[]> {
       LEFT JOIN agreements ag ON ag.id = fr.agreement_id
       LEFT JOIN cases c ON c.id = COALESCE(fr.case_id, ag.case_id)
       LEFT JOIN partners pt ON pt.id = c.partner_id
-     WHERE fr.tipo='receita' AND fr.status IN ('pendente','vencido','pago')
+     WHERE fr.tipo='receita' AND fr.status IN ('pendente','vencido','pago')${so('fr.client_id')}
      ORDER BY fr.due_date DESC LIMIT 300`) as any;
   for (const r of fr) rows.push({
     fonte: 'lancamento', id: r.id, descricao: r.description, cliente: r.client_name, processo: r.processo || null,
@@ -37,7 +42,7 @@ export async function montarAReceber(): Promise<any[]> {
       LEFT JOIN propostas p ON p.id = i.proposta_id
       LEFT JOIN cases c ON c.id = i.case_id
       LEFT JOIN partners pt ON pt.id = c.partner_id
-     WHERE i.status IN ('pendente','em_processamento','vencido','pago')
+     WHERE i.status IN ('pendente','em_processamento','vencido','pago')${so('i.client_id')}
      ORDER BY i.due_date DESC LIMIT 300`) as any;
   for (const r of inst) rows.push({
     fonte: 'parcela', id: r.id, descricao: `${r.numero}ª parcela${r.proposta_title ? ' — ' + r.proposta_title : ''}`,
@@ -53,7 +58,7 @@ export async function montarAReceber(): Promise<any[]> {
       LEFT JOIN clients cl ON cl.id = re.client_id
       LEFT JOIN cases c ON c.id = re.case_id
       LEFT JOIN partners pt ON pt.id = c.partner_id
-     WHERE pa.status IN ('aberto','atrasado','parcial','pago')
+     WHERE pa.status IN ('aberto','atrasado','parcial','pago')${so('re.client_id')}
      ORDER BY pa.data_vencimento DESC LIMIT 300`).catch(() => [[]]) as any;
   for (const r of parc) rows.push({
     fonte: 'contrato', id: r.id, descricao: `${r.numero}/${r.total_parcelas}${r.receita_desc ? ' — ' + r.receita_desc : ''}`,
@@ -64,6 +69,7 @@ export async function montarAReceber(): Promise<any[]> {
   const [dat] = await db.query(`
     SELECT dp.id, dp.reference, dp.value, dp.expected_date, dp.received_date, dp.status, dc.process_number
       FROM dative_payments dp LEFT JOIN dative_cases dc ON dc.id = dp.dative_case_id
+     WHERE 1=1${so('dc.client_id')}
      ORDER BY COALESCE(dp.expected_date, dp.received_date) DESC LIMIT 300`) as any;
   for (const r of dat) rows.push({
     fonte: 'dativo', id: r.id, descricao: r.reference || `Dativo${r.process_number ? ' — proc. ' + r.process_number : ''}`,
@@ -74,7 +80,7 @@ export async function montarAReceber(): Promise<any[]> {
   const [datCasos] = await db.query(`
     SELECT dc.id, dc.assisted_name, dc.comarca, dc.process_number, dc.estimated_value
       FROM dative_cases dc
-     WHERE dc.status NOT IN ('paga','recusada') AND dc.estimated_value > 0
+     WHERE dc.status NOT IN ('paga','recusada') AND dc.estimated_value > 0${so('dc.client_id')}
        AND NOT EXISTS (SELECT 1 FROM dative_payments dp WHERE dp.dative_case_id = dc.id)
      ORDER BY dc.nomeacao_date DESC LIMIT 300`) as any;
   for (const r of datCasos) rows.push({
@@ -85,7 +91,7 @@ export async function montarAReceber(): Promise<any[]> {
 
   const [corr] = await db.query(`
     SELECT id, payer_name, process_number, value, due_date, paid_at, status
-      FROM correspondent_hearings WHERE status IN ('agendada','realizada','faturada','paga')
+      FROM correspondent_hearings WHERE status IN ('agendada','realizada','faturada','paga')${cid ? ' AND 1=0' : ''}
      ORDER BY due_date DESC LIMIT 300`) as any;
   for (const r of corr) rows.push({
     fonte: 'correspondente', id: r.id, descricao: `Audiência — ${r.payer_name || '—'}${r.process_number ? ' (' + r.process_number + ')' : ''}`,
@@ -100,7 +106,7 @@ export async function montarAReceber(): Promise<any[]> {
       LEFT JOIN clients cl ON cl.id = a.client_id
       LEFT JOIN cases c ON c.id = a.case_id
       LEFT JOIN partners pt ON pt.id = c.partner_id
-     WHERE a.status IN ('aguardando','recebido')
+     WHERE a.status IN ('aguardando','recebido')${so('a.client_id')}
      ORDER BY COALESCE(a.previsao_pagamento, a.data_recebimento) DESC LIMIT 300`).catch(() => [[]]) as any;
   for (const r of aw) rows.push({
     fonte: 'exito', id: r.id,

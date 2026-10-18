@@ -49,6 +49,24 @@ test('telas principais carregam de verdade, sem erro de JavaScript nem 5xx', asy
   expect(erros, erros.join('\n')).toEqual([]);
 });
 
+test('página inicial: pesquisar o cliente e abrir tudo dele', async ({ page }) => {
+  const erros = vigiar(page);
+  await entrar(page);
+  await page.evaluate(() => { location.hash = '#dashboard'; });
+  const busca = page.locator('#vc-busca');
+  await expect(busca).toBeVisible({ timeout: 20_000 });
+  await busca.fill('Cliente Fictício');
+  const resultado = page.locator('#vc-resultados [data-id]').first();
+  await expect(resultado).toBeVisible({ timeout: 15_000 });
+  await resultado.click();
+  await expect(page.locator('#modal-title')).toContainText('Cliente Fictício CI', { timeout: 15_000 });
+  for (const aba of ['processos', 'financeiro', 'acordos', 'movimentacoes', 'prazos', 'propostas', 'documentos', 'linha', 'cadastro']) {
+    await page.locator(`#vc-abas [data-aba="${aba}"]`).click();
+    await expect(page.locator('#vc-conteudo'), `aba ${aba}`).not.toBeEmpty();
+  }
+  expect(erros, erros.join('\n')).toEqual([]);
+});
+
 test('cadastrar um cliente pela tela e ele aparecer na lista', async ({ page }) => {
   const erros = vigiar(page);
   await entrar(page);

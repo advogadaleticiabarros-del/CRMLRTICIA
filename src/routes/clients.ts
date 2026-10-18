@@ -134,6 +134,29 @@ router.get('/', async (req: Request, res: Response) => {
 // ── Senha do Meu INSS (tabela própria client_credentials) ────────────────────
 // Lida só aqui, sob demanda (botão "mostrar"), e só por admin/advogado/equipe.
 // Cada leitura fica no log de acesso (LGPD), igual à abertura da ficha.
+// ── Visão completa do cliente (18/10/2026): busca da página inicial ────────
+// Nome, CPF, telefone, nº de processo (cível, trabalhista, dativo) e assistido.
+// Fica ANTES de '/:id' para o Express não ler 'busca-360' como um id.
+router.get('/busca-360', async (req: Request, res: Response) => {
+  const { buscarClientes } = await import('../services/visaoClienteServico');
+  res.json(await buscarClientes(String(req.query.q || '')));
+});
+
+// Tudo do cliente num lugar só: dativo/parceria/próprio, processos, financeiro,
+// acordos, repasses, movimentações, prazos, audiências, propostas, contratos.
+router.get('/:id/visao', async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: 'Cliente inválido' }); return; }
+  const { montarVisao } = await import('../services/visaoClienteServico');
+  const v = await montarVisao(id);
+  if (!v) { res.status(404).json({ error: 'Cliente não encontrado' }); return; }
+  // LGPD: abrir a visão completa é acesso a dado pessoal (mesma trilha da ficha).
+  import('../services/accessLog')
+    .then(({ logAccess }) => logAccess({ userId: req.user!.id, userName: req.user!.name, clientId: id, action: 'visao_cliente', ip: req.ip }))
+    .catch(() => {});
+  res.json(v);
+});
+
 router.get('/:id/senha-inss', async (req: Request, res: Response) => {
   if (!podeVerSenhaInss(req.user!.role)) { res.status(403).json({ error: 'Sem permissão para ver a senha' }); return; }
   const [[r]] = await db.query('SELECT senha_inss FROM client_credentials WHERE client_id = ?', [req.params.id]) as any;
