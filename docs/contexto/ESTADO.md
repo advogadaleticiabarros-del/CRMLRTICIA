@@ -5,6 +5,9 @@
 **Última atualização:** 16/10/2026. Último commit: Dr. Otávio (copiloto e qualificação em %) e tabela da OAB/RJ.
 
 ## Últimas entregas (mais recentes primeiro)
+- **18/10:**
+  - **Visão completa do cliente:** busca na página inicial (nome, CPF, telefone, nº do processo, assistido do dativo) e uma janela com tudo do cliente: dativo, parceria ou próprio, processos e números, financeiro (mesma conta do A Receber), acordos e repasses, movimentações, prazos e audiências, propostas, contratos, documentos e linha do tempo. Também pelo botão "Tudo do cliente" na ficha. Ver `docs/manual/01-clientes.md`.
+  - **GitHub:** a conta da Dra. (`advogadaleticiabarros-del`, dona do repositório) foi conectada neste computador, e a `prosystemcomercial-JESSICA` voltou a ser a ativa, ainda sem o e-mail verificado. Os pushes seguem pela `alcancelegalmkt-collab`.
 - **16/10:**
   - **Ficha automática:** o que o lead ou o cliente manda no WhatsApp (texto, foto, PDF) entra sozinho na ficha. Só preenche o vazio; o que diverge vai para a Dra. Camila conferir. Roda a cada mensagem e de meia em meia hora, e completa também as fichas antigas.
     - **Causa antiga:** a leitura de documentos nunca foi ligada e lia só pelo Gemini (sem cota); a do texto só rodava em "documentação pendente".

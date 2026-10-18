@@ -24,6 +24,48 @@ Ao abrir um cliente, o sistema monta uma **ficha consolidada** com tudo que exis
 - Documentos do cliente.
 - Linha do tempo — histórico de tudo que aconteceu (mensagens, mudanças de etapa, notas), mais recente primeiro.
 
+## Visão completa do cliente (desde 18/10/2026)
+
+**Onde:**
+- na **página inicial** (Dashboards), no campo "🔎 Pesquisar cliente", que fica acima das abas;
+- na ficha do cliente, no botão "🔎 Tudo do cliente".
+
+**A busca acha o cliente por:** nome, CPF/CNPJ, telefone, número do processo (do caso, do processo monitorado ou da nomeação dativa) e nome do assistido do dativo. O resultado diz por qual desses o cliente foi encontrado. O papel `comercial` não vê a busca, porque ela mostra o financeiro.
+
+**O que aparece:**
+- **Rótulos:** Dativo (com as comarcas), Parceria (com o nome do parceiro) e/ou Próprio. Um cliente pode ter os três.
+- **Alertas:**
+  - prazo vencido ou nos próximos 7 dias;
+  - parcela vencida;
+  - repasse ao cliente pendente;
+  - audiência nos próximos 7 dias.
+- **Totais:**
+  - a receber (só a parte do escritório, sem a do parceiro), vencido e recebido;
+  - acordos e seus honorários;
+  - repasse ao cliente pendente;
+  - dativo a receber do Estado;
+  - parte do parceiro.
+- **Abas:**
+  - **Processos:** casos (próprio ou parceria), processos monitorados nos tribunais e nomeações dativas, com os números.
+  - **Financeiro**.
+  - **Acordos e repasses:** ao cliente, ao parceiro e pagamentos do Estado.
+  - **Movimentações**.
+  - **Prazos e audiências**.
+  - **Propostas e contratos**.
+  - **Documentos**.
+  - **Linha do tempo:** tudo junto, do mais novo para o mais antigo.
+  - **Cadastro:** inclui RG, estado civil e profissão vindos do atendimento, a autorização LGPD e a última conversa no WhatsApp.
+
+**Os números batem com o Financeiro:** o financeiro da visão usa a mesma conta da tela A Receber (`montarAReceber` com filtro por cliente).
+
+**LGPD:** abrir a visão fica registrado no log de acesso (`visao_cliente`), igual à ficha.
+
+**Código:**
+- regras em `visaoCliente.ts` (testes em `tests/visaoCliente.test.mjs`);
+- banco em `visaoClienteServico.ts` (teste com banco de verdade em `tests/visaoClienteServico.test.mjs`, que roda no CI);
+- tela em `public/visaoCliente.js`;
+- rotas `GET /api/clients/busca-360` e `GET /api/clients/:id/visao`.
+
 ## Checagem de conflito de interesses
 
 Antes de cadastrar alguém novo, o sistema pode checar o nome/CPF contra: clientes já cadastrados, leads no funil, títulos/descrições de processos existentes (onde a parte contrária costuma aparecer escrita) e assistidos de demandas dativas. É um **aviso**, não um bloqueio — a decisão final é sempre da advogada.
@@ -129,6 +171,7 @@ O cadastro manual (botão "+ Novo cliente") continua com o aviso de possível du
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/10/2026 | Claude | Visão completa do cliente: busca na página inicial e tudo dele num lugar só (dativo/parceria/próprio, processos, financeiro, acordos, movimentações, prazos, documentos) |
 | 07/10/2026 | Claude | Uma pessoa = uma ficha: todas as rotinas automáticas reaproveitam a ficha existente (CPF, nome sem acento, telefone, e-mail) |
 | 07/10/2026 | Claude | Campo protegido "Senha do Meu INSS" na ficha (tabela própria, só admin/advogado/equipe, leitura registrada); senhas tiradas das descrições de casos |
 | 30/09/2026 | Claude | Portal como hub: assinatura, checklist com envio, agendamento e mensagens dentro do portal |

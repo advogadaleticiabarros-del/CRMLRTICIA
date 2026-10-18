@@ -10,6 +10,10 @@ A tela `#dashboard` é a primeira coisa que se vê ao abrir o CRM — 8 painéis
 
 Consulte pra entender o que cada número do Dashboard significa de verdade (a conta por trás do rótulo), pra onde cada clique leva, ou se um problema que você notou já é conhecido.
 
+## Pesquisar cliente (desde 18/10/2026)
+
+No topo dos Dashboards, acima das abas, o campo "🔎 Pesquisar cliente" acha o cliente por nome, CPF, telefone ou número do processo e abre tudo dele: dativo, parceria ou próprio, processos, financeiro, acordos e repasses, movimentações, prazos, audiências, propostas, contratos e documentos. Detalhes em [01-clientes](01-clientes.md), "Visão completa do cliente".
+
 ## Os 9 painéis
 
 Abas em `#dashboard` (papel `comercial` só vê Comercial e Agenda):
