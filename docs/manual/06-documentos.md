@@ -56,6 +56,12 @@ Os dois **regeneram** o contrato, como o "Completar informações": o texto edit
 
 Fica salvo junto do complemento (`party_overrides.co_contratantes`).
 
+**Opções do contrato** (no mesmo painel, desde 19/10/2026; valem para o titular e para os outros contratantes):
+- **"Deixar sem profissão e e-mail quando não informados":** a qualificação sai sem esses trechos, em vez de "[profissão]" e "[e-mail]". Sem a opção, os colchetes continuam, para lembrar de preencher.
+- **"Sem declaração de hipossuficiência":** o contrato sai só com o contrato e as procurações. As abas e o botão da declaração somem, e o "Baixar tudo" imprime só o contrato e as procurações.
+
+Ficam em `party_overrides.omitir_vazios` e `party_overrides.sem_declaracao`, e regeneram os documentos ao marcar.
+
 **Documentos:** abas "Procuração — Nome" e "Declaração — Nome" para cada um (editáveis). O "Baixar tudo" imprime todos. Ficam em `contracts.documentos_partes` (migration 165).
 
 **Assinatura:**
@@ -176,6 +182,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 19/10/2026 | Claude | Opções do contrato: sem profissão/e-mail não informados (sem colchetes) e sem declaração de hipossuficiência |
 | 19/10/2026 | Claude | Contrato com mais de um contratante (ex.: casal), dados buscados na conversa, procuração e declaração individuais |
 | 14/10/2026 | Claude | Aviso de uso de IA (`AVISO_USO_IA`) nos 4 contratos padrão: trabalhista 14.4, pensão § 4º da cl. 13ª, genérico § único da cl. 8ª, menor § único da cl. 9ª |
 | 07/10/2026 | Claude | Novo contrato padrão trabalhista (22 cláusulas, `buildTemplateTrabalhista`), com a entrada não paga descontada ao final do processo; impressão com rodapé que não cobre o texto e assinaturas sempre juntas |

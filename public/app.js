@@ -9716,6 +9716,9 @@ async function contractEditor(id, onSave) {
       <div class="form-row">${field('Nacionalidade', 'c_nac', { value: 'brasileiro(a)' })}${field('Profissão', 'c_prof')}</div>
       <div class="form-row">${field('CPF', 'c_cpf')}${field('E-mail', 'c_email', { type: 'email' })}</div>
       ${field('Endereço completo', 'c_end')}
+      <strong class="cp-grp">Opções do contrato</strong>
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:400"><input type="checkbox" id="o_omitir_vazios" style="width:auto"> Deixar sem profissão e e-mail quando não informados (em vez de "[profissão]" e "[e-mail]")</label>
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:400"><input type="checkbox" id="o_sem_declaracao" style="width:auto"> Sem declaração de hipossuficiência (só contrato e procurações)</label>
       <strong class="cp-grp">Outros contratantes (mesmo contrato, procuração e declaração próprias)</strong>
       <div id="co-lista" style="display:flex;flex-direction:column;gap:10px"></div>
       <button type="button" class="btn-sm" id="co-add" style="align-self:flex-start">+ Adicionar contratante</button>
@@ -9755,6 +9758,7 @@ async function contractEditor(id, onSave) {
     const docTitle = { content: 'Contrato', procuracao_content: 'Procuração', declaracao_content: 'Declaração de Hipossuficiência' }[b.dataset.print];
     printDoc(docTitle, wrap.querySelector(`[data-field=${b.dataset.print}]`).value);
   });
+  // Documento vazio (ex.: contrato sem declaração de hipossuficiência) não entra no "Baixar tudo".
   wrap.querySelector('#print-all').onclick = () => printDocs([
     { title: 'Contrato', content: wrap.querySelector('[data-field=content]').value },
     { title: 'Procuração', content: wrap.querySelector('[data-field=procuracao_content]').value },
@@ -9763,7 +9767,7 @@ async function contractEditor(id, onSave) {
       { title: `Procuração — ${d.nome}`, content: wrap.querySelector(`[data-field=parte_proc_${i}]`).value },
       { title: `Declaração de Hipossuficiência — ${d.nome}`, content: wrap.querySelector(`[data-field=parte_decl_${i}]`).value },
     ]),
-  ]);
+  ].filter((d) => String(d.content || '').trim()));
 
   wrap.querySelectorAll('#doc-tabs .tab').forEach((t) => t.onclick = () => {
     wrap.querySelectorAll('#doc-tabs .tab').forEach((x) => x.classList.toggle('active', x === t));
@@ -9834,6 +9838,11 @@ async function contractEditor(id, onSave) {
   let savedOv = {};
   try { savedOv = ct.party_overrides ? (typeof ct.party_overrides === 'string' ? JSON.parse(ct.party_overrides) : ct.party_overrides) : {}; } catch {}
   Object.entries(ovMap).forEach(([fn, ok]) => { const inp = wrap.querySelector(`[name=${fn}]`); if (inp && savedOv[ok]) inp.value = savedOv[ok]; });
+  // Contrato sem declaração de hipossuficiência: some com as abas e o botão da declaração.
+  if (savedOv.sem_declaracao) {
+    wrap.querySelectorAll('[data-doc=declaracao_content], [data-doc^=parte_decl_], [data-print=declaracao_content]').forEach((x) => { x.style.display = 'none'; });
+    wrap.querySelector('#print-all').textContent = 'Baixar tudo (Contrato + Procurações)';
+  }
 
   // Outros contratantes: ficam em party_overrides.co_contratantes. Entram em TODO
   // envio do complemento — o PATCH substitui o complemento inteiro, então sem isto
@@ -9869,8 +9878,16 @@ async function contractEditor(id, onSave) {
     const o = {};
     for (const [fn, ok] of Object.entries(ovMap)) { const v = (wrap.querySelector(`[name=${fn}]`)?.value || '').trim(); if (v) o[ok] = v; }
     o.co_contratantes = coContratantes.filter((p) => String(p.nome || '').trim());
+    if (wrap.querySelector('#o_omitir_vazios')?.checked) o.omitir_vazios = true;
+    if (wrap.querySelector('#o_sem_declaracao')?.checked) o.sem_declaracao = true;
     return o;
   };
+  // Opções salvas no contrato (ficam marcadas ao reabrir) — mudar uma regenera os documentos.
+  [['#o_omitir_vazios', 'omitir_vazios'], ['#o_sem_declaracao', 'sem_declaracao']].forEach(([sel, k]) => {
+    const cb = wrap.querySelector(sel); if (!cb) return;
+    cb.checked = !!savedOv[k];
+    cb.addEventListener('change', () => { clearTimeout(pushTimer); pushComplement(false).then(() => { if (k === 'sem_declaracao') { closeModal(); contractEditor(id, onSave); } }); });
+  });
 
   // Salva o complemento no servidor e regenera os 3 documentos (não se perde ao sair).
   let pushTimer = null;

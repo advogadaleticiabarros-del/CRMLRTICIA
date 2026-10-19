@@ -32,6 +32,8 @@ export interface PartyData {
   endereco?: string | null;
   email?: string | null;
   phone?: string | null;
+  /** Profissão e e-mail não informados saem do texto, em vez de "[profissão]" e "[e-mail]" (opção do contrato, 19/10/2026). */
+  omitirVazios?: boolean;
 }
 
 /** Monta a string de endereço a partir dos campos do lead/cliente. */
@@ -57,13 +59,15 @@ function f(p: PartyData) {
     end: p.endereco || '[ENDEREÇO]',
     email: p.email || '',
     phone: p.phone || '',
+    semProf: !!p.omitirVazios && !p.profissao,
+    semEmail: !!p.omitirVazios && !p.email,
   };
 }
 
 /** Qualificação completa da parte (sem estado civil/RG, conforme padrão do escritório). */
 function qualificacao(p: ReturnType<typeof f>): string {
-  let q = `${p.nome}, ${p.nac}, ${p.prof}, inscrito(a) no CPF nº ${p.cpf}, residente e domiciliado(a) na ${p.end}`;
-  q += `, endereço eletrônico: ${p.email || '[e-mail]'}`;
+  let q = `${p.nome}, ${p.nac}${p.semProf ? '' : `, ${p.prof}`}, inscrito(a) no CPF nº ${p.cpf}, residente e domiciliado(a) na ${p.end}`;
+  if (!p.semEmail) q += `, endereço eletrônico: ${p.email || '[e-mail]'}`;
   if (p.phone) q += `, telefone: ${p.phone}`;
   return q;
 }

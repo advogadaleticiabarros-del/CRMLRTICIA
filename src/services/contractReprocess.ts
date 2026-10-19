@@ -50,6 +50,11 @@ export async function reprocessContract(contractId: number, userId?: number, ove
     if (ov.email) party.email = ov.email;
     if (ov.endereco) party.endereco = ov.endereco;
   }
+  // Opções do contrato (19/10/2026): profissão/e-mail não informados saem do texto;
+  // sem declaração de hipossuficiência (só contrato e procurações).
+  const omitirVazios = !!ov?.omitir_vazios;
+  const semDeclaracao = !!ov?.sem_declaracao;
+  party.omitirVazios = omitirVazios;
   const area = AREAS.includes(ct.area) ? ct.area : (AREAS.includes(prop?.legal_area) ? prop.legal_area : (AREAS.includes(lead?.legal_area) ? lead.legal_area : 'outro'));
 
   let honorarios: any = null, parcelamento: any = null, valor = Number(ct.value) || Number(prop?.valor) || undefined;
@@ -66,17 +71,17 @@ export async function reprocessContract(contractId: number, userId?: number, ove
   // procuração e declaração (19/10/2026). Ficam em party_overrides.co_contratantes.
   const extras: PartyData[] = (Array.isArray(ov?.co_contratantes) ? ov.co_contratantes : [])
     .filter((p: any) => p && String(p.nome || '').trim())
-    .map((p: any) => paraParte({ ...p, nome: String(p.nome).trim(), endereco: p.endereco || (p.mesmo_endereco ? party.endereco : null) }));
+    .map((p: any) => ({ ...paraParte({ ...p, nome: String(p.nome).trim(), endereco: p.endereco || (p.mesmo_endereco ? party.endereco : null) }), omitirVazios }));
   const trabalhista = area === 'trabalhista';
   if (extras.length) {
     content = aplicarCoContratantes(content, extras.map((p) => ({ qualificacao: qualificacaoDaParte(p), nome: String(p.name), cpf: p.cpf || null }))).texto;
   }
   const documentosPartes = extras.map((p) => ({
-    nome: p.name, cpf: p.cpf || null, procuracao: buildProcuracao(p, adv), declaracao: buildDeclaracao(p, { trabalhista }),
+    nome: p.name, cpf: p.cpf || null, procuracao: buildProcuracao(p, adv), declaracao: semDeclaracao ? '' : buildDeclaracao(p, { trabalhista }),
   }));
   await db.query(
     'UPDATE contracts SET content = ?, procuracao_content = ?, declaracao_content = ?, documentos_partes = ?, value = COALESCE(?, value) WHERE id = ?',
-    [content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista }), documentosPartes.length ? JSON.stringify(documentosPartes) : null, valor ?? null, contractId]
+    [content, buildProcuracao(party, adv), semDeclaracao ? '' : buildDeclaracao(party, { trabalhista }), documentosPartes.length ? JSON.stringify(documentosPartes) : null, valor ?? null, contractId]
   );
   return true;
 }

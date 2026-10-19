@@ -32,6 +32,17 @@ test('dois contratantes: contrato em nome dos dois, procuração e declaração 
     assert.match(extras[0].procuracao, /OUTORGANTE: José Casal Teste/);
     assert.match(extras[0].declaracao, /Eu, José Casal Teste/);
 
+    // Opções: sem profissão/e-mail não informados e sem declaração (só contrato e procurações).
+    await db.query('UPDATE contracts SET party_overrides = ? WHERE id = ?', [JSON.stringify({ omitir_vazios: true, sem_declaracao: true,
+      co_contratantes: [{ nome: 'José Casal Teste', cpf: '111.444.777-35', mesmo_endereco: true }] }), ids.ct]);
+    await reprocessContract(ids.ct);
+    const [[o]] = await db.query('SELECT content, procuracao_content, declaracao_content, documentos_partes FROM contracts WHERE id = ?', [ids.ct]);
+    const oExtras = typeof o.documentos_partes === 'string' ? JSON.parse(o.documentos_partes) : o.documentos_partes;
+    for (const txt of [o.content, o.procuracao_content, oExtras[0].procuracao]) assert.doesNotMatch(txt, /\[profissão\]|\[e-mail\]/);
+    assert.equal(o.declaracao_content, '');
+    assert.equal(oExtras[0].declaracao, '');
+    assert.match(oExtras[0].procuracao, /OUTORGANTE: José Casal Teste/);
+
     // Tirando o co-contratante, volta a ser de uma pessoa só.
     await db.query('UPDATE contracts SET party_overrides = ? WHERE id = ?', [JSON.stringify({ co_contratantes: [] }), ids.ct]);
     await reprocessContract(ids.ct);

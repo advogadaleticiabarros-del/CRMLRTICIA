@@ -67,6 +67,17 @@ test('cada contratante tem a própria procuração e a própria declaração', (
   assert.match(decl, /790/, 'trabalhista usa a CLT');
 });
 
+test('omitirVazios: profissão e e-mail não informados saem do texto, sem colchetes', () => {
+  const sem = qualificacaoDaParte({ name: 'José Casal Teste', cpf: '111.444.777-35', endereco: 'Rua A, 1', omitirVazios: true });
+  assert.doesNotMatch(sem, /\[profissão\]|\[e-mail\]|endereço eletrônico/);
+  assert.match(sem, /^José Casal Teste, brasileiro\(a\), inscrito\(a\) no CPF nº 111\.444\.777-35, residente/);
+  const com = qualificacaoDaParte({ name: 'José Casal Teste', cpf: '111.444.777-35', profissao: 'motorista', email: 'j@t.com', omitirVazios: true });
+  assert.match(com, /motorista/);
+  assert.match(com, /endereço eletrônico: j@t\.com/);
+  assert.match(qualificacaoDaParte({ name: 'X' }), /\[profissão\].*\[e-mail\]/, 'sem a opção, o padrão continua lembrando de preencher');
+  assert.doesNotMatch(buildProcuracao({ name: 'José', cpf: '1', omitirVazios: true }), /\[profissão\]|\[e-mail\]/);
+});
+
 test('prompt pede todas as pessoas e exclui advogada e parte contrária', () => {
   const p = promptPessoasDaConversa(['Maria, CPF 1; José, CPF 2']);
   assert.match(p, /TODAS as pessoas/);
