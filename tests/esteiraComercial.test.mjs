@@ -94,7 +94,7 @@ const dias = (n) => new Date(AGORA.getTime() - n * 86400000);
 
 test('proximoPassoContrato: em produção há mais de 1 dia → avisar a Dra. para revisar', () => {
   assert.deepStrictEqual(proximoPassoContrato({ status: 'em_producao', desde: dias(2) }, AGORA), { acao: 'avisar_dra', marco: 'revisao_d1' });
-  assert.strictEqual(proximoPassoContrato({ status: 'em_producao', desde: dias(0.5) }, AGORA), null);
+  assert.deepStrictEqual(proximoPassoContrato({ status: 'em_producao', desde: dias(0.5) }, AGORA), { acao: 'avisar_dra', marco: 'revisao_d0' }, 'avisa na hora (19/10/2026)');
 });
 
 test('proximoPassoContrato: enviado para assinatura e não assinado → lembrar o cliente em D+1, D+3 e D+7', () => {
@@ -102,6 +102,9 @@ test('proximoPassoContrato: enviado para assinatura e não assinado → lembrar 
   assert.deepStrictEqual(proximoPassoContrato({ status: 'finalizado', desde: dias(4) }, AGORA), { acao: 'lembrar_cliente', marco: 'assinatura_d3' });
   assert.deepStrictEqual(proximoPassoContrato({ status: 'finalizado', desde: dias(8) }, AGORA), { acao: 'avisar_dra', marco: 'assinatura_d7' });
   assert.strictEqual(proximoPassoContrato({ status: 'assinado', desde: dias(3) }, AGORA), null);
+  // O CRM grava 'enviado_assinatura' ao mandar o link (antes os lembretes nunca saíam).
+  assert.deepStrictEqual(proximoPassoContrato({ status: 'enviado_assinatura', desde: dias(1.2) }, AGORA), { acao: 'lembrar_cliente', marco: 'assinatura_d1' });
+  assert.deepStrictEqual(proximoPassoContrato({ status: 'enviado_assinatura', desde: dias(8) }, AGORA), { acao: 'avisar_dra', marco: 'assinatura_d7' });
 });
 
 // ── Coletor de documentos e provas ──────────────────────────────────────────

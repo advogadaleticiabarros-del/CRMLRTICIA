@@ -112,7 +112,7 @@ async function metricasDosAgentes(): Promise<Record<string, MetricaAgente[]>> {
       [await n("SELECT COUNT(*) AS n FROM propostas WHERE status = 'rascunho' AND observacoes LIKE 'Produzida pelo agente%'"), 'esperando aprovação']),
     fechador: m(
       [await n("SELECT COUNT(*) AS n FROM contracts WHERE status = 'em_producao'"), 'contratos para revisar'],
-      [await n("SELECT COUNT(*) AS n FROM contracts WHERE status = 'finalizado'"), 'esperando assinatura']),
+      [await n("SELECT COUNT(*) AS n FROM contracts WHERE status IN ('enviado_assinatura','finalizado')"), 'esperando assinatura']),
     coletor: m(
       [await n(`SELECT COUNT(*) AS n FROM agente_acoes WHERE agente = 'coletor' AND texto LIKE 'completou a ficha%' AND ${local('created_at')} = ${HOJE}`), 'fichas completadas hoje'],
       [await n("SELECT COUNT(*) AS n FROM ficha_pendencias WHERE status = 'pendente'"), 'dados para conferir'],

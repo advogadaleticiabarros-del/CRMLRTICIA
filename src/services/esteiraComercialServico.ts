@@ -199,19 +199,25 @@ export async function comandoProposta(phone: string, texto: string): Promise<str
 
 export async function acompanharContratos() {
   const [rows] = await db.query(
-    `SELECT c.id, c.status, c.updated_at, c.title, COALESCE(cl.name, l.name) AS nome, COALESCE(cl.phone, l.phone) AS fone
+    `SELECT c.id, c.status, c.updated_at, c.created_at, c.title, COALESCE(cl.name, l.name) AS nome, COALESCE(cl.phone, l.phone) AS fone
        FROM contracts c LEFT JOIN clients cl ON cl.id = c.client_id LEFT JOIN leads l ON l.id = c.lead_id
-      WHERE c.status IN ('em_producao','finalizado') AND c.updated_at >= NOW() - INTERVAL 30 DAY`) as any;
+      WHERE c.status IN ('em_producao','finalizado','enviado_assinatura') AND c.updated_at >= NOW() - INTERVAL 30 DAY`) as any;
   let avisos = 0, lembretes = 0;
   for (const c of rows) {
     const passo = proximoPassoContrato({ status: c.status, desde: c.updated_at }, new Date());
-    if (!passo || !(await marcar(`contrato:${c.id}`, passo.marco))) continue;
+    if (!passo) continue;
+    // "Contrato fechado" só para contrato criado agora, não para um antigo que só foi editado.
+    if (passo.marco === 'revisao_d0' && Date.now() - new Date(c.created_at).getTime() > 2 * 86400000) continue;
+    if (!(await marcar(`contrato:${c.id}`, passo.marco))) continue;
     if (passo.acao === 'avisar_dra') {
-      const texto = passo.marco === 'revisao_d1'
-        ? `📄 O contrato de *${c.nome || c.title}* está pronto há mais de 1 dia esperando a sua revisão (CRM → Contratos). Depois de revisar, gere o link de assinatura.`
-        : `✍️ O contrato de *${c.nome || c.title}* foi enviado há 7 dias e ainda não foi assinado. Vale ligar para o cliente.`;
+      const texto = passo.marco === 'revisao_d0'
+        ? `🤝 *Contrato fechado: ${c.nome || c.title}*\nA proposta foi aceita e o contrato, a procuração e a declaração já estão prontos para a sua revisão (CRM → Contratos, nº ${c.id}).\nDepois de revisar, gere o link de assinatura: eu lembro a cliente de assinar. A Dra. Camila já está pedindo os documentos.`
+        : passo.marco === 'revisao_d1'
+          ? `📄 O contrato de *${c.nome || c.title}* está pronto há mais de 1 dia esperando a sua revisão (CRM → Contratos, nº ${c.id}). Depois de revisar, gere o link de assinatura.`
+          : `✍️ O contrato de *${c.nome || c.title}* foi enviado há 7 dias e ainda não foi assinado. Vale ligar para o cliente.`;
       await sendText(NUMERO_DRA, texto, 'Agente Fechador de contrato');
-      registrarAcaoAgente('fechador', passo.marco === 'revisao_d1' ? `lembrou a Dra. de revisar o contrato de ${c.nome}` : `avisou a Dra.: contrato de ${c.nome} parado há 7 dias`);
+      registrarAcaoAgente('fechador', passo.marco === 'revisao_d0' ? `avisou a Dra. do contrato fechado de ${c.nome} para revisar`
+        : passo.marco === 'revisao_d1' ? `lembrou a Dra. de revisar o contrato de ${c.nome}` : `avisou a Dra.: contrato de ${c.nome} parado há 7 dias`);
       avisos++;
     } else {
       const fone = foneWa(c.fone);
@@ -259,18 +265,40 @@ ${linhas.join('\n').slice(0, 24000)}`, 'openai');
 
 export async function coletarDocumentos() {
   let pedidos = 0, cobrancas = 0, concluidas = 0;
-  // 1) Contrato assinado → pede a lista de documentos e provas do caso.
+  // 0) O caso nasceu (contrato assinado) para uma coleta que começou no aceite: liga os dois.
+  const [semCaso] = await db.query(
+    `SELECT cd.id, cs.id AS case_id, cd.concluido_em FROM coletas_documentos cd
+       JOIN cases cs ON cs.origin_contract_id = cd.contract_id
+      WHERE cd.case_id IS NULL AND cd.contract_id IS NOT NULL`).catch(() => [[]]) as any;
+  for (const s of semCaso) {
+    await db.query('UPDATE coletas_documentos SET case_id = ? WHERE id = ? AND case_id IS NULL', [s.case_id, s.id]).catch(() => {});
+    // Documentos já completos antes do caso existir: a Dra. Helena confere agora.
+    if (s.concluido_em) await import('./analistaServico').then((m) => m.analisarCaso(s.case_id)).catch(() => {});
+  }
+
+  // 1) Proposta aceita (contrato criado) ou caso novo → pede a lista de documentos e provas.
+  //    Desde 19/10/2026 começa no ACEITE, sem esperar a assinatura: "fechamos o contrato,
+  //    os agentes precisam entrar em ação". Uma coleta por contrato e por caso.
   const [novos] = await db.query(
-    `SELECT cs.id AS case_id, cs.client_id, cs.legal_area, cl.name, cl.phone, ct.lead_id
+    `SELECT ct.id AS contract_id, cs.id AS case_id, ct.client_id, COALESCE(cs.legal_area, ct.area) AS legal_area, cl.name, cl.phone, ct.lead_id
+       FROM contracts ct JOIN clients cl ON cl.id = ct.client_id
+       LEFT JOIN cases cs ON cs.origin_contract_id = ct.id
+      WHERE ct.status IN ('em_producao','finalizado','enviado_assinatura','assinado') AND ct.created_at >= NOW() - INTERVAL 30 DAY
+        AND NOT EXISTS (SELECT 1 FROM coletas_documentos cd WHERE cd.contract_id = ct.id OR (cs.id IS NOT NULL AND cd.case_id = cs.id))
+     UNION
+     SELECT cs.origin_contract_id AS contract_id, cs.id AS case_id, cs.client_id, cs.legal_area, cl.name, cl.phone, ct.lead_id
        FROM cases cs JOIN clients cl ON cl.id = cs.client_id JOIN contracts ct ON ct.id = cs.origin_contract_id
       WHERE cs.origin_contract_id IS NOT NULL AND cs.created_at >= NOW() - INTERVAL 30 DAY
-        AND NOT EXISTS (SELECT 1 FROM coletas_documentos cd WHERE cd.case_id = cs.id) LIMIT 10`) as any;
+        AND NOT EXISTS (SELECT 1 FROM coletas_documentos cd WHERE cd.case_id = cs.id OR cd.contract_id = cs.origin_contract_id)
+      LIMIT 10`) as any;
   for (const c of novos) {
     const [[lead]] = c.lead_id ? await db.query('SELECT case_summary, notes FROM leads WHERE id = ?', [c.lead_id]) as any : [[null]];
     const [[prop]] = c.lead_id ? await db.query('SELECT description FROM propostas WHERE lead_id = ? ORDER BY id DESC LIMIT 1', [c.lead_id]) as any : [[null]];
     const assunto = [lead?.case_summary, lead?.notes, prop?.description].filter(Boolean).join(' ');
     const itens = checklistDoCaso(c.legal_area, assunto);
-    await db.query('INSERT IGNORE INTO coletas_documentos (case_id, client_id, area, itens) VALUES (?, ?, ?, ?)', [c.case_id, c.client_id, c.legal_area, JSON.stringify(itens)]);
+    const [ins] = await db.query('INSERT IGNORE INTO coletas_documentos (case_id, contract_id, client_id, area, itens) VALUES (?, ?, ?, ?, ?)',
+      [c.case_id ?? null, c.contract_id ?? null, c.client_id, c.legal_area, JSON.stringify(itens)]) as any;
+    if (!ins.affectedRows) continue; // outra rodada já criou
     const fone = foneWa(c.phone);
     if (fone) {
       await sendText(fone, mensagemPedidoDocumentos(c.name, itens), 'Agente Coletor de documentos');
@@ -292,7 +320,8 @@ export async function coletarDocumentos() {
       await sendText(NUMERO_DRA, `📁 Documentos completos: *${co.name}*. ${relato ? 'O relato do cliente (das conversas do WhatsApp) já está nos documentos do caso.' : ''} O caso pode ir para a criação da peça.`, 'Agente Coletor de documentos');
       registrarAcaoAgente('coletor', `reuniu todos os documentos de ${co.name}${relato ? ' e escreveu o relato do cliente' : ''}`);
       // Documentos completos: a Dra. Helena confere cada um contra a história contada.
-      await import('./analistaServico').then((m) => m.analisarCaso(co.case_id)).catch((e) => console.error('[analista] falhou:', e?.message || e));
+      // Sem caso ainda (coleta começou no aceite): a análise roda quando o caso for ligado (passo 0).
+      if (co.case_id) await import('./analistaServico').then((m) => m.analisarCaso(co.case_id)).catch((e) => console.error('[analista] falhou:', e?.message || e));
       concluidas++;
       continue;
     }

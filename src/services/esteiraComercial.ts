@@ -154,10 +154,17 @@ export function interpretarComandoProposta(texto: string): ComandoProposta | nul
 
 // ── Fechador de contrato ────────────────────────────────────────────────────
 
+/** Esperando a assinatura do cliente: o link foi enviado (o CRM grava 'enviado_assinatura'; 'finalizado' é o antigo). */
+export const AGUARDANDO_ASSINATURA = ['enviado_assinatura', 'finalizado'];
+
 export function proximoPassoContrato(c: { status: string; desde: Date | string }, agora: Date): { acao: 'avisar_dra' | 'lembrar_cliente'; marco: string } | null {
   const dias = (agora.getTime() - new Date(c.desde).getTime()) / 86400000;
-  if (c.status === 'em_producao') return dias >= 1 ? { acao: 'avisar_dra', marco: 'revisao_d1' } : null;
-  if (c.status === 'finalizado') {
+  // Proposta aceita → contrato pronto: avisa a Dra. NA HORA para revisar (19/10/2026;
+  // antes só avisava depois de 1 dia) e de novo se passar de 1 dia sem revisão.
+  if (c.status === 'em_producao') return dias >= 1 ? { acao: 'avisar_dra', marco: 'revisao_d1' } : { acao: 'avisar_dra', marco: 'revisao_d0' };
+  // Até 19/10/2026 só olhava 'finalizado' e o CRM grava 'enviado_assinatura' ao mandar
+  // o link: os lembretes de assinatura nunca eram enviados.
+  if (AGUARDANDO_ASSINATURA.includes(c.status)) {
     if (dias >= 7) return { acao: 'avisar_dra', marco: 'assinatura_d7' };
     if (dias >= 3) return { acao: 'lembrar_cliente', marco: 'assinatura_d3' };
     if (dias >= 1) return { acao: 'lembrar_cliente', marco: 'assinatura_d1' };

@@ -139,7 +139,7 @@ export async function reanalisarComNovos(limite = 3) {
   const [casos] = await db.query(
     `SELECT cd.case_id, cl.phone, (SELECT MAX(a.created_at) FROM analises_documentos a WHERE a.case_id = cd.case_id) AS ultima
        FROM coletas_documentos cd JOIN clients cl ON cl.id = cd.client_id
-      WHERE cd.concluido_em IS NOT NULL AND cd.concluido_em >= NOW() - INTERVAL 120 DAY`) as any;
+      WHERE cd.concluido_em IS NOT NULL AND cd.case_id IS NOT NULL AND cd.concluido_em >= NOW() - INTERVAL 120 DAY`) as any;
   let feitas = 0;
   for (const c of casos) {
     if (feitas >= limite) break;

@@ -168,7 +168,9 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
 
   // 3) Marca aceite, move o lead e registra
   await db.query("UPDATE propostas SET aceito_em = NOW(), status = 'aceita' WHERE id = ?", [p.id]);
-  if (p.lead_id) await db.query("UPDATE leads SET status = 'fechada', analise_since = NULL WHERE id = ?", [p.lead_id]);
+  // Liga o lead à ficha do cliente (19/10/2026: antes ficava solto, e o RG, o estado
+  // civil e a profissão do atendimento não apareciam na ficha nem na visão completa).
+  if (p.lead_id) await db.query("UPDATE leads SET status = 'fechada', analise_since = NULL, client_id = COALESCE(client_id, ?) WHERE id = ?", [clientId, p.lead_id]);
 
   await logActivity({
     leadId: p.lead_id ?? null, clientId,
