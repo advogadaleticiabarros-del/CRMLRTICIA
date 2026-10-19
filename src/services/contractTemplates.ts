@@ -68,6 +68,11 @@ function qualificacao(p: ReturnType<typeof f>): string {
   return q;
 }
 
+/** Qualificação de uma parte qualquer (usada para os co-contratantes, 19/10/2026). */
+export function qualificacaoDaParte(party: PartyData): string {
+  return qualificacao(f(party));
+}
+
 /** Texto da forma de pagamento a partir do parcelamento da proposta (entrada + parcelas). */
 // Meios de pagamento aceitos (escolhidos no formulário da proposta) → texto
 // que entra na proposta e no contrato.

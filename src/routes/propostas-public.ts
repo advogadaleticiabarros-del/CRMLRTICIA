@@ -164,6 +164,12 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
        content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), valorContrato || null]
     ) as any;
     contractId = c.insertId;
+    // Busca na conversa os dados de todas as pessoas do contrato (ex.: o casal) e
+    // completa o rascunho (co-contratantes com procuração e declaração próprias).
+    // Interno: nada é enviado. Em segundo plano para não atrasar o aceite (19/10/2026).
+    const novoContrato = Number(c.insertId);
+    import('../services/partesContratoServico').then((m) => m.aplicarPartesDaConversa(novoContrato))
+      .catch((e) => console.error('[aceite] partes da conversa:', e?.message || e));
   }
 
   // 3) Marca aceite, move o lead e registra

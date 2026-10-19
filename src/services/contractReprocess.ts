@@ -1,5 +1,6 @@
 import { db } from '../config/database';
-import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from './contractTemplates';
+import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, qualificacaoDaParte, PartyData } from './contractTemplates';
+import { aplicarCoContratantes, paraParte } from './partesContrato';
 import { getEscritorio } from './escritorio';
 
 const AREAS = ['trabalhista', 'gestante', 'familia', 'civel', 'previdenciario', 'consumidor', 'outro'];
@@ -59,10 +60,23 @@ export async function reprocessContract(contractId: number, userId?: number, ove
 
   const adv = await getEscritorio();
   const formaPag = (ov && ov.forma_pagamento) ? ov.forma_pagamento : formaPagamentoTexto(parcelamento);
-  const content = buildTemplate({ party, area, value: valor, formaPagamento: formaPag, honorarios, tipoCausa: prop?.tipo_causa, descricao: prop?.description || lead?.case_summary, contratada: adv });
+  let content = buildTemplate({ party, area, value: valor, formaPagamento: formaPag, honorarios, tipoCausa: prop?.tipo_causa, descricao: prop?.description || lead?.case_summary, contratada: adv });
+
+  // Outros contratantes no mesmo contrato (ex.: o casal), cada um com a própria
+  // procuração e declaração (19/10/2026). Ficam em party_overrides.co_contratantes.
+  const extras: PartyData[] = (Array.isArray(ov?.co_contratantes) ? ov.co_contratantes : [])
+    .filter((p: any) => p && String(p.nome || '').trim())
+    .map((p: any) => paraParte({ ...p, nome: String(p.nome).trim(), endereco: p.endereco || (p.mesmo_endereco ? party.endereco : null) }));
+  const trabalhista = area === 'trabalhista';
+  if (extras.length) {
+    content = aplicarCoContratantes(content, extras.map((p) => ({ qualificacao: qualificacaoDaParte(p), nome: String(p.name), cpf: p.cpf || null }))).texto;
+  }
+  const documentosPartes = extras.map((p) => ({
+    nome: p.name, cpf: p.cpf || null, procuracao: buildProcuracao(p, adv), declaracao: buildDeclaracao(p, { trabalhista }),
+  }));
   await db.query(
-    'UPDATE contracts SET content = ?, procuracao_content = ?, declaracao_content = ?, value = COALESCE(?, value) WHERE id = ?',
-    [content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), valor ?? null, contractId]
+    'UPDATE contracts SET content = ?, procuracao_content = ?, declaracao_content = ?, documentos_partes = ?, value = COALESCE(?, value) WHERE id = ?',
+    [content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista }), documentosPartes.length ? JSON.stringify(documentosPartes) : null, valor ?? null, contractId]
   );
   return true;
 }

@@ -9671,6 +9671,10 @@ async function contractForm(onSave) {
 async function contractEditor(id, onSave) {
   const ct = await api('/api/contracts/' + id);
   const docs = { content: 'Contrato', procuracao_content: 'Procuração', declaracao_content: 'Declaração de Hipossuficiência' };
+  // Mais de um contratante (ex.: o casal): procuração e declaração de cada um (19/10/2026).
+  const lerJsonCt = (v, padrao) => { try { return (typeof v === 'string' ? JSON.parse(v || 'null') : v) || padrao; } catch { return padrao; } };
+  const docsPartes = lerJsonCt(ct.documentos_partes, []);
+  const primeiroNome = (n) => String(n || '').trim().split(/\s+/)[0] || 'contratante';
   let signAction = '';
   if (ct.status === 'assinado')
     signAction = `<div style="text-align:center;color:var(--green);font-weight:600">Contrato assinado · processo na esteira + honorários gerados</div>`;
@@ -9687,12 +9691,14 @@ async function contractEditor(id, onSave) {
     ${field('Título', 'title', { value: ct.title })}
     <div class="form-row">${field('Área', 'area', { value: ct.area, options: AREAS })}${field('Valor (R$)', 'value', { type: 'number', value: ct.value ?? '' })}</div>
     <div>Status: ${badge(ct.status)}</div>
-    <div class="tabs" id="doc-tabs">
+    <div class="tabs" id="doc-tabs" style="flex-wrap:wrap">
       <button type="button" class="tab active" data-doc="content">Contrato</button>
-      <button type="button" class="tab" data-doc="procuracao_content">Procuração</button>
-      <button type="button" class="tab" data-doc="declaracao_content">Declaração</button>
+      <button type="button" class="tab" data-doc="procuracao_content">Procuração${docsPartes.length ? ` — ${esc(primeiroNome(ct.client_name))}` : ''}</button>
+      <button type="button" class="tab" data-doc="declaracao_content">Declaração${docsPartes.length ? ` — ${esc(primeiroNome(ct.client_name))}` : ''}</button>
+      ${docsPartes.map((d, i) => `<button type="button" class="tab" data-doc="parte_proc_${i}">Procuração — ${esc(primeiroNome(d.nome))}</button><button type="button" class="tab" data-doc="parte_decl_${i}">Declaração — ${esc(primeiroNome(d.nome))}</button>`).join('')}
     </div>
     ${Object.keys(docs).map((k, i) => `<textarea data-field="${k}" rows="14" style="font-family:monospace;font-size:12.5px;display:${i===0?'block':'none'}">${ct[k] || ''}</textarea>`).join('')}
+    ${docsPartes.map((d, i) => `<textarea data-field="parte_proc_${i}" rows="14" style="font-family:monospace;font-size:12.5px;display:none">${esc(d.procuracao || '')}</textarea><textarea data-field="parte_decl_${i}" rows="14" style="font-family:monospace;font-size:12.5px;display:none">${esc(d.declaracao || '')}</textarea>`).join('')}
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn-gold btn-sm" id="print-all">Baixar tudo (Contrato + Procuração + Declaração)</button>
       <button class="btn-sm" data-print="content">Contrato PDF</button>
@@ -9701,6 +9707,7 @@ async function contractEditor(id, onSave) {
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button type="button" class="btn-gold btn-sm" id="toggle-complete">Completar informações faltantes</button>
+      <button type="button" class="btn-sm" id="buscar-partes" title="Lê o que o cliente mandou no WhatsApp: se houver dados de mais de uma pessoa (ex.: o casal), os dois entram no contrato, cada um com procuração e declaração próprias. Nada é enviado.">🔎 Buscar contratantes na conversa</button>
       <button type="button" class="btn-sm" id="reprocess-ct">Regenerar com modelo atual</button>
     </div>
     <div id="complete-panel" class="complete-panel" style="display:none">
@@ -9709,6 +9716,9 @@ async function contractEditor(id, onSave) {
       <div class="form-row">${field('Nacionalidade', 'c_nac', { value: 'brasileiro(a)' })}${field('Profissão', 'c_prof')}</div>
       <div class="form-row">${field('CPF', 'c_cpf')}${field('E-mail', 'c_email', { type: 'email' })}</div>
       ${field('Endereço completo', 'c_end')}
+      <strong class="cp-grp">Outros contratantes (mesmo contrato, procuração e declaração próprias)</strong>
+      <div id="co-lista" style="display:flex;flex-direction:column;gap:10px"></div>
+      <button type="button" class="btn-sm" id="co-add" style="align-self:flex-start">+ Adicionar contratante</button>
       <strong class="cp-grp">Data e pagamento</strong>
       <div class="form-row">${field('Data', 'o_data')}${field('Forma de pagamento / parcelas', 'o_forma')}</div>
       <button type="button" class="btn-primary" id="apply-complete">Aplicar aos documentos</button>
@@ -9749,6 +9759,10 @@ async function contractEditor(id, onSave) {
     { title: 'Contrato', content: wrap.querySelector('[data-field=content]').value },
     { title: 'Procuração', content: wrap.querySelector('[data-field=procuracao_content]').value },
     { title: 'Declaração de Hipossuficiência', content: wrap.querySelector('[data-field=declaracao_content]').value },
+    ...docsPartes.flatMap((d, i) => [
+      { title: `Procuração — ${d.nome}`, content: wrap.querySelector(`[data-field=parte_proc_${i}]`).value },
+      { title: `Declaração de Hipossuficiência — ${d.nome}`, content: wrap.querySelector(`[data-field=parte_decl_${i}]`).value },
+    ]),
   ]);
 
   wrap.querySelectorAll('#doc-tabs .tab').forEach((t) => t.onclick = () => {
@@ -9764,6 +9778,12 @@ async function contractEditor(id, onSave) {
       content: wrap.querySelector('[data-field=content]').value,
       procuracao_content: wrap.querySelector('[data-field=procuracao_content]').value,
       declaracao_content: wrap.querySelector('[data-field=declaracao_content]').value,
+      // Procuração e declaração de cada co-contratante, como estão na tela (editáveis).
+      ...(docsPartes.length ? { documentos_partes: docsPartes.map((d, i) => ({
+        nome: d.nome, cpf: d.cpf,
+        procuracao: wrap.querySelector(`[data-field=parte_proc_${i}]`)?.value ?? d.procuracao,
+        declaracao: wrap.querySelector(`[data-field=parte_decl_${i}]`)?.value ?? d.declaracao,
+      })) } : {}),
       ...extra,
     };
     return api('/api/contracts/' + id, { method: 'PUT', body: JSON.stringify(body) });
@@ -9815,9 +9835,40 @@ async function contractEditor(id, onSave) {
   try { savedOv = ct.party_overrides ? (typeof ct.party_overrides === 'string' ? JSON.parse(ct.party_overrides) : ct.party_overrides) : {}; } catch {}
   Object.entries(ovMap).forEach(([fn, ok]) => { const inp = wrap.querySelector(`[name=${fn}]`); if (inp && savedOv[ok]) inp.value = savedOv[ok]; });
 
+  // Outros contratantes: ficam em party_overrides.co_contratantes. Entram em TODO
+  // envio do complemento — o PATCH substitui o complemento inteiro, então sem isto
+  // a primeira tecla digitada apagaria os co-contratantes.
+  let coContratantes = Array.isArray(savedOv.co_contratantes) ? savedOv.co_contratantes.map((p) => ({ ...p })) : [];
+  const CO_CAMPOS = [['nome', 'Nome completo'], ['cpf', 'CPF'], ['rg', 'RG'], ['estado_civil', 'Estado civil'], ['nacionalidade', 'Nacionalidade'], ['profissao', 'Profissão'], ['endereco', 'Endereço completo'], ['email', 'E-mail']];
+  const renderCo = () => {
+    const box = wrap.querySelector('#co-lista');
+    box.innerHTML = coContratantes.length ? coContratantes.map((p, i) => `<div class="card" style="padding:10px" data-co="${i}">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"><b>Contratante ${i + 2}${p.origem === 'conversa' ? ' <small style="color:var(--text-muted);font-weight:400">(lido da conversa)</small>' : ''}</b>
+          <button type="button" class="btn-ghost" data-co-del="${i}" style="color:var(--red)">Remover</button></div>
+        ${p.cpf && p.cpf_valido === false ? '<p style="color:var(--red);font-size:12.5px;margin:0 0 6px">⚠️ O CPF lido não confere no dígito verificador: confira.</p>' : ''}
+        <div class="form-row" style="flex-wrap:wrap">${CO_CAMPOS.map(([k, rot]) => `<label style="flex:1;min-width:160px">${rot}<input data-co-campo="${k}" value="${esc(p[k] || '')}"></label>`).join('')}</div>
+        <label style="display:flex;gap:6px;align-items:center;font-size:12.5px;font-weight:400"><input type="checkbox" data-co-campo="mesmo_endereco" ${p.mesmo_endereco ? 'checked' : ''} style="width:auto"> Mesmo endereço do titular</label>
+      </div>`).join('') : '<small style="color:var(--text-muted)">Só o titular. Use "🔎 Buscar contratantes na conversa" ou adicione à mão.</small>';
+    box.querySelectorAll('[data-co]').forEach((card) => {
+      const i = Number(card.dataset.co);
+      card.querySelectorAll('[data-co-campo]').forEach((inp) => {
+        const k = inp.dataset.coCampo;
+        const atualizar = () => { coContratantes[i][k] = inp.type === 'checkbox' ? inp.checked : inp.value.trim(); };
+        inp.addEventListener('input', () => { atualizar(); schedulePush(); });
+        inp.addEventListener('change', () => { atualizar(); clearTimeout(pushTimer); pushComplement(true); });
+      });
+    });
+    box.querySelectorAll('[data-co-del]').forEach((b) => b.onclick = async () => {
+      if (!(await uiConfirm('Tirar este contratante do contrato? A procuração e a declaração dele também saem.'))) return;
+      coContratantes.splice(Number(b.dataset.coDel), 1); renderCo(); clearTimeout(pushTimer); pushComplement(false);
+    });
+  };
+  wrap.querySelector('#co-add').onclick = () => { coContratantes.push({ nome: '', mesmo_endereco: true }); renderCo(); };
+
   const collectOverrides = () => {
     const o = {};
     for (const [fn, ok] of Object.entries(ovMap)) { const v = (wrap.querySelector(`[name=${fn}]`)?.value || '').trim(); if (v) o[ok] = v; }
+    o.co_contratantes = coContratantes.filter((p) => String(p.nome || '').trim());
     return o;
   };
 
@@ -9829,6 +9880,14 @@ async function contractEditor(id, onSave) {
       ['content', 'procuracao_content', 'declaracao_content'].forEach((k) => {
         const ta = wrap.querySelector(`[data-field=${k}]`); if (ta && r[k] != null) ta.value = r[k];
       });
+      const novosDocs = lerJsonCt(r.documentos_partes, []);
+      novosDocs.forEach((d, i) => {
+        const p = wrap.querySelector(`[data-field=parte_proc_${i}]`); if (p) p.value = d.procuracao || '';
+        const q = wrap.querySelector(`[data-field=parte_decl_${i}]`); if (q) q.value = d.declaracao || '';
+      });
+      // Entrou ou saiu um contratante: reabre para mostrar as abas dele (só no clique, nunca no meio da digitação).
+      // (sem saveDocs aqui: ele mandaria a lista ANTIGA de documentos por cima da nova)
+      if (!silent && novosDocs.length !== docsPartes.length) { closeModal(); contractEditor(id, onSave); toast('Contratantes atualizados'); return; }
       if (!silent) toast('Informações salvas e documentos atualizados');
     } catch (e) { if (!silent) toast(e.message, 'error'); }
   };
@@ -9841,6 +9900,19 @@ async function contractEditor(id, onSave) {
   });
 
   wrap.querySelector('#apply-complete').onclick = () => { clearTimeout(pushTimer); pushComplement(false); };
+  renderCo();
+
+  // Lê a conversa do WhatsApp e põe no contrato todas as pessoas que o cliente mandou (ex.: o casal).
+  wrap.querySelector('#buscar-partes').onclick = async (ev) => {
+    const b = ev.currentTarget; b.disabled = true; b.textContent = 'Lendo a conversa…';
+    try {
+      await saveDocs();
+      const r = await api(`/api/contracts/${id}/buscar-partes`, { method: 'POST', body: '{}' });
+      const nomes = (r.contratantes || []).map((c) => `${c.nome}${c.faltam && c.faltam.length ? ` (falta: ${c.faltam.join(', ').replace('profissao', 'profissão').replace('endereco', 'endereço')})` : ''}`);
+      toast(r.contratantes && r.contratantes.length ? `Contratantes no contrato: ${nomes.join('; ')}` : 'A conversa não tem dados de outra pessoa.');
+      closeModal(); contractEditor(id, onSave);
+    } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = '🔎 Buscar contratantes na conversa'; }
+  };
 
   wrap.querySelector('#reprocess-ct').onclick = async () => {
     if (!await uiConfirm('Regenerar os 3 documentos com o modelo atual e os dados do cadastro? O texto atual será substituído.')) return;

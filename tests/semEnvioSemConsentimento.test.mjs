@@ -10,7 +10,7 @@ import path from 'node:path';
 
 const AGENTES = [
   'esteiraComercialServico.ts', 'analistaServico.ts', 'fichaServico.ts', 'copilotoServico.ts', 'negociadorServico.ts',
-  'atendenteServico.ts', 'sociedadeServico.ts', 'cerebroServico.ts', 'visaoClienteServico.ts', 'errosServico.ts',
+  'atendenteServico.ts', 'sociedadeServico.ts', 'cerebroServico.ts', 'visaoClienteServico.ts', 'errosServico.ts', 'partesContratoServico.ts',
 ];
 // Envio permitido: para a Dra. (NUMERO_DRA) ou depois de aprovação explícita de uma pessoa.
 const PERMITIDO = /sendText\(\s*NUMERO_DRA\b|aprovado por \$\{quem\}|aprovada pela Dra\./;

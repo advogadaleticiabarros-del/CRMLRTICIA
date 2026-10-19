@@ -100,6 +100,20 @@ router.get('/:id/party', async (req: Request, res: Response) => {
 // ── PATCH /api/contracts/:id/complement — salva o complemento e regenera os docs ─
 // Persiste os dados do painel "Completar informações" no contrato e regenera
 // contrato/procuração/declaração a partir deles (não se perde ao sair).
+// ── POST /api/contracts/:id/buscar-partes — lê a conversa e completa os contratantes ─
+// Mais de um contratante (ex.: o casal): busca na conversa os dados de todos,
+// põe os outros como co-contratantes (procuração e declaração de cada um) e
+// regenera os documentos. Só o rascunho interno; nada é enviado (19/10/2026).
+router.post('/:id/buscar-partes', async (req: Request, res: Response) => {
+  const [own] = await db.query('SELECT id FROM contracts WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!own.length) { res.status(404).json({ error: 'Contrato não encontrado' }); return; }
+  const { aplicarPartesDaConversa } = await import('../services/partesContratoServico');
+  const r: any = await aplicarPartesDaConversa(Number(req.params.id));
+  if (!r.ok) { res.status(400).json({ error: r.erro }); return; }
+  const [[ct]] = await db.query('SELECT content, procuracao_content, declaracao_content, documentos_partes, party_overrides FROM contracts WHERE id = ?', [req.params.id]) as any;
+  res.json({ ...r, contrato: ct });
+});
+
 router.patch('/:id/complement', async (req: Request, res: Response) => {
   const overrides = req.body?.overrides || {};
   const [own] = await db.query('SELECT id, client_id, lead_id FROM contracts WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
@@ -128,7 +142,7 @@ router.patch('/:id/complement', async (req: Request, res: Response) => {
   }
 
   const [rows] = await db.query(
-    'SELECT content, procuracao_content, declaracao_content, party_overrides FROM contracts WHERE id = ?',
+    'SELECT content, procuracao_content, declaracao_content, documentos_partes, party_overrides FROM contracts WHERE id = ?',
     [req.params.id]
   ) as any;
   res.json(rows[0]);
@@ -291,6 +305,13 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('area', req.body.area, AREAS.includes(req.body.area));
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
   setIf('zapsign_link', req.body.zapsign_link);
+  // Procurações e declarações dos outros contratantes (texto editado na tela).
+  if (Array.isArray(req.body.documentos_partes)) {
+    setIf('documentos_partes', JSON.stringify(req.body.documentos_partes.slice(0, 10).map((d: any) => ({
+      nome: String(d?.nome || '').slice(0, 255), cpf: d?.cpf ? String(d.cpf).slice(0, 20) : null,
+      procuracao: String(d?.procuracao || ''), declaracao: String(d?.declaracao || ''),
+    }))));
+  }
 
   // Colar o link de assinatura (ZapSign) move o contrato para "enviado para assinatura"
   const zlink = req.body.zapsign_link && String(req.body.zapsign_link).trim();
