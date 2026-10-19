@@ -109,6 +109,22 @@ test('proximoPassoContrato: enviado para assinatura e não assinado → lembrar 
 
 // ── Coletor de documentos e provas ──────────────────────────────────────────
 
+test('checklistDoCaso: quem está sendo processado (conciliação, execução, defesa) NÃO recebe a lista de reclamante', () => {
+  // Erro real de 19/10/2026: proposta "Conciliação e Execução" recebeu CTPS/FGTS/holerite.
+  for (const assunto of ['Conciliação e Execução', 'Fui processada pela ex-patroa', 'Contestação da reclamação', 'Sou reclamada numa ação trabalhista']) {
+    const l = checklistDoCaso('trabalhista', assunto).map((i) => i.label).join(' | ');
+    assert.doesNotMatch(l, /Carteira de Trabalho|FGTS|Holerite|rescisão/i, assunto);
+    assert.match(l, /notificação, citação ou intimação/, assunto);
+  }
+});
+
+test('checklistDoCaso: limbo previdenciário pede a alta do INSS, o ASO e a recusa da empresa', () => {
+  const l = checklistDoCaso('trabalhista', 'Limbo Previdenciario').map((i) => i.label).join(' | ');
+  assert.match(l, /alta/);
+  assert.match(l, /ASO/);
+  assert.match(l, /recusando o seu retorno/);
+});
+
 test('checklistDoCaso: trabalhista pede foto, endereço, CTPS em PDF com o contrato e FGTS em PDF', () => {
   const l = checklistDoCaso('trabalhista', '').map((i) => i.label).join(' | ');
   assert.match(l, /documento com foto/i);

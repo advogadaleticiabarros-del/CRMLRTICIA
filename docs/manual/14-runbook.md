@@ -16,6 +16,28 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: agente mandou lista de documentos errada ao cliente, sem consentimento
+
+**Sintoma (19/10/2026):** ao ativar os agentes do contrato da Sandra, a Dra. Camila mandou sozinha a lista de documentos de reclamante trabalhista (CTPS, FGTS, holerite…):
+- à **Sandra**, cuja proposta era "Conciliação e Execução" (ela está sendo processada);
+- à **Rozimaria** ("Limbo previdenciário") e à **Mailza**, com contratos de 07/10, que já tinham mandado documentos.
+
+A Jessica: "Não envie mais nenhuma mensagem sem consentimento. Principalmente sem contexto."
+
+**Causa raiz:**
+1. Os agentes mandavam mensagem ao cliente direto, sem aprovação.
+2. A lista de documentos olhava só a área do contrato ("trabalhista"), não o tipo da causa: não distinguia quem processa de quem é processado.
+3. A regra nova foi rodada à mão em produção e valeu para contratos antigos.
+
+**Correção:**
+- **Nenhum agente envia a cliente.** Pedido e cobrança de documentos, lembrete de assinatura, pedido de dados e pedido de reenvio viram rascunho com **contexto** ("por que esta mensagem") em Escritório virtual → **Mensagens para aprovar**. O teste `tests/semEnvioSemConsentimento.test.mjs` barra no CI qualquer envio direto novo.
+- **Lista de documentos pelo tipo da causa:** defesa, execução e conciliação recebem outra lista (a notificação ou citação recebida e os documentos do que estão cobrando); limbo previdenciário pede a alta do INSS, o ASO e a recusa da empresa.
+- As coletas da Mailza e da Rozimaria foram encerradas na hora. A da Sandra não gera mais cobrança automática: vira rascunho.
+
+**Prevenção para quem mexer no código:** antes de rodar um agente à mão em produção, simule e mostre quem seria atingido. Envio a cliente só com o "sim" de uma pessoa.
+
+---
+
 ## Incidente: tela do WhatsApp dava erro depois de sair dela
 
 **Sintoma (achado pelo rastreador de erros, 19/10/2026):** "Cannot read properties of null (reading 'scrollTop')" e "(reading 'classList')", em `whatsapp.js` (`renderLista` e `abrirChat`). Aparecia nas telas Financeiro, Dashboard e Prazos, no computador e no iPhone.

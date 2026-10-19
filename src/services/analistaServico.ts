@@ -128,7 +128,9 @@ export async function analisarCaso(caseId: number, opts: { avisar?: boolean; ped
   const fone = foneWa(c.phone);
   const dia = new Date().toISOString().slice(0, 10);
   if (pedirReenvio && pedidos.length && fone && await marcar(`analise:${c.id}`, `reenvio_${dia}`)) {
-    await sendText(fone, mensagemReenvio(c.name, pedidos), 'Agente Dra. Helena').catch(() => false);
+    // Nunca envia sozinho (19/10/2026): vira rascunho para a equipe aprovar.
+    await import('./aprovacaoMensagens').then((m) => m.prepararParaAprovacao({ agente: 'analista', phone: fone, clientId: c.client_id, nome: c.name,
+      texto: mensagemReenvio(c.name, pedidos), contexto: `A Dra. Helena analisou os documentos do caso nº ${c.id}: ${pedidos.length} precisam ser reenviados (ilegível, cortado ou comprovante antigo).` })).catch(() => null);
   }
   registrarAcaoAgente('analista', `analisou ${docs.length} documento(s) de ${c.name}: ${graves} grave(s), ${atencao} de atenção`);
   return { ok: true as const, documentos: docs.length, graves, atencao, achados, relatorioDocId: doc.insertId };

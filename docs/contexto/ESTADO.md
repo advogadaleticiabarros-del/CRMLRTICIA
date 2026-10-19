@@ -15,6 +15,11 @@
     - A Dra. recebeu os avisos de 7 dias sem assinatura de Maryani, Rozimaria e Mailza.
   - **WhatsApp:** a tela dava erro depois de sair dela (atualização que continuava ligada). Corrigido; foi achado pelo rastreador de erros.
   - **Pendente da Dra.:** revisar o contrato nº 12 da Sandra e gerar o link de assinatura.
+  - **ERRO E REGRA NOVA:** a lista de documentos de reclamante foi enviada sem consentimento à Sandra (que está sendo processada: "Conciliação e Execução"), à Rozimaria e à Mailza.
+    - **Agora:** nenhum agente envia a cliente; tudo vira rascunho com contexto em Escritório virtual → "Mensagens para aprovar". O teste `semEnvioSemConsentimento` trava isso no CI.
+    - **A lista de documentos** passou a seguir o tipo da causa (defesa, execução, limbo).
+    - Ver o runbook e o `CLAUDE.md`.
+  - **Para a Jessica decidir:** as automações antigas a cliente continuam (aceite da proposta, acompanhamentos de 48 horas e 5 dias, newsletter, e-book, "pedido de mais tempo").
 - **18/10:**
   - **Visão completa do cliente:** busca na página inicial (nome, CPF, telefone, nº do processo, assistido do dativo) e uma janela com tudo do cliente: dativo, parceria ou próprio, processos e números, financeiro (mesma conta do A Receber), acordos e repasses, movimentações, prazos e audiências, propostas, contratos, documentos e linha do tempo. Também pelo botão "Tudo do cliente" na ficha. Ver `docs/manual/01-clientes.md`.
   - **GitHub:** a conta da Dra. (`advogadaleticiabarros-del`, dona do repositório) foi conectada neste computador, e a `prosystemcomercial-JESSICA` voltou a ser a ativa, ainda sem o e-mail verificado. Os pushes seguem pela `alcancelegalmkt-collab`.

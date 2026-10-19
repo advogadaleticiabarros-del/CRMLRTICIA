@@ -68,7 +68,7 @@ export async function tentarNegociacao(d: { phone: string; clientId: number | nu
   const todas = [...new Set<CategoriaObjecao>([...objecoes, ...resp.objecoes])];
   const alertas = alertasNegociador(resp.resposta, permitidos);
 
-  await db.query("UPDATE atendente_rascunhos SET status = 'substituida' WHERE phone = ? AND status = 'pendente'", [d.phone]);
+  await db.query("UPDATE atendente_rascunhos SET status = 'substituida' WHERE phone = ? AND status = 'pendente' AND agente IN ('atendente','negociador')", [d.phone]);
   const [ins] = await db.query(
     `INSERT INTO atendente_rascunhos (agente, phone, client_id, nome, mensagem_cliente, resposta, intencao, area, urgente, motivo_urgencia, encaminhar, alertas, objecoes, proposta_id)
      VALUES ('negociador', ?, ?, ?, ?, ?, 'negociacao', ?, 0, ?, ?, ?, ?, ?)`,

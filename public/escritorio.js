@@ -745,15 +745,15 @@
   }
 
   // ── Dra. Lívia: respostas para aprovar e o tom de voz aprendido ───────────
-  const INTENCAO_PT = { novo_caso: 'caso novo', andamento: 'andamento', documentos: 'documentos', agendar: 'agendar', financeiro: 'financeiro', negociacao: 'objeção na proposta', outro: 'outro' };
+  const INTENCAO_PT = { novo_caso: 'caso novo', andamento: 'andamento', documentos: 'documentos', agendar: 'agendar', financeiro: 'financeiro', negociacao: 'objeção na proposta', aprovacao: 'aguardando sua aprovação', outro: 'outro' };
   const OBJECAO_PT = { preco: 'preço', pensar: '"vou pensar"', consultar_alguem: 'consultar a família', prazo: 'prazo', garantia: 'quer garantia', confianca: 'confiança', outro_advogado: 'outro advogado/sindicato', medo_empresa: 'medo da empresa', custo_se_perder: 'custo se perder' };
   const lerJson = (v, padrao) => { try { return (typeof v === 'string' ? JSON.parse(v || 'null') : v) || padrao; } catch { return padrao; } };
   async function abrirAtendente() {
     const corpo = el(`<div>
       <div class="pi-abas"><button data-aba="pendente" class="on">💬 Para aprovar</button><button data-aba="enviada">✅ Enviadas</button><button data-aba="tom">🗣️ Tom de voz</button></div>
-      <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px">Modo rascunho: a Dra. Lívia (atendimento) e o Dr. Rafael (objeções à proposta) preparam a resposta no seu tom; nada sai sem alguém da equipe enviar. Quando você ajusta o texto antes de enviar, eles aprendem.</p>
+      <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 10px"><b>Nenhum agente manda mensagem ao cliente sozinho.</b> Tudo o que eles preparam (respostas, pedidos e cobranças de documentos, lembretes de assinatura, pedidos de dados) fica aqui, com o contexto, até alguém da equipe enviar, editar ou descartar. Quando você ajusta o texto, o agente aprende.</p>
       <div id="at-aba"></div></div>`);
-    openModal('💬 Dra. Lívia e Dr. Rafael · Respostas do WhatsApp', corpo, { wide: true });
+    openModal('✉️ Mensagens para aprovar', corpo, { wide: true });
     const box = () => corpo.querySelector('#at-aba');
     const abas = {
       async pendente() {
@@ -763,14 +763,16 @@
         box().innerHTML = lista.map((r) => {
           const alertas = lerJson(r.alertas, []);
           const rafael = r.agente === 'negociador';
+          const NOMES = { atendente: '💬 Dra. Lívia', negociador: '🤝 Dr. Rafael', coletor: '📁 Dra. Camila', fechador: '✍️ Dr. Felipe', produtor: '📝 Dra. Bianca', analista: '🔎 Dra. Helena' };
+          const ehContexto = r.intencao === 'aprovacao';
           const objecoes = lerJson(r.objecoes, []);
           return `<div class="pi-card" style="margin-bottom:10px" data-rasc="${r.id}">
             <h4 style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${r.urgente ? '<span style="color:var(--red)">🚨 URGENTE</span>' : ''}${esc(r.nome || '+' + r.phone)}
-              <small style="font-weight:600;color:var(--text-muted)">· ${rafael ? '🤝 Dr. Rafael' : '💬 Dra. Lívia'} · ${INTENCAO_PT[r.intencao] || r.intencao}${r.area ? ' · ' + esc(r.area) : ''} · ${quando(r.created_at)}</small></h4>
+              <small style="font-weight:600;color:var(--text-muted)">· ${NOMES[r.agente] || '💬 Dra. Lívia'} · ${INTENCAO_PT[r.intencao] || r.intencao}${r.area ? ' · ' + esc(r.area) : ''} · ${quando(r.created_at)}</small></h4>
             ${rafael ? `<p style="margin:0 0 6px;font-size:13px"><b>Proposta nº ${esc(r.proposta_id || '')}</b> · objeção: ${objecoes.map((o) => esc(OBJECAO_PT[o] || o)).join(', ') || '—'}</p>` : ''}
             ${rafael && r.encaminhar === 'dra' ? `<p style="margin:0 0 6px;color:#b45309;font-size:13px">💲 A Dra. foi avisada no WhatsApp: ${esc(r.motivo_urgencia || 'pediu outra condição')}</p>` : ''}
             ${r.urgente && r.motivo_urgencia ? `<p style="margin:0 0 6px;color:var(--red);font-size:13px">${esc(r.motivo_urgencia)}</p>` : ''}
-            <p style="margin:0 0 6px;font-size:13px;background:var(--bg);padding:8px;border-radius:8px"><b>Cliente:</b> ${esc(String(r.mensagem_cliente).slice(0, 600))}</p>
+            <p style="margin:0 0 6px;font-size:13px;background:var(--bg);padding:8px;border-radius:8px">${ehContexto ? `<b>Por que esta mensagem:</b> ${esc(String(r.mensagem_cliente).replace(/^CONTEXTO:s*/, '').slice(0, 600))}` : `<b>Cliente:</b> ${esc(String(r.mensagem_cliente).slice(0, 600))}`}</p>
             ${alertas.length ? `<p style="margin:0 0 6px;color:#b45309;font-size:12.5px">⚠️ Confira antes de enviar: ${alertas.map(esc).join(', ')}</p>` : ''}
             <textarea rows="4" style="width:100%;font-family:inherit;font-size:13.5px">${esc(r.resposta)}</textarea>
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
@@ -1072,11 +1074,13 @@
           <small style="color:var(--text-muted)">atualizado ${quandoAtualizou}</small>
           ${DESTAQUES.map((id) => agentes.find((a) => a.id === id)).filter(Boolean).map((a) => `<button type="button" class="ev-chip" data-agente="${a.id}" style="border-color:${a.cor};color:${a.cor}"><span class="bola" style="background:${COR_STATUS[a.status]}"></span>${esc(a.nome)} · ${esc(a.cargo)}</button>`).join('')}
           <button type="button" class="ev-chip cheio" id="ev-metricas" style="background:#2563eb">📊 Métricas da IA</button>
+          <button type="button" class="ev-chip cheio" id="ev-aprovar" style="background:#b45309">✉️ Mensagens para aprovar</button>
           <button type="button" class="ev-chip cheio" id="ev-mural" style="background:#7c3aed">💬 Mural da equipe</button>
           <button type="button" class="ev-chip cheio" id="ev-reunir" style="background:#b45309">🤝 ${reunidos ? 'Encerrar reunião' : 'Reunir a equipe'}</button>`;
         $('#ev-barra').querySelectorAll('[data-agente]').forEach((b) => b.onclick = () => abrirAgente(b.dataset.agente));
         $('#ev-metricas').onclick = () => abrirPainelIa();
         $('#ev-mural').onclick = () => abrirMural(agentes);
+        $('#ev-aprovar').onclick = () => abrirAtendente();
         $('#ev-reunir').onclick = () => { reunidos = !reunidos; sala.reunir(reunidos); desenharBarra(quandoAtualizou); };
       };
       const desenharCartoes = () => {

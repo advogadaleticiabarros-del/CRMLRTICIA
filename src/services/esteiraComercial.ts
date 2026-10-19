@@ -228,11 +228,30 @@ const SEMPRE: ItemDocumento[] = [
   { label: 'Transcrição da reunião (ou a gravação), se tiver', keys: ['transcricao', 'reuniao', 'gravacao'] },
 ];
 
-/** Documentos e provas do caso conforme a área e o assunto falado pelo cliente. */
+/**
+ * Cliente que ESTÁ SENDO PROCESSADO, ou caso de conciliação ou execução: não pede a lista
+ * de quem processa (CTPS, FGTS, holerite…). Erro real de 19/10/2026: a Sandra
+ * ("Conciliação e Execução") recebeu a lista de reclamante trabalhista.
+ */
+const DEFESA = /execu[cç]|concilia|defesa|contesta|reclamad[oa]|sendo processad|fui processad|me processou|processad[oa] (por|pel)|polo passivo|\breu\b|sou re\b|como re\b|cobran[cç]a contra|esta me cobrando|me cobrando na justi/;
+const LISTA_DEFESA: ItemDocumento[] = [
+  { label: 'A notificação, citação ou intimação que você recebeu (carta, e-mail ou mensagem do tribunal)', keys: ['citacao', 'intimacao', 'notificacao', 'mandado'] },
+  { label: 'Documentos sobre o que estão cobrando ou alegando (contratos, recibos, comprovantes de pagamento)', keys: ['contrato', 'recibo', 'comprovante'] },
+];
+
+const LIMBO: ItemDocumento[] = [
+  { label: 'Carta ou decisão do INSS dando alta (fim do benefício)', keys: ['alta', 'inss', 'cessacao', 'beneficio'] },
+  { label: 'ASO ou laudo do médico da empresa (apto ou inapto)', keys: ['aso', 'laudo', 'medico'] },
+  { label: 'Mensagem ou documento da empresa recusando o seu retorno', keys: ['recusa', 'retorno', 'empresa'] },
+];
+
+/** Documentos e provas do caso conforme a área, o tipo da causa e o assunto falado pelo cliente. */
 export function checklistDoCaso(area: string | null, assunto: string | null): ItemDocumento[] {
   const a = semAcento(area || '');
   const texto = semAcento(assunto || '');
+  if (DEFESA.test(texto)) return [...BASE, ...LISTA_DEFESA, ...SEMPRE];
   const lista = [...BASE, ...(POR_AREA[a] || [])];
+  if (/limbo/.test(texto)) lista.push(...LIMBO);
   for (const p of PROVAS_POR_ASSUNTO) if (p.re.test(texto)) lista.push(...p.itens);
   lista.push(...SEMPRE);
   const vistos = new Set<string>();

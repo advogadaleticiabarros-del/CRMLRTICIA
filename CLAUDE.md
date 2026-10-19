@@ -44,6 +44,10 @@ Antes de iniciar qualquer tarefa, analise quais skills instaladas são realmente
 
 - Use `verification-before-completion` antes de afirmar que qualquer tarefa foi concluída. Execute os testes, build, lint e verificações aplicáveis. Nunca informe que algo funciona sem evidência recente.
 
+- **Nenhuma mensagem a cliente sem consentimento (desde 19/10/2026, ordem da Jessica):**
+  - **Agentes:** só preparam rascunho com contexto (`prepararParaAprovacao`, em `src/services/aprovacaoMensagens.ts`), e a equipe envia, edita ou descarta em Escritório virtual → "Mensagens para aprovar". Nunca chame `sendText` para cliente num agente; o teste `tests/semEnvioSemConsentimento.test.mjs` barra isso no CI.
+  - **Rodar agente à mão em produção:** nunca dispare envio a cliente; só mostre o que seria feito e peça confirmação.
+
 - **Portão de qualidade (desde 16/10/2026):** o push na `main` só publica se o workflow **Testes** passar (tipos, lint, banco do zero, testes com banco, vulnerabilidades, ponta a ponta). Antes do push, rode `npm run lint` e `npm test`. Criou ou mudou rota? Rode `npm run docs:api`. Mudança grande ou arriscada? Teste antes num branch (o CI roda sozinho em qualquer branch, sem publicar). Ver `docs/manual/13-infraestrutura.md`.
 
 ### Banco de dados

@@ -117,7 +117,8 @@ export async function gerarRascunho(phone: string, clientId: number | null, parc
   const resp = r.ok && r.text ? parseRespostaAtendente(r.text) : null;
   if (!resp) return null;
 
-  await db.query("UPDATE atendente_rascunhos SET status = 'substituida' WHERE phone = ? AND status = 'pendente'", [phone]);
+  // Só substitui rascunhos de atendimento: os dos outros agentes (documentos, assinatura) ficam para aprovar.
+  await db.query("UPDATE atendente_rascunhos SET status = 'substituida' WHERE phone = ? AND status = 'pendente' AND agente IN ('atendente','negociador')", [phone]);
   const alertas = alertasDaResposta(resp.resposta);
   const [ins] = await db.query(
     `INSERT INTO atendente_rascunhos (phone, client_id, nome, mensagem_cliente, resposta, intencao, area, urgente, motivo_urgencia, encaminhar, alertas)
@@ -149,9 +150,10 @@ export async function enviarRascunho(id: number, texto: string, quem: string): P
   if (!r) return { ok: false, erro: 'Rascunho não encontrado' };
   if (r.status !== 'pendente') return { ok: false, erro: `Este rascunho já está como "${r.status}".` };
   const final = String(texto || r.resposta).trim();
-  const agente = r.agente === 'negociador' ? 'negociador' : 'atendente';
+  const agente = r.agente || 'atendente';
+  const { NOME_AGENTE } = await import('./aprovacaoMensagens');
   // "Agente" no sent_by: o estudo de tom de voz não aprende com o texto dos agentes.
-  const ok = await sendText(r.phone, final.slice(0, 4000), `Agente ${agente === 'negociador' ? 'Dr. Rafael' : 'Dra. Lívia'} (aprovado por ${quem})`);
+  const ok = await sendText(r.phone, final.slice(0, 4000), `Agente ${NOME_AGENTE[agente] || 'Dra. Lívia'} (aprovado por ${quem})`);
   if (!ok) return { ok: false, erro: 'Não deu para enviar: confira se o WhatsApp está conectado.' };
   const editada = final !== String(r.resposta).trim();
   await db.query("UPDATE atendente_rascunhos SET status = ?, resposta_final = ?, decidido_por = ?, decidido_em = NOW() WHERE id = ?",
@@ -169,6 +171,6 @@ export async function descartarRascunho(id: number, quem: string, motivo: string
   await db.query("UPDATE atendente_rascunhos SET status = 'descartada', decidido_por = ?, decidido_em = NOW() WHERE id = ? AND status = 'pendente'", [quem, id]);
   if (motivo && motivo.trim()) {
     await db.query("INSERT INTO agente_memorias (agente, tipo, texto) VALUES (?, 'correcao', ?)",
-      [r?.agente === 'negociador' ? 'negociador' : 'atendente', `Resposta descartada: ${motivo.trim().slice(0, 400)}`]);
+      [r?.agente || 'atendente', `Resposta descartada: ${motivo.trim().slice(0, 400)}`]);
   }
 }

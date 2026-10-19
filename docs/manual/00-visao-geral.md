@@ -85,16 +85,18 @@ Ele também repassa as teses da casa ao **Enzo** antes de cada minuta. A rotina 
 **Esteira comercial** (desde 14/10/2026), de hora em hora das 8h às 19h, com trava para nada sair duas vezes (`esteira_avisos`, migration 158):
 - **Dra. Bianca, produtora de propostas:**
   - pega o possível cliente em "documentação pendente" ainda sem proposta;
-  - pede os dados que faltam para o contrato e checa conflito de interesses (se a pessoa é parte contrária em algum caso);
+  - prepara o pedido dos dados que faltam para o contrato (rascunho para aprovar) e checa conflito de interesses (se a pessoa é parte contrária em algum caso);
   - puxa o valor de tabela: a tabela da Dra. em `office_settings.tabela_honorarios` ou, sem ela, a mediana das propostas aceitas da área; êxito de 30%;
   - aplica a política de parcelamento (`office_settings.politica_parcelamento`) e manda o resumo **só para a Dra.** no WhatsApp;
   - ela responde **aprovar 123**, **ajustar 123 total 1500, entrada 500, 5x, êxito 30%** ou **recusar 123**; só depois do "aprovar" a proposta vai ao cliente.
 - **Dr. Felipe, fechador de contratos:**
   - assim que a proposta é aceita, avisa a Dra. "🤝 Contrato fechado" para revisar e gerar o link (desde 19/10/2026), e de novo se passar 1 dia sem revisão;
-  - com o link enviado (`enviado_assinatura`), lembra o cliente de assinar em D+1 e D+3 e avisa a Dra. se parar 7 dias.
+  - com o link enviado (`enviado_assinatura`), prepara o lembrete de assinatura ao cliente em D+1 e D+3 (rascunho para aprovar) e avisa a Dra. se parar 7 dias.
 - **Dra. Camila, coletora de documentos e provas:**
-  - desde 19/10/2026, já no aceite da proposta (contrato de até 3 dias), sem esperar a assinatura, pede: documento com foto, comprovante de endereço, Carteira de Trabalho em PDF mostrando o contrato, extrato do FGTS em PDF, as provas conforme o assunto (ponto, prints, áudios, testemunhas, CAT…), conversas do WhatsApp e a transcrição da reunião;
-  - confere o que chegou e cobra em D+2, D+5 e D+10;
+  - desde 19/10/2026, já no aceite da proposta (contrato de até 3 dias), sem esperar a assinatura, **prepara para a equipe aprovar** o pedido de documentos e provas conforme o **tipo da causa**. Reclamante recebe: documento com foto, comprovante de endereço, Carteira de Trabalho em PDF mostrando o contrato, extrato do FGTS em PDF, as provas conforme o assunto (ponto, prints, áudios, testemunhas, CAT…), conversas do WhatsApp e a transcrição da reunião;
+  - quem está sendo processado (defesa, conciliação, execução) recebe outra lista: a notificação ou citação recebida e os documentos do que estão cobrando;
+  - confere o que chegou e prepara a cobrança em D+2, D+5 e D+10, sempre como rascunho para aprovar;
+  - **desde 19/10/2026, nenhum agente manda mensagem ao cliente sozinho:** tudo vai para Escritório virtual → "Mensagens para aprovar", com o contexto;
   - completo, escreve o **relato do cliente** a partir das conversas do WhatsApp e avisa a Dra.
 - **Dr. Otávio, copiloto comercial da Dra. (desde 16/10/2026):**
   - **Qualificação em %:** para cada possível cliente cadastrado, a IA só extrai os sinais da conversa. A conta é regra fixa (`copilotoComercial.ts`) e dá três números: **capacidade de pagar**, **potencial do caso** e **chance de fechar**, mais a forma sugerida (entrada + parcelas, entrada menor ou só êxito). Os sinais são:

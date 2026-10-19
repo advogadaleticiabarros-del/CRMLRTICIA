@@ -2,6 +2,7 @@ import crypto from 'crypto';
 import { db } from '../config/database';
 import { sendText } from './uazapiInstance';
 import { registrarAcaoAgente } from './usoIa';
+import { prepararParaAprovacao } from './aprovacaoMensagens';
 import { aiComplete } from './aiAssistant';
 import { linkProposta, textoEnvioProposta } from './propostaWhatsapp';
 import { COMANDANTES_PADRAO } from './assistenteRegras';
@@ -95,7 +96,10 @@ async function produzirUma(l: any, cfg: { tabela: TabelaHonorarios; politica: Po
   const fone = foneWa(l.phone);
   if (fone && (!l.cpf_cnpj || (!l.street && !l.cep)) && await marcar(`lead:${l.id}`, 'dados_pedidos')) {
     const primeiro = String(l.name || '').split(/\s+/)[0];
-    await sendText(fone, `Olá, ${primeiro}! Para prepararmos sua proposta e o contrato, me envie por aqui, por favor: nome completo, CPF, RG, estado civil, profissão e endereço com CEP. Obrigada!`, 'Agente Produtor de proposta');
+    // Nunca envia sozinho (19/10/2026): vira rascunho para a equipe aprovar.
+    await prepararParaAprovacao({ agente: 'produtor', phone: fone, clientId: l.client_id ?? null, nome: l.name, area: l.legal_area,
+      texto: `Olá, ${primeiro}! Para prepararmos sua proposta e o contrato, me envie por aqui, por favor: nome completo, CPF, RG, estado civil, profissão e endereço com CEP. Obrigada!`,
+      contexto: `Proposta nº ${ins.insertId} (${l.legal_area || 'sem área'}) montada para a Dra. aprovar; faltam CPF e/ou endereço para o contrato.` });
   }
   return ins.insertId;
 }
@@ -211,7 +215,7 @@ export async function acompanharContratos() {
     if (!(await marcar(`contrato:${c.id}`, passo.marco))) continue;
     if (passo.acao === 'avisar_dra') {
       const texto = passo.marco === 'revisao_d0'
-        ? `🤝 *Contrato fechado: ${c.nome || c.title}*\nA proposta foi aceita e o contrato, a procuração e a declaração já estão prontos para a sua revisão (CRM → Contratos, nº ${c.id}).\nDepois de revisar, gere o link de assinatura: eu lembro a cliente de assinar. A Dra. Camila já está pedindo os documentos.`
+        ? `🤝 *Contrato fechado: ${c.nome || c.title}*\nA proposta foi aceita e o contrato, a procuração e a declaração já estão prontos para a sua revisão (CRM → Contratos, nº ${c.id}).\nDepois de revisar, gere o link de assinatura: eu lembro a cliente de assinar. A Dra. Camila deixou o pedido de documentos pronto para a equipe conferir e aprovar.`
         : passo.marco === 'revisao_d1'
           ? `📄 O contrato de *${c.nome || c.title}* está pronto há mais de 1 dia esperando a sua revisão (CRM → Contratos, nº ${c.id}). Depois de revisar, gere o link de assinatura.`
           : `✍️ O contrato de *${c.nome || c.title}* foi enviado há 7 dias e ainda não foi assinado. Vale ligar para o cliente.`;
@@ -222,8 +226,9 @@ export async function acompanharContratos() {
     } else {
       const fone = foneWa(c.fone);
       if (!fone) continue;
-      await sendText(fone, mensagemLembreteAssinatura(c.nome), 'Agente Fechador de contrato');
-      registrarAcaoAgente('fechador', `lembrou ${c.nome} de assinar o contrato`);
+      await prepararParaAprovacao({ agente: 'fechador', phone: fone, nome: c.nome, texto: mensagemLembreteAssinatura(c.nome),
+        contexto: `Contrato nº ${c.id} enviado para assinatura e ainda não assinado (${passo.marco === 'assinatura_d3' ? '3 dias' : '1 dia'}). Lembrete ao cliente.` });
+      registrarAcaoAgente('fechador', `preparou o lembrete de assinatura para ${c.nome}`);
       lembretes++;
     }
   }
@@ -296,16 +301,18 @@ export async function coletarDocumentos() {
       LIMIT 10`) as any;
   for (const c of novos) {
     const [[lead]] = c.lead_id ? await db.query('SELECT case_summary, notes FROM leads WHERE id = ?', [c.lead_id]) as any : [[null]];
-    const [[prop]] = c.lead_id ? await db.query('SELECT description FROM propostas WHERE lead_id = ? ORDER BY id DESC LIMIT 1', [c.lead_id]) as any : [[null]];
-    const assunto = [lead?.case_summary, lead?.notes, prop?.description].filter(Boolean).join(' ');
+    const [[prop]] = c.lead_id ? await db.query('SELECT title, tipo_causa, description FROM propostas WHERE lead_id = ? ORDER BY id DESC LIMIT 1', [c.lead_id]) as any : [[null]];
+    // O tipo da causa entra no assunto: 'Conciliação e Execução' não pode receber a lista de reclamante.
+    const assunto = [prop?.tipo_causa, prop?.title, lead?.case_summary, lead?.notes, prop?.description].filter(Boolean).join(' ');
     const itens = checklistDoCaso(c.legal_area, assunto);
     const [ins] = await db.query('INSERT IGNORE INTO coletas_documentos (case_id, contract_id, client_id, area, itens) VALUES (?, ?, ?, ?, ?)',
       [c.case_id ?? null, c.contract_id ?? null, c.client_id, c.legal_area, JSON.stringify(itens)]) as any;
     if (!ins.affectedRows) continue; // outra rodada já criou
     const fone = foneWa(c.phone);
     if (fone) {
-      await sendText(fone, mensagemPedidoDocumentos(c.name, itens), 'Agente Coletor de documentos');
-      registrarAcaoAgente('coletor', `pediu os documentos e provas do caso a ${c.name}`);
+      await prepararParaAprovacao({ agente: 'coletor', phone: fone, clientId: c.client_id, nome: c.name, area: c.legal_area, texto: mensagemPedidoDocumentos(c.name, itens),
+        contexto: `Contrato nº ${c.contract_id || '—'} (${c.legal_area || 'sem área'}${prop?.tipo_causa ? ' · ' + prop.tipo_causa : ''}). Pedido de documentos e provas. CONFIRA SE A LISTA SERVE PARA ESTE CASO antes de enviar.` });
+      registrarAcaoAgente('coletor', `preparou o pedido de documentos de ${c.name} para a equipe aprovar`);
       pedidos++;
     }
   }
@@ -331,8 +338,9 @@ export async function coletarDocumentos() {
     const marco = marcoCobranca(co.pedido_em, new Date());
     if (!marco || !(await marcar(`coleta:${co.id}`, marco))) continue;
     if (fone) {
-      await sendText(fone, mensagemCobrancaDocumentos(co.name, faltam), 'Agente Coletor de documentos');
-      registrarAcaoAgente('coletor', `cobrou ${faltam.length} documento(s) de ${co.name}`);
+      await prepararParaAprovacao({ agente: 'coletor', phone: fone, clientId: co.client_id, nome: co.name, area: co.area, texto: mensagemCobrancaDocumentos(co.name, faltam),
+        contexto: `Cobrança de ${faltam.length} documento(s) pedidos em ${new Date(co.pedido_em).toLocaleDateString('pt-BR')} (${marco.replace('docs_d', 'D+')}). Confira se ainda faltam mesmo.` });
+      registrarAcaoAgente('coletor', `preparou a cobrança de ${faltam.length} documento(s) de ${co.name}`);
       cobrancas++;
     }
     if (marco === 'docs_d10') {
