@@ -16,6 +16,38 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: tela do WhatsApp dava erro depois de sair dela
+
+**Sintoma (achado pelo rastreador de erros, 19/10/2026):** "Cannot read properties of null (reading 'scrollTop')" e "(reading 'classList')", em `whatsapp.js` (`renderLista` e `abrirChat`). Aparecia nas telas Financeiro, Dashboard e Prazos, no computador e no iPhone.
+
+**Causa raiz:** a atualização da lista de conversas (a cada 20 s e a cada aviso em tempo real) continuava ligada depois que a pessoa saía do WhatsApp para outra tela. Ela tentava redesenhar `#wal`, que não existe mais.
+
+**Correção:** `atualizar()` confere se a lista do WhatsApp ainda está na tela; se não estiver, desliga o polling (`chatTimer`) e o tempo real (`waOnUpdate`) e para.
+
+---
+
+## Incidente: contrato fechado e nenhum agente agia; lembretes de assinatura nunca saíam
+
+**Sintoma (19/10/2026):** a Sandra aceitou a proposta nº 20 às 9h07. O contrato nº 12 foi criado, mas nem a Dra. foi avisada nem a cliente recebeu o pedido de documentos.
+
+**Causas:**
+1. **Dr. Felipe** avisava a Dra. só depois de 1 dia com o contrato "em produção".
+2. **Dra. Camila** só pedia os documentos depois da assinatura, quando o caso é criado.
+3. **Lembretes de assinatura nunca saíam:** ao mandar o link, o CRM grava o contrato como `enviado_assinatura`, mas o Dr. Felipe só olhava `finalizado`. O contador "esperando assinatura" também contava errado.
+4. **O aceite não ligava o lead à ficha nova** (`leads.client_id` vazio): RG, estado civil e profissão do atendimento ficavam de fora da ficha.
+
+**Correção:**
+- **Aviso na hora:** "🤝 Contrato fechado" (marco `revisao_d0`), só para contrato criado há até 2 dias; de novo em D+1.
+- **Status certo:** o Dr. Felipe olha `enviado_assinatura` (e `finalizado`).
+- **Coleta desde o aceite:** começa ligada ao contrato e ganha o caso quando ele nasce (migration 164: `coletas_documentos.case_id` opcional + `contract_id`). Vale só para contrato de até 3 dias. A Dra. Helena analisa quando o caso existir.
+- **Lead ligado à ficha:** o aceite liga o lead; a migration 164 ligou os antigos.
+
+**Efeito colateral da 1ª rodada (19/10, 9h46):**
+- **Pedido de documentos atrasado:** a regra começou valendo para contratos de 30 dias. Mailza e Rozimaria (contratos de 07/10, que já tinham mandado arquivos) receberam o pedido de documentos. As coletas delas foram encerradas na hora (`concluido_em`) para não receberem as cobranças de D+2, D+5 e D+10, e a janela passou a ser de 3 dias.
+- **Avisos de assinatura atrasada:** a Dra. recebeu, de uma vez, os avisos de 7 dias sem assinatura de Maryani, Rozimaria e Mailza, que antes nunca tinham saído.
+
+---
+
 ## Incidente: os dados que o lead manda não entravam na ficha
 
 **Sintoma:** o lead ou o cliente mandava CPF, endereço e fotos de documentos pelo WhatsApp, e a equipe sempre tinha que preencher a ficha à mão. Em 16/10/2026, dos leads dos últimos 60 dias, 5 estavam sem CPF e 4 deles tinham o CPF escrito na conversa. Entre os clientes do período, 36 de 73 estavam sem CPF.

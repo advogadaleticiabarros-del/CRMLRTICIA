@@ -5,6 +5,16 @@
 **Última atualização:** 16/10/2026. Último commit: Dr. Otávio (copiloto e qualificação em %) e tabela da OAB/RJ.
 
 ## Últimas entregas (mais recentes primeiro)
+- **19/10:**
+  - **Agentes no aceite da proposta** (caso da Sandra, proposta nº 20, contrato nº 12):
+    - **Dr. Felipe** avisa a Dra. na hora ("🤝 Contrato fechado"). Os lembretes de assinatura nunca tinham saído: o status certo é `enviado_assinatura`.
+    - **Dra. Camila** pede os documentos já no aceite (contrato de até 3 dias). A coleta nasce ligada ao contrato e ganha o caso depois.
+    - **Lead ligado à ficha** no aceite. Migration 164. Ver runbook.
+  - **Efeito da 1ª rodada:**
+    - Mailza e Rozimaria (contratos de 07/10, que já tinham mandado arquivos) receberam o pedido de documentos. As coletas delas foram encerradas para não haver cobranças.
+    - A Dra. recebeu os avisos de 7 dias sem assinatura de Maryani, Rozimaria e Mailza.
+  - **WhatsApp:** a tela dava erro depois de sair dela (atualização que continuava ligada). Corrigido; foi achado pelo rastreador de erros.
+  - **Pendente da Dra.:** revisar o contrato nº 12 da Sandra e gerar o link de assinatura.
 - **18/10:**
   - **Visão completa do cliente:** busca na página inicial (nome, CPF, telefone, nº do processo, assistido do dativo) e uma janela com tudo do cliente: dativo, parceria ou próprio, processos e números, financeiro (mesma conta do A Receber), acordos e repasses, movimentações, prazos e audiências, propostas, contratos, documentos e linha do tempo. Também pelo botão "Tudo do cliente" na ficha. Ver `docs/manual/01-clientes.md`.
   - **GitHub:** a conta da Dra. (`advogadaleticiabarros-del`, dona do repositório) foi conectada neste computador, e a `prosystemcomercial-JESSICA` voltou a ser a ativa, ainda sem o e-mail verificado. Os pushes seguem pela `alcancelegalmkt-collab`.

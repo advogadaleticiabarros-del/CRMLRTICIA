@@ -283,7 +283,10 @@ export async function coletarDocumentos() {
     `SELECT ct.id AS contract_id, cs.id AS case_id, ct.client_id, COALESCE(cs.legal_area, ct.area) AS legal_area, cl.name, cl.phone, ct.lead_id
        FROM contracts ct JOIN clients cl ON cl.id = ct.client_id
        LEFT JOIN cases cs ON cs.origin_contract_id = ct.id
-      WHERE ct.status IN ('em_producao','finalizado','enviado_assinatura','assinado') AND ct.created_at >= NOW() - INTERVAL 30 DAY
+      WHERE ct.status IN ('em_producao','finalizado','enviado_assinatura','assinado')
+        -- Só contrato recém-fechado: em 19/10/2026 a 1ª rodada pegou contratos de 12 dias
+        -- atrás e mandou boas-vindas atrasadas (Mailza, Rozimaria). Os antigos seguem pelo caso.
+        AND ct.created_at >= NOW() - INTERVAL 3 DAY
         AND NOT EXISTS (SELECT 1 FROM coletas_documentos cd WHERE cd.contract_id = ct.id OR (cs.id IS NOT NULL AND cd.case_id = cs.id))
      UNION
      SELECT cs.origin_contract_id AS contract_id, cs.id AS case_id, cs.client_id, cs.legal_area, cl.name, cl.phone, ct.lead_id

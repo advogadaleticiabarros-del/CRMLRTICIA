@@ -1955,6 +1955,14 @@ Object.assign(ROUTES, {
       // "oscilar para a conversa marcada" ao clicar).
       let cicloEmAndamento = false;
       const atualizar = async (forcarChat) => {
+        // Saiu da tela do WhatsApp (foi para Financeiro, Prazos…): o polling e o
+        // tempo real seguiam rodando e quebravam em $('#wal') nulo (achado pelo
+        // rastreador de erros, 19/10/2026). Desliga os dois e para aqui.
+        if (!document.getElementById('wal')) {
+          if (chatTimer) { clearInterval(chatTimer); chatTimer = null; }
+          waOnUpdate = null;
+          return;
+        }
         if (cicloEmAndamento && !forcarChat) return; // evita empilhar ciclos de polling
         // Dá uma folga pro clique assentar antes de deixar o polling reordenar
         // a lista — é o que fazia clicar numa conversa "escorregar" pra outra.

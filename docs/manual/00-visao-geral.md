@@ -89,9 +89,11 @@ Ele também repassa as teses da casa ao **Enzo** antes de cada minuta. A rotina 
   - puxa o valor de tabela: a tabela da Dra. em `office_settings.tabela_honorarios` ou, sem ela, a mediana das propostas aceitas da área; êxito de 30%;
   - aplica a política de parcelamento (`office_settings.politica_parcelamento`) e manda o resumo **só para a Dra.** no WhatsApp;
   - ela responde **aprovar 123**, **ajustar 123 total 1500, entrada 500, 5x, êxito 30%** ou **recusar 123**; só depois do "aprovar" a proposta vai ao cliente.
-- **Dr. Felipe, fechador de contratos:** lembra a Dra. de revisar o contrato pronto há mais de 1 dia; lembra o cliente de assinar em D+1 e D+3; avisa a Dra. se parar 7 dias.
+- **Dr. Felipe, fechador de contratos:**
+  - assim que a proposta é aceita, avisa a Dra. "🤝 Contrato fechado" para revisar e gerar o link (desde 19/10/2026), e de novo se passar 1 dia sem revisão;
+  - com o link enviado (`enviado_assinatura`), lembra o cliente de assinar em D+1 e D+3 e avisa a Dra. se parar 7 dias.
 - **Dra. Camila, coletora de documentos e provas:**
-  - com o contrato assinado, pede: documento com foto, comprovante de endereço, Carteira de Trabalho em PDF mostrando o contrato, extrato do FGTS em PDF, as provas conforme o assunto (ponto, prints, áudios, testemunhas, CAT…), conversas do WhatsApp e a transcrição da reunião;
+  - desde 19/10/2026, já no aceite da proposta (contrato de até 3 dias), sem esperar a assinatura, pede: documento com foto, comprovante de endereço, Carteira de Trabalho em PDF mostrando o contrato, extrato do FGTS em PDF, as provas conforme o assunto (ponto, prints, áudios, testemunhas, CAT…), conversas do WhatsApp e a transcrição da reunião;
   - confere o que chegou e cobra em D+2, D+5 e D+10;
   - completo, escreve o **relato do cliente** a partir das conversas do WhatsApp e avisa a Dra.
 - **Dr. Otávio, copiloto comercial da Dra. (desde 16/10/2026):**
