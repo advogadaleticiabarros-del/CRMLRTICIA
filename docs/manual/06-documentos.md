@@ -35,6 +35,35 @@ Mover para *Revisão inicial* continua revisando de novo (útil se você editou 
 
 Correção junto: o revisor escolhia "o documento de IA mais recente do caso" — e o próprio parecer é um documento de IA, então uma segunda revisão revisava o parecer. Agora documentos "Revisão da Petição…" são ignorados na escolha.
 
+## Contrato com mais de um contratante (desde 19/10/2026)
+
+Exemplo: o casal no mesmo processo. O contrato sai **em nome dos dois** e cada um tem **a própria procuração e a própria declaração de hipossuficiência**.
+
+**No contrato:** "CONTRATANTES: [titular]; e [outro], doravante denominados, em conjunto, CONTRATANTE." As cláusulas seguem dizendo "CONTRATANTE" (o conjunto), e cada contratante tem a sua linha de assinatura, antes da assinatura da advogada. Vale para os modelos padrão (trabalhista, cível, previdenciário, consumidor, família). O contrato de representação de menor não muda.
+
+**De onde vêm os dados:** da **conversa do WhatsApp**. A IA lê o que o cliente mandou e lista todas as pessoas com os dados delas (nome, CPF, RG, estado civil, profissão, nacionalidade, endereço, e-mail). A advogada e a parte contrária nunca entram. CPF que não confere no dígito verificador aparece com aviso.
+
+**Quando:**
+- **No aceite da proposta:** o contrato já nasce com os contratantes da conversa.
+- **No editor do contrato:** no botão **"🔎 Buscar contratantes na conversa"**.
+
+Os dois **regeneram** o contrato, como o "Completar informações": o texto editado à mão é substituído. E os dois só mexem no rascunho interno; **nada é enviado ao cliente**.
+
+**Ajustar:** em "Completar informações faltantes" → **"Outros contratantes"**:
+- editar os dados de cada um (por exemplo, a profissão e o endereço, quando não vieram na conversa);
+- marcar "mesmo endereço do titular";
+- adicionar ou remover um contratante.
+
+Fica salvo junto do complemento (`party_overrides.co_contratantes`).
+
+**Documentos:** abas "Procuração — Nome" e "Declaração — Nome" para cada um (editáveis). O "Baixar tudo" imprime todos. Ficam em `contracts.documentos_partes` (migration 165).
+
+**Assinatura:**
+- **Na tela do CRM:** com mais de um contratante, "Gerar link de assinatura" cria **um link para cada um**, com nome e CPF travados. O contrato só fica "assinado" (e cria o processo e os honorários) **quando todos assinarem**. Antes de 19/10/2026, a primeira assinatura já fechava o contrato. Contrato de uma pessoa só segue como antes.
+- **No ZapSign:** cadastre os dois como signatários.
+
+Código: regras em `partesContrato.ts` (`tests/partesContrato.test.mjs`), leitura da conversa em `partesContratoServico.ts`, geração em `contractReprocess.ts` (teste com banco em `tests/contratoVariasPartes.test.mjs`).
+
 ## Assinatura
 
 Documentos podem ser enviados pra assinatura eletrônica direto pelo sistema, com acompanhamento de quem já assinou.
@@ -147,6 +176,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 19/10/2026 | Claude | Contrato com mais de um contratante (ex.: casal), dados buscados na conversa, procuração e declaração individuais |
 | 14/10/2026 | Claude | Aviso de uso de IA (`AVISO_USO_IA`) nos 4 contratos padrão: trabalhista 14.4, pensão § 4º da cl. 13ª, genérico § único da cl. 8ª, menor § único da cl. 9ª |
 | 07/10/2026 | Claude | Novo contrato padrão trabalhista (22 cláusulas, `buildTemplateTrabalhista`), com a entrada não paga descontada ao final do processo; impressão com rodapé que não cobre o texto e assinaturas sempre juntas |
 | 07/10/2026 | Claude | Excluir proposta criada errada (só as não aceitas) |

@@ -134,9 +134,16 @@ router.post('/sign/:token', async (req: Request, res: Response) => {
     }
   }
 
-  // Contrato assinado → dispara o fluxo (cria processo na esteira + honorários no financeiro)
+  // Contrato assinado → dispara o fluxo (cria processo na esteira + honorários no financeiro).
+  // Vários contratantes (ex.: o casal, 19/10/2026): só fecha quando TODOS os links
+  // do contrato estiverem assinados — antes, a 1ª assinatura já fechava o contrato.
+  // Contrato de uma pessoa só segue como antes (um link a mais gerado por engano não trava nada).
   if (reqRow.contract_id) {
-    await onContractSigned(reqRow.contract_id, reqRow.created_by || 0, null);
+    const [[ctp]] = await db.query('SELECT documentos_partes FROM contracts WHERE id = ?', [reqRow.contract_id]) as any;
+    const variasPartes = !!ctp?.documentos_partes && JSON.stringify(ctp.documentos_partes) !== '[]' && ctp.documentos_partes !== 'null';
+    const [[pend]] = variasPartes ? await db.query(
+      "SELECT COUNT(*) AS n FROM signature_requests WHERE contract_id = ? AND status = 'pendente' AND id <> ?", [reqRow.contract_id, reqRow.id]) as any : [[{ n: 0 }]];
+    if (Number(pend?.n) === 0) await onContractSigned(reqRow.contract_id, reqRow.created_by || 0, null);
   }
 
   res.json({ success: true, verification_code: reqRow.verification_code });

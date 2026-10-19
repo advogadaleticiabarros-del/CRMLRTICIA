@@ -9981,8 +9981,24 @@ async function contractEditor(id, onSave) {
   };
   const sendBtn = wrap.querySelector('#send-sign');
   if (sendBtn) sendBtn.onclick = async () => {
-    try { await saveDocs(); await api(`/api/contracts/${id}/sign-request`, { method: 'POST', body: JSON.stringify({ require_selfie: !!wrap.querySelector('#ct-require-selfie')?.checked }) });
-      toast('Link de assinatura criado — envie ao cliente'); loadCtSigs(); } catch (e) { toast(e.message, 'error'); }
+    try {
+      await saveDocs();
+      const selfie = !!wrap.querySelector('#ct-require-selfie')?.checked;
+      if (docsPartes.length) {
+        // Vários contratantes: um link para CADA um, com nome e CPF travados. O
+        // contrato só fica assinado quando todos assinarem (19/10/2026).
+        const ov = lerJsonCt(ct.party_overrides, {});
+        const titular = { signer_name: ov.nome || ct.client_name || null, signer_cpf: ov.cpf || null };
+        for (const s of [titular, ...docsPartes.map((d) => ({ signer_name: d.nome, signer_cpf: d.cpf }))]) {
+          await api(`/api/contracts/${id}/sign-request`, { method: 'POST', body: JSON.stringify({ require_selfie: selfie, signer_name: s.signer_name, signer_cpf: s.signer_cpf ? String(s.signer_cpf).replace(/\D/g, '') : null }) });
+        }
+        toast(`${docsPartes.length + 1} links criados, um para cada contratante. Envie cada link à pessoa certa.`);
+      } else {
+        await api(`/api/contracts/${id}/sign-request`, { method: 'POST', body: JSON.stringify({ require_selfie: selfie }) });
+        toast('Link de assinatura criado — envie ao cliente');
+      }
+      loadCtSigs();
+    } catch (e) { toast(e.message, 'error'); }
   };
   const signBtn = wrap.querySelector('#mark-signed');
   if (signBtn) signBtn.onclick = async () => {
