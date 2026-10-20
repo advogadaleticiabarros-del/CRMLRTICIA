@@ -143,6 +143,8 @@ Vários módulos usam o mesmo canal de WhatsApp pra avisar o escritório: nomea�
 | Aceite da proposta pelo link | agradecimento e próximos passos | texto, mais o botão de PIX quando há entrada |
 | Pedido de e-book pelo site | aviso de que o material foi por e-mail | texto |
 
+**Lembrete que ninguém aprovou sai da fila** quando chega o estágio seguinte da mesma proposta: o de 5 dias substitui o de 48 horas, e a expiração substitui os dois. Assim, aprovar em lote não manda um lembrete fora de hora.
+
 **O que continua automático:** o que muda no sistema (status da proposta, prazo extra, inscrição na newsletter, contrato gerado) e o e-mail com o e-book que a pessoa pediu.
 
 **Botões e pendências:** a pendência que o webhook espera (por exemplo, o "Sim" da newsletter) só é gravada quando a mensagem aprovada sai. Sem aprovação, o clique não existe, e a janela de 7 dias começa no envio. Código: `envioAprovado.ts` (teste `tests/envioAprovado.test.mjs`) e a coluna `atendente_rascunhos.envio` (migration 166).

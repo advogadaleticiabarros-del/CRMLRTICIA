@@ -81,6 +81,7 @@ export async function dispararPropostaExpirada(p: {
 }): Promise<boolean> {
   try {
     const number = digitsOf(p.phone);
+    await substituirAcompanhamentosPendentes(number, p.propostaId);
     const id = await prepararParaAprovacao({
       agente: 'automacao', phone: number, clientId: p.clientId, nome: p.contactName || null,
       texto: msgPropostaExpirada(p.contactName),
@@ -199,11 +200,25 @@ export function msgNewsletterRecusado(): string {
 
 /** Lembrete de 48h ou 5 dias vira rascunho para aprovar; "ok" = rascunho criado (o estágio não se repete). */
 async function prepararAcompanhamento(p: any, texto: string, contexto: string): Promise<boolean> {
+  await substituirAcompanhamentosPendentes(digitsOf(p.phone), p.id);
   const id = await prepararParaAprovacao({
     agente: 'automacao', phone: digitsOf(p.phone), clientId: p.client_id ?? null, nome: p.contact_name || null,
     texto, contexto: `${contexto} (proposta nº ${p.id})`,
   }).catch(() => null);
   return id != null;
+}
+
+/**
+ * Lembrete anterior da mesma proposta que ninguém aprovou sai da fila quando chega
+ * o próximo estágio (5 dias substitui o de 48h; a expiração substitui os dois):
+ * aprovar em lote não manda ao cliente um lembrete fora de hora.
+ */
+export async function substituirAcompanhamentosPendentes(phone: string, propostaId: number): Promise<void> {
+  await db.query(
+    `UPDATE atendente_rascunhos SET status = 'substituida'
+      WHERE agente = 'automacao' AND status = 'pendente' AND phone = ?
+        AND mensagem_cliente LIKE 'CONTEXTO: Proposta enviada há %' AND mensagem_cliente LIKE ?`,
+    [phone, `%(proposta nº ${propostaId})%`]).catch(() => {});
 }
 
 export async function runPropostaFollowups(): Promise<{ enviados48h: number; enviados5d: number; enviados7d: number; backfill: number }> {

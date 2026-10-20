@@ -36,6 +36,13 @@ test('acompanhamento de 48h e recusa: rascunho com contexto, nada enviado', asyn
     const [denovo] = await db.query("SELECT id FROM atendente_rascunhos WHERE phone = ? AND agente = 'automacao'", [FONE]);
     assert.equal(denovo.length, 1, 'rodar de novo não duplica');
 
+    // Três dias depois: o lembrete de 5 dias tira da fila o de 48h que ninguém aprovou.
+    await db.query('UPDATE propostas SET enviada_em = NOW() - INTERVAL 121 HOUR WHERE id = ?', [ids.proposta]);
+    await runPropostaFollowups();
+    const [fila] = await db.query("SELECT status, mensagem_cliente FROM atendente_rascunhos WHERE phone = ? AND agente = 'automacao' ORDER BY id", [FONE]);
+    assert.deepEqual(fila.map((r) => r.status), ['substituida', 'pendente']);
+    assert.match(fila[1].mensagem_cliente, /há 5 dias/);
+
     assert.equal(await dispararRecusaProposta({ propostaId: ids.proposta, leadId: null, clientId: null, phone: FONE,
       contactName: 'Cliente Aprovação Teste', motivo: 'A proposta foi marcada como recusada no CRM' }), true);
     const [[rec]] = await db.query("SELECT * FROM atendente_rascunhos WHERE phone = ? AND agente = 'automacao' AND resposta LIKE '%informativos%'", [FONE]);

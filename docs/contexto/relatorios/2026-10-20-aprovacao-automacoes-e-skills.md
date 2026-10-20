@@ -14,9 +14,14 @@
   - `atendente_rascunhos.envio` (migration 166) guarda o jeito de enviar;
   - convertidos: acompanhamento de 48 horas e 5 dias, expiração (botões), recusa (botões da newsletter), lembrete da newsletter, respostas aos botões, aceite com PIX e aviso do e-book;
   - tela: "⚙️ Automação do CRM" e "🔘 Sai com os botões…" em Mensagens para aprovar; corrigido o "Por que esta mensagem", que ficava com um espaço no começo (regex sem a barra invertida).
+  - **Fila sem lembrete velho:** o lembrete de 5 dias tira da fila o de 48 horas que ninguém aprovou, e a expiração tira os dois (`substituirAcompanhamentosPendentes`).
   - Documentação: `docs/manual/03-whatsapp.md` (tabela dos eventos), `02-leads.md`, `14-runbook.md` (complemento do incidente de 19/10) e `17-decision-log.md`.
 
+- **Bibliotecas:** `uuid` 11.1.1 forçada em `overrides` no `package.json`; produção ficou com 0 vulnerabilidades. As 3 altas que aparecem sem `--omit=dev` vêm do `nodemon`, que só roda no desenvolvimento, e não têm correção publicada.
+- **ESTADO.md:** tirados dois avisos velhos da Laya (o script já tinha sido corrigido no commit `fd6c918` e o serviço está instalado desde 16/10).
+
 ## Verificado
+- `npm audit --omit=dev`: 0 vulnerabilidades. `node-cron` e `googleapis` carregam e funcionam com a `uuid` 11.1.1 (teste rápido no terminal).
 - `npm run build` sem erros e `npm run lint` com 0 erros.
 - `npm test`: 974 passaram, 0 falharam e 33 foram pulados (precisam de banco; rodam no CI).
 - Testes novos: `tests/envioAprovado.test.mjs` (unitário, com dependências falsas) e `tests/automacoesAprovacao.test.mjs` (com banco, só no CI). A trava `tests/semEnvioSemConsentimento.test.mjs` passou a vigiar as automações e o `sendMenu`.
@@ -31,8 +36,7 @@
 ## Pendente
 - **Repositório CRMLRTICIA continua PÚBLICO** (conferido em 20/10 com `gh repo view`). Só a Dra. pode mudar: Settings → Danger Zone → Change visibility → Private.
 - Acompanhar a primeira aprovação de uma mensagem com botões ("Preciso de mais tempo", newsletter), para confirmar que o clique volta para o webhook.
-- O lembrete de 48 horas e o de 5 dias podem ficar os dois na fila, se ninguém aprovar o primeiro. Avaliar se o de 5 dias deve substituir o de 48 horas.
-- Seguem no ESTADO: vulnerabilidades moderadas da `uuid`, script da Laya (passo 6) e backup do MEGA antes de dezembro.
+- Seguem no ESTADO: backup do MEGA antes de dezembro (prioridade; tirar a mídia do WhatsApp do banco ou plano pago) e audiências duplicadas na agenda.
 
 ## Próxima sessão
 - Primeiro passo: abrir Escritório virtual → Mensagens para aprovar em produção e conferir os rascunhos "Automação do CRM" do dia.

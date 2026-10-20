@@ -42,6 +42,8 @@ Nada vai para a VPS sem passar pelo workflow **Testes** (`.github/workflows/ci.y
 | Mapa da API em dia | `docs/api/rotas.md` bate com o código (`npm run docs:api`) | sim |
 | Testes (`npm test`) | Unitários **e de integração com banco** (969 em 16/10, nenhum pulado) | sim |
 | Vulnerabilidades (`npm audit --audit-level=high`) | Nenhuma biblioteca de produção com falha alta ou crítica | sim |
+
+**Bibliotecas (20/10/2026):** produção com **0 vulnerabilidades**. As 5 moderadas da `uuid` (dentro do `googleapis` e do `node-cron`) foram resolvidas forçando a `uuid` 11.1.1 em `overrides` no `package.json`; ela mantém o formato antigo (`require`) que essas bibliotecas usam. As altas que o `npm audit` mostra sem `--omit=dev` vêm do `nodemon` (só desenvolvimento, não vai para a VPS) e não têm correção publicada.
 | Ponta a ponta (`npm run test:e2e`, Playwright) | Um navegador de verdade entra no CRM, abre as 9 telas principais exigindo que carreguem de fato, e cadastra um cliente | sim |
 
 - **Em branch** que não seja a `main`, o workflow roda sozinho e não publica nada, para testar antes.
@@ -111,6 +113,7 @@ Alguns dados sensíveis (tokens de integração) ficam cifrados no banco. Acesso
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 20/10/2026 | Claude | `uuid` 11.1.1 forçada em `overrides`: produção sem vulnerabilidades |
 | 03/09/2026 | Claude | Criação do documento; registrado o desligamento do Railway e a migração definitiva pra VPS |
 | 07/10/2026 | Claude | Backup reforçado: tempo limite, conferência do arquivo, nova tentativa automática, vigia de horário perdido, aviso diário 20h30, histórico 30 dias + 12 meses, prova de restauração semanal, deploy espera o backup |
 | 12/10/2026 | Claude | Prova de restauração em fluxo (o dump passou de 512 MB e a prova falhava); tamanho atual e previsão de lotação do MEGA |

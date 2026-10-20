@@ -7,6 +7,8 @@
 ## Últimas entregas (mais recentes primeiro)
 - **20/10:**
   - **Automações antigas a cliente agora pedem aprovação:** acompanhamento de 48 horas e 5 dias, expiração e recusa de proposta, newsletter, aceite com PIX e aviso do e-book. Ficam em Escritório virtual → "Mensagens para aprovar" como "⚙️ Automação do CRM", com o motivo, e saem com os botões ou o PIX originais. O que muda no sistema (status, prazo extra, inscrição) continua automático. Migration 166. Ver `docs/manual/03-whatsapp.md`.
+  - **Produção sem vulnerabilidades:** `uuid` 11.1.1 forçada em `overrides` (as moderadas do `googleapis` e do `node-cron`).
+  - **Fila sem lembrete velho:** o lembrete de 5 dias tira da fila o de 48 horas não aprovado, e a expiração tira os dois.
   - **Relatório final em toda tarefa:** skill `relatorio-final`; os relatórios ficam em `docs/contexto/relatorios/`.
   - **Skills instaladas** (perfil `.claude-conta-2` e o outro perfil): handoff, tdd, diagnosing-bugs, domain-modeling, research, writing-for-agents e codebase-design atualizada.
 - **19/10:**
@@ -44,7 +46,7 @@
       - editar audiência pela ficha da dativa não salvava (função duplicada);
       - `npm run migrate` não recriava o banco (migration 127);
       - 2 testes da fatura nunca tinham rodado.
-    - **Bibliotecas:** críticas e altas zeradas (`nodemailer` 10 e correções seguras). Restam 5 moderadas na `uuid` (via `googleapis` e `node-cron`), pendentes de uma tarefa própria.
+    - **Bibliotecas:** críticas e altas zeradas (`nodemailer` 10 e correções seguras). As 5 moderadas da `uuid` foram resolvidas em 20/10 (`overrides`, `uuid` 11.1.1).
     - **Rastreador de erros próprio** (sem Sentry, por LGPD), em Escritório virtual → Dr. Bento → Erros do sistema. Migration 162.
     - **Documentação:** `GLOSSARY.md` e `docs/api/rotas.md`, gerado por `npm run docs:api` e conferido no CI.
     - **Ficaram de fora de propósito:** BDD, PR obrigatório e Swagger completo (decision log).
@@ -79,12 +81,12 @@
   - **Ficha "Escritório Virtual.md"** na raiz do cofre Obsidian (fora do git): agentes, comandos da Dra., prestação de contas, Cérebro e pendências. Atualize-a sempre que um agente mudar.
   - **Instalados:** 4 agentes do agency-agents (`.claude/agents/`) e o codebase-memory-mcp (computador da Jessica, perfil `.claude-conta-2`). O OpenMontage (vídeos) e o Trail-Code ficaram de fora (ver conversa de 14/10).
   - **Falta a Dra. definir:** a tabela de honorários (`tabela_honorarios`) e a política de parcelamento (`politica_parcelamento`). Até lá vale a mediana das propostas aceitas e o padrão provisório (até 10x, parcela mínima R$ 100).
-- **14/10 (noite):** agentes de terno e quadro de cartões abaixo da sala, no formato do print do CRM comercial. Nomes passaram a Dr./Dra. + nome (escolha da Jessica); Laya e Enzo sem título. O script `scripts/instalar-laya-vps.sh` ficou fora do commit: falta corrigir o passo 6 (o reinício deve ser pelo PM2 do crmapp), e a edição foi bloqueada pelo modo automático.
+- **14/10 (noite):** agentes de terno e quadro de cartões abaixo da sala, no formato do print do CRM comercial. Nomes passaram a Dr./Dra. + nome (escolha da Jessica); Laya e Enzo sem título. O script `scripts/instalar-laya-vps.sh` foi corrigido depois (PM2 do crmapp, commit `fd6c918`).
 - **14/10 (tarde):**
   - **Escritório virtual** (menu): sala isométrica com 20 agentes ao vivo, no estilo do CRM comercial. O status vem de `job_runs`, `agente_acoes` e `automation_runs`.
   - **Métricas da IA** no formato dos prints da Jessica (`/api/escritorio/painel-ia`).
   - **Contagem de uso de IA:** `ia_uso_diario` (migration 156).
-  - **Laya** na qualificação do possível cliente: primeiro grátis, IA paga só sem certeza. O código está pronto; **falta instalar o serviço na VPS do jurídico** (ver 16-ferramentas).
+  - **Laya** na qualificação do possível cliente: primeiro grátis, IA paga só sem certeza. Instalada na VPS em 16/10.
   - **Leitor aplicado às decisões dos últimos 15 dias**, no boot e às 7h50. A Dra. ainda não tinha recebido nenhuma leitura porque só valia para sentença nova.
 - **14/10 (manhã):**
   - **Escritório virtual.** O mapa v2 tem 67 agentes em 10 departamentos e está em `docs/escritorio-virtual/01-mapa-de-agentes.md`. A Dra. aprovou as 5 decisões "de acordo com a sugestão" (registradas no decision log).
