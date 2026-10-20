@@ -5,7 +5,7 @@ import { notificationService } from '../services/NotificationService';
 import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
 import { getEscritorio } from '../services/escritorio';
 import { ensurePartnerLawyersColumn } from '../services/propostaSchema';
-import { sendText, sendPixButton } from '../services/uazapiInstance';
+import { prepararParaAprovacao } from '../services/aprovacaoMensagens';
 
 const moneyBR = (v: number) => 'R$ ' + Number(v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 
@@ -197,13 +197,14 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
     let digits = String(phone).replace(/\D/g, '');
     if (digits.length <= 11) digits = '55' + digits;
     const entrada = Number(parcelamento?.entrada) || 0;
-    sendText(digits, mensagemAceite(nome, entrada), 'Automático — aceite de proposta')
-      .then(() => {
-        // Botão nativo de pagamento PIX, além do texto — mais fácil pro
-        // cliente pagar sem digitar/copiar a chave manualmente.
-        if (entrada > 0) sendPixButton(digits, '13451070723', 'Leticia Elias Barros', 'CPF', 'Automático — aceite de proposta').catch(() => {});
-      })
-      .catch(() => {});
+    // Desde 20/10/2026 a resposta ao aceite vai para aprovar (nada sai sozinho).
+    // Com entrada, sai junto o botão nativo de PIX, como antes.
+    prepararParaAprovacao({
+      agente: 'automacao', phone: digits, clientId, nome: nome || null,
+      texto: mensagemAceite(nome, entrada),
+      contexto: `${nome || 'O cliente'} aceitou a proposta nº ${p.id} pelo link${entrada > 0 ? `, com entrada de R$ ${entrada.toFixed(2).replace('.', ',')}` : ''}. O contrato foi gerado para revisão.${entrada > 0 ? ' A mensagem sai com o botão de PIX da Dra.' : ''}`,
+      envio: entrada > 0 ? { tipo: 'texto_pix', pix: { chave: '13451070723', nome: 'Leticia Elias Barros', tipoChave: 'CPF' } } : undefined,
+    }).catch(() => null);
   }
 
   res.json({ success: true, contract_id: contractId });

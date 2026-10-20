@@ -16,6 +16,13 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 20/10/2026 — Automações antigas a cliente também passam pela aprovação
+- A ordem da Jessica de 19/10 foi geral: "Não envie mais nenhuma mensagem sem consentimento". Os agentes já estavam na fila; faltavam as automações antigas (acompanhamento, expiração e recusa de proposta, newsletter, aceite com PIX, e-book).
+- **O que muda no sistema continua automático** (status, prazo extra, inscrição, contrato). Só a mensagem ao cliente espera alguém aprovar.
+- **Botões e PIX preservados:** o rascunho guarda como a mensagem sai (`atendente_rascunhos.envio`). A pendência dos botões só nasce no envio, para a janela de resposta contar a partir dele.
+- **O e-mail do e-book continua automático:** é o material que a própria pessoa pediu no formulário. Só o aviso no WhatsApp vai para a fila.
+- **Alternativa descartada:** desligar essas automações. Elas continuam úteis como lembrete; o custo é a equipe aprovar algumas mensagens por dia.
+
 ### 16/10/2026 — Ficha automática grava sozinha, mas só o vazio
 - A Jessica pediu que o CRM preencha sozinho o que o lead manda ("sempre tenho que completar manualmente"). Vale também a regra da casa: "todo dado enviado vai inteiro para a ficha, sem perguntar".
 - **Por isso grava sem confirmação**, mas só campo **vazio** e lido com segurança.
@@ -209,6 +216,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 20/10/2026 | Claude | Automações antigas a cliente passam pela aprovação (o que muda no sistema continua automático) |
 | 04/09/2026 | Claude | Criação do documento — 8 decisões registradas |
 | 23/09/2026 | Claude | Registrada decisão de não integrar o Laya (motor de decisão local) — custo de infraestrutura (serviço Python separado na VPS) maior que o ganho (velocidade que ninguém sente) frente ao Groq/Gemini já em uso |
 | 24/09/2026 | Claude | Registrada decisão de manter `cases` e `legal_processes` separados (achado de prioridade baixa da auditoria do módulo Clientes) — overlap já tem FK de ligação, risco real é lógica de matching duplicada em 3 arquivos, não a separação em si |

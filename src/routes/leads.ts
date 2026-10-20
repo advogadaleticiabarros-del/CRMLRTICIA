@@ -4,7 +4,7 @@ import { logActivity } from '../services/JourneyService';
 import { notifyNewLead } from '../services/leadAlert';
 import { qualificarLead } from '../services/aiAssistant';
 import { dispararRecusaProposta, msgPropostaRecusada, digitsOf } from '../services/propostaFollowupService';
-import { sendText } from '../services/uazapiInstance';
+import { prepararParaAprovacao } from '../services/aprovacaoMensagens';
 import { montarEndereco } from '../services/contractTemplates';
 
 const router = Router();
@@ -324,12 +324,18 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
           await dispararRecusaProposta({
             propostaId: propRows[0].id, leadId: Number(id), clientId: prev.client_id,
             phone: prev.phone, contactName: prev.name,
+            motivo: `O lead foi marcado como "${status === 'perdida' ? 'perdido' : 'proposta recusada'}" no CRM`,
           });
         } else {
-          await sendText(digitsOf(prev.phone), msgPropostaRecusada(prev.name));
+          // Sem proposta em aberto: só a despedida, para aprovar (nada sai sozinho desde 20/10/2026).
+          await prepararParaAprovacao({
+            agente: 'automacao', phone: digitsOf(prev.phone), clientId: prev.client_id ?? null, nome: prev.name || null,
+            texto: msgPropostaRecusada(prev.name),
+            contexto: `O lead foi marcado como "${status === 'perdida' ? 'perdido' : 'proposta recusada'}" no CRM, sem proposta em aberto. Mensagem de despedida (sem os botões da newsletter).`,
+          });
         }
       } catch (e: any) {
-        console.error(`[lead ${id}] falha ao enviar mensagem de proposta recusada:`, e?.message || e);
+        console.error(`[lead ${id}] falha ao preparar a mensagem de proposta recusada:`, e?.message || e);
       }
     })();
   }

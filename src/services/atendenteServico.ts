@@ -153,7 +153,9 @@ export async function enviarRascunho(id: number, texto: string, quem: string): P
   const agente = r.agente || 'atendente';
   const { NOME_AGENTE } = await import('./aprovacaoMensagens');
   // "Agente" no sent_by: o estudo de tom de voz não aprende com o texto dos agentes.
-  const ok = await sendText(r.phone, final.slice(0, 4000), `Agente ${NOME_AGENTE[agente] || 'Dra. Lívia'} (aprovado por ${quem})`);
+  // Sai do jeito que o agente ou a automação montou (texto, botões, PIX): ver envioAprovado.ts.
+  const { executarEnvioAprovado, lerEnvio } = await import('./envioAprovado');
+  const ok = await executarEnvioAprovado(r.phone, final.slice(0, 4000), lerEnvio(r.envio), `Agente ${NOME_AGENTE[agente] || 'Dra. Lívia'} (aprovado por ${quem})`);
   if (!ok) return { ok: false, erro: 'Não deu para enviar: confira se o WhatsApp está conectado.' };
   const editada = final !== String(r.resposta).trim();
   await db.query("UPDATE atendente_rascunhos SET status = ?, resposta_final = ?, decidido_por = ?, decidido_em = NOW() WHERE id = ?",

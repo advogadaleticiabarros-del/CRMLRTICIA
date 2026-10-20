@@ -30,14 +30,15 @@ function trecho(src, inicioRegex) {
 
 // ── (1) Cenário 7d: mensagem com botão certo + pendência certa (estático) ──
 
-test('dispararPropostaExpirada manda sendMenu tipo button com os 2 botões certos e grava pendência tipo proposta_expirada', () => {
+test('dispararPropostaExpirada prepara para aprovar, com os 2 botões certos e a pendência tipo proposta_expirada', () => {
   const fn = trecho(followupSrc, /export async function dispararPropostaExpirada/);
   const bloco = fn.slice(0, fn.indexOf('\n}\n'));
-  assert.match(bloco, /uazapi\.sendMenu\(/, 'deve usar uazapi.sendMenu para os botões nativos');
-  assert.match(bloco, /'button'/, "o menu deve ser do tipo 'button'");
+  assert.match(bloco, /prepararParaAprovacao\(/, 'nada sai sozinho: vira rascunho na fila de aprovação');
+  assert.doesNotMatch(bloco, /uazapi\.sendMenu\(|createPendingReply\(/, 'o envio e a pendência só acontecem na aprovação');
+  assert.match(bloco, /tipo:\s*'botoes'/, 'a mensagem aprovada sai com botões');
   assert.match(bloco, /PROPOSTA_EXPIRADA_BOTAO_MAIS_TEMPO_ID/, 'deve usar a constante do botão "mais tempo"');
   assert.match(bloco, /PROPOSTA_EXPIRADA_BOTAO_RECUSAR_ID/, 'deve usar a constante do botão "recusar"');
-  assert.match(bloco, /createPendingReply\(/, 'deve gravar a pendência de confirmação');
+  assert.match(bloco, /pendencia:/, 'a pendência vai junto, para ser gravada quando a mensagem sair');
   assert.match(bloco, /tipo:\s*'proposta_expirada'/, "o tipo da pendência deve ser 'proposta_expirada'");
 });
 

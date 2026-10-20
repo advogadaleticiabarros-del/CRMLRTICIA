@@ -1,4 +1,4 @@
-import { uazapi } from './uazapiClient';
+import { prepararParaAprovacao } from './aprovacaoMensagens';
 import { msgLembreteNewsletterOptIn } from './propostaFollowupService';
 import {
   findPendingRepliesNeedingReminder, markReminderSent, PendingReplyForReminder,
@@ -17,6 +17,10 @@ import {
  * hardcoda 'newsletter_opt_in' — só o texto do lembrete abaixo é específico
  * por tipo, hoje o único que existe. Um tipo novo de pendência de botão no
  * futuro só precisa de um novo `case` aqui.
+ *
+ * Desde 20/10/2026 o lembrete não sai sozinho: vira rascunho na fila de
+ * aprovação, com os mesmos botões (ordem da Jessica: nenhuma mensagem sem
+ * consentimento).
  *
  * Best-effort por pendência: uma falha na Uazapi (ex.: número bloqueou) não
  * impede o lembrete das demais, e reminder_sent_at é marcado mesmo assim —
@@ -51,10 +55,12 @@ async function enviarLembrete(p: PendingReplyForReminder): Promise<void> {
       // Reaproveita expected_yes/expected_no já salvos na pendência original —
       // não gera ids novos, senão o clique do lembrete não bateria com a
       // pendência que o webhook está esperando resolver.
-      await uazapi.sendMenu(p.phone, 'button', msgLembreteNewsletterOptIn(p.nome || ''), [
-        `Sim|${p.expected_yes}`,
-        `Não|${p.expected_no}`,
-      ]);
+      await prepararParaAprovacao({
+        agente: 'automacao', phone: p.phone, clientId: p.client_id ?? null, nome: p.nome || null,
+        texto: msgLembreteNewsletterOptIn(p.nome || ''),
+        contexto: 'Há 24 horas o cliente não responde se quer receber os informativos (pergunta feita na despedida da proposta recusada). Lembrete único, com os mesmos botões "Sim" e "Não".',
+        envio: { tipo: 'botoes', botoes: [`Sim|${p.expected_yes}`, `Não|${p.expected_no}`] },
+      });
       break;
     default:
       // Tipo de pendência sem lembrete definido ainda — não faz nada (e

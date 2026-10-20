@@ -36,6 +36,8 @@ A Jessica: "Não envie mais nenhuma mensagem sem consentimento. Principalmente s
 
 **Prevenção para quem mexer no código:** antes de rodar um agente à mão em produção, simule e mostre quem seria atingido. Envio a cliente só com o "sim" de uma pessoa.
 
+**Complemento (20/10/2026):** as automações antigas a cliente também passaram para a fila: acompanhamento de 48 horas e 5 dias, expiração e recusa de proposta, newsletter, aceite com PIX e aviso do e-book. A trava do CI agora vigia esses arquivos e o `sendMenu`. A mensagem aprovada sai com os botões ou o PIX originais (`envioAprovado.ts`). Ver `docs/manual/03-whatsapp.md` → "Auto-envios para o cliente/lead".
+
 ---
 
 ## Incidente: tela do WhatsApp dava erro depois de sair dela

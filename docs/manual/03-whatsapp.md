@@ -130,7 +130,22 @@ Vários módulos usam o mesmo canal de WhatsApp pra avisar o escritório: nomea�
 
 ## Auto-envios para o cliente/lead
 
-Alguns eventos disparam mensagem automática pro **contato** (não pro escritório): confirmação/recusa de newsletter, aceite de proposta, follow-up de proposta (5 dias e 48h antes de expirar), despedida ao perder um lead (ver [Leads](02-leads.md)).
+**Desde 20/10/2026 nenhuma delas sai sozinha** (ordem da Jessica: "Não envie mais nenhuma mensagem sem consentimento"). Cada evento prepara a mensagem em Escritório virtual → **"Mensagens para aprovar"**, como "⚙️ Automação do CRM", com o motivo ("Por que esta mensagem"). A equipe envia, edita ou descarta.
+
+| Evento | Mensagem preparada | Como sai depois de aprovada |
+|---|---|---|
+| Proposta enviada há 2 dias sem resposta | lembrete com o link | texto |
+| Proposta enviada há 5 dias | "perto do vencimento, podemos negociar" | texto |
+| Proposta com 7 dias sem resposta (já marcada como expirada) | "o prazo chegou ao fim" | botões "Preciso de mais tempo" e "Recusar" |
+| Proposta recusada (pela equipe, pelo botão ou no fim do prazo extra) e lead perdido | despedida com a pergunta da newsletter | botões "Sim" e "Não" |
+| 24 h sem responder a newsletter | lembrete único | os mesmos botões |
+| Resposta aos botões (newsletter sim ou não, "mais tempo") | confirmação | texto |
+| Aceite da proposta pelo link | agradecimento e próximos passos | texto, mais o botão de PIX quando há entrada |
+| Pedido de e-book pelo site | aviso de que o material foi por e-mail | texto |
+
+**O que continua automático:** o que muda no sistema (status da proposta, prazo extra, inscrição na newsletter, contrato gerado) e o e-mail com o e-book que a pessoa pediu.
+
+**Botões e pendências:** a pendência que o webhook espera (por exemplo, o "Sim" da newsletter) só é gravada quando a mensagem aprovada sai. Sem aprovação, o clique não existe, e a janela de 7 dias começa no envio. Código: `envioAprovado.ts` (teste `tests/envioAprovado.test.mjs`) e a coluna `atendente_rascunhos.envio` (migration 166).
 
 ## FAQ
 
@@ -293,6 +308,7 @@ Código: regras em `negociador.ts`, banco e envio em `negociadorServico.ts`. A c
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 20/10/2026 | Claude | Auto-envios ao contato (acompanhamento, expiração e recusa de proposta, newsletter, aceite com PIX, e-book) passam por "Mensagens para aprovar", com botões e PIX preservados |
 | 16/10/2026 | Claude | Lívia faz as perguntas sutis da qualificação em %; webhook e envio manual acionam o copiloto da Dra. (Dr. Otávio) |
 | 16/10/2026 | Claude | Dr. Rafael: resposta às objeções da proposta em modo rascunho, dentro da ética da OAB, com aviso à Dra. quando pedem desconto |
 | 15/10/2026 | Claude | Dra. Lívia, atendente em modo rascunho, no tom de voz da Dra. (guia aprendido das conversas reais) e aprendendo com as correções |

@@ -223,7 +223,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
     oldValue: PROP_STATUS_PT[p.status] || p.status, newValue: PROP_STATUS_PT[status] || status,
   });
 
-  // Recusa → dispara a mensagem de "não fechamos dessa vez" com pergunta de
+  // Recusa → prepara (para aprovar) a mensagem de "não fechamos dessa vez" com pergunta de
   // newsletter (botões Sim/Não). Best-effort: falha no WhatsApp não pode
   // impedir a atualização de status, que já foi persistida acima. Função
   // compartilhada (dispararRecusaProposta) — o mesmo fluxo também dispara a
@@ -237,6 +237,7 @@ router.patch('/:id/status', async (req: Request, res: Response) => {
       clientId: p.client_id,
       phone: p.phone,
       contactName: p.contact_name,
+      motivo: 'A proposta foi marcada como recusada no CRM',
     });
   }
 

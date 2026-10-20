@@ -4,7 +4,9 @@
 // grava uma pendência (whatsapp_pending_replies) pra o webhook correlacionar
 // a resposta depois. Ver docs no topo de src/services/pendingWhatsappReplyService.ts.
 //
-// O envio em si (uazapi.sendMenu + createPendingReply) foi extraído para
+// Desde 20/10/2026 a mensagem não sai sozinha: vira rascunho na fila de
+// aprovação com os botões e a pendência (envioAprovado.ts manda o menu e grava
+// a pendência quando a equipe aprova). A preparação mora em
 // dispararRecusaProposta (src/services/propostaFollowupService.ts) — função
 // compartilhada entre a rota de recusa manual, o botão "Recusar" da proposta
 // expirada e o fechamento definitivo da 2ª janela (ver
@@ -55,27 +57,24 @@ test('PATCH /:id/status NÃO chama uazapi diretamente (mecânica de envio mora s
 
 // ── Serviço compartilhado: dispararRecusaProposta ───────────────────────
 
-test('dispararRecusaProposta envia sendMenu tipo button com os ids de newsletter e grava a pendência certa', () => {
+test('dispararRecusaProposta prepara para aprovar, com os botões de newsletter e a pendência certa', () => {
   const fn = trecho(followupSrc, /export async function dispararRecusaProposta/);
   const bloco = fn.slice(0, fn.indexOf('\n}\n'));
-  assert.match(bloco, /uazapi\.sendMenu\(/, 'deve usar uazapi.sendMenu para os botões nativos');
-  assert.match(bloco, /'button'/, "o menu deve ser do tipo 'button'");
+  assert.match(bloco, /prepararParaAprovacao\(/, 'nada sai sozinho: vira rascunho na fila de aprovação');
+  assert.doesNotMatch(bloco, /uazapi\.sendMenu\(|createPendingReply\(/, 'o envio e a pendência só acontecem na aprovação');
+  assert.match(bloco, /tipo:\s*'botoes'/, 'a mensagem aprovada sai com botões');
   assert.match(bloco, /NEWSLETTER_BOTAO_SIM_ID/, 'deve usar a constante de id do botão Sim (não inventar string solta)');
   assert.match(bloco, /NEWSLETTER_BOTAO_NAO_ID/, 'deve usar a constante de id do botão Não (não inventar string solta)');
-  assert.match(bloco, /createPendingReply\(/, 'deve gravar a pendência de confirmação');
   assert.match(bloco, /tipo:\s*'newsletter_opt_in'/, "o tipo da pendência deve ser 'newsletter_opt_in'");
-  const idxSend = bloco.indexOf('uazapi.sendMenu(');
-  const idxPending = bloco.indexOf('createPendingReply(');
-  assert.ok(idxSend > -1 && idxPending > -1 && idxSend < idxPending,
-    'o envio do menu deve acontecer antes de gravar a pendência (senão a pendência fica órfã se o envio falhar)');
+  assert.match(bloco, /contexto:/, 'quem aprova precisa saber por que a mensagem existe');
 });
 
-test('dispararRecusaProposta nunca lança (best-effort) — envio dentro de try/catch', () => {
+test('dispararRecusaProposta nunca lança (best-effort) — preparação dentro de try/catch', () => {
   const fn = trecho(followupSrc, /export async function dispararRecusaProposta/);
   const bloco = fn.slice(0, fn.indexOf('\n}\n'));
   const tryIdx = bloco.indexOf('try {');
-  const sendIdx = bloco.indexOf('uazapi.sendMenu(');
-  assert.ok(tryIdx > -1 && tryIdx < sendIdx, 'o envio do menu de recusa precisa estar dentro de um try/catch');
+  const sendIdx = bloco.indexOf('prepararParaAprovacao(');
+  assert.ok(tryIdx > -1 && tryIdx < sendIdx, 'a preparação da mensagem de recusa precisa estar dentro de um try/catch');
   assert.match(bloco, /catch\s*\(e[:\s]*any\)/, 'precisa capturar erro do envio');
 });
 

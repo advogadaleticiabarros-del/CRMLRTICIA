@@ -1,11 +1,12 @@
 import { db } from '../config/database';
-import { sendText } from './uazapiInstance';
-import { uazapi } from './uazapiClient';
-import { createPendingReply } from './pendingWhatsappReplyService';
+import { prepararParaAprovacao } from './aprovacaoMensagens';
 
 /**
- * Follow-up automático de propostas enviadas — 3 estágios, cada um dispara
- * uma vez só (idempotente via followup_Nx_at). Roda 1x/dia; olha só
+ * Follow-up de propostas enviadas — 3 estágios, cada um uma vez só
+ * (idempotente via followup_Nx_at). Desde 20/10/2026 nada sai sozinho: cada
+ * estágio PREPARA a mensagem na fila de aprovação (Escritório virtual →
+ * Mensagens para aprovar), com botões e pendência quando houver, e só vai ao
+ * cliente quando alguém da equipe aprovar (ordem da Jessica, 19/10). Roda 1x/dia; olha só
  * propostas 'enviada'/'em_negociacao' com telefone, ainda não aceitas.
  *
  * Proteção contra "blast" retroativo: se a proposta já passou de 14 dias
@@ -69,33 +70,33 @@ export function msgPropostaMaisTempoJaUsada(nome: string): string {
 }
 
 /**
- * Envia a mensagem de proposta expirada com os 2 botões e grava a
- * pendência (`whatsapp_pending_replies`, tipo 'proposta_expirada') pra o
- * webhook casar a resposta depois. Best-effort: nunca lança, só loga —
- * quem chama decide o que fazer com o retorno (ex.: só marcar
- * followup_7d_at se `ok`, pra tentar de novo amanhã em caso de falha).
+ * Prepara, na fila de aprovação, a mensagem de proposta expirada com os 2
+ * botões. A pendência (`whatsapp_pending_replies`, tipo 'proposta_expirada')
+ * só é gravada quando a mensagem aprovada sair (envioAprovado.ts), para o
+ * webhook casar a resposta. Best-effort: nunca lança; quem chama só marca
+ * followup_7d_at se `ok` (rascunho criado), senão tenta de novo amanhã.
  */
 export async function dispararPropostaExpirada(p: {
   propostaId: number; leadId: number | null; clientId: number | null; phone: string; contactName: string;
 }): Promise<boolean> {
   try {
     const number = digitsOf(p.phone);
-    await uazapi.sendMenu(number, 'button', msgPropostaExpirada(p.contactName), [
-      `Preciso de mais tempo|${PROPOSTA_EXPIRADA_BOTAO_MAIS_TEMPO_ID}`,
-      `Recusar|${PROPOSTA_EXPIRADA_BOTAO_RECUSAR_ID}`,
-    ]);
-    await createPendingReply({
-      phone: number,
-      tipo: 'proposta_expirada',
-      leadId: p.leadId,
-      clientId: p.clientId,
-      propostaId: p.propostaId,
-      expectedYes: PROPOSTA_EXPIRADA_BOTAO_MAIS_TEMPO_ID,
-      expectedNo: PROPOSTA_EXPIRADA_BOTAO_RECUSAR_ID,
+    const id = await prepararParaAprovacao({
+      agente: 'automacao', phone: number, clientId: p.clientId, nome: p.contactName || null,
+      texto: msgPropostaExpirada(p.contactName),
+      contexto: `O prazo da proposta nº ${p.propostaId} acabou: 7 dias sem resposta do cliente. A proposta já foi marcada como expirada. A mensagem sai com os botões "Preciso de mais tempo" (estende o prazo uma única vez) e "Recusar".`,
+      envio: {
+        tipo: 'botoes',
+        botoes: [`Preciso de mais tempo|${PROPOSTA_EXPIRADA_BOTAO_MAIS_TEMPO_ID}`, `Recusar|${PROPOSTA_EXPIRADA_BOTAO_RECUSAR_ID}`],
+        pendencia: {
+          tipo: 'proposta_expirada', leadId: p.leadId, clientId: p.clientId, propostaId: p.propostaId,
+          expectedYes: PROPOSTA_EXPIRADA_BOTAO_MAIS_TEMPO_ID, expectedNo: PROPOSTA_EXPIRADA_BOTAO_RECUSAR_ID,
+        },
+      },
     });
-    return true;
+    return id != null;
   } catch (e: any) {
-    console.error(`[proposta ${p.propostaId}] falha ao enviar mensagem de expiração com botões:`, e?.message || e);
+    console.error(`[proposta ${p.propostaId}] falha ao preparar a mensagem de expiração:`, e?.message || e);
     return false;
   }
 }
@@ -144,9 +145,9 @@ export function msgPropostaRecusada(nome: string): string {
 }
 
 /**
- * Dispara o fluxo completo de "não fechamos dessa vez": mensagem calorosa
- * (msgPropostaRecusada) + pergunta de newsletter com botões Sim/Não,
- * gravando a pendência pro webhook casar a resposta depois. Compartilhado
+ * Prepara o fluxo completo de "não fechamos dessa vez" na fila de aprovação:
+ * mensagem calorosa (msgPropostaRecusada) + pergunta de newsletter com botões
+ * Sim/Não; a pendência para o webhook é gravada quando a mensagem aprovada sai. Compartilhado
  * entre 3 chamadores: PATCH /:id/status (recusa manual), o botão "Recusar"
  * da proposta expirada, e o fechamento definitivo da 2ª janela (cron) —
  * mesmo texto, mesma mecânica, sem duplicar em nenhum dos três.
@@ -155,25 +156,27 @@ export function msgPropostaRecusada(nome: string): string {
  */
 export async function dispararRecusaProposta(p: {
   propostaId: number | null; leadId: number | null; clientId: number | null; phone: string; contactName: string;
+  /** Por que a mensagem existe, para quem vai aprovar (ex.: "A Dra. marcou a proposta como recusada"). */
+  motivo?: string;
 }): Promise<boolean> {
   try {
     const number = digitsOf(p.phone);
-    await uazapi.sendMenu(number, 'button', msgPropostaRecusada(p.contactName), [
-      `Sim|${NEWSLETTER_BOTAO_SIM_ID}`,
-      `Não|${NEWSLETTER_BOTAO_NAO_ID}`,
-    ]);
-    await createPendingReply({
-      phone: number,
-      tipo: 'newsletter_opt_in',
-      leadId: p.leadId,
-      clientId: p.clientId,
-      propostaId: p.propostaId,
-      expectedYes: NEWSLETTER_BOTAO_SIM_ID,
-      expectedNo: NEWSLETTER_BOTAO_NAO_ID,
+    const id = await prepararParaAprovacao({
+      agente: 'automacao', phone: number, clientId: p.clientId, nome: p.contactName || null,
+      texto: msgPropostaRecusada(p.contactName),
+      contexto: `${p.motivo || 'A proposta não seguiu adiante'}${p.propostaId ? ` (proposta nº ${p.propostaId})` : ''}. Mensagem de despedida, com a pergunta da newsletter nos botões "Sim" e "Não".`,
+      envio: {
+        tipo: 'botoes',
+        botoes: [`Sim|${NEWSLETTER_BOTAO_SIM_ID}`, `Não|${NEWSLETTER_BOTAO_NAO_ID}`],
+        pendencia: {
+          tipo: 'newsletter_opt_in', leadId: p.leadId, clientId: p.clientId, propostaId: p.propostaId,
+          expectedYes: NEWSLETTER_BOTAO_SIM_ID, expectedNo: NEWSLETTER_BOTAO_NAO_ID,
+        },
+      },
     });
-    return true;
+    return id != null;
   } catch (e: any) {
-    console.error(`[proposta ${p.propostaId}] falha ao enviar mensagem de recusa/newsletter:`, e?.message || e);
+    console.error(`[proposta ${p.propostaId}] falha ao preparar a mensagem de recusa/newsletter:`, e?.message || e);
     return false;
   }
 }
@@ -192,6 +195,15 @@ export function msgLembreteNewsletterOptIn(nome: string): string {
 
 export function msgNewsletterRecusado(): string {
   return `Tudo bem, obrigada pelo retorno! Qualquer coisa, estamos à disposição.`;
+}
+
+/** Lembrete de 48h ou 5 dias vira rascunho para aprovar; "ok" = rascunho criado (o estágio não se repete). */
+async function prepararAcompanhamento(p: any, texto: string, contexto: string): Promise<boolean> {
+  const id = await prepararParaAprovacao({
+    agente: 'automacao', phone: digitsOf(p.phone), clientId: p.client_id ?? null, nome: p.contact_name || null,
+    texto, contexto: `${contexto} (proposta nº ${p.id})`,
+  }).catch(() => null);
+  return id != null;
 }
 
 export async function runPropostaFollowups(): Promise<{ enviados48h: number; enviados5d: number; enviados7d: number; backfill: number }> {
@@ -237,10 +249,10 @@ export async function runPropostaFollowups(): Promise<{ enviados48h: number; env
         enviados7d++;
       }
     } else if (!p.followup_5d_at && horasDesdeEnvio >= 5 * 24 && link) {
-      const ok = await sendText(digitsOf(p.phone), msg5d(p.contact_name, link), 'Automático — follow-up proposta 5 dias').catch(() => false);
+      const ok = await prepararAcompanhamento(p, msg5d(p.contact_name, link), 'Proposta enviada há 5 dias, ainda sem resposta e perto do vencimento (vence em 7 dias). Lembrete de acompanhamento com o link.');
       if (ok) { await db.query('UPDATE propostas SET followup_5d_at = NOW() WHERE id = ?', [p.id]); enviados5d++; }
     } else if (!p.followup_48h_at && horasDesdeEnvio >= 48 && link) {
-      const ok = await sendText(digitsOf(p.phone), msg48h(p.contact_name, link), 'Automático — follow-up proposta 48h').catch(() => false);
+      const ok = await prepararAcompanhamento(p, msg48h(p.contact_name, link), 'Proposta enviada há 2 dias, ainda sem resposta. Lembrete de acompanhamento com o link.');
       if (ok) { await db.query('UPDATE propostas SET followup_48h_at = NOW() WHERE id = ?', [p.id]); enviados48h++; }
     }
   }
@@ -276,6 +288,7 @@ export async function runFechamentoDefinitivoPropostas(): Promise<{ fechadas: nu
       await dispararRecusaProposta({
         propostaId: p.id, leadId: p.lead_id ?? null, clientId: p.client_id ?? null,
         phone: p.phone, contactName: p.contact_name,
+        motivo: 'O cliente pediu mais tempo, o prazo extra de 7 dias também acabou sem resposta e a proposta foi fechada como expirada',
       });
     }
     fechadas++;

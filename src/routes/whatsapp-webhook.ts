@@ -4,7 +4,7 @@ import { uazapi } from '../services/uazapiClient';
 import { classificarTipoDocumento, garantirMidiaTranscrita } from '../services/whatsappTranscricao';
 import { compararSeguro } from '../utils/crypto';
 import { emitWaUpdate } from '../services/waSocket';
-import { sendText } from '../services/uazapiInstance';
+import { prepararParaAprovacao } from '../services/aprovacaoMensagens';
 import {
   msgNewsletterConfirmado, msgNewsletterRecusado, msgPropostaMaisTempoConfirmado,
   msgPropostaMaisTempoJaUsada, concederExtensaoPrazo, dispararRecusaProposta,
@@ -329,7 +329,12 @@ async function processarRespostaNewsletter(pending: PendingReply, resposta: 'sim
       eventType: 'newsletter_optin', title: 'Cliente aceitou receber os informativos',
       description: `Confirmado por WhatsApp após recusa da proposta #${pending.proposta_id ?? '-'}`,
     });
-    await sendText(pending.phone, msgNewsletterConfirmado(''), 'Automático — confirmação newsletter').catch(() => {});
+    // A inscrição já está feita; a confirmação ao cliente vai para aprovar (20/10/2026).
+    await prepararParaAprovacao({
+      agente: 'automacao', phone: pending.phone, clientId: pending.client_id ?? null, nome: null,
+      texto: msgNewsletterConfirmado(''),
+      contexto: `O cliente respondeu "Sim" à pergunta da newsletter (proposta nº ${pending.proposta_id ?? '-'}) e já foi inscrito nos informativos. Confirmação para ele.`,
+    }).catch(() => null);
   } else {
     // Não cadastra nada — só audita, pra saber que a pessoa não teve
     // interesse e não repetir a pergunta (ver findOpenPendingReply/janela de 7 dias).
@@ -339,7 +344,11 @@ async function processarRespostaNewsletter(pending: PendingReply, resposta: 'sim
       eventType: 'newsletter_recusado', title: 'Cliente não quis receber os informativos',
       description: `Respondido por WhatsApp após recusa da proposta #${pending.proposta_id ?? '-'}`,
     });
-    await sendText(pending.phone, msgNewsletterRecusado(), 'Automático — recusa newsletter').catch(() => {});
+    await prepararParaAprovacao({
+      agente: 'automacao', phone: pending.phone, clientId: pending.client_id ?? null, nome: null,
+      texto: msgNewsletterRecusado(),
+      contexto: `O cliente respondeu "Não" à pergunta da newsletter (proposta nº ${pending.proposta_id ?? '-'}). Nada foi cadastrado. Agradecimento curto.`,
+    }).catch(() => null);
   }
 }
 
@@ -373,7 +382,13 @@ async function processarRespostaPropostaExpirada(pending: PendingReply, resposta
     const msg = concedeu
       ? msgPropostaMaisTempoConfirmado(prop.contact_name || '')
       : msgPropostaMaisTempoJaUsada(prop.contact_name || '');
-    await sendText(pending.phone, msg, 'Automático — resposta pedido de mais tempo').catch(() => {});
+    await prepararParaAprovacao({
+      agente: 'automacao', phone: pending.phone, clientId: pending.client_id ?? null, nome: prop.contact_name || null,
+      texto: msg,
+      contexto: concedeu
+        ? `O cliente clicou em "Preciso de mais tempo" na proposta nº ${pending.proposta_id}. O prazo já foi estendido (única vez, mais 7 dias). Confirmação para ele.`
+        : `O cliente clicou em "Preciso de mais tempo" na proposta nº ${pending.proposta_id}, mas a extensão já tinha sido usada. O prazo NÃO foi estendido.`,
+    }).catch(() => null);
   } else {
     await db.query("UPDATE propostas SET status = 'recusada' WHERE id = ?", [pending.proposta_id]);
     await logActivity({
@@ -386,6 +401,7 @@ async function processarRespostaPropostaExpirada(pending: PendingReply, resposta
     await dispararRecusaProposta({
       propostaId: pending.proposta_id, leadId: pending.lead_id, clientId: pending.client_id,
       phone: pending.phone, contactName: prop.contact_name || '',
+      motivo: 'O cliente clicou em "Recusar" na mensagem de proposta expirada, e a proposta foi marcada como recusada',
     });
   }
 }

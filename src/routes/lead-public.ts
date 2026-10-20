@@ -5,7 +5,7 @@ import { db } from '../config/database';
 import { normalizeChannel } from '../services/leadChannel';
 import { notifyNewLead } from '../services/leadAlert';
 import { sendEmail, layout } from '../services/EmailService';
-import { sendText } from '../services/uazapiInstance';
+import { prepararParaAprovacao } from '../services/aprovacaoMensagens';
 import { qualificarLead } from '../services/aiAssistant';
 
 const router = Router();
@@ -56,7 +56,11 @@ async function enviarEbook(campanha: string, nome: string, email: string | null,
       `Se não encontrar, dá uma olhada na caixa de spam/promoções. E se mesmo assim não chegar, é só pedir aqui que a gente reenvia na hora.`,
       `*Salve nosso contato* e conte com a gente sempre que precisar:\n• (44) 99101-1402\n• (27) 99515-1402\n• advogadaleticia.barros@gmail.com`,
     ].join('\n\n');
-    await sendText(digits, texto, 'Automático — envio de e-book').catch(() => {});
+    // O e-mail acima leva o material que a pessoa pediu; o aviso no WhatsApp vai para aprovar (20/10/2026).
+    await prepararParaAprovacao({
+      agente: 'automacao', phone: digits, clientId: null, nome: nome || null, texto,
+      contexto: `${nome || 'Uma pessoa'} pediu o "${info.titulo}" pelo formulário do site.${email ? ' O material já foi por e-mail.' : ' Ela não informou e-mail, então o material NÃO foi enviado.'} Aviso no WhatsApp.`,
+    }).catch(() => null);
   }
 }
 

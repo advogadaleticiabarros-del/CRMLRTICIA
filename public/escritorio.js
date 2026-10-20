@@ -763,7 +763,11 @@
         box().innerHTML = lista.map((r) => {
           const alertas = lerJson(r.alertas, []);
           const rafael = r.agente === 'negociador';
-          const NOMES = { atendente: '💬 Dra. Lívia', negociador: '🤝 Dr. Rafael', coletor: '📁 Dra. Camila', fechador: '✍️ Dr. Felipe', produtor: '📝 Dra. Bianca', analista: '🔎 Dra. Helena' };
+          const NOMES = { atendente: '💬 Dra. Lívia', negociador: '🤝 Dr. Rafael', coletor: '📁 Dra. Camila', fechador: '✍️ Dr. Felipe', produtor: '📝 Dra. Bianca', analista: '🔎 Dra. Helena', automacao: '⚙️ Automação do CRM' };
+          // Como a mensagem sai depois de aprovada (automações com botões ou PIX, desde 20/10/2026).
+          const envio = lerJson(r.envio, null);
+          const comoSai = envio?.tipo === 'botoes' ? `Sai com os botões: ${(envio.botoes || []).map((b) => esc(String(b).split('|')[0])).join(' · ')}`
+            : envio?.tipo === 'texto_pix' ? 'Sai com o botão de PIX da Dra.' : '';
           const ehContexto = r.intencao === 'aprovacao';
           const objecoes = lerJson(r.objecoes, []);
           return `<div class="pi-card" style="margin-bottom:10px" data-rasc="${r.id}">
@@ -772,9 +776,10 @@
             ${rafael ? `<p style="margin:0 0 6px;font-size:13px"><b>Proposta nº ${esc(r.proposta_id || '')}</b> · objeção: ${objecoes.map((o) => esc(OBJECAO_PT[o] || o)).join(', ') || '—'}</p>` : ''}
             ${rafael && r.encaminhar === 'dra' ? `<p style="margin:0 0 6px;color:#b45309;font-size:13px">💲 A Dra. foi avisada no WhatsApp: ${esc(r.motivo_urgencia || 'pediu outra condição')}</p>` : ''}
             ${r.urgente && r.motivo_urgencia ? `<p style="margin:0 0 6px;color:var(--red);font-size:13px">${esc(r.motivo_urgencia)}</p>` : ''}
-            <p style="margin:0 0 6px;font-size:13px;background:var(--bg);padding:8px;border-radius:8px">${ehContexto ? `<b>Por que esta mensagem:</b> ${esc(String(r.mensagem_cliente).replace(/^CONTEXTO:s*/, '').slice(0, 600))}` : `<b>Cliente:</b> ${esc(String(r.mensagem_cliente).slice(0, 600))}`}</p>
+            <p style="margin:0 0 6px;font-size:13px;background:var(--bg);padding:8px;border-radius:8px">${ehContexto ? `<b>Por que esta mensagem:</b> ${esc(String(r.mensagem_cliente).replace(/^CONTEXTO:\s*/, '').slice(0, 600))}` : `<b>Cliente:</b> ${esc(String(r.mensagem_cliente).slice(0, 600))}`}</p>
             ${alertas.length ? `<p style="margin:0 0 6px;color:#b45309;font-size:12.5px">⚠️ Confira antes de enviar: ${alertas.map(esc).join(', ')}</p>` : ''}
             <textarea rows="4" style="width:100%;font-family:inherit;font-size:13.5px">${esc(r.resposta)}</textarea>
+            ${comoSai ? `<p style="margin:4px 0 0;font-size:12.5px;color:var(--text-muted)">🔘 ${comoSai}</p>` : ''}
             <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
               <button type="button" class="btn-gold" data-enviar="${r.id}">📲 Enviar</button>
               <button type="button" class="btn-ghost" data-descartar="${r.id}">Descartar</button>

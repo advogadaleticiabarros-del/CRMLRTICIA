@@ -75,7 +75,9 @@ Mover um lead pra "Perdido" **exige** escolher um motivo de uma lista fixa (pre�
 
 ## Mensagem automática ao recusar/perder
 
-Mover um lead pra **"Proposta Recusada"** ou **"Perdido"** dispara, uma única vez, uma mensagem de despedida calorosa por WhatsApp (com pergunta sobre newsletter) — a mesma mensagem nos dois casos. Se havia uma proposta em aberto vinculada, ela também é marcada como recusada automaticamente, pra não ficar desalinhada com o funil. **Confirmado:** a mensagem só sai uma vez por movimentação — mover o lead de novo pra "Perdido" depois não reenvia (mas não há trava se alguém mover pra fora e pra dentro de novo manualmente, é best-effort).
+**Desde 20/10/2026 a mensagem não sai sozinha:** ela fica em Escritório virtual → "Mensagens para aprovar", com o motivo, e sai com os botões "Sim" e "Não" da newsletter quando alguém da equipe aprovar.
+
+Mover um lead pra **"Proposta Recusada"** ou **"Perdido"** prepara, uma única vez, uma mensagem de despedida calorosa por WhatsApp (com pergunta sobre newsletter) — a mesma mensagem nos dois casos. Se havia uma proposta em aberto vinculada, ela também é marcada como recusada automaticamente, pra não ficar desalinhada com o funil. **Confirmado:** a mensagem só sai uma vez por movimentação — mover o lead de novo pra "Perdido" depois não reenvia (mas não há trava se alguém mover pra fora e pra dentro de novo manualmente, é best-effort).
 
 ## Virar cliente
 
@@ -104,6 +106,7 @@ Cada lead pode ter propostas comerciais vinculadas (enviada, em negociação, ac
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 20/10/2026 | Claude | Despedida ao recusar ou perder o lead vai para "Mensagens para aprovar" (não sai mais sozinha) |
 | 16/10/2026 | Claude | Ficha automática: texto, fotos e PDFs de lead e cliente viram cadastro sozinhos (só o vazio; o resto vira pendência na Dra. Camila). Substitui a detecção que só rodava em "documentação pendente" e nunca disparou |
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Quadro Kanban corrigido: era grid de 5 colunas fixas, as 4 últimas etapas quebravam pra 2ª linha desalinhada — agora rola horizontalmente com setas de navegação (ver [Runbook](14-runbook.md)) |

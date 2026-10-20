@@ -1,4 +1,5 @@
 import { db } from '../config/database';
+import type { EnvioAprovado } from './envioAprovado';
 
 /**
  * Mensagem de agente para CLIENTE nunca sai sozinha.
@@ -15,11 +16,15 @@ import { db } from '../config/database';
 
 export const NOME_AGENTE: Record<string, string> = {
   atendente: 'Dra. Lívia', negociador: 'Dr. Rafael', coletor: 'Dra. Camila', fechador: 'Dr. Felipe', produtor: 'Dra. Bianca', analista: 'Dra. Helena',
+  // Automações antigas (acompanhamento de proposta, recusa, aceite, newsletter, e-book), desde 20/10/2026.
+  automacao: 'Automação do CRM',
 };
 
 export async function prepararParaAprovacao(d: {
   agente: keyof typeof NOME_AGENTE | string; phone: string; clientId?: number | null; nome: string | null;
   texto: string; contexto: string; area?: string | null;
+  /** Como sai depois de aprovada (botões, PIX). Sem isto, texto simples. */
+  envio?: EnvioAprovado;
 }): Promise<number | null> {
   // Não empilha a mesma mensagem duas vezes para a mesma pessoa.
   const [[igual]] = await db.query(
@@ -27,9 +32,10 @@ export async function prepararParaAprovacao(d: {
     [d.agente, d.phone, d.texto]).catch(() => [[null]]) as any;
   if (igual) return igual.id;
   const [ins] = await db.query(
-    `INSERT INTO atendente_rascunhos (agente, phone, client_id, nome, mensagem_cliente, resposta, intencao, area, urgente, alertas)
-     VALUES (?, ?, ?, ?, ?, ?, 'aprovacao', ?, 0, '[]')`,
-    [d.agente, d.phone, d.clientId ?? null, d.nome, `CONTEXTO: ${d.contexto}`.slice(0, 4000), d.texto.slice(0, 4000), d.area ?? null]) as any;
+    `INSERT INTO atendente_rascunhos (agente, phone, client_id, nome, mensagem_cliente, resposta, intencao, area, urgente, alertas, envio)
+     VALUES (?, ?, ?, ?, ?, ?, 'aprovacao', ?, 0, '[]', ?)`,
+    [d.agente, d.phone, d.clientId ?? null, d.nome, `CONTEXTO: ${d.contexto}`.slice(0, 4000), d.texto.slice(0, 4000), d.area ?? null,
+     d.envio && d.envio.tipo !== 'texto' ? JSON.stringify(d.envio) : null]) as any;
   const quem = NOME_AGENTE[d.agente] || 'Um agente';
   const [equipe] = await db.query("SELECT id FROM users WHERE role IN ('admin','advogado','staff') AND active = 1").catch(() => [[]]) as any;
   for (const u of equipe) {
