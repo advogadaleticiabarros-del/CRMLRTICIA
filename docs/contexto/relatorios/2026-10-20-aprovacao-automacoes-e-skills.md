@@ -25,6 +25,7 @@
 - `npm run build` sem erros e `npm run lint` com 0 erros.
 - `npm test`: 974 passaram, 0 falharam e 33 foram pulados (precisam de banco; rodam no CI).
 - Testes novos: `tests/envioAprovado.test.mjs` (unitário, com dependências falsas) e `tests/automacoesAprovacao.test.mjs` (com banco, só no CI). A trava `tests/semEnvioSemConsentimento.test.mjs` passou a vigiar as automações e o `sendMenu`.
+- **Deploy:** `757af50` e `b7f1d70` passaram pelo CI (testes com banco) e foram publicados. Em produção, conferido só por leitura: coluna `atendente_rascunhos.envio` existe (JSON), `uuid` 11.1.1, PM2 `crm-juridico` e `laya` online, e nenhum envio automático a cliente nos 30 minutos seguintes.
 - **Não verificado localmente:** o teste com banco e o envio real de botões pela Uazapi depois da aprovação. O CI cobre o primeiro; o segundo só se confirma na primeira aprovação real.
 
 ## Decisões e porquês
