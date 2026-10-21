@@ -15,7 +15,7 @@
     - A Vera confere as citações no parecer de revisão: existe, vigente e, pela IA, se o texto oficial sustenta a afirmação.
     - Teste real: a Vera pegou "prescrição de dez anos (art. 7º, XXIX, CF)".
   - **WhatsApp da Dra.:** "art 482 clt", "súmula 331 tst" e "lei 8213 art 42" respondem na hora com o texto oficial, sem IA.
-  - **Na VPS, após o deploy:** o 1º download e a indexação rodam sozinhos 3 minutos depois do boot, em processo separado (cerca de 10 a 20 minutos). Conferir em Escritório virtual → Dra. Júlia, ou em `/home/crmapp/leis`.
+  - **Na VPS (conferido em 21/10):** o 1º download e a indexação rodaram sozinhos depois do deploy, em cerca de 3 minutos. Resultado: 76.143 normas, índice de 708 MB, disco em 34%. Busca, conferência e resposta do WhatsApp foram testadas em produção.
 - **20/10:**
   - **Automações antigas a cliente agora pedem aprovação:** acompanhamento de 48 horas e 5 dias, expiração e recusa de proposta, newsletter, aceite com PIX e aviso do e-book. Ficam em Escritório virtual → "Mensagens para aprovar" como "⚙️ Automação do CRM", com o motivo, e saem com os botões ou o PIX originais. O que muda no sistema (status, prazo extra, inscrição) continua automático. Migration 166. Ver `docs/manual/03-whatsapp.md`.
   - **Produção sem vulnerabilidades:** `uuid` 11.1.1 forçada em `overrides` (as moderadas do `googleapis` e do `node-cron`).

@@ -39,7 +39,17 @@ A Jessica pediu "um novo módulo, um painel onde eu possa pesquisar leis", a par
   - a Dra. Vera apontou que o art. 7º, XXIX, da CF "não sustenta" a prescrição de dez anos plantada no teste;
   - a Dra. Júlia separou, para uma gestante terceirizada, ADCT art. 10, CLT arts. 391 e 477, Súmulas 244 e 331 do TST e a Lei 6.019.
 - **Tela vista no Edge** (computador e celular), num servidor de teste com a rota real e o acervo real: sem erro de JavaScript. Não foi testada com o CRM inteiro aqui, porque o MySQL local recusou a conexão; o teste de ponta a ponta do CI passou a abrir a tela.
-- **Na VPS:** Node 22.23 com `node:sqlite` e FTS5 testados, `git` instalado, 66 GB livres. **Não verificado ainda:** o 1º download e a indexação na VPS depois do deploy (ver Pendente).
+- **Na VPS:** Node 22.23 com `node:sqlite` e FTS5 testados, `git` instalado, 66 GB livres.
+- **CI e deploy:**
+  - commit `403d240` testado antes num branch: CI verde, com testes com MySQL e o teste de ponta a ponta abrindo a tela;
+  - depois na `main`: deploy com sucesso.
+- **Produção (VPS), conferido em 21/10:**
+  - **Atualização automática:** começou sozinha 3 minutos após o boot e terminou em cerca de 3 minutos (17:50 às 17:53 UTC).
+  - **Acervo:** 76.143 normas e 437.678 artigos e enunciados, com as regras da versão 4. O índice tem 708 MB e o clone, 892 MB. O disco ficou em 34%.
+  - **Buscas:** "art 482 clt", "estabilidade gestante" (Súmula 244 em 1º), "súmula 331 tst" e "lei 8213 art 42", de 2 a 33 ms.
+  - **Conferência:** art. 477, § 6º, da CLT e Súmula 331, IV, conferem; a OJ 88 da SDI-1 aparece como cancelada; o art. 999 da CLT, como inexistente.
+  - **WhatsApp:** a resposta a "art 482 clt" sai com o texto oficial.
+  - **Não verificado:** a tela aberta no navegador de produção e uma minuta real com a seção da Dra. Vera (depende da próxima intimação ou revisão).
 
 ## Decisões e porquês
 - **SQLite à parte, fora do MySQL e do backup:** o MEGA já lota em dezembro e o acervo se refaz do GitHub (decision log).
@@ -53,15 +63,13 @@ A Jessica pediu "um novo módulo, um painel onde eu possa pesquisar leis", a par
 - **`VERSAO_REGRAS`** (hoje 4): ao mudar as regras de leitura, a próxima atualização relê o acervo todo.
 
 ## Pendente
-- **Conferir na VPS, depois do deploy:**
-  - se `leis:atualizar` rodou: Escritório virtual → Dra. Júlia, ou `ls -la /home/crmapp/leis` e o log do PM2;
-  - se a tela abre com "76.142 normas".
+- **Abrir a tela em produção** e conferir que ela mostra "76.143 normas". O acervo da VPS já foi conferido por script.
 - **Fora do acervo:** jurisprudência de TRT17, TRF2 e TJES e leis do RJ. Precisaria de outra fonte; a decisão é da Dra. e da Jessica.
 - **Observar** as primeiras minutas e revisões reais com a seção "CONFERÊNCIA DAS CITAÇÕES".
 
 ## Próxima sessão
-1. Ver no PM2 o log do boot (`leis:atualizar`) e o tamanho de `/home/crmapp/leis/acervo.db`.
-2. Abrir a tela em produção e pesquisar "art 482 clt".
-3. Na primeira revisão real, ler a seção da Dra. Vera.
+1. Abrir a tela em produção e pesquisar "art 482 clt".
+2. Na primeira revisão real, ler a seção da Dra. Vera.
+3. No domingo, 26/10, conferir se a atualização semanal rodou (Escritório virtual → Dra. Júlia).
 
 Skills sugeridas: `diagnosing-bugs`, se a indexação na VPS falhar, e `tdd` para qualquer ajuste nas regras de citação (`tests/leisTexto.test.mjs`).

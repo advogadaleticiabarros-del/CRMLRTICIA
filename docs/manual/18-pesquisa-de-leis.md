@@ -78,7 +78,7 @@ Sem IA (sem cota ou fora do ar), a Dra. Júlia entrega só as citações do text
 - **Regras de leitura mudaram?** Suba `VERSAO_REGRAS` em `leisTexto.ts`; a próxima atualização relê o acervo todo.
 - **Trava:** `atualizando.lock` impede duas atualizações ao mesmo tempo (vale por 3 horas).
 - **Botão "Atualizar agora"** (só admin) na tela, ou `POST /api/leis/atualizar` com `{ "completo": true }` para conferir tudo.
-- **1ª indexação:** cerca de 7 minutos no computador de teste; na VPS, conte de 10 a 20 minutos.
+- **1ª indexação:** na VPS, em 21/10/2026, cerca de 3 minutos, entre baixar e indexar. O índice ficou com 708 MB e o clone com 892 MB.
 
 ## Onde fica
 
