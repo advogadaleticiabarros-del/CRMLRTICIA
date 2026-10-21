@@ -100,7 +100,7 @@ test('Peças em produção: quadro na tela, roda desce a coluna e arrastar na bo
   expect(medidas.larguraTotal, 'e rola para o lado').toBeGreaterThan(medidas.larguraQuadro);
 
   const lista = board.locator('.kf-cards[data-stage="em_analise"]');
-  const card = await board.locator('.kf-col[data-stage="em_analise"] .kf-card').nth(2).boundingBox();
+  const card = await board.locator('.kf-col[data-stage="em_analise"] .kf-card').first().boundingBox();
   await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
   await page.mouse.wheel(0, 400);
   await expect.poll(() => lista.evaluate((l) => l.scrollTop), { message: 'a roda desce os cards da coluna' }).toBeGreaterThan(0);
