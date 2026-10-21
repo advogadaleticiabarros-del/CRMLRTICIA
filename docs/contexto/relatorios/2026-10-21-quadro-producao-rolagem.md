@@ -32,6 +32,9 @@ A Jessica relatou: "a rolagem da tela de produção não está funcionando" e "p
 - **`min-width: 0` vale para todo o CRM:** é a correção de origem (qualquer tela larga esticava a página). Conferido em 12 telas.
 - **Altura da tela só na Produção:** Fases e Leads continuam como estavam, porque o relato foi sobre a Produção. No celular nada muda.
 - **Roda do mouse:** sobre uma coluna que rola, desce os cards; fora dela (títulos, área vazia), anda para o lado, como antes.
+- **O teste novo no CI pegou duas coisas que o teste local não pegou:**
+  - o que fica acima do quadro muda de tamanho depois que a tela abre. Agora um `ResizeObserver` nos elementos acima e `document.fonts.ready` recalculam a altura;
+  - a altura mínima de 420 px empurrava a barra lateral para fora da tela em notebook de 768 px com o aviso de procuração aberto. Caiu para 280 px.
 
 ## Pendente
 - A Dra. confirmar no uso real, depois do deploy. Pode ser preciso atualizar a página (Ctrl+F5).

@@ -6995,7 +6995,9 @@ function wireKanbanNav(boardId, opts = {}) {
     if (window.innerWidth <= 640) { wrap.classList.remove('altura-tela'); wrap.style.height = ''; return; }
     wrap.classList.add('altura-tela');
     const topoNaPagina = wrap.getBoundingClientRect().top + window.scrollY;
-    wrap.style.height = `${Math.max(420, window.innerHeight - topoNaPagina - 16)}px`;
+    // Mínimo de 280px (um card e meio): com 420px, notebook de 768px com o aviso
+    // de procuração aberto empurrava a barra lateral para fora da tela (visto no CI).
+    wrap.style.height = `${Math.max(280, window.innerHeight - topoNaPagina - 16)}px`;
   };
   window.addEventListener('resize', ajustarAltura);
   // Qualquer coisa acima do quadro que mude de tamanho depois (indicadores,
