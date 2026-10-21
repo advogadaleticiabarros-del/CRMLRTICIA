@@ -2687,90 +2687,161 @@ const ROUTES = {
     const STAGES = [['em_analise', 'Em análise'], ['separacao_documentos', 'Separação de docs'], ['criacao_inicial', 'Criação inicial'], ['revisao_inicial', 'Revisão inicial'], ['aguardando_protocolo', 'Aguardando protocolo'], ['protocolado', 'Protocolado'], ['concluido', 'Concluído'], ['recusado', 'Recusado']];
     const MOVABLE = STAGES.filter(([k]) => k !== 'recusado');
     const SLAMAX = 10;
+    let filtroAtivo = '';
+    let buscaTexto = '';
+    let semProcIds = new Set();
+
     page.innerHTML = `
-      <div class="page-header"><div><h2>Produção</h2><p class="sub">Esteira das peças · SLA ${SLAMAX} dias (produção total) · clique no card para abrir</p></div></div>
-      <div id="prod-kpis" class="kpi-grid"></div>
-      <div id="prod-procuracao"></div>
-      <div class="kanban-wrap">
-        <button type="button" class="kanban-nav kanban-nav-esq" title="Etapa anterior">${svgIcon('chevronLeft')}</button>
-        <div id="prod-board" class="kanban-fases"></div>
-        <button type="button" class="kanban-nav kanban-nav-dir" title="Próxima etapa">${svgIcon('chevronRight')}</button>
+      <div class="page-header"><div><h2>Produção</h2><p class="sub">Esteira das peças · SLA ${SLAMAX} dias · clique no card para abrir</p></div></div>
+      <div id="prod-wrap" style="border:1px solid var(--border);border-radius:14px;overflow:hidden;box-shadow:var(--shadow-sm)">
+        <div class="prod-cmd-bar">
+          <div class="prod-search">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+            <input type="text" id="prod-busca" placeholder="Buscar cliente ou processo...">
+          </div>
+          <div class="prod-filter-group">
+            <div class="prod-chip red" data-filtro="atrasados"><span class="dot"></span> Atrasados <span id="chip-atrasados">0</span></div>
+            <div class="prod-chip amber" data-filtro="pendencias"><span class="dot"></span> Pendências <span id="chip-pendencias">0</span></div>
+            <div class="prod-chip orange" data-filtro="sem-proc"><span class="dot"></span> S/ procuração <span id="chip-sem-proc">0</span></div>
+          </div>
+          <div class="prod-cmd-right">
+            <select class="prod-filter-btn" id="prod-filtro-parceria"><option value="">Todas as parcerias</option></select>
+            <select class="prod-filter-btn" id="prod-filtro-resp"><option value="">Todos os responsáveis</option></select>
+            <div class="prod-filter-btn" id="prod-toggle-arquivo" style="cursor:pointer">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h7l2 2h9v14H3z"/></svg>
+              Arquivo
+            </div>
+          </div>
+        </div>
+        <div class="prod-metrics" id="prod-metrics"></div>
+        <div class="kanban-wrap">
+          <button type="button" class="kanban-nav kanban-nav-esq" title="Etapa anterior">${svgIcon('chevronLeft')}</button>
+          <div id="prod-board" class="kanban-fases"></div>
+          <button type="button" class="kanban-nav kanban-nav-dir" title="Próxima etapa">${svgIcon('chevronRight')}</button>
+        </div>
       </div>`;
     const ajustarAlturaQuadro = wireKanbanNav('prod-board', { alturaTela: true });
-    // Alerta: casos ativos sem procuração no GED nem no contrato de origem
+
     api('/api/cases/sem-procuracao').then((sp) => {
-      if (!sp.length) return;
-      const box = $('#prod-procuracao');
-      if (!box) return;
-      setTimeout(ajustarAlturaQuadro, 0); // o aviso empurra o quadro para baixo
-      box.innerHTML = `<div style="border:1px solid var(--amber,#b8860b);background:#fff7e6;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
-        <span>⚠ <strong>${sp.length} caso(s) ativo(s) sem procuração</strong> registrada no GED nem no contrato</span>
-        <button class="btn-sm" id="ver-sem-proc">Ver lista</button></div>`;
-      $('#ver-sem-proc').onclick = () => {
-        openModal('Casos sem procuração', el(`<div>
-          <p style="font-size:13px;color:var(--text-muted);margin-bottom:10px">Sem procuração não se protocola. Anexe o documento no GED do caso (o nome do arquivo deve conter "procuração") ou gere pelo contrato.</p>
-          ${sp.map((x) => `<div class="mini-row" style="padding:7px 0"><span><strong>${esc(x.client_name || '—')}</strong><br><small style="color:var(--text-muted)">${esc(x.title || x.case_number || '')}</small></span><span class="badge">${esc(x.production_stage || '—')}</span></div>`).join('')}
-        </div>`));
-      };
+      semProcIds = new Set(sp.map((x) => x.id));
+      const el2 = document.getElementById('chip-sem-proc');
+      if (el2) el2.textContent = sp.length;
     }).catch(() => {});
+
     const esc2 = (s) => String(s || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-    const slaBadge = (r) => {
-      if (['protocolado', 'concluido'].includes(r.production_stage)) return `<span style="font-size:11px;font-weight:600;color:var(--green)">✓ concluído</span>`;
+
+    const slaCls = (r) => {
+      if (['protocolado', 'concluido'].includes(r.production_stage)) return 'done';
       const d = Number(r.sla_days) || 0;
-      const cor = d > SLAMAX ? 'var(--red)' : (d >= 7 ? 'var(--amber)' : 'var(--green)');
-      return `<span style="font-size:11px;font-weight:700;color:${cor}">${d}/${SLAMAX}d${d > SLAMAX ? ' · atrasado' : ''}</span>`;
+      return d > SLAMAX ? 'danger' : (d >= 7 ? 'warn' : 'ok');
     };
-    const labelsHtml = (r) => {
-      let labs = []; try { labs = Array.isArray(r.production_labels) ? r.production_labels : (r.production_labels ? JSON.parse(r.production_labels) : []); } catch {}
-      // Etiquetas do lado de FORA do card (acima), todas as incluídas.
-      return labs.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin:0 2px 5px">${labs.map((l) => `<span style="font-size:10px;font-weight:600;background:var(--gold-soft,#efe3c8);color:var(--navy);padding:2px 8px;border-radius:10px;box-shadow:0 1px 2px rgba(0,0,0,.08)">${esc2(l)}</span>`).join('')}</div>` : '';
+
+    const slaBadge = (r) => {
+      if (['protocolado', 'concluido'].includes(r.production_stage)) return `<span class="prod-sla ok">✓ concluído</span>`;
+      const d = Number(r.sla_days) || 0;
+      const cls = slaCls(r);
+      return `<span class="prod-sla ${cls}">${d}/${SLAMAX}d${d > SLAMAX ? ' · atrasado' : ''}</span>`;
     };
+
+    const indicatorsHtml = (r) => {
+      let h = '';
+      if (Number(r.pendencias)) h += `<span class="prod-pend-tag" title="${r.pendencias} pendência(s) — SLA pausado">⏸ ${r.pendencias}</span>`;
+      if (r.partner_name) h += `<span class="prod-partner-tag">${esc2(r.partner_name.length > 12 ? r.partner_name.slice(0, 10) + '…' : r.partner_name)}</span>`;
+      return h ? `<div class="prod-indicators">${h}</div>` : '';
+    };
+
+    const avgDias = (cards) => {
+      const vals = cards.map((r) => Number(r.sla_days) || 0).filter((d) => d > 0);
+      if (!vals.length) return '—';
+      return (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1) + 'd';
+    };
+
+    const mk = (cls, val) => `<span class="${cls}">${val}</span>`;
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.prod-menu-btn')) {
+        document.querySelectorAll('.prod-ctx-menu.open').forEach((m) => m.classList.remove('open'));
+      }
+    });
+
     const load = async () => {
-      const rows = await api('/api/cases/production-board').catch(() => []);
+      const [rows, dash] = await Promise.all([
+        api('/api/cases/production-board').catch(() => []),
+        api('/api/dashboards/producao').catch(() => ({ kpis: {} })),
+      ]);
+      const k = dash.kpis || {};
       const ativos = rows.filter((r) => !['protocolado', 'concluido', 'recusado'].includes(r.production_stage));
       const atrasados = ativos.filter((r) => Number(r.sla_days) > SLAMAX).length;
       const pend = rows.reduce((a, r) => a + Number(r.pendencias || 0), 0);
-      const recusados = rows.filter((r) => r.production_stage === 'recusado').length;
-      $('#prod-kpis').innerHTML = kpi('Em produção', ativos.length) + kpi(`Atrasados (>${SLAMAX}d)`, atrasados, atrasados ? 'red' : '') + kpi('Pendências', pend, pend ? 'amber' : '') + kpi('Recusados', recusados, recusados ? 'red' : '') + kpi('Total na esteira', rows.length);
-      ajustarAlturaQuadro(); // os indicadores acima mudam a posição do quadro
-      const by = {}; STAGES.forEach(([k]) => by[k] = []);
-      rows.forEach((r) => { (by[r.production_stage] || (by[r.production_stage] = [])).push(r); });
-      $('#prod-board').innerHTML = STAGES.map(([k, label]) => `
-        <div class="kf-col" data-stage="${k}">
-          <div class="kf-head">${label} <span class="kf-count">${by[k].length}</span></div>
-          <div class="kf-cards" data-stage="${k}">${by[k].map((r) => k === 'recusado' ? `
-            <div class="kf-card-wrap">
-              ${labelsHtml(r)}
+
+      const elAtr = document.getElementById('chip-atrasados');
+      const elPend = document.getElementById('chip-pendencias');
+      if (elAtr) elAtr.textContent = atrasados;
+      if (elPend) elPend.textContent = pend;
+
+      const avgAll = avgDias(ativos);
+      const mEl = document.getElementById('prod-metrics');
+      if (mEl) mEl.innerHTML = `
+        <div class="prod-metric">${mk('prod-metric-val', ativos.length) + mk('prod-metric-label', 'em produção')}</div>
+        <div class="prod-metric ok">${mk('prod-metric-val', avgAll) + mk('prod-metric-label', 'tempo médio')}</div>
+        <div class="prod-metric">${mk('prod-metric-val', k.protocolados_mes || 0) + mk('prod-metric-label', 'protocolados/mês')}</div>
+        <div class="prod-metric">${mk('prod-metric-val', k.concluidos || 0) + mk('prod-metric-label', 'concluídos')}</div>`;
+
+      const parcerias = new Map(); const resps = new Map();
+      rows.forEach((r) => {
+        if (r.partner_name) parcerias.set(r.partner_id, r.partner_name);
+        if (r.assignee_name) resps.set(r.assignee_name, r.assignee_name);
+      });
+      const selP = document.getElementById('prod-filtro-parceria');
+      const selR = document.getElementById('prod-filtro-resp');
+      if (selP && selP.options.length <= 1) {
+        parcerias.forEach((name, id) => { const o = document.createElement('option'); o.value = id; o.textContent = name; selP.appendChild(o); });
+      }
+      if (selR && selR.options.length <= 1) {
+        resps.forEach((name) => { const o = document.createElement('option'); o.value = name; o.textContent = name; selR.appendChild(o); });
+      }
+
+      ajustarAlturaQuadro();
+
+      const filtroP = selP?.value || '';
+      const filtroR = selR?.value || '';
+      const busca = buscaTexto.toLowerCase().trim();
+      const filteredRows = rows.filter((r) => {
+        if (filtroAtivo === 'atrasados' && (Number(r.sla_days) || 0) <= SLAMAX) return false;
+        if (filtroAtivo === 'pendencias' && !Number(r.pendencias)) return false;
+        if (filtroAtivo === 'sem-proc' && !semProcIds.has(r.id)) return false;
+        if (filtroP && String(r.partner_id) !== filtroP) return false;
+        if (filtroR && r.assignee_name !== filtroR) return false;
+        if (busca && !(r.client_name || '').toLowerCase().includes(busca) && !(r.title || '').toLowerCase().includes(busca) && !(r.case_number || '').toLowerCase().includes(busca)) return false;
+        return true;
+      });
+
+      const by = {}; STAGES.forEach(([sk]) => by[sk] = []);
+      filteredRows.forEach((r) => { (by[r.production_stage] || (by[r.production_stage] = [])).push(r); });
+
+      $('#prod-board').innerHTML = STAGES.map(([sk, label]) => `
+        <div class="kf-col" data-stage="${sk}">
+          <div class="kf-head">${label} <div class="prod-col-meta"><span class="prod-col-avg">~${avgDias(by[sk])}</span><span class="kf-count">${by[sk].length}</span></div></div>
+          <div class="kf-cards" data-stage="${sk}">${by[sk].map((r) => sk === 'recusado' ? `
             <div class="kf-card kf-card-locked" data-case="${r.id}" data-stage="${r.production_stage}">
-              <span style="font-size:11px;font-weight:700;color:var(--red,#c0392b)">Recusado${r.rejected_at ? ' · ' + fmtDate(r.rejected_at) : ''}</span>
+              <span style="font-size:12px;font-weight:700;color:var(--red,#c0392b)">Recusado${r.rejected_at ? ' · ' + fmtDate(r.rejected_at) : ''}</span>
               <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
               <small>${esc2(r.title) || r.case_number || 's/ número'}${r.legal_area ? ' · ' + r.legal_area : ''}</small>
-              <small style="color:var(--text-muted)">clique no card para ver o motivo</small>
               <div style="display:flex;gap:4px;align-items:center;margin-top:6px">
                 <button class="kf-revert btn-sm" data-id="${r.id}" style="flex:1">↩ Reverter recusa</button>
               </div>
-            </div>
             </div>` : `
-            <div class="kf-card-wrap">
-              ${labelsHtml(r)}
-            <div class="kf-card" draggable="true" data-case="${r.id}" data-stage="${r.production_stage}">
-              <div style="display:flex;justify-content:space-between;align-items:center;gap:6px">${slaBadge(r)}${Number(r.pendencias) ? `<span style="font-size:11px;color:var(--blue,#2f6fb0);font-weight:600" title="SLA pausado enquanto a pendência estiver aberta">⏸ Pausado · ⚠ ${r.pendencias}</span>` : ''}</div>
+            <div class="kf-card sla-${slaCls(r)}" draggable="true" data-case="${r.id}" data-stage="${r.production_stage}">
+              <div class="prod-card-top">${slaBadge(r)}${indicatorsHtml(r)}</div>
               <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
               <small>${esc2(r.title) || r.case_number || 's/ número'}${r.legal_area ? ' · ' + r.legal_area : ''}</small>
-              ${r.assignee_name ? `<small style="color:var(--text-muted)">resp.: ${esc2(r.assignee_name)}</small>` : ''}
-              ${r.production_obs ? `<div class="kf-obs" style="margin-top:5px;font-size:11px;color:var(--navy);background:#fff7e6;border-left:3px solid var(--gold,#c9a227);padding:4px 7px;border-radius:3px;white-space:pre-wrap">${esc2(r.production_obs)}</div>` : ''}
-              <div style="display:flex;gap:4px;align-items:center;margin-top:4px">
-                <select class="kf-move" data-id="${r.id}" title="Mover etapa" style="flex:1">${MOVABLE.map(([pk, pl]) => `<option value="${pk}" ${pk === r.production_stage ? 'selected' : ''}>${pl}</option>`).join('')}<option value="recusado">Recusar…</option></select>
-                <button class="kf-edit" data-id="${r.id}" data-title="${esc2(r.title || '')}" title="Editar a demanda (título)" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✎</button>
-                <button class="kf-obs-edit" data-id="${r.id}" data-obs="${esc2(r.production_obs || '')}" title="Observação do card" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">${svgIcon('note')}</button>
-                <button class="kf-dup" data-id="${r.id}" title="Duplicar demanda" style="background:none;border:1px solid var(--border);color:var(--text-muted);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">⧉</button>
-                <button class="kf-del" data-id="${r.id}" title="Apagar demanda" style="background:none;border:1px solid var(--red,#c0392b);color:var(--red,#c0392b);border-radius:4px;padding:2px 6px;cursor:pointer;font-size:12px;line-height:1.4;flex-shrink:0">✕</button>
+              <div class="prod-hover">
+                <span class="prod-resp">${r.assignee_name ? 'resp.: ' + esc2(r.assignee_name) : 'sem resp.'}</span>
+                <span class="prod-menu-btn" data-id="${r.id}" data-title="${esc2(r.title || '')}" data-obs="${esc2(r.production_obs || '')}" data-stage="${r.production_stage}">⋮</span>
               </div>
-            </div>
             </div>`).join('') || '<div class="kf-empty">solte um card aqui</div>'}</div>
         </div>`).join('');
 
-      // Modal de recusa: motivo obrigatório + observações opcionais. Trava o card.
       const openRejectModal = (caseId) => {
         const form = el(`<form class="form-grid">
           <p style="font-size:13px;color:var(--text-muted)">O caso vai para a coluna <strong>Recusado</strong> e fica travado — só volta usando "Reverter recusa".</p>
@@ -2783,16 +2854,15 @@ const ROUTES = {
           const reason = form.querySelector('[name=reason]').value.trim();
           const notes = form.querySelector('[name=notes]').value.trim();
           if (!reason) { toast('Informe o motivo da recusa', 'error'); return; }
-          const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Recusando…';
+          const btn2 = form.querySelector('button[type=submit]'); btn2.disabled = true; btn2.textContent = 'Recusando…';
           try {
             await api(`/api/cases/${caseId}/reject`, { method: 'POST', body: JSON.stringify({ reason, notes }) });
             closeModal(); toast('Caso recusado'); load();
-          } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = 'Recusar caso'; }
+          } catch (err) { toast(err.message, 'error'); btn2.disabled = false; btn2.textContent = 'Recusar caso'; }
         };
         openModal('Recusar caso', form);
       };
 
-      // Move uma etapa (para frente ou para trás) e registra cada movimento.
       const moveStage = async (caseId, stage, fromStage) => {
         if (!caseId || !stage || stage === fromStage) { load(); return; }
         if (stage === 'recusado') { openRejectModal(caseId); return; }
@@ -2811,21 +2881,84 @@ const ROUTES = {
           else toast('Movido · registrado');
           load();
         } catch (e) {
-          // NOVO: Tratamento de erro 400 — pendências abertas
           if (e.status === 400 && e.pendencias && Array.isArray(e.pendencias)) {
             toast(`Resolva as pendências abaixo antes de continuar:\n\n${e.pendencias.join('\n')}`, 'error');
-            return; // NÃO carrega; fica na tela atual
+            return;
           }
           toast(e.message, 'error');
           load();
         }
       };
 
-      // Seletor (alternativa ao arrastar — e funciona no celular)
-      $('#prod-board').querySelectorAll('.kf-move').forEach((el2) => el2.onclick = (e) => e.stopPropagation());
-      $('#prod-board').querySelectorAll('.kf-move').forEach((sel) => sel.onchange = () => moveStage(sel.dataset.id, sel.value, undefined));
+      // Menu de contexto (⋮)
+      $('#prod-board').querySelectorAll('.prod-menu-btn').forEach((btn) => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          document.querySelectorAll('.prod-ctx-menu.open').forEach((m) => m.classList.remove('open'));
+          const card = btn.closest('.kf-card');
+          let menu = card.querySelector('.prod-ctx-menu');
+          if (!menu) {
+            menu = document.createElement('div');
+            menu.className = 'prod-ctx-menu';
+            menu.innerHTML = `
+              <div class="prod-ctx-item" data-action="edit">✎ Editar demanda</div>
+              <div class="prod-ctx-item" data-action="obs">📝 Observação</div>
+              <div class="prod-ctx-item" data-action="dup">⧉ Duplicar</div>
+              <div class="prod-ctx-item" data-action="move">→ Mover para...</div>
+              <div class="prod-ctx-sep"></div>
+              <div class="prod-ctx-item danger" data-action="reject">⊘ Recusar</div>
+              <div class="prod-ctx-sep"></div>
+              <div class="prod-ctx-item danger" data-action="delete">✕ Apagar</div>`;
+            btn.style.position = 'relative';
+            btn.appendChild(menu);
 
-      // Botão reverter recusa (único jeito de sair da coluna "Recusado")
+            menu.querySelectorAll('.prod-ctx-item').forEach((item) => {
+              item.onclick = async (ev) => {
+                ev.stopPropagation();
+                menu.classList.remove('open');
+                const cId = btn.dataset.id;
+                switch (item.dataset.action) {
+                  case 'edit': {
+                    const novo = await uiPrompt('Editar a demanda (título do caso):', btn.dataset.title || '');
+                    if (novo === null) return;
+                    if (!novo.trim()) { toast('O título não pode ficar vazio', 'error'); return; }
+                    try { await api(`/api/cases/${cId}`, { method: 'PUT', body: JSON.stringify({ title: novo.trim() }) }); toast('Demanda atualizada'); load(); } catch (err) { toast(err.message || 'Erro ao editar', 'error'); }
+                    break;
+                  }
+                  case 'obs': {
+                    const nova = await uiPrompt('Observação do card (deixe vazio para remover):', btn.dataset.obs || '');
+                    if (nova === null) return;
+                    try { await api(`/api/cases/${cId}/production-meta`, { method: 'PATCH', body: JSON.stringify({ production_obs: nova }) }); toast(nova.trim() ? 'Observação salva' : 'Observação removida'); load(); } catch (err) { toast(err.message || 'Erro ao salvar', 'error'); }
+                    break;
+                  }
+                  case 'dup': {
+                    if (!await uiConfirm('Duplicar esta demanda? Uma cópia será criada na mesma etapa.')) return;
+                    try { await api(`/api/cases/${cId}/duplicate`, { method: 'POST', body: '{}' }); toast('Demanda duplicada'); load(); } catch (err) { toast(err.message || 'Erro ao duplicar', 'error'); }
+                    break;
+                  }
+                  case 'move': {
+                    const destino = await uiPrompt(`Mover para qual etapa?`);
+                    if (!destino) return;
+                    const found = MOVABLE.find(([mk2, ml]) => ml.toLowerCase() === destino.toLowerCase() || mk2 === destino);
+                    if (found) moveStage(cId, found[0], btn.dataset.stage);
+                    else toast('Etapa não encontrada', 'error');
+                    break;
+                  }
+                  case 'reject': openRejectModal(cId); break;
+                  case 'delete': {
+                    if (!await uiConfirm('Apagar esta demanda permanentemente?\nEsta ação não pode ser desfeita.')) return;
+                    try { await api(`/api/cases/${cId}`, { method: 'DELETE' }); toast('Demanda apagada'); load(); } catch (err) { toast(err.message || 'Erro ao apagar', 'error'); }
+                    break;
+                  }
+                }
+              };
+            });
+          }
+          menu.classList.toggle('open');
+        };
+      });
+
+      // Reverter recusa
       $('#prod-board').querySelectorAll('.kf-revert').forEach((btn) => {
         btn.onclick = async (e) => {
           e.stopPropagation();
@@ -2837,78 +2970,54 @@ const ROUTES = {
         };
       });
 
-      // Botão editar a demanda (título) — ex.: "empréstimo pessoal" → "empréstimo consignado"
-      $('#prod-board').querySelectorAll('.kf-edit').forEach((btn) => {
-        btn.onclick = async (e) => {
-          e.stopPropagation();
-          const novo = await uiPrompt('Editar a demanda (título do caso):', btn.dataset.title || '');
-          if (novo === null) return;
-          if (!novo.trim()) { toast('O título não pode ficar vazio', 'error'); return; }
-          try {
-            await api(`/api/cases/${btn.dataset.id}`, { method: 'PUT', body: JSON.stringify({ title: novo.trim() }) });
-            toast('Demanda atualizada');
-            load();
-          } catch (err) { toast(err.message || 'Erro ao editar', 'error'); }
-        };
-      });
-
-      // Botão duplicar demanda
-      $('#prod-board').querySelectorAll('.kf-dup').forEach((btn) => {
-        btn.onclick = async (e) => {
-          e.stopPropagation();
-          if (!await uiConfirm('Duplicar esta demanda? Uma cópia será criada na mesma etapa.')) return;
-          try {
-            await api(`/api/cases/${btn.dataset.id}/duplicate`, { method: 'POST', body: '{}' });
-            toast('Demanda duplicada');
-            load();
-          } catch (err) { toast(err.message || 'Erro ao duplicar', 'error'); }
-        };
-      });
-
-      // Botão observação do card (nota fixa na face do card)
-      $('#prod-board').querySelectorAll('.kf-obs-edit').forEach((btn) => {
-        btn.onclick = async (e) => {
-          e.stopPropagation();
-          const atual = btn.dataset.obs || '';
-          const nova = await uiPrompt('Observação do card (deixe vazio para remover):', atual);
-          if (nova === null) return; // cancelou
-          try {
-            await api(`/api/cases/${btn.dataset.id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ production_obs: nova }) });
-            toast(nova.trim() ? 'Observação salva' : 'Observação removida');
-            load();
-          } catch (err) { toast(err.message || 'Erro ao salvar observação', 'error'); }
-        };
-      });
-
-      // Botão apagar demanda
-      $('#prod-board').querySelectorAll('.kf-del').forEach((btn) => {
-        btn.onclick = async (e) => {
-          e.stopPropagation();
-          if (!await uiConfirm('Apagar esta demanda permanentemente?\nEsta ação não pode ser desfeita.')) return;
-          try {
-            await api(`/api/cases/${btn.dataset.id}`, { method: 'DELETE' });
-            toast('Demanda apagada');
-            load();
-          } catch (err) { toast(err.message || 'Erro ao apagar', 'error'); }
-        };
-      });
-
-      // Arrastar e soltar o card entre colunas (inclusive voltar de etapa)
-      $('#prod-board').querySelectorAll('.kf-card').forEach((card) => {
+      // Drag & drop
+      $('#prod-board').querySelectorAll('.kf-card[draggable]').forEach((card) => {
         card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', JSON.stringify({ id: card.dataset.case, from: card.dataset.stage })); card.style.opacity = '0.45'; });
         card.addEventListener('dragend', () => { card.style.opacity = ''; });
-        card.onclick = (e) => { if (e.target.closest('.kf-move') || e.target.closest('.kf-del') || e.target.closest('.kf-edit') || e.target.closest('.kf-dup') || e.target.closest('.kf-obs-edit')) return; caseDetail(card.dataset.case, load); };
+        card.onclick = (e) => { if (e.target.closest('.prod-menu-btn') || e.target.closest('.prod-ctx-menu') || e.target.closest('.kf-revert')) return; caseDetail(card.dataset.case, load); };
       });
       $('#prod-board').querySelectorAll('.kf-cards').forEach((zone) => {
         zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.outline = '2px dashed var(--gold)'; });
         zone.addEventListener('dragleave', () => { zone.style.outline = ''; });
         zone.addEventListener('drop', (e) => {
           e.preventDefault(); zone.style.outline = '';
-          let d = {}; try { d = JSON.parse(e.dataTransfer.getData('text/plain')); } catch {}
-          moveStage(d.id, zone.dataset.stage, d.from);
+          let d2 = {}; try { d2 = JSON.parse(e.dataTransfer.getData('text/plain')); } catch {}
+          moveStage(d2.id, zone.dataset.stage, d2.from);
         });
       });
     };
+
+    // Chips de filtro
+    page.querySelectorAll('.prod-chip').forEach((chip) => {
+      chip.onclick = () => {
+        const f = chip.dataset.filtro;
+        if (filtroAtivo === f) { filtroAtivo = ''; chip.classList.remove('active'); }
+        else { page.querySelectorAll('.prod-chip').forEach((c) => c.classList.remove('active')); filtroAtivo = f; chip.classList.add('active'); }
+        load();
+      };
+    });
+
+    // Busca com debounce
+    let buscaTimer;
+    const buscaInput = document.getElementById('prod-busca');
+    if (buscaInput) buscaInput.oninput = () => { clearTimeout(buscaTimer); buscaTimer = setTimeout(() => { buscaTexto = buscaInput.value; load(); }, 300); };
+
+    // Filtros de parceria e responsável
+    const selPInit = document.getElementById('prod-filtro-parceria');
+    const selRInit = document.getElementById('prod-filtro-resp');
+    if (selPInit) selPInit.onchange = () => load();
+    if (selRInit) selRInit.onchange = () => load();
+
+    // Toggle arquivo
+    let mostraArquivo = false;
+    const toggleArq = document.getElementById('prod-toggle-arquivo');
+    if (toggleArq) toggleArq.onclick = () => {
+      mostraArquivo = !mostraArquivo;
+      toggleArq.style.background = mostraArquivo ? 'var(--gold-soft, #efe3c8)' : '';
+      toggleArq.style.borderColor = mostraArquivo ? 'var(--gold, #c9a227)' : '';
+      toast(mostraArquivo ? 'Mostrando arquivo (protocolados + concluídos)' : 'Arquivo oculto');
+    };
+
     await load();
   },
 

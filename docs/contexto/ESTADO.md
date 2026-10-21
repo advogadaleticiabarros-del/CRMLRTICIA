@@ -2,9 +2,17 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 21/10/2026. Último commit: Pesquisa de Leis (acervo ctresb/leis, Dra. Júlia e Dra. Vera).
+**Última atualização:** 21/10/2026. Último commit: Redesign da tela de produção.
 
 ## Últimas entregas (mais recentes primeiro)
+- **21/10 (noite):** **Redesign completo da tela "Peças em produção"** — visual profissional sem aparência de IA.
+  - Barra de comandos reorganizada: busca isolada, chips de filtro (atrasados/pendências/sem procuração), dropdowns de parceria e responsável, toggle de arquivo.
+  - Métricas: em produção, tempo médio, protocolados/mês, concluídos (dados do dashboard).
+  - Cards: barra SLA horizontal no topo (substitui a aba lateral — principal sinal de IA removido), badge de dias, indicadores de pendência e parceiro, menu de contexto (⋮) com editar/obs/duplicar/mover/recusar/apagar.
+  - API ampliada: `partner_name` via LEFT JOIN na rota production-board.
+  - CSS: ~100 linhas novas, tema escuro, responsivo. JS: `producao()` reescrita (~340 linhas).
+  - Critiqued com skill impeccable (Assessment A + B); 48 problemas de contraste corrigidos.
+  - Lint ok, tsc ok, 1029 testes ok, 0 falhas.
 - **21/10 (fim do dia):** **Peças em produção: rolagem corrigida** (relato da Dra.: "preciso passar o card para a coluna ao lado sem precisar descer até o último card").
   - A página esticava com o quadro (`main.content` sem `min-width: 0`); por isso o quadro nunca rolava para o lado e as colunas da direita ficavam cortadas.
   - Agora o quadro ocupa a altura da tela, cada coluna rola por dentro, a roda do mouse desce os cards e arrastar até a borda leva à coluna seguinte.

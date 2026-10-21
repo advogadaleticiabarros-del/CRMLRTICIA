@@ -69,14 +69,17 @@ router.get('/production-board', async (_req: Request, res: Response) => {
     SELECT c.id, c.case_number, c.title, c.legal_area, c.production_stage,
            c.production_started_at, c.production_labels, c.production_obs,
            c.rejection_reason, c.rejection_notes, c.rejected_at, c.stage_before_rejection,
+           c.partner_id,
            ${slaDiasEfetivosSql('c.id', 'c.production_started_at')} AS sla_days,
            cl.name AS client_name,
            u.name  AS assignee_name,
+           p.name  AS partner_name,
            (SELECT COUNT(*) FROM production_notes pn
              WHERE pn.case_id = c.id AND pn.kind = 'pendencia' AND pn.resolved = 0) AS pendencias
       FROM cases c
       LEFT JOIN clients cl ON cl.id = c.client_id
       LEFT JOIN users   u  ON u.id  = c.production_assignee
+      LEFT JOIN partners p ON p.id  = c.partner_id
      WHERE c.production_stage IS NOT NULL
      ORDER BY c.production_started_at ASC
   `) as any;
