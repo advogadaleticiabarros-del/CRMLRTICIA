@@ -56,6 +56,18 @@ export function startCronJobs() {
     }, { silencioso: true });
   });
 
+  // ── Pesquisa de Leis: acervo público (github.com/ctresb/leis) num processo
+  // separado. No boot, baixa e indexa se ainda não existe (1ª vez); todo
+  // domingo às 5h15, traz o que mudou na semana e reindexa só isso.
+  setTimeout(async () => {
+    const { estadoAcervo, dispararAtualizacao } = await import('../services/leisServico');
+    const e = estadoAcervo();
+    if (!e.pronto && !e.atualizando) runJob('leis:atualizar', () => dispararAtualizacao());
+  }, 3 * 60 * 1000);
+  cron.schedule('15 5 * * 0', () => {
+    runJob('leis:atualizar', async () => (await import('../services/leisServico')).dispararAtualizacao());
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── Esteira comercial (escritório virtual), de hora em hora em horário
   // comercial. Cada passo tem trava em esteira_avisos: nada sai duas vezes.
   //  • Produtor de proposta: monta a proposta e pede aprovação à Dra.

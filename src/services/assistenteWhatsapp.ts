@@ -77,6 +77,8 @@ export interface AssistenteDeps {
   agora?: () => Date;
   /** Produtor de proposta: "aprovar 123" / "ajustar 123 …" / "recusar 123". null = não é comando de proposta. */
   comercial?: { comando(phone: string, texto: string): Promise<string | null> };
+  /** Pesquisa de Leis: "art 482 clt" → texto oficial. null = não é pedido de lei. */
+  leis?: { consultar(texto: string): Promise<string | null> };
 }
 
 /** Só o que mexe no financeiro pede "sim" antes. */
@@ -92,7 +94,8 @@ const AJUDA = 'Não entendi. 🙂 Posso, por exemplo:\n'
   + '• "paguei a conta de luz" · "recebi 500 da Fulana"\n'
   + '• *processo*, *andamento*, *telefone/CPF* e *documentos* de um cliente\n'
   + '• *agenda*, *prazos*, *a receber* e *contas que vencem*\n'
-  + '• *marcar compromisso*, *lembrete*, *tarefa*, *cadastrar cliente* e *mandar recado* a um cliente';
+  + '• *marcar compromisso*, *lembrete*, *tarefa*, *cadastrar cliente* e *mandar recado* a um cliente\n'
+  + '• *leis*: "art 482 clt", "súmula 331 tst", "lei 8213 art 42"';
 
 /** Resumo curto de uma pendência (lista quando há mais de uma esperando). */
 function resumoDe(p: any): string {
@@ -203,6 +206,11 @@ export function criarAssistente(deps: AssistenteDeps) {
 
     if (deps.comercial && msg && !(m.midia && !ehAudio(m.midia))) {
       const r = await deps.comercial.comando(m.phone, msg);
+      if (r) { await enviar(m.phone, r); return; }
+    }
+
+    if (deps.leis && msg && !(m.midia && !ehAudio(m.midia))) {
+      const r = await deps.leis.consultar(msg).catch(() => null);
       if (r) { await enviar(m.phone, r); return; }
     }
 

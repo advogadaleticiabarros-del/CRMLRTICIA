@@ -35,6 +35,17 @@ Mover para *Revisão inicial* continua revisando de novo (útil se você editou 
 
 Correção junto: o revisor escolhia "o documento de IA mais recente do caso" — e o próprio parecer é um documento de IA, então uma segunda revisão revisava o parecer. Agora documentos "Revisão da Petição…" são ignorados na escolha.
 
+## Leis conferidas na produção e na revisão (desde 21/10/2026)
+
+As peças agora usam o acervo de leis (ver [Pesquisa de Leis](18-pesquisa-de-leis.md)):
+- **Antes de redigir**, a **Dra. Júlia** entrega a quem redige só os artigos, súmulas e temas que existem, com o texto oficial e a fonte. Vale para a minuta do Enzo, a petição inicial, a análise do caso e o Assistente de IA (petição inicial, contestação e parecer). Citação fora da lista sai marcada **[conferir]**.
+- **Na revisão**, a **Dra. Vera** confere cada citação da peça. O parecer "Revisão da Petição" ganha a seção "CONFERÊNCIA DAS CITAÇÕES", e a nota da produção mostra "citações: X/Y conferem". Para cada citação:
+  - ✓ confere;
+  - ✗ revogada, ou artigo que não existe naquela norma;
+  - ? fora do acervo;
+  - ⚠ o texto oficial não sustenta, ou sustenta só em parte, o que a peça afirma (análise da IA com o texto ao lado).
+- A conferência também pode ser feita à mão: Pesquisa de Leis → Conferir citações.
+
 ## Contrato com mais de um contratante (desde 19/10/2026)
 
 Exemplo: o casal no mesmo processo. O contrato sai **em nome dos dois** e cada um tem **a própria procuração e a própria declaração de hipossuficiência**.
@@ -182,6 +193,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 21/10/2026 | Claude | Dra. Júlia (fundamentos conferidos no acervo de leis) na minuta, petição inicial, análise do caso e Assistente de IA; Dra. Vera (conferência das citações) no parecer de revisão |
 | 19/10/2026 | Claude | Opções do contrato: sem profissão/e-mail não informados (sem colchetes) e sem declaração de hipossuficiência |
 | 19/10/2026 | Claude | Contrato com mais de um contratante (ex.: casal), dados buscados na conversa, procuração e declaração individuais |
 | 14/10/2026 | Claude | Aviso de uso de IA (`AVISO_USO_IA`) nos 4 contratos padrão: trabalhista 14.4, pensão § 4º da cl. 13ª, genérico § único da cl. 8ª, menor § único da cl. 9ª |

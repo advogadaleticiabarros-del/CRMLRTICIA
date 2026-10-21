@@ -29,6 +29,8 @@ Consulte pra entender onde o sistema roda de verdade, como o deploy funciona, ou
   - **Alarme** `manutencao:disco` no CRM: todo dia às 8h05, avisa a partir de 85%.
   - **Histórico:** em 16/10 o cache tinha chegado a 55 GB. Ver o runbook, "disco do servidor cheio".
 
+- **Acervo de leis** (desde 21/10/2026): `/home/crmapp/leis/acervo` (cópia parcial do GitHub ctresb/leis, cerca de 120 MB do git e 400 MB de texto) e `/home/crmapp/leis/acervo.db` (índice SQLite, cerca de 0,7 GB). Fica fora do MySQL e fora do backup: refaz-se do GitHub. A atualização (domingo, 5h15) roda num processo Node separado do `crm-juridico`. Precisa de `git` na VPS e de Node 22.13 ou mais novo (`node:sqlite`). Ver [Pesquisa de Leis](18-pesquisa-de-leis.md).
+
 ## Portão de qualidade (CI), desde 16/10/2026
 
 Nada vai para a VPS sem passar pelo workflow **Testes** (`.github/workflows/ci.yml`). Ele roda num servidor descartável do GitHub, com um MySQL vazio só para o teste, nesta ordem:
@@ -113,6 +115,7 @@ Alguns dados sensíveis (tokens de integração) ficam cifrados no banco. Acesso
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 21/10/2026 | Claude | Acervo de leis na VPS (`/home/crmapp/leis`), fora do MySQL e do backup |
 | 20/10/2026 | Claude | `uuid` 11.1.1 forçada em `overrides`: produção sem vulnerabilidades |
 | 03/09/2026 | Claude | Criação do documento; registrado o desligamento do Railway e a migração definitiva pra VPS |
 | 07/10/2026 | Claude | Backup reforçado: tempo limite, conferência do arquivo, nova tentativa automática, vigia de horário perdido, aviso diário 20h30, histórico 30 dias + 12 meses, prova de restauração semanal, deploy espera o backup |

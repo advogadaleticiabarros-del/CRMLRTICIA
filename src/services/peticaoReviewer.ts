@@ -103,7 +103,7 @@ ${peticao.slice(0, 24000)}
 === FIM ===`;
 
 /** Monta o texto do documento de revisão (checklist + análise da IA). */
-function formatarRelatorio(checks: ChecagemEstrutural[], ia: string | null, iaErro: string | null): string {
+function formatarRelatorio(checks: ChecagemEstrutural[], ia: string | null, iaErro: string | null, citacoes: string | null = null): string {
   const ok = checks.filter((c) => c.ok).length;
   const criticas = checks.filter((c) => !c.ok && c.gravidade === 'alta');
   const linhas: string[] = [];
@@ -117,6 +117,10 @@ function formatarRelatorio(checks: ChecagemEstrutural[], ia: string | null, iaEr
   }
   linhas.push('─'.repeat(50));
   linhas.push('');
+  if (citacoes) {
+    linhas.push(citacoes);
+    linhas.push('');
+  }
   if (ia) {
     linhas.push('ANÁLISE DE MÉRITO (IA):');
     linhas.push('');
@@ -131,7 +135,7 @@ export interface ResultadoRevisao {
   ok: boolean;
   docId?: number;
   message?: string;
-  resumo?: { itens_ok: number; itens_verificados: number; pendencias_criticas: number; ia: boolean };
+  resumo?: { itens_ok: number; itens_verificados: number; pendencias_criticas: number; ia: boolean; citacoes?: { total: number; confere: number; problemas: number; sentido: number } };
 }
 
 /**
@@ -163,7 +167,12 @@ export async function revisarPeticaoDoCaso(caseId: number, actorId: number): Pro
     else iaErro = r.message || null;
   } catch (e: any) { iaErro = e?.message || 'falha na IA'; }
 
-  const relatorio = formatarRelatorio(checks, iaTexto, iaErro);
+  // Dra. Vera: cada lei, artigo, súmula, OJ e tema citados, conferidos no acervo de leis.
+  const vera = await import('./leisServico')
+    .then(async (m) => (m.estadoAcervo().pronto ? m.conferirPeca(String(peca.content)) : null))
+    .catch(() => null);
+
+  const relatorio = formatarRelatorio(checks, iaTexto, iaErro, vera?.relatorio || null);
   const itensOk = checks.filter((c) => c.ok).length;
   const criticas = checks.filter((c) => !c.ok && c.gravidade === 'alta').length;
 
@@ -185,6 +194,7 @@ export async function revisarPeticaoDoCaso(caseId: number, actorId: number): Pro
       [caseId, actorId,
        `Revisão automática da petição: ${itensOk}/${checks.length} itens estruturais OK` +
        (criticas ? ` · ${criticas} pendência(s) CRÍTICA(s)` : ' · sem pendências críticas') +
+       (vera?.contagem.total ? ` · citações: ${vera.contagem.confere}/${vera.contagem.total} conferem${vera.contagem.problemas ? ` (${vera.contagem.problemas} com problema)` : ''}${vera.contagem.sentido ? `, ${vera.contagem.sentido} a rever o sentido` : ''}` : '') +
        (iaTexto ? ' · análise de mérito no documento de revisão.' : ' · IA de mérito indisponível.')]
     );
   } catch { /* ok */ }
@@ -192,6 +202,6 @@ export async function revisarPeticaoDoCaso(caseId: number, actorId: number): Pro
   return {
     ok: true,
     docId: r.insertId,
-    resumo: { itens_ok: itensOk, itens_verificados: checks.length, pendencias_criticas: criticas, ia: !!iaTexto },
+    resumo: { itens_ok: itensOk, itens_verificados: checks.length, pendencias_criticas: criticas, ia: !!iaTexto, ...(vera ? { citacoes: vera.contagem } : {}) },
   };
 }

@@ -27,6 +27,7 @@ Consulte antes de mexer em qualquer integração externa, pra saber o que depend
 | **DataJud API Key** | Autenticação da consulta pública do CNJ | — (chave própria, ver variável `DATAJUD_API_KEY`) |
 | **Resend / SMTP (Gmail)** | Envio de e-mail (briefing, notificações) | Todo e-mail automático do sistema |
 | **GitHub** | Código-fonte + deploy automático (GitHub Actions) | Nenhum push novo chega em produção sem isso |
+| **Acervo de leis (github.com/ctresb/leis)** | Leis, súmulas, OJs e temas da Pesquisa de Leis, da Dra. Júlia e da Dra. Vera (repositório público, sem chave) | Só a atualização semanal; a busca continua com o acervo já baixado (ver [Pesquisa de Leis](18-pesquisa-de-leis.md)) |
 | **Hostinger VPS** | Onde o sistema roda de fato | Sistema inteiro fora do ar (ver [Onde tudo roda](13-infraestrutura.md)) |
 | **VAPID (push)** | Notificação push do navegador | Notificação push no navegador (o resto do sistema continua normal) |
 | **Laya** (modelo de decisão local, grátis) | Qualifica o possível cliente (área, urgência, valor) antes da IA paga. Endereço na variável `LAYA_URL` (ex.: `http://127.0.0.1:8765`), serviço `laya` no PM2 | Nada quebra: sem a Laya, a qualificação volta para a IA de sempre. No Escritório virtual ela aparece "desligada" |
@@ -89,6 +90,7 @@ Nunca no código-fonte nem no Git — só em variáveis de ambiente na VPS (`.en
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 21/10/2026 | Claude | Acervo de leis (github.com/ctresb/leis) como fonte da Pesquisa de Leis |
 | 04/09/2026 | Claude | Criação do documento |
 | 14/10/2026 | Claude | Agentes do agency-agents em `.claude/agents/` e codebase-memory-mcp no computador da Jessica |
 | 16/10/2026 | Claude | Ferramentas de qualidade (lint, testes com banco, ponta a ponta, mapa da API, auditoria de bibliotecas) e rastreador de erros próprio; nodemailer 10 |

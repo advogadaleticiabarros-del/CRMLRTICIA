@@ -36,7 +36,7 @@ test('login: senha errada não entra; senha certa entra', async ({ page }) => {
   await entrar(page);
 });
 
-const TELAS = ['hoje', 'dashboard', 'clients', 'leads', 'cases', 'propostas', 'agenda', 'financeiro', 'escritorio'];
+const TELAS = ['hoje', 'dashboard', 'clients', 'leads', 'cases', 'propostas', 'agenda', 'financeiro', 'escritorio', 'leis'];
 
 test('telas principais carregam de verdade, sem erro de JavaScript nem 5xx', async ({ page }) => {
   const erros = vigiar(page);

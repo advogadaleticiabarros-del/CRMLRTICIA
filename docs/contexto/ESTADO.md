@@ -2,9 +2,20 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 20/10/2026. Último commit: automações antigas a cliente passam pela aprovação.
+**Última atualização:** 21/10/2026. Último commit: Pesquisa de Leis (acervo ctresb/leis, Dra. Júlia e Dra. Vera).
 
 ## Últimas entregas (mais recentes primeiro)
+- **21/10:**
+  - **Pesquisa de Leis (menu novo):** acervo público github.com/ctresb/leis, com 76.142 normas: CF, leis e decretos federais (decretos de 1988 em diante), leis do ES, súmulas, OJs e temas do STF, STJ, TST e TNU, e atos do INSS e do MTE.
+    - **Busca:** por palavras ou citação ("art 482 clt"), com leitor da lei, cópia da citação e filtros.
+    - **Índice:** SQLite à parte, fora do MySQL e do backup. Atualiza aos domingos às 5h15 e no boot, se ainda não existe.
+    - Ver `docs/manual/18-pesquisa-de-leis.md`.
+  - **Dra. Júlia (pesquisa) e Dra. Vera (verificação) saíram de "em construção":**
+    - A Júlia entrega só os fundamentos que existem, com o texto oficial, ao Enzo, à petição inicial, à análise do caso e ao Assistente de IA.
+    - A Vera confere as citações no parecer de revisão: existe, vigente e, pela IA, se o texto oficial sustenta a afirmação.
+    - Teste real: a Vera pegou "prescrição de dez anos (art. 7º, XXIX, CF)".
+  - **WhatsApp da Dra.:** "art 482 clt", "súmula 331 tst" e "lei 8213 art 42" respondem na hora com o texto oficial, sem IA.
+  - **Na VPS, após o deploy:** o 1º download e a indexação rodam sozinhos 3 minutos depois do boot, em processo separado (cerca de 10 a 20 minutos). Conferir em Escritório virtual → Dra. Júlia, ou em `/home/crmapp/leis`.
 - **20/10:**
   - **Automações antigas a cliente agora pedem aprovação:** acompanhamento de 48 horas e 5 dias, expiração e recusa de proposta, newsletter, aceite com PIX e aviso do e-book. Ficam em Escritório virtual → "Mensagens para aprovar" como "⚙️ Automação do CRM", com o motivo, e saem com os botões ou o PIX originais. O que muda no sistema (status, prazo extra, inscrição) continua automático. Migration 166. Ver `docs/manual/03-whatsapp.md`.
   - **Produção sem vulnerabilidades:** `uuid` 11.1.1 forçada em `overrides` (as moderadas do `googleapis` e do `node-cron`).
@@ -141,7 +152,7 @@
 - **Escritório virtual, Fase 1 (em andamento).** Próximos passos:
   1. Secretária com aprovação por resposta no WhatsApp ("recorrer" / "não recorrer" vira tarefa e prazo).
   2. Prazo interno com escalonamento e Auditor de prazos.
-  3. Pesquisador e Verificador de jurisprudência.
+  3. ~~Pesquisador e Verificador~~ (feitos em 21/10 sobre o acervo de leis). Falta a jurisprudência dos TRTs, do TRF2 e do TJES, que o acervo não tem.
   4. Testador com casos reais anonimizados.
   - Observar as primeiras leituras reais de sentença e ajustar o prompt.
 - **Backup, antes de dezembro (prioridade):** o MEGA de 20 GB lota entre o fim de novembro e dezembro. Cada cópia tem 321 MB e cresce cerca de 130 MB por mês por causa da mídia do WhatsApp no banco. Saídas possíveis:

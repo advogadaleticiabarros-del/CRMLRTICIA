@@ -392,6 +392,7 @@ const ia = iaAssistente;
 const assistente = criarAssistente({
   repo, ia, enviar: enviarTexto,
   comercial: { comando: async (phone, texto) => (await import('./esteiraComercialServico')).comandoProposta(phone, texto) },
+  leis: { consultar: async (texto) => (await import('./leisServico')).consultaRapida(texto) },
 });
 
 async function carregarMidia(mediaId: number | null): Promise<Midia | undefined> {

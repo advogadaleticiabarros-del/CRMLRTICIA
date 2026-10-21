@@ -234,6 +234,12 @@ Pendências expiram em 48 h (tabela `assistente_pendencias`, migration 153). Um 
 - **Lembretes:** ficam em `assistente_lembretes` (migration 154). O cron `assistente:lembretes` roda a cada minuto.
 - **Testes:** `tests/assistenteAcoes.test.mjs`, `tests/assistenteBusca.test.mjs` e `tests/assistenteWhatsappAcoes.test.mjs`.
 
+**Consulta de leis (desde 21/10/2026):**
+- **Quando:** mensagem que começa com lei, art., artigo, súmula, OJ, tema ou o nome de um código (CLT, CF, CPC, CDC, ADCT, RPS, LOAS…). Exemplos: "art 482 clt", "súmula 331 tst", "lei 8213 art 42", "clt 477".
+- **Resposta:** na hora e sem IA, com o texto oficial do acervo da [Pesquisa de Leis](18-pesquisa-de-leis.md), a citação pronta e o link da fonte. Avisa se o artigo foi revogado ou se não existe.
+- **Se não entender a citação:** a mensagem segue para o assistente normal.
+- **Código:** `consultaRapida` em `leisPesquisa.ts`, ligada pela dependência `leis` do orquestrador. Teste em `tests/assistenteConsultaLei.test.mjs`.
+
 ## Dra. Lívia, a atendente (desde 15/10/2026, modo rascunho)
 
 **Quando entra:** quando chega mensagem de cliente ou de possível cliente no número do escritório. Ela espera 90 segundos, para juntar mensagens seguidas, e prepara **uma resposta em rascunho**.
@@ -310,6 +316,7 @@ Código: regras em `negociador.ts`, banco e envio em `negociadorServico.ts`. A c
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 21/10/2026 | Claude | Assistente responde consulta de lei ("art 482 clt") com o texto oficial, sem IA |
 | 20/10/2026 | Claude | Auto-envios ao contato (acompanhamento, expiração e recusa de proposta, newsletter, aceite com PIX, e-book) passam por "Mensagens para aprovar", com botões e PIX preservados |
 | 16/10/2026 | Claude | Lívia faz as perguntas sutis da qualificação em %; webhook e envio manual acionam o copiloto da Dra. (Dr. Otávio) |
 | 16/10/2026 | Claude | Dr. Rafael: resposta às objeções da proposta em modo rascunho, dentro da ética da OAB, com aviso à Dra. quando pedem desconto |

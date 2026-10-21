@@ -50,6 +50,7 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 15. [Onboarding](15-onboarding.md)
 16. [Ferramentas e acessos](16-ferramentas-acessos.md)
 17. [Decision Log](17-decision-log.md)
+18. [Pesquisa de Leis](18-pesquisa-de-leis.md)
 
 ## Escritório virtual e Métricas da IA (desde 14/10/2026)
 
@@ -81,6 +82,12 @@ Clicar no cartão abre o histórico do agente. Os números vêm de `metricasDosA
 - **Organizar o cofre:** links quebrados, títulos repetidos, notas soltas, sem etiqueta ou vazias, e o "Mapa do cofre.md" para baixar e colocar no Obsidian.
 
 Ele também repassa as teses da casa ao **Enzo** antes de cada minuta. A rotina `cerebro:indexar` (a cada 10 min) calcula o sentido de cada trecho para a busca. Código em `cerebro.ts` (regras), `cerebroServico.ts` e `routes/cerebro.ts`; tabelas `cerebro_notas` e `cerebro_trechos` (migration 157).
+
+**Dra. Júlia e Dra. Vera** (desde 21/10/2026; antes "em construção"), com o acervo de leis da tela **Pesquisa de Leis** (ver [18-pesquisa-de-leis](18-pesquisa-de-leis.md)):
+- **Dra. Júlia, pesquisa de leis e jurisprudência:**
+  - mantém o acervo atualizado (rotina `leis:atualizar`, domingo 5h15);
+  - antes de cada minuta, petição ou análise do caso, entrega ao redator só os artigos, súmulas e temas que existem, com o texto oficial.
+- **Dra. Vera, verificadora de citações:** separada de quem redige, confere na revisão cada citação da peça. Diz se a citação existe, se está em vigor e se o texto oficial sustenta o que a peça afirma.
 
 **Esteira comercial** (desde 14/10/2026), de hora em hora das 8h às 19h, com trava para nada sair duas vezes (`esteira_avisos`, migration 158):
 - **Dra. Bianca, produtora de propostas:**
@@ -240,6 +247,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 21/10/2026 | Claude | Pesquisa de Leis (bloco 18) e Dra. Júlia e Dra. Vera em funcionamento |
 | 16/10/2026 | Claude | Dr. Otávio (qualificação em % e copiloto da Dra. nas conversas, comando "montar proposta N") e tabela da OAB/RJ como parâmetro das propostas |
 | 16/10/2026 | Claude | Dr. Rafael (objeções à proposta, ética da OAB, modo rascunho) e Dra. Helena (análise crítica dos documentos contra a história contada) |
 | 15/10/2026 | Claude | Dra. Lívia (atendente, modo rascunho, tom de voz da Dra.) e sociedade dos agentes (conversas, reunião diária, memória, Mural) |

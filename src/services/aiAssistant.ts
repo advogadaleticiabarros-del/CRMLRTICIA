@@ -437,6 +437,10 @@ ${teor}`;
     const blocoCerebro = await import('./cerebroServico')
       .then((m) => m.contextoDoCerebro(`${suggestedType} ${teor}`, { cliente: client?.name || null, area: caseArea }, 'o Estagiário'))
       .catch(() => '');
+    // Dra. Júlia: artigos e súmulas que EXISTEM no acervo de leis, com o texto oficial.
+    const blocoLeis = await import('./leisServico')
+      .then((m) => m.fundamentosParaPeca(`${suggestedType}\n${teor}\n${contexto.slice(0, 2500)}`, { area: caseArea, tipo: suggestedType }, 'o Enzo'))
+      .catch(() => '');
     const minutaPrompt = `Você é advogado(a) brasileiro(a) redigindo uma peça para protocolo. Sua tarefa:
 1) Leia a intimação e os DOCUMENTOS DO PROCESSO abaixo.
 2) Identifique fatos relevantes, pedidos e fundamentos jurídicos aplicáveis.
@@ -445,7 +449,7 @@ REGRAS ANTI-INVENÇÃO (obrigatórias): use SOMENTE o que está no texto/autos. 
 
 Cliente: ${client?.name || '[cliente]'}${client?.cpf_cnpj ? ', CPF/CNPJ ' + client.cpf_cnpj : ''}
 Advogada subscritora: ${adv}
-${blocoModelo}${blocoCerebro}${contexto ? `\nDOCUMENTOS DO PROCESSO (contexto):\n${contexto}\n` : ''}
+${blocoModelo}${blocoCerebro}${blocoLeis}${contexto ? `\nDOCUMENTOS DO PROCESSO (contexto):\n${contexto}\n` : ''}
 INTIMAÇÃO A RESPONDER:
 ${teor}`;
     const minuta = await aiComplete(minutaPrompt, 'openai');

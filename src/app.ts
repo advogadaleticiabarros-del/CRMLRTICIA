@@ -28,6 +28,7 @@ import hojeRoutes from './routes/hoje';
 import escritorioRoutes from './routes/escritorio';
 import errosRoutes from './routes/erros';
 import cerebroRoutes from './routes/cerebro';
+import leisRoutes from './routes/leis';
 import atendenteRoutes from './routes/atendente';
 import intakeRoutes from './routes/intakes';
 import leadRoutes from './routes/leads';
@@ -183,6 +184,7 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.use('/api/escritorio',            authenticate, requireStaff, escritorioRoutes);
   app.use('/api/erros',                 authenticate, errosRoutes);
   app.use('/api/cerebro',               authenticate, requireStaff, cerebroRoutes);
+  app.use('/api/leis',                  authenticate, requireStaff, leisRoutes);
   app.use('/api/atendente',             authenticate, requireStaff, atendenteRoutes);
   app.use('/api/intakes',               authenticate, requireStaff, intakeRoutes);
   app.use('/api/leads',                 authenticate, requireStaff, leadRoutes);

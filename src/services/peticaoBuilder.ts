@@ -113,6 +113,10 @@ async function gatherContext(caseId: number): Promise<{ prompt: string; clientId
   // só lugar decide "qual peça do cofre casa com este caso".
   const melhor = await findPecaModelo(cs?.legal_area, `${cs?.title || ''} ${relato}`);
   const modeloTxt = melhor ? pecaModeloBloco(melhor) : '';
+  // Dra. Júlia: só artigos e súmulas que existem no acervo de leis, com o texto oficial.
+  const leisTxt = await import('./leisServico')
+    .then((m) => m.fundamentosParaPeca(`${cs?.title || ''}\n${relato}\n${docsTxt.slice(0, 2500)}`, { area: cs?.legal_area, tipo: 'Petição inicial' }, 'a petição inicial'))
+    .catch(() => '');
 
   const prompt = `Você é advogado(a) brasileiro(a), redator(a) de peças, minucioso(a). Redija uma PETIÇÃO INICIAL completa e profissional, pronta para revisão final, com base EXCLUSIVAMENTE no relato e nos documentos abaixo.
 
@@ -139,7 +143,7 @@ RELATO DO CASO:
 ${relato || '[Sem relato cadastrado — extrair dos documentos]'}
 
 DOCUMENTOS DO CASO (conteúdo extraído):
-${docsTxt || '[Nenhum documento com conteúdo extraído]'}${modeloTxt}`;
+${docsTxt || '[Nenhum documento com conteúdo extraído]'}${modeloTxt}${leisTxt}`;
 
   return { prompt, clientId, clientName: cl?.name || lead?.name || 'Cliente' };
 }
@@ -171,6 +175,9 @@ export async function analyzeCaseDrive(
   ) as any;
   const docsTxt = (docs || []).map((d: any) => `--- ${d.name} ---\n${String(d.content).slice(0, 4000)}`).join('\n\n').slice(0, 28000);
   const relato = cf.description || '';
+  const leisTxt = await import('./leisServico')
+    .then((m) => m.fundamentosParaPeca(`${cf.title || ''}\n${relato}\n${docsTxt.slice(0, 2500)}`, { area: cf.legal_area, tipo: 'Análise do caso para petição inicial' }, 'a análise do caso'))
+    .catch(() => '');
 
   const prompt = `Você é advogado(a) brasileiro(a) sênior, analista minucioso(a) de casos. Analise EXCLUSIVAMENTE o relato e os documentos abaixo e produza um RELATÓRIO ANALÍTICO organizado para embasar uma PETIÇÃO INICIAL de alto nível. NÃO invente fatos, datas, valores, nomes ou fundamentos. Onde faltar informação, escreva claramente "PENDENTE: ..." indicando o que obter.
 
@@ -210,7 +217,7 @@ RELATO DO CASO:
 ${relato || '[Sem relato cadastrado — extraia dos documentos o que for possível]'}
 
 DOCUMENTOS DO CASO (conteúdo extraído pela IA):
-${docsTxt || '[Nenhum documento com conteúdo lido — verifique o link da pasta do Drive e as permissões]'}`;
+${docsTxt || '[Nenhum documento com conteúdo lido — verifique o link da pasta do Drive e as permissões]'}${leisTxt}`;
 
   const out = await aiComplete(prompt, 'openai');
   if (!out.ok || !out.text) return { ok: false, imported, docsLidos: (docs || []).length, message: out.message || 'A IA não retornou a análise' };

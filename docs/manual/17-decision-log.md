@@ -200,6 +200,25 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Motivo:** a conversa real de 08/10 teve respostas erradas vindas da Groq. No teste de 09/10, a Groq bateu no limite gratuito por minuto depois de 7 perguntas seguidas (o prompt tem cerca de 3 mil tokens), e o Gemini estava sem cota. A Luna acertou o caso que faltava. O custo fica em torno de US$ 0,0006 por mensagem.
 **Alternativa considerada:** manter a Groq primeiro e só reduzir o prompt. Foi descartada porque o prompt longo, com exemplos, é justamente o que faz entender pedido escrito errado.
 
+### 21/10/2026 — Acervo de leis num índice SQLite à parte, fora do MySQL e do backup
+**Decisão:** o acervo (76 mil normas, 440 mil artigos) fica em `/home/crmapp/leis/acervo.db`, um SQLite com busca FTS5 (o `node:sqlite` embutido no Node, sem biblioteca nova). Não entra no MySQL nem no backup diário.
+**Motivo:**
+- o backup no MEGA já lota entre novembro e dezembro; meio GB a mais por cópia anteciparia isso;
+- o acervo é público e se refaz do GitHub em minutos, então não precisa de backup;
+- a busca sem acento, com ranking e trecho destacado, sai pronta no FTS5.
+**Alternativas consideradas:**
+- tabela FULLTEXT no MySQL: entraria no backup e a busca sem acento em português é pior;
+- Meilisearch ou Elasticsearch: mais um serviço rodando na VPS.
+
+### 21/10/2026 — A IA sugere a lei, mas só entra na peça o que existe no acervo
+**Decisão:** a Dra. Júlia pede à IA os dispositivos do caso e confere cada um no índice; o que não existe ou foi revogado é descartado antes de chegar a quem redige. A Dra. Vera, separada do redator, confere as citações da peça pronta por regra (existe, vigente, artigo certo). A IA só opina se o texto oficial sustenta a afirmação, e esse resultado aparece como "a rever", sem bloquear nada.
+**Motivo:** número de artigo ou súmula inventado pela IA é o erro mais grave numa peça. Com o texto oficial no prompt e a conferência depois, o erro deixa de passar em silêncio.
+**Alternativa considerada:** deixar a IA citar livremente e só avisar no fim. Foi descartada porque a revisão humana pega menos erro quando a peça já vem "convincente".
+
+### 21/10/2026 — Decretos federais só de 1988 em diante
+**Decisão:** dos 84 mil decretos federais do repositório, o CRM baixa só os de 1988 em diante, mais os regulamentos consolidados (RPS e outros).
+**Motivo:** as áreas do escritório (trabalhista, previdenciário, família e consumidor) quase nunca citam decreto anterior à Constituição. Os decretos-leis antigos que importam (CLT, CP, CPP, LINDB) estão em outra pasta, que vem inteira.
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.
@@ -216,6 +235,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 21/10/2026 | Claude | Acervo de leis em SQLite à parte; a IA sugere e o índice confere; decretos de 1988 em diante |
 | 20/10/2026 | Claude | Automações antigas a cliente passam pela aprovação (o que muda no sistema continua automático) |
 | 04/09/2026 | Claude | Criação do documento — 8 decisões registradas |
 | 23/09/2026 | Claude | Registrada decisão de não integrar o Laya (motor de decisão local) — custo de infraestrutura (serviço Python separado na VPS) maior que o ganho (velocidade que ninguém sente) frente ao Groq/Gemini já em uso |
@@ -228,6 +248,4 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | 07/10/2026 | Claude | Provisão de honorários = valor da causa × taxa de sucesso × % médio obtido × honorário do caso (30% ou a parte do escritório na parceria). Escolhida por usar só dados que o CRM já tem e ser explicável na própria tela; dativo e defesa ficam fora porque não seguem a lógica de êxito |
 
 ---
-◀ [Ferramentas e acessos](16-ferramentas-acessos.md) · [Visão geral](00-visao-geral.md)
-
-**Fim da documentação — 17 de 17 blocos completos.**
+◀ [Ferramentas e acessos](16-ferramentas-acessos.md) · [Visão geral](00-visao-geral.md) · Próximo: [Pesquisa de Leis](18-pesquisa-de-leis.md) ▶

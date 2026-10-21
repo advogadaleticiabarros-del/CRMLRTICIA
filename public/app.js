@@ -317,7 +317,7 @@ const NAV_LABELS = {
   hoje: 'Hoje', dashboard: 'Dashboard', clients: 'Clientes', leads: 'Possíveis clientes',
   propostas: 'Propostas', cases: 'Processos', prazos: 'Prazos e tarefas',
   agenda: 'Agenda', financeiro: 'Financeiro', controladoria: 'Rentabilidade e custos', correspondente: 'Correspondente',
-  documentos: 'Documentos', ia: 'Assistente de IA', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
+  documentos: 'Documentos', ia: 'Assistente de IA', leis: 'Pesquisa de Leis', config: 'Configurações', repasses: 'Meus Repasses', dativo: 'Dativo',
   contratos: 'Contratos', intakes: 'Novo atendimento', newsletter: 'Newsletter',
   monitor: 'Andamentos nos tribunais', fases: 'Fases dos processos', producao: 'Peças em produção', parcerias: 'Parcerias', advogados: 'Advogados/OAB', whatsapp: 'WhatsApp',
   escritorio: 'Escritório virtual',
@@ -329,10 +329,10 @@ const NAV_LABELS = {
 // controlando quem tem acesso: navForRole().includes('whatsapp') decide se
 // o botão aparece, e a rota #whatsapp continua existindo normalmente.
 const NAV_BY_ROLE = {
-  admin:      ['dashboard','hoje','escritorio','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
-  staff:      ['dashboard','hoje','escritorio','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
-  advogado:   ['dashboard','hoje','escritorio','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
-  estagiario: ['producao','cases','prazos','agenda'],
+  admin:      ['dashboard','hoje','escritorio','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','leis','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo','advogados','config'],
+  staff:      ['dashboard','hoje','escritorio','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','leis','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
+  advogado:   ['dashboard','hoje','escritorio','intakes','leads','newsletter','clients','propostas','contratos','documentos','ia','leis','cases','producao','parcerias','monitor','fases','prazos','agenda','financeiro','whatsapp','controladoria','correspondente','dativo'],
+  estagiario: ['producao','cases','leis','prazos','agenda'],
   parceiro:   ['cases','repasses','prazos','agenda'],
   cliente:    ['portal','portalFinanceiro'],
   parceiro_portal: ['ppcases','ppclients','ppupdates','ppagenda','ppfin'],
@@ -588,6 +588,7 @@ Object.assign(ICONS, {
   trash:       '<path d="M5 7h14M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M8 7l1 13h6l1-13"/>',
   camera:      '<path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/>',
   filter:      '<path d="M4 5h16M7 12h10M10 19h4"/>',
+  book:        '<path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7h6"/>',
   more:        '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>',
 });
 
@@ -602,7 +603,7 @@ const NAV_ICONS = {
   contratos: 'contract', documentos: 'docs', ia: 'ia', cases: 'briefcase', producao: 'kanban',
   parcerias: 'swap', monitor: 'activity', fases: 'branch', prazos: 'clock', agenda: 'calendar',
   financeiro: 'wallet', controladoria: 'pie', correspondente: 'pin', dativo: 'scale',
-  advogados: 'cap', config: 'gear', repasses: 'banknote', whatsapp: 'chat', escritorio: 'users',
+  advogados: 'cap', config: 'gear', repasses: 'banknote', whatsapp: 'chat', escritorio: 'users', leis: 'book',
   portal: 'folder', portalFinanceiro: 'banknote',
   ppcases: 'briefcase', ppclients: 'users', ppupdates: 'activity', ppagenda: 'clock', ppfin: 'wallet',
 };
@@ -1179,6 +1180,7 @@ const AJUDA_TELAS = {
   repasses: 'Valores que você tem a receber das parcerias.',
   controladoria: 'Quanto cada cliente e cada área dá de resultado, e os custos do escritório.',
   documentos: 'Todos os documentos do escritório: modelos, peças geradas e arquivos recebidos dos clientes.',
+  leis: 'Pesquise em leis, súmulas, OJs e temas pelo assunto ou pela citação (ex.: art 482 clt). Em Conferir citações, cole a peça para checar cada citação no texto oficial; em Fundamentos, descreva o caso para separar os artigos que se aplicam.',
   ia: 'Assistente de IA para gerar petições, pareceres e resumos a partir dos dados do cliente e do processo. Sempre revise antes de usar.',
   dashboard: 'Sua tela inicial: dinheiro a receber e a pagar, prazos críticos, intimações e movimentações a conferir, e a agenda do dia — clique em "Abrir" em cada bloco para resolver. As abas mostram os números por área.',
   newsletter: 'E-mails para a lista de contatos que aceitaram receber novidades.',

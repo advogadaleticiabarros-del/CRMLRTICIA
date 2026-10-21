@@ -176,6 +176,13 @@ router.post('/generate', async (req: Request, res: Response) => {
     prompt += `\n\nMODELO DO ESCRITÓRIO — "${modelo.name}" (SIGA fielmente esta estrutura, estilo e cláusulas; substitua os campos {{...}} e adapte ao caso concreto):\n${modelo.content}`;
   }
 
+  // Dra. Júlia: nas peças, junta os artigos e súmulas que existem no acervo de leis.
+  if (['peticao_inicial', 'contestacao', 'parecer'].includes(type)) {
+    const caso = Object.values(inputs || {}).map(String).join('\n');
+    const { fundamentosParaPeca } = await import('../services/leisServico');
+    prompt += await fundamentosParaPeca(caso, { area: proc?.legal_area || inputs?.area || null, tipo: tpl.label }, 'o Assistente de IA');
+  }
+
   // Tenta geração automática (grátis) se houver chave configurada.
   // Redação de peça → Gemini (com fallback no Groq).
   const auto = await autoGenerate(prompt, 'gemini');
