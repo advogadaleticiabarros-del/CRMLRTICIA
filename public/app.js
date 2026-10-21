@@ -6989,14 +6989,22 @@ function wireKanbanNav(boardId, opts = {}) {
   if (navEsq) navEsq.onclick = () => board.scrollBy({ left: -larguraColuna(), behavior: 'smooth' });
   if (navDir) navDir.onclick = () => board.scrollBy({ left: larguraColuna(), behavior: 'smooth' });
   if (!opts.alturaTela) return () => {};
+  let observador = null;
   const ajustarAltura = () => {
-    if (!wrap.isConnected) { window.removeEventListener('resize', ajustarAltura); return; }
+    if (!wrap.isConnected) { window.removeEventListener('resize', ajustarAltura); observador?.disconnect(); return; }
     if (window.innerWidth <= 640) { wrap.classList.remove('altura-tela'); wrap.style.height = ''; return; }
     wrap.classList.add('altura-tela');
     const topoNaPagina = wrap.getBoundingClientRect().top + window.scrollY;
     wrap.style.height = `${Math.max(420, window.innerHeight - topoNaPagina - 16)}px`;
   };
   window.addEventListener('resize', ajustarAltura);
+  // Qualquer coisa acima do quadro que mude de tamanho depois (indicadores,
+  // avisos, fontes que carregam tarde) empurra o quadro: recalcula sozinho.
+  if (window.ResizeObserver) {
+    observador = new ResizeObserver(() => ajustarAltura());
+    for (const irmao of wrap.parentElement.children) { if (irmao === wrap) break; observador.observe(irmao); }
+  }
+  document.fonts?.ready?.then(ajustarAltura);
   ajustarAltura();
   return ajustarAltura;
 }
