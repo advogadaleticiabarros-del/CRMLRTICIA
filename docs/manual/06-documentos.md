@@ -23,6 +23,12 @@ Pastas automáticas por cliente: contratos, procurações, documentos pessoais, 
 
 Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análise → Separação de docs → Criação inicial → Revisão inicial → Aguardando protocolo → Protocolado → **Concluído** (ou Recusado, que trava o card até reverter). SLA de 10 dias corridos, pausado automaticamente enquanto houver pendência aberta no card.
 
+**Mover o card (desde 21/10/2026):**
+- o quadro ocupa a altura da tela e cada coluna rola por dentro, então a barra lateral e as setas ficam sempre à vista;
+- a roda do mouse sobre uma coluna desce os cards; sobre o título das colunas, anda para o lado;
+- ao arrastar um card até a borda, o quadro anda sozinho para a coluna seguinte;
+- também dá para trocar a etapa pelo seletor do próprio card.
+
 **Importante — "Concluído" aqui não é o caso encerrado.** Significa só que a peça foi protocolada e o trabalho de produção daquela demanda terminou — o **caso em si continua ativo**, seguindo dali em diante pela esteira processual normal (acompanhamento de movimentação, prazos, audiências — ver [Processos e prazos](04-processos.md)), não pela esteira de produção. "Concluído"/"Protocolado" só tiram o card da contagem de "Em produção" e param o relógio do SLA de redação — não mudam o status do processo.
 
 ## Revisão automática da peça (desde 30/09/2026)
@@ -193,6 +199,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 21/10/2026 | Claude | Quadro de produção na altura da tela, com rolagem lateral, roda descendo a coluna e arraste até a borda (relato da Dra.) |
 | 21/10/2026 | Claude | Dra. Júlia (fundamentos conferidos no acervo de leis) na minuta, petição inicial, análise do caso e Assistente de IA; Dra. Vera (conferência das citações) no parecer de revisão |
 | 19/10/2026 | Claude | Opções do contrato: sem profissão/e-mail não informados (sem colchetes) e sem declaração de hipossuficiência |
 | 19/10/2026 | Claude | Contrato com mais de um contratante (ex.: casal), dados buscados na conversa, procuração e declaração individuais |

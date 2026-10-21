@@ -2696,12 +2696,13 @@ const ROUTES = {
         <div id="prod-board" class="kanban-fases"></div>
         <button type="button" class="kanban-nav kanban-nav-dir" title="Próxima etapa">${svgIcon('chevronRight')}</button>
       </div>`;
-    wireKanbanNav('prod-board');
+    const ajustarAlturaQuadro = wireKanbanNav('prod-board', { alturaTela: true });
     // Alerta: casos ativos sem procuração no GED nem no contrato de origem
     api('/api/cases/sem-procuracao').then((sp) => {
       if (!sp.length) return;
       const box = $('#prod-procuracao');
       if (!box) return;
+      setTimeout(ajustarAlturaQuadro, 0); // o aviso empurra o quadro para baixo
       box.innerHTML = `<div style="border:1px solid var(--amber,#b8860b);background:#fff7e6;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap">
         <span>⚠ <strong>${sp.length} caso(s) ativo(s) sem procuração</strong> registrada no GED nem no contrato</span>
         <button class="btn-sm" id="ver-sem-proc">Ver lista</button></div>`;
@@ -2731,6 +2732,7 @@ const ROUTES = {
       const pend = rows.reduce((a, r) => a + Number(r.pendencias || 0), 0);
       const recusados = rows.filter((r) => r.production_stage === 'recusado').length;
       $('#prod-kpis').innerHTML = kpi('Em produção', ativos.length) + kpi(`Atrasados (>${SLAMAX}d)`, atrasados, atrasados ? 'red' : '') + kpi('Pendências', pend, pend ? 'amber' : '') + kpi('Recusados', recusados, recusados ? 'red' : '') + kpi('Total na esteira', rows.length);
+      ajustarAlturaQuadro(); // os indicadores acima mudam a posição do quadro
       const by = {}; STAGES.forEach(([k]) => by[k] = []);
       rows.forEach((r) => { (by[r.production_stage] || (by[r.production_stage] = [])).push(r); });
       $('#prod-board').innerHTML = STAGES.map(([k, label]) => `
@@ -6953,20 +6955,50 @@ async function receitaDetail(id, onSave) {
 // (bug real reportado 04/09/2026 — ver docs/manual/14-runbook.md). Chamar
 // uma vez, logo depois de montar o HTML do quadro (o wrap com as setas não
 // é recriado a cada load(), só o conteúdo interno do board).
-function wireKanbanNav(boardId) {
+//
+// Desde 21/10/2026 (relato da Dra.: "preciso passar o card para a coluna ao
+// lado sem precisar descer até o último card"), com { alturaTela: true }:
+//  - o quadro ocupa a altura da tela e cada coluna rola por dentro, então a
+//    barra lateral fica sempre visível (antes ficava embaixo da coluna mais
+//    cheia);
+//  - a roda do mouse sobre uma lista de cards que rola desce os cards (antes
+//    toda roda virava deslize lateral e nada descia);
+//  - arrastando um card até a borda do quadro, ele anda para o lado sozinho.
+// Devolve ajustarAltura(), para chamar quando algo acima do quadro mudar.
+function wireKanbanNav(boardId, opts = {}) {
   const board = document.getElementById(boardId);
   const wrap = board?.closest('.kanban-wrap');
-  if (!board || !wrap) return;
+  if (!board || !wrap) return () => {};
   board.addEventListener('wheel', (e) => {
     if (e.deltaY === 0 || e.shiftKey) return;
+    const lista = e.target.closest('.kf-cards');
+    if (lista && lista.scrollHeight > lista.clientHeight + 1) return; // a coluna rola por dentro
+    if (board.scrollWidth <= board.clientWidth) return;
     e.preventDefault();
     board.scrollLeft += e.deltaY;
+  }, { passive: false });
+  // Arrastar um card perto da borda (ou em cima das setas) rola o quadro.
+  wrap.addEventListener('dragover', (e) => {
+    const r = board.getBoundingClientRect();
+    const passo = e.clientX > r.right - 90 ? 22 : e.clientX < r.left + 90 ? -22 : 0;
+    if (passo) board.scrollLeft += passo;
   });
   const larguraColuna = () => (board.querySelector('.kf-col, .kanban-col')?.offsetWidth || 240) + 12;
   const navEsq = wrap.querySelector('.kanban-nav-esq');
   const navDir = wrap.querySelector('.kanban-nav-dir');
   if (navEsq) navEsq.onclick = () => board.scrollBy({ left: -larguraColuna(), behavior: 'smooth' });
   if (navDir) navDir.onclick = () => board.scrollBy({ left: larguraColuna(), behavior: 'smooth' });
+  if (!opts.alturaTela) return () => {};
+  const ajustarAltura = () => {
+    if (!wrap.isConnected) { window.removeEventListener('resize', ajustarAltura); return; }
+    if (window.innerWidth <= 640) { wrap.classList.remove('altura-tela'); wrap.style.height = ''; return; }
+    wrap.classList.add('altura-tela');
+    const topoNaPagina = wrap.getBoundingClientRect().top + window.scrollY;
+    wrap.style.height = `${Math.max(420, window.innerHeight - topoNaPagina - 16)}px`;
+  };
+  window.addEventListener('resize', ajustarAltura);
+  ajustarAltura();
+  return ajustarAltura;
 }
 
 // Telas com abas (Documentos, Controladoria, Financeiro...) às vezes têm um

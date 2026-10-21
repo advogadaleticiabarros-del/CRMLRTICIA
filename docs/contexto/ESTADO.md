@@ -5,6 +5,10 @@
 **Última atualização:** 21/10/2026. Último commit: Pesquisa de Leis (acervo ctresb/leis, Dra. Júlia e Dra. Vera).
 
 ## Últimas entregas (mais recentes primeiro)
+- **21/10 (fim do dia):** **Peças em produção: rolagem corrigida** (relato da Dra.: "preciso passar o card para a coluna ao lado sem precisar descer até o último card").
+  - A página esticava com o quadro (`main.content` sem `min-width: 0`); por isso o quadro nunca rolava para o lado e as colunas da direita ficavam cortadas.
+  - Agora o quadro ocupa a altura da tela, cada coluna rola por dentro, a roda do mouse desce os cards e arrastar até a borda leva à coluna seguinte.
+  - Teste novo no CI (ponta a ponta). Ver o runbook.
 - **21/10:**
   - **Pesquisa de Leis (menu novo):** acervo público github.com/ctresb/leis, com 76.142 normas: CF, leis e decretos federais (decretos de 1988 em diante), leis do ES, súmulas, OJs e temas do STF, STJ, TST e TNU, e atos do INSS e do MTE.
     - **Busca:** por palavras ou citação ("art 482 clt"), com leitor da lei, cópia da citação e filtros.

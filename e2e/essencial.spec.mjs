@@ -71,6 +71,52 @@ test('página inicial: pesquisar o cliente e abrir tudo dele', async ({ page }) 
   expect(erros, erros.join('\n')).toEqual([]);
 });
 
+// Relato de 21/10/2026: "preciso passar o card para a coluna ao lado sem precisar
+// descer até o último card". O quadro esticava a página (main.content sem
+// min-width:0), nunca rolava para o lado e a roda do mouse não descia os cards.
+test('Peças em produção: quadro na tela, roda desce a coluna e arrastar na borda anda o quadro', async ({ page }) => {
+  const erros = vigiar(page);
+  const etapas = ['em_analise', 'separacao_documentos', 'criacao_inicial', 'revisao_inicial', 'aguardando_protocolo', 'protocolado', 'concluido'];
+  const linhas = [];
+  etapas.forEach((etapa, i) => {
+    for (let n = 0; n < (i === 0 ? 30 : 3); n++) linhas.push({ id: 9000 + linhas.length, production_stage: etapa, client_name: `Cliente Quadro ${linhas.length}`, title: 'Reclamação trabalhista', legal_area: 'trabalhista', sla_days: 1, pendencias: 0, production_labels: '[]' });
+  });
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.route('**/api/cases/production-board', (r) => r.fulfill({ json: linhas }));
+  // Soltar o card não pode mexer em caso de verdade no banco do CI.
+  await page.route('**/api/cases/*/production-stage', (r) => r.fulfill({ json: { success: true } }));
+  await entrar(page);
+  await page.evaluate(() => { location.hash = '#producao'; });
+  const board = page.locator('#prod-board');
+  await expect(board.locator('.kf-card').first()).toBeVisible({ timeout: 20_000 });
+  await page.waitForTimeout(300);
+
+  const medidas = await page.evaluate(() => {
+    const b = document.querySelector('#prod-board');
+    return { base: b.getBoundingClientRect().bottom, alturaTela: innerHeight, larguraQuadro: b.clientWidth, larguraTotal: b.scrollWidth, larguraPagina: document.documentElement.clientWidth };
+  });
+  expect(medidas.base, 'a barra lateral do quadro aparece sem descer a página').toBeLessThanOrEqual(medidas.alturaTela);
+  expect(medidas.larguraQuadro, 'o quadro cabe na tela').toBeLessThan(medidas.larguraPagina);
+  expect(medidas.larguraTotal, 'e rola para o lado').toBeGreaterThan(medidas.larguraQuadro);
+
+  const lista = board.locator('.kf-cards[data-stage="em_analise"]');
+  const card = await board.locator('.kf-col[data-stage="em_analise"] .kf-card').nth(2).boundingBox();
+  await page.mouse.move(card.x + card.width / 2, card.y + card.height / 2);
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => lista.evaluate((l) => l.scrollTop), { message: 'a roda desce os cards da coluna' }).toBeGreaterThan(0);
+
+  const caixa = await board.boundingBox();
+  const primeiro = await board.locator('.kf-col[data-stage="em_analise"] .kf-card').first().boundingBox();
+  await page.mouse.move(primeiro.x + 40, primeiro.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(primeiro.x + 60, primeiro.y + 30, { steps: 5 });
+  for (let i = 0; i < 25; i++) { await page.mouse.move(caixa.x + caixa.width - 30 + (i % 2), primeiro.y + 20, { steps: 2 }); await page.waitForTimeout(60); }
+  const rolou = await board.evaluate((b) => b.scrollLeft);
+  await page.mouse.up();
+  expect(rolou, 'arrastar o card até a borda leva o quadro para a coluna seguinte').toBeGreaterThan(0);
+  expect(erros, erros.join('\n')).toEqual([]);
+});
+
 test('cadastrar um cliente pela tela e ele aparecer na lista', async ({ page }) => {
   const erros = vigiar(page);
   await entrar(page);

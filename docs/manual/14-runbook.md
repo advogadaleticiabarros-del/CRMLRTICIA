@@ -653,6 +653,37 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 ---
 
+## Incidente: Peças em produção — não dava para levar o card à coluna ao lado sem descer até o último card (21/10/2026)
+
+**Sintoma:** relato da Dra.: "a rolagem da tela de produção não está funcionando", "preciso passar o card para a coluna ao lado sem precisar descer até o último card". Além disso:
+- a roda do mouse em cima do quadro não descia nada;
+- as colunas da direita e os indicadores do topo apareciam cortados.
+
+**Causa raiz (medida no navegador):**
+- `main.content` é item flex de `.app-view` e não tinha `min-width: 0`. Ele esticava até caber o quadro inteiro (8 colunas, cerca de 2.300 px), e o `body` cortava o excesso (`overflow-x: clip`).
+- Para o quadro, "cabia tudo", então ele nunca rolava para o lado. As setas e a roda não tinham o que rolar.
+- Junto disso:
+  - o quadro não tinha altura (as colunas cresciam com os cards);
+  - a roda do mouse sobre o quadro era sempre convertida em deslize lateral, com `preventDefault`;
+  - arrastar até a borda não empurrava o quadro.
+
+**Correção:**
+- `.content { min-width: 0; }` em `styles.css`.
+- `wireKanbanNav(id, { alturaTela: true })` no quadro de produção:
+  - o quadro ocupa a altura da tela, e cada coluna rola por dentro (classe `.altura-tela`);
+  - a roda sobre uma coluna que rola desce os cards;
+  - arrastar um card até 90 px da borda rola o quadro.
+- No celular (até 640 px) nada mudou.
+
+**Teste:** `e2e/essencial.spec.mjs`, "Peças em produção: quadro na tela…", com 52 cards fictícios. Ele mede três coisas:
+- a base do quadro fica dentro da tela;
+- a roda desce a coluna;
+- o arraste na borda rola o quadro.
+
+**Se voltar:** no console do navegador, compare `document.querySelector('main.content').clientWidth` com a largura da janela menos o menu. Se `main` estiver mais largo, algum item flex perdeu o `min-width: 0`.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -669,6 +700,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 21/10/2026 | Claude | +1 incidente: quadro de Peças em produção sem rolagem lateral (página esticava; `min-width: 0` em `.content`) |
 | 12/10/2026 | Claude | +1 incidente: prova de restauração do backup falhando (dump de 656 MB passou do limite de texto do Node) — restauração agora em fluxo |
 | 09/10/2026 | Claude | +2 incidentes: assistente respondendo errado/sem resposta; fechamento do dia com "Dra. Administrador" |
 | 07/10/2026 | Claude | +1 incidente: rodapé cobrindo o texto e assinatura partida na impressão |

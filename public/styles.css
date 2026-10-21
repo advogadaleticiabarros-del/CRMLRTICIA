@@ -179,6 +179,12 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: var(--g
 .bell:hover { background: rgba(255,255,255,.13); }
 .bell-count { background: var(--red); color: #fff; border-radius: 10px; padding: 1px 7px; font-size: 11px; font-weight: 700; }
 .content { margin-left: 260px; flex: 1; padding: 0 0 40px; min-height: 100vh; }
+/* min-width:0 (21/10/2026): item flex de .app-view; sem isso ele esticava até
+   caber o conteúdo mais largo (o quadro de Peças em produção, 8 colunas =
+   2.300px) e o body cortava o que passava da tela (overflow-x: clip). O
+   quadro achava que cabia tudo, então nunca rolava para o lado, e as colunas
+   da direita ficavam escondidas, assim como os indicadores do topo. */
+.content { min-width: 0; }
 .content > .page { padding: 28px 42px; max-width: 1200px; }
 /* A tela do WhatsApp (#wa-body) é chat de 3 colunas, não tabela/formulário —
    o teto de 1200px que serve bem o resto do CRM só sobra espaço perdido nas
@@ -618,6 +624,14 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
    só remover o teto artificial: cada coluna cresce com o conteúdo dela e
    a PÁGINA rola, igual o quadro de Leads já faz). */
 #fases-board .kf-cards, #prod-board .kf-cards { max-height: none; }
+/* Quadro na altura da tela (Peças em produção, desde 21/10/2026 — relato:
+   "preciso passar o card para a coluna ao lado sem precisar descer até o
+   último card"). A altura vem de wireKanbanNav(..., { alturaTela: true });
+   cada coluna rola por dentro e a barra lateral do quadro fica sempre à
+   vista. No celular (até 640px) a classe não entra e tudo segue como antes. */
+.kanban-wrap.altura-tela .kanban-fases { height: 100%; align-items: stretch; }
+.kanban-wrap.altura-tela .kf-col { min-height: 0; }
+.kanban-wrap.altura-tela .kf-cards { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
 /* Hover com "movimento" pedido: sobe, ganha sombra mais funda e um leve
    respiro (scale) — cubic-bezier com um tiquinho de overshoot pra parecer
    vivo, não só um translate linear. O anel dourado (box-shadow em vez de
