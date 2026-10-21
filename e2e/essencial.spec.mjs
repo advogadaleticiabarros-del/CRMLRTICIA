@@ -105,6 +105,7 @@ test('Peças em produção: quadro na tela, roda desce a coluna e arrastar na bo
   await page.mouse.wheel(0, 400);
   await expect.poll(() => lista.evaluate((l) => l.scrollTop), { message: 'a roda desce os cards da coluna' }).toBeGreaterThan(0);
 
+  await lista.evaluate((l) => { l.scrollTop = 0; }); // a roda desceu a coluna: volta o 1º card à vista
   const caixa = await board.boundingBox();
   const primeiro = await board.locator('.kf-col[data-stage="em_analise"] .kf-card').first().boundingBox();
   await page.mouse.move(primeiro.x + 40, primeiro.y + 20);
