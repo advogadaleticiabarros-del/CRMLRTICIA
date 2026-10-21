@@ -25,7 +25,7 @@ A Jessica relatou: "a rolagem da tela de produção não está funcionando" e "p
   Antes da correção: **vermelho**. Depois: **verde**.
 - **Doze telas em 1366, 1920 e 390 px:** a página cabe na janela e não há erro de JavaScript. As telas foram Dashboard, Hoje, Produção, Fases, Leads, Clientes, Processos, Financeiro, Agenda, Escritório, Leis e Documentos.
 - **Testes de tela:** os testes de `public` passaram, e o JavaScript do `app.js` é válido. Lint sem erros.
-- CI e deploy: ver o commit desta tarefa no `git log` (acompanhados na sessão).
+- **CI e deploy:** commits `304771d` a `e4e794d` testados num branch. O teste novo de ponta a ponta precisou de 3 ajustes (altura mínima e dois alvos do próprio teste), até ficar verde. Depois, na `main`, o deploy deu certo, e a produção já serve o `styles.css` e o `app.js` novos (conferido por download).
 - **Não verificado:** a tela em produção logada com os cards reais da Dra.
 
 ## Decisões e porquês
