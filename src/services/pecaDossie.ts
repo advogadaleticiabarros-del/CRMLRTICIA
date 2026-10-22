@@ -224,6 +224,8 @@ export interface DossieRedacao {
   ficha: FichaDeFatos; calculo: CalculoPeca; fontesTexto: string;
   escolha: Escolha; modelos: Array<{ titulo: string; conteudo: string | null }>; teses: Array<{ titulo: string; texto: string }>;
   fundamentos: string; relato: string;
+  /** Regras aprendidas com as correções da Dra. */
+  regras?: string[];
 }
 
 export function montarPromptRedacao(d: DossieRedacao): string {
@@ -240,7 +242,7 @@ REGRAS ANTI-INVENÇÃO (obrigatórias):
 - Cite leis e súmulas só da lista de FUNDAMENTOS VERIFICADOS ou das teses do escritório; qualquer outra citação vai marcada [conferir].
 - Siga a ESTRATÉGIA escolhida e use os MODELOS DO ESCRITÓRIO como referência de estrutura, teses e estilo — adapte aos fatos; nunca copie nomes, números ou valores do modelo.
 
-Estrutura: endereçamento ao juízo competente; qualificação do autor; qualificação do(s) réu(s); DOS FATOS (cronológico, cada fato com a prova que o sustenta, ex.: "conforme extrato do INSS anexo"); DO DIREITO (teses do escritório e fundamentos verificados); DOS CÁLCULOS; DA TUTELA DE URGÊNCIA (se cabível pelos fatos); DOS PEDIDOS (com os valores calculados); DAS PROVAS; DO VALOR DA CAUSA; fecho. Português jurídico formal.
+${d.regras?.length ? `REGRAS DO ESCRITÓRIO (aprendidas com as correções da advogada; valem acima do modelo):\n${d.regras.map((r) => `- ${r}`).join('\n')}\n\n` : ''}Estrutura: endereçamento ao juízo competente; qualificação do autor; qualificação do(s) réu(s); DOS FATOS (cronológico, cada fato com a prova que o sustenta, ex.: "conforme extrato do INSS anexo"); DO DIREITO (teses do escritório e fundamentos verificados); DOS CÁLCULOS; DA TUTELA DE URGÊNCIA (se cabível pelos fatos); DOS PEDIDOS (com os valores calculados); DAS PROVAS; DO VALOR DA CAUSA; fecho. Português jurídico formal.
 
 QUALIFICAÇÃO DO AUTOR (cadastro):
 ${d.qualificacao}

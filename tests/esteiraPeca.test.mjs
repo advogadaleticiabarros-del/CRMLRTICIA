@@ -274,6 +274,7 @@ function fakeDeps(over = {}) {
     modelos: async (t) => t.map((titulo) => ({ titulo, conteudo: 'TEXTO M1' })),
     teses: async (t) => t.map((titulo) => ({ titulo, texto: 'TEXTO TESE' })),
     fundamentos: async () => 'FUNDAMENTOS',
+    regras: async () => ['Ação bancária em Vitória: Vara Regional de Direito Bancário.'],
     ia: async (prompt, nivel) => {
       chamadas.push({ prompt, nivel });
       if (nivel === 'leitura') return { ok: true, text: '{"descontos":[{"competencia":"2022-01","valor":"100","contrato":"A","fonte":"doc-caso-1.pdf"}]}' };
@@ -301,6 +302,7 @@ test('produzirPeticao: lê as fontes dos casos juntos, calcula, escolhe o modelo
   assert.match(redacao.prompt, /R\$ 200,00/);
   assert.match(redacao.prompt, /TEXTO M1/);
   assert.match(redacao.prompt, /TEXTO TESE/);
+  assert.match(redacao.prompt, /REGRAS DO ESCRITÓRIO[\s\S]*Vara Regional de Direito Bancário/);
   assert.strictEqual(r.calculo.indebito.total.restituir, 200);
   assert.ok(r.conferencia.every((c) => c.presente));
   assert.match(r.dossie, /#2/);

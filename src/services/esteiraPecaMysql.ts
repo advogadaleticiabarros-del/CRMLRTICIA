@@ -195,8 +195,16 @@ async function fundamentos(texto: string, area: string | null) {
   return m.fundamentosParaPeca(texto, { area, tipo: 'Petição inicial' }, 'a petição inicial');
 }
 
+async function regras(area: string | null, caseIds: number[]) {
+  const [rows] = await db.query(
+    `SELECT regra FROM peca_licoes
+      WHERE (decisao = 'regra' AND area = ?) OR (decisao = 'caso' AND case_id IN (?))
+      ORDER BY id DESC LIMIT 40`, [area || '', caseIds.length ? caseIds : [0]]) as any;
+  return [...new Set(rows.map((r: any) => String(r.regra)))] as string[];
+}
+
 export const depsEsteiraMysql: DepsEsteira = {
-  caso, candidatosCorrelatos, fontes, catalogo, modelos, teses, fundamentos,
+  caso, candidatosCorrelatos, fontes, catalogo, modelos, teses, fundamentos, regras,
   ia: (prompt, nivel) => aiComplete(prompt, nivel === 'redacao' ? 'openai-alto' : nivel === 'leitura' ? 'openai-medio' : 'openai'),
   registrar: registrarAcaoAgente,
   hoje: () => new Date(),

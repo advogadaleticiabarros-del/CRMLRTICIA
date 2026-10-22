@@ -258,8 +258,10 @@ router.post('/:id/peticao-inicial', async (req: Request, res: Response) => {
 // ── PATCH /api/cases/:id/production-meta — etiquetas e responsável ───────────
 router.patch('/:id/production-meta', async (req: Request, res: Response) => {
   try {
-    const { labels, assignee, drive_folder_url, production_obs } = req.body;
+    const { labels, assignee, drive_folder_url, production_obs, client_message } = req.body;
     const sets: string[] = []; const params: any[] = [];
+    // Recado ao cliente (portal): a tela enviava, mas a rota não gravava (corrigido em 22/10/2026).
+    if (client_message !== undefined) { sets.push('client_message = ?'); params.push(client_message && String(client_message).trim() ? String(client_message).trim() : null); }
     if (labels !== undefined) { sets.push('production_labels = ?'); params.push(Array.isArray(labels) ? JSON.stringify(labels) : null); }
     if (assignee !== undefined) { sets.push('production_assignee = ?'); params.push(assignee || null); }
     if (drive_folder_url !== undefined) { sets.push('drive_folder_url = ?'); params.push(drive_folder_url ? String(drive_folder_url).trim() : null); }

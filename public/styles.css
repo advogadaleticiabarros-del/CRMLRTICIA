@@ -2403,3 +2403,205 @@ body.sidebar-collapsed .nav-group-title { visibility: hidden; height: 6px; paddi
 @media (max-width: 380px) {
   .topbar-actions #fullscreen-btn { display: none; }
 }
+
+/* ── Mesa do caso (produção) — public/mesa.js ─────────────────────────────
+   Tela cheia por cima do app e por baixo dos modais (camada 90 < 100), para
+   perguntas, confirmações e documentos abrirem por cima dela. */
+.mesa {
+  --mesa-pri: #1f3047; --mesa-pri-hover: #2a3f5f; --mesa-pri-txt: #fff;
+  --mesa-azul: #1d4f91; --mesa-azul-bg: #e6eefa; --mesa-laranja: #9a4a0b; --mesa-laranja-bg: #fdeedd;
+  --mesa-campo: #fbe7b5; --mesa-campo-txt: #5a3d06; --mesa-campo-linha: #e2b54f;
+  --mesa-mesa: #ece7dc;
+  position: fixed; inset: 0; z-index: 90; overflow: auto; overscroll-behavior: contain;
+  background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.45;
+  animation: mesa-entra .18s cubic-bezier(.2, .8, .2, 1);
+}
+[data-theme="escuro"] .mesa {
+  --mesa-pri: #e0c074; --mesa-pri-hover: #ecc869; --mesa-pri-txt: #1e1a14;
+  --mesa-azul: #9cc0f2; --mesa-azul-bg: rgba(29,79,145,.28); --mesa-laranja: #f2b27a; --mesa-laranja-bg: rgba(154,74,11,.28);
+  --mesa-mesa: #0f0d0a;
+}
+@keyframes mesa-entra { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .mesa { animation: none; } }
+body.mesa-aberta { overflow: hidden; }
+.mesa:focus { outline: none; }
+.mesa ::selection { background: #ecd9ad; color: #221d16; }
+.mesa button { font-family: inherit; }
+.mesa :is(button, a, input, select, textarea):focus-visible, .mesa-papel:focus-visible { outline: 2px solid var(--mesa-azul); outline-offset: 2px; }
+.mesa-carregando { display: flex; align-items: center; justify-content: center; gap: 12px; min-height: 160px; color: var(--text-muted); }
+.mesa > .mesa-carregando { min-height: 100vh; }
+
+.mesa-topo { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; padding: 12px max(16px, 24px); background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 2; }
+.mesa-voltar { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 12px 0 8px; border: none; border-radius: 9px; background: none; color: var(--text-soft); font-size: 13px; font-weight: 500; cursor: pointer; }
+.mesa-voltar:hover { background: var(--surface-2); color: var(--text); }
+.mesa-quem { flex: 1 1 320px; min-width: 0; }
+.mesa-quem h1 { margin: 0; font-size: 19px; font-weight: 700; letter-spacing: -.02em; color: var(--navy-deep); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mesa-quem p { margin: 2px 0 0; font-size: 13px; color: var(--text-muted); }
+.mesa-prazo { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-soft); }
+.mesa-prazo b { color: var(--text); font-variant-numeric: tabular-nums; }
+.mesa-sla { width: 84px; height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; }
+.mesa-sla span { display: block; height: 100%; background: var(--gold); }
+.mesa-prazo.estourou b { color: var(--red); }
+.mesa-prazo.estourou .mesa-sla span { background: var(--red); }
+
+.mesa-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 40px; padding: 0 16px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; transition: background .15s, border-color .15s, color .15s; white-space: nowrap; }
+.mesa-btn:hover { background: var(--surface-2); border-color: var(--text-muted); }
+.mesa-btn:disabled { opacity: .55; cursor: not-allowed; }
+.mesa-btn-sm { min-height: 34px; padding: 0 11px; font-size: 12.5px; font-weight: 500; border-radius: 8px; }
+.mesa-btn-pri { background: var(--mesa-pri); border-color: var(--mesa-pri); color: var(--mesa-pri-txt); }
+.mesa-btn-pri:hover { background: var(--mesa-pri-hover); border-color: var(--mesa-pri-hover); }
+.mesa-perigo { color: var(--red); }
+.mesa-perigo:hover { border-color: var(--red); }
+.mesa-ligado { color: var(--green); border-color: var(--green); }
+
+.mesa-jornada { display: flex; flex-wrap: wrap; gap: 6px 28px; padding: 12px 24px 0; background: var(--surface); }
+.mesa-fase { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.mesa-fase-nome, .mesa-rotulo, .mesa-bloco h2, .mesa-dia, .mesa-campo-rot { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.mesa-fase-passos { display: flex; flex-wrap: wrap; gap: 2px; }
+.mesa-passo { display: inline-flex; align-items: center; gap: 7px; min-height: 40px; padding: 6px 11px 8px; border: none; border-bottom: 3px solid var(--border); background: none; color: var(--text-muted); font-size: 13px; cursor: pointer; border-radius: 8px 8px 0 0; }
+.mesa-passo:hover { color: var(--text); background: var(--surface-2); }
+.mesa-passo .n { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 50%; background: var(--border-soft); color: var(--text-muted); font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.mesa-passo .n svg { width: 12px; height: 12px; }
+.mesa-passo.feito { color: var(--text-soft); border-bottom-color: var(--green); }
+.mesa-passo.feito .n { background: var(--green-bg); color: var(--green); }
+.mesa-passo.atual { color: var(--navy-deep); font-weight: 600; border-bottom-color: var(--gold); }
+.mesa-passo.atual .n { background: var(--mesa-pri); color: var(--mesa-pri-txt); }
+.mesa-passo.vendo { background: var(--surface-2); }
+
+.mesa-agora { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 12px 32px; padding: 14px 24px; background: var(--surface-2); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.mesa-agora-txt { flex: 1 1 420px; min-width: 0; }
+.mesa-agora-txt strong { display: block; font-size: 13px; color: var(--navy-deep); }
+.mesa-agora-txt p { margin: 3px 0 0; color: var(--text-soft); font-size: 13.5px; max-width: 80ch; }
+.mesa-recusado { color: var(--red) !important; }
+.mesa-pronto { display: flex; flex-direction: column; gap: 5px; font-size: 12.5px; }
+.mesa-crit { display: inline-flex; align-items: center; gap: 7px; color: var(--text-soft); }
+.mesa-crit svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.mesa-crit.ok { color: var(--green); }
+
+.mesa-corpo { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px; padding: 18px 24px 48px; }
+.mesa-rail { flex: 1 1 250px; max-width: 300px; min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.mesa-rail-dir { max-width: 320px; }
+.mesa-centro { flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; box-shadow: 0 1px 2px rgba(31,48,71,.05), 0 10px 28px -18px rgba(31,48,71,.22); }
+.mesa-bloco { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 4px; }
+.mesa-bloco h2 { margin: 0 0 6px; }
+.mesa-parte { font-size: 13px; padding: 3px 0; }
+.mesa-parte small { display: block; color: var(--text-muted); font-size: 12px; }
+.mesa-linha { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; font-size: 13px; }
+.mesa-linha span { color: var(--text-muted); }
+.mesa-linha b { font-weight: 600; text-align: right; font-variant-numeric: tabular-nums; }
+.mesa-linha b.mesa-alerta { color: var(--red); }
+.mesa-acoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.mesa-vazio { margin: 2px 0; color: var(--text-muted); font-size: 13px; }
+.mesa-dica { margin: 6px 0 0; color: var(--text-muted); font-size: 12px; }
+.mesa-prog { height: 6px; border-radius: 3px; background: var(--border-soft); overflow: hidden; margin: 2px 0 4px; }
+.mesa-prog span { display: block; height: 100%; background: var(--green); }
+.mesa-ck { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 6px 4px; border: none; border-radius: 6px; background: none; color: var(--text-soft); font-size: 13px; text-align: left; cursor: pointer; min-height: 32px; }
+.mesa-ck:hover:not(:disabled) { background: var(--surface-2); }
+.mesa-ck:disabled { cursor: default; }
+.mesa-ck svg { width: 14px; height: 14px; flex: 0 0 auto; margin-top: 2px; color: var(--amber); }
+.mesa-ck.ok { color: var(--text); }
+.mesa-ck.ok svg { color: var(--green); }
+.mesa-campo-rot { margin-top: 10px; display: block; }
+.mesa-campo { display: flex; gap: 6px; margin-top: 6px; }
+.mesa-bloco input, .mesa-bloco select, .mesa-bloco textarea { width: 100%; min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; font: inherit; font-size: 13px; color: var(--text); background: var(--surface); box-sizing: border-box; }
+.mesa-bloco textarea { resize: vertical; margin-top: 4px; }
+.mesa-campo input { flex: 1; }
+.mesa-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.mesa-tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; background: var(--border-soft); color: var(--text-soft); font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+.mesa-tag button { border: none; background: none; color: inherit; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 0 0 2px; min-width: 20px; min-height: 20px; }
+.mesa-tag-ok { background: var(--green-bg); color: var(--green); }
+.mesa-tag-azul { background: var(--mesa-azul-bg); color: var(--mesa-azul); }
+.mesa-pend { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+.mesa-pend > svg { color: var(--amber); flex: 0 0 auto; margin-top: 1px; }
+.mesa-pend > div { flex: 1; min-width: 0; }
+.mesa-pend small { display: block; color: var(--text-muted); font-size: 12px; }
+.mesa-tempo { display: flex; flex-direction: column; max-height: 420px; overflow: auto; }
+.mesa-dia { padding: 8px 0 2px; }
+.mesa-ev { display: grid; grid-template-columns: 42px 1fr; gap: 8px; padding: 5px 0; font-size: 13px; }
+.mesa-ev time { color: var(--text-muted); font-size: 11.5px; font-variant-numeric: tabular-nums; padding-top: 1px; }
+.mesa-ev b { font-weight: 600; }
+
+.mesa-abas { display: flex; gap: 2px; padding: 0 14px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.mesa-aba { min-height: 46px; padding: 0 14px; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px; background: none; color: var(--text-muted); font-size: 13.5px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+.mesa-aba:hover { color: var(--text); }
+.mesa-aba.on { color: var(--navy-deep); font-weight: 600; border-bottom-color: var(--navy-deep); }
+.mesa-cont { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.mesa-painel { display: flex; flex-direction: column; min-width: 0; }
+.mesa-versoes { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-bottom: 1px solid var(--border-soft); }
+.mesa-espaco { flex: 1; }
+.mesa-seg { display: inline-flex; flex-wrap: wrap; border: 1px solid var(--border); border-radius: 9px; overflow: hidden; }
+.mesa-seg button { min-height: 38px; padding: 5px 12px; border: none; background: var(--surface); color: var(--text-soft); font-size: 12.5px; text-align: left; line-height: 1.25; cursor: pointer; }
+.mesa-seg button + button { border-left: 1px solid var(--border); }
+.mesa-seg button small { display: block; font-size: 11px; color: var(--text-muted); }
+.mesa-seg button.on { background: var(--mesa-pri); color: var(--mesa-pri-txt); }
+.mesa-seg button.on small { color: inherit; opacity: .8; }
+.mesa-ferr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; padding: 6px 10px; background: var(--surface-2); border-bottom: 1px solid var(--border-soft); position: sticky; top: 64px; z-index: 1; }
+.mesa-estilo { width: auto; height: 34px; border: 1px solid var(--border); border-radius: 7px; background-color: var(--surface); color: var(--text); font: inherit; font-size: 12.5px; padding: 0 26px 0 8px; }
+.mesa select { background-repeat: no-repeat; background-position: right 8px center; }
+.mesa-fb { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 34px; border: 1px solid transparent; border-radius: 7px; background: none; color: var(--text-soft); font-size: 14px; cursor: pointer; }
+.mesa-fb:hover { background: var(--surface); border-color: var(--border); color: var(--text); }
+.mesa-fb i { font-family: 'Spectral', Georgia, serif; }
+.mesa-fsep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+.mesa-campos { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--amber); font-weight: 500; }
+.mesa-campos.zero { color: var(--green); }
+.mesa-aviso-versao { margin: 0; padding: 8px 16px; font-size: 12.5px; color: var(--text-soft); background: var(--surface-2); border-bottom: 1px solid var(--border-soft); }
+.mesa-fundo { background: var(--mesa-mesa); padding: 28px 20px; }
+.mesa-papel { background: #fff; color: #1d1a15; max-width: 794px; min-height: 60vh; margin: 0 auto; padding: 64px 72px; box-sizing: border-box; box-shadow: 0 1px 3px rgba(34,29,22,.08), 0 12px 32px -22px rgba(34,29,22,.4); font-family: 'Spectral', Georgia, 'Times New Roman', serif; font-size: 16px; line-height: 1.75; outline: none; caret-color: #1d4f91; overflow-wrap: break-word; }
+.mesa-papel[contenteditable="false"] { background: #fdfcf9; }
+.mesa-papel p, .mesa-leitura p { margin: 0 0 14px; }
+.mesa-papel h1, .mesa-papel h2, .mesa-papel h3, .mesa-papel h4 { font-family: inherit; font-size: 16px; font-weight: 600; letter-spacing: .01em; margin: 26px 0 10px; color: inherit; }
+.mesa-papel blockquote { margin: 0 0 14px 2.2em; }
+.mesa-papel ul, .mesa-papel ol { margin: 0 0 14px; padding-left: 1.6em; }
+.mesa-papel table, .mesa-leitura table { border-collapse: collapse; margin: 0 0 14px; font-size: 14px; }
+.mesa-papel :is(td, th), .mesa-leitura :is(td, th) { border: 1px solid #d9d1c0; padding: 5px 8px; text-align: left; }
+.mesa-papel ::selection { background: #cfe0f7; }
+.mesa-papel mark.mesa-colchete { background: var(--mesa-campo); color: var(--mesa-campo-txt); border-radius: 3px; padding: 0 3px; box-shadow: inset 0 -2px 0 var(--mesa-campo-linha); }
+.mesa-carregando-txt { color: #7c7360; font-family: 'Inter', system-ui, sans-serif; font-size: 13px; }
+.mesa-rodape { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); position: sticky; bottom: 0; background: var(--surface); border-radius: 0 0 14px 14px; }
+.mesa-status { margin-right: auto; font-size: 12.5px; color: var(--text-muted); }
+.mesa-status.erro { color: var(--red); }
+
+.mesa-cmp-cab { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 12px 18px; font-size: 12.5px; color: var(--text-muted); border-bottom: 1px solid var(--border-soft); }
+.mesa-legenda { display: inline-flex; gap: 8px; }
+.mesa-cmp { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); border-bottom: 1px solid var(--border-soft); }
+.mesa-cmp-tit { padding: 12px 18px 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.mesa-cmp-col { padding: 10px 18px 14px; font-family: 'Spectral', Georgia, serif; font-size: 15px; line-height: 1.7; border-top: 1px solid var(--border-soft); min-width: 0; overflow-wrap: break-word; }
+.mesa-cmp-col:nth-of-type(odd) { border-right: 1px solid var(--border-soft); }
+.mesa-saiu { background: var(--mesa-laranja-bg); color: var(--mesa-laranja); text-decoration: line-through; text-decoration-thickness: 1px; border-radius: 2px; padding: 0 2px; }
+.mesa-entrou { background: var(--mesa-azul-bg); color: var(--mesa-azul); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; border-radius: 2px; padding: 0 2px; }
+.mesa-aprende { display: flex; flex-direction: column; gap: 12px; padding: 18px; }
+.mesa-aprende-cab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.mesa-aprende-cab h3 { margin: 0; font-size: 15px; color: var(--navy-deep); }
+.mesa-aprende-cab p { margin: 3px 0 0; font-size: 13px; color: var(--text-muted); max-width: 72ch; }
+.mesa-licao { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: flex-start; border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+.mesa-licao-txt { flex: 1 1 360px; min-width: 0; }
+.mesa-licao-txt strong { font-size: 13.5px; }
+.mesa-licao-txt p { margin: 3px 0 0; font-size: 13px; color: var(--text-soft); }
+.mesa-regra { margin-top: 8px; padding: 8px 10px; font-size: 13px; background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: 8px; }
+.mesa-regra span { display: block; margin-bottom: 2px; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
+
+.mesa-leitura-cab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; padding: 12px 18px; font-size: 12.5px; color: var(--text-muted); border-bottom: 1px solid var(--border-soft); }
+.mesa-leitura { padding: 20px 24px 28px; max-width: 82ch; font-size: 14px; line-height: 1.65; color: var(--text); overflow-x: auto; }
+.mesa-leitura h3 { font-size: 15px; margin: 20px 0 8px; color: var(--navy-deep); }
+.mesa-leitura ul { padding-left: 1.3em; }
+.mesa-leitura-modal { padding: 0; max-height: 70vh; overflow: auto; }
+.mesa-vazio-grande { padding: 48px 24px; text-align: center; color: var(--text-soft); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.mesa-vazio-grande h3 { margin: 0; font-size: 16px; color: var(--navy-deep); }
+.mesa-vazio-grande p { margin: 0 0 6px; max-width: 60ch; }
+.mesa-docs { padding: 6px 18px 14px; }
+.mesa-doc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
+.mesa-doc-nome { flex: 1 1 260px; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
+.mesa-doc-nome small { display: block; color: var(--text-muted); font-size: 12px; }
+
+@media (max-width: 1100px) { .mesa-rail { max-width: none; flex: 0 0 auto; } .mesa-corpo { flex-direction: column; flex-wrap: nowrap; align-items: stretch; } .mesa-centro { order: -1; flex: 0 0 auto; } }
+@media (max-width: 640px) {
+  .mesa-topo, .mesa-jornada, .mesa-agora { padding-left: 16px; padding-right: 16px; }
+  .mesa-corpo { padding: 12px 12px 40px; }
+  .mesa-fundo { padding: 12px 8px; }
+  .mesa-papel { padding: 28px 22px; font-size: 15.5px; }
+  .mesa-cmp { grid-template-columns: minmax(0, 1fr); }
+  .mesa-cmp-col:nth-of-type(odd) { border-right: none; }
+  .mesa-cmp-tit { display: none; }
+  .mesa-ferr { top: 0; position: static; }
+  .mesa-topo { position: static; }
+}

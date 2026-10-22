@@ -2,9 +2,16 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 22/10/2026. Último commit: esteira da petição inicial (agentes, cálculos, peça conjunta).
+**Última atualização:** 22/10/2026. Último commit: Mesa do caso (tela de trabalho da produção).
 
 ## Últimas entregas (mais recentes primeiro)
+- **22/10 (tarde):** **Mesa do caso** (pedido da Jessica: "estar imersa caso a caso... sem sair do CRM, a não ser para copiar a versão final para o Jusbrasil"). Desenho aprovado no artefato "Mesa do caso".
+  - O card da produção abre a tela cheia: régua Preparação/Produção/Protocolo com "o que fazer" e "pronto quando"; o caso à esquerda; a peça no centro; pendências e linha do tempo à direita.
+  - Peça editável e formatável, salva sozinha. A 1ª edição cria a versão da Dra. e a da equipe fica intacta. "Comparar" mostra o que mudou. Lições (redator + Laya) viram regras com "Aprovar" e entram nas próximas petições.
+  - "Marcar como versão final" trava a edição; "Copiar para o Jusbrasil" leva a formatação.
+  - Corrigido: o recado ao cliente da produção nunca era gravado.
+  - Migration 168. Testes: 17 novos (`mesaCaso`) e um de ponta a ponta. Ver `docs/manual/06-documentos.md`.
+  - **A decidir com a Jessica:** os avisos de WhatsApp ao cliente no Protocolado e no Concluído vão para a fila automática (sem aprovação), fora da regra de 19/10.
 - **22/10:** **Esteira da petição inicial** (pedido da Jessica: "documentos lidos de fato, cálculos realizados de fato, peça com contexto").
   - Ao entrar em Criação inicial: Dra. Helena lê todas as fontes (inclusive PDFs, fotos e a conversa do WhatsApp) e monta a ficha de fatos com a fonte de cada dado. O sistema calcula em código: indébito simples até 03/2021 e em dobro depois, juros pela Price, valor da causa. O Cérebro escolhe a estratégia pelo guia "Como escolher" do cofre. A Dra. Júlia traz os fundamentos, e a redação usa raciocínio alto.
   - **Peça conjunta:** mesmo cliente + mesma área + mesma parte contrária, antes do protocolo, sai numa única petição (migration 167, `pecas_conjuntas`).

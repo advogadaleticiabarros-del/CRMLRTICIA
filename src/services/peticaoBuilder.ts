@@ -4,6 +4,7 @@ import { driveFileId, downloadDriveFile, driveFolderId, listDriveFolderFiles } f
 import { produzirPeticao } from './esteiraPeca';
 import { depsEsteiraMysql } from './esteiraPecaMysql';
 import { brl } from './pecaCalculos';
+import { numeroDaVersao } from './mesaCaso';
 
 /**
  * Geração da PETIÇÃO INICIAL pela esteira dos agentes (esteiraPeca.ts): leitura
@@ -178,9 +179,10 @@ ${docsTxt || '[Nenhum documento com conteúdo lido — verifique o link da pasta
  * Idempotente: sem force, não recria se o caso já tem petição própria ou conjunta.
  */
 export async function buildPeticaoInicial(caseId: number, actorId: number, force = false): Promise<{ ok: boolean; docId?: number; version?: number; message?: string; casos?: number[] }> {
-  // Versões preservadas (v1, v2, v3…) — nunca sobrescreve, para comparação.
+  // Versões preservadas (v1, v2, v3…) — nunca sobrescreve, para comparação. Conta
+  // também as versões editadas pela Dra. na Mesa do caso ("(v3 · edição da Dra.)").
   const [existing] = await db.query(
-    "SELECT id, name FROM documents WHERE case_id = ? AND type = 'ia' AND name LIKE 'Petição Inicial%' ORDER BY id DESC", [caseId]
+    "SELECT id, name FROM documents WHERE case_id = ? AND name LIKE 'Petição Inicial%' ORDER BY id DESC", [caseId]
   ) as any;
   const [[conjunta]] = await db.query(
     'SELECT document_id, case_principal_id FROM pecas_conjuntas WHERE case_id = ? AND case_principal_id <> ? ORDER BY id DESC LIMIT 1', [caseId, caseId]
@@ -190,7 +192,7 @@ export async function buildPeticaoInicial(caseId: number, actorId: number, force
   if (!force && existing.length) return { ok: true, docId: existing[0].id, message: 'Petição já existente (use "gerar nova versão" para regerar)' };
   if (!force && conjunta) return { ok: true, docId: conjunta.document_id, message: `Este caso já está na petição inicial conjunta do caso #${conjunta.case_principal_id}` };
   let maxV = 0;
-  for (const d of existing) { const m = String(d.name).match(/\(v(\d+)\)/); maxV = Math.max(maxV, m ? Number(m[1]) : 1); }
+  for (const d of existing) maxV = Math.max(maxV, numeroDaVersao(d.name));
   const version = maxV + 1;
 
   // Se o caso aponta uma pasta do Drive, importa os arquivos dela antes da leitura.

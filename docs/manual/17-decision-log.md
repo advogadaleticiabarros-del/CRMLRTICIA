@@ -16,6 +16,14 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 22/10/2026 — Mesa do caso: a edição da Dra. vira versão nova e ensina a equipe
+- Pedido da Jessica: a 1ª edição cria a v2, e "o agente responsável aprende junto com a Laya a maneira correta de produção e as regras, assim eles podem comparar as versões e anotar onde errou".
+- **A versão da equipe nunca é sobrescrita** (`documents.versao_de`). Sem ela, não há o que comparar nem de onde aprender.
+- **Lição só vira regra com o "Aprovar" da Dra.** A IA propõe; regra errada aprovada sozinha estragaria todas as peças seguintes da área. "Só neste caso" fica restrita ao caso.
+- **Texto formatado em coluna própria** (`content_html`), limpo por lista fechada no servidor. O `content` continua texto puro para a revisão, a Dra. Vera, a contagem de [colchetes] e as buscas, que não precisam mudar.
+- **Tela cheia em vez de modal**, por baixo dos modais (camada 90 < 100), para perguntas, confirmações e documentos abrirem por cima dela.
+- **Alternativa descartada:** editor de terceiros (CKEditor/TinyMCE). Mais peso e outra superfície de ataque, para uma formatação de peça que cabe em poucas marcações.
+
 ### 22/10/2026 — Petição inicial pela esteira dos agentes, com cálculo em código
 - Pedido da Jessica: documentos lidos de fato, cálculos feitos de fato, peça com contexto, e os agentes de cada função atuando na produção.
 - **Cálculo nunca pela IA.** A IA só extrai os números das fontes (com a fonte de cada um); a soma, a modulação simples/dobro do EAREsp 600.663/RS e a tabela Price são código testado. O redator recebe os valores prontos e a peça é conferida contra eles. Motivo: IA erra conta e arredonda sem avisar.
@@ -244,6 +252,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 22/10/2026 | Claude | Mesa do caso: edição da Dra. vira versão nova; lição só vira regra com aprovação; HTML limpo em coluna própria |
 | 22/10/2026 | Claude | Petição inicial pela esteira dos agentes: cálculo em código, peça conjunta por parte contrária, modelo pelo guia do cofre |
 | 21/10/2026 | Claude | Acervo de leis em SQLite à parte; a IA sugere e o índice confere; decretos de 1988 em diante |
 | 20/10/2026 | Claude | Automações antigas a cliente passam pela aprovação (o que muda no sistema continua automático) |

@@ -16,6 +16,18 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: "Recado ao cliente" da produção não salvava
+
+**Sintoma:** no painel de produção do caso, o recado ao cliente (portal) dava erro ou não aparecia no portal.
+
+**Causa raiz:** a tela enviava `client_message` para `PATCH /api/cases/:id/production-meta`, mas a rota só gravava etiquetas, responsável, Drive e observação. Sem nenhum desses campos, respondia "Nada para atualizar".
+
+**Correção (22/10/2026):** a rota grava `client_message` (vazio apaga). O recado agora fica na Mesa do caso, coluna da direita, e salva ao sair do campo.
+
+**Como reconhecer de novo:** campo que "salva" na tela mas some ao reabrir. Confira se a rota do PATCH trata aquele campo.
+
+---
+
 ## Incidente: petição inicial saía sem contexto, mesmo com as ferramentas no sistema
 
 **Sintoma (21/10/2026):** a Jessica: "por que minhas peças saem sem contexto mesmo com todas as ferramentas" (OpenAI, cofre de peças no Obsidian, acervo de leis, equipe de agentes).
@@ -722,6 +734,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 22/10/2026 | Claude | +1 incidente: recado ao cliente da produção não salvava (rota ignorava `client_message`) |
 | 22/10/2026 | Claude | +1 incidente: petição inicial sem contexto (busca de modelos limitada a 40, teses vazias na importação, fontes ignoradas, sem cálculos) |
 | 21/10/2026 | Claude | +1 incidente: quadro de Peças em produção sem rolagem lateral (página esticava; `min-width: 0` em `.content`) |
 | 12/10/2026 | Claude | +1 incidente: prova de restauração do backup falhando (dump de 656 MB passou do limite de texto do Node) — restauração agora em fluxo |

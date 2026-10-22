@@ -29,6 +29,22 @@ Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análi
 - ao arrastar um card até a borda, o quadro anda sozinho para a coluna seguinte;
 - também dá para trocar a etapa pelo seletor do próprio card.
 
+**Mesa do caso (desde 22/10/2026).** Clicar num card abre a mesa do caso em tela cheia (antes era um modal com 17 blocos empilhados e a peça só para ler). Pedido da Jessica: "preciso estar imersa caso a caso, ter uma visão clara do início, meio e fim, e poder usar o CRM plenamente, sem precisar sair de lá de dentro, a não ser para copiar a versão final e conferir dentro do Jusbrasil".
+- **Topo:** cliente, caso, prazo (10 dias), "Recusar caso" e "Avançar para…" (protocolo pede o número do processo, como antes).
+- **Régua:** Preparação (Em análise, Separação de documentos), Produção (Criação inicial, Revisão inicial) e Protocolo (Aguardando protocolo, Protocolado, Concluído). Clicar numa etapa mostra "o que fazer" e "pronto para avançar quando", com o que já está cumprido. A régua orienta, não trava.
+- **Esquerda, o caso:** partes (editar), valor da causa, prescrição, checklist de documentos (clicar marca), pasta do Drive ("Ler a pasta"), responsável e etiquetas. "Prazos e movimentações" abre a ficha do processo.
+- **Centro, abas Peça, Dossiê da peça, Documentos e Revisão.** Na Peça:
+  - o texto abre como folha de papel e é editável: negrito, itálico, sublinhado, alinhamento, listas, recuo, títulos e citação;
+  - os campos a preencher ficam em amarelo, e "Próximo" pula entre eles;
+  - salva sozinho (ou Ctrl+S);
+  - colar do Word ou de um PDF mantém só a formatação de peça.
+- **Versões:** a 1ª edição de uma versão da equipe cria a versão da Dra. ("v3 · edição da Dra."); a da equipe fica intacta. "Comparar com a versão da equipe" mostra só os trechos que mudaram (laranja saiu, azul entrou).
+- **O que a equipe aprende:** comparando as versões, o redator e a Laya anotam lições ("o que mudou" e "regra proposta"). "Aprovar como regra" vale para as próximas peças da área; "Só neste caso" vale só para o caso. As regras entram na redação das próximas petições. A comparação roda sozinha ao marcar a versão final, ou pelo botão.
+- **Versão final:** "Marcar como versão final" trava a edição (há "Destravar"). "Copiar para o Jusbrasil" copia com a formatação (Times 12) e avisa se ainda há campos em amarelo; "Copiar sem formatação" copia o texto puro. A cópia fica registrada na linha do tempo.
+- **Direita:** pendências (pausam o prazo), recado no portal do cliente, observação do card e uma linha do tempo única (equipe, agentes e jornada).
+- **Segurança:** o texto formatado é limpo no servidor por lista fechada (parágrafo, negrito, itálico, sublinhado, títulos, listas, citação, tabela e alinhamento). Script, link, imagem e estilo extra nunca são gravados. A versão em texto puro continua sendo a que a revisão e a Dra. Vera leem.
+- Código: `public/mesa.js`, `src/routes/mesa.ts`, `src/services/mesaCaso.ts`. Migration 168 (`documents.content_html`, `versao_de`, `final_em` e a tabela `peca_licoes`). Testes: `tests/mesaCaso.test.mjs` e o teste de ponta a ponta "Mesa do caso" em `e2e/essencial.spec.mjs`.
+
 **Importante — "Concluído" aqui não é o caso encerrado.** Significa só que a peça foi protocolada e o trabalho de produção daquela demanda terminou — o **caso em si continua ativo**, seguindo dali em diante pela esteira processual normal (acompanhamento de movimentação, prazos, audiências — ver [Processos e prazos](04-processos.md)), não pela esteira de produção. "Concluído"/"Protocolado" só tiram o card da contagem de "Em produção" e param o relógio do SLA de redação — não mudam o status do processo.
 
 ## Esteira da petição inicial: os agentes montam a peça (desde 22/10/2026)
@@ -220,6 +236,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 22/10/2026 | Claude | Mesa do caso: card abre a tela cheia com régua de etapas, peça editável e formatável, versões da Dra. (a da equipe fica intacta), comparação, lições que viram regras, versão final e cópia para o Jusbrasil; recado ao cliente volta a salvar |
 | 22/10/2026 | Claude | Esteira da petição inicial: Dra. Helena lê todas as fontes (inclusive WhatsApp), cálculos em código (indébito simples/dobro, juros, valor da causa), Cérebro escolhe pelo guia do cofre, peça conjunta por parte contrária, "Dossiê da peça"; busca de modelos sem o limite de 40 |
 | 21/10/2026 | Claude | Quadro de produção na altura da tela, com rolagem lateral, roda descendo a coluna e arraste até a borda (relato da Dra.) |
 | 21/10/2026 | Claude | Dra. Júlia (fundamentos conferidos no acervo de leis) na minuta, petição inicial, análise do caso e Assistente de IA; Dra. Vera (conferência das citações) no parecer de revisão |

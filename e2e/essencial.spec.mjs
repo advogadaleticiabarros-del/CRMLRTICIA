@@ -118,6 +118,52 @@ test('Peças em produção: quadro na tela, roda desce a coluna e arrastar na bo
   expect(erros, erros.join('\n')).toEqual([]);
 });
 
+// Pedido de 22/10/2026: "preciso estar imersa caso a caso [...] e poder usar o CRM
+// plenamente, sem precisar sair de lá de dentro, a não ser para copiar a versão
+// final e conferir dentro do Jusbrasil". O card abre a Mesa do caso; editar a
+// versão da equipe cria a versão da Dra. e a da equipe fica intacta para comparar.
+test('Mesa do caso: abre pelo card, edita a peça, cria a versão da Dra. e compara', async ({ page }) => {
+  const erros = vigiar(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await entrar(page);
+  const nome = `Cliente Mesa ${Date.now()}`;
+  await page.evaluate(async (nomeCliente) => {
+    const cl = await api('/api/clients', { method: 'POST', body: JSON.stringify({ name: nomeCliente, email: 'mesa.e2e@teste.local' }) });
+    const cs = await api('/api/cases', { method: 'POST', body: JSON.stringify({ client_id: cl.id, title: 'RMC × Banco Teste', legal_area: 'consumidor' }) });
+    await api(`/api/cases/${cs.id}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage: 'em_analise' }) });
+    await api('/api/documents', { method: 'POST', body: JSON.stringify({
+      client_id: cl.id, case_id: cs.id, type: 'ia', folder: 'processos', name: `Petição Inicial — ${nomeCliente} (v1)`,
+      content: 'EXCELENTÍSSIMO SENHOR JUIZ DA VARA CÍVEL\n\nA autora, CPF [CPF], vem propor a presente ação.',
+    }) });
+  }, nome);
+
+  await page.evaluate(() => { location.hash = '#producao'; });
+  const card = page.locator('#prod-board .kf-card', { hasText: nome });
+  await expect(card).toBeVisible({ timeout: 20_000 });
+  await card.click();
+
+  const mesa = page.locator('.mesa');
+  await expect(mesa.locator('.mesa-quem h1')).toHaveText(nome, { timeout: 15_000 });
+  await expect(mesa.locator('.mesa-passo.atual')).toContainText('Em análise');
+  await expect(mesa.locator('.mesa-papel mark.mesa-colchete')).toHaveCount(1, { timeout: 15_000 });
+  await expect(mesa.locator('.mesa-campos-n')).toContainText('1 campo a preencher');
+
+  const papel = mesa.locator('.mesa-papel');
+  await papel.click();
+  await papel.press('Control+End');
+  await page.keyboard.type(' Texto acrescentado pela Dra.');
+  await expect(mesa.locator('.mesa-status')).toContainText('Salvo às', { timeout: 15_000 });
+  await expect(mesa.locator('.mesa-seg button')).toHaveCount(2);
+  await expect(mesa.locator('.mesa-seg button.on')).toContainText('sua edição');
+
+  await mesa.locator('[data-acao="comparar"]').click();
+  await expect(mesa.locator('.mesa-entrou').first()).toContainText('Texto acrescentado', { timeout: 15_000 });
+
+  await page.keyboard.press('Escape');
+  await expect(mesa).toHaveCount(0);
+  expect(erros, erros.join('\n')).toEqual([]);
+});
+
 test('cadastrar um cliente pela tela e ele aparecer na lista', async ({ page }) => {
   const erros = vigiar(page);
   await entrar(page);

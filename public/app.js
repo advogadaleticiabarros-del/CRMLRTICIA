@@ -2974,7 +2974,7 @@ const ROUTES = {
       $('#prod-board').querySelectorAll('.kf-card[draggable]').forEach((card) => {
         card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', JSON.stringify({ id: card.dataset.case, from: card.dataset.stage })); card.style.opacity = '0.45'; });
         card.addEventListener('dragend', () => { card.style.opacity = ''; });
-        card.onclick = (e) => { if (e.target.closest('.prod-menu-btn') || e.target.closest('.prod-ctx-menu') || e.target.closest('.kf-revert')) return; caseDetail(card.dataset.case, load); };
+        card.onclick = (e) => { if (e.target.closest('.prod-menu-btn') || e.target.closest('.prod-ctx-menu') || e.target.closest('.kf-revert')) return; mesaDoCaso(Number(card.dataset.case), load); };
       });
       $('#prod-board').querySelectorAll('.kf-cards').forEach((zone) => {
         zone.addEventListener('dragover', (e) => { e.preventDefault(); zone.style.outline = '2px dashed var(--gold)'; });
@@ -8238,7 +8238,10 @@ async function caseDetail(id, onSave) {
           <span style="font-size:12.5px;color:var(--text-muted)">Prescrição: <strong style="color:${c.prescricao_data ? 'var(--red)' : 'var(--navy-deep)'}">${c.prescricao_data ? fmtDate(c.prescricao_data) : '—'}</strong> <button type="button" id="presc-edit" class="btn-sm" style="padding:1px 7px;font-size:11px">${c.prescricao_data ? 'editar' : 'informar'}</button></span>
         </div>
       </div>
-      <button class="btn-gold btn-sm" id="ficha-btn" type="button" style="white-space:nowrap;flex:0 0 auto">${svgIcon('clipboard')} Ficha completa</button>
+      <div style="display:flex;flex-direction:column;gap:6px;flex:0 0 auto">
+        ${c.production_stage ? '<button class="btn-primary btn-sm" id="mesa-btn" type="button" style="white-space:nowrap">Abrir a mesa do caso</button>' : ''}
+        <button class="btn-gold btn-sm" id="ficha-btn" type="button" style="white-space:nowrap">${svgIcon('clipboard')} Ficha completa</button>
+      </div>
     </div>
     <div id="case-partes"></div>
     ${prodHtml}
@@ -8468,6 +8471,8 @@ async function caseDetail(id, onSave) {
       caseDetail(id, onSave); toast('Movimentação registrada'); } catch (e) { toast(e.message, 'error'); }
   };
   form.querySelector('#ficha-btn').onclick = () => fichaCompleta(id);
+  const mesaBtn = form.querySelector('#mesa-btn');
+  if (mesaBtn) mesaBtn.onclick = () => { closeModal(); mesaDoCaso(Number(id), onSave); };
 
   // Painel de Produção — resumo, cabeçalho, etiquetas, responsável, pendências, log
   if (c.production_stage) {

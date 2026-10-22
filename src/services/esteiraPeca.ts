@@ -31,6 +31,8 @@ export interface DepsEsteira {
   modelos(titulos: string[]): Promise<Array<{ titulo: string; conteudo: string | null }>>;
   teses(titulos: string[]): Promise<Array<{ titulo: string; texto: string }>>;
   fundamentos(texto: string, area: string | null): Promise<string>;
+  /** Regras aprendidas com as correções da Dra. (aprovadas para a área, ou só para estes casos). */
+  regras(area: string | null, caseIds: number[]): Promise<string[]>;
   ia(prompt: string, nivel: NivelIa): Promise<{ ok: boolean; text?: string; message?: string }>;
   registrar(agente: string, texto: string): void;
   hoje?(): Date;
@@ -89,12 +91,13 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
   // 5) Dra. Júlia: fundamentos que existem, com o texto oficial (ela registra a própria ação).
   const fundamentos = await deps.fundamentos(`${rotulos.join('\n')}\n${escolha.estrategia || ''}\n${resumoDaFicha(ficha)}\n${relato.slice(0, 2000)}`, caso.legal_area).catch(() => '');
 
-  // 6) Redação com raciocínio alto e conferência dos valores.
+  // 6) Redação com raciocínio alto, seguindo as regras aprendidas, e conferência dos valores.
   const partesContrarias = juntarPartes(casos);
+  const regras = await deps.regras(caso.legal_area, casos.map((c) => c.id)).catch(() => []);
   const prompt = montarPromptRedacao({
     qualificacao: caso.qualificacao, area: caso.legal_area, advogada: caso.advogada,
     casos: casos.map((c) => ({ id: c.id, titulo: c.titulo })), partesContrarias,
-    ficha, calculo, fontesTexto: fontes.texto, escolha, modelos, teses, fundamentos, relato,
+    ficha, calculo, fontesTexto: fontes.texto, escolha, modelos, teses, fundamentos, relato, regras,
   });
   const out = await deps.ia(prompt, 'redacao').catch((e) => ({ ok: false, message: e?.message, text: undefined }));
   if (!out.ok || !out.text) return { ok: false, message: out.message || 'A IA não devolveu a petição' };
