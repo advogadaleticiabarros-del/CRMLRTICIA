@@ -16,6 +16,13 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 22/10/2026 — Processo único por banco e por família de tese, com confirmação
+- Regra da Jessica: RMC e RCC do mesmo banco vão numa peça; vários empréstimos consignados do mesmo banco, numa peça; "empréstimo pessoal é diferente de empréstimo consignado, outro processo. Mesmo que do mesmo réu, são teses muito diferentes".
+- Respostas dela: cartão consignado + empréstimo consignado do mesmo banco ficam **separados**; juros abusivos são sempre pedido **dentro** da peça; refinanciamento e portabilidade são da família do consignado; cartão comum é separado do consignado.
+- **Muda a decisão anterior (mesma data):** a esteira juntava sozinha pela parte contrária. Agora só junta o que a Dra. confirmou (`cases.unido_ao_caso`). Juntar ou separar é estratégia: teto do Juizado, dano moral por processo, tese.
+- **O banco também sai do título** ("RCC — Banco PAN"), porque muitos casos não têm a parte contrária cadastrada.
+- **Tese não identificada não é sugerida:** só junta o que tem certeza.
+
 ### 22/10/2026 — Mesa do caso: a edição da Dra. vira versão nova e ensina a equipe
 - Pedido da Jessica: a 1ª edição cria a v2, e "o agente responsável aprende junto com a Laya a maneira correta de produção e as regras, assim eles podem comparar as versões e anotar onde errou".
 - **A versão da equipe nunca é sobrescrita** (`documents.versao_de`). Sem ela, não há o que comparar nem de onde aprender.
@@ -252,6 +259,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 22/10/2026 | Claude | Processo único por banco e família de tese, sugerido pelo quadro e confirmado pela Dra. (substitui a junção automática) |
 | 22/10/2026 | Claude | Mesa do caso: edição da Dra. vira versão nova; lição só vira regra com aprovação; HTML limpo em coluna própria |
 | 22/10/2026 | Claude | Petição inicial pela esteira dos agentes: cálculo em código, peça conjunta por parte contrária, modelo pelo guia do cofre |
 | 21/10/2026 | Claude | Acervo de leis em SQLite à parte; a IA sugere e o índice confere; decretos de 1988 em diante |

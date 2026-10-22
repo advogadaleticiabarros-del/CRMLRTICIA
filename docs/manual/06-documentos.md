@@ -69,7 +69,18 @@ Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análi
 
 Pedido da Jessica: "preciso que os documentos sejam lidos de fato, os cálculos sejam realizados de fato, a peça seja produzida com contexto". Antes, a petição recebia só o resumo do lead, os documentos cortados em 4.000 caracteres e **um** modelo buscado entre as 40 primeiras peças do cofre. Agora, ao mover o card para **Criação inicial** (ou no botão "Gerar nova versão da petição"), a equipe trabalha em ordem:
 
-1. **Peça conjunta:** casos do **mesmo cliente**, **mesma área** e **mesma parte contrária** (mesmo CNPJ ou mesmo nome, sem "Banco", "S.A." etc.) que ainda não foram protocolados saem numa **única petição inicial**. Ex.: empréstimo + juros abusivos, ou cartão RMC + RCC contra o mesmo banco. Para isso a parte contrária precisa estar cadastrada no caso.
+1. **Processo único (desde 22/10/2026, regra da Jessica):** a peça junta só os pedidos que a Dra. **confirmou** como um processo.
+   - **Quando juntar:** mesmo cliente, mesma área, **mesmo banco** (CNPJ, nome ou o banco escrito no título, como "RCC — Banco PAN") e **mesma família de tese**:
+     - **cartão consignado:** RMC e RCC;
+     - **empréstimo consignado:** um ou vários contratos, refinanciamento e portabilidade;
+     - **empréstimo pessoal:** crédito pessoal e CDC;
+     - **cartão de crédito comum:** anuidade, cartão não solicitado.
+   - **Nunca juntam:** famílias diferentes, mesmo contra o mesmo banco (teses muito diferentes). Cartão consignado com empréstimo consignado também fica separado.
+   - **Juros abusivos:** sempre um pedido dentro da peça da família, nunca processo à parte.
+   - **Como confirmar:** o quadro mostra a faixa "processos únicos possíveis". Em "Ver e juntar", a Dra. desmarca o que deve ficar separado e clica em "Juntar em um processo".
+   - **Depois de juntar:** os pedidos unidos somem do quadro e aparecem no card do processo como "+N pedidos". Seguem a etapa e o nº do processo dele, com uma peça e um protocolo.
+   - **Separar:** na aba Caso da mesa, "Separar" devolve o card próprio.
+   - Código: `src/services/pecaConsolidacao.ts`, coluna `cases.unido_ao_caso` (migration 169).
 2. **Dra. Helena lê tudo:** relato, documentos do caso (Drive e arquivos guardados), PDFs e fotos que o cliente mandou no WhatsApp, a conversa inteira (áudios já transcritos) e as anotações da produção. Cada arquivo é transcrito por inteiro uma única vez (fica guardado). Ela monta a **ficha de fatos** com a fonte de cada dado: réus, contratos (nº, tipo, valor, parcela, taxa, início e fim do desconto), descontos mês a mês, fatos, respostas da triagem (sacou o dinheiro? recebeu o cartão?) e o que falta.
 3. **Cálculos em código, não pela IA:**
    - devolução do indébito por contrato, com a modulação do STJ (EAREsp 600.663/RS): descontos até 03/2021 voltam de forma **simples**; de 04/2021 em diante, **em dobro**. Mês repetido em dois documentos conta uma vez;
@@ -254,6 +265,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 22/10/2026 | Claude | Processo único: o quadro sugere juntar pedidos do mesmo cliente, banco e família de tese (cartão consignado; empréstimo consignado; empréstimo pessoal; cartão comum) e a Dra. confirma; a peça junta só o confirmado |
 | 22/10/2026 | Claude | Mesa do caso abre no trabalho de cada etapa: aba Caso (relato, análise da Dra. Helena, resumo do protocolo), aba Documentos (checklist, coleta da Dra. Camila, envio de arquivos), parecer da revisão ao lado da peça |
 | 22/10/2026 | Claude | Mesa do caso: card abre a tela cheia com régua de etapas, peça editável e formatável, versões da Dra. (a da equipe fica intacta), comparação, lições que viram regras, versão final e cópia para o Jusbrasil; recado ao cliente volta a salvar |
 | 22/10/2026 | Claude | Esteira da petição inicial: Dra. Helena lê todas as fontes (inclusive WhatsApp), cálculos em código (indébito simples/dobro, juros, valor da causa), Cérebro escolhe pelo guia do cofre, peça conjunta por parte contrária, "Dossiê da peça"; busca de modelos sem o limite de 40 |

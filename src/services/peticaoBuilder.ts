@@ -179,6 +179,9 @@ ${docsTxt || '[Nenhum documento com conteúdo lido — verifique o link da pasta
  * Idempotente: sem force, não recria se o caso já tem petição própria ou conjunta.
  */
 export async function buildPeticaoInicial(caseId: number, actorId: number, force = false): Promise<{ ok: boolean; docId?: number; version?: number; message?: string; casos?: number[] }> {
+  // Pedido unido a outro processo: a peça é do caso principal.
+  const [[uniao]] = await db.query('SELECT unido_ao_caso FROM cases WHERE id = ?', [caseId]) as any;
+  if (uniao?.unido_ao_caso) caseId = uniao.unido_ao_caso;
   // Versões preservadas (v1, v2, v3…) — nunca sobrescreve, para comparação. Conta
   // também as versões editadas pela Dra. na Mesa do caso ("(v3 · edição da Dra.)").
   const [existing] = await db.query(

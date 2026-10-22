@@ -1,7 +1,7 @@
 import { db } from '../config/database';
 import { aiComplete, aiLerArquivo } from './aiAssistant';
 import { registrarAcaoAgente } from './usoIa';
-import { ETAPAS_ANTES_DO_PROTOCOLO, type CasoParaJuntar } from './pecaConsolidacao';
+import type { CasoParaJuntar } from './pecaConsolidacao';
 import type { DepsEsteira, CasoEsteira } from './esteiraPeca';
 import type { Fonte, ItemCatalogo } from './pecaDossie';
 
@@ -60,11 +60,13 @@ async function caso(id: number): Promise<CasoEsteira> {
   };
 }
 
+/** Os pedidos que a Dra. confirmou como um processo só com este caso (cases.unido_ao_caso). */
 async function candidatosCorrelatos(c: CasoEsteira): Promise<CasoParaJuntar[]> {
-  if (!c.client_id) return [];
+  const [[eu]] = await db.query('SELECT unido_ao_caso FROM cases WHERE id = ?', [c.id]) as any;
+  const principal = eu?.unido_ao_caso || c.id;
   const [rows] = await db.query(
-    'SELECT id, client_id, legal_area, production_stage FROM cases WHERE client_id = ? AND id <> ? AND production_stage IN (?)',
-    [c.client_id, c.id, ETAPAS_ANTES_DO_PROTOCOLO]) as any;
+    'SELECT id, client_id, legal_area, production_stage FROM cases WHERE (id = ? OR unido_ao_caso = ?) AND id <> ?',
+    [principal, principal, c.id]) as any;
   if (!rows.length) return [];
   const [partes] = await db.query("SELECT case_id, nome, cpf_cnpj FROM case_partes WHERE papel = 'contraria' AND case_id IN (?)", [rows.map((r: any) => r.id)]) as any;
   return rows.map((r: any) => ({ ...r, partes: partes.filter((p: any) => p.case_id === r.id).map((p: any) => ({ nome: p.nome, cpf_cnpj: p.cpf_cnpj })) }));

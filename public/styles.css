@@ -678,6 +678,17 @@ tr.row-pessoal td { background: rgba(193,154,78,.05); }
   background: var(--gold-soft, #efe3c8); padding: 1px 7px; border-radius: 8px; white-space: nowrap;
 }
 .prod-pend-tag { font-size: 12px; font-weight: 600; color: var(--blue, #2f6fb0); display: flex; align-items: center; gap: 2px; }
+/* Processo único (vários pedidos, uma peça) */
+.prod-unidos-tag { font-size: 12px; font-weight: 600; color: #1d4f91; background: #e6eefa; padding: 1px 7px; border-radius: 8px; white-space: nowrap; }
+[data-theme="escuro"] .prod-unidos-tag { color: #9cc0f2; background: rgba(29,79,145,.28); }
+.prod-juncao { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 14px; padding: 10px 16px; background: #e6eefa; color: #1d3f6e; font-size: 13px; border-bottom: 1px solid var(--border); }
+[data-theme="escuro"] .prod-juncao { background: rgba(29,79,145,.22); color: #c9dcf7; }
+.juncao-grupo { border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.juncao-grupo legend { font-weight: 600; font-size: 13.5px; padding: 0 6px; color: var(--navy-deep); }
+.juncao-grupo button { align-self: flex-start; margin-top: 4px; }
+.juncao-item { display: flex; gap: 8px; align-items: baseline; font-size: 13.5px; cursor: pointer; }
+.juncao-item input { width: auto; }
+.juncao-item small { color: var(--text-muted); }
 #prod-board .kf-card strong { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 #prod-board .kf-card small { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
 .prod-hover {
@@ -2617,6 +2628,7 @@ body.mesa-aberta { overflow: hidden; }
 .mesa-tag-grave { background: var(--red-bg); color: var(--mesa-grave); }
 .mesa-tag-atencao { background: var(--amber-bg); color: var(--mesa-ambar); }
 .mesa-aviso { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 16px 20px 0; padding: 10px 14px; border-radius: 10px; background: var(--amber-bg); color: var(--mesa-ambar); font-size: 13px; font-weight: 500; }
+.mesa-aviso-azul { background: var(--mesa-azul-bg); color: var(--mesa-azul); }
 .mesa-ck-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 2px 16px; }
 div.mesa-ck { cursor: default; }
 .mesa-ck span small { display: block; color: var(--text-muted); font-size: 11.5px; }

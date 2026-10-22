@@ -2714,6 +2714,7 @@ const ROUTES = {
           </div>
         </div>
         <div class="prod-metrics" id="prod-metrics"></div>
+        <div id="prod-juncao" hidden></div>
         <div class="kanban-wrap">
           <button type="button" class="kanban-nav kanban-nav-esq" title="Etapa anterior">${svgIcon('chevronLeft')}</button>
           <div id="prod-board" class="kanban-fases"></div>
@@ -2747,7 +2748,40 @@ const ROUTES = {
       let h = '';
       if (Number(r.pendencias)) h += `<span class="prod-pend-tag" title="${r.pendencias} pendência(s) — SLA pausado">⏸ ${r.pendencias}</span>`;
       if (r.partner_name) h += `<span class="prod-partner-tag">${esc2(r.partner_name.length > 12 ? r.partner_name.slice(0, 10) + '…' : r.partner_name)}</span>`;
+      if (Number(r.pedidos_unidos)) h += `<span class="prod-unidos-tag" title="Processo único: este card leva mais ${r.pedidos_unidos} pedido(s) do mesmo banco e da mesma tese">+${r.pedidos_unidos} ${Number(r.pedidos_unidos) === 1 ? 'pedido' : 'pedidos'}</span>`;
       return h ? `<div class="prod-indicators">${h}</div>` : '';
+    };
+
+    // Processo único: pedidos do mesmo cliente, mesmo banco e mesma tese (a Dra. confirma).
+    const juncaoBox = document.getElementById('prod-juncao');
+    const mostrarJuncao = (sugs) => {
+      if (!juncaoBox) return;
+      if (!sugs.length) { juncaoBox.hidden = true; juncaoBox.innerHTML = ''; return; }
+      const cards = sugs.reduce((n, g) => n + g.casos.length, 0);
+      juncaoBox.hidden = false;
+      juncaoBox.innerHTML = `<div class="prod-juncao"><span><b>${sugs.length} ${sugs.length === 1 ? 'processo único possível' : 'processos únicos possíveis'}</b> · ${cards} cards do mesmo cliente, mesmo banco e mesma tese podem virar uma peça só.</span><button type="button" class="btn-sm" id="prod-juncao-ver">Ver e juntar</button></div>`;
+      juncaoBox.querySelector('#prod-juncao-ver').onclick = () => {
+        const form = el(`<form class="form-grid juncao-form">
+          <p class="sub">Mesmo cliente + mesmo banco + mesma família de tese viram um processo: uma peça, um prazo, um protocolo. Cartão consignado (RMC/RCC), empréstimo consignado (inclui refinanciamento e portabilidade), empréstimo pessoal e cartão comum nunca se juntam entre si. Desmarque o que deve ficar separado.</p>
+          ${sugs.map((g, gi) => `<fieldset class="juncao-grupo"><legend>${esc2(g.cliente || 'Cliente')} · ${esc2(g.nomeFamilia)} · ${esc2(g.reu)}</legend>
+            ${g.casos.map((c) => `<label class="juncao-item"><input type="checkbox" name="g${gi}" value="${c.id}" checked> #${c.id} — ${esc2(c.titulo || 'sem título')}${c.id === g.principal ? ' <small>(fica como o card do processo)</small>' : ''}</label>`).join('')}
+            <button type="button" class="btn-primary btn-sm" data-grupo="${gi}">Juntar em um processo</button></fieldset>`).join('')}
+        </form>`);
+        form.querySelectorAll('[data-grupo]').forEach((b) => b.onclick = async () => {
+          const gi = Number(b.dataset.grupo);
+          const casos = [...form.querySelectorAll(`input[name="g${gi}"]:checked`)].map((i) => Number(i.value));
+          if (casos.length < 2) { toast('Marque ao menos dois pedidos', 'error'); return; }
+          b.disabled = true;
+          try {
+            await api('/api/mesa/juntar', { method: 'POST', body: JSON.stringify({ casos, principal: casos.includes(sugs[gi].principal) ? sugs[gi].principal : undefined }) });
+            toast('Pedidos unidos em um processo. A peça vai ser uma só.');
+            b.closest('fieldset').remove();
+            load();
+            if (!form.querySelector('fieldset')) closeModal();
+          } catch (e) { toast(e.message, 'error'); b.disabled = false; }
+        });
+        openModal('Processo único', form, { wide: true });
+      };
     };
 
     const avgDias = (cards) => {
@@ -2769,6 +2803,7 @@ const ROUTES = {
         api('/api/cases/production-board').catch(() => []),
         api('/api/dashboards/producao').catch(() => ({ kpis: {} })),
       ]);
+      api('/api/mesa/sugestoes-juncao').then(mostrarJuncao).catch(() => mostrarJuncao([]));
       const k = dash.kpis || {};
       const ativos = rows.filter((r) => !['protocolado', 'concluido', 'recusado'].includes(r.production_stage));
       const atrasados = ativos.filter((r) => Number(r.sla_days) > SLAMAX).length;

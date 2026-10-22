@@ -75,12 +75,15 @@ router.get('/production-board', async (_req: Request, res: Response) => {
            u.name  AS assignee_name,
            p.name  AS partner_name,
            (SELECT COUNT(*) FROM production_notes pn
-             WHERE pn.case_id = c.id AND pn.kind = 'pendencia' AND pn.resolved = 0) AS pendencias
+             WHERE pn.case_id = c.id AND pn.kind = 'pendencia' AND pn.resolved = 0) AS pendencias,
+           (SELECT COUNT(*) FROM cases un WHERE un.unido_ao_caso = c.id) AS pedidos_unidos
       FROM cases c
       LEFT JOIN clients cl ON cl.id = c.client_id
       LEFT JOIN users   u  ON u.id  = c.production_assignee
       LEFT JOIN partners p ON p.id  = c.partner_id
      WHERE c.production_stage IS NOT NULL
+       -- Pedido unido a outro processo não tem card próprio: aparece no card do principal.
+       AND c.unido_ao_caso IS NULL
      ORDER BY c.production_started_at ASC
   `) as any;
   res.json(rows);
@@ -630,6 +633,12 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
     `UPDATE cases SET production_stage = ?, case_number = ?, ${valorCausa !== undefined ? 'valor_causa = ?, ' : ''}production_started_at = COALESCE(production_started_at, NOW()) WHERE id = ?`,
     valorCausa !== undefined ? [stage, finalCaseNumber, valorCausa, id] : [stage, finalCaseNumber, id]
   );
+  // Processo único: os pedidos unidos seguem a etapa e o nº do processo do principal.
+  await db.query(
+    `UPDATE cases SET production_stage = ?, case_number = COALESCE(?, case_number),
+            production_started_at = COALESCE(production_started_at, NOW()),
+            protocoled_at = IF(? IN ('protocolado','concluido'), COALESCE(protocoled_at, NOW()), protocoled_at)
+      WHERE unido_ao_caso = ?`, [stage, finalCaseNumber || null, stage, id]).catch(() => {});
 
   // Data do protocolo (âncora do relatório mensal): grava na 1ª vez que protocola
   // — ou, se o card pulou direto pra "Concluído" sem passar por "Protocolado",

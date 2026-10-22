@@ -5,6 +5,10 @@
 **Última atualização:** 22/10/2026. Último commit: Mesa do caso (tela de trabalho da produção).
 
 ## Últimas entregas (mais recentes primeiro)
+- **22/10 (noite):** **Processo único.**
+  - O quadro sugere juntar os pedidos do mesmo cliente, do mesmo banco (cadastro ou título) e da mesma família de tese: cartão consignado RMC/RCC; empréstimo consignado (+ refin. e portabilidade); empréstimo pessoal; cartão comum.
+  - A Dra. confirma em "Ver e juntar". O card vira "+N pedidos", com uma peça e um protocolo. Na mesa dá para "Separar".
+  - A peça deixou de juntar sozinha. Migration 169. A leitura dos contratos separa consignado de pessoal.
 - **22/10 (fim da tarde):** **Mesa do caso por etapa.** Em análise abre na aba Caso (relato + análise da Dra. Helena); Separação, na aba Documentos (checklist grande, coleta da Dra. Camila, enviar arquivos, Drive); Revisão inicial, na peça com o parecer ao lado; Protocolado e Concluído, no resumo do protocolo.
 - **22/10 (tarde):** **Mesa do caso** (pedido da Jessica: "estar imersa caso a caso... sem sair do CRM, a não ser para copiar a versão final para o Jusbrasil"). Desenho aprovado no artefato "Mesa do caso".
   - O card da produção abre a tela cheia: régua Preparação/Produção/Protocolo com "o que fazer" e "pronto quando"; o caso à esquerda; a peça no centro; pendências e linha do tempo à direita.

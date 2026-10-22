@@ -1,5 +1,5 @@
 import { calcularPeca, brl, type CalculoPeca } from './pecaCalculos';
-import { casosCorrelatos, mesmaParte, type CasoParaJuntar, type Parte } from './pecaConsolidacao';
+import { mesmaParte, type CasoParaJuntar, type Parte } from './pecaConsolidacao';
 import {
   montarFontes, promptFichaDeFatos, parseFichaDeFatos, fichaVazia, promptEscolhaModelo, parseEscolha, resumoDaFicha,
   montarPromptRedacao, conferirValores, relatorioDossie,
@@ -8,7 +8,7 @@ import {
 
 /**
  * Esteira da petição inicial — cada agente faz a sua parte, nesta ordem:
- *  1. junta os casos do mesmo cliente contra a mesma parte contrária (uma peça só);
+ *  1. junta os pedidos que a Dra. confirmou como um processo só (mesmo réu e mesma família de tese);
  *  2. Dra. Helena lê todas as fontes e monta a ficha de fatos (com a fonte de cada dado);
  *  3. o sistema calcula (indébito simples/dobro, juros, valor da causa) — em código;
  *  4. Cérebro escolhe estratégia e modelos pelo guia "Como escolher" do cofre;
@@ -55,7 +55,8 @@ function juntarPartes(casos: CasoEsteira[]): Parte[] {
 
 export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promise<ResultadoEsteira> {
   const caso = await deps.caso(caseId);
-  const juntos = casosCorrelatos(caso, await deps.candidatosCorrelatos(caso).catch(() => []));
+  // Só junta o que a Dra. confirmou como UM processo (cases.unido_ao_caso).
+  const juntos = (await deps.candidatosCorrelatos(caso).catch(() => [])).filter((c, i, l) => c.id !== caso.id && l.findIndex((x) => x.id === c.id) === i);
   const casos = [caso, ...(await Promise.all(juntos.map((c) => deps.caso(c.id))))];
   const rotulos = casos.map((c) => `Caso #${c.id}: ${c.titulo || 'sem título'}`);
   const relato = casos.map((c) => c.relato).filter((r) => r && r.trim()).join('\n\n');

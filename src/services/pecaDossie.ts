@@ -130,7 +130,7 @@ ${ctx.casos.map((c) => `- ${c}`).join('\n')}
 
 Responda SOMENTE com JSON neste formato:
 {"reus":[{"nome":"...","cnpj":"...","endereco":"...","fonte":"nome da fonte"}],
- "contratos":[{"numero":"...","tipo":"emprestimo|rmc|rcc|cartao|refinanciamento|portabilidade|outro","banco":"...","data":"dd/mm/aaaa","valor_liberado":0,"parcela":0,"n_parcelas":0,"parcelas_pagas":0,"taxa_mensal":0,"taxa_media_mercado":0,"inicio_desconto":"mm/aaaa","fim_desconto":"mm/aaaa","situacao":"ativo|excluido|encerrado","fonte":"..."}],
+ "contratos":[{"numero":"...","tipo":"emprestimo_consignado|emprestimo_pessoal|rmc|rcc|cartao_comum|refinanciamento|portabilidade|outro","banco":"...","data":"dd/mm/aaaa","valor_liberado":0,"parcela":0,"n_parcelas":0,"parcelas_pagas":0,"taxa_mensal":0,"taxa_media_mercado":0,"inicio_desconto":"mm/aaaa","fim_desconto":"mm/aaaa","situacao":"ativo|excluido|encerrado","fonte":"..."}],
  "descontos":[{"competencia":"mm/aaaa","valor":0,"contrato":"nº do contrato","fonte":"..."}],
  "fatos":[{"data":"dd/mm/aaaa","texto":"fato objetivo","fonte":"..."}],
  "valores":[{"descricao":"...","valor":0,"data":"...","fonte":"..."}],
@@ -144,6 +144,7 @@ Regras:
 - TODO item leva "fonte" com o nome exato da fonte de onde saiu (o título depois de "===").
 - "descontos": cada desconto mensal que aparece em extrato de pagamento do benefício, holerite ou fatura (um item por mês e por contrato). Não repita o mesmo mês do mesmo contrato.
 - Extrato de empréstimos do INSS (HISCON): cada contrato com nº, banco, tipo (empréstimo, RMC = reserva de margem de cartão, RCC = reserva de cartão consignado de benefício), data de inclusão, valor liberado/emprestado, valor da parcela, quantidade de parcelas, início e fim do desconto e situação.
+- Tipo do contrato: "emprestimo_consignado" quando a parcela é descontada no benefício ou na folha (inclui refinanciamento e portabilidade); "emprestimo_pessoal" quando é pago por boleto ou débito em conta (crédito pessoal, CDC); "rmc"/"rcc" para cartão consignado; "cartao_comum" para cartão de crédito sem desconto no benefício. Na dúvida, "outro".
 - Taxas em % ao mês, como número (2,14% a.m. → 2.14). "taxa_media_mercado" só se alguma fonte trouxer a taxa média do Bacen.
 - "triagem": responda pelas fontes (conversa e relato contam). Ex.: cliente disse que nunca recebeu o cartão → "recebeu_cartao": false. Sem informação → null.
 - "vinculo" só em caso trabalhista; senão null.

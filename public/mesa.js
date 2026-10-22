@@ -431,6 +431,12 @@
           <div class="mesa-acoes">${final ? `<button type="button" class="mesa-btn mesa-btn-sm" data-acao="ver-final" data-doc="${final.id}">Abrir a versão protocolada</button>` : ''}<button type="button" class="mesa-btn mesa-btn-sm" data-acao="processo">Prazos e movimentações</button></div>
           <p class="mesa-dica">Depois do protocolo, o processo segue em Prazos e movimentações; a produção termina aqui.</p>
         </section>` : ''}
+        ${c.unido_ao_caso ? `<div class="mesa-aviso mesa-aviso-azul"><span>Este pedido faz parte do processo do caso #${c.unido_ao_caso}: a peça, o prazo e o protocolo são de lá.</span><button type="button" class="mesa-btn mesa-btn-sm" data-acao="abrir-caso" data-id="${c.unido_ao_caso}">Abrir o processo</button></div>` : ''}
+        ${st.d.grupo ? `<section class="mesa-secao"><h3>Pedidos neste processo · ${st.d.grupo.casos.length}</h3>
+          <p class="mesa-dica">Mesmo banco e mesma tese: uma peça só e um protocolo só.</p>
+          ${st.d.grupo.casos.map((x) => `<div class="mesa-doc"><div class="mesa-doc-nome">#${x.id} — ${esc(x.title || 'sem título')}<small>${x.familia ? esc(x.familia) : 'tese não identificada'}${x.id === st.d.grupo.principal ? ' · card do processo' : ''}</small></div>
+            ${x.id !== st.d.grupo.principal ? `<button type="button" class="mesa-btn mesa-btn-sm" data-acao="separar" data-id="${x.id}">Separar</button>` : ''}</div>`).join('')}
+        </section>` : ''}
         <section class="mesa-secao"><h3>Relato do cliente</h3>
           ${c.relato ? `<p class="mesa-relato">${esc(c.relato)}</p>` : '<p class="mesa-vazio">Sem resumo do atendimento cadastrado.</p>'}
           ${relatoDoc ? `<div class="mesa-relato-doc"><span class="mesa-rotulo">Relato escrito pela Dra. Camila a partir do WhatsApp</span><article class="mesa-leitura mesa-relato-txt"><p class="mesa-vazio">Carregando…</p></article></div>` : ''}
@@ -595,6 +601,12 @@
       versao: async (b) => { if (st.sujo) { clearTimeout(st.timer); await salvar(); } st.docId = Number(b.dataset.doc); st.doc = null; st.comparar = false; renderCentro(); },
       comparar: async () => { if (st.sujo) { clearTimeout(st.timer); await salvar(); } st.comparar = !st.comparar; renderCentro(); },
       'ao-lado': async () => { if (st.sujo) { clearTimeout(st.timer); await salvar(); } st.aoLado = !st.aoLado; renderCentro(); },
+      'abrir-caso': async (b) => { const outro = Number(b.dataset.id); await fechar(); mesaDoCaso(outro, aoMudar); },
+      separar: async (b) => {
+        if (!await uiConfirm(`Separar o pedido #${b.dataset.id}? Ele volta a ser um card próprio e terá peça e processo separados.`)) return;
+        try { await api(`/api/mesa/${b.dataset.id}/separar`, { method: 'POST', body: '{}' }); st.mudou = true; toast('Pedido separado'); await recarregar(false); renderCentro(); }
+        catch (e) { toast(e.message, 'error'); }
+      },
       'ver-final': (b) => { st.aba = 'peca'; st.docId = Number(b.dataset.doc); st.comparar = false; renderCentro(); },
       'ir-aprovar': async () => { await fechar(); location.hash = '#escritorio'; },
       analisar: async (b) => {

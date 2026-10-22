@@ -136,15 +136,15 @@ test('mesmaParte: raiz do CNPJ ou nome normalizado; CNPJs diferentes são empres
   assert.ok(!mesmaParte({ nome: '' }, { nome: '' }));
 });
 
-test('casosCorrelatos: mesmo cliente, mesma área, mesma parte contrária e ainda antes do protocolo', () => {
-  const alvo = { id: 1, client_id: 7, legal_area: 'consumidor', production_stage: 'criacao_inicial', partes: [{ nome: 'Banco Pan S.A.' }] };
+test('casosCorrelatos: mesmo cliente, mesma área, mesma parte contrária, mesma família e ainda antes do protocolo', () => {
+  const alvo = { id: 1, client_id: 7, legal_area: 'consumidor', production_stage: 'criacao_inicial', familia: 'cartao_consignado', partes: [{ nome: 'Banco Pan S.A.' }] };
   const outros = [
-    { id: 2, client_id: 7, legal_area: 'consumidor', production_stage: 'em_analise', partes: [{ nome: 'BANCO PAN' }] },
-    { id: 3, client_id: 7, legal_area: 'consumidor', production_stage: 'protocolado', partes: [{ nome: 'Banco Pan' }] },
-    { id: 4, client_id: 8, legal_area: 'consumidor', production_stage: 'em_analise', partes: [{ nome: 'Banco Pan' }] },
-    { id: 5, client_id: 7, legal_area: 'trabalhista', production_stage: 'em_analise', partes: [{ nome: 'Banco Pan' }] },
-    { id: 6, client_id: 7, legal_area: 'consumidor', production_stage: 'separacao_documentos', partes: [{ nome: 'Banco BMG' }] },
-    { id: 1, client_id: 7, legal_area: 'consumidor', production_stage: 'criacao_inicial', partes: [{ nome: 'Banco Pan' }] },
+    { id: 2, client_id: 7, legal_area: 'consumidor', production_stage: 'em_analise', familia: 'cartao_consignado', partes: [{ nome: 'BANCO PAN' }] },
+    { id: 3, client_id: 7, legal_area: 'consumidor', production_stage: 'protocolado', familia: 'cartao_consignado', partes: [{ nome: 'Banco Pan' }] },
+    { id: 4, client_id: 8, legal_area: 'consumidor', production_stage: 'em_analise', familia: 'cartao_consignado', partes: [{ nome: 'Banco Pan' }] },
+    { id: 5, client_id: 7, legal_area: 'trabalhista', production_stage: 'em_analise', familia: 'cartao_consignado', partes: [{ nome: 'Banco Pan' }] },
+    { id: 6, client_id: 7, legal_area: 'consumidor', production_stage: 'separacao_documentos', familia: 'cartao_consignado', partes: [{ nome: 'Banco BMG' }] },
+    { id: 1, client_id: 7, legal_area: 'consumidor', production_stage: 'criacao_inicial', familia: 'cartao_consignado', partes: [{ nome: 'Banco Pan' }] },
   ];
   assert.deepStrictEqual(casosCorrelatos(alvo, outros).map((c) => c.id), [2]);
 });

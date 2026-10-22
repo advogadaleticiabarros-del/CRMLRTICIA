@@ -7,6 +7,7 @@ import {
   sanitizarHtmlPeca, htmlParaTexto, textoParaHtml, contarColchetes, compararTextos, etapasDaMesa,
   promptLicoes, parseLicoes, nomeVersaoDra, numeroDaVersao, abaDaEtapa, resumoColeta, ordenarAchados,
 } from '../services/mesaCaso';
+import { sugestoesDeJuncao, familiaDaTese, NOME_FAMILIA, ETAPAS_ANTES_DO_PROTOCOLO } from '../services/pecaConsolidacao';
 
 /**
  * Mesa do caso: a tela de trabalho da produção (regras em services/mesaCaso.ts).
@@ -29,12 +30,65 @@ async function documentosDoCaso(caseId: number) {
   return rows as any[];
 }
 
+// ── Um processo para vários pedidos (regra em services/pecaConsolidacao.ts) ──
+
+/** Grupos de cards que deveriam ser UM processo: mesmo cliente, mesmo banco, mesma família de tese. */
+router.get('/sugestoes-juncao', async (_req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT c.id, c.client_id, c.legal_area, c.production_stage, c.title, c.unido_ao_caso, cl.name AS cliente,
+            (SELECT COUNT(*) FROM cases u WHERE u.unido_ao_caso = c.id) AS pedidos_unidos
+       FROM cases c LEFT JOIN clients cl ON cl.id = c.client_id
+      WHERE c.production_stage IN (?) AND c.unido_ao_caso IS NULL`, [ETAPAS_ANTES_DO_PROTOCOLO]) as any;
+  if (!rows.length) { res.json([]); return; }
+  const [partes] = await db.query("SELECT case_id, nome, cpf_cnpj FROM case_partes WHERE papel = 'contraria' AND case_id IN (?)", [rows.map((r: any) => r.id)]) as any;
+  res.json(sugestoesDeJuncao(rows.map((r: any) => ({
+    id: r.id, client_id: r.client_id, cliente: r.cliente, legal_area: r.legal_area, production_stage: r.production_stage,
+    titulo: r.title, unido_ao_caso: r.unido_ao_caso, pedidos_unidos: Number(r.pedidos_unidos || 0),
+    partes: partes.filter((p: any) => p.case_id === r.id).map((p: any) => ({ nome: p.nome, cpf_cnpj: p.cpf_cnpj })),
+  }))));
+});
+
+/** A Dra. confirma: estes pedidos viram UM processo. Os outros seguem a etapa do principal. */
+router.post('/juntar', async (req: Request, res: Response) => {
+  const ids: number[] = [...new Set((Array.isArray(req.body?.casos) ? req.body.casos : []).map(Number).filter((n: number) => n > 0))] as number[];
+  if (ids.length < 2) { res.status(400).json({ error: 'Escolha ao menos dois pedidos para juntar' }); return; }
+  const [rows] = await db.query(
+    `SELECT id, client_id, title, production_stage, unido_ao_caso,
+            (SELECT COUNT(*) FROM cases u WHERE u.unido_ao_caso = cases.id) AS pedidos_unidos
+       FROM cases WHERE id IN (?)`, [ids]) as any;
+  if (rows.length !== ids.length) { res.status(404).json({ error: 'Algum pedido não foi encontrado' }); return; }
+  if (new Set(rows.map((r: any) => r.client_id)).size !== 1) { res.status(400).json({ error: 'Só dá para juntar pedidos do mesmo cliente' }); return; }
+  if (rows.some((r: any) => !ETAPAS_ANTES_DO_PROTOCOLO.includes(r.production_stage))) { res.status(400).json({ error: 'Só dá para juntar pedidos que ainda não foram protocolados' }); return; }
+  const ordem = (s: string) => ETAPAS_ANTES_DO_PROTOCOLO.indexOf(s);
+  const pedido = Number(req.body?.principal);
+  const principal = rows.find((r: any) => r.id === pedido)
+    || [...rows].sort((a: any, b: any) => (Number(b.pedidos_unidos) > 0 ? 1 : 0) - (Number(a.pedidos_unidos) > 0 ? 1 : 0) || ordem(b.production_stage) - ordem(a.production_stage) || a.id - b.id)[0];
+  const outros = rows.filter((r: any) => r.id !== principal.id).map((r: any) => r.id);
+  await db.query('UPDATE cases SET unido_ao_caso = ? WHERE unido_ao_caso IN (?)', [principal.id, outros]);
+  await db.query('UPDATE cases SET unido_ao_caso = ?, production_stage = ? WHERE id IN (?)', [principal.id, principal.production_stage, outros]);
+  await db.query('UPDATE cases SET unido_ao_caso = NULL WHERE id = ?', [principal.id]);
+  const nota = (id: number, texto: string) => db.query(
+    "INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, ?, 'atualizacao', ?)", [id, req.user!.id, req.user!.name, texto]).catch(() => {});
+  await nota(principal.id, `Processo único: ${outros.map((i: number) => `#${i}`).join(', ')} unido(s) a este caso. Uma peça, um protocolo.`);
+  for (const id of outros) await nota(id, `Unido ao processo do caso #${principal.id} (mesmo banco e mesma tese). Segue a etapa dele.`);
+  res.json({ success: true, principal: principal.id, unidos: outros });
+});
+
+router.post('/:caseId/separar', async (req: Request, res: Response) => {
+  const [[c]] = await db.query('SELECT id, unido_ao_caso FROM cases WHERE id = ?', [req.params.caseId]) as any;
+  if (!c?.unido_ao_caso) { res.status(400).json({ error: 'Este pedido não está unido a outro processo' }); return; }
+  await db.query('UPDATE cases SET unido_ao_caso = NULL WHERE id = ?', [c.id]);
+  await db.query("INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, ?, 'atualizacao', ?)",
+    [c.unido_ao_caso, req.user!.id, req.user!.name, `Pedido #${c.id} separado deste processo; volta a ser um card próprio.`]).catch(() => {});
+  res.json({ success: true });
+});
+
 router.get('/:caseId', async (req: Request, res: Response) => {
   const caseId = Number(req.params.caseId);
   const [[c]] = await db.query(
     `SELECT c.id, c.title, c.client_id, c.legal_area, c.production_stage, c.case_number, c.valor_causa, c.prescricao_data,
             c.partner_id, c.description, c.origin_contract_id, c.production_assignee, c.production_started_at, c.protocoled_at,
-            c.rejected_at, c.rejection_reason,
+            c.rejected_at, c.rejection_reason, c.unido_ao_caso,
             ${slaDiasEfetivosSql('c.id', 'c.production_started_at')} AS sla_days,
             cl.name AS client_name, p.name AS partner_name, u.name AS assignee_name
        FROM cases c
@@ -96,6 +150,9 @@ router.get('/:caseId', async (req: Request, res: Response) => {
   const [rascunhos] = c.client_id
     ? await db.query("SELECT id, agente, created_at FROM atendente_rascunhos WHERE client_id = ? AND status = 'pendente' ORDER BY id DESC LIMIT 10", [c.client_id]) as any
     : [[]];
+  const principalId = c.unido_ao_caso || c.id;
+  const [membros] = await db.query('SELECT id, title, production_stage FROM cases WHERE id = ? OR unido_ao_caso = ? ORDER BY (id = ?) DESC, id', [principalId, principalId, principalId]) as any;
+  const grupo = membros.length > 1 ? { principal: principalId, casos: membros.map((m: any) => { const f = familiaDaTese(m.title); return { id: m.id, title: m.title, familia: f ? NOME_FAMILIA[f] : null }; }) } : null;
   const [[monit]] = await db.query('SELECT COUNT(*) AS n FROM legal_processes WHERE case_id = ?', [caseId]) as any;
 
   const recente = pecas[pecas.length - 1] || null;
@@ -116,7 +173,7 @@ router.get('/:caseId', async (req: Request, res: Response) => {
     conjunta: conjunta.length > 1 ? { principal: conjunta[0].case_principal_id, casos: conjunta.map((x: any) => ({ id: x.id, title: x.title })) } : null,
     licoes, regrasDaArea: Number(regras?.n || 0), pendenciasAbertas: Number(pend?.n || 0),
     analise: analise ? { documentos: analise.documentos, graves: analise.graves, atencao: analise.atencao, created_at: analise.created_at, achados: ordenarAchados(analise.achados) } : null,
-    coleta: resumoDaColeta, rascunhosPendentes: rascunhos.length, monitorado: Number(monit?.n || 0) > 0,
+    grupo, coleta: resumoDaColeta, rascunhosPendentes: rascunhos.length, monitorado: Number(monit?.n || 0) > 0,
     ...abaDaEtapa(c.production_stage),
   });
 });

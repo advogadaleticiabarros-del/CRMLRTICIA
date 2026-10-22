@@ -170,6 +170,34 @@ test('Mesa do caso: abre pelo card, edita a peça, cria a versão da Dra. e comp
   expect(erros, erros.join('\n')).toEqual([]);
 });
 
+// Regra de 22/10/2026: mesmo cliente + mesmo banco + mesma família de tese = um
+// processo só (a Dra. confirma). Empréstimo pessoal nunca junta com cartão consignado.
+test('Processo único: o quadro sugere juntar RMC e RCC do mesmo banco e deixa o empréstimo pessoal de fora', async ({ page }) => {
+  const erros = vigiar(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await entrar(page);
+  const nome = `Cliente Juncao ${Date.now()}`;
+  await page.evaluate(async (nomeCliente) => {
+    const cl = await api('/api/clients', { method: 'POST', body: JSON.stringify({ name: nomeCliente }) });
+    for (const title of ['RCC — Banco Teste', 'RMC — Banco Teste', 'Empréstimo pessoal — Banco Teste']) {
+      const cs = await api('/api/cases', { method: 'POST', body: JSON.stringify({ client_id: cl.id, title, legal_area: 'consumidor' }) });
+      await api(`/api/cases/${cs.id}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage: 'em_analise' }) });
+    }
+  }, nome);
+
+  await page.evaluate(() => { location.hash = '#producao'; });
+  await expect(page.locator('#prod-board .kf-card', { hasText: nome })).toHaveCount(3, { timeout: 20_000 });
+  await page.locator('#prod-juncao-ver').click();
+  const grupo = page.locator('.juncao-grupo', { hasText: nome });
+  await expect(grupo).toContainText('Cartão consignado');
+  await expect(grupo.locator('.juncao-item')).toHaveCount(2);
+  await expect(grupo).not.toContainText('Empréstimo pessoal');
+  await grupo.locator('button', { hasText: 'Juntar em um processo' }).click();
+  await expect(page.locator('#prod-board .kf-card', { hasText: nome })).toHaveCount(2, { timeout: 15_000 });
+  await expect(page.locator('#prod-board .kf-card', { hasText: nome }).locator('.prod-unidos-tag')).toHaveText('+1 pedido');
+  expect(erros, erros.join('\n')).toEqual([]);
+});
+
 test('cadastrar um cliente pela tela e ele aparecer na lista', async ({ page }) => {
   const erros = vigiar(page);
   await entrar(page);
