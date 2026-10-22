@@ -2,9 +2,15 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 21/10/2026. Último commit: Redesign da tela de produção.
+**Última atualização:** 22/10/2026. Último commit: esteira da petição inicial (agentes, cálculos, peça conjunta).
 
 ## Últimas entregas (mais recentes primeiro)
+- **22/10:** **Esteira da petição inicial** (pedido da Jessica: "documentos lidos de fato, cálculos realizados de fato, peça com contexto").
+  - Ao entrar em Criação inicial: Dra. Helena lê todas as fontes (inclusive PDFs, fotos e a conversa do WhatsApp) e monta a ficha de fatos com a fonte de cada dado. O sistema calcula em código: indébito simples até 03/2021 e em dobro depois, juros pela Price, valor da causa. O Cérebro escolhe a estratégia pelo guia "Como escolher" do cofre. A Dra. Júlia traz os fundamentos, e a redação usa raciocínio alto.
+  - **Peça conjunta:** mesmo cliente + mesma área + mesma parte contrária, antes do protocolo, sai numa única petição (migration 167, `pecas_conjuntas`).
+  - **"Dossiê da peça"** salvo no caso: o que foi lido, cálculos, modelo e motivo, o que falta e a conferência dos valores na peça.
+  - Defeitos corrigidos: a busca do cofre só via 40 das 128 peças trabalhistas; as teses das fichas chegavam vazias na importação.
+  - A regeração manual roda em segundo plano, com aviso no sino. 26 testes novos; 1.055 no total, 0 falhas.
 - **21/10 (noite):** **Redesign completo da tela "Peças em produção"** — visual profissional sem aparência de IA.
   - Barra de comandos reorganizada: busca isolada, chips de filtro (atrasados/pendências/sem procuração), dropdowns de parceria e responsável, toggle de arquivo.
   - Métricas: em produção, tempo médio, protocolados/mês, concluídos (dados do dashboard).
@@ -161,6 +167,12 @@
   - parcela 2/5 da Larissa (R$ 55) vencida desde 20/09.
 
 ## Próximos passos sugeridos (se ela não pedir outra coisa)
+- **Esteira da petição (22/10):**
+  - acompanhar as primeiras peças reais pelo "Dossiê da peça" (fontes lidas, conferência dos valores);
+  - buscar sozinho a taxa média do Bacen da data do contrato (API SGS do Bacen; confirmar o código da série antes);
+  - definir com a Dra. o valor padrão do dano moral por tipo de caso (hoje fica [colchete]);
+  - reimportar o cofre (Configurações → Importar do Obsidian) para gravar as teses em `peca_modelos`;
+  - cadastrar a parte contrária nos casos em produção: sem ela, a peça conjunta não é detectada.
 - **Escritório virtual, Fase 1 (em andamento).** Próximos passos:
   1. Secretária com aprovação por resposta no WhatsApp ("recorrer" / "não recorrer" vira tarefa e prazo).
   2. Prazo interno com escalonamento e Auditor de prazos.

@@ -240,12 +240,19 @@ router.post('/:id/contexto', async (req: Request, res: Response) => {
 
 // ── POST /api/cases/:id/peticao-inicial — gera uma NOVA VERSÃO da petição ────
 // Regeração manual: cria v2, v3… (preserva as anteriores para comparação).
+// Em segundo plano: a esteira (leitura, cálculos, modelo, redação) leva minutos.
 router.post('/:id/peticao-inicial', async (req: Request, res: Response) => {
-  try {
-    const r = await buildPeticaoInicial(Number(req.params.id), req.user!.id, true);
-    if (!r.ok) { res.status(400).json({ error: r.message || 'Não foi possível gerar' }); return; }
-    res.json({ success: true, ...r });
-  } catch (e: any) { res.status(400).json({ error: e?.message || 'Falha ao gerar a petição' }); }
+  const caseId = Number(req.params.id), userId = req.user!.id;
+  const [[c]] = await db.query('SELECT id, title FROM cases WHERE id = ?', [caseId]) as any;
+  if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
+  const avisar = (ok: boolean, message: string) => notificationService.create({
+    userId, caseId, title: ok ? 'Petição inicial gerada' : 'Falha ao gerar a petição inicial', message,
+    notificationType: ok ? 'peticao_gerada' : 'peticao_falhou', channel: 'sistema', scheduledAt: new Date(),
+  }).catch(() => {});
+  buildPeticaoInicial(caseId, userId, true)
+    .then((r) => avisar(r.ok, r.ok ? `${c.title || 'Processo'} — v${r.version} pronta${(r.casos?.length || 0) > 1 ? ` (peça conjunta de ${r.casos!.length} casos)` : ''}. Confira a petição e o "Dossiê da peça" em Documentos do caso.` : (r.message || 'Erro desconhecido')))
+    .catch((e: any) => avisar(false, `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`));
+  res.status(202).json({ success: true, emAndamento: true });
 });
 
 // ── PATCH /api/cases/:id/production-meta — etiquetas e responsável ───────────

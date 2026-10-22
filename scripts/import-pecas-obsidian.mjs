@@ -35,14 +35,23 @@ async function embed(texto) {
 }
 if (!OPENAI_KEY) console.warn('Aviso: OPENAI_API_KEY não definida — peças entrarão sem embedding (rode backfill-peca-embeddings.mjs depois).');
 
-// Frontmatter simples: chave: valor | chave: [a, b] | chave: "..."
+// Frontmatter simples: chave: valor | chave: [a, b] | chave: "..." | chave:\n  - a\n  - b
+// (as fichas guardam as teses em lista de várias linhas; antes elas chegavam vazias)
 function parseFrontmatter(md) {
   const m = md.match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return {};
   const out = {};
+  let ultima = null;
   for (const linha of m[1].split(/\r?\n/)) {
+    const item = linha.match(/^\s+-\s*(.*)$/);
+    if (item && ultima) {
+      const v = item[1].trim().replace(/^["']|["']$/g, '').replace(/^\[\[|\]\]$/g, '');
+      if (v) { if (!Array.isArray(out[ultima])) out[ultima] = []; out[ultima].push(v); }
+      continue;
+    }
     const kv = linha.match(/^([a-z_]+):\s*(.*)$/i);
-    if (!kv) continue;
+    if (!kv) { ultima = null; continue; }
+    ultima = kv[2].trim() ? null : kv[1].toLowerCase();
     let v = kv[2].trim();
     if (v.startsWith('[') && v.endsWith(']')) {
       v = v.slice(1, -1).split(',').map((x) => x.trim().replace(/^["'[]+|["'\]]+$/g, '')).filter(Boolean);

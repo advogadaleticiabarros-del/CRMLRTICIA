@@ -1,14 +1,15 @@
 import { db } from '../config/database';
-import { aiComplete, aiExtractFromFile, findPecaModelo, pecaModeloBloco } from './aiAssistant';
+import { aiComplete, aiExtractFromFile } from './aiAssistant';
 import { driveFileId, downloadDriveFile, driveFolderId, listDriveFolderFiles } from './partnerInboxService';
+import { produzirPeticao } from './esteiraPeca';
+import { depsEsteiraMysql } from './esteiraPecaMysql';
+import { brl } from './pecaCalculos';
 
 /**
- * Geração da PETIÇÃO INICIAL a partir de TUDO que se tem do cliente:
- *  1) lê os DOCUMENTOS anexados (Drive) com o Gemini (visão) e guarda o conteúdo;
- *  2) reúne o RELATO (resumo do caso do lead + descrição do caso + qualificação);
- *  3) redige a peça (Gemini) com base SÓ nesses dados — sem inventar nada,
- *     usando [colchetes] onde faltar informação;
- *  4) salva na produção do caso (documents, pendente de revisão).
+ * Geração da PETIÇÃO INICIAL pela esteira dos agentes (esteiraPeca.ts): leitura
+ * de todas as fontes, ficha de fatos, cálculos em código, escolha do modelo pelo
+ * guia do cofre, fundamentos verificados e redação. Aqui ficam a leitura dos
+ * anexos do Drive, a análise-checklist e a gravação do resultado no caso.
  *
  * Gatilho: ao mover o caso para a etapa "Criação inicial" (criacao_inicial).
  */
@@ -83,69 +84,6 @@ export async function importDriveFolder(caseId: number, clientId: number | null,
     n++;
   }
   return n;
-}
-
-/** Reúne o relato + qualificação + conteúdo dos documentos do caso. */
-async function gatherContext(caseId: number): Promise<{ prompt: string; clientId: number | null; clientName: string }> {
-  const [[cs]] = await db.query('SELECT id, client_id, title, legal_area, description, origin_contract_id FROM cases WHERE id = ?', [caseId]) as any;
-  const clientId = cs?.client_id ?? null;
-  const [[cl]] = clientId ? await db.query('SELECT name, cpf_cnpj, email, phone, address FROM clients WHERE id = ?', [clientId]) as any : [[null]];
-
-  // Lead vinculado (relato do caso): pelo contrato ou pelo client_id.
-  let lead: any = null;
-  if (cs?.origin_contract_id) {
-    const [[ct]] = await db.query('SELECT lead_id FROM contracts WHERE id = ?', [cs.origin_contract_id]) as any;
-    if (ct?.lead_id) { const [[l]] = await db.query('SELECT name, marital_status, profession, case_summary, cep, street, number, neighborhood, city, state FROM leads WHERE id = ?', [ct.lead_id]) as any; lead = l; }
-  }
-  if (!lead && clientId) { const [[l]] = await db.query('SELECT name, marital_status, profession, case_summary, cep, street, number, neighborhood, city, state FROM leads WHERE client_id = ? ORDER BY id DESC LIMIT 1', [clientId]) as any; lead = l || null; }
-
-  const [docs] = await db.query("SELECT name, content FROM documents WHERE case_id = ? AND content IS NOT NULL AND content <> '' ORDER BY id ASC LIMIT 20", [caseId]) as any;
-  const docsTxt = (docs || []).map((d: any) => `--- ${d.name} ---\n${String(d.content).slice(0, 4000)}`).join('\n\n').slice(0, 24000);
-
-  const [[law]] = await db.query("SELECT name, oab_number, oab_uf FROM lawyers WHERE active = 1 ORDER BY id LIMIT 1") as any;
-  const adv = law ? `${law.name}, OAB/${law.oab_uf || ''} nº ${law.oab_number || ''}` : 'a advogada responsável';
-
-  const endereco = cl?.address || (lead ? [lead.street, lead.number, lead.neighborhood, lead.city && (lead.city + '/' + (lead.state || '')), lead.cep].filter(Boolean).join(', ') : '');
-  const relato = lead?.case_summary || cs?.description || '';
-
-  // ── CÉREBRO: modelo do COFRE do escritório que melhor casa com o caso ──────
-  // Mesmo buscador usado pelo Estagiário IA (runEstagiarioForDeadline) — um
-  // só lugar decide "qual peça do cofre casa com este caso".
-  const melhor = await findPecaModelo(cs?.legal_area, `${cs?.title || ''} ${relato}`);
-  const modeloTxt = melhor ? pecaModeloBloco(melhor) : '';
-  // Dra. Júlia: só artigos e súmulas que existem no acervo de leis, com o texto oficial.
-  const leisTxt = await import('./leisServico')
-    .then((m) => m.fundamentosParaPeca(`${cs?.title || ''}\n${relato}\n${docsTxt.slice(0, 2500)}`, { area: cs?.legal_area, tipo: 'Petição inicial' }, 'a petição inicial'))
-    .catch(() => '');
-
-  const prompt = `Você é advogado(a) brasileiro(a), redator(a) de peças, minucioso(a). Redija uma PETIÇÃO INICIAL completa e profissional, pronta para revisão final, com base EXCLUSIVAMENTE no relato e nos documentos abaixo.
-
-REGRAS ANTI-INVENÇÃO (OBRIGATÓRIAS — descumprir é falha grave):
-- Use SOMENTE fatos e dados EXPLÍCITOS no relato ou nos documentos. É TERMINANTEMENTE PROIBIDO inventar, inferir, deduzir, presumir, completar ou "corrigir" qualquer dado.
-- NUNCA crie, complete ou ajuste identificadores/números: CPF, CNPJ, RG, nº de processo/benefício/conta/OAB, endereços, valores ou datas. Se não estiver escrito na fonte, escreva [colchete indicando o dado a preencher] — jamais um número aproximado ou fictício.
-- Dados da PARTE CONTRÁRIA (nome, CPF/CNPJ, endereço) só podem ser afirmados se constarem de um DOCUMENTO/PROVA. Se aparecerem só no relato do cliente (versão da parte), trate como alegação e marque "[a comprovar — não consta em documento]".
-- Se um número parecer inválido/incompleto (ex.: CNPJ sem 14 dígitos, CPF sem 11), NÃO o reproduza: escreva "[número informado parece inválido — conferir]".
-- Na dúvida, SEMPRE prefira o [colchete] a afirmar. Melhor a peça pedir o dado do que trazer um dado errado.
-- Analise os DOCUMENTOS para extrair partes, CPF/CNPJ, valores, datas e o que comprovam — mas use apenas o que de fato estiver neles.
-- Estruture: endereçamento ao juízo competente (deduza pela área/comarca do relato), qualificação do autor, qualificação do(s) réu(s), DOS FATOS, DO DIREITO (com fundamentos legais pertinentes — CDC, CC, CPC, Lei 9.099/95 conforme o caso), DOS PEDIDOS, DAS PROVAS, DO VALOR DA CAUSA, fecho.
-- Português jurídico formal.
-
-QUALIFICAÇÃO DO AUTOR (conforme cadastro):
-Nome: ${cl?.name || lead?.name || '[nome]'}
-CPF: ${cl?.cpf_cnpj || '[CPF]'}
-Estado civil: ${lead?.marital_status || '[estado civil]'} · Profissão: ${lead?.profession || '[profissão]'}
-Endereço: ${endereco || '[endereço]'}
-Contato: ${cl?.phone || '[telefone]'} · ${cl?.email || '[e-mail]'}
-Área do caso: ${cs?.legal_area || '[área]'}
-Advogada subscritora: ${adv}
-
-RELATO DO CASO:
-${relato || '[Sem relato cadastrado — extrair dos documentos]'}
-
-DOCUMENTOS DO CASO (conteúdo extraído):
-${docsTxt || '[Nenhum documento com conteúdo extraído]'}${modeloTxt}${leisTxt}`;
-
-  return { prompt, clientId, clientName: cl?.name || lead?.name || 'Cliente' };
 }
 
 /**
@@ -233,39 +171,66 @@ ${docsTxt || '[Nenhum documento com conteúdo lido — verifique o link da pasta
 }
 
 /**
- * Gera a petição inicial do caso e salva na produção. Idempotente: se já houver
- * uma petição gerada para o caso, não recria (a menos que force=true).
+ * Gera a petição inicial do caso pela esteira dos agentes (esteiraPeca.ts) e
+ * salva na produção: primeiro o "Dossiê da peça" (o que foi lido, calculado e
+ * por que o modelo foi escolhido), depois a petição. Casos do mesmo cliente
+ * contra a mesma parte contrária saem numa peça só (pecas_conjuntas).
+ * Idempotente: sem force, não recria se o caso já tem petição própria ou conjunta.
  */
-export async function buildPeticaoInicial(caseId: number, actorId: number, force = false): Promise<{ ok: boolean; docId?: number; version?: number; message?: string }> {
+export async function buildPeticaoInicial(caseId: number, actorId: number, force = false): Promise<{ ok: boolean; docId?: number; version?: number; message?: string; casos?: number[] }> {
   // Versões preservadas (v1, v2, v3…) — nunca sobrescreve, para comparação.
   const [existing] = await db.query(
     "SELECT id, name FROM documents WHERE case_id = ? AND type = 'ia' AND name LIKE 'Petição Inicial%' ORDER BY id DESC", [caseId]
   ) as any;
+  const [[conjunta]] = await db.query(
+    'SELECT document_id, case_principal_id FROM pecas_conjuntas WHERE case_id = ? AND case_principal_id <> ? ORDER BY id DESC LIMIT 1', [caseId, caseId]
+  ) as any;
   // No gatilho automático (move para "Criação inicial") gera só a 1ª; regeração
   // é sempre por ação manual (force=true), que cria a próxima versão.
-  if (existing.length && !force) return { ok: true, docId: existing[0].id, message: 'Petição já existente (use "gerar nova versão" para regerar)' };
+  if (!force && existing.length) return { ok: true, docId: existing[0].id, message: 'Petição já existente (use "gerar nova versão" para regerar)' };
+  if (!force && conjunta) return { ok: true, docId: conjunta.document_id, message: `Este caso já está na petição inicial conjunta do caso #${conjunta.case_principal_id}` };
   let maxV = 0;
   for (const d of existing) { const m = String(d.name).match(/\(v(\d+)\)/); maxV = Math.max(maxV, m ? Number(m[1]) : 1); }
   const version = maxV + 1;
 
-  // 0) se o caso aponta uma pasta do Drive, importa os arquivos dela.
+  // Se o caso aponta uma pasta do Drive, importa os arquivos dela antes da leitura.
   const [[cf]] = await db.query('SELECT client_id, drive_folder_url FROM cases WHERE id = ?', [caseId]) as any;
   if (cf?.drive_folder_url) await importDriveFolder(caseId, cf.client_id ?? null, cf.drive_folder_url, actorId).catch(() => 0);
 
-  // 1) lê os anexos (best-effort) e 2) monta o contexto.
-  await extractCaseDocuments(caseId).catch(() => 0);
-  const { prompt, clientId, clientName } = await gatherContext(caseId);
+  const r = await produzirPeticao(caseId, depsEsteiraMysql);
+  if (!r.ok) return { ok: false, message: r.message };
+  const clientId = cf?.client_id ?? null;
+  const juntos = r.casos.length > 1;
 
-  // 3) redige com o GPT-5.6 Luna (redação → 'openai').
-  const out = await aiComplete(prompt, 'openai');
-  if (!out.ok || !out.text) return { ok: false, message: out.message || 'A IA não retornou a petição' };
-
-  // 4) salva na produção como NOVA VERSÃO (não sobrescreve as anteriores).
-  const name = `Petição Inicial — ${clientName} (v${version})`;
-  const [r] = await db.query(
+  // Dossiê antes da petição: a revisão automática pega o documento mais recente.
+  await db.query(
     `INSERT INTO documents (client_id, case_id, name, type, folder, content, status, created_by)
      VALUES (?, ?, ?, 'ia', 'processos', ?, 'pendente', ?)`,
-    [clientId, caseId, name, out.text, actorId]
+    [clientId, caseId, `Dossiê da peça — ${r.cliente} (v${version})`, r.dossie, actorId]
+  );
+  const [ins] = await db.query(
+    `INSERT INTO documents (client_id, case_id, name, type, folder, content, status, created_by)
+     VALUES (?, ?, ?, 'ia', 'processos', ?, 'pendente', ?)`,
+    [clientId, caseId, `Petição Inicial${juntos ? ' conjunta' : ''} — ${r.cliente} (v${version})`, r.peticao, actorId]
   ) as any;
-  return { ok: true, docId: r.insertId, version };
+  const docId = ins.insertId;
+
+  const faltam = r.conferencia.filter((c) => !c.presente).length;
+  const resumo = `Esteira da peça: ${r.fontesLidas.length} fonte(s) lida(s) · modelo: ${r.escolha.modelos.join(' + ') || 'nenhum do cofre'}`
+    + (r.calculo.indebito.total.restituir ? ` · a restituir ${brl(r.calculo.indebito.total.restituir)}` : '')
+    + (r.calculo.valorDaCausa.total ? ` · valor da causa calculado ${brl(r.calculo.valorDaCausa.total)}` : '')
+    + (r.conferencia.length ? ` · ${r.conferencia.length - faltam}/${r.conferencia.length} valores conferem na peça` : '')
+    + (juntos ? ` · peça conjunta com ${r.casos.filter((c) => c.id !== caseId).map((c) => `#${c.id}`).join(', ')}` : '')
+    + '. Detalhes no "Dossiê da peça".';
+  const nota = (id: number, texto: string) => db.query(
+    `INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, 'Esteira da peça', 'atualizacao', ?)`, [id, actorId, texto]
+  ).catch(() => {});
+  await nota(caseId, resumo);
+  if (juntos) {
+    for (const c of r.casos) {
+      await db.query('INSERT IGNORE INTO pecas_conjuntas (document_id, case_id, case_principal_id) VALUES (?, ?, ?)', [docId, c.id, caseId]);
+      if (c.id !== caseId) await nota(c.id, `Este caso entrou na petição inicial conjunta do caso #${caseId} (mesmo cliente e mesma parte contrária). Não é preciso gerar outra peça: confira no caso #${caseId}.`);
+    }
+  }
+  return { ok: true, docId, version, casos: r.casos.map((c) => c.id) };
 }

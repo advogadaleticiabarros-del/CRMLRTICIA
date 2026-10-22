@@ -31,6 +31,27 @@ Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análi
 
 **Importante — "Concluído" aqui não é o caso encerrado.** Significa só que a peça foi protocolada e o trabalho de produção daquela demanda terminou — o **caso em si continua ativo**, seguindo dali em diante pela esteira processual normal (acompanhamento de movimentação, prazos, audiências — ver [Processos e prazos](04-processos.md)), não pela esteira de produção. "Concluído"/"Protocolado" só tiram o card da contagem de "Em produção" e param o relógio do SLA de redação — não mudam o status do processo.
 
+## Esteira da petição inicial: os agentes montam a peça (desde 22/10/2026)
+
+Pedido da Jessica: "preciso que os documentos sejam lidos de fato, os cálculos sejam realizados de fato, a peça seja produzida com contexto". Antes, a petição recebia só o resumo do lead, os documentos cortados em 4.000 caracteres e **um** modelo buscado entre as 40 primeiras peças do cofre. Agora, ao mover o card para **Criação inicial** (ou no botão "Gerar nova versão da petição"), a equipe trabalha em ordem:
+
+1. **Peça conjunta:** casos do **mesmo cliente**, **mesma área** e **mesma parte contrária** (mesmo CNPJ ou mesmo nome, sem "Banco", "S.A." etc.) que ainda não foram protocolados saem numa **única petição inicial**. Ex.: empréstimo + juros abusivos, ou cartão RMC + RCC contra o mesmo banco. Para isso a parte contrária precisa estar cadastrada no caso.
+2. **Dra. Helena lê tudo:** relato, documentos do caso (Drive e arquivos guardados), PDFs e fotos que o cliente mandou no WhatsApp, a conversa inteira (áudios já transcritos) e as anotações da produção. Cada arquivo é transcrito por inteiro uma única vez (fica guardado). Ela monta a **ficha de fatos** com a fonte de cada dado: réus, contratos (nº, tipo, valor, parcela, taxa, início e fim do desconto), descontos mês a mês, fatos, respostas da triagem (sacou o dinheiro? recebeu o cartão?) e o que falta.
+3. **Cálculos em código, não pela IA:**
+   - devolução do indébito por contrato, com a modulação do STJ (EAREsp 600.663/RS): descontos até 03/2021 voltam de forma **simples**; de 04/2021 em diante, **em dobro**. Mês repetido em dois documentos conta uma vez;
+   - contrato só com parcela e mês de início: o sistema monta os meses até o fim do contrato ou até hoje e avisa que é estimativa;
+   - juros: parcela recalculada pela tabela Price com a taxa média do Bacen (quando a taxa média está em algum documento) e o que foi pago a mais;
+   - valor da causa: soma do que foi calculado. Sem valor de dano moral definido, a peça deixa **[valor do dano moral]**. Valores nominais: correção e juros de mora ficam para a liquidação.
+4. **Cérebro escolhe a estratégia** pelo guia do próprio cofre ("🧭 Como escolher" e o roteiro de triagem da área), entre **todas** as peças da área, e traz as notas de tese (ex.: "Repetição do indébito em dobro").
+5. **Dra. Júlia** separa os fundamentos que existem, com o texto oficial.
+6. **Redação com raciocínio alto** (GPT-5.6 Luna, esforço alto), com os cálculos prontos ("use exatamente estes valores"), os modelos inteiros e as teses. Depois o sistema confere se os valores calculados aparecem na peça.
+
+**O que fica no caso:** o **"Dossiê da peça"** (fontes lidas e as que não deu para ler, ficha de fatos com a fonte de cada dado, cálculos, modelo escolhido e o motivo, o que falta e a conferência dos valores) e a **"Petição Inicial — Cliente (vN)"** (ou "Petição Inicial conjunta"). A nota da produção resume: fontes lidas, modelo, valor a restituir, valor da causa e quantos valores conferem. Nos outros casos da peça conjunta entra a nota "Este caso entrou na petição inicial conjunta do caso #N"; mover esses cards para Criação inicial não gera outra peça.
+
+A geração leva alguns minutos e roda em segundo plano: o aviso chega no sino. A revisão automática roda em seguida, sobre a petição (nunca sobre o dossiê).
+
+Código: `src/services/esteiraPeca.ts` (ordem dos agentes), `pecaCalculos.ts`, `pecaConsolidacao.ts`, `pecaDossie.ts`, `esteiraPecaMysql.ts` (banco). Testes: `tests/esteiraPeca.test.mjs`. Tabela `pecas_conjuntas` (migration 167).
+
 ## Revisão automática da peça (desde 30/09/2026)
 
 A revisão (checagens estruturais + parecer de mérito por IA) agora roda sozinha logo depois que a IA gera:
@@ -95,7 +116,7 @@ Documentos podem ser enviados pra assinatura eletrônica direto pelo sistema, co
 
 ## Modelos de peça (banco de modelos do escritório)
 
-Além dos templates de preenchimento automático, existe um banco de modelos de peça por área jurídica (`peca_modelos`) — a IA busca o modelo mais adequado ao caso na hora de montar uma minuta (por significado, quando o modelo já tem "índice" calculado; por palavra-chave do assunto/título, senão), em vez de escrever do zero toda vez. 176 modelos hoje, a maioria trabalhista.
+Além dos templates de preenchimento automático, existe um banco de modelos de peça por área jurídica (`peca_modelos`) — a IA busca o modelo mais adequado ao caso na hora de montar uma minuta (por significado, quando o modelo já tem "índice" calculado; por palavra-chave do assunto/título, senão), em vez de escrever do zero toda vez. 176 modelos hoje, a maioria trabalhista. Desde 22/10/2026 a busca olha **todas** as peças da área (antes, só as 40 primeiras), e a petição inicial escolhe o modelo pelo guia "Como escolher" do cofre (ver Esteira da petição inicial, acima).
 
 ### De onde vêm os modelos — e como atualizar (desde 23/09/2026)
 
@@ -199,6 +220,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 22/10/2026 | Claude | Esteira da petição inicial: Dra. Helena lê todas as fontes (inclusive WhatsApp), cálculos em código (indébito simples/dobro, juros, valor da causa), Cérebro escolhe pelo guia do cofre, peça conjunta por parte contrária, "Dossiê da peça"; busca de modelos sem o limite de 40 |
 | 21/10/2026 | Claude | Quadro de produção na altura da tela, com rolagem lateral, roda descendo a coluna e arraste até a borda (relato da Dra.) |
 | 21/10/2026 | Claude | Dra. Júlia (fundamentos conferidos no acervo de leis) na minuta, petição inicial, análise do caso e Assistente de IA; Dra. Vera (conferência das citações) no parecer de revisão |
 | 19/10/2026 | Claude | Opções do contrato: sem profissão/e-mail não informados (sem colchetes) e sem declaração de hipossuficiência |

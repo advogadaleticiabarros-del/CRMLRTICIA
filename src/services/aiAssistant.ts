@@ -20,7 +20,7 @@ import { PERGUNTAS_LEAD, lerQualificacaoLaya, perguntarLaya, depsLayaPadrao } fr
  * explicitamente preferido, nunca entra no fallback automático de
  * gemini/groq (que seguem grátis e são a base padrão do escritório).
  */
-type Provider = 'gemini' | 'groq' | 'openai' | 'openai-smart';
+type Provider = 'gemini' | 'groq' | 'openai' | 'openai-smart' | 'openai-medio' | 'openai-alto';
 
 async function callGemini(prompt: string, json = false): Promise<{ ok: boolean; text?: string; message?: string }> {
   const key = process.env.GEMINI_API_KEY;
@@ -65,14 +65,16 @@ async function callGroq(prompt: string, json = false): Promise<{ ok: boolean; te
 // tokens — barato o bastante pra usar com liberdade); SOL só entra quando
 // alguém pedir explicitamente o nível mais forte pra um caso "muito
 // extremo" (nenhum ponto do sistema escala pra SOL sozinho hoje).
-async function callOpenAI(prompt: string, tier: 'default' | 'smart' = 'default'): Promise<{ ok: boolean; text?: string; message?: string }> {
+// Esforço de raciocínio da LUNA: 'low' no dia a dia; 'medium' para ler
+// documentos e extrair números; 'high' para redigir a petição inicial.
+async function callOpenAI(prompt: string, tier: 'default' | 'smart' = 'default', esforco: 'low' | 'medium' | 'high' = 'low'): Promise<{ ok: boolean; text?: string; message?: string }> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return { ok: false, message: 'sem_openai' };
   const model = tier === 'smart'
     ? (process.env.OPENAI_MODEL_SMART || 'gpt-5.6-sol')
     : (process.env.OPENAI_MODEL || 'gpt-5.6-luna');
   const body: Record<string, unknown> = { model, messages: [{ role: 'user', content: prompt }] };
-  if (tier === 'default') body.reasoning_effort = 'low';
+  if (tier === 'default') body.reasoning_effort = esforco;
   const r = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify(body),
@@ -97,6 +99,8 @@ export async function aiComplete(
     const r = await callOpenAI(prompt, prefer === 'openai-smart' ? 'smart' : 'default');
     return r;
   }
+  if (prefer === 'openai-medio') return callOpenAI(prompt, 'default', 'medium');
+  if (prefer === 'openai-alto') return callOpenAI(prompt, 'default', 'high');
   const order: Provider[] = prefer === 'groq' ? ['groq', 'gemini'] : ['gemini', 'groq'];
   let lastMsg = 'sem_chave';
   for (const p of order) {
@@ -287,12 +291,18 @@ const EMBEDDING_MIN_SIM = 0.15;
  */
 export async function findPecaModelo(area: string | null | undefined, termosBusca: string): Promise<PecaModelo | null> {
   try {
+    // Sem LIMIT: o cofre tem 128 peças só de trabalhista e o antigo "LIMIT 40"
+    // deixava a maioria fora da busca. O texto (conteudo) só vem da escolhida.
     const [modelos] = await db.query(
-      `SELECT titulo, assunto, teses, fundamentos, conteudo, embedding FROM peca_modelos
-        WHERE area = ? OR area IS NULL ORDER BY (area = ?) DESC, id ASC LIMIT 40`,
+      `SELECT id, titulo, assunto, teses, fundamentos, embedding FROM peca_modelos
+        WHERE area = ? OR area IS NULL ORDER BY (area = ?) DESC, id ASC`,
       [area || '', area || '']
     ) as any;
     if (!modelos.length) return null;
+    const comTexto = async (m: any): Promise<PecaModelo> => {
+      const [[r]] = await db.query('SELECT conteudo FROM peca_modelos WHERE id = ?', [m.id]) as any;
+      return { titulo: m.titulo, assunto: m.assunto, teses: m.teses, fundamentos: m.fundamentos, conteudo: r?.conteudo ?? null };
+    };
 
     const comEmbedding = modelos.filter((m: any) => m.embedding);
     if (comEmbedding.length) {
@@ -305,7 +315,7 @@ export async function findPecaModelo(area: string | null | undefined, termosBusc
           const sim = cosineSim(qEmb, emb);
           if (sim > melhorSim) { melhorSim = sim; melhor = m; }
         }
-        if (melhor && melhorSim >= EMBEDDING_MIN_SIM) return melhor;
+        if (melhor && melhorSim >= EMBEDDING_MIN_SIM) return comTexto(melhor);
       }
     }
 
@@ -319,7 +329,7 @@ export async function findPecaModelo(area: string | null | undefined, termosBusc
       const pts = chaves.reduce((s: number, w: string) => s + (termos.includes(w) ? 1 : 0), 0);
       if (pts > melhorPts) { melhorPts = pts; melhor = m; }
     }
-    return melhor || modelos[0];
+    return comTexto(melhor || modelos[0]);
   } catch { return null; /* cofre vazio ou indisponível */ }
 }
 

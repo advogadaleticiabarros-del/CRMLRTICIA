@@ -16,6 +16,28 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: petição inicial saía sem contexto, mesmo com as ferramentas no sistema
+
+**Sintoma (21/10/2026):** a Jessica: "por que minhas peças saem sem contexto mesmo com todas as ferramentas" (OpenAI, cofre de peças no Obsidian, acervo de leis, equipe de agentes).
+
+**Causa raiz** (montagem antiga do prompt em `peticaoBuilder.ts`):
+1. **Busca de modelos com `LIMIT 40`** (`findPecaModelo`): com 128 peças trabalhistas, 88 nunca eram consideradas. Afetava também as minutas do Enzo.
+2. **Teses das fichas chegavam vazias:** as fichas escrevem `teses:` em lista de várias linhas e o importador (`scripts/import-pecas-obsidian.mjs`) só lia `chave: valor` numa linha.
+3. **Fontes ignoradas:** conversa do WhatsApp, PDFs e fotos mandados pelo WhatsApp, arquivos guardados no CRM (só os do Drive eram lidos), parte contrária, anotações da produção e o guia "Como escolher" do cofre. Documentos cortados em 4.000 caracteres (24.000 no total).
+4. Nenhum cálculo: a IA estimava valores ou deixava sem.
+5. Redação com esforço de raciocínio baixo.
+
+**Correção (22/10/2026):** esteira da petição inicial (ver `docs/manual/06-documentos.md` → "Esteira da petição inicial"): leitura integral pela Dra. Helena, cálculos em código, escolha pelo guia, peça conjunta, raciocínio alto e "Dossiê da peça". Busca de modelos sem limite (o texto só é carregado da peça escolhida). Importador lê listas de várias linhas.
+
+**Como reconhecer de novo:** abra o "Dossiê da peça" do caso.
+- "Fontes lidas" com poucos itens ou muita coisa em "Não foi possível ler": a leitura de arquivos falhou (Gemini sem cota e OpenAI fora); veja `documento_leituras` (chaves `texto:doc:N` e `texto:media:N`).
+- "Modelos do cofre: nenhum encontrado": `peca_modelos` vazio para a área ou o Cérebro sem o cofre importado (Configurações → importar modelos; rotina `cerebro:indexar`).
+- "Conferência da peça" com ✗: o redator não usou o valor calculado; gere nova versão ou corrija à mão.
+
+**Pendente:** reimportar o cofre para preencher as teses em `peca_modelos` (a esteira já lê as teses direto do Cérebro).
+
+---
+
 ## Incidente: agente mandou lista de documentos errada ao cliente, sem consentimento
 
 **Sintoma (19/10/2026):** ao ativar os agentes do contrato da Sandra, a Dra. Camila mandou sozinha a lista de documentos de reclamante trabalhista (CTPS, FGTS, holerite…):
@@ -700,6 +722,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 22/10/2026 | Claude | +1 incidente: petição inicial sem contexto (busca de modelos limitada a 40, teses vazias na importação, fontes ignoradas, sem cálculos) |
 | 21/10/2026 | Claude | +1 incidente: quadro de Peças em produção sem rolagem lateral (página esticava; `min-width: 0` em `.content`) |
 | 12/10/2026 | Claude | +1 incidente: prova de restauração do backup falhando (dump de 656 MB passou do limite de texto do Node) — restauração agora em fluxo |
 | 09/10/2026 | Claude | +2 incidentes: assistente respondendo errado/sem resposta; fechamento do dia com "Dra. Administrador" |

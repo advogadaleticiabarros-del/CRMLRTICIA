@@ -8608,7 +8608,7 @@ async function caseDetail(id, onSave) {
       const genBtn = panel.querySelector('#prod-gen-peticao');
       if (genBtn) genBtn.onclick = async () => {
         genBtn.disabled = true; genBtn.textContent = 'Gerando com IA…';
-        try { const r = await api(`/api/cases/${id}/peticao-inicial`, { method: 'POST', body: '{}' }); toast(`✓ Petição v${r.version || ''} gerada`); loadProd(); }
+        try { await api(`/api/cases/${id}/peticao-inicial`, { method: 'POST', body: '{}' }); toast('A equipe está montando a petição: leitura dos documentos, cálculos, modelo e redação. Você será avisada no sino quando terminar.'); genBtn.textContent = 'Em produção pela equipe…'; }
         catch (e) { toast(e.message, 'error'); genBtn.disabled = false; genBtn.textContent = 'Gerar nova versão da petição (IA)'; }
       };
       panel.querySelectorAll('[data-doc]').forEach((b) => b.onclick = async () => {
@@ -9060,9 +9060,18 @@ function parseFichaFrontmatter(md) {
   const m = String(md || '').match(/^---\r?\n([\s\S]*?)\r?\n---/);
   if (!m) return {};
   const out = {};
+  let ultima = null;
   for (const linha of m[1].split(/\r?\n/)) {
+    // Lista em várias linhas ("teses:\n  - \"[[X]]\""): antes as teses chegavam vazias.
+    const item = linha.match(/^\s+-\s*(.*)$/);
+    if (item && ultima) {
+      const v = item[1].trim().replace(/^["']|["']$/g, '').replace(/^\[\[|\]\]$/g, '');
+      if (v) { if (!Array.isArray(out[ultima])) out[ultima] = []; out[ultima].push(v); }
+      continue;
+    }
     const kv = linha.match(/^([a-z_]+):\s*(.*)$/i);
-    if (!kv) continue;
+    if (!kv) { ultima = null; continue; }
+    ultima = kv[2].trim() ? null : kv[1].toLowerCase();
     let v = kv[2].trim();
     if (v.startsWith('[') && v.endsWith(']')) {
       v = v.slice(1, -1).split(',').map((x) => x.trim().replace(/^["'[]+|["'\]]+$/g, '')).filter(Boolean);

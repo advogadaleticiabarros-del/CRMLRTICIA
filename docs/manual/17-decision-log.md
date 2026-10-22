@@ -16,6 +16,15 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 22/10/2026 — Petição inicial pela esteira dos agentes, com cálculo em código
+- Pedido da Jessica: documentos lidos de fato, cálculos feitos de fato, peça com contexto, e os agentes de cada função atuando na produção.
+- **Cálculo nunca pela IA.** A IA só extrai os números das fontes (com a fonte de cada um); a soma, a modulação simples/dobro do EAREsp 600.663/RS e a tabela Price são código testado. O redator recebe os valores prontos e a peça é conferida contra eles. Motivo: IA erra conta e arredonda sem avisar.
+- **Peça conjunta automática** para mesmo cliente + mesma área + mesma parte contrária antes do protocolo (regra do escritório: "o que for correlacionado da mesma parte contrária é na mesma peça inicial"). Identidade da parte: raiz do CNPJ (8 dígitos) ou nome normalizado; CNPJs diferentes são empresas diferentes mesmo com nome igual. Outra área não junta (trabalhista e consumidor contra o mesmo banco são ações distintas).
+- **Modelo escolhido pelo guia do cofre**, não só por semelhança de texto: no RMC/RCC a estratégia (nulidade, conversão, inexistência) depende de fatos da triagem (sacou o dinheiro? recebeu o cartão?), e o guia "Como escolher" do escritório já diz isso.
+- **Esforço de raciocínio:** médio para ler documentos, alto para redigir; o resto do sistema segue no baixo (custo).
+- **Dano moral e taxa média do Bacen não são inventados:** sem valor nas fontes, ficam em [colchete] e o dossiê avisa.
+- **Alternativa descartada:** só aumentar os limites do prompt antigo. Não resolveria cálculo, escolha de estratégia nem a junção dos casos.
+
 ### 20/10/2026 — Automações antigas a cliente também passam pela aprovação
 - A ordem da Jessica de 19/10 foi geral: "Não envie mais nenhuma mensagem sem consentimento". Os agentes já estavam na fila; faltavam as automações antigas (acompanhamento, expiração e recusa de proposta, newsletter, aceite com PIX, e-book).
 - **O que muda no sistema continua automático** (status, prazo extra, inscrição, contrato). Só a mensagem ao cliente espera alguém aprovar.
@@ -235,6 +244,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 22/10/2026 | Claude | Petição inicial pela esteira dos agentes: cálculo em código, peça conjunta por parte contrária, modelo pelo guia do cofre |
 | 21/10/2026 | Claude | Acervo de leis em SQLite à parte; a IA sugere e o índice confere; decretos de 1988 em diante |
 | 20/10/2026 | Claude | Automações antigas a cliente passam pela aprovação (o que muda no sistema continua automático) |
 | 04/09/2026 | Claude | Criação do documento — 8 decisões registradas |

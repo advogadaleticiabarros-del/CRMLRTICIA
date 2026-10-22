@@ -146,11 +146,15 @@ export async function revisarPeticaoDoCaso(caseId: number, actorId: number): Pro
   // 1) A peça a revisar: o documento de petição mais recente do caso com texto
   //    (a gerada pela IA na etapa "Criação inicial" tem type='ia').
   const [docs] = await db.query(
+    // A petição conjunta (pecas_conjuntas) vale também para os outros casos dela;
+    // o "Dossiê da peça" e as análises nunca são revisados no lugar da petição.
     `SELECT id, name, content FROM documents
-      WHERE case_id = ? AND content IS NOT NULL AND content <> ''
+      WHERE (case_id = ? OR id IN (SELECT document_id FROM pecas_conjuntas WHERE case_id = ?))
+        AND content IS NOT NULL AND content <> ''
         AND (type = 'ia' OR name LIKE 'Peti%')
         AND name NOT LIKE 'Revisão da Petição%'
-      ORDER BY id DESC LIMIT 1`, [caseId]
+        AND name NOT LIKE 'Dossiê da peça%'
+      ORDER BY (name LIKE 'Petição Inicial%') DESC, id DESC LIMIT 1`, [caseId, caseId]
   ) as any;
   const peca = (docs || [])[0];
   if (!peca?.content) {
