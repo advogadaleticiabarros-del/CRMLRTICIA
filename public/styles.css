@@ -2416,7 +2416,9 @@ body.sidebar-collapsed .nav-group-title { visibility: hidden; height: 6px; paddi
   background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.45;
   animation: mesa-entra .18s cubic-bezier(.2, .8, .2, 1);
 }
+.mesa { --mesa-ambar: #8a5a12; --mesa-grave: #a8382f; }
 [data-theme="escuro"] .mesa {
+  --mesa-ambar: #f2c97a; --mesa-grave: #f29a91;
   --mesa-pri: #e0c074; --mesa-pri-hover: #ecc869; --mesa-pri-txt: #1e1a14;
   --mesa-azul: #9cc0f2; --mesa-azul-bg: rgba(29,79,145,.28); --mesa-laranja: #f2b27a; --mesa-laranja-bg: rgba(154,74,11,.28);
   --mesa-mesa: #0f0d0a;
@@ -2542,7 +2544,7 @@ body.mesa-aberta { overflow: hidden; }
 .mesa-fb:hover { background: var(--surface); border-color: var(--border); color: var(--text); }
 .mesa-fb i { font-family: 'Spectral', Georgia, serif; }
 .mesa-fsep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
-.mesa-campos { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--amber); font-weight: 500; }
+.mesa-campos { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--mesa-ambar); font-weight: 500; }
 .mesa-campos.zero { color: var(--green); }
 .mesa-aviso-versao { margin: 0; padding: 8px 16px; font-size: 12.5px; color: var(--text-soft); background: var(--surface-2); border-bottom: 1px solid var(--border-soft); }
 .mesa-fundo { background: var(--mesa-mesa); padding: 28px 20px; }
@@ -2592,6 +2594,49 @@ body.mesa-aberta { overflow: hidden; }
 .mesa-doc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 0; border-bottom: 1px solid var(--border-soft); }
 .mesa-doc-nome { flex: 1 1 260px; min-width: 0; font-size: 13.5px; overflow-wrap: anywhere; }
 .mesa-doc-nome small { display: block; color: var(--text-muted); font-size: 12px; }
+
+/* Abas Caso e Documentos */
+.mesa-secoes { display: flex; flex-direction: column; }
+.mesa-secao { padding: 18px 20px; border-bottom: 1px solid var(--border-soft); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.mesa-secao:last-child { border-bottom: none; }
+.mesa-secao h3 { margin: 0 0 4px; font-size: 15px; color: var(--navy-deep); }
+.mesa-secao-cab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; }
+.mesa-secao-cab h3 { margin: 0; }
+.mesa-cont-grande { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-soft); }
+.mesa-dados { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px 20px; margin: 4px 0 6px; }
+.mesa-dados dt { font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-muted); }
+.mesa-dados dd { margin: 2px 0 0; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mesa-relato { margin: 0; max-width: 80ch; white-space: pre-wrap; font-size: 14px; line-height: 1.6; }
+.mesa-relato-doc { margin-top: 10px; border: 1px solid var(--border-soft); border-radius: 10px; background: var(--surface-2); }
+.mesa-relato-doc .mesa-rotulo { display: block; padding: 10px 14px 0; }
+.mesa-relato-txt { padding: 8px 14px 14px; max-height: 380px; overflow: auto; }
+.mesa-achados { list-style: none; margin: 6px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.mesa-achado { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--border-soft); border-radius: 10px; font-size: 13.5px; }
+.mesa-achado > div { min-width: 0; }
+.mesa-achado small { display: block; margin-top: 2px; color: var(--text-muted); font-size: 12px; }
+.mesa-tag-grave { background: var(--red-bg); color: var(--mesa-grave); }
+.mesa-tag-atencao { background: var(--amber-bg); color: var(--mesa-ambar); }
+.mesa-aviso { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin: 16px 20px 0; padding: 10px 14px; border-radius: 10px; background: var(--amber-bg); color: var(--mesa-ambar); font-size: 13px; font-weight: 500; }
+.mesa-ck-grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 2px 16px; }
+div.mesa-ck { cursor: default; }
+.mesa-ck span small { display: block; color: var(--text-muted); font-size: 11.5px; }
+.mesa-envio { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px 16px; border: 1.5px dashed var(--border); border-radius: 12px; background: var(--surface-2); color: var(--text-soft); font-size: 13.5px; text-align: center; cursor: pointer; transition: border-color .15s, background .15s; }
+.mesa-envio:hover, .mesa-envio.arrastando { border-color: var(--mesa-azul); background: var(--mesa-azul-bg); }
+.mesa-envio:focus-within { outline: 2px solid var(--mesa-azul); outline-offset: 2px; }
+.mesa-envio svg { width: 22px; height: 22px; color: var(--mesa-azul); }
+.mesa-envio small { color: var(--text-muted); font-size: 12px; }
+.mesa-envio input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.mesa-secao .mesa-docs { padding: 0; }
+/* Peça com o parecer da revisão ao lado */
+.mesa-lado { display: grid; grid-template-columns: minmax(0, 1fr) 360px; }
+.mesa-parecer { border-left: 1px solid var(--border); background: var(--surface); max-height: calc(100vh - 160px); overflow: auto; position: sticky; top: 110px; align-self: start; }
+.mesa-parecer-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 12px 16px; border-bottom: 1px solid var(--border-soft); position: sticky; top: 0; background: var(--surface); z-index: 1; }
+.mesa-parecer-cab strong { font-size: 13.5px; color: var(--navy-deep); }
+.mesa-parecer-cab span { margin-right: auto; font-size: 12px; color: var(--text-muted); }
+.mesa-parecer .mesa-leitura { padding: 14px 16px; font-size: 13.5px; }
+.mesa-lado .mesa-fundo { padding: 20px 14px; }
+.mesa-lado .mesa-papel { padding: 44px 40px; }
+@media (max-width: 1280px) { .mesa-lado { grid-template-columns: minmax(0, 1fr); } .mesa-parecer { border-left: none; border-top: 1px solid var(--border); position: static; max-height: none; } }
 
 @media (max-width: 1100px) { .mesa-rail { max-width: none; flex: 0 0 auto; } .mesa-corpo { flex-direction: column; flex-wrap: nowrap; align-items: stretch; } .mesa-centro { order: -1; flex: 0 0 auto; } }
 @media (max-width: 640px) {

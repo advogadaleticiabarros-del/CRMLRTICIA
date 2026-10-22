@@ -32,8 +32,26 @@ Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análi
 **Mesa do caso (desde 22/10/2026).** Clicar num card abre a mesa do caso em tela cheia (antes era um modal com 17 blocos empilhados e a peça só para ler). Pedido da Jessica: "preciso estar imersa caso a caso, ter uma visão clara do início, meio e fim, e poder usar o CRM plenamente, sem precisar sair de lá de dentro, a não ser para copiar a versão final e conferir dentro do Jusbrasil".
 - **Topo:** cliente, caso, prazo (10 dias), "Recusar caso" e "Avançar para…" (protocolo pede o número do processo, como antes).
 - **Régua:** Preparação (Em análise, Separação de documentos), Produção (Criação inicial, Revisão inicial) e Protocolo (Aguardando protocolo, Protocolado, Concluído). Clicar numa etapa mostra "o que fazer" e "pronto para avançar quando", com o que já está cumprido. A régua orienta, não trava.
-- **Esquerda, o caso:** partes (editar), valor da causa, prescrição, checklist de documentos (clicar marca), pasta do Drive ("Ler a pasta"), responsável e etiquetas. "Prazos e movimentações" abre a ficha do processo.
-- **Centro, abas Peça, Dossiê da peça, Documentos e Revisão.** Na Peça:
+- **Esquerda, o caso:** partes (editar), valor da causa, prescrição, resumo dos documentos (checklist, quantos há no caso, mensagens ao cliente esperando aprovação), responsável e etiquetas. "Prazos e movimentações" abre a ficha do processo.
+- **A mesa abre no trabalho de cada etapa** (desde 22/10/2026, à tarde):
+  - Em análise: aba **Caso**;
+  - Separação de documentos: aba **Documentos**;
+  - Criação inicial e Aguardando protocolo: **Peça**;
+  - Revisão inicial: **Peça com o parecer da revisão ao lado** (botão "Esconder o parecer");
+  - Protocolado e Concluído: aba **Caso**, com o resumo do protocolo.
+
+  Ao avançar a etapa, a mesa muda junto.
+- **Aba Caso:**
+  - resumo do protocolo, quando já protocolado: nº do processo, data, versão protocolada, valor da causa e se o acompanhamento nos tribunais está ativo;
+  - relato do atendimento e relato escrito pela Dra. Camila a partir do WhatsApp;
+  - análise da Dra. Helena, com os pontos graves primeiro e a fonte de cada um. "Analisar de novo" roda em segundo plano, sem avisar no WhatsApp da Dra.; pedido de reenvio ao cliente vira rascunho para aprovar.
+- **Aba Documentos:**
+  - aviso de mensagens ao cliente esperando aprovação, com atalho;
+  - checklist grande, em que clicar marca o que chegou;
+  - coleta da Dra. Camila: o que pediu, o que chegou e as cobranças preparadas;
+  - enviar arquivos (escolher ou arrastar; PDF, foto ou Word, até 15 MB);
+  - pasta do Drive e a lista dos documentos do caso.
+- **Centro, abas Caso, Documentos, Peça, Revisão e Dossiê da peça.** Na Peça:
   - o texto abre como folha de papel e é editável: negrito, itálico, sublinhado, alinhamento, listas, recuo, títulos e citação;
   - os campos a preencher ficam em amarelo, e "Próximo" pula entre eles;
   - salva sozinho (ou Ctrl+S);
@@ -236,6 +254,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 22/10/2026 | Claude | Mesa do caso abre no trabalho de cada etapa: aba Caso (relato, análise da Dra. Helena, resumo do protocolo), aba Documentos (checklist, coleta da Dra. Camila, envio de arquivos), parecer da revisão ao lado da peça |
 | 22/10/2026 | Claude | Mesa do caso: card abre a tela cheia com régua de etapas, peça editável e formatável, versões da Dra. (a da equipe fica intacta), comparação, lições que viram regras, versão final e cópia para o Jusbrasil; recado ao cliente volta a salvar |
 | 22/10/2026 | Claude | Esteira da petição inicial: Dra. Helena lê todas as fontes (inclusive WhatsApp), cálculos em código (indébito simples/dobro, juros, valor da causa), Cérebro escolhe pelo guia do cofre, peça conjunta por parte contrária, "Dossiê da peça"; busca de modelos sem o limite de 40 |
 | 21/10/2026 | Claude | Quadro de produção na altura da tela, com rolagem lateral, roda descendo a coluna e arraste até a borda (relato da Dra.) |

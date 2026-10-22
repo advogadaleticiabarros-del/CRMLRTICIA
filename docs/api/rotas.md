@@ -4,7 +4,7 @@
 > Acesso: **público** (sem login), **logado** (qualquer usuário), **equipe** (admin, advogada, staff), **admin**.
 > Dentro de cada rota pode haver checagem extra (ex.: dono do registro, papel parceiro).
 
-**482 rotas em 78 grupos.**
+**483 rotas em 78 grupos.**
 
 ## `/api/access-logs` · admin · `src/routes/accessLogs.ts`
 
@@ -589,6 +589,7 @@
 | Método | Caminho |
 |---|---|
 | GET | `/api/mesa/:caseId` |
+| POST | `/api/mesa/:caseId/analisar` |
 | GET | `/api/mesa/documento/:id` |
 | POST | `/api/mesa/documento/:id/edicao` |
 | POST | `/api/mesa/documento/:id/final` |

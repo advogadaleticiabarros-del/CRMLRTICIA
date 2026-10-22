@@ -4,8 +4,42 @@ import { test } from 'node:test';
 import assert from 'node:assert';
 import {
   sanitizarHtmlPeca, htmlParaTexto, textoParaHtml, contarColchetes, compararTextos,
-  etapasDaMesa, promptLicoes, parseLicoes, nomeVersaoDra, numeroDaVersao,
+  etapasDaMesa, promptLicoes, parseLicoes, nomeVersaoDra, numeroDaVersao, abaDaEtapa, resumoColeta, ordenarAchados,
 } from '../dist/services/mesaCaso.js';
+
+test('abaDaEtapa: a mesa abre no que importa em cada etapa', () => {
+  assert.deepStrictEqual(abaDaEtapa('em_analise'), { aba: 'caso', parecerAoLado: false });
+  assert.deepStrictEqual(abaDaEtapa('separacao_documentos'), { aba: 'docs', parecerAoLado: false });
+  assert.deepStrictEqual(abaDaEtapa('criacao_inicial'), { aba: 'peca', parecerAoLado: false });
+  assert.deepStrictEqual(abaDaEtapa('revisao_inicial'), { aba: 'peca', parecerAoLado: true });
+  assert.deepStrictEqual(abaDaEtapa('aguardando_protocolo'), { aba: 'peca', parecerAoLado: false });
+  assert.deepStrictEqual(abaDaEtapa('protocolado'), { aba: 'caso', parecerAoLado: false });
+  assert.deepStrictEqual(abaDaEtapa('concluido'), { aba: 'caso', parecerAoLado: false });
+  assert.deepStrictEqual(abaDaEtapa(null), { aba: 'caso', parecerAoLado: false });
+});
+
+test('resumoColeta: o que a Dra. Camila pediu, o que chegou e as cobranças preparadas', () => {
+  const r = resumoColeta(
+    { pedido_em: '2026-10-10T12:00:00Z', concluido_em: null, itens: JSON.stringify([
+      { label: 'Documento com foto (RG ou CNH), frente e verso', keys: ['rg', 'cnh'] },
+      { label: 'Extrato do FGTS em PDF', keys: ['fgts'] },
+    ]) },
+    ['RG frente.jpg', 'conversa.txt'],
+    [{ marco: 'docs_d5', created_at: '2026-10-15T12:00:00Z' }, { marco: 'docs_d2', created_at: '2026-10-12T12:00:00Z' }],
+  );
+  assert.strictEqual(r.total, 2);
+  assert.strictEqual(r.recebidos, 1);
+  assert.deepStrictEqual(r.itens.map((i) => i.recebido), [true, false]);
+  assert.deepStrictEqual(r.cobrancas.map((c) => c.rotulo), ['2 dias depois', '5 dias depois']);
+  assert.strictEqual(r.concluida, false);
+  assert.strictEqual(resumoColeta(null, [], []), null);
+});
+
+test('ordenarAchados: graves primeiro, depois atenção, depois informação', () => {
+  const a = ordenarAchados(JSON.stringify([{ nivel: 'info', texto: 'c' }, { nivel: 'grave', texto: 'a' }, { nivel: 'atencao', texto: 'b' }]));
+  assert.deepStrictEqual(a.map((x) => x.texto), ['a', 'b', 'c']);
+  assert.deepStrictEqual(ordenarAchados('lixo'), []);
+});
 import { auditarArquivos } from './helpers/schemaAudit.mjs';
 
 // ── segurança: só a formatação de peça passa ────────────────────────────────

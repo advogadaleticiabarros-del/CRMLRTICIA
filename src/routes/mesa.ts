@@ -5,7 +5,7 @@ import { registrarAcaoAgente } from '../services/usoIa';
 import { slaDiasEfetivosSql } from '../services/productionSla';
 import {
   sanitizarHtmlPeca, htmlParaTexto, textoParaHtml, contarColchetes, compararTextos, etapasDaMesa,
-  promptLicoes, parseLicoes, nomeVersaoDra, numeroDaVersao,
+  promptLicoes, parseLicoes, nomeVersaoDra, numeroDaVersao, abaDaEtapa, resumoColeta, ordenarAchados,
 } from '../services/mesaCaso';
 
 /**
@@ -33,7 +33,8 @@ router.get('/:caseId', async (req: Request, res: Response) => {
   const caseId = Number(req.params.caseId);
   const [[c]] = await db.query(
     `SELECT c.id, c.title, c.client_id, c.legal_area, c.production_stage, c.case_number, c.valor_causa, c.prescricao_data,
-            c.partner_id, c.description, c.origin_contract_id, c.production_assignee, c.production_started_at,
+            c.partner_id, c.description, c.origin_contract_id, c.production_assignee, c.production_started_at, c.protocoled_at,
+            c.rejected_at, c.rejection_reason,
             ${slaDiasEfetivosSql('c.id', 'c.production_started_at')} AS sla_days,
             cl.name AS client_name, p.name AS partner_name, u.name AS assignee_name
        FROM cases c
@@ -79,6 +80,24 @@ router.get('/:caseId', async (req: Request, res: Response) => {
   const [licoes] = await db.query('SELECT id, document_id, titulo, mudou, regra, decisao FROM peca_licoes WHERE case_id = ? ORDER BY id', [caseId]) as any;
   const [[regras]] = await db.query("SELECT COUNT(*) AS n FROM peca_licoes WHERE area = ? AND decisao = 'regra'", [c.legal_area || '']) as any;
 
+  // Dra. Helena (análise dos documentos x história) e Dra. Camila (coleta e cobranças).
+  const [[analise]] = await db.query(
+    'SELECT documentos, graves, atencao, achados, created_at FROM analises_documentos WHERE case_id = ? ORDER BY id DESC LIMIT 1', [caseId]) as any;
+  const [[coleta]] = await db.query(
+    'SELECT id, itens, pedido_em, concluido_em FROM coletas_documentos WHERE case_id = ? OR (? IS NOT NULL AND contract_id = ?) ORDER BY id DESC LIMIT 1',
+    [caseId, c.origin_contract_id, c.origin_contract_id]) as any;
+  let resumoDaColeta = null;
+  if (coleta) {
+    const [avisos] = await db.query('SELECT marco, created_at FROM esteira_avisos WHERE ref = ?', [`coleta:${coleta.id}`]) as any;
+    const [arqs] = await db.query('SELECT name FROM documents WHERE case_id = ? OR client_id = ?', [caseId, c.client_id]) as any;
+    const [midias] = await db.query('SELECT file_name AS name FROM whatsapp_media WHERE client_id = ?', [c.client_id]).catch(() => [[]]) as any;
+    resumoDaColeta = resumoColeta(coleta, [...arqs, ...midias].map((x: any) => String(x.name || '')), avisos);
+  }
+  const [rascunhos] = c.client_id
+    ? await db.query("SELECT id, agente, created_at FROM atendente_rascunhos WHERE client_id = ? AND status = 'pendente' ORDER BY id DESC LIMIT 10", [c.client_id]) as any
+    : [[]];
+  const [[monit]] = await db.query('SELECT COUNT(*) AS n FROM legal_processes WHERE case_id = ?', [caseId]) as any;
+
   const recente = pecas[pecas.length - 1] || null;
   const { etapas, atual } = etapasDaMesa({
     stage: c.production_stage, relato: !!String(relato).trim(),
@@ -96,7 +115,28 @@ router.get('/:caseId', async (req: Request, res: Response) => {
     revisao: revisao ? { id: revisao.id, name: revisao.name, created_at: revisao.created_at } : null,
     conjunta: conjunta.length > 1 ? { principal: conjunta[0].case_principal_id, casos: conjunta.map((x: any) => ({ id: x.id, title: x.title })) } : null,
     licoes, regrasDaArea: Number(regras?.n || 0), pendenciasAbertas: Number(pend?.n || 0),
+    analise: analise ? { documentos: analise.documentos, graves: analise.graves, atencao: analise.atencao, created_at: analise.created_at, achados: ordenarAchados(analise.achados) } : null,
+    coleta: resumoDaColeta, rascunhosPendentes: rascunhos.length, monitorado: Number(monit?.n || 0) > 0,
+    ...abaDaEtapa(c.production_stage),
   });
+});
+
+// Dra. Helena confere de novo os documentos contra a história contada. Sem aviso
+// no WhatsApp da Dra. (ela está na tela); pedido de reenvio ao cliente vira rascunho.
+router.post('/:caseId/analisar', async (req: Request, res: Response) => {
+  const caseId = Number(req.params.caseId), userId = req.user!.id;
+  const [[c]] = await db.query('SELECT id, title FROM cases WHERE id = ?', [caseId]) as any;
+  if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
+  const { analisarCaso } = await import('../services/analistaServico');
+  const { notificationService } = await import('../services/NotificationService');
+  analisarCaso(caseId, { avisar: false })
+    .then((r: any) => notificationService.create({
+      userId, caseId, title: r?.ok === false ? 'A Dra. Helena não conseguiu analisar' : 'Análise dos documentos pronta',
+      message: r?.ok === false ? `${c.title || 'Processo'} — ${r.erro || 'sem documentos para ler'}` : `${c.title || 'Processo'} — veja na aba Caso da mesa.`,
+      notificationType: 'analise_documentos', channel: 'sistema', scheduledAt: new Date(),
+    }))
+    .catch(() => {});
+  res.status(202).json({ success: true, emAndamento: true });
 });
 
 router.get('/documento/:id', async (req: Request, res: Response) => {

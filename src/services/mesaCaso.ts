@@ -259,6 +259,45 @@ export function etapasDaMesa(f: FatosDaMesa) {
   };
 }
 
+/** Onde a mesa abre em cada etapa: no trabalho daquele momento. */
+export function abaDaEtapa(stage: string | null): { aba: 'caso' | 'docs' | 'peca'; parecerAoLado: boolean } {
+  if (stage === 'separacao_documentos') return { aba: 'docs', parecerAoLado: false };
+  if (stage === 'criacao_inicial' || stage === 'aguardando_protocolo') return { aba: 'peca', parecerAoLado: false };
+  if (stage === 'revisao_inicial') return { aba: 'peca', parecerAoLado: true };
+  return { aba: 'caso', parecerAoLado: false };
+}
+
+const ROTULO_COBRANCA: Record<string, string> = { docs_d2: '2 dias depois', docs_d5: '5 dias depois', docs_d10: '10 dias depois' };
+
+/** Situação da coleta de documentos da Dra. Camila (o que pediu, o que chegou, cobranças preparadas). */
+export function resumoColeta(
+  coleta: { pedido_em: string | Date; concluido_em: string | Date | null; itens: unknown } | null,
+  arquivos: string[], avisos: Array<{ marco: string; created_at: string | Date }>,
+) {
+  if (!coleta) return null;
+  let itens: Array<{ label: string; keys: string[] }> = [];
+  try { itens = typeof coleta.itens === 'string' ? JSON.parse(coleta.itens) : (coleta.itens as any) || []; } catch { itens = []; }
+  const sem = (s: string) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const nomes = arquivos.map(sem);
+  const lista = itens.map((i) => ({ label: i.label, recebido: nomes.some((n) => (i.keys || []).some((k) => n.includes(sem(k)))) }));
+  return {
+    pedidoEm: coleta.pedido_em, concluidoEm: coleta.concluido_em, concluida: !!coleta.concluido_em,
+    itens: lista, total: lista.length, recebidos: lista.filter((i) => i.recebido).length,
+    cobrancas: avisos.filter((a) => ROTULO_COBRANCA[a.marco])
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+      .map((a) => ({ rotulo: ROTULO_COBRANCA[a.marco], em: a.created_at })),
+  };
+}
+
+/** Achados da Dra. Helena em ordem de gravidade. */
+export function ordenarAchados(achados: unknown): Array<{ nivel: string; tema?: string; texto: string; fontes?: string[] }> {
+  let lista: any[] = [];
+  try { lista = typeof achados === 'string' ? JSON.parse(achados) : (Array.isArray(achados) ? achados : []); } catch { return []; }
+  if (!Array.isArray(lista)) return [];
+  const peso: Record<string, number> = { grave: 0, atencao: 1 };
+  return lista.filter((a) => a && a.texto).sort((a, b) => (peso[a.nivel] ?? 2) - (peso[b.nivel] ?? 2));
+}
+
 // ── lições da equipe (comparação v-equipe × v-Dra.) ─────────────────────────
 
 const lado = (s: Segmento[], marca: 'saiu' | 'entrou') => s.map((x) => (x.tipo === marca ? `⟦${x.t}⟧` : x.t)).join('').slice(0, 1500);

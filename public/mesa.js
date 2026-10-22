@@ -26,6 +26,7 @@
     tirarRecuo: S('<path d="M10 6h10M10 12h10M10 18h10M6 9l-3 3 3 3"/>'),
     desfazer: S('<path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 010 10h-3"/>'),
     refazer: S('<path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 000 10h3"/>'),
+    enviar: S('<path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/>'),
   };
 
   // Destaca os [campos a preencher] sem mudar o texto (o destaque sai antes de salvar).
@@ -79,14 +80,15 @@
     ov.innerHTML = '<div class="mesa-carregando" aria-live="polite"><div class="spinner"></div><span>Abrindo o caso…</span></div>';
     document.body.appendChild(ov); document.body.classList.add('mesa-aberta');
 
-    const st = { d: null, prod: null, vendo: null, aba: 'peca', docId: null, doc: null, comparar: false, sujo: false, salvando: false, deNovo: false, timer: null, mudou: false, usuarios: null, cursor: 0 };
+    const st = { d: null, prod: null, vendo: null, aba: 'caso', aoLado: false, docId: null, doc: null, comparar: false, sujo: false, salvando: false, deNovo: false, timer: null, mudou: false, usuarios: null, cursor: 0 };
     const q = (s) => ov.querySelector(s);
     const podeAtribuir = typeof USER !== 'undefined' && USER && ['admin', 'advogado'].includes(USER.role);
 
     async function carregar() {
       const [d, prod] = await Promise.all([api('/api/mesa/' + caseId), api(`/api/cases/${caseId}/production`).catch(() => null)]);
       st.d = d; st.prod = prod;
-      if (st.vendo === null) st.vendo = d.atual >= 0 ? d.atual : 0;
+      // 1ª carga (ou etapa nova): abre no trabalho da etapa.
+      if (st.vendo === null) { st.vendo = d.atual >= 0 ? d.atual : 0; st.aba = d.aba || 'caso'; st.aoLado = !!d.parecerAoLado; }
       if (!st.docId || !d.pecas.some((p) => p.id === st.docId)) {
         const ult = d.pecas[d.pecas.length - 1];
         st.docId = ult ? ult.id : null; st.doc = null;
@@ -184,13 +186,12 @@
           ${c.case_number ? `<div class="mesa-linha"><span>Nº do processo</span><b>${esc(c.case_number)}</b></div>` : ''}
           <div class="mesa-acoes"><button type="button" class="mesa-btn mesa-btn-sm" data-acao="valor-causa">Editar valor da causa</button><button type="button" class="mesa-btn mesa-btn-sm" data-acao="processo">Prazos e movimentações</button></div>
         </section>
-        <section class="mesa-bloco"><h2>${ck ? esc(ck.titulo || 'Documentos do checklist') : 'Documentos do checklist'}</h2>
+        <section class="mesa-bloco"><h2>Documentos</h2>
           ${ck ? `<div class="mesa-prog" role="img" aria-label="${ck.completos} de ${ck.total} documentos"><span style="width:${Math.round((ck.completos / ck.total) * 100)}%"></span></div>
-            <div class="mesa-linha"><span>Recebidos</span><b>${ck.completos} de ${ck.total}</b></div>
-            ${ck.itens.map((i) => `<button type="button" class="mesa-ck${i.done ? ' ok' : ''}" data-acao="ck" data-label="${esc(i.label)}" data-done="${i.done ? 1 : 0}" ${i.doc ? `disabled title="Encontrado: ${esc(i.doc)}"` : `aria-pressed="${i.done ? 'true' : 'false'}" title="${i.done ? 'Desmarcar' : 'Marcar como recebido'}"`}>${i.done ? I.ok : I.falta}<span>${esc(i.label)}</span></button>`).join('')}`
-            : '<p class="mesa-vazio">Sem checklist para esta área.</p>'}
-          <label class="mesa-campo-rot" for="mesa-drive">Pasta do Drive</label>
-          <div class="mesa-campo"><input id="mesa-drive" type="url" data-salvar="drive" placeholder="Cole o link da pasta" value="${esc(st.prod?.drive_folder_url || '')}"><button type="button" class="mesa-btn mesa-btn-sm" data-acao="ler-pasta">Ler a pasta</button></div>
+            <div class="mesa-linha"><span>Checklist</span><b>${ck.completos} de ${ck.total}</b></div>` : ''}
+          <div class="mesa-linha"><span>No caso</span><b>${st.d.documentos.length}</b></div>
+          ${st.d.rascunhosPendentes ? `<div class="mesa-linha"><span>Mensagens ao cliente</span><b class="mesa-alerta">${st.d.rascunhosPendentes} para aprovar</b></div>` : ''}
+          <div class="mesa-acoes"><button type="button" class="mesa-btn mesa-btn-sm" data-acao="aba" data-aba="docs">Ver documentos e coleta</button></div>
         </section>
         <section class="mesa-bloco"><h2>Organização</h2>
           ${podeAtribuir ? `<label class="mesa-campo-rot" for="mesa-resp">Responsável</label><select id="mesa-resp" data-salvar="resp"><option value="">Sem responsável</option>${(st.usuarios || []).map((u) => `<option value="${u.id}" ${u.id == c.production_assignee ? 'selected' : ''}>${esc(u.name)}</option>`).join('')}</select>`
@@ -240,11 +241,12 @@
       const aba = (k, t, extra) => `<button type="button" role="tab" class="mesa-aba${st.aba === k ? ' on' : ''}" aria-selected="${st.aba === k}" data-acao="aba" data-aba="${k}">${t}${extra ? `<span class="mesa-cont">${extra}</span>` : ''}</button>`;
       q('.mesa-centro').innerHTML = `
         <div class="mesa-abas" role="tablist" aria-label="Conteúdo do caso">
-          ${aba('peca', 'Peça', pecas.length ? `${pecas.length} ${pecas.length === 1 ? 'versão' : 'versões'}` : '')}${aba('dossie', 'Dossiê da peça')}${aba('docs', 'Documentos', documentos.length)}${aba('rev', 'Revisão', revisao ? '' : '')}
+          ${aba('caso', 'Caso', st.d.analise && st.d.analise.graves ? `${st.d.analise.graves} ${st.d.analise.graves === 1 ? 'ponto grave' : 'pontos graves'}` : '')}${aba('docs', 'Documentos', documentos.length)}${aba('peca', 'Peça', pecas.length ? `${pecas.length} ${pecas.length === 1 ? 'versão' : 'versões'}` : '')}${aba('rev', 'Revisão', revisao ? '' : '')}${aba('dossie', 'Dossiê da peça')}
         </div>
         <div class="mesa-painel" role="tabpanel"></div>`;
       const p = q('.mesa-painel');
       if (st.aba === 'peca') renderPeca(p);
+      else if (st.aba === 'caso') renderCaso(p);
       else if (st.aba === 'dossie') renderLeitura(p, st.d.dossie, 'O dossiê aparece quando a equipe montar a petição: fontes lidas, cálculos e o motivo do modelo escolhido.');
       else if (st.aba === 'rev') renderRevisao(p);
       else renderDocs(p);
@@ -261,6 +263,7 @@
         </div>
         ${p && p.origem === 'dra' ? `<button type="button" class="mesa-btn mesa-btn-sm" data-acao="comparar">${st.comparar ? 'Voltar ao texto' : 'Comparar com a versão da equipe'}</button>` : ''}
         ${p && p.final_em ? '<span class="mesa-tag mesa-tag-ok">Versão final · travada</span>' : ''}
+        ${st.d.revisao && !st.comparar ? `<button type="button" class="mesa-btn mesa-btn-sm${st.aoLado ? ' mesa-ligado' : ''}" data-acao="ao-lado" aria-pressed="${st.aoLado}">${st.aoLado ? 'Esconder o parecer' : 'Parecer da revisão ao lado'}</button>` : ''}
         <span class="mesa-espaco"></span>
         <button type="button" class="mesa-btn mesa-btn-sm" data-acao="nova-versao" title="A equipe lê tudo de novo e monta outra versão">Pedir nova versão à equipe</button>
         ${p ? `<button type="button" class="mesa-btn mesa-btn-sm" data-acao="final">${p.final_em ? 'Destravar para editar' : 'Marcar como versão final'}</button>` : ''}`;
@@ -303,13 +306,18 @@
         </div>
         ${p && p.origem === 'equipe' && !travada ? '<p class="mesa-aviso-versao">Esta é a versão da equipe. Ao editar, o CRM cria a sua versão e esta fica intacta para a equipe comparar e aprender.</p>' : ''}
         ${travada ? '<p class="mesa-aviso-versao">Versão final travada. Para mudar, clique em "Destravar para editar".</p>' : ''}
-        <div class="mesa-fundo"><div class="mesa-papel" ${travada ? 'contenteditable="false"' : 'contenteditable="true"'} spellcheck="true" lang="pt-BR" role="textbox" aria-multiline="true" aria-label="Texto da petição"><p class="mesa-carregando-txt">Carregando a peça…</p></div></div>
+        <div class="${st.aoLado && st.d.revisao ? 'mesa-lado' : ''}">
+          <div class="mesa-fundo"><div class="mesa-papel" ${travada ? 'contenteditable="false"' : 'contenteditable="true"'} spellcheck="true" lang="pt-BR" role="textbox" aria-multiline="true" aria-label="Texto da petição"><p class="mesa-carregando-txt">Carregando a peça…</p></div></div>
+          ${st.aoLado && st.d.revisao ? `<aside class="mesa-parecer" aria-label="Parecer da revisão"><div class="mesa-parecer-cab"><strong>Parecer da revisão</strong><span>${fmtDate(st.d.revisao.created_at)} às ${hora(st.d.revisao.created_at)}</span><button type="button" class="mesa-btn mesa-btn-sm" data-acao="revisar">Revisar de novo</button></div><article class="mesa-leitura"><p class="mesa-vazio">Carregando o parecer…</p></article></aside>` : ''}
+        </div>
         <div class="mesa-rodape">
           <span class="mesa-status" aria-live="polite"></span>
           <button type="button" class="mesa-btn mesa-btn-sm" data-acao="copiar-texto">Copiar sem formatação</button>
           <button type="button" class="mesa-btn mesa-btn-pri" data-acao="copiar-jus">Copiar para o Jusbrasil</button>
         </div>`;
       const papel = q('.mesa-papel');
+      const parecer = q('.mesa-parecer .mesa-leitura');
+      if (parecer) api(`/api/mesa/documento/${st.d.revisao.id}`).then((r) => { parecer.innerHTML = r.html; }).catch((e) => { parecer.innerHTML = `<p class="mesa-vazio">${esc(e.message)}</p>`; });
       try {
         st.doc = await api(`/api/mesa/documento/${st.docId}`);
         if (!q('.mesa-papel') || q('.mesa-papel') !== papel) return;
@@ -403,14 +411,93 @@
       const botao = '<button type="button" class="mesa-btn mesa-btn-sm" data-acao="revisar">Revisar de novo agora</button>';
       renderLeitura(box, st.d.revisao, 'A revisão automática roda logo depois que a equipe monta a petição e quando o caso entra em Revisão inicial.', botao);
     }
+    // ── aba Caso: relato, análise da Dra. Helena e, depois do protocolo, o resumo ──
+    function renderCaso(box) {
+      const { caso: c, analise, pecas, documentos } = st.d;
+      const final = pecas.find((p) => p.final_em) || null;
+      const protocolado = ['protocolado', 'concluido'].includes(c.production_stage) || !!c.case_number;
+      const relatoDoc = documentos.find((d) => /^Relato do cliente/i.test(d.name));
+      const NIVEL = { grave: ['mesa-tag mesa-tag-grave', 'Grave'], atencao: ['mesa-tag mesa-tag-atencao', 'Atenção'] };
+      box.innerHTML = `<div class="mesa-secoes">
+        ${c.production_stage === 'recusado' ? `<section class="mesa-secao"><h3>Motivo da recusa</h3><p class="mesa-relato">${esc(c.rejection_reason || '—')}</p></section>` : ''}
+        ${protocolado ? `<section class="mesa-secao"><h3>Protocolo</h3>
+          <dl class="mesa-dados">
+            <div><dt>Nº do processo</dt><dd>${c.case_number ? esc(c.case_number) : 'não informado'}</dd></div>
+            <div><dt>Protocolado em</dt><dd>${c.protocoled_at ? fmtDate(c.protocoled_at) : '—'}</dd></div>
+            <div><dt>Versão protocolada</dt><dd>${final ? `v${final.versao} · ${final.origem === 'dra' ? 'sua edição' : 'equipe'}` : 'nenhuma marcada como final'}</dd></div>
+            <div><dt>Valor da causa</dt><dd>${Number(c.valor_causa) ? money(c.valor_causa) : '—'}</dd></div>
+            <div><dt>Acompanhamento nos tribunais</dt><dd>${st.d.monitorado ? 'ativo' : 'ainda não'}</dd></div>
+          </dl>
+          <div class="mesa-acoes">${final ? `<button type="button" class="mesa-btn mesa-btn-sm" data-acao="ver-final" data-doc="${final.id}">Abrir a versão protocolada</button>` : ''}<button type="button" class="mesa-btn mesa-btn-sm" data-acao="processo">Prazos e movimentações</button></div>
+          <p class="mesa-dica">Depois do protocolo, o processo segue em Prazos e movimentações; a produção termina aqui.</p>
+        </section>` : ''}
+        <section class="mesa-secao"><h3>Relato do cliente</h3>
+          ${c.relato ? `<p class="mesa-relato">${esc(c.relato)}</p>` : '<p class="mesa-vazio">Sem resumo do atendimento cadastrado.</p>'}
+          ${relatoDoc ? `<div class="mesa-relato-doc"><span class="mesa-rotulo">Relato escrito pela Dra. Camila a partir do WhatsApp</span><article class="mesa-leitura mesa-relato-txt"><p class="mesa-vazio">Carregando…</p></article></div>` : ''}
+        </section>
+        <section class="mesa-secao"><div class="mesa-secao-cab"><h3>Análise dos documentos · Dra. Helena</h3><button type="button" class="mesa-btn mesa-btn-sm" data-acao="analisar">${analise ? 'Analisar de novo' : 'Pedir a análise agora'}</button></div>
+          ${analise ? `<p class="mesa-dica">${analise.documentos} ${analise.documentos === 1 ? 'documento lido' : 'documentos lidos'} em ${fmtDate(analise.created_at)} · ${analise.graves} ${analise.graves === 1 ? 'ponto grave' : 'pontos graves'} · ${analise.atencao} de atenção</p>
+            ${analise.achados.length ? `<ul class="mesa-achados">${analise.achados.map((a) => { const n = NIVEL[a.nivel]; return `<li class="mesa-achado"><span class="${n ? n[0] : 'mesa-tag'}">${n ? n[1] : 'Informação'}</span><div>${a.tema ? `<b>${esc(a.tema)}:</b> ` : ''}${esc(a.texto)}${a.fontes && a.fontes.length ? `<small>Fonte: ${esc(a.fontes.join(', '))}</small>` : ''}</div></li>`; }).join('')}</ul>`
+              : '<p class="mesa-vazio">Nada fora do lugar: os documentos batem com a história contada.</p>'}`
+            : '<p class="mesa-vazio">A Dra. Helena confere cada documento contra a história contada: nome, CPF, datas, valores, documento ilegível ou cortado. Ela roda sozinha quando os documentos ficam completos.</p>'}
+        </section>
+      </div>`;
+      const alvo = box.querySelector('.mesa-relato-txt');
+      if (alvo) api(`/api/mesa/documento/${relatoDoc.id}`).then((r) => { alvo.innerHTML = r.html; }).catch((e) => { alvo.innerHTML = `<p class="mesa-vazio">${esc(e.message)}</p>`; });
+    }
+
+    // ── aba Documentos: checklist, coleta da Dra. Camila, envio e lista ────────
     function renderDocs(box) {
-      const docs = st.d.documentos;
-      box.innerHTML = `<div class="mesa-docs">${docs.length ? [...docs].reverse().map((d) => `
-        <div class="mesa-doc"><div class="mesa-doc-nome">${esc(d.name)}<small>${esc(d.type || 'documento')} · ${fmtDate(d.created_at)}${d.case_id !== st.d.caso.id ? ` · caso #${d.case_id}` : ''}</small></div>
-          ${Number(d.tem_texto) ? '<span class="mesa-tag mesa-tag-ok">lido pela equipe</span>' : (Number(d.tem_arquivo) || d.file_url ? '<span class="mesa-tag">arquivo</span>' : '')}
-          <button type="button" class="mesa-btn mesa-btn-sm" data-acao="abrir-doc" data-id="${d.id}">Abrir</button>
-          <button type="button" class="mesa-btn mesa-btn-sm${Number(d.visible_to_client) ? ' mesa-ligado' : ''}" data-acao="portal" data-id="${d.id}" data-on="${Number(d.visible_to_client) ? 1 : 0}" aria-pressed="${Number(d.visible_to_client) ? 'true' : 'false'}">${Number(d.visible_to_client) ? 'No portal do cliente' : 'Liberar no portal'}</button>
-        </div>`).join('') : '<p class="mesa-vazio">Nenhum documento neste caso ainda. Cole a pasta do Drive à esquerda ou peça ao cliente pelo WhatsApp.</p>'}</div>`;
+      const { checklist, coleta, documentos: docs } = st.d;
+      const ck = checklist && checklist.total ? checklist : null;
+      const n = st.d.rascunhosPendentes;
+      box.innerHTML = `<div class="mesa-secoes">
+        ${n ? `<div class="mesa-aviso"><span>${n} ${n === 1 ? 'mensagem ao cliente espera' : 'mensagens ao cliente esperam'} a sua aprovação (pedidos e cobranças de documentos).</span><button type="button" class="mesa-btn mesa-btn-sm" data-acao="ir-aprovar">Abrir Mensagens para aprovar</button></div>` : ''}
+        <section class="mesa-secao"><div class="mesa-secao-cab"><h3>${ck ? esc(ck.titulo || 'Checklist de documentos') : 'Checklist de documentos'}</h3>${ck ? `<span class="mesa-cont-grande">${ck.completos} de ${ck.total}</span>` : ''}</div>
+          ${ck ? `<div class="mesa-prog" role="img" aria-label="${ck.completos} de ${ck.total} documentos"><span style="width:${Math.round((ck.completos / ck.total) * 100)}%"></span></div>
+            <div class="mesa-ck-grade">${ck.itens.map((i) => `<button type="button" class="mesa-ck${i.done ? ' ok' : ''}" data-acao="ck" data-label="${esc(i.label)}" data-done="${i.done ? 1 : 0}" ${i.doc ? `disabled title="Encontrado: ${esc(i.doc)}"` : `aria-pressed="${i.done ? 'true' : 'false'}" title="${i.done ? 'Desmarcar' : 'Marcar como recebido'}"`}>${i.done ? I.ok : I.falta}<span>${esc(i.label)}${i.doc ? `<small>${esc(i.doc)}</small>` : ''}</span></button>`).join('')}</div>
+            <p class="mesa-dica">Clique para marcar o que já está com você. Os que mostram o nome do arquivo foram encontrados sozinhos.</p>`
+            : '<p class="mesa-vazio">Sem checklist para esta área.</p>'}
+        </section>
+        ${coleta ? `<section class="mesa-secao"><div class="mesa-secao-cab"><h3>Coleta com o cliente · Dra. Camila</h3><span class="mesa-tag${coleta.concluida ? ' mesa-tag-ok' : ''}">${coleta.concluida ? `completa em ${fmtDate(coleta.concluidoEm)}` : `${coleta.recebidos} de ${coleta.total} chegaram`}</span></div>
+          <p class="mesa-dica">Pedido preparado em ${fmtDate(coleta.pedidoEm)}.${coleta.cobrancas.length ? ` Cobranças preparadas: ${coleta.cobrancas.map((x) => `${x.rotulo} (${fmtDate(x.em)})`).join(', ')}.` : ''} Nada sai ao cliente sem a sua aprovação.</p>
+          <div class="mesa-ck-grade">${coleta.itens.map((i) => `<div class="mesa-ck${i.recebido ? ' ok' : ''}">${i.recebido ? I.ok : I.falta}<span>${esc(i.label)}</span></div>`).join('')}</div>
+        </section>` : ''}
+        <section class="mesa-secao"><h3>Enviar arquivos</h3>
+          <label class="mesa-envio" for="mesa-arquivos">${I.enviar}<span><b>Escolha os arquivos</b> ou arraste para cá</span><small>PDF, foto ou Word, até 15 MB cada. A equipe lê os arquivos ao montar a peça.</small>
+            <input id="mesa-arquivos" type="file" multiple accept=".pdf,image/*,.doc,.docx" data-arquivos></label>
+          <label class="mesa-campo-rot" for="mesa-drive">Pasta do Drive</label>
+          <div class="mesa-campo"><input id="mesa-drive" type="url" data-salvar="drive" placeholder="Cole o link da pasta" value="${esc(st.prod?.drive_folder_url || '')}"><button type="button" class="mesa-btn mesa-btn-sm" data-acao="ler-pasta">Ler a pasta</button></div>
+        </section>
+        <section class="mesa-secao"><h3>Documentos do caso · ${docs.length}</h3>
+          <div class="mesa-docs">${docs.length ? [...docs].reverse().map((d) => `
+            <div class="mesa-doc"><div class="mesa-doc-nome">${esc(d.name)}<small>${esc(d.type || 'documento')} · ${fmtDate(d.created_at)}${d.case_id !== st.d.caso.id ? ` · caso #${d.case_id}` : ''}</small></div>
+              ${Number(d.tem_texto) ? '<span class="mesa-tag mesa-tag-ok">lido pela equipe</span>' : (Number(d.tem_arquivo) || d.file_url ? '<span class="mesa-tag">arquivo</span>' : '')}
+              <button type="button" class="mesa-btn mesa-btn-sm" data-acao="abrir-doc" data-id="${d.id}">Abrir</button>
+              <button type="button" class="mesa-btn mesa-btn-sm${Number(d.visible_to_client) ? ' mesa-ligado' : ''}" data-acao="portal" data-id="${d.id}" data-on="${Number(d.visible_to_client) ? 1 : 0}" aria-pressed="${Number(d.visible_to_client) ? 'true' : 'false'}">${Number(d.visible_to_client) ? 'No portal do cliente' : 'Liberar no portal'}</button>
+            </div>`).join('') : '<p class="mesa-vazio">Nenhum documento neste caso ainda. Envie acima, cole a pasta do Drive ou peça ao cliente pelo WhatsApp.</p>'}</div>
+        </section>
+      </div>`;
+    }
+
+    async function enviarArquivos(lista) {
+      const arquivos = [...(lista || [])];
+      if (!arquivos.length) return;
+      if (!st.d.caso.client_id) { toast('O caso não tem cliente cadastrado; não dá para guardar arquivos.', 'error'); return; }
+      const rot = q('.mesa-envio span');
+      let ok = 0;
+      for (let i = 0; i < arquivos.length; i++) {
+        const f = arquivos[i];
+        if (f.size > 15 * 1024 * 1024) { toast(`${f.name}: maior que 15 MB, não enviado`, 'error'); continue; }
+        if (rot) rot.textContent = `Enviando ${i + 1} de ${arquivos.length}: ${f.name}…`;
+        try {
+          const base64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(',')[1] || ''); r.onerror = () => rej(new Error('não consegui ler o arquivo')); r.readAsDataURL(f); });
+          await api('/api/documents', { method: 'POST', body: JSON.stringify({ client_id: st.d.caso.client_id, case_id: caseId, name: f.name, type: 'anexo', folder: 'processos', status: 'recebido', file_base64: base64, mime: f.type || 'application/octet-stream' }) });
+          ok++;
+        } catch (e) { toast(`${f.name}: ${e.message}`, 'error'); }
+      }
+      if (ok) { st.mudou = true; toast(`${ok} ${ok === 1 ? 'arquivo enviado' : 'arquivos enviados'} para o caso`); }
+      await recarregar(false); renderCentro();
     }
 
     function renderTudo() { renderTopo(); renderJornada(); renderAgora(); renderEsq(); renderDir(); renderCentro(); }
@@ -507,6 +594,14 @@
       aba: async (b) => { if (st.sujo) { clearTimeout(st.timer); await salvar(); } st.aba = b.dataset.aba; renderCentro(); },
       versao: async (b) => { if (st.sujo) { clearTimeout(st.timer); await salvar(); } st.docId = Number(b.dataset.doc); st.doc = null; st.comparar = false; renderCentro(); },
       comparar: async () => { if (st.sujo) { clearTimeout(st.timer); await salvar(); } st.comparar = !st.comparar; renderCentro(); },
+      'ao-lado': async () => { if (st.sujo) { clearTimeout(st.timer); await salvar(); } st.aoLado = !st.aoLado; renderCentro(); },
+      'ver-final': (b) => { st.aba = 'peca'; st.docId = Number(b.dataset.doc); st.comparar = false; renderCentro(); },
+      'ir-aprovar': async () => { await fechar(); location.hash = '#escritorio'; },
+      analisar: async (b) => {
+        b.disabled = true;
+        try { await api(`/api/mesa/${caseId}/analisar`, { method: 'POST', body: '{}' }); toast('A Dra. Helena está lendo os documentos. Você será avisada no sino.'); }
+        catch (e) { toast(e.message, 'error'); b.disabled = false; }
+      },
       final: async () => {
         const p = pecaAtual(); if (!p) return;
         if (st.sujo) { clearTimeout(st.timer); await salvar(); }
@@ -564,7 +659,7 @@
         catch (e) { toast(e.message, 'error'); }
       },
       ck: async (b) => {
-        try { await api(`/api/cases/${caseId}/checklist`, { method: 'PATCH', body: JSON.stringify({ label: b.dataset.label, checked: b.dataset.done !== '1' }) }); await recarregar(false); }
+        try { await api(`/api/cases/${caseId}/checklist`, { method: 'PATCH', body: JSON.stringify({ label: b.dataset.label, checked: b.dataset.done !== '1' }) }); await recarregar(false); renderCentro(); }
         catch (e) { toast(e.message, 'error'); }
       },
       partes: async () => {
@@ -629,7 +724,14 @@
       const f = ACOES[b.dataset.acao]; if (f) f(b);
     });
     ov.addEventListener('change', (e) => {
+      if (e.target.matches('[data-arquivos]')) { enviarArquivos(e.target.files); return; }
       const t = e.target.closest('[data-salvar]'); if (t) salvarCampo(t.dataset.salvar, t.value.trim());
+    });
+    ov.addEventListener('dragover', (e) => { const z = e.target.closest('.mesa-envio'); if (z) { e.preventDefault(); z.classList.add('arrastando'); } });
+    ov.addEventListener('dragleave', (e) => { const z = e.target.closest('.mesa-envio'); if (z) z.classList.remove('arrastando'); });
+    ov.addEventListener('drop', (e) => {
+      const z = e.target.closest('.mesa-envio'); if (!z) return;
+      e.preventDefault(); z.classList.remove('arrastando'); enviarArquivos(e.dataTransfer && e.dataTransfer.files);
     });
     ov.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' || e.target.tagName !== 'INPUT') return;

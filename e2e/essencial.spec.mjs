@@ -145,6 +145,12 @@ test('Mesa do caso: abre pelo card, edita a peça, cria a versão da Dra. e comp
   const mesa = page.locator('.mesa');
   await expect(mesa.locator('.mesa-quem h1')).toHaveText(nome, { timeout: 15_000 });
   await expect(mesa.locator('.mesa-passo.atual')).toContainText('Em análise');
+  // Em análise, a mesa abre no caso (relato e análise dos documentos), não na peça.
+  await expect(mesa.locator('.mesa-aba.on')).toContainText('Caso');
+  await expect(mesa.locator('.mesa-secao h3').first()).toContainText('Relato do cliente');
+  await mesa.locator('[data-acao="aba"][data-aba="docs"].mesa-aba').click();
+  await expect(mesa.locator('.mesa-envio')).toBeVisible();
+  await mesa.locator('[data-acao="aba"][data-aba="peca"]').click();
   await expect(mesa.locator('.mesa-papel mark.mesa-colchete')).toHaveCount(1, { timeout: 15_000 });
   await expect(mesa.locator('.mesa-campos-n')).toContainText('1 campo a preencher');
 
