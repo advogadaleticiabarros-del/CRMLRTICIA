@@ -157,7 +157,7 @@ test('Mesa do caso: abre pelo card, edita a peça, cria a versão da Dra. e comp
   await expect(mesa.locator('.mesa-seg button.on')).toContainText('sua edição');
 
   await mesa.locator('[data-acao="comparar"]').click();
-  await expect(mesa.locator('.mesa-entrou').first()).toContainText('Texto acrescentado', { timeout: 15_000 });
+  await expect(mesa.locator('.mesa-cmp .mesa-entrou').first()).toContainText('Texto acrescentado', { timeout: 15_000 });
 
   await page.keyboard.press('Escape');
   await expect(mesa).toHaveCount(0);
