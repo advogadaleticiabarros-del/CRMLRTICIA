@@ -174,7 +174,7 @@ export async function importMessageById(messageId: string, actorId?: number | nu
   const body = texts.join('\n').trim() || full.data.snippet || '';
   await enqueueIntake({
     rawText: body, source: 'gmail', sourceMessageId: messageId, fromEmail: from, subject,
-    attachments: atts, createdBy: actorId || null,
+    attachments: atts, createdBy: actorId || null, receivedAt: dataDeChegada(full.data.internalDate),
   });
   return { imported: true, subject: subject || undefined };
 }
@@ -192,6 +192,31 @@ export async function disconnectInbox(): Promise<void> {
 }
 
 /** Epoch (segundos) da meia-noite de HOJE em Brasília (UTC-3 fixo, sem DST). */
+/** Data em que o e-mail chegou: o Gmail manda internalDate em milissegundos. */
+function dataDeChegada(internalDate: string | null | undefined): Date | null {
+  const ms = Number(internalDate);
+  return Number.isFinite(ms) && ms > 0 ? new Date(ms) : null;
+}
+
+/** Preenche received_at dos e-mails que entraram antes de a data ser guardada (consulta leve ao Gmail). */
+export async function completarDatasDeChegada(limite = 30): Promise<number> {
+  const [rows] = await db.query(
+    "SELECT id, source_message_id FROM email_imports WHERE received_at IS NULL AND source = 'gmail' AND source_message_id IS NOT NULL AND status = 'pendente' LIMIT ?", [limite]) as any;
+  if (!rows.length) return 0;
+  const row = await loadIntegration();
+  if (!row || !row.refresh_token) return 0;
+  const gmail = google.gmail({ version: 'v1', auth: await authedClient() });
+  let n = 0;
+  for (const r of rows) {
+    try {
+      const m = await gmail.users.messages.get({ userId: 'me', id: r.source_message_id, format: 'minimal' });
+      const d = dataDeChegada(m.data.internalDate);
+      if (d) { await db.query('UPDATE email_imports SET received_at = ? WHERE id = ?', [d, r.id]); n++; }
+    } catch { /* mensagem apagada no Gmail ou sem acesso: fica sem data */ }
+  }
+  return n;
+}
+
 function startOfTodayBrazilSec(): number {
   const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit',
@@ -383,7 +408,7 @@ export async function syncInboxNow(
     const body = texts.join('\n').trim() || full.data.snippet || '';
     await enqueueIntake({
       rawText: body, source: 'gmail', sourceMessageId: m.id, fromEmail: from, subject,
-      attachments: atts, createdBy: actorId || null,
+      attachments: atts, createdBy: actorId || null, receivedAt: dataDeChegada(full.data.internalDate),
     });
     imported++;
   }

@@ -62,9 +62,13 @@ router.post('/integration/sync', async (req: Request, res: Response) => {
 // ── GET /api/email-intake — fila de importações (pendentes primeiro) ────────
 router.get('/', async (req: Request, res: Response) => {
   const status = req.query.status ? String(req.query.status) : null;
+  // E-mails que entraram antes de a data de chegada ser guardada: busca no Gmail uma vez.
+  if (status === 'pendente') {
+    await import('../services/partnerInboxService').then((m) => m.completarDatasDeChegada()).catch(() => 0);
+  }
   const rows = status
-    ? (await db.query('SELECT id, source, from_email, subject, parsed_json, partner_id, status, client_id, created_at, confirmed_at FROM email_imports WHERE status = ? ORDER BY created_at DESC LIMIT 200', [status]) as any)[0]
-    : (await db.query("SELECT id, source, from_email, subject, parsed_json, partner_id, status, client_id, created_at, confirmed_at FROM email_imports ORDER BY (status='pendente') DESC, created_at DESC LIMIT 200") as any)[0];
+    ? (await db.query('SELECT id, source, from_email, subject, parsed_json, partner_id, status, client_id, created_at, confirmed_at, received_at FROM email_imports WHERE status = ? ORDER BY COALESCE(received_at, created_at) DESC LIMIT 200', [status]) as any)[0]
+    : (await db.query("SELECT id, source, from_email, subject, parsed_json, partner_id, status, client_id, created_at, confirmed_at, received_at FROM email_imports ORDER BY (status='pendente') DESC, COALESCE(received_at, created_at) DESC LIMIT 200") as any)[0];
   res.json(rows.map((r: any) => ({ ...r, parsed: r.parsed_json ? (typeof r.parsed_json === 'string' ? safeParse(r.parsed_json) : r.parsed_json) : null, parsed_json: undefined })));
 });
 

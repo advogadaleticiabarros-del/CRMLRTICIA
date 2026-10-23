@@ -105,6 +105,8 @@ export async function enqueueIntake(opts: {
   rawText: string; source?: string; sourceMessageId?: string | null;
   fromEmail?: string | null; subject?: string | null; partnerId?: number | null; createdBy?: number | null;
   attachments?: any[] | null;
+  /** Quando o e-mail chegou (Gmail internalDate); null em importação colada à mão. */
+  receivedAt?: Date | null;
 }): Promise<{ id: number; parsed: ParsedIntake | null; duplicated?: boolean }> {
   if (opts.sourceMessageId) {
     const [[exists]] = await db.query('SELECT id FROM email_imports WHERE source_message_id = ?', [opts.sourceMessageId]) as any;
@@ -126,10 +128,11 @@ export async function enqueueIntake(opts: {
   let insertId: number;
   try {
     const [r] = await db.query(
-      `INSERT INTO email_imports (source, source_message_id, from_email, subject, raw_text, parsed_json, attachments_json, partner_id, status, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?)`,
+      `INSERT INTO email_imports (source, source_message_id, from_email, subject, raw_text, parsed_json, attachments_json, partner_id, status, created_by, received_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pendente', ?, ?)`,
       [opts.source || 'manual', opts.sourceMessageId || null, opts.fromEmail || null, opts.subject || null,
-       opts.rawText, parsed ? JSON.stringify(parsed) : null, atts, partner?.id || null, opts.createdBy || null]
+       opts.rawText, parsed ? JSON.stringify(parsed) : null, atts, partner?.id || null, opts.createdBy || null,
+       opts.receivedAt && !isNaN(opts.receivedAt.getTime()) ? opts.receivedAt : null]
     ) as any;
     insertId = r.insertId;
   } catch (e: any) {

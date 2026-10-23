@@ -4459,14 +4459,18 @@ async function loadImportQueue(partners, onChange) {
   if (!rows.length) { box.innerHTML = ''; return; }
   box.innerHTML = `<div class="card" style="margin-bottom:14px;border-left:3px solid var(--gold,#b08d57)">
     <div style="padding:10px 14px;font-weight:600">Importados do e-mail — aguardando revisão (${rows.length})</div>
-    <table><thead><tr><th>Cliente</th><th>Casos</th><th>Origem</th><th></th></tr></thead><tbody>
+    <table><thead><tr><th>Cliente</th><th>Casos</th><th>Origem</th><th>Chegou em</th><th></th></tr></thead><tbody>
     ${rows.map((r) => {
+      // Data em que o e-mail chegou no Gmail; sem ela (colado à mão), a data da importação.
+      const quando = r.received_at || r.created_at;
+      const dataHora = quando ? new Date(quando).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) : '—';
       const p = r.parsed || {};
       const casos = (p.casos || []).map((c) => `${INTAKE_AREAS.find((a) => a.v === c.area)?.t || c.area}${c.tipo ? ' · ' + esc(c.tipo) : ''}${c.banco ? ' (' + esc(c.banco) + ')' : ''}`).join('<br>');
       return `<tr>
         <td><strong>${esc(p.cliente?.nome || '—')}</strong>${p.cliente?.cpf ? '<br><small>' + esc(p.cliente.cpf) + '</small>' : ''}</td>
         <td style="font-size:12px">${casos || '<span style="color:var(--red)">não estruturado</span>'}</td>
         <td><small>${esc(r.from_email || r.source || '')}</small></td>
+        <td style="white-space:nowrap;font-variant-numeric:tabular-nums"><small>${dataHora}${r.received_at ? '' : '<br><span style="color:var(--text-muted)">importado em</span>'}</small></td>
         <td style="white-space:nowrap"><button class="btn-sm btn-gold" data-review="${r.id}">Revisar</button> <button class="btn-sm" data-discard="${r.id}">×</button></td>
       </tr>`;
     }).join('')}</tbody></table></div>`;

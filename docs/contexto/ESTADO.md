@@ -5,6 +5,7 @@
 **Última atualização:** 22/10/2026. Último commit: Mesa do caso (tela de trabalho da produção).
 
 ## Últimas entregas (mais recentes primeiro)
+- **23/10:** Fila "Importados do e-mail" (Parcerias) ganhou a coluna **Chegou em** (data do Gmail), com os antigos preenchidos ao abrir a tela. Migration 170.
 - **22/10 (noite):** **Processo único.**
   - O quadro sugere juntar os pedidos do mesmo cliente, do mesmo banco (cadastro ou título) e da mesma família de tese: cartão consignado RMC/RCC; empréstimo consignado (+ refin. e portabilidade); empréstimo pessoal; cartão comum.
   - A Dra. confirma em "Ver e juntar". O card vira "+N pedidos", com uma peça e um protocolo. Na mesa dá para "Separar".

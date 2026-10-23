@@ -152,6 +152,13 @@ Se achar, usa a mesma ficha e só completa o que estiver vazio. Nome com **vári
 
 O cadastro manual (botão "+ Novo cliente") continua com o aviso de possível duplicata na tela.
 
+## E-mails da parceria aguardando revisão (data de chegada, desde 23/10/2026)
+
+Na tela Parcerias, a tabela "Importados do e-mail — aguardando revisão" tem a coluna **Chegou em**: dia e hora em que o e-mail chegou no Gmail (`email_imports.received_at`, vinda do `internalDate` do Gmail). A lista vem do mais novo para o mais antigo.
+- Os e-mails que já estavam na fila têm a data buscada no Gmail ao abrir a tela.
+- Importação colada à mão, ou e-mail apagado do Gmail: aparece a data da importação, com "importado em" embaixo.
+- Migration 170.
+
 ## FAQ
 
 **Se eu cadastrar o mesmo CPF duas vezes, o sistema bloqueia?** Não bloqueia — a checagem de conflito de interesses é um aviso, mostrado antes de salvar, mas a decisão final é sua.
@@ -171,6 +178,7 @@ O cadastro manual (botão "+ Novo cliente") continua com o aviso de possível du
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 23/10/2026 | Claude | Fila de e-mails da parceria mostra a data em que o e-mail chegou (coluna "Chegou em") |
 | 18/10/2026 | Claude | Visão completa do cliente: busca na página inicial e tudo dele num lugar só (dativo/parceria/próprio, processos, financeiro, acordos, movimentações, prazos, documentos) |
 | 07/10/2026 | Claude | Uma pessoa = uma ficha: todas as rotinas automáticas reaproveitam a ficha existente (CPF, nome sem acento, telefone, e-mail) |
 | 07/10/2026 | Claude | Campo protegido "Senha do Meu INSS" na ficha (tabela própria, só admin/advogado/equipe, leitura registrada); senhas tiradas das descrições de casos |
