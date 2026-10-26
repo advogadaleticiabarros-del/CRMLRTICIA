@@ -58,6 +58,18 @@ export function ehVariasPessoas(nome: string): boolean {
   return partes.length > 1 && (partes.filter((x) => x.split(' ').length >= 2).length >= 2 || /,/.test(nome));
 }
 
+const soIniciais = (parte: string) => normalizarNome(parte).split(' ').every((w) => w.length <= 1);
+/**
+ * De quem é a ficha quando o nome junta pessoas: a primeira com nome completo
+ * (ex.: "MÃE e B. F. S. C." → a mãe; o menor só com iniciais não vira ficha).
+ * Uma pessoa só: o próprio nome. Só iniciais: null.
+ */
+export function titularDoNome(nome: string): string | null {
+  const limpo = String(nome ?? '').trim();
+  if (!ehVariasPessoas(limpo)) return soIniciais(limpo) ? null : limpo;
+  return limpo.split(/;|,|\s+e\s+/i).map((x) => x.trim()).find((x) => x && !soIniciais(x)) ?? null;
+}
+
 export interface NovaFicha {
   nome: string; tipo?: 'PF' | 'PJ'; cpf?: string | null; email?: string | null; phone?: string | null;
   address?: string | null; notes?: string | null; createdBy?: number | null; isDative?: boolean;

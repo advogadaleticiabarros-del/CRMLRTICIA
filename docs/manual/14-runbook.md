@@ -16,6 +16,18 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: demanda dativa com mãe e filho menor dava erro 500
+
+**Sintoma:** em 26/10/2026, ao cadastrar uma demanda dativa com o assistido "NOME DA MÃE e B. F. S. C." (mãe e menor só com as iniciais), o sistema respondeu com erro e o Dr. Bento registrou: `"…" junta mais de uma pessoa — cadastre cada uma separadamente` em `POST /api/dative/cases`. A demanda não era salva.
+
+**Causa raiz:** a rota passava o nome inteiro do assistido para `encontrarOuCriarCliente` (regra "uma pessoa, uma ficha"). Essa regra recusa nomes que juntam pessoas com um erro comum, e o erro virava 500.
+
+**Correção (26/10/2026):** a rota usa `titularDoNome` (`src/services/fichaUnica.ts`): a ficha fica com a primeira pessoa de nome completo (a mãe/representante), iniciais não viram ficha e o nome inteiro continua no campo "assistido" da demanda. Se vierem só iniciais, a resposta é um aviso claro (400), não erro 500.
+
+**Como reconhecer de novo:** a mensagem "junta mais de uma pessoa" em outra rota (parceria, atendimento, lead, contrato). Ali o erro ainda aparece, de propósito. Se o caso for legítimo (representante + representado), aplique o mesmo `titularDoNome` antes de criar a ficha.
+
+---
+
 ## Incidente: "Recado ao cliente" da produção não salvava
 
 **Sintoma:** no painel de produção do caso, o recado ao cliente (portal) dava erro ou não aparecia no portal.

@@ -1,7 +1,7 @@
 // tests/fichaUnica.test.mjs — uma pessoa = uma ficha
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { normalizarNome, escolherFichaExistente, ehVariasPessoas } from '../dist/services/fichaUnica.js';
+import { normalizarNome, escolherFichaExistente, ehVariasPessoas, titularDoNome } from '../dist/services/fichaUnica.js';
 
 const fichas = [
   { id: 1, name: 'DILMA PEREIRA DOS SANTOS', cpf_cnpj: null, phone: null, email: null },
@@ -43,4 +43,15 @@ test('ehVariasPessoas: nomes juntos numa ficha só', () => {
   assert.strictEqual(ehVariasPessoas('STILU BELLE BOLSAS, CALCADOS LTDA'), false); // empresa
   assert.strictEqual(ehVariasPessoas('MARIA DAS GRACAS E SILVA'), false);              // "E" dentro do nome
   assert.strictEqual(ehVariasPessoas('KAYLANE VITORIA MIRANDA LIMA'), false);
+});
+
+test('titularDoNome: com várias pessoas, a ficha fica com a primeira de nome completo', () => {
+  // mãe + filho menor só com iniciais (nomeação dativa de família/infância)
+  assert.strictEqual(ehVariasPessoas('ANA PAULA SOUZA LIMA e B. F. S. C.'), true);
+  assert.strictEqual(titularDoNome('ANA PAULA SOUZA LIMA e B. F. S. C.'), 'ANA PAULA SOUZA LIMA');
+  assert.strictEqual(titularDoNome('B. F. S. C. e ANA PAULA SOUZA LIMA'), 'ANA PAULA SOUZA LIMA'); // iniciais não viram ficha
+  assert.strictEqual(titularDoNome('WENDEL LEIVINO DIAS; MIRIAN DIAS SILVA'), 'WENDEL LEIVINO DIAS');
+  assert.strictEqual(titularDoNome('  KAYLANE VITORIA MIRANDA LIMA '), 'KAYLANE VITORIA MIRANDA LIMA'); // uma pessoa: o próprio nome
+  assert.strictEqual(titularDoNome('MARIA DAS GRACAS E SILVA'), 'MARIA DAS GRACAS E SILVA');
+  assert.strictEqual(titularDoNome('A. B. e C. D.'), null);                                           // só iniciais: sem titular
 });

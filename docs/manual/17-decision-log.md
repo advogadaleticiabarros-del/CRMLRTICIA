@@ -273,6 +273,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | 14/10/2026 | Claude | Registradas as 5 decisões do escritório virtual e por que o prazo de recurso do Leitor de sentença vem de tabela fixa, não da IA |
 | 07/10/2026 | Claude | Backup tratado como crítico (pedido da usuária): retenção avô-pai-filho (3 dias inteiros + 30 diários + 12 mensais no MEGA, cabe na conta gratuita de 21 GB hoje), conferência do arquivo antes de salvar e de apagar antigos, aviso diário. Próximo passo avaliado: tirar as mídias do WhatsApp (~80% de cada cópia) de dentro do banco, guardando-as como arquivos com backup próprio — reduziria cada cópia de ~280 MB para ~60 MB e evitaria estourar o MEGA com o crescimento (~18 MB/dia) |
 | 07/10/2026 | Claude | Provisão de honorários = valor da causa × taxa de sucesso × % médio obtido × honorário do caso (30% ou a parte do escritório na parceria). Escolhida por usar só dados que o CRM já tem e ser explicável na própria tela; dativo e defesa ficam fora porque não seguem a lógica de êxito |
+| 26/10/2026 | Claude | Dativo com vários assistidos no mesmo nome (mãe + menor): a ficha vai para a primeira pessoa de nome completo, em vez de recusar ou criar uma ficha por pessoa. A demanda tem um só cliente; o menor costuma vir só com iniciais (ECA) e não dá para abrir ficha com isso; a mãe é quem a equipe atende. Nas outras rotas, a recusa continua |
 
 ---
 ◀ [Ferramentas e acessos](16-ferramentas-acessos.md) · [Visão geral](00-visao-geral.md) · Próximo: [Pesquisa de Leis](18-pesquisa-de-leis.md) ▶

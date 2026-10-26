@@ -291,8 +291,12 @@ router.post('/cases', async (req: Request, res: Response) => {
     clientId = Number(client_id);
   } else {
     // Uma pessoa = uma ficha: assistido que já tem ficha usa a mesma (marcada DATIVO).
-    const { encontrarOuCriarCliente } = await import('../services/fichaUnica');
-    clientId = (await encontrarOuCriarCliente({ nome: assisted_name.trim(), cpf: client_cpf ?? null, phone: client_phone ?? null,
+    // Nomeação com mais de um assistido ("MÃE e B. F. S. C."): a ficha é da primeira
+    // pessoa de nome completo; o nome inteiro continua em assisted_name.
+    const { encontrarOuCriarCliente, titularDoNome } = await import('../services/fichaUnica');
+    const titular = titularDoNome(assisted_name);
+    if (!titular) { res.status(400).json({ error: 'Informe o nome completo de ao menos um assistido (só iniciais não abrem ficha)' }); return; }
+    clientId = (await encontrarOuCriarCliente({ nome: titular, cpf: client_cpf ?? null, phone: client_phone ?? null,
       email: client_email ?? null, isDative: true, createdBy: req.user!.id, notes: `Cliente cadastrado via demanda dativa — ${comarca.trim()}` })).id;
   }
 
