@@ -17,11 +17,14 @@ A Dra. encaminhou o alerta do Dr. Bento: `"SAMARA FRAGA SCARDUA CALMON e B. F. S
 - `npm run build` ok; `npm run lint` sem erros (avisos antigos, nenhum nos arquivos alterados); `npm test`: 1.087 aprovados, 0 falhas (os de banco rodam no CI).
 - Não verificado: fichas antigas só com iniciais em produção (consulta negada pela permissão da sessão); deploy e cadastro real em produção. O push não foi feito nesta sessão (permissão negada); a demanda da Samara não foi salva no erro e precisa ser cadastrada de novo.
 
+- Primeiro deploy (3b4e76f) barrado pelo portão de vulnerabilidades (avisos novos, sem relação com a correção): body-parser e nodemailer via `npm audit fix`; zod 3 → 4.6.7. Validação do `.env` conferida com zod 4 (recusa chave curta, aceita a válida); build, lint e 1.087 testes ok.
+
 ## Decisões e porquês
 - A ficha vai para a primeira pessoa de nome completo, em vez de recusar ou criar uma ficha por pessoa. A demanda tem um só cliente; o menor vem só com iniciais (ECA); quem a equipe atende é a mãe/representante.
 - As outras rotas (parceria, atendimento, lead, contrato, publicações) continuam recusando nomes juntos, de propósito.
 
 ## Pendente
+- Conferir se o deploy após a atualização do zod passou (ver ESTADO).
 - Jessica: liberar a consulta em produção para rever fichas antigas com nome só em iniciais (ligar ao representante).
 - Jessica/Dra.: liberar o push (commit local pronto) e acompanhar o deploy.
 - Dra.: cadastrar de novo a nomeação da Samara (mãe e B. F. S. C.).

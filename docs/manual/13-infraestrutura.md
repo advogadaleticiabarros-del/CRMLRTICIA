@@ -115,6 +115,7 @@ Alguns dados sensíveis (tokens de integração) ficam cifrados no banco. Acesso
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 26/10/2026 | Claude | O portão de vulnerabilidades barrou o deploy com 3 avisos novos: body-parser (alto) e nodemailer (moderado), resolvidos com `npm audit fix`; zod 3 → 4.6.7 (alto; sem correção na 3). O zod só valida o `.env` (`src/config/env.ts`), que funciona igual na 4 |
 | 21/10/2026 | Claude | Acervo de leis na VPS (`/home/crmapp/leis`), fora do MySQL e do backup |
 | 20/10/2026 | Claude | `uuid` 11.1.1 forçada em `overrides`: produção sem vulnerabilidades |
 | 03/09/2026 | Claude | Criação do documento; registrado o desligamento do Railway e a migração definitiva pra VPS |
