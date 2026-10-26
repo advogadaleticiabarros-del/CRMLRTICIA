@@ -30,7 +30,7 @@ export function escolherFichaExistente(fichas: FichaResumo[], p: DadosPessoa): F
     if (porCpf) return porCpf;
   }
   const nome = normalizarNome(p.nome);
-  if (nome) {
+  if (nome && !ehSoIniciais(nome)) { // iniciais iguais não são a mesma pessoa
     const porNome = fichas.find((f) => normalizarNome(f.name) === nome && !(cpf.length >= 11 && digitos(f.cpf_cnpj).length >= 11 && digitos(f.cpf_cnpj) !== cpf));
     if (porNome) return porNome;
   }
@@ -58,16 +58,38 @@ export function ehVariasPessoas(nome: string): boolean {
   return partes.length > 1 && (partes.filter((x) => x.split(' ').length >= 2).length >= 2 || /,/.test(nome));
 }
 
-const soIniciais = (parte: string) => normalizarNome(parte).split(' ').every((w) => w.length <= 1);
+/**
+ * Menor em segredo de justiça aparece só pelas iniciais ("B. F. S. C."), sempre
+ * ao lado do representante. Iniciais não abrem ficha nem identificam ninguém.
+ */
+export const ehSoIniciais = (parte: string) => {
+  const ws = normalizarNome(parte).split(' ').filter(Boolean);
+  return ws.length > 0 && ws.every((w) => w.length === 1);
+};
+const partesDoNome = (nome: string) => String(nome ?? '').split(/;|,|\s+e\s+/i).map((x) => x.trim()).filter(Boolean);
+
+/** Iniciais dos assistidos menores que vieram junto do nome ("MÃE e B. F. S. C." → ["B. F. S. C."]). */
+export function iniciaisDoNome(nome: string): string[] {
+  return ehVariasPessoas(nome) ? partesDoNome(nome).filter(ehSoIniciais) : [];
+}
+
 /**
  * De quem é a ficha quando o nome junta pessoas: a primeira com nome completo
- * (ex.: "MÃE e B. F. S. C." → a mãe; o menor só com iniciais não vira ficha).
+ * (o representante; o menor só com iniciais não vira ficha).
  * Uma pessoa só: o próprio nome. Só iniciais: null.
  */
 export function titularDoNome(nome: string): string | null {
   const limpo = String(nome ?? '').trim();
-  if (!ehVariasPessoas(limpo)) return soIniciais(limpo) ? null : limpo;
-  return limpo.split(/;|,|\s+e\s+/i).map((x) => x.trim()).find((x) => x && !soIniciais(x)) ?? null;
+  if (!ehVariasPessoas(limpo)) return ehSoIniciais(limpo) || !limpo ? null : limpo;
+  return partesDoNome(limpo).find((x) => !ehSoIniciais(x)) ?? null;
+}
+
+/** Versão estrita (captura automática): só aceita UM nome completo — dois adultos juntos não viram ficha. */
+export function representanteDoNome(nome: string): string | null {
+  const limpo = String(nome ?? '').trim();
+  if (!ehVariasPessoas(limpo)) return titularDoNome(limpo);
+  const completos = partesDoNome(limpo).filter((x) => !ehSoIniciais(x));
+  return completos.length === 1 ? completos[0] : null;
 }
 
 export interface NovaFicha {
@@ -84,6 +106,7 @@ export async function encontrarOuCriarCliente(n: NovaFicha): Promise<{ id: numbe
   const nome = String(n.nome || '').trim().slice(0, 255);
   if (!nome) throw new Error('Nome do cliente vazio');
   if (ehVariasPessoas(nome)) throw new Error(`"${nome}" junta mais de uma pessoa — cadastre cada uma separadamente`);
+  if (ehSoIniciais(nome)) throw new Error(`"${nome}" tem só iniciais (menor em segredo de justiça) — a ficha é do representante`);
   const [fichas] = await db.query('SELECT id, name, cpf_cnpj, phone, email FROM clients') as any;
   const achada = escolherFichaExistente(fichas, { nome, cpf: n.cpf, phone: n.phone, email: n.email });
   if (achada) {

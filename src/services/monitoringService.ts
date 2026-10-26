@@ -660,12 +660,12 @@ export async function ingestDjenForLawyer(lawyerId: number, pubs: DjenPublicatio
   // Cria o cliente (parte representada) sem duplicar, e devolve o id. Dedup por nome.
   let clientesNovos = 0;
   const ensureClient = async (name: string, tipo: 'PF' | 'PJ'): Promise<number | null> => {
-    const nm = (name || '').trim();
-    if (!nm) return null;
     // Uma pessoa = uma ficha (fichaUnica): reaproveita a existente; publicação
-    // com várias partes juntas num nome só não vira ficha "misturada".
-    const { encontrarOuCriarCliente, ehVariasPessoas } = await import('./fichaUnica');
-    if (ehVariasPessoas(nm)) return null;
+    // com várias partes juntas num nome só não vira ficha "misturada". Exceção:
+    // representante + iniciais do menor (segredo de justiça) → ficha do representante.
+    const { encontrarOuCriarCliente, representanteDoNome } = await import('./fichaUnica');
+    const nm = representanteDoNome(name || '');
+    if (!nm) return null;
     const r = await encontrarOuCriarCliente({ nome: nm, tipo, notes: 'Cadastrado automaticamente a partir do DJEN/OAB.', createdBy });
     if (r.criado) clientesNovos++;
     return r.id;

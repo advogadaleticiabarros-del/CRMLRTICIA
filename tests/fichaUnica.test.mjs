@@ -1,7 +1,7 @@
 // tests/fichaUnica.test.mjs — uma pessoa = uma ficha
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { normalizarNome, escolherFichaExistente, ehVariasPessoas, titularDoNome } from '../dist/services/fichaUnica.js';
+import { normalizarNome, escolherFichaExistente, ehVariasPessoas, titularDoNome, ehSoIniciais, iniciaisDoNome, representanteDoNome } from '../dist/services/fichaUnica.js';
 
 const fichas = [
   { id: 1, name: 'DILMA PEREIRA DOS SANTOS', cpf_cnpj: null, phone: null, email: null },
@@ -54,4 +54,29 @@ test('titularDoNome: com várias pessoas, a ficha fica com a primeira de nome co
   assert.strictEqual(titularDoNome('  KAYLANE VITORIA MIRANDA LIMA '), 'KAYLANE VITORIA MIRANDA LIMA'); // uma pessoa: o próprio nome
   assert.strictEqual(titularDoNome('MARIA DAS GRACAS E SILVA'), 'MARIA DAS GRACAS E SILVA');
   assert.strictEqual(titularDoNome('A. B. e C. D.'), null);                                           // só iniciais: sem titular
+});
+
+test('ehSoIniciais: menor em segredo de justiça vem só com as iniciais', () => {
+  assert.strictEqual(ehSoIniciais('B. F. S. C.'), true);
+  assert.strictEqual(ehSoIniciais('BFSC'), false);          // sem pontos/espaços pode ser nome ou sigla: não presume
+  assert.strictEqual(ehSoIniciais('B F S C'), true);
+  assert.strictEqual(ehSoIniciais('ANA P. LIMA'), false);
+  assert.strictEqual(ehSoIniciais(''), false);
+});
+
+test('escolherFichaExistente: iniciais iguais não são a mesma pessoa', () => {
+  const comIniciais = [{ id: 50, name: 'B. F. S. C.', cpf_cnpj: null, phone: null, email: null }];
+  assert.strictEqual(escolherFichaExistente(comIniciais, { nome: 'B. F. S. C.' }), null);
+});
+
+test('representante + iniciais dos assistidos (segredo de justiça)', () => {
+  const nome = 'ANA PAULA SOUZA LIMA e B. F. S. C., C. D. L.';
+  assert.strictEqual(titularDoNome(nome), 'ANA PAULA SOUZA LIMA');
+  assert.deepStrictEqual(iniciaisDoNome(nome), ['B. F. S. C.', 'C. D. L.']);
+  assert.deepStrictEqual(iniciaisDoNome('KAYLANE VITORIA MIRANDA LIMA'), []);
+  // estrito (captura automática): só quando há exatamente um nome completo
+  assert.strictEqual(representanteDoNome(nome), 'ANA PAULA SOUZA LIMA');
+  assert.strictEqual(representanteDoNome('WENDEL LEIVINO DIAS e MIRIAN DIAS SILVA'), null); // dois adultos
+  assert.strictEqual(representanteDoNome('KAYLANE VITORIA MIRANDA LIMA'), 'KAYLANE VITORIA MIRANDA LIMA');
+  assert.strictEqual(representanteDoNome('B. F. S. C.'), null);
 });

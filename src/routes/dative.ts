@@ -291,11 +291,11 @@ router.post('/cases', async (req: Request, res: Response) => {
     clientId = Number(client_id);
   } else {
     // Uma pessoa = uma ficha: assistido que já tem ficha usa a mesma (marcada DATIVO).
-    // Nomeação com mais de um assistido ("MÃE e B. F. S. C."): a ficha é da primeira
-    // pessoa de nome completo; o nome inteiro continua em assisted_name.
+    // Menor em segredo de justiça vem como "REPRESENTANTE e B. F. S. C.": a ficha é do
+    // representante; as iniciais ficam só em assisted_name (nunca viram ficha).
     const { encontrarOuCriarCliente, titularDoNome } = await import('../services/fichaUnica');
     const titular = titularDoNome(assisted_name);
-    if (!titular) { res.status(400).json({ error: 'Informe o nome completo de ao menos um assistido (só iniciais não abrem ficha)' }); return; }
+    if (!titular) { res.status(400).json({ error: 'Informe o nome completo do representante junto das iniciais do assistido (ex.: "MARIA DA SILVA e B. F. S.")' }); return; }
     clientId = (await encontrarOuCriarCliente({ nome: titular, cpf: client_cpf ?? null, phone: client_phone ?? null,
       email: client_email ?? null, isDative: true, createdBy: req.user!.id, notes: `Cliente cadastrado via demanda dativa — ${comarca.trim()}` })).id;
   }
@@ -307,6 +307,12 @@ router.post('/cases', async (req: Request, res: Response) => {
      AREAS.includes(area) ? area : 'outro', (assunto && String(assunto).trim()) ? String(assunto).trim() : null,
      nomeacao_date || null, Number(estimated_value) || 0, notes ?? null]
   ) as any;
+  const { iniciaisDoNome } = await import('../services/fichaUnica');
+  const iniciais = assisted_name ? iniciaisDoNome(String(assisted_name)) : [];
+  if (iniciais.length) {
+    await db.query('INSERT INTO dative_case_notes (dative_case_id, user_id, text) VALUES (?, ?, ?)',
+      [result.insertId, req.user!.id, `Segredo de justiça: assistido(s) menor(es) identificado(s) só pelas iniciais (${iniciais.join('; ')}). A ficha está no nome do representante.`]).catch(() => {});
+  }
   const [rows] = await db.query('SELECT * FROM dative_cases WHERE id = ?', [result.insertId]) as any;
   res.status(201).json(rows[0]);
 });

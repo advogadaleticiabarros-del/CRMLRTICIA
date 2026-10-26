@@ -22,9 +22,14 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 **Causa raiz:** a rota passava o nome inteiro do assistido para `encontrarOuCriarCliente` (regra "uma pessoa, uma ficha"). Essa regra recusa nomes que juntam pessoas com um erro comum, e o erro virava 500.
 
-**Correção (26/10/2026):** a rota usa `titularDoNome` (`src/services/fichaUnica.ts`): a ficha fica com a primeira pessoa de nome completo (a mãe/representante), iniciais não viram ficha e o nome inteiro continua no campo "assistido" da demanda. Se vierem só iniciais, a resposta é um aviso claro (400), não erro 500.
+**Regra (confirmada pela Dra. em 26/10):** só iniciais significa menor em processo com segredo de justiça, e o nome vem sempre como **representante + iniciais do(s) assistido(s)**.
 
-**Como reconhecer de novo:** a mensagem "junta mais de uma pessoa" em outra rota (parceria, atendimento, lead, contrato). Ali o erro ainda aparece, de propósito. Se o caso for legítimo (representante + representado), aplique o mesmo `titularDoNome` antes de criar a ficha.
+**Correção (26/10/2026), em `src/services/fichaUnica.ts`:**
+- **Dativo** (`titularDoNome`): a ficha é do representante. As iniciais ficam só no campo "assistido" e entra na linha do tempo a nota "Segredo de justiça…". Só iniciais: aviso 400 pedindo o representante.
+- **Captura do DJEN** (`representanteDoNome`): cria a ficha do representante quando há exatamente um nome completo; dois adultos juntos continuam sem ficha.
+- **Iniciais nunca abrem ficha** (`encontrarOuCriarCliente` recusa) e **nunca identificam ninguém**: duas "B. F. S. C." não são a mesma pessoa (`escolherFichaExistente`). Antes, a captura do DJEN criava ficha com o nome em iniciais, e menores diferentes com as mesmas iniciais cairiam na mesma ficha.
+
+**Como reconhecer de novo:** a mensagem "junta mais de uma pessoa" em outra rota (parceria, atendimento, lead, contrato), onde a recusa continua de propósito. Se o caso for representante + iniciais, use `titularDoNome` antes de criar a ficha. Fichas antigas com nome só em iniciais devem ser revistas e ligadas ao representante.
 
 ---
 
