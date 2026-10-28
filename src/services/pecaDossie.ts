@@ -17,7 +17,7 @@ export interface ContratoFicha extends ComFonte {
 export interface FichaDeFatos {
   reus: Array<{ nome: string; cnpj: string | null; endereco: string | null } & ComFonte>;
   contratos: ContratoFicha[];
-  descontos: Array<{ competencia: string; valor: number; contrato: string | null } & ComFonte>;
+  descontos: Array<{ competencia: string; valor: number; contrato: string | null; banco?: string | null } & ComFonte>;
   fatos: Array<{ data: string | null; texto: string } & ComFonte>;
   valores: Array<{ descricao: string; valor: number | null; data: string | null } & ComFonte>;
   vinculo: Record<string, string | null> | null;
@@ -79,19 +79,29 @@ export function fichaVazia(lacuna?: string): FichaDeFatos {
   return { reus: [], contratos: [], descontos: [], fatos: [], valores: [], vinculo: null, triagem: {}, pedidos_do_cliente: [], lacunas: lacuna ? [lacuna] : [] };
 }
 
-export function parseFichaDeFatos(texto: string): FichaDeFatos {
-  const o = extrairJson(texto);
-  if (!o || typeof o !== 'object') return fichaVazia('A leitura dos documentos pela IA falhou: a ficha de fatos ficou vazia. Conferir os documentos à mão.');
-  const f = fichaVazia();
-  f.reus = lista(o.reus).map((r) => ({ nome: txt(r?.nome, 255) || '', cnpj: txt(r?.cnpj ?? r?.cpf_cnpj, 30), endereco: txt(r?.endereco), fonte: txt(r?.fonte, 255) })).filter((r) => r.nome);
-  f.contratos = lista(o.contratos).map((c) => ({
+export function parseContratos(v: unknown): ContratoFicha[] {
+  return lista(v).map((c) => ({
     numero: txt(c?.numero, 80), tipo: txt(c?.tipo, 40)?.toLowerCase() || null, banco: txt(c?.banco, 255), data: txt(c?.data, 20),
     valor_liberado: valorNumero(c?.valor_liberado), parcela: valorNumero(c?.parcela), n_parcelas: inteiro(c?.n_parcelas), parcelas_pagas: inteiro(c?.parcelas_pagas),
     taxa_mensal: taxaNumero(c?.taxa_mensal), taxa_media_mercado: taxaNumero(c?.taxa_media_mercado),
     inicio_desconto: competencia(c?.inicio_desconto), fim_desconto: competencia(c?.fim_desconto), situacao: txt(c?.situacao, 60), fonte: txt(c?.fonte, 255),
   }));
+}
+
+/** Resposta da leitura só de contratos (promptContratos): a lista de contratos. */
+export function parseListaContratos(texto: string): ContratoFicha[] | null {
+  const o = extrairJson(texto);
+  return o && typeof o === 'object' ? parseContratos(o.contratos) : null;
+}
+
+export function parseFichaDeFatos(texto: string): FichaDeFatos {
+  const o = extrairJson(texto);
+  if (!o || typeof o !== 'object') return fichaVazia('A leitura dos documentos pela IA falhou: a ficha de fatos ficou vazia. Conferir os documentos à mão.');
+  const f = fichaVazia();
+  f.reus = lista(o.reus).map((r) => ({ nome: txt(r?.nome, 255) || '', cnpj: txt(r?.cnpj ?? r?.cpf_cnpj, 30), endereco: txt(r?.endereco), fonte: txt(r?.fonte, 255) })).filter((r) => r.nome);
+  f.contratos = parseContratos(o.contratos);
   f.descontos = lista(o.descontos)
-    .map((d) => ({ competencia: competencia(d?.competencia), valor: valorNumero(d?.valor), contrato: txt(d?.contrato, 80), fonte: txt(d?.fonte, 255) }))
+    .map((d) => ({ competencia: competencia(d?.competencia), valor: valorNumero(d?.valor), contrato: txt(d?.contrato, 80), ...(txt(d?.banco, 255) ? { banco: txt(d?.banco, 255) } : {}), fonte: txt(d?.fonte, 255) }))
     .filter((d): d is FichaDeFatos['descontos'][number] => !!d.competencia && d.valor != null && d.valor > 0);
   f.fatos = lista(o.fatos).map((x) => ({ data: txt(x?.data, 20), texto: txt(x?.texto, 1000) || '', fonte: txt(x?.fonte, 255) })).filter((x) => x.texto);
   f.valores = lista(o.valores).map((x) => ({ descricao: txt(x?.descricao, 255) || '', valor: valorNumero(x?.valor), data: txt(x?.data, 20), fonte: txt(x?.fonte, 255) })).filter((x) => x.descricao);
@@ -131,7 +141,7 @@ ${ctx.casos.map((c) => `- ${c}`).join('\n')}
 Responda SOMENTE com JSON neste formato:
 {"reus":[{"nome":"...","cnpj":"...","endereco":"...","fonte":"nome da fonte"}],
  "contratos":[{"numero":"...","tipo":"emprestimo_consignado|emprestimo_pessoal|rmc|rcc|cartao_comum|refinanciamento|portabilidade|outro","banco":"...","data":"dd/mm/aaaa","valor_liberado":0,"parcela":0,"n_parcelas":0,"parcelas_pagas":0,"taxa_mensal":0,"taxa_media_mercado":0,"inicio_desconto":"mm/aaaa","fim_desconto":"mm/aaaa","situacao":"ativo|excluido|encerrado","fonte":"..."}],
- "descontos":[{"competencia":"mm/aaaa","valor":0,"contrato":"nº do contrato","fonte":"..."}],
+ "descontos":[{"competencia":"mm/aaaa","valor":0,"contrato":"nº do contrato","banco":"banco do desconto, se o extrato mostrar","fonte":"..."}],
  "fatos":[{"data":"dd/mm/aaaa","texto":"fato objetivo","fonte":"..."}],
  "valores":[{"descricao":"...","valor":0,"data":"...","fonte":"..."}],
  "vinculo":{"empregador":"...","admissao":"...","demissao":"...","cargo":"...","salario":"...","jornada":"...","motivo_saida":"..."},
@@ -142,12 +152,31 @@ Responda SOMENTE com JSON neste formato:
 Regras:
 - NUNCA invente, deduza ou complete. Só o que está escrito nas fontes. Campo sem informação: null. Lista sem itens: [].
 - TODO item leva "fonte" com o nome exato da fonte de onde saiu (o título depois de "===").
-- "descontos": cada desconto mensal que aparece em extrato de pagamento do benefício, holerite ou fatura (um item por mês e por contrato). Não repita o mesmo mês do mesmo contrato.
+- "descontos": cada desconto mensal que aparece em extrato de pagamento do benefício, holerite ou fatura (um item por mês e por contrato). Não repita o mesmo mês do mesmo contrato. Sempre com o nº do contrato e o banco quando o extrato mostrar.
+- "contratos": TODOS os contratos das fontes, de qualquer banco, cada um com o seu banco. O sistema separa depois o que é desta peça.
 - Extrato de empréstimos do INSS (HISCON): cada contrato com nº, banco, tipo (empréstimo, RMC = reserva de margem de cartão, RCC = reserva de cartão consignado de benefício), data de inclusão, valor liberado/emprestado, valor da parcela, quantidade de parcelas, início e fim do desconto e situação.
 - Tipo do contrato: "emprestimo_consignado" quando a parcela é descontada no benefício ou na folha (inclui refinanciamento e portabilidade); "emprestimo_pessoal" quando é pago por boleto ou débito em conta (crédito pessoal, CDC); "rmc"/"rcc" para cartão consignado; "cartao_comum" para cartão de crédito sem desconto no benefício. Na dúvida, "outro".
 - Taxas em % ao mês, como número (2,14% a.m. → 2.14). "taxa_media_mercado" só se alguma fonte trouxer a taxa média do Bacen.
 - "triagem": responda pelas fontes (conversa e relato contam). Ex.: cliente disse que nunca recebeu o cartão → "recebeu_cartao": false. Sem informação → null.
 - "vinculo" só em caso trabalhista; senão null.
+- Valores em número (R$ 1.234,56 → 1234.56).
+
+FONTES:
+${fontesTexto}`;
+}
+
+/** Leitura só dos contratos (sem redigir): alimenta a lista que a Dra. associa aos processos. */
+export function promptContratos(ctx: { cliente: string }, fontesTexto: string): string {
+  return `CONTRATOS DO CLIENTE — você é a analista de documentos de um escritório de advocacia.
+Liste TODOS os contratos bancários que aparecem nas fontes abaixo do(a) cliente ${ctx.cliente} (extrato de empréstimos do INSS/HISCON, contratos, faturas, extratos, conversa), de QUALQUER banco.
+Responda SOMENTE com JSON:
+{"contratos":[{"numero":"...","tipo":"emprestimo_consignado|emprestimo_pessoal|rmc|rcc|cartao_comum|refinanciamento|portabilidade|outro","banco":"nome do banco como está no documento","data":"dd/mm/aaaa","valor_liberado":0,"parcela":0,"n_parcelas":0,"parcelas_pagas":0,"taxa_mensal":0,"inicio_desconto":"mm/aaaa","fim_desconto":"mm/aaaa","situacao":"ativo|excluido|encerrado|suspenso","fonte":"nome da fonte"}]}
+Regras:
+- NUNCA invente nem complete: só o que está escrito. Campo sem informação: null.
+- "banco" é obrigatório quando o documento mostra: é o que decide em qual processo o contrato entra.
+- Tipo: "rmc" = reserva de margem para cartão de crédito; "rcc" = reserva de cartão consignado de benefício; "emprestimo_consignado" quando a parcela é descontada no benefício ou na folha (inclui refinanciamento e portabilidade); "emprestimo_pessoal" quando é pago por boleto ou débito em conta. Na dúvida, "outro".
+- O mesmo contrato em duas fontes aparece uma vez só (mesmo número).
+- "fonte": o título exato da fonte, depois de "===".
 - Valores em número (R$ 1.234,56 → 1234.56).
 
 FONTES:
@@ -227,7 +256,12 @@ export interface DossieRedacao {
   fundamentos: string; relato: string;
   /** Regras aprendidas com as correções da Dra. */
   regras?: string[];
+  /** Contratos lidos nos documentos que NÃO são desta peça (outro banco, outra tese ou decisão da Dra.). */
+  fora?: Array<{ contrato: ContratoFicha; motivo: string }>;
 }
+
+const linhaFora = (f: { contrato: ContratoFicha; motivo: string }) =>
+  `${f.contrato.numero || 's/nº'} · ${f.contrato.tipo || 'tipo?'} · ${f.contrato.banco || 'banco não identificado'} — ${f.motivo}`;
 
 export function montarPromptRedacao(d: DossieRedacao): string {
   const varios = d.casos.length > 1;
@@ -259,7 +293,7 @@ FICHA DE FATOS (extraída das fontes pela analista; cada item com a fonte):
 ${json({ reus: d.ficha.reus, contratos: d.ficha.contratos, fatos: d.ficha.fatos, valores: d.ficha.valores, vinculo: d.ficha.vinculo, triagem: d.ficha.triagem, pedidos_do_cliente: d.ficha.pedidos_do_cliente })}
 Lacunas (dados que não estão nas fontes — usar [colchete]): ${[...d.ficha.lacunas, ...d.calculo.avisos].join(' | ') || 'nenhuma'}
 
-CÁLCULOS (feitos pelo sistema — use exatamente):
+${d.fora?.length ? `CONTRATOS QUE NÃO SÃO DESTA PEÇA (aparecem nas fontes, mas são de outro banco, de outra tese ou a advogada tirou): NÃO mencione, não descreva e não peça nada sobre eles, nem como "o documento indica". A peça trata só dos contratos da FICHA DE FATOS.\n${d.fora.map((f) => `- ${linhaFora(f)}`).join('\n')}\n\n` : ''}CÁLCULOS (feitos pelo sistema — use exatamente):
 ${blocoCalculos(d.calculo)}
 
 RELATO DO CLIENTE:
@@ -288,6 +322,7 @@ export function conferirValores(peticao: string, c: CalculoPeca): Array<{ rotulo
 export function relatorioDossie(d: {
   cliente: string; casos: Array<{ id: number; titulo: string | null }>; lidas: string[]; semTexto: string[];
   ficha: FichaDeFatos; calculo: CalculoPeca; escolha: Escolha; conferencia: ReturnType<typeof conferirValores>;
+  fora?: Array<{ contrato: ContratoFicha; motivo: string }>;
 }): string {
   const l: string[] = [`# Dossiê da peça — ${d.cliente}`, ''];
   l.push('Como a petição foi montada: o que os agentes leram, o que calcularam e por que escolheram o modelo.', '');
@@ -308,6 +343,10 @@ export function relatorioDossie(d: {
   if (f.contratos.length) {
     l.push('', '| Contrato | Tipo | Banco | Liberado | Parcela | Parcelas | Taxa a.m. | Fonte |', '|---|---|---|---|---|---|---|---|');
     for (const c of f.contratos) l.push(`| ${c.numero || '—'} | ${c.tipo || '—'} | ${c.banco || '—'} | ${c.valor_liberado != null ? brl(c.valor_liberado) : '—'} | ${c.parcela != null ? brl(c.parcela) : '—'} | ${c.n_parcelas ?? '—'} | ${c.taxa_mensal != null ? `${c.taxa_mensal}%` : '—'} | ${c.fonte || '—'} |`);
+  }
+  if (d.fora?.length) {
+    l.push('', `**Ficaram fora desta peça (${d.fora.length})** — para mudar, use "Contratos nos documentos" na aba Caso da mesa:`);
+    for (const x of d.fora) l.push(`- ${linhaFora(x)}`);
   }
   if (f.descontos.length) l.push('', `Descontos lidos nos extratos: ${f.descontos.length}.`);
   for (const x of f.fatos.slice(0, 30)) l.push(`- ${x.data ? `${x.data}: ` : ''}${x.texto} _(fonte: ${x.fonte || '—'})_`);

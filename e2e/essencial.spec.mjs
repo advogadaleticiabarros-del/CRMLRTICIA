@@ -198,6 +198,50 @@ test('Processo único: o quadro sugere juntar RMC e RCC do mesmo banco e deixa o
   expect(erros, erros.join('\n')).toEqual([]);
 });
 
+// Caso real de 28/10/2026: a peça contra o Itaú citou contratos do PAN e da FACTA,
+// lidos no extrato do INSS. A mesa lista os contratos do cliente por banco, diz o
+// que entra na peça e a Dra. associa cada um ao processo certo.
+test('Mesa do caso: contratos de outro banco ficam fora da peça e a Dra. associa ao processo certo', async ({ page }) => {
+  const erros = vigiar(page);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await entrar(page);
+  const nome = `Cliente Contratos ${Date.now()}`;
+  const ids = await page.evaluate(async (nomeCliente) => {
+    const cl = await api('/api/clients', { method: 'POST', body: JSON.stringify({ name: nomeCliente }) });
+    const out = { cliente: cl.id };
+    for (const [k, title] of [['itau', 'Empréstimo consignado — Banco Itaú S.A.'], ['facta', 'RMC — Facta Financeira']]) {
+      const cs = await api('/api/cases', { method: 'POST', body: JSON.stringify({ client_id: cl.id, title, legal_area: 'consumidor' }) });
+      await api(`/api/cases/${cs.id}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage: 'em_analise' }) });
+      out[k] = cs.id;
+    }
+    return out;
+  }, nome);
+  // A leitura usa IA: no teste, os contratos entram direto no banco descartável.
+  const mysql = (await import('mysql2/promise')).default;
+  const con = await mysql.createConnection({ host: process.env.DB_HOST || '127.0.0.1', port: Number(process.env.DB_PORT || 3306), user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: process.env.DB_NAME });
+  const contrato = (numero, tipo, banco) => ({ numero, tipo, banco, data: '16/11/2022', parcela: 89.2, situacao: 'ativo', fonte: 'hiscon.pdf' });
+  for (const [chave, c] of [['n:123456', contrato('123456', 'emprestimo_consignado', 'ITAU CONSIGNADO S.A.')], ['n:7666596452', contrato('766659645-2', 'emprestimo_consignado', 'BANCO PAN S.A.')], ['n:59967160', contrato('0059967160', 'rmc', 'FACTA FINANCEIRA S.A.')]]) {
+    await con.query('INSERT INTO cliente_contratos (client_id, chave, numero, tipo, banco, dados) VALUES (?, ?, ?, ?, ?, ?)', [ids.cliente, chave, c.numero, c.tipo, c.banco, JSON.stringify(c)]);
+  }
+  await con.end();
+
+  await page.evaluate((id) => mesaDoCaso(id), ids.itau);
+  const sec = page.locator('.mesa .mesa-contratos');
+  await expect(sec).toContainText('Nesta peça: 1 de 3', { timeout: 15_000 });
+  await expect(sec.locator('.mesa-contratos-banco').first()).toContainText('réu deste processo');
+  const pan = sec.locator('.mesa-doc', { hasText: '766659645-2' });
+  await expect(pan).toContainText('Fora desta peça');
+  await expect(pan).toContainText('outro banco');
+
+  // A FACTA vai para o processo dela; o PAN, a Dra. decide pôr nesta peça.
+  await sec.locator('.mesa-doc', { hasText: '0059967160' }).locator('select').selectOption(String(ids.facta));
+  await expect(sec.locator('.mesa-doc', { hasText: '0059967160' })).toContainText(`associou ao caso #${ids.facta}`, { timeout: 15_000 });
+  await sec.locator('.mesa-doc', { hasText: '766659645-2' }).locator('select').selectOption(String(ids.itau));
+  await expect(sec).toContainText('Nesta peça: 2 de 3', { timeout: 15_000 });
+  await page.keyboard.press('Escape');
+  expect(erros, erros.join('\n')).toEqual([]);
+});
+
 test('cadastrar um cliente pela tela e ele aparecer na lista', async ({ page }) => {
   const erros = vigiar(page);
   await entrar(page);

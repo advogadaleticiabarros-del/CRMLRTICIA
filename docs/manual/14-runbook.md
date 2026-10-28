@@ -735,6 +735,30 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 ---
 
+## Incidente: peça contra um banco citava contratos de outros bancos (28/10/2026)
+
+**Sintoma:** a petição do Valmirio, contra o Banco Itaú (empréstimo consignado), trazia "O documento indica: instituição BANCO PAN S.A. … contrato nº 766659645-2" e um "Cartão de crédito — modalidade RMC" da FACTA FINANCEIRA. Depois, ela mesma dizia que "não há prova documental que vincule tais operações ao Banco Itaú".
+
+**Causa raiz:**
+- A Dra. Helena transcreve o extrato do INSS (HISCON) inteiro, e ele traz todos os contratos do cliente.
+- A ficha de fatos levava **todos** esses contratos e descontos ao cálculo do indébito e ao redator. Nada filtrava pelo réu nem pela tese.
+- O "processo único" de 22/10 junta *cards*; ele não escolhe *contratos*.
+
+**Correção:**
+- `separarParaPeca` (`contratosDoCaso.ts`) roda antes do cálculo. Entram só os contratos do banco do réu e da mesma família de tese, ou os que a Dra. associou. Os descontos dos que ficaram fora saem do cálculo.
+- O redator recebe a lista "NÃO SÃO DESTA PEÇA", e o dossiê mostra o que ficou fora e por quê.
+- Todos os contratos ficam no cliente (`cliente_contratos`, migration 171). A Dra. associa cada um ao processo certo em Mesa do caso → aba Caso → "Contratos nos documentos".
+
+**As peças já geradas não mudam sozinhas.** Para o caso do Valmirio (e outros com extrato do INSS):
+1. abrir a mesa;
+2. "Ler os contratos agora";
+3. conferir o destino de cada contrato;
+4. "Gerar nova versão" da peça.
+
+**Se voltar:** veja no dossiê a seção "Ficaram fora desta peça". Se um contrato de outro banco **entrou**, confira se a Dra. o associou ao processo (seletor da linha) e se o nome do banco bate com o réu (`mesmoBanco`). Se um contrato do réu **ficou fora**, provavelmente o banco não veio no documento ou o tipo foi lido como outra tese: associe à mão na mesa.
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -751,6 +775,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/10/2026 | Claude | +1 incidente: peça contra o Itaú citava contratos do PAN e da FACTA lidos no extrato do INSS (agora só entram os contratos do réu e da tese, ou os que a Dra. associa) |
 | 22/10/2026 | Claude | +1 incidente: recado ao cliente da produção não salvava (rota ignorava `client_message`) |
 | 22/10/2026 | Claude | +1 incidente: petição inicial sem contexto (busca de modelos limitada a 40, teses vazias na importação, fontes ignoradas, sem cálculos) |
 | 21/10/2026 | Claude | +1 incidente: quadro de Peças em produção sem rolagem lateral (página esticava; `min-width: 0` em `.content`) |

@@ -2,9 +2,14 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 26/10/2026. Último commit: dativo com mãe e filho menor no mesmo nome.
+**Última atualização:** 28/10/2026. Último commit: contratos da peça por banco e tese.
 
 ## Últimas entregas (mais recentes primeiro)
+- **28/10:** **Contratos da peça por banco e tese** (print da Jessica: a peça do Valmirio contra o Itaú citava contratos do PAN e da FACTA lidos no extrato do INSS, que também entravam no cálculo).
+  - Todos os contratos lidos ficam no cliente, com tipo e banco (migration 171, `cliente_contratos`).
+  - Na peça entram só os do banco do réu e da mesma tese, ou os que a Dra. associa em Mesa → aba Caso → "Contratos nos documentos". Os descontos seguem os contratos, e o dossiê mostra o que ficou fora.
+  - **Pendente (Jessica/Dra.):** no Valmirio, "Ler os contratos agora", conferir os destinos e "Gerar nova versão"; peças antigas não mudam sozinhas.
+  - Ver o runbook e `docs/contexto/relatorios/2026-10-28-contratos-da-peca-por-banco-e-tese.md`.
 - **26/10:** **Representante + iniciais (segredo de justiça).** A nomeação "MÃE e B. F. S. C." dava erro 500 e não salvava. Agora a ficha é do representante (dativo e captura do DJEN), as iniciais ficam só no assistido com a nota "Segredo de justiça", e iniciais nunca viram ficha nem juntam fichas. **Pendentes:** a Dra. cadastrar de novo a nomeação da Samara; rever em produção as fichas antigas com nome só em iniciais (consulta não feita: permissão negada). Ver runbook.
 - **23/10:** Fila "Importados do e-mail" (Parcerias) ganhou a coluna **Chegou em** (data do Gmail), com os antigos preenchidos ao abrir a tela. Migration 170.
 - **22/10 (noite):** **Processo único.**

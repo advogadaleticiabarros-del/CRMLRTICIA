@@ -7,7 +7,8 @@ import {
   sanitizarHtmlPeca, htmlParaTexto, textoParaHtml, contarColchetes, compararTextos, etapasDaMesa,
   promptLicoes, parseLicoes, nomeVersaoDra, numeroDaVersao, abaDaEtapa, resumoColeta, ordenarAchados,
 } from '../services/mesaCaso';
-import { sugestoesDeJuncao, familiaDaTese, NOME_FAMILIA, ETAPAS_ANTES_DO_PROTOCOLO } from '../services/pecaConsolidacao';
+import { sugestoesDeJuncao, familiaDaTese, reusDoCaso, NOME_FAMILIA, ETAPAS_ANTES_DO_PROTOCOLO } from '../services/pecaConsolidacao';
+import { inventarioDaPeca, nomeDoTipo } from '../services/contratosDoCaso';
 
 /**
  * Mesa do caso: a tela de trabalho da produção (regras em services/mesaCaso.ts).
@@ -80,6 +81,72 @@ router.post('/:caseId/separar', async (req: Request, res: Response) => {
   await db.query('UPDATE cases SET unido_ao_caso = NULL WHERE id = ?', [c.id]);
   await db.query("INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, ?, 'atualizacao', ?)",
     [c.unido_ao_caso, req.user!.id, req.user!.name, `Pedido #${c.id} separado deste processo; volta a ser um card próprio.`]).catch(() => {});
+  res.json({ success: true });
+});
+
+// ── Contratos nos documentos (regra em services/contratosDoCaso.ts) ──────────
+
+/** Todos os contratos do cliente lidos nos documentos, por banco, com o que entra na peça deste caso. */
+router.get('/:caseId/contratos', async (req: Request, res: Response) => {
+  const [[c]] = await db.query('SELECT id, client_id, unido_ao_caso FROM cases WHERE id = ?', [req.params.caseId]) as any;
+  if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
+  const principal = c.unido_ao_caso || c.id;
+  const [casos] = c.client_id
+    ? await db.query('SELECT id, title, production_stage, unido_ao_caso FROM cases WHERE client_id = ? ORDER BY id', [c.client_id]) as any
+    : [[{ id: c.id, title: null, production_stage: null, unido_ao_caso: null }]];
+  const [partes] = await db.query("SELECT case_id, nome, cpf_cnpj FROM case_partes WHERE papel = 'contraria' AND case_id IN (?)", [casos.map((x: any) => x.id)]) as any;
+  const partesDe = (id: number) => partes.filter((p: any) => p.case_id === id).map((p: any) => ({ nome: p.nome, cpf_cnpj: p.cpf_cnpj }));
+  const { pecaAlvo } = await import('../services/esteiraPeca');
+  const { contratosSalvos } = await import('../services/esteiraPecaMysql');
+  const alvo = pecaAlvo(casos.filter((x: any) => x.id === principal || x.unido_ao_caso === principal).map((x: any) => ({ id: x.id, titulo: x.title, partes: partesDe(x.id) })));
+  const salvos = c.client_id ? await contratosSalvos(c.client_id) : [];
+  const [[lido]] = c.client_id ? await db.query('SELECT MAX(lido_em) AS em FROM cliente_contratos WHERE client_id = ?', [c.client_id]) as any : [[null]];
+  res.json({
+    ...inventarioDaPeca(salvos, alvo), principal, lidoEm: lido?.em || null,
+    // Destinos possíveis: os processos do cliente (pedido unido segue o processo dele).
+    processos: casos.filter((x: any) => !x.unido_ao_caso).map((x: any) => {
+      const f = familiaDaTese(x.title), reu = reusDoCaso({ partes: partesDe(x.id), titulo: x.title })[0];
+      return { id: x.id, title: x.title, etapa: x.production_stage, familia: f ? NOME_FAMILIA[f] : null, reu: reu?.nome || null };
+    }),
+  });
+});
+
+/** Dra. Helena lê os documentos e lista todos os contratos (sem redigir). Em segundo plano, com aviso no sino. */
+router.post('/:caseId/contratos/levantar', async (req: Request, res: Response) => {
+  const caseId = Number(req.params.caseId), userId = req.user!.id;
+  const [[c]] = await db.query('SELECT id, title, client_id FROM cases WHERE id = ?', [caseId]) as any;
+  if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
+  if (!c.client_id) { res.status(400).json({ error: 'O caso não tem cliente cadastrado' }); return; }
+  const { levantarContratos } = await import('../services/esteiraPeca');
+  const { depsEsteiraMysql } = await import('../services/esteiraPecaMysql');
+  const { notificationService } = await import('../services/NotificationService');
+  const avisar = (ok: boolean, message: string) => notificationService.create({
+    userId, caseId, title: ok ? 'Contratos lidos nos documentos' : 'Não deu para ler os contratos', message,
+    notificationType: 'analise_documentos', channel: 'sistema', scheduledAt: new Date(),
+  }).catch(() => {});
+  levantarContratos(caseId, depsEsteiraMysql)
+    .then((r) => avisar(r.ok, r.ok ? `${c.title || 'Processo'} — ${r.contratos} contrato(s) em ${r.fontes} documento(s). Veja na aba Caso da mesa.` : `${c.title || 'Processo'} — ${r.message}`))
+    .catch((e: any) => avisar(false, `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`));
+  res.status(202).json({ success: true, emAndamento: true });
+});
+
+/** A Dra. diz em qual processo o contrato entra: um caso do cliente, "fora" (nenhum) ou "auto" (volta à regra). */
+router.put('/contrato/:id', async (req: Request, res: Response) => {
+  const [[ct]] = await db.query('SELECT id, client_id, numero, banco, tipo FROM cliente_contratos WHERE id = ?', [req.params.id]) as any;
+  if (!ct) { res.status(404).json({ error: 'Contrato não encontrado' }); return; }
+  const destino = req.body?.destino;
+  if (destino === 'auto') {
+    await db.query('UPDATE cliente_contratos SET case_id = NULL, fora = 0, decidido_por = NULL, decidido_em = NULL WHERE id = ?', [ct.id]);
+  } else if (destino === 'fora') {
+    await db.query('UPDATE cliente_contratos SET case_id = NULL, fora = 1, decidido_por = ?, decidido_em = NOW() WHERE id = ?', [req.user!.id, ct.id]);
+  } else {
+    const [[alvo]] = await db.query('SELECT id, client_id, unido_ao_caso FROM cases WHERE id = ?', [Number(destino) || 0]) as any;
+    if (!alvo || alvo.client_id !== ct.client_id) { res.status(400).json({ error: 'Escolha um processo deste cliente' }); return; }
+    const caso = alvo.unido_ao_caso || alvo.id;
+    await db.query('UPDATE cliente_contratos SET case_id = ?, fora = 0, decidido_por = ?, decidido_em = NOW() WHERE id = ?', [caso, req.user!.id, ct.id]);
+    await db.query("INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, ?, 'atualizacao', ?)",
+      [caso, req.user!.id, req.user!.name, `Contrato ${ct.numero || 's/nº'} (${nomeDoTipo(ct.tipo)} · ${ct.banco || 'banco não identificado'}) associado a este processo. Entra na próxima versão da peça.`]).catch(() => {});
+  }
   res.json({ success: true });
 });
 

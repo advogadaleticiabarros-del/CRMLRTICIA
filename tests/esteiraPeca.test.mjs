@@ -12,7 +12,7 @@ import {
   valorNumero, taxaNumero, parseFichaDeFatos, montarFontes, promptFichaDeFatos, parseEscolha,
   montarPromptRedacao, conferirValores, relatorioDossie,
 } from '../dist/services/pecaDossie.js';
-import { produzirPeticao } from '../dist/services/esteiraPeca.js';
+import { produzirPeticao, levantarContratos } from '../dist/services/esteiraPeca.js';
 import { auditarArquivos } from './helpers/schemaAudit.mjs';
 
 test('SQL da esteira, da gravação e da revisão não referencia tabela/coluna inexistente', () => {
@@ -326,4 +326,71 @@ test('produzirPeticao: se a redação falhar, devolve erro claro', async () => {
   const r = await produzirPeticao(1, deps);
   assert.strictEqual(r.ok, false);
   assert.match(r.message, /sem cota/);
+});
+
+// ── contratos do réu e da tese (caso real de 28/10/2026: PAN e FACTA na peça contra o Itaú) ──
+
+const FICHA_VALMIRIO = JSON.stringify({
+  reus: [{ nome: 'BANCO PAN S.A.', fonte: 'hiscon.pdf' }, { nome: 'Itaú Consignado S.A.', fonte: 'hiscon.pdf' }],
+  contratos: [
+    { numero: '766659645-2', tipo: 'emprestimo_consignado', banco: 'BANCO PAN S.A.', parcela: 89.2, fonte: 'hiscon.pdf' },
+    { numero: '0059967160', tipo: 'rmc', banco: 'FACTA FINANCEIRA S.A.', parcela: 89.2, fonte: 'hiscon.pdf' },
+    { numero: 'ITA-1', tipo: 'emprestimo_consignado', banco: 'Itaú Consignado S.A.', parcela: 50, fonte: 'hiscon.pdf' },
+  ],
+  descontos: [
+    { competencia: '2023-01', valor: 89.2, contrato: '766659645-2', fonte: 'hiscre.pdf' },
+    { competencia: '2023-01', valor: 50, contrato: 'ITA-1', fonte: 'hiscre.pdf' },
+  ],
+});
+
+function depsItau(over = {}) {
+  const guardados = [];
+  const base = fakeDeps({
+    caso: async (id) => ({ id, client_id: 7, legal_area: 'consumidor', production_stage: 'criacao_inicial', titulo: 'empréstimo consignado — Banco Itaú S.A.', cliente: 'Fulano Teste', qualificacao: 'Nome: Fulano Teste', advogada: 'Dra. Teste', relato: 'relato', partes: [{ nome: 'Banco Itaú S.A.' }], phone: null }),
+    candidatosCorrelatos: async () => [],
+    guardarContratos: async (clientId, contratos) => { guardados.push({ clientId, contratos }); },
+    contratosSalvos: async () => [],
+    ...over,
+  });
+  const ia = base.deps.ia;
+  base.deps.ia = async (prompt, nivel) => (nivel === 'leitura' ? (base.chamadas.push({ prompt, nivel }), { ok: true, text: FICHA_VALMIRIO }) : ia(prompt, nivel));
+  return { ...base, guardados };
+}
+
+test('produzirPeticao: só os contratos do réu e da tese vão para o cálculo e para a ficha do redator', async () => {
+  const { deps, chamadas, guardados } = depsItau();
+  const r = await produzirPeticao(1, deps);
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.ficha.contratos.map((c) => c.numero), ['ITA-1']);
+  assert.strictEqual(r.calculo.indebito.total.descontado, 50);
+  const redacao = chamadas[chamadas.length - 1].prompt;
+  const ficha = redacao.slice(redacao.indexOf('FICHA DE FATOS ('), redacao.indexOf('Lacunas ('));
+  assert.ok(!/766659645-2|FACTA|BANCO PAN/.test(ficha), 'a ficha do redator não leva contrato nem réu de outro banco');
+  assert.match(redacao, /NÃO SÃO DESTA PEÇA[\s\S]*766659645-2[\s\S]*0059967160/);
+  assert.match(r.dossie, /Ficaram fora desta peça[\s\S]*766659645-2[\s\S]*outro banco/);
+  // Todos os contratos lidos ficam guardados no cliente, para a Dra. associar.
+  assert.strictEqual(guardados[0].clientId, 7);
+  assert.strictEqual(guardados[0].contratos.length, 3);
+});
+
+test('produzirPeticao: a escolha da Dra. (contratos do cliente) manda no que entra', async () => {
+  const { deps } = depsItau({
+    contratosSalvos: async () => [
+      { id: 1, chave: 'n:7666596452', case_id: 1, fora: false, dados: { numero: '766659645-2', tipo: 'emprestimo_consignado', banco: 'BANCO PAN S.A.' } },
+      { id: 2, chave: 'n:ITA1', case_id: null, fora: true, dados: { numero: 'ITA-1', tipo: 'emprestimo_consignado', banco: 'Itaú Consignado S.A.' } },
+    ],
+  });
+  const r = await produzirPeticao(1, deps);
+  assert.deepStrictEqual(r.ficha.contratos.map((c) => c.numero), ['766659645-2']);
+  assert.ok(r.ficha.lacunas.some((l) => /polo passivo/i.test(l)));
+});
+
+test('levantarContratos: lê as fontes, guarda todos os contratos do cliente e não redige nada', async () => {
+  const { deps, chamadas, guardados } = depsItau();
+  const r = await levantarContratos(1, deps);
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.contratos, 3);
+  assert.strictEqual(guardados[0].contratos.length, 3);
+  assert.ok(chamadas.every((c) => c.nivel === 'leitura'), 'só leitura, sem escolha de modelo nem redação');
+  assert.match(chamadas[0].prompt, /"banco"/);
 });

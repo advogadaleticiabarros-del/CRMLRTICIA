@@ -3,7 +3,8 @@ import { aiComplete, aiLerArquivo } from './aiAssistant';
 import { registrarAcaoAgente } from './usoIa';
 import type { CasoParaJuntar } from './pecaConsolidacao';
 import type { DepsEsteira, CasoEsteira } from './esteiraPeca';
-import type { Fonte, ItemCatalogo } from './pecaDossie';
+import type { Fonte, ItemCatalogo, ContratoFicha } from './pecaDossie';
+import { chaveContrato, type ContratoSalvo } from './contratosDoCaso';
 
 /**
  * Esteira da petição inicial com banco e IA de verdade (regras em esteiraPeca.ts).
@@ -205,8 +206,33 @@ async function regras(area: string | null, caseIds: number[]) {
   return [...new Set(rows.map((r: any) => String(r.regra)))] as string[];
 }
 
+const jsonDe = (v: unknown) => { try { return typeof v === 'string' ? JSON.parse(v) : (v || {}); } catch { return {}; } };
+
+/** Contratos do cliente lidos nos documentos, com a decisão da Dra. (cliente_contratos). */
+export async function contratosSalvos(clientId: number): Promise<ContratoSalvo[]> {
+  const [rows] = await db.query('SELECT id, chave, case_id, fora, dados FROM cliente_contratos WHERE client_id = ? ORDER BY id', [clientId]) as any;
+  return rows.map((r: any) => ({ id: r.id, chave: r.chave, case_id: r.case_id ?? null, fora: !!r.fora, dados: jsonDe(r.dados) }));
+}
+
+/** Guarda os contratos lidos. Leitura nova completa a antiga (não apaga dado) e nunca mexe na decisão da Dra. */
+export async function guardarContratos(clientId: number, contratos: ContratoFicha[]): Promise<void> {
+  const novos = new Map<string, ContratoFicha>();
+  for (const c of contratos) { const k = chaveContrato(c); if (!novos.has(k)) novos.set(k, c); }
+  if (!novos.size) return;
+  const [rows] = await db.query('SELECT chave, dados FROM cliente_contratos WHERE client_id = ? AND chave IN (?)', [clientId, [...novos.keys()]]) as any;
+  const antigos = new Map<string, any>(rows.map((r: any) => [r.chave, jsonDe(r.dados)]));
+  for (const [chave, c] of novos) {
+    const velho = antigos.get(chave) || {};
+    const dados = { ...velho, ...Object.fromEntries(Object.entries(c).filter(([, v]) => v != null)) } as ContratoFicha;
+    await db.query(
+      `INSERT INTO cliente_contratos (client_id, chave, numero, tipo, banco, dados) VALUES (?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE numero = VALUES(numero), tipo = VALUES(tipo), banco = VALUES(banco), dados = VALUES(dados), lido_em = NOW()`,
+      [clientId, chave, dados.numero || null, dados.tipo || null, dados.banco || null, JSON.stringify(dados)]);
+  }
+}
+
 export const depsEsteiraMysql: DepsEsteira = {
-  caso, candidatosCorrelatos, fontes, catalogo, modelos, teses, fundamentos, regras,
+  caso, candidatosCorrelatos, fontes, catalogo, modelos, teses, fundamentos, regras, contratosSalvos, guardarContratos,
   ia: (prompt, nivel) => aiComplete(prompt, nivel === 'redacao' ? 'openai-alto' : nivel === 'leitura' ? 'openai-medio' : 'openai'),
   registrar: registrarAcaoAgente,
   hoje: () => new Date(),

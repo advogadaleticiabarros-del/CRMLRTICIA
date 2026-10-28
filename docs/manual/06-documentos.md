@@ -81,6 +81,7 @@ Pedido da Jessica: "preciso que os documentos sejam lidos de fato, os cálculos 
    - **Depois de juntar:** os pedidos unidos somem do quadro e aparecem no card do processo como "+N pedidos". Seguem a etapa e o nº do processo dele, com uma peça e um protocolo.
    - **Separar:** na aba Caso da mesa, "Separar" devolve o card próprio.
    - Código: `src/services/pecaConsolidacao.ts`, coluna `cases.unido_ao_caso` (migration 169).
+   - **Contratos da peça (desde 28/10/2026):** o extrato do INSS traz **todos** os contratos do cliente, de todos os bancos. Na peça só entram os contratos do **banco do réu** e da **mesma família de tese**, ou os que a Dra. escolheu. Ver "Contratos nos documentos", abaixo.
 2. **Dra. Helena lê tudo:** relato, documentos do caso (Drive e arquivos guardados), PDFs e fotos que o cliente mandou no WhatsApp, a conversa inteira (áudios já transcritos) e as anotações da produção. Cada arquivo é transcrito por inteiro uma única vez (fica guardado). Ela monta a **ficha de fatos** com a fonte de cada dado: réus, contratos (nº, tipo, valor, parcela, taxa, início e fim do desconto), descontos mês a mês, fatos, respostas da triagem (sacou o dinheiro? recebeu o cartão?) e o que falta.
 3. **Cálculos em código, não pela IA:**
    - devolução do indébito por contrato, com a modulação do STJ (EAREsp 600.663/RS): descontos até 03/2021 voltam de forma **simples**; de 04/2021 em diante, **em dobro**. Mês repetido em dois documentos conta uma vez;
@@ -96,6 +97,26 @@ Pedido da Jessica: "preciso que os documentos sejam lidos de fato, os cálculos 
 A geração leva alguns minutos e roda em segundo plano: o aviso chega no sino. A revisão automática roda em seguida, sobre a petição (nunca sobre o dossiê).
 
 Código: `src/services/esteiraPeca.ts` (ordem dos agentes), `pecaCalculos.ts`, `pecaConsolidacao.ts`, `pecaDossie.ts`, `esteiraPecaMysql.ts` (banco). Testes: `tests/esteiraPeca.test.mjs`. Tabela `pecas_conjuntas` (migration 167).
+
+### Contratos nos documentos: o que entra em cada peça (desde 28/10/2026)
+
+Caso real (pedido da Jessica): a peça do Valmirio contra o **Banco Itaú** (empréstimo consignado) saiu com um empréstimo do **BANCO PAN** e um cartão **RMC da FACTA**, lidos no extrato do INSS. Os dois também entravam no cálculo do indébito.
+
+**Como funciona agora:**
+- **Todos os contratos lidos ficam guardados no cliente**, uma vez cada (pelo nº do contrato; sem número, banco + tipo + data), com o tipo (RMC, RCC, empréstimo consignado, empréstimo pessoal, refinanciamento, portabilidade, cartão comum) e o banco.
+- **Mesa do caso → aba Caso → "Contratos nos documentos":** os contratos agrupados por banco, com o banco do réu primeiro ("réu deste processo"). Cada linha mostra "Entra nesta peça" ou "Fora desta peça", com o motivo. No seletor, a Dra. escolhe o destino:
+  - **Automático (banco e tese):** vale a regra abaixo;
+  - **Este processo / Processo #N:** o contrato entra na peça daquele processo (pedido unido conta como o processo dele);
+  - **Fora de qualquer peça.**
+- **"Ler os contratos agora" / "Ler de novo":** a Dra. Helena lê os documentos e só lista os contratos, sem redigir a peça. Roda em segundo plano e avisa no sino. A geração da peça também guarda os contratos que ler.
+- **Regra automática (sem escolha da Dra.):** entra só o contrato do **mesmo banco do réu** (nome tolerante: "Itaú Consignado S.A." = "Banco Itaú S.A.") **e** da **mesma família de tese** do processo. Contrato **sem banco** no documento fica fora até a Dra. decidir. Caso **sem réu** (nem cadastrado nem no título) usa todos os contratos e avisa.
+- **A escolha da Dra. vale acima da regra.** Contrato escolhido para a peça entra mesmo que a leitura seguinte não o encontre. Contrato de outro banco escolhido para a peça vira aviso: "conferir o polo passivo".
+- **Descontos seguem os contratos:** desconto de contrato que ficou fora sai do cálculo. Desconto sem nº de contrato só fica se o banco dele for o do réu; sem contrato nem banco, sai do cálculo (com aviso) quando há contratos de outros bancos no extrato.
+- **Na peça:** o redator recebe a lista "CONTRATOS QUE NÃO SÃO DESTA PEÇA", com a ordem de não mencioná-los. Os réus lidos de outros bancos também saem da ficha de fatos.
+- **No dossiê:** a seção "Ficaram fora desta peça" mostra cada contrato com o motivo. Se nenhum contrato do réu aparece nos documentos, a lacuna "Nenhum contrato de <réu> aparece nos documentos lidos" vai para o dossiê e para a peça.
+- **Mudou o destino de um contrato?** Vale na próxima versão: "Gerar nova versão" na aba Peça. Ao associar um contrato a um processo, entra uma nota na linha do tempo dele.
+
+Código: `src/services/contratosDoCaso.ts` (regra), `levantarContratos` em `esteiraPeca.ts`, `contratosSalvos`/`guardarContratos` em `esteiraPecaMysql.ts`, rotas `GET /api/mesa/:caseId/contratos`, `POST /api/mesa/:caseId/contratos/levantar` e `PUT /api/mesa/contrato/:id`. Tabela `cliente_contratos` (migration 171). Testes: `tests/contratosDoCaso.test.mjs`, `tests/esteiraPeca.test.mjs` e o teste de ponta a ponta "contratos de outro banco ficam fora da peça".
 
 ## Revisão automática da peça (desde 30/09/2026)
 
@@ -265,6 +286,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/10/2026 | Claude | Contratos nos documentos: todos os contratos lidos ficam no cliente (tipo e banco); na peça só entram os do banco do réu e da mesma tese, ou os que a Dra. associa na aba Caso da mesa; descontos seguem os contratos; dossiê mostra o que ficou fora |
 | 22/10/2026 | Claude | Processo único: o quadro sugere juntar pedidos do mesmo cliente, banco e família de tese (cartão consignado; empréstimo consignado; empréstimo pessoal; cartão comum) e a Dra. confirma; a peça junta só o confirmado |
 | 22/10/2026 | Claude | Mesa do caso abre no trabalho de cada etapa: aba Caso (relato, análise da Dra. Helena, resumo do protocolo), aba Documentos (checklist, coleta da Dra. Camila, envio de arquivos), parecer da revisão ao lado da peça |
 | 22/10/2026 | Claude | Mesa do caso: card abre a tela cheia com régua de etapas, peça editável e formatável, versões da Dra. (a da equipe fica intacta), comparação, lições que viram regras, versão final e cópia para o Jusbrasil; recado ao cliente volta a salvar |

@@ -437,6 +437,7 @@
           ${st.d.grupo.casos.map((x) => `<div class="mesa-doc"><div class="mesa-doc-nome">#${x.id} — ${esc(x.title || 'sem título')}<small>${x.familia ? esc(x.familia) : 'tese não identificada'}${x.id === st.d.grupo.principal ? ' · card do processo' : ''}</small></div>
             ${x.id !== st.d.grupo.principal ? `<button type="button" class="mesa-btn mesa-btn-sm" data-acao="separar" data-id="${x.id}">Separar</button>` : ''}</div>`).join('')}
         </section>` : ''}
+        <section class="mesa-secao mesa-contratos" aria-live="polite"><div class="mesa-secao-cab"><h3>Contratos nos documentos</h3></div><p class="mesa-vazio">Carregando…</p></section>
         <section class="mesa-secao"><h3>Relato do cliente</h3>
           ${c.relato ? `<p class="mesa-relato">${esc(c.relato)}</p>` : '<p class="mesa-vazio">Sem resumo do atendimento cadastrado.</p>'}
           ${relatoDoc ? `<div class="mesa-relato-doc"><span class="mesa-rotulo">Relato escrito pela Dra. Camila a partir do WhatsApp</span><article class="mesa-leitura mesa-relato-txt"><p class="mesa-vazio">Carregando…</p></article></div>` : ''}
@@ -450,6 +451,46 @@
       </div>`;
       const alvo = box.querySelector('.mesa-relato-txt');
       if (alvo) api(`/api/mesa/documento/${relatoDoc.id}`).then((r) => { alvo.innerHTML = r.html; }).catch((e) => { alvo.innerHTML = `<p class="mesa-vazio">${esc(e.message)}</p>`; });
+      renderContratos(box.querySelector('.mesa-contratos'));
+    }
+
+    // Contratos lidos nos documentos (todos os bancos) e em qual processo cada um entra.
+    // Sem escolha, vale a regra: só o banco do réu e a mesma tese (services/contratosDoCaso.ts).
+    async function renderContratos(sec) {
+      if (!sec) return;
+      let inv;
+      try { inv = await api(`/api/mesa/${caseId}/contratos`); } catch (e) { sec.innerHTML = `<h3>Contratos nos documentos</h3><p class="mesa-vazio">${esc(e.message)}</p>`; return; }
+      const reus = inv.reus.length ? inv.reus.join(', ') : 'o réu do processo';
+      const cab = `<div class="mesa-secao-cab"><h3>Contratos nos documentos${inv.total ? ` · ${inv.total}` : ''}</h3><button type="button" class="mesa-btn mesa-btn-sm" data-acao="ler-contratos">${inv.total ? 'Ler de novo' : 'Ler os contratos agora'}</button></div>`;
+      if (!inv.total) {
+        sec.innerHTML = `${cab}<p class="mesa-vazio">O extrato do INSS traz todos os contratos do cliente, de todos os bancos. Peça a leitura: a Dra. Helena lista cada contrato com o tipo (RMC, RCC, empréstimo) e o banco, e você diz em qual processo cada um entra.</p>`;
+        return;
+      }
+      const opcoes = (l) => {
+        const v = l.fora ? 'fora' : (l.case_id != null ? String(l.case_id) : 'auto');
+        const o = (val, txt) => `<option value="${val}"${v === String(val) ? ' selected' : ''}>${esc(txt)}</option>`;
+        return o('auto', 'Automático (banco e tese)')
+          + inv.processos.map((p) => o(p.id, `${p.id === inv.principal ? 'Este processo' : 'Processo'} #${p.id} — ${p.title || 'sem título'}`)).join('')
+          + o('fora', 'Fora de qualquer peça');
+      };
+      const detalhe = (l) => [l.data && `contratado em ${l.data}`, l.parcela != null && `parcela ${money(l.parcela)}`, l.valor_liberado != null && `liberado ${money(l.valor_liberado)}`, l.situacao, l.fonte && `fonte: ${l.fonte}`].filter(Boolean).join(' · ');
+      sec.innerHTML = `${cab}
+        <p class="mesa-dica">Na peça deste processo entram só os contratos de ${esc(reus)} da mesma tese, ou os que você escolher. Nesta peça: <b>${inv.entram} de ${inv.total}</b>.</p>
+        ${inv.entram === 0 ? `<div class="mesa-aviso mesa-aviso-linha">Nenhum contrato de ${esc(reus)} nos documentos lidos. Confira o réu e os documentos antes de gerar a peça.</div>` : ''}
+        ${inv.grupos.map((g) => `<div class="mesa-contratos-banco"><h4>${esc(g.banco)}${g.doReu ? ' <span class="mesa-tag mesa-tag-azul">réu deste processo</span>' : ''}</h4>
+          ${g.contratos.map((l) => `<div class="mesa-doc"><div class="mesa-doc-nome"><b>${esc(l.nomeTipo)}</b> · nº ${esc(l.numero || 'sem número')}<small>${esc(detalhe(l))}</small>
+            <span class="mesa-tag${l.entra ? ' mesa-tag-ok' : ''}">${l.entra ? 'Entra nesta peça' : 'Fora desta peça'}</span> <small class="mesa-contrato-motivo">${esc(l.motivo)}${l.origem === 'dra' ? '' : ' (automático)'}</small></div>
+            <select class="mesa-estilo" data-contrato="${l.id}" aria-label="Processo do contrato ${esc(l.numero || l.nomeTipo)}">${opcoes(l)}</select></div>`).join('')}
+        </div>`).join('')}
+        <p class="mesa-dica">${inv.lidoEm ? `Última leitura em ${fmtDate(inv.lidoEm)}. ` : ''}Mudou o processo de algum contrato? Peça uma nova versão da peça para valer.</p>`;
+    }
+    async function mudarContrato(sel) {
+      sel.disabled = true;
+      try {
+        await api(`/api/mesa/contrato/${sel.dataset.contrato}`, { method: 'PUT', body: JSON.stringify({ destino: sel.value }) });
+        st.mudou = true; toast('Contrato associado. Peça uma nova versão da peça para valer.');
+      } catch (e) { toast(e.message, 'error'); }
+      renderContratos(q('.mesa-contratos'));
     }
 
     // ── aba Documentos: checklist, coleta da Dra. Camila, envio e lista ────────
@@ -607,6 +648,11 @@
         try { await api(`/api/mesa/${b.dataset.id}/separar`, { method: 'POST', body: '{}' }); st.mudou = true; toast('Pedido separado'); await recarregar(false); renderCentro(); }
         catch (e) { toast(e.message, 'error'); }
       },
+      'ler-contratos': async (b) => {
+        b.disabled = true;
+        try { await api(`/api/mesa/${caseId}/contratos/levantar`, { method: 'POST', body: '{}' }); toast('A Dra. Helena está lendo os contratos. Você será avisada no sino.'); }
+        catch (e) { toast(e.message, 'error'); b.disabled = false; }
+      },
       'ver-final': (b) => { st.aba = 'peca'; st.docId = Number(b.dataset.doc); st.comparar = false; renderCentro(); },
       'ir-aprovar': async () => { await fechar(); location.hash = '#escritorio'; },
       analisar: async (b) => {
@@ -737,6 +783,7 @@
     });
     ov.addEventListener('change', (e) => {
       if (e.target.matches('[data-arquivos]')) { enviarArquivos(e.target.files); return; }
+      if (e.target.matches('[data-contrato]')) { mudarContrato(e.target); return; }
       const t = e.target.closest('[data-salvar]'); if (t) salvarCampo(t.dataset.salvar, t.value.trim());
     });
     ov.addEventListener('dragover', (e) => { const z = e.target.closest('.mesa-envio'); if (z) { e.preventDefault(); z.classList.add('arrastando'); } });

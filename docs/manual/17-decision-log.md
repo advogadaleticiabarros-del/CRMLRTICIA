@@ -16,6 +16,14 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 28/10/2026 — Contratos do cliente guardados um a um, e a Dra. diz em qual processo cada um entra
+- Pedido da Jessica, depois da peça do Itaú com contratos do PAN e da FACTA: "uma forma de você me trazer tudo que ele tem e eu poder associar e produzir uma peça só", relacionando o tipo (RCC, RMC, empréstimo) e a parte contrária.
+- **Os contratos são do cliente, não do caso** (`cliente_contratos`). O extrato do INSS é um só e alimenta vários processos. Guardar por caso duplicaria os mesmos contratos em cada card.
+- **A decisão é por contrato** (`case_id` ou `fora`), não por peça. Assim a escolha sobrevive a novas leituras e a novas versões da peça.
+- **Sem decisão, a regra é conservadora:** só o banco do réu e a mesma tese. Um contrato a menos aparece na mesa como "Fora desta peça" e pode ser corrigido. Um contrato a mais na peça é o erro que motivou a mudança.
+- **Banco comparado pelo nome próprio** ("Itaú Consignado" = "Banco Itaú"), porque o HISCON não traz CNPJ. Empresas do mesmo grupo com nomes diferentes (ex.: Olé e Santander) não batem sozinhas: a Dra. associa à mão.
+- **Alternativa descartada:** filtrar só pelo prompt ("fale apenas do réu"). A IA já tinha recebido a regra implícita no título e mesmo assim citou os outros bancos; e o cálculo, feito em código, continuaria somando os descontos deles.
+
 ### 22/10/2026 — Processo único por banco e por família de tese, com confirmação
 - Regra da Jessica: RMC e RCC do mesmo banco vão numa peça; vários empréstimos consignados do mesmo banco, numa peça; "empréstimo pessoal é diferente de empréstimo consignado, outro processo. Mesmo que do mesmo réu, são teses muito diferentes".
 - Respostas dela: cartão consignado + empréstimo consignado do mesmo banco ficam **separados**; juros abusivos são sempre pedido **dentro** da peça; refinanciamento e portabilidade são da família do consignado; cartão comum é separado do consignado.
@@ -259,6 +267,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/10/2026 | Claude | Contratos guardados por cliente; a Dra. associa cada um a um processo; regra automática conservadora (banco do réu + mesma tese) |
 | 22/10/2026 | Claude | Processo único por banco e família de tese, sugerido pelo quadro e confirmado pela Dra. (substitui a junção automática) |
 | 22/10/2026 | Claude | Mesa do caso: edição da Dra. vira versão nova; lição só vira regra com aprovação; HTML limpo em coluna própria |
 | 22/10/2026 | Claude | Petição inicial pela esteira dos agentes: cálculo em código, peça conjunta por parte contrária, modelo pelo guia do cofre |
