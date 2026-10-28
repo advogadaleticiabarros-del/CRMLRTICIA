@@ -437,7 +437,6 @@
           ${st.d.grupo.casos.map((x) => `<div class="mesa-doc"><div class="mesa-doc-nome">#${x.id} — ${esc(x.title || 'sem título')}<small>${x.familia ? esc(x.familia) : 'tese não identificada'}${x.id === st.d.grupo.principal ? ' · card do processo' : ''}</small></div>
             ${x.id !== st.d.grupo.principal ? `<button type="button" class="mesa-btn mesa-btn-sm" data-acao="separar" data-id="${x.id}">Separar</button>` : ''}</div>`).join('')}
         </section>` : ''}
-        <section class="mesa-secao mesa-contratos" aria-live="polite"><div class="mesa-secao-cab"><h3>Contratos nos documentos</h3></div><p class="mesa-vazio">Carregando…</p></section>
         <section class="mesa-secao"><h3>Relato do cliente</h3>
           ${c.relato ? `<p class="mesa-relato">${esc(c.relato)}</p>` : '<p class="mesa-vazio">Sem resumo do atendimento cadastrado.</p>'}
           ${relatoDoc ? `<div class="mesa-relato-doc"><span class="mesa-rotulo">Relato escrito pela Dra. Camila a partir do WhatsApp</span><article class="mesa-leitura mesa-relato-txt"><p class="mesa-vazio">Carregando…</p></article></div>` : ''}
@@ -448,6 +447,7 @@
               : '<p class="mesa-vazio">Nada fora do lugar: os documentos batem com a história contada.</p>'}`
             : '<p class="mesa-vazio">A Dra. Helena confere cada documento contra a história contada: nome, CPF, datas, valores, documento ilegível ou cortado. Ela roda sozinha quando os documentos ficam completos.</p>'}
         </section>
+        <section class="mesa-secao mesa-contratos" aria-live="polite"><div class="mesa-secao-cab"><h3>Contratos nos documentos</h3></div><p class="mesa-vazio">Carregando…</p></section>
       </div>`;
       const alvo = box.querySelector('.mesa-relato-txt');
       if (alvo) api(`/api/mesa/documento/${relatoDoc.id}`).then((r) => { alvo.innerHTML = r.html; }).catch((e) => { alvo.innerHTML = `<p class="mesa-vazio">${esc(e.message)}</p>`; });

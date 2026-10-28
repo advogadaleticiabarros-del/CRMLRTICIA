@@ -16,6 +16,7 @@ Jessica, com print da peça do Valmirio Pinto (empréstimo consignado contra o B
 - `tsc` sem erro; lint sem aviso nos arquivos alterados.
 - Tela: página de teste com o `mesa.js` real e a API simulada pelas regras reais. Antes das escolhas, 1 de 4 contratos entra; depois de mudar o destino de dois contratos, 2 de 4. A largura de celular (390 px) fica sem rolagem lateral. Os prints ficaram no scratchpad da sessão.
 - Teste de ponta a ponta novo em `e2e/essencial.spec.mjs`. **Não rodou localmente**: o MySQL local pede uma senha que não está no `.env`. Ele roda no CI.
+- **CI do primeiro envio (`e02780e`):** os testes de unidade passaram e o teste de ponta a ponta novo também. O teste antigo da Mesa falhou, porque esperava "Relato do cliente" como primeira seção da aba Caso. Por isso não houve deploy. Correção no commit seguinte: a seção de contratos foi para depois da análise da Dra. Helena (os contratos saem dos documentos), e o relato voltou a ser a primeira seção.
 - **Não verificado em produção:** a consulta (só leitura) ao caso do Valmirio foi bloqueada pela permissão. A causa foi confirmada pelo código.
 
 ## Decisões e porquês
