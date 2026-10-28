@@ -242,6 +242,17 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 - tabela FULLTEXT no MySQL: entraria no backup e a busca sem acento em português é pior;
 - Meilisearch ou Elasticsearch: mais um serviço rodando na VPS.
 
+### 28/10/2026 — Planilha de cálculos: critério padrão de atualização e .xlsx próprio
+**Decisão:** a planilha da peça atualiza cada desconto com correção desde o desconto (Súmula 43/STJ) e juros de mora também desde o desconto (Súmula 54/STJ), em vez de deixar tudo para a liquidação. Até 08/2024: INPC + 1% a.m.; a partir de 09/2024: IPCA + taxa legal (Selic − IPCA, mínimo zero), pela Lei 14.905/2024. O valor da causa passa a usar a restituição atualizada. O .xlsx é gerado por um escritor próprio (`xlsxSimples.ts`, sobre o `jszip`, que já vinha com o `docx`).
+**Motivo:**
+- em desconto indevido sem contratação válida, a responsabilidade é extracontratual: juros desde o evento danoso é o pedido mais favorável e defensável. Valor nominal subestima a causa;
+- a Lei 14.905/2024 mudou correção e juros a partir de 30/08/2024. Em base mensal, a virada fica em 09/2024;
+- índice negativo aplicado sem reduzir o principal segue a orientação do STJ;
+- índices oficiais do Bacen guardados no banco: a planilha não depende de a API estar no ar e mostra a fonte de cada mês.
+**Alternativas consideradas:**
+- juros desde a citação: menor e típico de relação contratual. Fica fácil de trocar se a Dra. preferir;
+- biblioteca `exceljs`: pesada e com dependências antigas, um risco na auditoria de vulnerabilidades do CI. O que a planilha precisa (texto, número, fórmula, 8 estilos) cabe em 100 linhas.
+
 ### 21/10/2026 — A IA sugere a lei, mas só entra na peça o que existe no acervo
 **Decisão:** a Dra. Júlia pede à IA os dispositivos do caso e confere cada um no índice; o que não existe ou foi revogado é descartado antes de chegar a quem redige. A Dra. Vera, separada do redator, confere as citações da peça pronta por regra (existe, vigente, artigo certo). A IA só opina se o texto oficial sustenta a afirmação, e esse resultado aparece como "a rever", sem bloquear nada.
 **Motivo:** número de artigo ou súmula inventado pela IA é o erro mais grave numa peça. Com o texto oficial no prompt e a conferência depois, o erro deixa de passar em silêncio.
@@ -267,6 +278,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/10/2026 | Claude | Planilha de cálculos: correção e juros desde cada desconto (Lei 14.905/2024 a partir de 09/2024), índices do Bacen em cache, .xlsx próprio |
 | 28/10/2026 | Claude | Contratos guardados por cliente; a Dra. associa cada um a um processo; regra automática conservadora (banco do réu + mesma tese) |
 | 22/10/2026 | Claude | Processo único por banco e família de tese, sugerido pelo quadro e confirmado pela Dra. (substitui a junção automática) |
 | 22/10/2026 | Claude | Mesa do caso: edição da Dra. vira versão nova; lição só vira regra com aprovação; HTML limpo em coluna própria |

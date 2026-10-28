@@ -241,7 +241,7 @@
       const aba = (k, t, extra) => `<button type="button" role="tab" class="mesa-aba${st.aba === k ? ' on' : ''}" aria-selected="${st.aba === k}" data-acao="aba" data-aba="${k}">${t}${extra ? `<span class="mesa-cont">${extra}</span>` : ''}</button>`;
       q('.mesa-centro').innerHTML = `
         <div class="mesa-abas" role="tablist" aria-label="Conteúdo do caso">
-          ${aba('caso', 'Caso', st.d.analise && st.d.analise.graves ? `${st.d.analise.graves} ${st.d.analise.graves === 1 ? 'ponto grave' : 'pontos graves'}` : '')}${aba('docs', 'Documentos', documentos.length)}${aba('peca', 'Peça', pecas.length ? `${pecas.length} ${pecas.length === 1 ? 'versão' : 'versões'}` : '')}${aba('rev', 'Revisão', revisao ? '' : '')}${aba('dossie', 'Dossiê da peça')}
+          ${aba('caso', 'Caso', st.d.analise && st.d.analise.graves ? `${st.d.analise.graves} ${st.d.analise.graves === 1 ? 'ponto grave' : 'pontos graves'}` : '')}${aba('docs', 'Documentos', documentos.length)}${aba('peca', 'Peça', pecas.length ? `${pecas.length} ${pecas.length === 1 ? 'versão' : 'versões'}` : '')}${aba('rev', 'Revisão', revisao ? '' : '')}${aba('calc', 'Cálculos')}${aba('dossie', 'Dossiê da peça')}
         </div>
         <div class="mesa-painel" role="tabpanel"></div>`;
       const p = q('.mesa-painel');
@@ -249,6 +249,7 @@
       else if (st.aba === 'caso') renderCaso(p);
       else if (st.aba === 'dossie') renderLeitura(p, st.d.dossie, 'O dossiê aparece quando a equipe montar a petição: fontes lidas, cálculos e o motivo do modelo escolhido.');
       else if (st.aba === 'rev') renderRevisao(p);
+      else if (st.aba === 'calc') renderCalculos(p);
       else renderDocs(p);
     }
 
@@ -406,6 +407,11 @@
         const d = await api(`/api/mesa/documento/${ref.id}`);
         box.innerHTML = `<div class="mesa-leitura-cab"><span>${esc(d.name)} · ${fmtDate(ref.created_at)} às ${hora(ref.created_at)}</span>${extra || ''}</div><article class="mesa-leitura">${d.html}</article>`;
       } catch (e) { box.innerHTML = `<p class="mesa-vazio">${esc(e.message)}</p>`; }
+    }
+    function renderCalculos(box) {
+      const pl = st.d.planilha;
+      const baixar = pl && pl.tem_arquivo ? '<button type="button" class="mesa-btn mesa-btn-sm" data-acao="baixar-planilha">Baixar planilha (.xlsx)</button>' : '';
+      renderLeitura(box, pl, 'A planilha aparece quando a equipe montar a petição: o Calculista pega os descontos lidos nos extratos, aplica a devolução simples ou em dobro, a correção monetária e os juros de mora, mês a mês.', baixar);
     }
     function renderRevisao(box) {
       const botao = '<button type="button" class="mesa-btn mesa-btn-sm" data-acao="revisar">Revisar de novo agora</button>';
@@ -699,6 +705,10 @@
       revisar: async () => {
         try { await api(`/api/mesa/${caseId}/revisar`, { method: 'POST', body: '{}' }); toast('A revisão começou. Você será avisada no sino.'); }
         catch (e) { toast(e.message, 'error'); }
+      },
+      'baixar-planilha': () => {
+        const pl = st.d.planilha; if (!pl) return;
+        downloadDocFile(pl.id, `${pl.name.replace(/[\\/:*?"<>|]/g, '')}.xlsx`);
       },
       'abrir-doc': async (b) => {
         const d = st.d.documentos.find((x) => x.id === Number(b.dataset.id)); if (!d) return;

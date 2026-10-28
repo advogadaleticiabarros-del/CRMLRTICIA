@@ -115,6 +115,7 @@
     negociador:  { cabelo: 'curto', corCabelo: '#3f2a1d', feminina: false, extra: 'headset', terno: '#78350f', pele: '#e0ac69', peleSombra: '#b8864b' },
     copiloto:    { cabelo: 'curto', corCabelo: '#9ca3af', feminina: false, extra: 'oculos', terno: '#1e3a8a', pele: '#c68642', peleSombra: '#a0692f' },
     analista:    { cabelo: 'coque', corCabelo: '#1c1917', feminina: true, extra: 'oculos', terno: '#450a0a' },
+    calculista:  { cabelo: 'curto', corCabelo: '#a8a29e', feminina: false, extra: 'oculos', terno: '#164e63' },
     voce:        { cabelo: 'longo', corCabelo: '#5a3825', feminina: true, terno: '#1e293b' },
   };
 

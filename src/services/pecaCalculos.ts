@@ -4,8 +4,11 @@
  *   cobrança até 03/2021 volta simples; de 04/2021 em diante, em dobro.
  * - Juros: parcela recalculada pela tabela Price com a taxa média de mercado.
  * - Valor da causa: soma do que foi calculado; o dano moral só entra se informado.
- * Valores nominais: correção monetária e juros de mora ficam para a liquidação.
+ * Aqui os valores são nominais; a correção monetária e os juros de mora entram
+ * na planilha do Calculista (planilhaCalculos.ts), que atualiza o valor da causa.
  */
+
+import type { PlanilhaAtualizada } from './planilhaCalculos';
 
 export interface Desconto { competencia: string; valor: number; contrato?: string | null; fonte?: string | null }
 
@@ -53,7 +56,7 @@ export function estimarDescontos(contratos: ContratoCalculo[], lidos: Desconto[]
 /** Última competência devolvida de forma simples (cobranças até 30/03/2021). */
 export const MARCO_DOBRO = '2021-03';
 
-const r2 = (n: number) => (n < 0 ? -1 : 1) * Math.round(Number((Math.abs(n) * 100).toFixed(6))) / 100;
+export const r2 = (n: number) => (n < 0 ? -1 : 1) * Math.round(Number((Math.abs(n) * 100).toFixed(6))) / 100;
 
 export function brl(n: number): string {
   const neg = n < 0;
@@ -61,7 +64,7 @@ export function brl(n: number): string {
   return `${neg ? '-' : ''}R$ ${int.replace(/\B(?=(\d{3})+(?!\d))/g, '.')},${dec}`;
 }
 
-const mesBr = (c: string) => `${c.slice(5, 7)}/${c.slice(0, 4)}`;
+export const mesBr = (c: string) => `${c.slice(5, 7)}/${c.slice(0, 4)}`;
 
 /** Parcela fixa (tabela Price). i em fração ao mês (2% = 0.02). */
 export function parcelaPrice(pv: number, i: number, n: number): number {
@@ -83,9 +86,13 @@ export interface Indebito {
   repetidosIgnorados: number;
 }
 
-export function calcularIndebito(descontos: Desconto[]): Indebito {
+/**
+ * Descontos válidos, um por contrato e mês: o mesmo desconto lido em mais de um
+ * documento conta uma vez só. É a base do indébito e da planilha de cálculos.
+ */
+export function descontosUnicos(descontos: Desconto[]): { descontos: Desconto[]; repetidos: number } {
   const vistos = new Set<string>();
-  const grupos = new Map<string, Desconto[]>();
+  const out: Desconto[] = [];
   let repetidos = 0;
   for (const d of descontos) {
     if (!/^\d{4}-\d{2}$/.test(d.competencia) || !(d.valor > 0)) continue;
@@ -93,6 +100,16 @@ export function calcularIndebito(descontos: Desconto[]): Indebito {
     const chave = `${contrato}|${d.competencia}`;
     if (vistos.has(chave)) { repetidos++; continue; }
     vistos.add(chave);
+    out.push({ ...d, contrato });
+  }
+  return { descontos: out, repetidos };
+}
+
+export function calcularIndebito(descontos: Desconto[]): Indebito {
+  const unicos = descontosUnicos(descontos);
+  const grupos = new Map<string, Desconto[]>();
+  for (const d of unicos.descontos) {
+    const contrato = d.contrato as string;
     if (!grupos.has(contrato)) grupos.set(contrato, []);
     grupos.get(contrato)!.push(d);
   }
@@ -116,7 +133,7 @@ export function calcularIndebito(descontos: Desconto[]): Indebito {
   return {
     porContrato,
     total: { descontado: tot((c) => c.descontado), restituirSimples: tot((c) => c.simples.valor), restituirDobro: tot((c) => c.dobro.restituir), restituir: tot((c) => c.restituir) },
-    repetidosIgnorados: repetidos,
+    repetidosIgnorados: unicos.repetidos,
   };
 }
 
@@ -144,15 +161,21 @@ export function compararJuros(e: {
 export interface CalculoPeca {
   indebito: Indebito;
   juros: ComparacaoJuros[];
+  /** restituicao: o total atualizado da planilha quando houver; sem ela, o nominal. */
   valorDaCausa: { restituicao: number; jurosPagosAMais: number; danoMoral: number | null; total: number };
   avisos: string[];
+  /** Descontos do indébito, sem repetição (inclui os estimados pelo contrato). */
+  descontos: Desconto[];
+  /** Planilha com correção e juros (Calculista, planilhaCalculos.ts); null enquanto não atualizada. */
+  atualizacao?: PlanilhaAtualizada | null;
 }
 
 export function calcularPeca(e: EntradaCalculo): CalculoPeca {
   const avisos: string[] = [];
   const est = estimarDescontos(e.contratos || [], e.descontos || [], e.hoje || new Date());
   for (const n of est.estimados) avisos.push(`Contrato ${n}: descontos mês a mês estimados pela parcela e pelo período do contrato — conferir com o extrato do benefício.`);
-  const indebito = calcularIndebito([...(e.descontos || []), ...est.descontos]);
+  const todos = [...(e.descontos || []), ...est.descontos];
+  const indebito = calcularIndebito(todos);
   if (indebito.repetidosIgnorados) avisos.push(`${indebito.repetidosIgnorados} desconto(s) apareceram em mais de um documento e foram contados uma vez só.`);
   const juros: ComparacaoJuros[] = [];
   for (const c of e.contratos || []) {
@@ -170,5 +193,6 @@ export function calcularPeca(e: EntradaCalculo): CalculoPeca {
     indebito, juros,
     valorDaCausa: { restituicao: indebito.total.restituir, jurosPagosAMais, danoMoral, total: r2(indebito.total.restituir + jurosPagosAMais + (danoMoral || 0)) },
     avisos,
+    descontos: descontosUnicos(todos).descontos,
   };
 }

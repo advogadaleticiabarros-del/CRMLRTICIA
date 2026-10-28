@@ -110,7 +110,7 @@ Publicação/movimentação chega  →  MONITORAMENTO (vigias de DJEN, tribunais
 | 41 | Negociador de acordos | Calcula o piso e o teto, monta a contraproposta e a minuta. A Dra. decide. | 🆕 |
 | 42 | Pesquisador de jurisprudência | Só fonte oficial, com número, órgão, data, link e trecho. | 🆕 |
 | 43 | Verificador de citações | Separado do redator: confere se cada julgado e lei existem e dizem o que a peça afirma. | 🆕 |
-| 44 | Calculista de valores | Liquidação trabalhista (dados para o PJe-Calc), atrasados do INSS, correção. | 🆕 |
+| 44 | Calculista de valores | Liquidação trabalhista (dados para o PJe-Calc), atrasados do INSS, correção. | 🟡 **Dr. Augusto** (28/10/2026): planilha de cálculos da petição inicial de consumidor (indébito simples/dobro com correção e juros desde cada desconto, índices do Bacen, .xlsx). Falta: trabalhista (PJe-Calc) e atrasados do INSS |
 | 45 | Revisor sênior | Checklist por tipo de peça. | 🟡 `peticaoReviewer` |
 | 46 | Preparador de protocolo | PDFs, anexos no limite do tribunal, nomes dos arquivos. | 🆕 |
 | 47 | Conferente de protocolo | Vê a juntada no tribunal e fecha o prazo sozinho. | 🆕 |

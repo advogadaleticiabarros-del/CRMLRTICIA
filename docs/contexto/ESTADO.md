@@ -2,9 +2,16 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 28/10/2026. Último commit: contratos da peça por banco e tese.
+**Última atualização:** 28/10/2026. Último commit: Calculista (planilha de cálculos da peça).
 
 ## Últimas entregas (mais recentes primeiro)
+- **28/10 (noite):** **Dr. Augusto, Calculista** (pedido da Jessica: "algum agente analise os extratos e faça planilhas de cálculos para colocar nas peças").
+  - Na esteira da petição inicial, cada desconto lido nos extratos vira uma linha da **planilha de cálculos**: devolução simples ou em dobro, correção monetária (INPC até 08/2024, IPCA depois) e juros de mora (1% a.m. até 08/2024, taxa legal depois), desde cada desconto.
+  - Índices do Bacen guardados em `indices_economicos` (migration 172).
+  - Fica no caso como "Planilha de cálculos (vN)": tabela na Mesa → aba **Cálculos** e .xlsx com fórmulas para anexar. A peça cita a planilha anexa e o valor da causa usa o total atualizado.
+  - **A decidir (Dra./Jessica):** juros desde cada desconto (padrão atual) ou desde a citação.
+  - **Não verificado em produção:** nenhuma peça foi regerada. A próxima "gerar nova versão" já sai com a planilha.
+  - Ver `docs/contexto/relatorios/2026-10-28-calculista-planilha-de-calculos.md`.
 - **28/10:** **Contratos da peça por banco e tese** (print da Jessica: a peça do Valmirio contra o Itaú citava contratos do PAN e da FACTA lidos no extrato do INSS, que também entravam no cálculo).
   - Todos os contratos lidos ficam no cliente, com tipo e banco (migration 171, `cliente_contratos`).
   - Na peça entram só os do banco do réu e da mesma tese, ou os que a Dra. associa em Mesa → aba Caso → "Contratos nos documentos". Os descontos seguem os contratos, e o dossiê mostra o que ficou fora.

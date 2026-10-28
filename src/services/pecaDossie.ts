@@ -1,4 +1,4 @@
-import { brl, type CalculoPeca } from './pecaCalculos';
+import { brl, mesBr, type CalculoPeca } from './pecaCalculos';
 import type { Parte } from './pecaConsolidacao';
 
 /**
@@ -242,8 +242,14 @@ export function blocoCalculos(c: CalculoPeca): string {
   for (const j of c.juros) {
     l.push(`Juros do contrato ${j.contrato}: taxa contratada ${j.taxaContratadaMensal}% a.m. contra taxa média de ${j.taxaMediaMensal}% a.m. (${String(j.razao).replace('.', ',')} vezes a média). Parcela cobrada ${brl(j.parcelaContratada)}; parcela pela taxa média ${brl(j.parcelaRecalculada)}; diferença de ${brl(j.diferencaPorParcela)} por parcela; pago a mais em ${j.parcelasPagas} parcela(s): ${brl(j.pagoAMais)}.`);
   }
+  const a = c.atualizacao;
+  if (a?.dataBase) {
+    l.push(`Valores atualizados até ${mesBr(a.dataBase)}, conforme a planilha de cálculos anexa (correção monetária e juros de mora desde cada desconto: INPC/1% a.m. até 08/2024; IPCA/taxa legal a partir de 09/2024):`);
+    for (const p of a.porContrato) l.push(`- Contrato ${p.contrato}: a restituir ${brl(p.restituir)}; corrigido ${brl(p.corrigido)}; juros de mora ${brl(p.juros)}; total atualizado ${brl(p.total)}.`);
+    l.push(`- TOTAL ATUALIZADO a restituir: ${brl(a.total.total)}.`);
+  }
   const v = c.valorDaCausa;
-  l.push(`VALOR DA CAUSA: ${brl(v.total)}${v.danoMoral == null ? ' + [valor do dano moral] (somar o dano moral pedido ao valor da causa)' : ''} = restituição ${brl(v.restituicao)}${v.jurosPagosAMais ? ` + juros pagos a mais ${brl(v.jurosPagosAMais)}` : ''}${v.danoMoral != null ? ` + dano moral ${brl(v.danoMoral)}` : ''}.`);
+  l.push(`VALOR DA CAUSA: ${brl(v.total)}${v.danoMoral == null ? ' + [valor do dano moral] (somar o dano moral pedido ao valor da causa)' : ''} = restituição${a?.dataBase ? ' atualizada' : ''} ${brl(v.restituicao)}${v.jurosPagosAMais ? ` + juros pagos a mais ${brl(v.jurosPagosAMais)}` : ''}${v.danoMoral != null ? ` + dano moral ${brl(v.danoMoral)}` : ''}.`);
   return l.join('\n');
 }
 
@@ -273,7 +279,7 @@ REGRAS ANTI-INVENÇÃO (obrigatórias):
 - Use SOMENTE os fatos da FICHA DE FATOS, do relato e das fontes. Nada de inventar, deduzir ou "corrigir" dados.
 - Nunca crie números (CPF, CNPJ, contrato, benefício, processo, datas, valores). O que faltar vai em [colchete indicando o dado a preencher].
 - Dados da parte contrária só se constarem de documento ou do cadastro abaixo; o que vier só do relato vai como alegação, marcado "[a comprovar — não consta em documento]".
-- Os CÁLCULOS abaixo foram feitos pelo sistema a partir dos documentos: use exatamente estes valores, sem recalcular nem arredondar, numa seção "DOS CÁLCULOS" e nos pedidos. Onde o cálculo indica [colchete], mantenha o colchete.
+- Os CÁLCULOS abaixo foram feitos pelo sistema a partir dos documentos: use exatamente estes valores, sem recalcular nem arredondar, numa seção "DOS CÁLCULOS" e nos pedidos. Onde o cálculo indica [colchete], mantenha o colchete.${d.calculo.atualizacao?.dataBase ? '\n- Os valores atualizados vêm da PLANILHA DE CÁLCULOS que acompanha a petição: na seção "DOS CÁLCULOS", diga que o detalhamento mês a mês está na planilha anexa e liste-a em "DAS PROVAS"/documentos.' : ''}
 - Cite leis e súmulas só da lista de FUNDAMENTOS VERIFICADOS ou das teses do escritório; qualquer outra citação vai marcada [conferir].
 - Siga a ESTRATÉGIA escolhida e use os MODELOS DO ESCRITÓRIO como referência de estrutura, teses e estilo — adapte aos fatos; nunca copie nomes, números ou valores do modelo.
 
@@ -315,6 +321,7 @@ export function conferirValores(peticao: string, c: CalculoPeca): Array<{ rotulo
   const itens: Array<{ rotulo: string; valor: number }> = [];
   if (c.indebito.total.restituir > 0) itens.push({ rotulo: 'Total a restituir', valor: c.indebito.total.restituir });
   if (c.valorDaCausa.jurosPagosAMais > 0) itens.push({ rotulo: 'Juros pagos a mais', valor: c.valorDaCausa.jurosPagosAMais });
+  if (c.atualizacao?.dataBase && c.atualizacao.total.total > 0) itens.push({ rotulo: 'Total atualizado (planilha)', valor: c.atualizacao.total.total });
   if (c.valorDaCausa.total > 0) itens.push({ rotulo: 'Valor da causa (calculado)', valor: c.valorDaCausa.total });
   return itens.map((i) => ({ ...i, presente: t.includes(semRS(i.valor)) }));
 }
@@ -353,6 +360,7 @@ export function relatorioDossie(d: {
   const tri = Object.entries(f.triagem).filter(([, v]) => v != null);
   if (tri.length) l.push('', `Triagem: ${tri.map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v ? 'sim' : 'não'}`).join(' · ')}`);
   l.push('', '## Cálculos (feitos pelo sistema)', blocoCalculos(d.calculo));
+  if (d.calculo.atualizacao) l.push('', 'Detalhe mês a mês, com os índices usados, na "Planilha de cálculos" (aba Cálculos da mesa; o .xlsx é para anexar à petição).');
   const pend = [...f.lacunas, ...d.calculo.avisos];
   if (pend.length) { l.push('', '## Faltando ou a conferir'); for (const p of pend) l.push(`- ${p}`); }
   if (d.conferencia.length) {

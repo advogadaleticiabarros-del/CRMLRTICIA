@@ -5,6 +5,7 @@ import type { CasoParaJuntar } from './pecaConsolidacao';
 import type { DepsEsteira, CasoEsteira } from './esteiraPeca';
 import type { Fonte, ItemCatalogo, ContratoFicha } from './pecaDossie';
 import { chaveContrato, type ContratoSalvo } from './contratosDoCaso';
+import { indicesDoBacen } from './indicesEconomicosMysql';
 
 /**
  * Esteira da petição inicial com banco e IA de verdade (regras em esteiraPeca.ts).
@@ -29,7 +30,7 @@ const PROMPT_TRANSCRICAO = `Transcreva este documento INTEGRALMENTE e com fideli
 Tabelas (extrato do INSS/HISCON/HISCRE, fatura, holerite, extrato bancário): uma linha por registro, colunas separadas por " | ", com o cabeçalho. Transcreva TODAS as linhas.
 Não resuma, não interprete e não invente. Trecho ilegível: [ilegível]. Comece com uma linha "TIPO: <tipo do documento>".`;
 
-const PECAS_GERADAS = ['Petição Inicial%', 'Revisão da Petição%', 'Dossiê da peça%'];
+const PECAS_GERADAS = ['Petição Inicial%', 'Revisão da Petição%', 'Dossiê da peça%', 'Planilha de cálculos%'];
 
 async function caso(id: number): Promise<CasoEsteira> {
   const [[cs]] = await db.query(
@@ -233,6 +234,7 @@ export async function guardarContratos(clientId: number, contratos: ContratoFich
 
 export const depsEsteiraMysql: DepsEsteira = {
   caso, candidatosCorrelatos, fontes, catalogo, modelos, teses, fundamentos, regras, contratosSalvos, guardarContratos,
+  indices: indicesDoBacen,
   ia: (prompt, nivel) => aiComplete(prompt, nivel === 'redacao' ? 'openai-alto' : nivel === 'leitura' ? 'openai-medio' : 'openai'),
   registrar: registrarAcaoAgente,
   hoje: () => new Date(),

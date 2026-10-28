@@ -27,6 +27,7 @@ Consulte antes de mexer em qualquer integração externa, pra saber o que depend
 | **DataJud API Key** | Autenticação da consulta pública do CNJ | — (chave própria, ver variável `DATAJUD_API_KEY`) |
 | **Resend / SMTP (Gmail)** | Envio de e-mail (briefing, notificações) | Todo e-mail automático do sistema |
 | **GitHub** | Código-fonte + deploy automático (GitHub Actions) | Nenhum push novo chega em produção sem isso |
+| **Banco Central — API SGS** (api.bcb.gov.br, pública, sem chave) | INPC, IPCA e Selic mensais da planilha de cálculos do Calculista (séries 188, 433 e 4390), guardados em `indices_economicos` | Só a atualização dos índices: a planilha usa os já guardados; sem nenhum, sai nominal com aviso (ver [Documentos](06-documentos.md)) |
 | **Acervo de leis (github.com/ctresb/leis)** | Leis, súmulas, OJs e temas da Pesquisa de Leis, da Dra. Júlia e da Dra. Vera (repositório público, sem chave) | Só a atualização semanal; a busca continua com o acervo já baixado (ver [Pesquisa de Leis](18-pesquisa-de-leis.md)) |
 | **Hostinger VPS** | Onde o sistema roda de fato | Sistema inteiro fora do ar (ver [Onde tudo roda](13-infraestrutura.md)) |
 | **VAPID (push)** | Notificação push do navegador | Notificação push no navegador (o resto do sistema continua normal) |
@@ -90,6 +91,7 @@ Nunca no código-fonte nem no Git — só em variáveis de ambiente na VPS (`.en
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/10/2026 | Claude | API SGS do Banco Central (índices da planilha de cálculos) |
 | 21/10/2026 | Claude | Acervo de leis (github.com/ctresb/leis) como fonte da Pesquisa de Leis |
 | 04/09/2026 | Claude | Criação do documento |
 | 14/10/2026 | Claude | Agentes do agency-agents em `.claude/agents/` e codebase-memory-mcp no computador da Jessica |

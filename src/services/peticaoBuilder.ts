@@ -4,6 +4,8 @@ import { driveFileId, downloadDriveFile, driveFolderId, listDriveFolderFiles } f
 import { produzirPeticao } from './esteiraPeca';
 import { depsEsteiraMysql } from './esteiraPecaMysql';
 import { brl } from './pecaCalculos';
+import { planilhaMarkdown, planilhaXlsx } from './planilhaCalculos';
+import { MIME_XLSX } from './xlsxSimples';
 import { numeroDaVersao } from './mesaCaso';
 
 /**
@@ -174,7 +176,8 @@ ${docsTxt || '[Nenhum documento com conteúdo lido — verifique o link da pasta
 /**
  * Gera a petição inicial do caso pela esteira dos agentes (esteiraPeca.ts) e
  * salva na produção: primeiro o "Dossiê da peça" (o que foi lido, calculado e
- * por que o modelo foi escolhido), depois a petição. Casos do mesmo cliente
+ * por que o modelo foi escolhido) e a "Planilha de cálculos" do Calculista
+ * (tabela no CRM + .xlsx para anexar), depois a petição. Casos do mesmo cliente
  * contra a mesma parte contrária saem numa peça só (pecas_conjuntas).
  * Idempotente: sem force, não recria se o caso já tem petição própria ou conjunta.
  */
@@ -213,6 +216,15 @@ export async function buildPeticaoInicial(caseId: number, actorId: number, force
      VALUES (?, ?, ?, 'ia', 'processos', ?, 'pendente', ?)`,
     [clientId, caseId, `Dossiê da peça — ${r.cliente} (v${version})`, r.dossie, actorId]
   );
+  if (r.calculo.atualizacao) {
+    const cab = { cliente: r.cliente, reus: r.ficha.reus.map((x) => x.nome), casos: r.casos };
+    const xlsx = await planilhaXlsx(r.calculo, cab).catch(() => null);
+    await db.query(
+      `INSERT INTO documents (client_id, case_id, name, type, folder, content, data, mime, status, created_by)
+       VALUES (?, ?, ?, 'ia', 'processos', ?, ?, ?, 'pendente', ?)`,
+      [clientId, caseId, `Planilha de cálculos — ${r.cliente} (v${version})`, planilhaMarkdown(r.calculo, cab), xlsx, xlsx ? MIME_XLSX : null, actorId]
+    );
+  }
   const [ins] = await db.query(
     `INSERT INTO documents (client_id, case_id, name, type, folder, content, status, created_by)
      VALUES (?, ?, ?, 'ia', 'processos', ?, 'pendente', ?)`,
@@ -223,6 +235,7 @@ export async function buildPeticaoInicial(caseId: number, actorId: number, force
   const faltam = r.conferencia.filter((c) => !c.presente).length;
   const resumo = `Esteira da peça: ${r.fontesLidas.length} fonte(s) lida(s) · modelo: ${r.escolha.modelos.join(' + ') || 'nenhum do cofre'}`
     + (r.calculo.indebito.total.restituir ? ` · a restituir ${brl(r.calculo.indebito.total.restituir)}` : '')
+    + (r.calculo.atualizacao?.dataBase ? ` · atualizado pelo Calculista ${brl(r.calculo.atualizacao.total.total)} (planilha de cálculos)` : '')
     + (r.calculo.valorDaCausa.total ? ` · valor da causa calculado ${brl(r.calculo.valorDaCausa.total)}` : '')
     + (r.conferencia.length ? ` · ${r.conferencia.length - faltam}/${r.conferencia.length} valores conferem na peça` : '')
     + (juntos ? ` · peça conjunta com ${r.casos.filter((c) => c.id !== caseId).map((c) => `#${c.id}`).join(', ')}` : '')

@@ -1,4 +1,6 @@
-import { calcularPeca, brl, type CalculoPeca } from './pecaCalculos';
+import { calcularPeca, brl, mesBr, type CalculoPeca } from './pecaCalculos';
+import { atualizarCalculo } from './planilhaCalculos';
+import type { IndicesMensais } from './indicesEconomicos';
 import { mesmaParte, reusDoCaso, type CasoParaJuntar, type Parte } from './pecaConsolidacao';
 import {
   montarFontes, promptFichaDeFatos, parseFichaDeFatos, fichaVazia, promptEscolhaModelo, parseEscolha, resumoDaFicha,
@@ -13,7 +15,8 @@ import { separarParaPeca, mesmoBanco, type ContratoSalvo, type PecaAlvo } from '
  *  2. Dra. Helena lê todas as fontes e monta a ficha de fatos (com a fonte de cada dado);
  *     todos os contratos lidos ficam guardados no cliente, mas na peça só entram os do
  *     réu e da tese do processo, ou os que a Dra. escolheu (contratosDoCaso.ts);
- *  3. o sistema calcula (indébito simples/dobro, juros, valor da causa) — em código;
+ *  3. o sistema calcula (indébito simples/dobro, juros, valor da causa) — em código —
+ *     e o Calculista atualiza cada desconto (correção + juros de mora) na planilha;
  *  4. Cérebro escolhe estratégia e modelos pelo guia "Como escolher" do cofre;
  *  5. Dra. Júlia separa os fundamentos verificados;
  *  6. o redator escreve com raciocínio alto, e a peça é conferida contra os cálculos.
@@ -41,6 +44,8 @@ export interface DepsEsteira {
   contratosSalvos?(clientId: number): Promise<ContratoSalvo[]>;
   /** Guarda (ou atualiza) os contratos lidos, sem mexer na decisão da Dra. */
   guardarContratos?(clientId: number, contratos: ContratoFicha[]): Promise<void>;
+  /** Índices do Bacen (INPC, IPCA, Selic) para a planilha de cálculos; sem eles a planilha sai nominal. */
+  indices?(): Promise<{ indices: IndicesMensais; avisos: string[] } | null>;
   registrar(agente: string, texto: string): void;
   hoje?(): Date;
 }
@@ -120,8 +125,16 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
     reus: alvo.reus.length ? lida.reus.filter((r) => alvo.reus.some((q) => mesmoBanco(r.nome, q.nome))) : lida.reus,
   };
 
-  // 3) Cálculos em código.
-  const calculo = calcularPeca({ contratos: ficha.contratos, descontos: ficha.descontos, hoje: deps.hoje?.() });
+  // 3) Cálculos em código; o Calculista atualiza cada desconto (planilha de cálculos).
+  const hoje = deps.hoje?.() || new Date();
+  let calculo = calcularPeca({ contratos: ficha.contratos, descontos: ficha.descontos, hoje });
+  if (calculo.descontos.length && deps.indices) {
+    const ind = await deps.indices().catch(() => null);
+    calculo = atualizarCalculo(calculo, ind?.indices ?? null, hoje);
+    if (ind?.avisos.length) calculo.avisos.push(...ind.avisos);
+    const a = calculo.atualizacao;
+    if (a) deps.registrar('calculista', `montou a planilha de cálculos de ${caso.cliente}: ${a.linhas.length} desconto(s), ${brl(a.total.total)} ${a.dataBase ? `atualizados até ${mesBr(a.dataBase)}` : 'sem atualização (Bacen indisponível)'}`);
+  }
   deps.registrar('analista', `leu ${fontes.lidas.length} fonte(s) de ${caso.cliente} para a petição inicial: ${ficha.contratos.length} contrato(s) desta peça${sep.fora.length ? ` (${sep.fora.length} de outro banco/tese ficaram fora)` : ''}, ${ficha.descontos.length} desconto(s)${calculo.indebito.total.restituir ? `, ${brl(calculo.indebito.total.restituir)} a restituir` : ''}`);
 
   // 4) Cérebro: estratégia e modelos pelo guia do escritório.

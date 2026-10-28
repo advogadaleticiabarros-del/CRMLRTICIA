@@ -51,7 +51,7 @@ Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análi
   - coleta da Dra. Camila: o que pediu, o que chegou e as cobranças preparadas;
   - enviar arquivos (escolher ou arrastar; PDF, foto ou Word, até 15 MB);
   - pasta do Drive e a lista dos documentos do caso.
-- **Centro, abas Caso, Documentos, Peça, Revisão e Dossiê da peça.** Na Peça:
+- **Centro, abas Caso, Documentos, Peça, Revisão, Cálculos e Dossiê da peça.** A aba **Cálculos** mostra a planilha do Calculista (ver Esteira da petição inicial) com o botão "Baixar planilha (.xlsx)". Na Peça:
   - o texto abre como folha de papel e é editável: negrito, itálico, sublinhado, alinhamento, listas, recuo, títulos e citação;
   - os campos a preencher ficam em amarelo, e "Próximo" pula entre eles;
   - salva sozinho (ou Ctrl+S);
@@ -87,16 +87,23 @@ Pedido da Jessica: "preciso que os documentos sejam lidos de fato, os cálculos 
    - devolução do indébito por contrato, com a modulação do STJ (EAREsp 600.663/RS): descontos até 03/2021 voltam de forma **simples**; de 04/2021 em diante, **em dobro**. Mês repetido em dois documentos conta uma vez;
    - contrato só com parcela e mês de início: o sistema monta os meses até o fim do contrato ou até hoje e avisa que é estimativa;
    - juros: parcela recalculada pela tabela Price com a taxa média do Bacen (quando a taxa média está em algum documento) e o que foi pago a mais;
-   - valor da causa: soma do que foi calculado. Sem valor de dano moral definido, a peça deixa **[valor do dano moral]**. Valores nominais: correção e juros de mora ficam para a liquidação.
+   - valor da causa: soma do que foi calculado, com a restituição **atualizada** pela planilha do Calculista (abaixo). Sem valor de dano moral definido, a peça deixa **[valor do dano moral]**.
+   - **Planilha de cálculos (Dr. Augusto, Calculista — desde 28/10/2026, pedido da Jessica: "algum agente analise os extratos e faça planilhas de cálculos para colocar nas peças"):** cada desconto lido nos extratos vira uma linha: competência, contrato, valor descontado, devolução (simples ou em dobro), fator de correção, valor corrigido, juros de mora e total. Critério padrão, escrito na própria planilha:
+     - **correção monetária** desde cada desconto (Súmula 43/STJ), com os índices do mês seguinte ao desconto até a data-base: **INPC até 08/2024** e **IPCA a partir de 09/2024** (Lei 14.905/2024). Índice negativo não reduz o valor original;
+     - **juros de mora** simples desde cada desconto (Súmula 54/STJ), sobre o valor corrigido: **1% ao mês até 08/2024** e, depois, a **taxa legal** (Selic − IPCA do mês, nunca negativa);
+     - **data-base:** o último mês fechado com índice publicado (o IPCA sai por volta do dia 10 do mês seguinte);
+     - **índices:** API SGS do Banco Central (INPC 188, IPCA 433, Selic acumulada no mês 4390), guardados na tabela `indices_economicos` (migration 172). Só se busca o que falta; o mês corrente nunca entra. Bacen fora do ar: usa o que já está guardado; sem nada guardado, a planilha sai nominal, com aviso;
+     - os juros pagos a mais da revisão da taxa (tabela Price) continuam nominais;
+     - **para mudar o critério** (ex.: juros desde a citação ou outro índice), basta mudar `atualizarIndebito` e `CRITERIOS` em `planilhaCalculos.ts`; os testes mostram o efeito.
 4. **Cérebro escolhe a estratégia** pelo guia do próprio cofre ("🧭 Como escolher" e o roteiro de triagem da área), entre **todas** as peças da área, e traz as notas de tese (ex.: "Repetição do indébito em dobro").
 5. **Dra. Júlia** separa os fundamentos que existem, com o texto oficial.
 6. **Redação com raciocínio alto** (GPT-5.6 Luna, esforço alto), com os cálculos prontos ("use exatamente estes valores"), os modelos inteiros e as teses. Depois o sistema confere se os valores calculados aparecem na peça.
 
-**O que fica no caso:** o **"Dossiê da peça"** (fontes lidas e as que não deu para ler, ficha de fatos com a fonte de cada dado, cálculos, modelo escolhido e o motivo, o que falta e a conferência dos valores) e a **"Petição Inicial — Cliente (vN)"** (ou "Petição Inicial conjunta"). A nota da produção resume: fontes lidas, modelo, valor a restituir, valor da causa e quantos valores conferem. Nos outros casos da peça conjunta entra a nota "Este caso entrou na petição inicial conjunta do caso #N"; mover esses cards para Criação inicial não gera outra peça.
+**O que fica no caso:** o **"Dossiê da peça"** (fontes lidas e as que não deu para ler, ficha de fatos com a fonte de cada dado, cálculos, modelo escolhido e o motivo, o que falta e a conferência dos valores), a **"Planilha de cálculos — Cliente (vN)"** (tabela para ler no CRM e arquivo .xlsx com fórmulas e a aba "Índices", para anexar; a petição diz que o detalhamento está na planilha anexa e a conferência checa o total atualizado) e a **"Petição Inicial — Cliente (vN)"** (ou "Petição Inicial conjunta"). A nota da produção resume: fontes lidas, modelo, valor a restituir, valor da causa e quantos valores conferem. Nos outros casos da peça conjunta entra a nota "Este caso entrou na petição inicial conjunta do caso #N"; mover esses cards para Criação inicial não gera outra peça.
 
 A geração leva alguns minutos e roda em segundo plano: o aviso chega no sino. A revisão automática roda em seguida, sobre a petição (nunca sobre o dossiê).
 
-Código: `src/services/esteiraPeca.ts` (ordem dos agentes), `pecaCalculos.ts`, `pecaConsolidacao.ts`, `pecaDossie.ts`, `esteiraPecaMysql.ts` (banco). Testes: `tests/esteiraPeca.test.mjs`. Tabela `pecas_conjuntas` (migration 167).
+Código: `src/services/esteiraPeca.ts` (ordem dos agentes), `pecaCalculos.ts`, `planilhaCalculos.ts` (Calculista), `indicesEconomicos.ts` e `indicesEconomicosMysql.ts` (Bacen), `xlsxSimples.ts` (arquivo .xlsx), `pecaConsolidacao.ts`, `pecaDossie.ts`, `esteiraPecaMysql.ts` (banco). Testes: `tests/esteiraPeca.test.mjs` e `tests/planilhaCalculos.test.mjs`. Tabela `pecas_conjuntas` (migration 167).
 
 ### Contratos nos documentos: o que entra em cada peça (desde 28/10/2026)
 
@@ -286,6 +293,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/10/2026 | Claude | Dr. Augusto (Calculista): planilha de cálculos da peça com correção (INPC/IPCA) e juros de mora (1% a.m./taxa legal) desde cada desconto, índices do Bacen guardados no banco (migration 172), .xlsx para anexar, aba Cálculos na mesa; o valor da causa usa a restituição atualizada |
 | 28/10/2026 | Claude | Contratos nos documentos: todos os contratos lidos ficam no cliente (tipo e banco); na peça só entram os do banco do réu e da mesma tese, ou os que a Dra. associa na aba Caso da mesa; descontos seguem os contratos; dossiê mostra o que ficou fora |
 | 22/10/2026 | Claude | Processo único: o quadro sugere juntar pedidos do mesmo cliente, banco e família de tese (cartão consignado; empréstimo consignado; empréstimo pessoal; cartão comum) e a Dra. confirma; a peça junta só o confirmado |
 | 22/10/2026 | Claude | Mesa do caso abre no trabalho de cada etapa: aba Caso (relato, análise da Dra. Helena, resumo do protocolo), aba Documentos (checklist, coleta da Dra. Camila, envio de arquivos), parecer da revisão ao lado da peça |

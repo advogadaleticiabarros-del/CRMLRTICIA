@@ -287,6 +287,32 @@ function fakeDeps(over = {}) {
   return { deps, chamadas, acoes };
 }
 
+test('produzirPeticao: o Calculista atualiza os descontos e a peça cita a planilha anexa', async () => {
+  const ipca = {}, selic = {}, inpc = {};
+  for (let a = 2020; a <= 2026; a++) for (let m = 1; m <= 12; m++) { const c = `${a}-${String(m).padStart(2, '0')}`; if (c > '2026-09') break; inpc[c] = 0.5; ipca[c] = 0.5; selic[c] = 1; }
+  const { deps, chamadas, acoes } = fakeDeps({ indices: async () => ({ indices: { inpc, ipca, selic }, avisos: [] }), hoje: () => new Date(2026, 9, 28) });
+  const r = await produzirPeticao(1, deps);
+  assert.strictEqual(r.ok, true);
+  const a = r.calculo.atualizacao;
+  assert.strictEqual(a.dataBase, '2026-09');
+  assert.strictEqual(a.linhas.length, 1);
+  assert.ok(a.total.total > 200, `atualizado ${a.total.total}`);
+  assert.strictEqual(r.calculo.valorDaCausa.restituicao, a.total.total);
+  const redacao = chamadas[chamadas.length - 1];
+  assert.match(redacao.prompt, /PLANILHA DE CÁLCULOS que acompanha a petição/);
+  assert.match(redacao.prompt, /atualizados até 09\/2026/);
+  assert.ok(acoes.some((x) => x.agente === 'calculista' && /planilha/.test(x.texto)));
+});
+
+test('produzirPeticao: Bacen indisponível — planilha nominal, peça sai do mesmo jeito', async () => {
+  const { deps } = fakeDeps({ indices: async () => { throw new Error('fora do ar'); } });
+  const r = await produzirPeticao(1, deps);
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.calculo.atualizacao.dataBase, null);
+  assert.strictEqual(r.calculo.valorDaCausa.restituicao, 200);
+  assert.ok(r.calculo.avisos.some((x) => /sem correção/i.test(x)));
+});
+
 test('produzirPeticao: lê as fontes dos casos juntos, calcula, escolhe o modelo e redige com raciocínio alto', async () => {
   const { deps, chamadas, acoes } = fakeDeps();
   const r = await produzirPeticao(1, deps);
