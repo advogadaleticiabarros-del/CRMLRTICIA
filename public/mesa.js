@@ -409,9 +409,10 @@
       } catch (e) { box.innerHTML = `<p class="mesa-vazio">${esc(e.message)}</p>`; }
     }
     function renderCalculos(box) {
-      const pl = st.d.planilha;
-      const baixar = pl && pl.tem_arquivo ? '<button type="button" class="mesa-btn mesa-btn-sm" data-acao="baixar-planilha">Baixar planilha (.xlsx)</button>' : '';
-      renderLeitura(box, pl, 'A planilha aparece quando a equipe montar a petição: o Calculista pega os descontos lidos nos extratos, aplica a devolução simples ou em dobro, a correção monetária e os juros de mora, mês a mês.', baixar);
+      const pl = st.d.planilha, dm = st.d.demonstrativo;
+      const baixar = (dm && dm.tem_arquivo ? '<button type="button" class="mesa-btn mesa-btn-sm" data-acao="baixar-demonstrativo">Baixar demonstrativo de descontos (PDF)</button>' : '')
+        + (pl && pl.tem_arquivo ? '<button type="button" class="mesa-btn mesa-btn-sm" data-acao="baixar-planilha">Baixar planilha (.xlsx)</button>' : '');
+      renderLeitura(box, pl || dm, 'A planilha aparece quando a equipe montar a petição: o Calculista pega os descontos lidos nos extratos, aplica a devolução simples ou em dobro, a correção monetária e os juros de mora, mês a mês.', baixar);
     }
     function renderRevisao(box) {
       const botao = '<button type="button" class="mesa-btn mesa-btn-sm" data-acao="revisar">Revisar de novo agora</button>';
@@ -520,7 +521,7 @@
           <label class="mesa-envio" for="mesa-arquivos">${I.enviar}<span><b>Escolha os arquivos</b> ou arraste para cá</span><small>PDF, foto ou Word, até 15 MB cada. A equipe lê os arquivos ao montar a peça.</small>
             <input id="mesa-arquivos" type="file" multiple accept=".pdf,image/*,.doc,.docx" data-arquivos></label>
           <label class="mesa-campo-rot" for="mesa-drive">Pasta do Drive</label>
-          <div class="mesa-campo"><input id="mesa-drive" type="url" data-salvar="drive" placeholder="Cole o link da pasta" value="${esc(st.prod?.drive_folder_url || '')}"><button type="button" class="mesa-btn mesa-btn-sm" data-acao="ler-pasta">Ler a pasta</button></div>
+          <div class="mesa-campo"><input id="mesa-drive" type="url" data-salvar="drive" placeholder="Cole o link da pasta" value="${esc(st.prod?.drive_folder_url || '')}"><button type="button" class="mesa-btn mesa-btn-sm" data-acao="ler-pasta" title="A pasta é lida sozinha a cada 30 minutos; use para puxar agora o que você acabou de pôr nela">Atualizar da pasta</button></div>
         </section>
         <section class="mesa-secao"><h3>Documentos do caso · ${docs.length}</h3>
           <div class="mesa-docs">${docs.length ? [...docs].reverse().map((d) => `
@@ -706,6 +707,10 @@
         try { await api(`/api/mesa/${caseId}/revisar`, { method: 'POST', body: '{}' }); toast('A revisão começou. Você será avisada no sino.'); }
         catch (e) { toast(e.message, 'error'); }
       },
+      'baixar-demonstrativo': () => {
+        const dm = st.d.demonstrativo; if (!dm) return;
+        downloadDocFile(dm.id, `${dm.name.replace(/[\\/:*?"<>|]/g, '')}.pdf`);
+      },
       'baixar-planilha': () => {
         const pl = st.d.planilha; if (!pl) return;
         downloadDocFile(pl.id, `${pl.name.replace(/[\\/:*?"<>|]/g, '')}.xlsx`);
@@ -752,11 +757,11 @@
         b.disabled = true; b.textContent = 'Lendo…';
         try {
           await api(`/api/cases/${caseId}/production-meta`, { method: 'PATCH', body: JSON.stringify({ drive_folder_url: url }) });
-          const r = await api(`/api/cases/${caseId}/analisar-documentos`, { method: 'POST' });
-          if (r.ok) toast(`Pasta lida: ${r.imported || 0} arquivo(s) novo(s), ${r.docsLidos || 0} documento(s). A análise está em Documentos.`);
-          else toast('Não foi possível ler: ' + (r.message || ''), 'error');
-          st.mudou = true; await recarregar(true);
-        } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Ler a pasta'; }
+          await api(`/api/cases/${caseId}/analisar-documentos`, { method: 'POST' });
+          toast('Lendo a pasta em segundo plano. Você será avisada no sino quando os documentos entrarem.');
+          b.textContent = 'Lendo em segundo plano…';
+          st.mudou = true;
+        } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Atualizar da pasta'; }
       },
       resolver: async (b) => {
         try { await api(`/api/cases/production-notes/${b.dataset.id}/resolve`, { method: 'PATCH', body: '{}' }); st.mudou = true; await recarregar(false); }

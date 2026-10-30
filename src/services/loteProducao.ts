@@ -20,7 +20,7 @@ import { nucleoBanco } from './contratosDoCaso';
 export type TipoDoc =
   | 'procuracao' | 'declaracao_hipossuficiencia' | 'identidade' | 'cpf' | 'comprovante_residencia'
   | 'extrato_emprestimos' | 'historico_creditos' | 'extrato_bancario' | 'contrato_banco' | 'consulta_consignados'
-  | 'boletim_ocorrencia' | 'reclamacao' | 'planilha' | 'outro'
+  | 'boletim_ocorrencia' | 'reclamacao' | 'demonstrativo' | 'planilha' | 'outro'
   | 'peticao' | 'interno';
 
 /** Onde o documento vale: em todas as ações do cliente, numa ação (banco), ou nunca vai ao protocolo. */
@@ -42,8 +42,9 @@ export const TIPOS: Record<TipoDoc, TipoInfo> = {
   consulta_consignados: { rotulo: 'Consulta de cartões e empréstimos', ordem: 10, escopo: 'acao' },
   boletim_ocorrencia: { rotulo: 'Boletim de ocorrência', ordem: 11, escopo: 'comum' },
   reclamacao: { rotulo: 'Reclamação administrativa', ordem: 12, escopo: 'acao' },
-  planilha: { rotulo: 'Planilha de cálculos', ordem: 13, escopo: 'acao' },
-  outro: { rotulo: 'Documento', ordem: 14, escopo: 'acao' },
+  demonstrativo: { rotulo: 'Demonstrativo de descontos', ordem: 13, escopo: 'acao' },
+  planilha: { rotulo: 'Planilha de cálculos', ordem: 14, escopo: 'acao' },
+  outro: { rotulo: 'Documento', ordem: 15, escopo: 'acao' },
   peticao: { rotulo: 'Petição inicial', ordem: 0, escopo: 'interno' },
   interno: { rotulo: 'Uso interno', ordem: 99, escopo: 'interno' },
 };
@@ -96,6 +97,7 @@ export function classificarDocumento(d: Pick<DocLote, 'name' | 'content' | 'type
   let tipo: TipoDoc | null = null;
   if (/^peticao inicial/.test(n)) tipo = 'peticao';
   else if (/^planilha de calculos/.test(n)) tipo = 'planilha';
+  else if (/^demonstrativo de descontos/.test(n)) tipo = 'demonstrativo';
   else if (/^(dossie da peca|revisao da peticao|analise do caso|relato|parecer|resumo)/.test(n) || (d.type === 'ia' && !/^(contrato|procuracao|declaracao)/.test(n))) tipo = 'interno';
   else tipo = porRegra(tipoLido(d.content)) || porRegra(nome) || 'outro';
   const info = TIPOS[tipo];
@@ -132,7 +134,7 @@ export function nomeNoKit(e: { ordem: number; rotulo: string; cliente: string; o
 
 /** Nome padronizado para a lista do CRM (sem o número, que depende do kit). */
 export function nomePadrao(c: Classificacao, cliente: string, original: string, mime?: string | null): string | null {
-  if (c.escopo === 'interno' || c.tipo === 'outro' || c.tipo === 'planilha') return null;
+  if (c.escopo === 'interno' || c.tipo === 'outro' || GERADOS_DA_ACAO.includes(c.tipo)) return null;
   const ext = String(original).match(/\.([a-z0-9]{2,5})$/i)?.[1]?.toLowerCase() || (mime === 'application/pdf' ? 'pdf' : '');
   return `${c.rotulo} - ${limparNome(cliente)}${ext ? '.' + ext : ''}`;
 }
@@ -201,6 +203,9 @@ export function etapaDoLote(acoes: Array<Pick<AcaoLote, 'production_stage'>>): s
   return abertas.sort((a, b) => ETAPAS.indexOf(a) - ETAPAS.indexOf(b))[0];
 }
 
+/** Gerados a cada versão da peça: no kit vai só a versão mais nova, da própria ação. */
+const GERADOS_DA_ACAO: TipoDoc[] = ['planilha', 'demonstrativo'];
+
 const versaoDoNome = (nome: string) => Number(String(nome).match(/\(v(\d+)/)?.[1] || 0);
 
 export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: DocLote[] }): Lote {
@@ -228,8 +233,9 @@ export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: 
     const pecas = meus.filter((x) => x.c.tipo === 'peticao' && x.d.case_id === a.id).sort((p, q) => versaoDoNome(q.d.name) - versaoDoNome(p.d.name) || q.d.id - p.d.id);
     // A versão final marcada vale acima de uma versão mais nova ainda em rascunho.
     const p = pecas.find((x) => x.d.final_em) || pecas[0];
-    const planilhas = meus.filter((x) => x.c.tipo === 'planilha' && x.d.case_id === a.id).sort((p2, q) => versaoDoNome(q.d.name) - versaoDoNome(p2.d.name) || q.d.id - p2.d.id);
-    const anexos = [...meus.filter((x) => x.c.escopo !== 'interno' && x.c.tipo !== 'planilha'), ...planilhas.slice(0, 1)]
+    const maisNovos = (t: TipoDoc) => meus.filter((x) => x.c.tipo === t && x.d.case_id === a.id).sort((p2, q) => versaoDoNome(q.d.name) - versaoDoNome(p2.d.name) || q.d.id - p2.d.id);
+    const planilhas = maisNovos('planilha'), demonstrativos = maisNovos('demonstrativo');
+    const anexos = [...meus.filter((x) => x.c.escopo !== 'interno' && !GERADOS_DA_ACAO.includes(x.c.tipo)), ...demonstrativos.slice(0, 1), ...planilhas.slice(0, 1)]
       .sort((x, y) => x.c.ordem - y.c.ordem || x.d.id - y.d.id);
     const totalPorTipo = new Map<TipoDoc, number>();
     for (const x of anexos) totalPorTipo.set(x.c.tipo, (totalPorTipo.get(x.c.tipo) || 0) + 1);

@@ -1,10 +1,12 @@
 import { db } from '../config/database';
 import { aiComplete, aiExtractFromFile } from './aiAssistant';
-import { driveFileId, downloadDriveFile, driveFolderId, listDriveFolderFiles } from './partnerInboxService';
+import { driveFileId, downloadDriveFile, listarFilhosDrive, contaGoogleDoCrm } from './partnerInboxService';
+import { sincronizarPasta, type DepsPastaDrive, type ResultadoPasta } from './pastaDrive';
 import { produzirPeticao } from './esteiraPeca';
 import { depsEsteiraMysql } from './esteiraPecaMysql';
 import { brl } from './pecaCalculos';
 import { planilhaMarkdown, planilhaXlsx } from './planilhaCalculos';
+import { montarDemonstrativo, demonstrativoMarkdown, demonstrativoPdf } from './demonstrativoDescontos';
 import { MIME_XLSX } from './xlsxSimples';
 import { numeroDaVersao } from './mesaCaso';
 
@@ -56,38 +58,52 @@ export async function extractCaseDocuments(caseId: number): Promise<number> {
  * e grava como documentos do caso (com conteúdo). Dedup por nome. Requer o
  * escopo drive.readonly (a advogada reconecta o Google para conceder).
  */
-export async function importDriveFolder(caseId: number, clientId: number | null, folderUrl: string, actorId: number): Promise<number> {
-  const fid = driveFolderId(folderUrl);
-  if (!fid) return 0;
-  const files = await listDriveFolderFiles(fid);
-  let n = 0;
-  for (const f of files) {
+export async function importDriveFolder(caseId: number, clientId: number | null, folderUrl: string, actorId: number): Promise<ResultadoPasta> {
+  const deps: DepsPastaDrive = {
+    listarFilhos: listarFilhosDrive,
     // Também pelo nome de chegada: o card do cliente pode ter dado o nome padrão ao documento (30/10/2026).
-    const [[dup]] = await db.query('SELECT id FROM documents WHERE case_id = ? AND (name = ? OR nome_original = ?) LIMIT 1', [caseId, f.name, f.name]) as any;
-    if (dup) continue;
-    if (!READABLE(f.mimeType)) {
-      // Guarda o arquivo (link) mesmo sem leitura por IA (ex.: vídeo/formato não suportado).
-      await db.query(
-        `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, status, created_by)
-         VALUES (?, ?, ?, 'anexo', 'processos', ?, 'recebido', ?)`,
-        [clientId, caseId, f.name, `https://drive.google.com/file/d/${f.id}/view`, actorId]
-      );
-      continue;
-    }
-    const file = await downloadDriveFile(f.id);
-    let content: string | null = null;
-    if (file) {
+    jaTem: async (id, nome) => {
+      const [[dup]] = await db.query('SELECT id FROM documents WHERE case_id = ? AND (name = ? OR nome_original = ?) LIMIT 1', [id, nome, nome]) as any;
+      return !!dup;
+    },
+    // Formato não legível (vídeo, planilha...) entra só com o link.
+    ler: async (f) => {
+      if (!READABLE(f.mimeType)) return null;
+      const file = await downloadDriveFile(f.id);
+      if (!file) return null;
       const r = await aiExtractFromFile(file.base64, file.mimeType, instructionFor(file.mimeType));
-      if (r.ok && r.text) content = `[${tagFor(file.mimeType)} de "${f.name}"]\n${r.text}`;
-    }
-    await db.query(
-      `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, content, status, created_by)
-       VALUES (?, ?, ?, 'anexo', 'processos', ?, ?, 'recebido', ?)`,
-      [clientId, caseId, f.name, `https://drive.google.com/file/d/${f.id}/view`, content, actorId]
-    );
-    n++;
+      return r.ok && r.text ? `[${tagFor(file.mimeType)} de "${f.name}"]\n${r.text}` : null;
+    },
+    gravar: async (d) => {
+      await db.query(
+        `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, content, status, created_by)
+         VALUES (?, ?, ?, 'anexo', 'processos', ?, ?, 'recebido', ?)`,
+        [d.clientId, d.caseId, d.nome, d.link, d.conteudo, d.actorId]
+      );
+    },
+  };
+  return sincronizarPasta(deps, { caseId, clientId, folderUrl, actorId }, await contaGoogleDoCrm());
+}
+
+/**
+ * Leitura automática das pastas (cron): casos em produção, antes do protocolo, com
+ * pasta do Drive. Traz só os arquivos novos. Pedido da Jessica (30/10/2026): "os
+ * documentos já vêm sozinhos, a não ser que eu inclua algo e peça para atualizar".
+ */
+export async function sincronizarPastasEmProducao(): Promise<{ casos: number; novos: number; erros: number }> {
+  const [casos] = await db.query(
+    `SELECT id, client_id, drive_folder_url, user_id FROM cases
+      WHERE drive_folder_url IS NOT NULL AND drive_folder_url <> ''
+        AND production_stage IS NOT NULL AND production_stage NOT IN ('protocolado', 'concluido', 'recusado')`
+  ) as any;
+  let novos = 0, erros = 0;
+  for (const c of casos) {
+    const r = await importDriveFolder(c.id, c.client_id ?? null, c.drive_folder_url, c.user_id || 1)
+      .catch((e: any) => ({ novos: [] as string[], erro: String(e?.message || e) }));
+    novos += r.novos.length;
+    if (r.erro) { erros++; console.warn('[pasta-drive] caso', c.id, r.erro); }
   }
-  return n;
+  return { casos: casos.length, novos, erros };
 }
 
 /**
@@ -99,15 +115,19 @@ export async function importDriveFolder(caseId: number, clientId: number | null,
  */
 export async function analyzeCaseDrive(
   caseId: number, actorId: number
-): Promise<{ ok: boolean; docId?: number; text?: string; message?: string; imported: number; docsLidos: number }> {
+): Promise<{ ok: boolean; docId?: number; text?: string; message?: string; imported: number; docsLidos: number; erroDrive?: string }> {
   const [[cf]] = await db.query(
     'SELECT client_id, title, legal_area, description, drive_folder_url FROM cases WHERE id = ?', [caseId]
   ) as any;
   if (!cf) return { ok: false, message: 'Caso não encontrado', imported: 0, docsLidos: 0 };
 
   // 1) puxa novidades do Drive (dedup por nome) e 2) lê anexos ainda sem texto.
-  let imported = 0;
-  if (cf.drive_folder_url) imported = await importDriveFolder(caseId, cf.client_id ?? null, cf.drive_folder_url, actorId).catch(() => 0);
+  let imported = 0, erroDrive: string | undefined;
+  if (cf.drive_folder_url) {
+    const pasta = await importDriveFolder(caseId, cf.client_id ?? null, cf.drive_folder_url, actorId)
+      .catch((e: any) => ({ novos: [] as string[], erro: String(e?.message || e) }));
+    imported = pasta.novos.length; erroDrive = pasta.erro;
+  }
   await extractCaseDocuments(caseId).catch(() => 0);
 
   const clientId = cf.client_id ?? null;
@@ -162,7 +182,7 @@ DOCUMENTOS DO CASO (conteúdo extraído pela IA):
 ${docsTxt || '[Nenhum documento com conteúdo lido — verifique o link da pasta do Drive e as permissões]'}${leisTxt}`;
 
   const out = await aiComplete(prompt, 'openai');
-  if (!out.ok || !out.text) return { ok: false, imported, docsLidos: (docs || []).length, message: out.message || 'A IA não retornou a análise' };
+  if (!out.ok || !out.text) return { ok: false, imported, erroDrive, docsLidos: (docs || []).length, message: out.message || 'A IA não retornou a análise' };
 
   const name = `Análise do caso (checklist) — ${cl?.name || cf.title || 'Caso'}`;
   await db.query("DELETE FROM documents WHERE case_id = ? AND type = 'ia' AND name LIKE 'Análise do caso (checklist)%'", [caseId]);
@@ -171,7 +191,7 @@ ${docsTxt || '[Nenhum documento com conteúdo lido — verifique o link da pasta
      VALUES (?, ?, ?, 'ia', 'processos', ?, 'pendente', ?)`,
     [clientId, caseId, name, out.text, actorId]
   ) as any;
-  return { ok: true, docId: r.insertId, text: out.text, imported, docsLidos: (docs || []).length };
+  return { ok: true, docId: r.insertId, text: out.text, imported, erroDrive, docsLidos: (docs || []).length };
 }
 
 /**
@@ -217,8 +237,18 @@ export async function buildPeticaoInicial(caseId: number, actorId: number, force
      VALUES (?, ?, ?, 'ia', 'processos', ?, 'pendente', ?)`,
     [clientId, caseId, `Dossiê da peça — ${r.cliente} (v${version})`, r.dossie, actorId]
   );
+  const cab = { cliente: r.cliente, reus: r.ficha.reus.map((x) => x.nome), casos: r.casos };
+  // Demonstrativo de descontos: o que foi descontado de cada contrato desta peça e a base do valor da causa (anexo do kit).
+  if (r.calculo.descontos.length || r.ficha.contratos.length) {
+    const demo = montarDemonstrativo({ calculo: r.calculo, contratos: r.ficha.contratos, fora: r.fora, cab });
+    const pdf = await demonstrativoPdf(demo).catch(() => null);
+    await db.query(
+      `INSERT INTO documents (client_id, case_id, name, type, folder, content, data, mime, status, created_by)
+       VALUES (?, ?, ?, 'ia', 'processos', ?, ?, ?, 'pendente', ?)`,
+      [clientId, caseId, `Demonstrativo de descontos — ${r.cliente} (v${version})`, demonstrativoMarkdown(demo), pdf, pdf ? 'application/pdf' : null, actorId]
+    );
+  }
   if (r.calculo.atualizacao) {
-    const cab = { cliente: r.cliente, reus: r.ficha.reus.map((x) => x.nome), casos: r.casos };
     const xlsx = await planilhaXlsx(r.calculo, cab).catch(() => null);
     await db.query(
       `INSERT INTO documents (client_id, case_id, name, type, folder, content, data, mime, status, created_by)

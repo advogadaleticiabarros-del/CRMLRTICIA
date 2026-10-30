@@ -155,6 +155,7 @@ export async function revisarPeticaoDoCaso(caseId: number, actorId: number): Pro
         AND name NOT LIKE 'Revisão da Petição%'
         AND name NOT LIKE 'Dossiê da peça%'
         AND name NOT LIKE 'Planilha de cálculos%'
+        AND name NOT LIKE 'Demonstrativo de descontos%'
       ORDER BY (name LIKE 'Petição Inicial%') DESC, id DESC LIMIT 1`, [caseId, caseId]
   ) as any;
   const peca = (docs || [])[0];

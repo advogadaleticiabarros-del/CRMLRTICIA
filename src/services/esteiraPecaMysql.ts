@@ -30,7 +30,7 @@ const PROMPT_TRANSCRICAO = `Transcreva este documento INTEGRALMENTE e com fideli
 Tabelas (extrato do INSS/HISCON/HISCRE, fatura, holerite, extrato bancário): uma linha por registro, colunas separadas por " | ", com o cabeçalho. Transcreva TODAS as linhas.
 Não resuma, não interprete e não invente. Trecho ilegível: [ilegível]. Comece com uma linha "TIPO: <tipo do documento>".`;
 
-const PECAS_GERADAS = ['Petição Inicial%', 'Revisão da Petição%', 'Dossiê da peça%', 'Planilha de cálculos%'];
+const PECAS_GERADAS = ['Petição Inicial%', 'Revisão da Petição%', 'Dossiê da peça%', 'Planilha de cálculos%', 'Demonstrativo de descontos%'];
 
 async function caso(id: number): Promise<CasoEsteira> {
   const [[cs]] = await db.query(

@@ -2,9 +2,13 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 30/10/2026. Último commit: card único do cliente na produção (ações por banco, kit de protocolo, documentos renomeados).
+**Última atualização:** 30/10/2026. Último commit: demonstrativo de descontos (PDF) por peça.
 
 ## Últimas entregas (mais recentes primeiro)
+- **30/10 (noite, 2):** **Demonstrativo de descontos (PDF) por peça** (pedido da Jessica: separar do extrato o que é de cada peça, RMC/RCC, nº do contrato, tudo o que já foi descontado; "o extrato original vai também no protocolo, é só um demonstrativo separado para base de cálculo também do valor da causa").
+  - A cada versão da peça sai "Demonstrativo de descontos — Cliente (vN)": contratos do réu, o que foi descontado mês a mês (com a fonte) e a base do valor da causa. Fica na Mesa → aba Cálculos e no kit da ação, antes da planilha. O extrato original continua inteiro.
+  - **Não verificado em produção:** sai na próxima "gerar nova versão" da peça.
+  - **Proposto, não feito:** leitura do HISCON + HISCRE por regra fixa (rubricas 217/268/216), sem depender só da IA. Ver `docs/contexto/relatorios/2026-10-30-demonstrativo-de-descontos.md`.
 - **30/10 (tarde):** **WhatsApp caiu ("session is not reconnectable").** O WhatsApp derrubou a sessão do lado dele; a Jessica reconectou pelo painel da Uazapi (QR). O runbook dizia "só aguardar" e foi corrigido: com esse erro, só o QR resolve. Causa da queda e mensagens perdidas não conferidas (acesso à VPS negado pela permissão). Ver `docs/contexto/relatorios/2026-10-30-whatsapp-sessao-nao-reconectavel.md`.
 - **30/10 (noite):** **Card único do cliente na produção** (pedido da Jessica, caso real com 6 bancos: "tudo centralizado em um único card... documentos renomeados e as peças prontas para que eu revise e protocole um a um").
   - **Regra confirmada:** uma peça por banco; RMC e RCC do mesmo banco podem ir juntos.

@@ -190,7 +190,8 @@ router.get('/:caseId', async (req: Request, res: Response) => {
   const dossie = ultimo(/^Dossiê da peça/i);
   const revisao = ultimo(/^Revisão da Petição/i);
   const planilha = ultimo(/^Planilha de cálculos/i);
-  const documentos = docs.filter((d) => !ehPeticao(d.name) && d !== dossie && !/^(Dossiê da peça|Revisão da Petição|Planilha de cálculos)/i.test(d.name));
+  const demonstrativo = ultimo(/^Demonstrativo de descontos/i);
+  const documentos = docs.filter((d) => !ehPeticao(d.name) && d !== dossie && !/^(Dossiê da peça|Revisão da Petição|Planilha de cálculos|Demonstrativo de descontos)/i.test(d.name));
 
   const [conjunta] = await db.query(
     `SELECT DISTINCT c2.id, c2.title, pc.case_principal_id
@@ -238,6 +239,7 @@ router.get('/:caseId', async (req: Request, res: Response) => {
     caso: { ...c, relato }, partes, checklist, pecas, documentos, etapas, atual,
     dossie: dossie ? { id: dossie.id, name: dossie.name, created_at: dossie.created_at } : null,
     planilha: planilha ? { id: planilha.id, name: planilha.name, created_at: planilha.created_at, tem_arquivo: Number(planilha.tem_arquivo) === 1 } : null,
+    demonstrativo: demonstrativo ? { id: demonstrativo.id, name: demonstrativo.name, created_at: demonstrativo.created_at, tem_arquivo: Number(demonstrativo.tem_arquivo) === 1 } : null,
     revisao: revisao ? { id: revisao.id, name: revisao.name, created_at: revisao.created_at } : null,
     conjunta: conjunta.length > 1 ? { principal: conjunta[0].case_principal_id, casos: conjunta.map((x: any) => ({ id: x.id, title: x.title })) } : null,
     licoes, regrasDaArea: Number(regras?.n || 0), pendenciasAbertas: Number(pend?.n || 0),
