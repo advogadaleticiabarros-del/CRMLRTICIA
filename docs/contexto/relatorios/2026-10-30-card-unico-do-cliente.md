@@ -23,6 +23,9 @@ Jessica, com o caso real de um cliente com 6 bancos (Itaú, Pine, Banrisul, C6, 
 - Tela renderizada com o `loteCliente.js` real e o resultado de `montarLote` para o caso de 6 bancos: sem erro de JavaScript; computador 1366 px e celular 390 px sem rolagem lateral. O print PAN/FACTA entra só nos kits do PAN e da Facta.
 - Ponta a ponta: o teste do processo único foi ajustado (os 3 pedidos são 1 card do cliente), e há um teste novo do card do cliente (trava, kit baixado, nome padrão, protocolar). Rodam no CI.
 
+- **Produção (depois do deploy):** CI com os testes de ponta a ponta e deploy OK; migration 173 aplicada. O card do cliente real mostra 6 ações, todas travadas por falta do extrato de empréstimos do INSS (e do comprovante de residência). O kit de cada ação tem 10 anexos (procuração, declaração, RG e 7 históricos de créditos), e PAN e Facta têm 11, com o print dos cartões. A peça v2 do Itaú aparece.
+- **Defeito achado na verificação e corrigido no mesmo dia:** a senha aparecia duas vezes na observação, e a 1ª versão trocava só a primeira. Agora troca todas (teste novo); conferido em produção: a senha não está mais no texto e está na ficha do cliente.
+
 ## Decisões e porquês
 - Sem tabela de lote: o card do cliente sai dos casos antes do protocolo. Cada ação continua sendo um caso, porque depois do protocolo tem nº e acompanhamento próprios.
 - Tipo do documento pelo texto lido antes do nome: os nomes que chegam enganam.
