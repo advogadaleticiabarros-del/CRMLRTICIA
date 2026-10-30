@@ -23,7 +23,7 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 **Por que é grave:** a regra é a senha ficar só em `client_credentials`. A observação do card aparece no quadro e no menu do card, e entra nas "anotações da produção" que a Dra. Helena manda para a IA na esteira da peça.
 
 **Correção (30/10/2026):**
-- `retirarSenhaInss` (`src/services/senhaInssCliente.ts`) acha "senha (do) (meu) INSS: X", devolve a senha e troca no texto por "[guardada na ficha do cliente]";
+- `retirarSenhaInss` (`src/services/senhaInssCliente.ts`) acha "senha (do) (meu) INSS: X", devolve a senha e troca no texto por "[guardada na ficha do cliente]" em todas as vezes que ela aparece (a 1ª versão trocava só a primeira, e o card real tinha a senha no topo e no corpo do e-mail: corrigido no mesmo dia);
 - ao salvar a observação (`PATCH /api/cases/:id/production-meta`), a senha vai para o cofre do cliente e sai do texto;
 - no início do CRM, `guardarSenhasDosCards` faz o mesmo com a observação e a descrição dos cards que já existiam. Se o cofre já tem **outra** senha, não mexe e escreve no log "Senha do Meu INSS no card difere da guardada na ficha (casos N): conferir".
 

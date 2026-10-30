@@ -160,3 +160,12 @@ test('senha do Meu INSS escrita na observação sai do texto e vai para o cofre'
   assert.strictEqual(retirarSenhaInss('senha do inss - abc123').senha, 'abc123');
   assert.strictEqual(retirarSenhaInss('Senha Meu INSS: [guardada na ficha do cliente]').senha, null, 'não relê o marcador');
 });
+
+test('senha repetida no texto sai de todas as vezes, mesmo depois de um marcador (caso real: e-mail colado com a senha no topo e no corpo)', () => {
+  const r = retirarSenhaInss('Senha Meu INSS: Fict#2026# Bom dia\nDADOS DE ACESSO\nSenha Meu INSS: Fict#2026#\nfim');
+  assert.strictEqual(r.senha, 'Fict#2026#');
+  assert.ok(!r.texto.includes('Fict#2026#'), r.texto);
+  const meio = retirarSenhaInss('Senha Meu INSS: [guardada na ficha do cliente] Bom dia\nSenha Meu INSS: Fict#2026#\nfim');
+  assert.strictEqual(meio.senha, 'Fict#2026#', 'acha a senha que sobrou depois do marcador');
+  assert.ok(!meio.texto.includes('Fict#2026#'));
+});
