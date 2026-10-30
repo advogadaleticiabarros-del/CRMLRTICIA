@@ -2,9 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 30/10/2026. Último commit: o card do cliente (várias ações) arrasta no quadro.
+**Última atualização:** 30/10/2026. Último commit: anexos do Drive lidos com reserva (Gemini → OpenAI).
 
 ## Últimas entregas (mais recentes primeiro)
+- **30/10 (noite, 9):** **Extrato de empréstimos do Valmirio nunca era lido** (a peça do Itaú saía sem contrato e com cálculo zerado). A leitura dos anexos do Drive (`extractCaseDocuments` e `importDriveFolder`, em `peticaoBuilder.ts`) usava só o Gemini gratuito, com a cota de 20 leituras/dia esgotada. Agora usa `aiLerArquivo` (Gemini e, sem cota, OpenAI com visão). Teste `tests/leituraDriveComReserva.test.mjs`. Publicado (deploy OK). **Pendente:** "Ler os contratos" de novo no caso #110 e gerar nova versão da peça do Itaú. Ver `docs/contexto/relatorios/2026-10-30-leitura-drive-com-reserva.md`.
 - **30/10 (noite, 8):** **Card do Valmirio não ia para Separação de documentos.** O card único do cliente não arrastava. Agora ele arrasta: para a frente, avançam as ações atrasadas; para trás, voltam todas. Protocolar e recusar continuam uma a uma. `acoesParaMover` (`loteProducao.ts`), 2 testes. **Pendente:** a Jessica conferir no quadro. Ver `docs/contexto/relatorios/2026-10-30-card-do-cliente-arrasta.md`.
 - **30/10 (noite, 7):** **Barra não apareceu** (print da Jessica: aviso antigo, sem barra). O `?v=` do deploy só valia para app/whatsapp/portal-parceiro; `mesa.js`, `loteCliente.js` e as outras telas novas ficavam com a versão antiga no navegador. Agora todo script próprio é versionado (`src/utils/versionarIndexHtml.ts`, 3 testes, um deles lê o `index.html` real). Ver o runbook.
 - **30/10 (noite, 6):** **Versão pedida que nunca chegou** (relato da Jessica). Causa: as publicações reiniciam o CRM e matavam a geração em andamento, sem aviso (4 publicações entre 20:35 e 21:07 UTC). Agora cada geração fica em `geracoes_peca_pendentes` (migration 174) e é **retomada sozinha** quando o CRM volta, com aviso no sino (máx. 2 retomadas). `geracaoPeca.ts` passou a ser o ponto único das duas entradas (botão e etapa). 10 testes novos. **A versão pedida antes desta correção se perdeu: é preciso pedir de novo.** Ver o runbook.
