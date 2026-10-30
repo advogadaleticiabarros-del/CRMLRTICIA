@@ -45,6 +45,7 @@ Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análi
   - resumo do protocolo, quando já protocolado: nº do processo, data, versão protocolada, valor da causa e se o acompanhamento nos tribunais está ativo;
   - relato do atendimento e relato escrito pela Dra. Camila a partir do WhatsApp;
   - análise da Dra. Helena, com os pontos graves primeiro e a fonte de cada um. "Analisar de novo" roda em segundo plano, sem avisar no WhatsApp da Dra.; pedido de reenvio ao cliente vira rascunho para aprovar.
+  - A análise lê as fotos e os PDFs do WhatsApp e os documentos do caso, tanto os guardados no CRM quanto os que vieram da pasta do Google Drive só com o link (baixados na hora). Se nenhum arquivo pôde ser lido, o aviso diz quantos estão só no Drive e pede para conferir se a pasta está compartilhada com a conta Google do CRM.
 - **Aba Documentos:**
   - aviso de mensagens ao cliente esperando aprovação, com atalho;
   - checklist grande, em que clicar marca o que chegou;
@@ -356,6 +357,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | A análise da Dra. Helena passa a ler os documentos do caso que estão só como link do Google Drive (antes dizia "O cliente ainda não mandou nenhuma foto ou PDF") |
 | 30/10/2026 | Claude | Barra também dentro da seção da Mesa (análise, contratos, pasta, revisão), com o botão mostrando a porcentagem; a análise da Dra. Helena conta arquivo por arquivo |
 | 30/10/2026 | Claude | Painel de tarefas: toda ação demorada (pasta do Drive, contratos, análise, revisão, geração da peça) mostra barra e etapa no canto da tela e termina com confirmação "Concluído"/"Não concluído" que fica até o OK; avisos rápidos ficam mais tempo |
 | 30/10/2026 | Claude | Cabeçalho fixo da peça trabalhista: "DOUTO JUÍZO DA ___ VARA DO TRABALHO DE (CIDADE) – (ESTADO)", no pedido à IA e conferido na 1ª linha depois da redação (`enderecamentoPeca.ts`) |

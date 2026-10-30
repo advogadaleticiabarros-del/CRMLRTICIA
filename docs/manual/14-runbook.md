@@ -845,6 +845,14 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 ---
 
+## Incidente: "Análise dos documentos" dizia que o cliente não mandou nada (30/10/2026)
+
+- **Sintoma:** no painel de tarefas, "Análise dos documentos: Valmirio Pinto · empréstimo consignado — Banco Itaú S.A." terminou em "✕ Não concluído — O cliente ainda não mandou nenhuma foto ou PDF.", com os documentos já no caso.
+- **Causa raiz:** `arquivosDoCliente` (`src/services/analistaServico.ts`) só pegava documento com o arquivo guardado no banco (`data IS NOT NULL`). Os documentos que vêm da pasta do Google Drive ficam só com o link (`file_url`), e eram ignorados. O kit e a petição já baixavam esses links; a análise, não.
+- **Correção:** a análise passa a incluir os documentos com link do Drive e os baixa na hora da leitura (`comoLerDocumento` e `lidoPelaAnalise` em `analistaDocumentos.ts`; teste `tests/analiseDocumentosDoDrive.test.mjs`). Se nenhum arquivo for lido, a mensagem diz quantos estão só no Drive e pede para conferir o compartilhamento da pasta.
+- **Junto:** a barra da análise criou uma função `marcar` dentro de `analisarCaso` com o mesmo nome da trava do pedido de reenvio ao cliente; a trava deixava de funcionar. Renomeada para `andamento`, e o teste barra a repetição.
+- **Como reconhecer de novo:** "não mandou nenhuma foto ou PDF" num caso que tem documentos na aba Documentos. Confira se os documentos têm arquivo ou só link. Se a nova mensagem falar em "só no Google Drive", o problema é o compartilhamento da pasta (ver o incidente da pasta do Drive).
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -909,3 +917,4 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
+| 30/10/2026 | Claude | +1 incidente: "Análise dos documentos" dizia que o cliente não mandou nada (documentos só como link do Drive eram ignorados) |

@@ -51,6 +51,25 @@ export interface LeituraDoc {
   data_exame: string | null; semanas_gestacao: number | null; indicios_alteracao: string[]; observacoes: string | null;
 }
 
+/** Foto ou PDF: o que a leitura crítica sabe ler. */
+export function lidoPelaAnalise(mime: string | null | undefined): boolean {
+  const m = String(mime || '');
+  return m.startsWith('image/') || m === 'application/pdf';
+}
+
+/**
+ * De onde a Dra. Helena tira um documento do CRM: o arquivo guardado ou, quando o documento
+ * veio da pasta do Google Drive só com o link, o arquivo baixado de lá (incidente de 30/10/2026:
+ * os documentos do Valmirio eram todos links e a análise dizia que o cliente não mandou nada).
+ * O tipo de um link nem sempre é conhecido; ele é conferido depois de baixar.
+ */
+export function comoLerDocumento(d: { mime?: string | null; tem_arquivo?: boolean | number | null; file_url?: string | null }): 'guardado' | 'drive' | null {
+  const desconhecido = !d.mime || d.mime === 'application/octet-stream';
+  if (Number(d.tem_arquivo)) return lidoPelaAnalise(d.mime) ? 'guardado' : null;
+  if (/drive\.google\.com/.test(String(d.file_url || ''))) return lidoPelaAnalise(d.mime) || desconhecido ? 'drive' : null;
+  return null;
+}
+
 const texto = (v: any) => (typeof v === 'string' && v.trim() && v.trim().toLowerCase() !== 'null' ? v.replace(/\s+/g, ' ').trim().slice(0, 255) : null);
 
 /** "dd/mm/aaaa" ou "aaaa-mm-dd" → "aaaa-mm-dd". */
