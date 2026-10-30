@@ -40,3 +40,6 @@ _*.js
 scripts/spike-*-resultado.json
 playwright-report/
 test-results/
+
+# Atalho local para .agents/skills/impeccable (caminho absoluto deste computador; a skill vai versionada em .agents/)
+.claude/skills/impeccable

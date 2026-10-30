@@ -5,6 +5,7 @@
 **Última atualização:** 30/10/2026. Último commit: geração da peça com confirmação, trava e barra de progresso.
 
 ## Últimas entregas (mais recentes primeiro)
+- **30/10 (noite, 5):** skill `impeccable` (design de telas) versionada em `.agents/skills/impeccable` com o `skills-lock.json`; `.agents/` fora do lint e o atalho local `.claude/skills/impeccable` no `.gitignore`.
 - **30/10 (noite, 4):** **Geração da peça com confirmação, trava e barra de progresso** (pedidos da Jessica: "trave o botão depois do primeiro clique, até chegar a versão, e sempre confirme antes"; "uma barra mostrando que a versão está sendo gerada").
   - Sempre confirma; o botão fica travado até a versão chegar; o servidor recusa um 2º pedido da mesma peça (409). Ações diferentes geram em paralelo.
   - Barra no canto da Mesa com a etapa ("Etapa X de 9"), o tempo decorrido e a versão nova aberta ao chegar. `travaGeracaoPeca.ts`, rota `GET /api/cases/:id/peticao-inicial/status`. 9 testes novos.

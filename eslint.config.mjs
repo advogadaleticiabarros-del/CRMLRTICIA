@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 import globals from 'globals';
 
 export default tseslint.config(
-  { ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'public/vendor/**', '**/*.min.js', 'scripts/**', 'tests/**', '.claude/**', 'worktrees/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'public/vendor/**', '**/*.min.js', 'scripts/**', 'tests/**', '.claude/**', '.agents/**', 'worktrees/**'] },
 
   // Backend (TypeScript)
   {
