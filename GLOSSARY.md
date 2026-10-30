@@ -28,6 +28,8 @@ O vocabulário do escritório da Dra. Letícia e onde cada coisa mora no sistema
 | **Sentença / acórdão** | Decisão do juiz / do tribunal. Lida pelo Dr. Lucas, com os prazos de recurso por tabela fixa. | `decisao_leituras`, `leitorDecisao.ts` |
 | **Peça** | Documento para o processo (inicial, contestação, recurso, manifestação). **Minuta** é a versão que a Dra. revisa. | `documents`, `peca_modelos` |
 | **Contrato do cliente** | Cada contrato bancário lido nos documentos (extrato do INSS, contrato, fatura), com tipo e banco. É do cliente, não do caso; a Dra. diz em qual processo ele entra. Sem decisão, entra na peça só se for do banco do réu e da mesma família de tese. | `cliente_contratos`, `contratosDoCaso.ts` |
+| **Card do cliente (lote)** | Visão única das ações de um cliente antes do protocolo: o que falta, uma ação por banco (peça própria), o kit de protocolo e os documentos com nome padrão. Não é tabela: sai dos casos do cliente. | `loteProducao.ts`, `/api/lote` |
+| **Kit de protocolo** | O .zip de uma ação: peça em Word e anexos na ordem, numerados, renomeados e em PDF, com um LEIA-ME. | `kitProtocolo.ts` |
 | **Juntada de conta** | Manifestação que informa ao juízo os dados bancários para o crédito. Tem modelo padrão no Obsidian. | `Modelos de Peças/Trabalhista` |
 | **Prescrição bienal** | Na trabalhista, a ação precisa entrar até 2 anos depois da saída. | `analistaDocumentos.ts` |
 

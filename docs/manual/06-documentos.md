@@ -65,6 +65,28 @@ Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análi
 
 **Importante — "Concluído" aqui não é o caso encerrado.** Significa só que a peça foi protocolada e o trabalho de produção daquela demanda terminou — o **caso em si continua ativo**, seguindo dali em diante pela esteira processual normal (acompanhamento de movimentação, prazos, audiências — ver [Processos e prazos](04-processos.md)), não pela esteira de produção. "Concluído"/"Protocolado" só tiram o card da contagem de "Em produção" e param o relógio do SLA de redação — não mudam o status do processo.
 
+## Card único do cliente: várias ações, um card (desde 30/10/2026)
+
+Pedido da Jessica (caso real com 6 bancos): "preciso de tudo centralizado em um único card, pois está bem bagunçado criar vários cards diferentes, mesmo que vamos fazer vários processos distintos para protocolar... 80% o CRM deve me entregar pronto, organizado, com os documentos renomeados e as peças prontas para que eu revise e protocole um a um".
+
+**Regra de divisão (Jessica, 30/10):** cada banco (parte contrária) tem a **sua peça**. RMC e RCC **do mesmo banco** podem ir juntos (faixa "processo único"). Empréstimo consignado e cartão do mesmo banco continuam separados (regra de 22/10).
+
+**No quadro:** cliente com **2 ou mais ações antes do protocolo** aparece como **um card** ("6 ações", com os bancos embaixo), na etapa da ação mais atrasada, com o maior prazo e a soma das pendências. O card do cliente não se arrasta: cada ação anda pela própria tela. Ação protocolada volta a ter card próprio (já é um processo, com nº).
+
+**Ao clicar, abre a tela do cliente:**
+- **O que falta:** os documentos comuns que faltam. O **extrato de empréstimos consignados do INSS** (HISCON) **trava** as ações de consignado e cartão consignado: é o único documento que liga cada desconto ao banco e ao contrato; sem ele o cálculo sai zerado (foi o que aconteceu com a peça do Itaú em 28/10). Também avisa procuração, declaração, identidade, comprovante de residência e histórico de créditos.
+- **Ações para protocolar, uma a uma:** uma linha por banco com a tese, a etapa, a situação (Faltam documentos / Peça ainda não gerada / Peça para revisar / **Pronta para protocolar** / Protocolada), a versão da peça e o kit. Botões:
+  - **Abrir a mesa:** a Mesa do caso daquela ação (por cima; ao fechar, volta para o cliente);
+  - **Baixar o kit (.zip):** `00 - Petição inicial - <banco>.docx` (Times 12, espaçamento 1,5, recuo de 2,5 cm; a versão marcada como final, senão a mais nova), os anexos **na ordem do protocolo, numerados e renomeados** (`01 - Procuração - Cliente.pdf`, `02 - Declaração de hipossuficiência...`, `04 - Histórico de créditos do INSS (1 de 6)...`), **fotos convertidas em PDF**, a planilha de cálculos e o `LEIA-ME.txt` (ordem, nome de chegada de cada arquivo, o que ficou fora por estar só no Drive e o que falta). Baixar fica na linha do tempo da ação;
+  - **Protocolar:** pede o nº do processo (avisa se a peça não está marcada como versão final). A ação vira "Protocolada" e a próxima fica à vista.
+- **Documentos do cliente:** cada documento com o tipo reconhecido e o **nome padrão** ("Procuração - Cliente.pdf"), com o nome de chegada embaixo. **Comuns** servem a todas as ações; **de um banco** (contrato, consulta de cartões, reclamação) vão só para as ações do banco que o documento cita, mesmo que tenham sido anexados no card de outro banco (o print "PAN e FACTA" anexado no card do Itaú vai para os kits do PAN e da Facta, e não para o do Itaú). Documento de banco que não cita banco nenhum fica na ação onde foi anexado; sem ação, aparece "anexe no card do banco certo". "Dar o nome padrão" renomeia no CRM e guarda o nome de chegada (`documents.nome_original`). Também dá para enviar documentos do cliente por ali (valem para todas as ações).
+
+**Como o tipo é reconhecido:** primeiro pelo "Tipo do documento" que a leitura por IA escreve no texto (um "EXTRATO_DE_EMPRESTIMO" que na verdade é histórico de créditos é tratado como histórico de créditos), depois pelo nome do arquivo. Peça, dossiê, revisão e análise são internos e nunca vão para o kit.
+
+**Senha do Meu INSS:** colada na observação do card (ex.: o e-mail do parceiro), vai para o cofre do cliente (`client_credentials`) e sai do texto, que é lido pela IA. Vale ao salvar a observação e, para o que já existia, a cada início do CRM. Ver o runbook.
+
+Código: `src/services/loteProducao.ts` (regras: classificação, nome, kit, situação, agrupamento do quadro), `kitProtocolo.ts` (.zip, .docx, foto em PDF), `loteProducaoMysql.ts` (banco), `src/routes/lote.ts` (`GET /api/lote/:clientId`, `GET /api/lote/:clientId/acao/:caseId/kit`, `POST /api/lote/:clientId/padronizar`), `public/loteCliente.js`. Migration 173 (`documents.nome_original`). Testes: `tests/loteProducao.test.mjs`, `tests/kitProtocolo.test.mjs` e o de ponta a ponta "Card do cliente".
+
 ## Esteira da petição inicial: os agentes montam a peça (desde 22/10/2026)
 
 Pedido da Jessica: "preciso que os documentos sejam lidos de fato, os cálculos sejam realizados de fato, a peça seja produzida com contexto". Antes, a petição recebia só o resumo do lead, os documentos cortados em 4.000 caracteres e **um** modelo buscado entre as 40 primeiras peças do cofre. Agora, ao mover o card para **Criação inicial** (ou no botão "Gerar nova versão da petição"), a equipe trabalha em ordem:
@@ -293,6 +315,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Card único do cliente: cliente com 2+ ações antes do protocolo vira um card no quadro; a tela do cliente mostra o que trava (extrato de empréstimos do INSS), as ações por banco com a situação, o kit de protocolo (.zip com a peça em Word e os anexos renomeados, na ordem, fotos em PDF) e "Protocolar" uma a uma; documentos com nome padrão (migration 173); senha do Meu INSS sai da observação do card para o cofre |
 | 28/10/2026 | Claude | Dr. Augusto (Calculista): planilha de cálculos da peça com correção (INPC/IPCA) e juros de mora (1% a.m./taxa legal) desde cada desconto, índices do Bacen guardados no banco (migration 172), .xlsx para anexar, aba Cálculos na mesa; o valor da causa usa a restituição atualizada |
 | 28/10/2026 | Claude | Contratos nos documentos: todos os contratos lidos ficam no cliente (tipo e banco); na peça só entram os do banco do réu e da mesma tese, ou os que a Dra. associa na aba Caso da mesa; descontos seguem os contratos; dossiê mostra o que ficou fora |
 | 22/10/2026 | Claude | Processo único: o quadro sugere juntar pedidos do mesmo cliente, banco e família de tese (cartão consignado; empréstimo consignado; empréstimo pessoal; cartão comum) e a Dra. confirma; a peça junta só o confirmado |

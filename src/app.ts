@@ -62,6 +62,7 @@ import correspondenteRoutes from './routes/correspondente';
 import documentRoutes from './routes/documents';
 import pecaModelosRoutes from './routes/pecaModelos';
 import mesaRoutes from './routes/mesa';
+import loteRoutes from './routes/lote';
 import jobHealthRoutes from './routes/jobHealth';
 import retentionRoutes from './routes/retention';
 import securityStatusRoutes from './routes/securityStatus';
@@ -231,6 +232,7 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.use('/api/documents',             authenticate, requireStaff, documentRoutes);
   app.use('/api/peca-modelos',          authenticate, requireStaff, pecaModelosRoutes);
   app.use('/api/mesa',                  authenticate, requireStaff, mesaRoutes);
+  app.use('/api/lote',                  authenticate, requireStaff, loteRoutes);
   app.use('/api/job-health',            authenticate, requireStaff, jobHealthRoutes);
   app.use('/api/retention',             authenticate, requireAdmin, retentionRoutes);
   app.use('/api/security',              authenticate, requireAdmin, securityStatusRoutes);

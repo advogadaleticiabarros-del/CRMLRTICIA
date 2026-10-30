@@ -186,15 +186,62 @@ test('Processo único: o quadro sugere juntar RMC e RCC do mesmo banco e deixa o
   }, nome);
 
   await page.evaluate(() => { location.hash = '#producao'; });
-  await expect(page.locator('#prod-board .kf-card', { hasText: nome })).toHaveCount(3, { timeout: 20_000 });
+  // Card único do cliente (30/10/2026): as 3 ações do mesmo cliente são UM card no quadro.
+  const cardCliente = page.locator('#prod-board .kf-card-lote', { hasText: nome });
+  await expect(cardCliente).toHaveCount(1, { timeout: 20_000 });
+  await expect(cardCliente).toContainText('3 ações');
   await page.locator('#prod-juncao-ver').click();
   const grupo = page.locator('.juncao-grupo', { hasText: nome });
   await expect(grupo).toContainText('Cartão consignado');
   await expect(grupo.locator('.juncao-item')).toHaveCount(2);
   await expect(grupo).not.toContainText('Empréstimo pessoal');
   await grupo.locator('button', { hasText: 'Juntar em um processo' }).click();
-  await expect(page.locator('#prod-board .kf-card', { hasText: nome })).toHaveCount(2, { timeout: 15_000 });
-  await expect(page.locator('#prod-board .kf-card', { hasText: nome }).locator('.prod-unidos-tag')).toHaveText('+1 pedido');
+  await expect(cardCliente).toContainText('2 ações', { timeout: 15_000 });
+  await expect(page.locator('#prod-board .kf-card', { hasText: nome })).toHaveCount(1);
+  expect(erros, erros.join('\n')).toEqual([]);
+});
+
+// Pedido de 30/10/2026: "tudo centralizado em um único card... documentos renomeados
+// e as peças prontas para que eu revise e protocole um a um".
+test('Card do cliente: ações por banco, o que trava, kit de protocolo e protocolar uma a uma', async ({ page }) => {
+  const erros = vigiar(page);
+  await page.setViewportSize({ width: 1366, height: 800 });
+  await entrar(page);
+  const nome = `Cliente Lote ${Date.now()}`;
+  await page.evaluate(async (nomeCliente) => {
+    const cl = await api('/api/clients', { method: 'POST', body: JSON.stringify({ name: nomeCliente }) });
+    for (const title of ['Empréstimo consignado — Banco Alfa S.A.', 'RMC — Beta Financeira S.A.']) {
+      const cs = await api('/api/cases', { method: 'POST', body: JSON.stringify({ client_id: cl.id, title, legal_area: 'consumidor' }) });
+      await api(`/api/cases/${cs.id}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage: 'em_analise' }) });
+    }
+    // Procuração guardada como arquivo, com o nome com que chegou.
+    await api('/api/documents', { method: 'POST', body: JSON.stringify({ client_id: cl.id, name: 'PROCURACAO_ASSINADA.pdf', type: 'anexo', folder: 'processos', file_base64: btoa('%PDF-1.4 teste'), mime: 'application/pdf' }) });
+  }, nome);
+
+  await page.evaluate(() => { location.hash = '#producao'; });
+  const cardCliente = page.locator('#prod-board .kf-card-lote', { hasText: nome });
+  await expect(cardCliente).toContainText('2 ações', { timeout: 20_000 });
+  await cardCliente.click();
+  const tela = page.locator('.lote-cli');
+  await expect(tela.locator('.lote-acao')).toHaveCount(2, { timeout: 15_000 });
+  await expect(tela.locator('.lote-trava')).toContainText('Extrato de empréstimos consignados do INSS');
+  await expect(tela).toContainText(`Procuração - ${nome}.pdf`);
+
+  // Kit da ação: .zip com a procuração já renomeada.
+  const [download] = await Promise.all([page.waitForEvent('download'), tela.locator('.lote-acao').first().locator('[data-acao="kit"]').click()]);
+  expect(download.suggestedFilename()).toMatch(/^Kit .* x Banco Alfa S\.A\.\.zip$/);
+
+  // Dar o nome padrão: o nome com que chegou fica guardado.
+  await tela.locator('[data-acao="padronizar"]').click();
+  await expect(tela.locator('[data-acao="padronizar"]')).toHaveCount(0, { timeout: 15_000 });
+
+  // Protocolar a 1ª (peça ainda não final: confirma), com o nº do processo.
+  await tela.locator('.lote-acao').first().locator('[data-acao="protocolar"]').click();
+  await page.locator('#uid-ok').click();
+  await page.locator('#uid-input').fill('5000001-00.2026.8.08.0001');
+  await page.keyboard.press('Enter');
+  await expect(tela.locator('.lote-acao').first()).toContainText('Protocolada', { timeout: 15_000 });
+  await page.keyboard.press('Escape');
   expect(erros, erros.join('\n')).toEqual([]);
 });
 

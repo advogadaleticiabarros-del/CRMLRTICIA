@@ -61,6 +61,17 @@ async function bootstrap() {
     console.error('❌ Erro ao rodar as migrations (o CRM sobe mesmo assim):', e?.message);
   }
 
+  // 2b. Senha do Meu INSS colada na observação/descrição do card vai para o cofre do
+  //     cliente (client_credentials) e sai do texto, que é lido pela IA (30/10/2026).
+  try {
+    const { guardarSenhasDosCards } = await import('./services/loteProducaoMysql');
+    const r = await guardarSenhasDosCards();
+    if (r.movidas) console.log(`🔐 ${r.movidas} senha(s) do Meu INSS saíram da observação do card e foram para a ficha do cliente.`);
+    if (r.divergentes.length) console.warn(`⚠️  Senha do Meu INSS no card difere da guardada na ficha (casos ${r.divergentes.join(', ')}): conferir.`);
+  } catch (e: any) {
+    console.error('Senhas do Meu INSS nos cards (o CRM sobe mesmo assim):', e?.message);
+  }
+
   // 3. LGPD: cifra os tokens de OAuth que ainda estiverem em texto puro.
   //    Idempotente e barato. Roda aqui para não exigir script manual contra o
   //    banco de produção. Falhar aqui NÃO pode impedir o CRM de subir.

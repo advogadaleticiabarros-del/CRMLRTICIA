@@ -2667,3 +2667,60 @@ div.mesa-ck { cursor: default; }
   .mesa-ferr { top: 0; position: static; }
   .mesa-topo { position: static; }
 }
+
+/* ── Card único do cliente na produção (30/10/2026) ─────────────────────────
+   Cliente com 2+ ações antes do protocolo: um card no quadro e uma tela com as
+   ações (uma peça por banco), o kit de protocolo e os documentos renomeados.
+   Fica por baixo da Mesa do caso (z-index 89 < 90), que abre por cima dela. */
+body.lote-aberto { overflow: hidden; }
+.lote-cli {
+  position: fixed; inset: 0; z-index: 89; overflow: auto; overscroll-behavior: contain;
+  background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.45;
+  --lote-ok: #1f6b3a; --lote-ok-bg: #e3f2e8; --lote-ambar: #8a5a12; --lote-ambar-bg: #fbefd6; --lote-grave: #a8382f; --lote-grave-bg: #fbe4e1;
+}
+[data-theme="escuro"] .lote-cli {
+  --lote-ok: #8fd6a6; --lote-ok-bg: rgba(31,107,58,.3); --lote-ambar: #f2c97a; --lote-ambar-bg: rgba(138,90,18,.3); --lote-grave: #f29a91; --lote-grave-bg: rgba(168,56,47,.3);
+}
+.lote-corpo { max-width: 1080px; margin: 0 auto; padding: 20px 16px 48px; display: flex; flex-direction: column; gap: 18px; }
+.lote-bloco { background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 18px 20px; }
+.lote-bloco h2 { margin: 0 0 10px; font-size: 16px; color: var(--navy-deep); }
+.lote-bloco h4 { margin: 14px 0 6px; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--text-muted); }
+.lote-sub { margin: -4px 0 12px; font-size: 13px; color: var(--text-muted); }
+.lote-trava { padding: 10px 12px; border-radius: 10px; background: var(--lote-grave-bg); color: var(--lote-grave); margin-bottom: 8px; }
+.lote-falta { margin: 0; font-size: 13px; color: var(--text-soft); }
+.lote-falta small { color: var(--text-muted); }
+.lote-ok { margin: 0; color: var(--lote-ok); }
+.lote-acoes { display: flex; flex-direction: column; gap: 10px; }
+.lote-acao { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 12px; align-items: start; padding: 14px; border: 1px solid var(--border-soft); border-radius: 12px; background: var(--bg); }
+.lote-acao-n { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; background: var(--surface-2); color: var(--text-soft); font-variant-numeric: tabular-nums; }
+.lote-acao h3 { margin: 0; font-size: 15px; color: var(--text); }
+.lote-acao p { margin: 2px 0 0; font-size: 13px; color: var(--text-muted); }
+.lote-acao-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-top: 6px !important; }
+.lote-acao-botoes { display: flex; flex-direction: column; gap: 6px; min-width: 160px; }
+.lote-chip { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+.lote-grave { background: var(--lote-grave-bg); color: var(--lote-grave); }
+.lote-ambar { background: var(--lote-ambar-bg); color: var(--lote-ambar); }
+.lote-ok.lote-chip, .lote-chip.lote-ok { background: var(--lote-ok-bg); color: var(--lote-ok); }
+.lote-feito { background: var(--surface-2); color: var(--text-soft); }
+.lote-neutro { background: var(--surface-2); color: var(--text-muted); }
+.lote-kit { margin-top: 8px; font-size: 13px; }
+.lote-kit summary { cursor: pointer; color: var(--text-soft); }
+.lote-kit ol { margin: 6px 0 0; padding-left: 20px; }
+.lote-kit li { overflow-wrap: anywhere; }
+.lote-acao-corpo { min-width: 0; }
+.lote-kit li small, .lote-docs li small { display: block; color: var(--text-muted); font-size: 12px; }
+.lote-aviso { color: var(--lote-ambar) !important; display: inline !important; }
+.lote-docs-cab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; color: var(--text-soft); }
+.lote-docs { list-style: none; margin: 0; padding: 0; }
+.lote-docs li { padding: 7px 0; border-bottom: 1px solid var(--border-soft); font-size: 13.5px; overflow-wrap: anywhere; }
+.lote-bancos b { color: var(--lote-grave); }
+.lote-enviar { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; font-size: 13px; color: var(--text-soft); }
+@media (max-width: 720px) {
+  .lote-acao { grid-template-columns: 30px minmax(0, 1fr); }
+  .lote-acao-botoes { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; min-width: 0; }
+}
+
+/* Card do cliente no quadro */
+.kf-card-lote { border-left: 3px solid var(--gold, #c9a227); }
+.prod-lote-tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--text-soft); }
+.prod-lote-bancos { display: block; margin-top: 2px; font-size: 12px; color: var(--text-muted); }

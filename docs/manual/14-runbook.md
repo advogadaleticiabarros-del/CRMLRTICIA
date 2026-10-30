@@ -16,6 +16,21 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: senha do Meu INSS em texto aberto na observação do card
+
+**Sintoma:** em 30/10/2026, a observação de um card da produção (caso de parceria) tinha a senha do Meu INSS do cliente em claro, colada junto com o e-mail do parceiro ("DADOS DE ACESSO AO INSS / Senha Meu INSS: ...").
+
+**Por que é grave:** a regra é a senha ficar só em `client_credentials`. A observação do card aparece no quadro e no menu do card, e entra nas "anotações da produção" que a Dra. Helena manda para a IA na esteira da peça.
+
+**Correção (30/10/2026):**
+- `retirarSenhaInss` (`src/services/senhaInssCliente.ts`) acha "senha (do) (meu) INSS: X", devolve a senha e troca no texto por "[guardada na ficha do cliente]";
+- ao salvar a observação (`PATCH /api/cases/:id/production-meta`), a senha vai para o cofre do cliente e sai do texto;
+- no início do CRM, `guardarSenhasDosCards` faz o mesmo com a observação e a descrição dos cards que já existiam. Se o cofre já tem **outra** senha, não mexe e escreve no log "Senha do Meu INSS no card difere da guardada na ficha (casos N): conferir".
+
+**Como reconhecer de novo:** a palavra "senha" em observação, descrição, relato ou nota de produção. Outros formatos (ex.: "senha gov.br") não são pegos pela regra: mova à mão para a ficha do cliente (botão da senha do Meu INSS).
+
+---
+
 ## Incidente: demanda dativa com mãe e filho menor dava erro 500
 
 **Sintoma:** em 26/10/2026, ao cadastrar uma demanda dativa com o assistido "NOME DA MÃE e B. F. S. C." (mãe e menor só com as iniciais), o sistema respondeu com erro e o Dr. Bento registrou: `"…" junta mais de uma pessoa — cadastre cada uma separadamente` em `POST /api/dative/cases`. A demanda não era salva.
@@ -404,7 +419,9 @@ pm2 restart crm-juridico && pm2 save
 
 **Como confirmar:** tela WhatsApp → menu de auditoria → **Saúde do WhatsApp** — mostra status da conexão em tempo real e falhas recentes.
 
-**Correção:** o robô `whatsapp:reconectar` já tenta reconectar sozinho a cada 5 minutos (ver [Monitoramento automático](10-monitoramento.md)). Se persistir além disso, é provável instabilidade do lado da Uazapi (provedor) — não há ação manual documentada além de aguardar/checar o painel da Uazapi.
+**Correção:** o robô `whatsapp:reconectar` já tenta reconectar sozinho a cada 5 minutos (ver [Monitoramento automático](10-monitoramento.md)). Se persistir além disso, é provável instabilidade do lado da Uazapi (provedor) — aguarde/cheque o painel da Uazapi.
+
+**Exceção — erro "session is not reconnectable" (30/10/2026):** o aviso crítico "Rotina automática falhou: whatsapp:verificar-conexao — WhatsApp disconnected: session is not reconnectable" quer dizer que o WhatsApp derrubou a sessão do lado dele (aparelho desconectado em "Dispositivos conectados", reinstalação, troca de celular ou celular muitos dias sem internet). Aí **esperar não resolve**: o religamento automático não consegue voltar. A única saída é escanear o QR de novo com o celular do escritório, em Configurações → Conexão do WhatsApp → Conectar ou direto no painel da Uazapi (foi assim em 30/10). Enquanto isso, nada entra nem sai pelo WhatsApp (assistente, lembretes, avisos); prazos e backup seguem normais. Depois de reconectar, confira em Saúde do WhatsApp e veja no sino se algum envio falhou durante a queda.
 
 ## Incidente: mídia do WhatsApp aparece como "Mídia recebida, mas falhou ao baixar"
 
@@ -791,6 +808,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | WhatsApp "session is not reconnectable": só o QR resolve (reconectado pela Uazapi em 30/10) |
 | 30/10/2026 | Claude | Disco cheio, 2ª vez: backup morto por falta de memória deixava dumps em claro no /tmp; backup passou a trabalhar em fluxo |
 | 28/10/2026 | Claude | +1 incidente: peça contra o Itaú citava contratos do PAN e da FACTA lidos no extrato do INSS (agora só entram os contratos do réu e da tese, ou os que a Dra. associa) |
 | 22/10/2026 | Claude | +1 incidente: recado ao cliente da produção não salvava (rota ignorava `client_message`) |

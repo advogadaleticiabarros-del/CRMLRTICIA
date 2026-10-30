@@ -20,7 +20,7 @@ export interface Situacao { entra: boolean; origem: 'dra' | 'automatica'; motivo
 const GENERICO = new Set(['financeira', 'credito', 'financiamento', 'financiamentos', 'investimento', 'investimentos', 'consignado', 'consignados', 'sociedade', 'instituicao']);
 
 /** O que identifica o banco: o 1º nome que sobra ("Itaú Consignado S.A." → "itau"). */
-function nucleoBanco(nome: string | null | undefined): string {
+export function nucleoBanco(nome: string | null | undefined): string {
   const tokens = normalizarNomeParte(nome).split(' ').filter(Boolean);
   const proprios = tokens.filter((t) => !GENERICO.has(t));
   return (proprios[0] || tokens[0] || '');

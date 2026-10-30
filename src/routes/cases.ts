@@ -8,6 +8,8 @@ import { montarEndereco } from '../services/contractTemplates';
 import { buildPeticaoInicial, analyzeCaseDrive } from '../services/peticaoBuilder';
 import { revisarPeticaoDoCaso } from '../services/peticaoReviewer';
 import { slaDiasEfetivosSql } from '../services/productionSla';
+import { retirarSenhaInss } from '../services/senhaInssCliente';
+import { agruparQuadro } from '../services/loteProducao';
 import { validarParte, ehParteDoCliente, POLOS } from '../services/partesProcesso';
 
 const router = Router();
@@ -66,7 +68,7 @@ router.get('/', async (req: Request, res: Response) => {
 // ── GET /api/cases/production-board — quadro Kanban da produção (com SLA) ────
 router.get('/production-board', async (_req: Request, res: Response) => {
   const [rows] = await db.query(`
-    SELECT c.id, c.case_number, c.title, c.legal_area, c.production_stage,
+    SELECT c.id, c.client_id, c.case_number, c.title, c.legal_area, c.production_stage,
            c.production_started_at, c.production_labels, c.production_obs,
            c.rejection_reason, c.rejection_notes, c.rejected_at, c.stage_before_rejection,
            c.partner_id,
@@ -86,7 +88,8 @@ router.get('/production-board', async (_req: Request, res: Response) => {
        AND c.unido_ao_caso IS NULL
      ORDER BY c.production_started_at ASC
   `) as any;
-  res.json(rows);
+  // Cliente com 2+ ações antes do protocolo vira UM card (card único do cliente, 30/10/2026).
+  res.json(agruparQuadro(rows));
 });
 
 // ── GET /api/cases/sem-procuracao — casos ativos sem procuração registrada ───
@@ -268,7 +271,19 @@ router.patch('/:id/production-meta', async (req: Request, res: Response) => {
     if (labels !== undefined) { sets.push('production_labels = ?'); params.push(Array.isArray(labels) ? JSON.stringify(labels) : null); }
     if (assignee !== undefined) { sets.push('production_assignee = ?'); params.push(assignee || null); }
     if (drive_folder_url !== undefined) { sets.push('drive_folder_url = ?'); params.push(drive_folder_url ? String(drive_folder_url).trim() : null); }
-    if (production_obs !== undefined) { sets.push('production_obs = ?'); params.push(production_obs && String(production_obs).trim() ? String(production_obs).trim() : null); }
+    if (production_obs !== undefined) {
+      // Senha do Meu INSS colada na observação vai para o cofre do cliente e sai do texto (30/10/2026).
+      let semSenha = retirarSenhaInss(String(production_obs || ''));
+      if (semSenha.senha) {
+        const [[cs]] = await db.query('SELECT client_id FROM cases WHERE id = ?', [req.params.id]) as any;
+        if (cs?.client_id) {
+          await db.query(
+            'INSERT INTO client_credentials (client_id, senha_inss, updated_by) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE senha_inss = VALUES(senha_inss), updated_by = VALUES(updated_by)',
+            [cs.client_id, semSenha.senha, req.user!.id]);
+        } else semSenha = { texto: String(production_obs || ''), senha: null }; // sem cliente, não há cofre: o texto fica como veio
+      }
+      sets.push('production_obs = ?'); params.push(semSenha.texto.trim() ? semSenha.texto.trim() : null);
+    }
     if (!sets.length) { res.status(400).json({ error: 'Nada para atualizar' }); return; }
     params.push(req.params.id);
     await db.query(`UPDATE cases SET ${sets.join(', ')} WHERE id = ?`, params);

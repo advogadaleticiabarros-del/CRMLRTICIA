@@ -17,3 +17,18 @@ export function normalizarSenhaInss(v: unknown): string | null {
   if (s.length > 100) throw new Error('Senha longa demais');
   return s;
 }
+
+const MARCADOR = '[guardada na ficha do cliente]';
+const SENHA_NO_TEXTO = /(senha\s+(?:do\s+)?(?:meu\s+)?inss)(\s*[:\-–]\s*)(\S+)/i;
+
+/**
+ * Senha do Meu INSS colada num texto (observação do card, relato do parceiro...).
+ * Devolve o texto sem a senha (fica o marcador) e a senha, para ir ao cofre
+ * (`client_credentials`). Caso real (30/10/2026): o e-mail do parceiro colado na
+ * observação do card levava a senha em claro, e a observação vai para a IA.
+ */
+export function retirarSenhaInss(texto: string): { texto: string; senha: string | null } {
+  const m = String(texto ?? '').match(SENHA_NO_TEXTO);
+  if (!m || m[3] === '[guardada' || m[3].startsWith('[')) return { texto, senha: null };
+  return { texto: texto.replace(SENHA_NO_TEXTO, `$1: ${MARCADOR}`), senha: m[3] };
+}

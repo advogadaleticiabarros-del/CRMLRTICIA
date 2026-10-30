@@ -2857,7 +2857,12 @@ const ROUTES = {
       $('#prod-board').innerHTML = STAGES.map(([sk, label]) => `
         <div class="kf-col" data-stage="${sk}">
           <div class="kf-head">${label} <div class="prod-col-meta"><span class="prod-col-avg">~${avgDias(by[sk])}</span><span class="kf-count">${by[sk].length}</span></div></div>
-          <div class="kf-cards" data-stage="${sk}">${by[sk].map((r) => sk === 'recusado' ? `
+          <div class="kf-cards" data-stage="${sk}">${by[sk].map((r) => r.lote ? `
+            <div class="kf-card kf-card-lote sla-${slaCls(r)}" data-cliente="${r.client_id}" data-stage="${r.production_stage}" title="Card do cliente: uma peça por banco, protocolo uma a uma">
+              <div class="prod-card-top">${slaBadge(r)}${indicatorsHtml(r)}<span class="prod-lote-tag">${r.lote.casos.length} ações${r.lote.protocoladas ? ` · ${r.lote.protocoladas} protocolada(s)` : ''}</span></div>
+              <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
+              <small class="prod-lote-bancos">${esc2(r.lote.titulos.map((t) => (String(t).split(/\s+[—–-]\s+|\s+[x×]\s+|\s+contra\s+/i).pop() || '').trim()).filter(Boolean).join(' · '))}</small>
+            </div>` : sk === 'recusado' ? `
             <div class="kf-card kf-card-locked" data-case="${r.id}" data-stage="${r.production_stage}">
               <span style="font-size:12px;font-weight:700;color:var(--red,#c0392b)">Recusado${r.rejected_at ? ' · ' + fmtDate(r.rejected_at) : ''}</span>
               <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
@@ -3003,6 +3008,11 @@ const ROUTES = {
             toast('Recusa revertida'); load();
           } catch (err) { toast(err.message || 'Erro ao reverter a recusa', 'error'); }
         };
+      });
+
+      // Card do cliente (2+ ações antes do protocolo): abre a tela do cliente, não arrasta.
+      $('#prod-board').querySelectorAll('.kf-card-lote').forEach((card) => {
+        card.onclick = () => mesaDoCliente(Number(card.dataset.cliente), load);
       });
 
       // Drag & drop

@@ -2,9 +2,15 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 30/10/2026. Último commit: backup em fluxo (o backup derrubava o CRM por falta de memória).
+**Última atualização:** 30/10/2026. Último commit: card único do cliente na produção (ações por banco, kit de protocolo, documentos renomeados).
 
 ## Últimas entregas (mais recentes primeiro)
+- **30/10 (noite):** **Card único do cliente na produção** (pedido da Jessica, caso real com 6 bancos: "tudo centralizado em um único card... documentos renomeados e as peças prontas para que eu revise e protocole um a um").
+  - **Regra confirmada:** uma peça por banco; RMC e RCC do mesmo banco podem ir juntos.
+  - Cliente com 2+ ações antes do protocolo vira **um card** no quadro. A tela do cliente mostra o que trava (o **extrato de empréstimos do INSS** trava consignado e cartão consignado), as ações por banco com a situação, **"Baixar o kit (.zip)"** (peça em Word + anexos numerados, renomeados, na ordem, fotos em PDF, LEIA-ME) e **"Protocolar"** uma a uma. Documentos com nome padrão ("Dar o nome padrão"; o nome de chegada fica em `documents.nome_original`, migration 173).
+  - **Segurança:** a senha do Meu INSS estava em claro na observação de um card (e ia para a IA). Agora vai para o cofre do cliente ao salvar e no início do CRM. Ver runbook.
+  - **Caso do print (6 ações):** continua travado até juntar o extrato de empréstimos do Meu INSS e o histórico de créditos desde 2022. O print PAN/FACTA já vai só para os kits desses dois bancos.
+  - Ver `docs/manual/06-documentos.md` ("Card único do cliente") e `docs/contexto/relatorios/2026-10-30-card-unico-do-cliente.md`.
 - **30/10:** **Backup derrubava o CRM e enchia o disco** (alarme de disco em 89%).
   - Com o dump em 925 MB, o backup passava de 4 GB de memória e o sistema matava o CRM no meio da cópia (9 vezes entre 29 e 30/10). **Não houve backup novo de 28/10 22h até o deploy desta correção.** Cada tentativa deixava um .sql de 925 MB em claro no /tmp (eram 21 GB).
   - Agora o backup comprime, cifra, confere e envia em fluxo, com o mesmo formato de arquivo. No teste de carga com 904 MB, o pico de memória foi de 187 MB. Cada backup também apaga as sobras de tentativas anteriores.
