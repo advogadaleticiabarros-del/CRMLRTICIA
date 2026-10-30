@@ -122,6 +122,12 @@ export async function analisarCaso(caseId: number, opts: { avisar?: boolean; ped
     const l = await lerArquivo(a).catch(() => null);
     if (l) docs.push({ fonte: a.fonte, l }); else falhas.push(a.fonte);
   }
+  if (!docs.length) {
+    const doDrive = arquivos.filter((a) => a.tam === 0).length;
+    return { ok: false as const, erro: doDrive
+      ? `Não consegui ler nenhum dos ${arquivos.length} arquivos (${doDrive} estão só no Google Drive). Confira se a pasta do cliente está compartilhada com a conta Google do CRM.`
+      : `Não consegui ler nenhum dos ${arquivos.length} arquivos do cliente (grandes demais ou ilegíveis). Conferir à mão.` };
+  }
 
   andamento('Conferindo os documentos com a história contada', arquivos.length, total);
   const historia = await historiaDoCliente(c.id, c.client_id, c.phone);
