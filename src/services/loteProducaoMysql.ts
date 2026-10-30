@@ -1,4 +1,5 @@
 import { db } from '../config/database';
+import { contratosSalvos } from './esteiraPecaMysql';
 import { montarLote, classificarDocumento, nomePadrao, type AcaoLote, type DocLote, type Lote } from './loteProducao';
 import { textoDoDocx, idDoArquivoNoDrive, type ArquivoKit } from './kitProtocolo';
 import { downloadDriveFile } from './partnerInboxService';
@@ -36,7 +37,10 @@ export async function carregarLote(clientId: number): Promise<Lote | null> {
       WHERE (client_id = ? AND (case_id IS NULL OR case_id IN (?)))
       ORDER BY id`, [clientId, ids.length ? ids : [0]]) as any;
   const documentos: DocLote[] = (docs as any[]).map((d) => ({ ...d, case_id: d.case_id == null ? null : (principalDe.get(d.case_id) ?? d.case_id) }));
-  return montarLote({ cliente: cl.name, acoes, documentos });
+  // Contrato posto num pedido unido conta na ação principal.
+  const salvos = (await contratosSalvos(clientId).catch(() => []))
+    .map((c) => ({ ...c, case_id: c.case_id == null ? null : (principalDe.get(c.case_id) ?? c.case_id) }));
+  return montarLote({ cliente: cl.name, acoes, documentos, contratos: salvos });
 }
 
 /** Arquivo do kit: o guardado no CRM ou, se o documento veio do Google Drive (só o link), baixado de lá na hora. */

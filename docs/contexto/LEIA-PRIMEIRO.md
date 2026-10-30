@@ -39,6 +39,7 @@
 - **Honorários padrão:** 30% sobre o crédito do cliente + sucumbência (100% do escritório). Exceção: Julya (alimentos), 20% dos atrasados + sucumbência.
 - **Parceria INFINITY LAW** (`partners.id=1`): 30% divididos em 15% dela e 15% da parceira; a entrada é do escritório. A provisão separa "seu" e "da parceira".
 - **Prints/PDFs de processo que ela manda:** cadastre processo, ficha, partes e valores e anexe o documento. **Não crie prazos, tarefas nem agenda**: o monitoramento automático faz isso.
+- **Uma peça por banco:** RMC e RCC do mesmo banco vão na mesma peça; de bancos diferentes (RMC de um, RCC de outro), peças diferentes. A leitura dos extratos confere isso (`conferirPecasPorBanco`).
 - **Uma pessoa, uma ficha:** nunca duplique (busque por CPF e por nome); processo novo vai na ficha existente. Parte contrária vai em `case_partes`, nunca vira cliente. Todo lançamento financeiro fica ligado ao caso, com o nº do processo.
 - **Ficha completa:** use tudo o que vier (CPF, endereço com CEP, telefone, e-mail, nascimento, profissão nas `notes`) e sempre o `valor_causa`.
 - **Repasses de processos arquivados** já foram feitos: marque como repassado, sem perguntar.

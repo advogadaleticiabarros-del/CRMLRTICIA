@@ -463,6 +463,14 @@
 
     // Contratos lidos nos documentos (todos os bancos) e em qual processo cada um entra.
     // Sem escolha, vale a regra: só o banco do réu e a mesma tese (services/contratosDoCaso.ts).
+    // Uma peça por banco (regra da Jessica, 30/10/2026): RMC de um banco e RCC de outro são peças diferentes.
+    function conferenciaHtml(c) {
+      if (!c || !c.lidos) return '';
+      const problemas = c.problemas.filter((p) => p.tipo !== 'nao_lidos');
+      const pecas = c.bancos.map((b) => `<li><b>${esc(b.banco)}</b>: ${esc(b.tipos.join(' e '))} → ${b.acoes.length ? b.acoes.map((id) => `processo #${id}`).join(', ') : '<b>sem processo</b>'}</li>`).join('');
+      return `<div class="${problemas.length ? 'mesa-aviso' : 'mesa-dica'}" role="${problemas.length ? 'alert' : 'status'}"><b>Uma peça por banco</b> (cartões RMC/RCC nos extratos)
+        <ul>${pecas}</ul>${problemas.length ? `<ul>${problemas.map((p) => `<li>${esc(p.texto)}</li>`).join('')}</ul>` : '<p>Conferido: cada banco tem a sua peça.</p>'}</div>`;
+    }
     async function renderContratos(sec) {
       if (!sec) return;
       let inv;
@@ -484,6 +492,7 @@
       sec.innerHTML = `${cab}
         <p class="mesa-dica">Na peça deste processo entram só os contratos de ${esc(reus)} da mesma tese, ou os que você escolher. Nesta peça: <b>${inv.entram} de ${inv.total}</b>.</p>
         ${inv.entram === 0 ? `<div class="mesa-aviso mesa-aviso-linha">Nenhum contrato de ${esc(reus)} nos documentos lidos. Confira o réu e os documentos antes de gerar a peça.</div>` : ''}
+        ${conferenciaHtml(inv.conferencia)}
         ${inv.grupos.map((g) => `<div class="mesa-contratos-banco"><h4>${esc(g.banco)}${g.doReu ? ' <span class="mesa-tag mesa-tag-azul">réu deste processo</span>' : ''}</h4>
           ${g.contratos.map((l) => `<div class="mesa-doc"><div class="mesa-doc-nome"><b>${esc(l.nomeTipo)}</b> · nº ${esc(l.numero || 'sem número')}<small>${esc(detalhe(l))}</small>
             <span class="mesa-tag${l.entra ? ' mesa-tag-ok' : ''}">${l.entra ? 'Entra nesta peça' : 'Fora desta peça'}</span> <small class="mesa-contrato-motivo">${esc(l.motivo)}${l.origem === 'dra' ? '' : ' (automático)'}</small></div>

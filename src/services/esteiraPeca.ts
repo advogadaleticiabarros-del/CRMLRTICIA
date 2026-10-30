@@ -7,7 +7,7 @@ import {
   montarPromptRedacao, conferirValores, relatorioDossie, promptContratos, parseListaContratos,
   type Fonte, type FichaDeFatos, type Escolha, type ItemCatalogo, type ContratoFicha,
 } from './pecaDossie';
-import { separarParaPeca, mesmoBanco, type ContratoSalvo, type PecaAlvo } from './contratosDoCaso';
+import { separarParaPeca, mesmoBanco, chaveContrato, conferirPecasPorBanco, type ContratoSalvo, type PecaAlvo, type AcaoParaConferir, type ConferenciaPecas } from './contratosDoCaso';
 
 /**
  * Esteira da petição inicial — cada agente faz a sua parte, nesta ordem:
@@ -44,6 +44,8 @@ export interface DepsEsteira {
   contratosSalvos?(clientId: number): Promise<ContratoSalvo[]>;
   /** Guarda (ou atualiza) os contratos lidos, sem mexer na decisão da Dra. */
   guardarContratos?(clientId: number, contratos: ContratoFicha[]): Promise<void>;
+  /** Ações do cliente (processos, com o réu), para conferir uma peça por banco; pedido unido conta no principal. */
+  acoesDoCliente?(clientId: number): Promise<AcaoParaConferir[]>;
   /** Índices do Bacen (INPC, IPCA, Selic) para a planilha de cálculos; sem eles a planilha sai nominal. */
   indices?(): Promise<{ indices: IndicesMensais; avisos: string[] } | null>;
   registrar(agente: string, texto: string): void;
@@ -83,11 +85,27 @@ export function pecaAlvo(casos: Array<Pick<CasoEsteira, 'id' | 'titulo' | 'parte
 }
 
 /**
+ * Uma peça por banco (regra da Jessica, 30/10/2026): RMC de um banco e RCC de outro são
+ * duas peças. Confere os contratos guardados mais os recém-lidos contra as ações do
+ * cliente. Sem a dependência (ou se falhar), não confere: null.
+ */
+async function conferirLeitura(clientId: number, salvos: ContratoSalvo[], lidos: ContratoFicha[], deps: DepsEsteira): Promise<ConferenciaPecas | null> {
+  if (!deps.acoesDoCliente) return null;
+  const acoes = await deps.acoesDoCliente(clientId).catch(() => null);
+  if (!acoes) return null;
+  const chaves = new Set(salvos.map((s) => s.chave));
+  const novos = lidos.filter((c) => !chaves.has(chaveContrato(c))).map((c) => ({ id: 0, chave: chaveContrato(c), case_id: null, fora: false, dados: c }));
+  return conferirPecasPorBanco([...salvos, ...novos], acoes);
+}
+
+const problemasDaConferencia = (c: ConferenciaPecas | null) => (c?.problemas || []).filter((p) => p.tipo !== 'nao_lidos');
+
+/**
  * Só a leitura dos contratos (sem redigir): a Dra. Helena lista todos os contratos
  * das fontes, de qualquer banco, e eles ficam guardados no cliente para a Dra.
  * dizer em qual processo cada um entra.
  */
-export async function levantarContratos(caseId: number, deps: DepsEsteira): Promise<{ ok: boolean; contratos?: number; fontes?: number; message?: string }> {
+export async function levantarContratos(caseId: number, deps: DepsEsteira): Promise<{ ok: boolean; contratos?: number; fontes?: number; message?: string; conferencia?: ConferenciaPecas | null }> {
   const casos = await casosDaPeca(caseId, deps);
   const caso = casos[0];
   if (caso.client_id == null) return { ok: false, message: 'O caso não tem cliente cadastrado' };
@@ -98,7 +116,11 @@ export async function levantarContratos(caseId: number, deps: DepsEsteira): Prom
   if (!contratos) return { ok: false, message: `A leitura dos contratos falhou (${r.message || 'resposta sem JSON'})` };
   await deps.guardarContratos?.(caso.client_id, contratos);
   deps.registrar('analista', `listou ${contratos.length} contrato(s) de ${caso.cliente} em ${fontes.lidas.length} fonte(s), para a Dra. associar aos processos`);
-  return { ok: true, contratos: contratos.length, fontes: fontes.lidas.length };
+  const salvos = (await deps.contratosSalvos?.(caso.client_id).catch(() => [])) ?? [];
+  const conferencia = await conferirLeitura(caso.client_id, salvos, contratos, deps);
+  const problemas = problemasDaConferencia(conferencia);
+  if (problemas.length) deps.registrar('analista', `conferiu uma peça por banco para ${caso.cliente}: ${problemas.map((p) => p.texto).join(' | ')}`);
+  return { ok: true, contratos: contratos.length, fontes: fontes.lidas.length, conferencia };
 }
 
 export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promise<ResultadoEsteira> {
@@ -123,8 +145,9 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
   if (caso.client_id != null && lida.contratos.length) await deps.guardarContratos?.(caso.client_id, lida.contratos).catch(() => {});
   const salvos = caso.client_id != null ? (await deps.contratosSalvos?.(caso.client_id).catch(() => [])) ?? [] : [];
   const sep = separarParaPeca({ contratos: lida.contratos, descontos: lida.descontos, salvos, peca: alvo });
+  const porBanco = caso.client_id != null ? problemasDaConferencia(await conferirLeitura(caso.client_id, salvos, lida.contratos, deps)) : [];
   const ficha: FichaDeFatos = {
-    ...lida, contratos: sep.entram, descontos: sep.descontos, lacunas: [...lida.lacunas, ...sep.avisos],
+    ...lida, contratos: sep.entram, descontos: sep.descontos, lacunas: [...lida.lacunas, ...sep.avisos, ...porBanco.map((p) => `Uma peça por banco: ${p.texto}`)],
     reus: alvo.reus.length ? lida.reus.filter((r) => alvo.reus.some((q) => mesmoBanco(r.nome, q.nome))) : lida.reus,
   };
 

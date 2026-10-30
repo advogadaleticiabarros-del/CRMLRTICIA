@@ -1,10 +1,10 @@
 import { db } from '../config/database';
 import { aiComplete, aiLerArquivo } from './aiAssistant';
 import { registrarAcaoAgente } from './usoIa';
-import type { CasoParaJuntar } from './pecaConsolidacao';
+import { reusDoCaso, type CasoParaJuntar } from './pecaConsolidacao';
 import type { DepsEsteira, CasoEsteira } from './esteiraPeca';
 import type { Fonte, ItemCatalogo, ContratoFicha } from './pecaDossie';
-import { chaveContrato, type ContratoSalvo } from './contratosDoCaso';
+import { chaveContrato, type ContratoSalvo, type AcaoParaConferir } from './contratosDoCaso';
 import { indicesDoBacen } from './indicesEconomicosMysql';
 
 /**
@@ -232,8 +232,22 @@ export async function guardarContratos(clientId: number, contratos: ContratoFich
   }
 }
 
+/** Ações do cliente (menos as recusadas), com o réu; o pedido unido a outro conta no processo principal. */
+export async function acoesDoCliente(clientId: number): Promise<AcaoParaConferir[]> {
+  const [casos] = await db.query(
+    `SELECT id, title, unido_ao_caso FROM cases
+      WHERE client_id = ? AND (production_stage IS NULL OR production_stage <> 'recusado') ORDER BY id`, [clientId]) as any;
+  if (!casos.length) return [];
+  const [partes] = await db.query("SELECT case_id, nome, cpf_cnpj FROM case_partes WHERE papel = 'contraria' AND case_id IN (?)", [casos.map((c: any) => c.id)]) as any;
+  const principal = new Map<number, number>(casos.map((c: any) => [c.id, c.unido_ao_caso || c.id]));
+  return casos.filter((c: any) => !c.unido_ao_caso).map((c: any) => {
+    const ps = partes.filter((p: any) => principal.get(p.case_id) === c.id).map((p: any) => ({ nome: p.nome, cpf_cnpj: p.cpf_cnpj }));
+    return { id: c.id, titulo: c.title, reus: reusDoCaso({ partes: ps, titulo: c.title }) };
+  });
+}
+
 export const depsEsteiraMysql: DepsEsteira = {
-  caso, candidatosCorrelatos, fontes, catalogo, modelos, teses, fundamentos, regras, contratosSalvos, guardarContratos,
+  caso, candidatosCorrelatos, fontes, catalogo, modelos, teses, fundamentos, regras, contratosSalvos, guardarContratos, acoesDoCliente,
   indices: indicesDoBacen,
   ia: (prompt, nivel) => aiComplete(prompt, nivel === 'redacao' ? 'openai-alto' : nivel === 'leitura' ? 'openai-medio' : 'openai'),
   registrar: registrarAcaoAgente,

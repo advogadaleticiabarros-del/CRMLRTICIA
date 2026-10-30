@@ -98,12 +98,15 @@ router.get('/:caseId/contratos', async (req: Request, res: Response) => {
   const [partes] = await db.query("SELECT case_id, nome, cpf_cnpj FROM case_partes WHERE papel = 'contraria' AND case_id IN (?)", [casos.map((x: any) => x.id)]) as any;
   const partesDe = (id: number) => partes.filter((p: any) => p.case_id === id).map((p: any) => ({ nome: p.nome, cpf_cnpj: p.cpf_cnpj }));
   const { pecaAlvo } = await import('../services/esteiraPeca');
-  const { contratosSalvos } = await import('../services/esteiraPecaMysql');
+  const { contratosSalvos, acoesDoCliente } = await import('../services/esteiraPecaMysql');
+  const { conferirPecasPorBanco } = await import('../services/contratosDoCaso');
   const alvo = pecaAlvo(casos.filter((x: any) => x.id === principal || x.unido_ao_caso === principal).map((x: any) => ({ id: x.id, titulo: x.title, partes: partesDe(x.id) })));
   const salvos = c.client_id ? await contratosSalvos(c.client_id) : [];
   const [[lido]] = c.client_id ? await db.query('SELECT MAX(lido_em) AS em FROM cliente_contratos WHERE client_id = ?', [c.client_id]) as any : [[null]];
   res.json({
     ...inventarioDaPeca(salvos, alvo), principal, lidoEm: lido?.em || null,
+    // Uma peça por banco: RMC de um banco e RCC de outro são peças diferentes (regra da Jessica, 30/10/2026).
+    conferencia: c.client_id ? conferirPecasPorBanco(salvos, await acoesDoCliente(c.client_id).catch(() => [])) : null,
     // Destinos possíveis: os processos do cliente (pedido unido segue o processo dele).
     processos: casos.filter((x: any) => !x.unido_ao_caso).map((x: any) => {
       const f = familiaDaTese(x.title), reu = reusDoCaso({ partes: partesDe(x.id), titulo: x.title })[0];
@@ -126,7 +129,11 @@ router.post('/:caseId/contratos/levantar', async (req: Request, res: Response) =
     notificationType: 'analise_documentos', channel: 'sistema', scheduledAt: new Date(),
   }).catch(() => {});
   levantarContratos(caseId, depsEsteiraMysql)
-    .then((r) => avisar(r.ok, r.ok ? `${c.title || 'Processo'} — ${r.contratos} contrato(s) em ${r.fontes} documento(s). Veja na aba Caso da mesa.` : `${c.title || 'Processo'} — ${r.message}`))
+    .then((r) => {
+      const problemas = (r.conferencia?.problemas || []).filter((p) => p.tipo !== 'nao_lidos');
+      const porBanco = problemas.length ? ` Atenção, uma peça por banco: ${problemas.map((p) => p.texto).join(' ')}` : '';
+      return avisar(r.ok, r.ok ? `${c.title || 'Processo'} — ${r.contratos} contrato(s) em ${r.fontes} documento(s). Veja na aba Caso da mesa.${porBanco}` : `${c.title || 'Processo'} — ${r.message}`);
+    })
     .catch((e: any) => avisar(false, `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`));
   res.status(202).json({ success: true, emAndamento: true });
 });

@@ -2,9 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 30/10/2026. Último commit: geração da peça com confirmação, trava e barra de progresso.
+**Última atualização:** 30/10/2026. Último commit: conferência "uma peça por banco" na leitura dos extratos.
 
 ## Últimas entregas (mais recentes primeiro)
+- **30/10 (noite, 3):** **Conferência "uma peça por banco"** (Jessica: "se forem RCC e RMC de banco diferentes devem ser duas peças... confirmado também na leitura dos documentos"). Os cartões RMC/RCC lidos nos extratos são conferidos contra as ações do cliente. O CRM avisa banco sem ação, ação com dois bancos, contrato na ação de outro banco, ação sem contrato e duas ações do mesmo banco. Aparece no card do cliente, na aba Caso da mesa, no aviso do sino da leitura e no dossiê da peça. **Não verificado em produção:** o caso dos 6 bancos ainda não tem o HISCON, então a conferência ali ainda não mostra os bancos. Ver `docs/contexto/relatorios/2026-10-30-uma-peca-por-banco.md`.
 - **30/10 (noite, 5):** skill `impeccable` (design de telas) versionada em `.agents/skills/impeccable` com o `skills-lock.json`; `.agents/` fora do lint e o atalho local `.claude/skills/impeccable` no `.gitignore`.
 - **30/10 (noite, 4):** **Geração da peça com confirmação, trava e barra de progresso** (pedidos da Jessica: "trave o botão depois do primeiro clique, até chegar a versão, e sempre confirme antes"; "uma barra mostrando que a versão está sendo gerada").
   - Sempre confirma; o botão fica travado até a versão chegar; o servidor recusa um 2º pedido da mesma peça (409). Ações diferentes geram em paralelo.

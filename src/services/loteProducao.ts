@@ -1,5 +1,5 @@
 import { reusDoCaso, familiaDaTese, normalizarNomeParte, NOME_FAMILIA, type Familia, type Parte } from './pecaConsolidacao';
-import { nucleoBanco } from './contratosDoCaso';
+import { nucleoBanco, conferirPecasPorBanco, type ContratoSalvo, type ConferenciaPecas } from './contratosDoCaso';
 
 /**
  * Card único do cliente na produção (pedido da Jessica, 30/10/2026): "tudo centralizado
@@ -191,6 +191,8 @@ export interface Lote {
   semDestino: number[];
   etapa: string | null;
   resumo: { total: number; prontas: number; protocoladas: number; travadas: number };
+  /** Cartões RMC/RCC lidos nos extratos × ações: uma peça por banco (contratosDoCaso.ts). */
+  conferencia: ConferenciaPecas;
 }
 
 export const ETAPAS = ['em_analise', 'separacao_documentos', 'criacao_inicial', 'revisao_inicial', 'aguardando_protocolo', 'protocolado', 'concluido'];
@@ -208,7 +210,7 @@ const GERADOS_DA_ACAO: TipoDoc[] = ['planilha', 'demonstrativo'];
 
 const versaoDoNome = (nome: string) => Number(String(nome).match(/\(v(\d+)/)?.[1] || 0);
 
-export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: DocLote[] }): Lote {
+export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: DocLote[]; contratos?: ContratoSalvo[] }): Lote {
   const cls = e.documentos.map((d) => ({ d, c: classificarDocumento(d) }));
   const reuDe = new Map(e.acoes.map((a) => [a.id, String(reusDoCaso({ partes: a.partes, titulo: a.titulo })[0]?.nome || '') || null]));
   const idsAcoes = new Set(e.acoes.map((a) => a.id));
@@ -281,6 +283,9 @@ export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: 
       protocoladas: acoes.filter((a) => a.situacao === 'protocolada').length,
       travadas: acoes.filter((a) => a.situacao === 'faltam_documentos').length,
     },
+    conferencia: conferirPecasPorBanco(e.contratos || [], e.acoes
+      .filter((a) => a.production_stage !== 'recusado')
+      .map((a) => ({ id: a.id, titulo: a.titulo, reus: reusDoCaso({ partes: a.partes, titulo: a.titulo }) }))),
   };
 }
 

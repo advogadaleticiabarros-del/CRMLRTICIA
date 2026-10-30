@@ -430,3 +430,33 @@ test('a esteira avisa as etapas na ordem (barra de progresso)', async () => {
   assert.strictEqual(r.ok, true);
   assert.deepStrictEqual(etapas, ['leitura', 'calculos', 'estrategia', 'fundamentos', 'redacao', 'conferencia']);
 });
+
+// ── uma peça por banco (regra da Jessica, 30/10/2026): RMC de um banco e RCC de outro são duas peças ──
+
+test('levantarContratos: confere os cartões lidos contra as ações do cliente (RMC da FACTA sem ação própria)', async () => {
+  const registros = [];
+  const { deps } = depsItau({
+    acoesDoCliente: async () => [{ id: 1, titulo: 'empréstimo consignado — Banco Itaú S.A.', reus: [{ nome: 'Banco Itaú S.A.' }] }],
+    registrar: (agente, texto) => registros.push(texto),
+  });
+  const r = await levantarContratos(1, deps);
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.conferencia.problemas.map((p) => p.tipo), ['falta_acao']);
+  assert.match(r.conferencia.problemas[0].texto, /FACTA[\s\S]*peça própria/);
+  assert.ok(registros.some((t) => /uma peça por banco/i.test(t)));
+});
+
+test('produzirPeticao: o que a conferência por banco achar vai para "a conferir" do dossiê', async () => {
+  const { deps } = depsItau({
+    acoesDoCliente: async () => [{ id: 1, titulo: 'empréstimo consignado — Banco Itaú S.A.', reus: [{ nome: 'Banco Itaú S.A.' }] }],
+  });
+  const r = await produzirPeticao(1, deps);
+  assert.ok(r.ficha.lacunas.some((l) => /^Uma peça por banco: .*FACTA/.test(l)));
+});
+
+test('sem acoesDoCliente (deps antigas), a leitura segue sem conferência', async () => {
+  const { deps } = depsItau();
+  const r = await levantarContratos(1, deps);
+  assert.strictEqual(r.ok, true);
+  assert.strictEqual(r.conferencia, null);
+});

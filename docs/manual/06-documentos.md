@@ -73,6 +73,14 @@ Pedido da Jessica (caso real com 6 bancos): "preciso de tudo centralizado em um 
 
 **No quadro:** cliente com **2 ou mais ações antes do protocolo** aparece como **um card** ("6 ações", com os bancos embaixo), na etapa da ação mais atrasada, com o maior prazo e a soma das pendências. O card do cliente não se arrasta: cada ação anda pela própria tela. Ação protocolada volta a ter card próprio (já é um processo, com nº).
 
+**Conferência "uma peça por banco" (desde 30/10/2026, pedido da Jessica: "se forem RCC e RMC de banco diferentes devem ser duas peças... isso precisa ser confirmado também na leitura dos documentos"):** os cartões RMC/RCC lidos nos extratos (`cliente_contratos`) são conferidos contra as ações do cliente (`conferirPecasPorBanco`, em `contratosDoCaso.ts`). Cada banco com cartão é uma peça. O CRM avisa quando:
+- **falta ação:** há RMC/RCC de um banco sem ação contra ele ("precisa de uma peça própria", ou tirar o contrato das peças na mesa, se não for contestado);
+- **bancos misturados:** uma ação está contra dois bancos, ou a Dra. pôs um contrato numa ação de outro banco ("cada banco é uma peça");
+- **ação sem contrato:** a ação de cartão é contra um banco que não aparece nos cartões lidos (conferir o extrato ou o réu);
+- **banco não identificado:** o contrato foi lido sem o banco (conferir no extrato de empréstimos do INSS);
+- **mesmo banco separado:** duas ações de cartão contra o mesmo banco, que podem ir numa peça só ("Ver e juntar").
+Contrato tirado das peças pela Dra. não conta, e empréstimo consignado fica fora desta conferência. **Onde aparece:** na tela do cliente (bloco "Uma peça por banco"), na Mesa → aba Caso → "Contratos nos documentos", no aviso do sino depois de "Ler os contratos agora" e no "A conferir" do dossiê de cada peça gerada. Só avisa: quem decide é a Dra.
+
 **Ao clicar, abre a tela do cliente:**
 - **O que falta:** os documentos comuns que faltam. O **extrato de empréstimos consignados do INSS** (HISCON) **trava** as ações de consignado e cartão consignado: é o único documento que liga cada desconto ao banco e ao contrato; sem ele o cálculo sai zerado (foi o que aconteceu com a peça do Itaú em 28/10). Também avisa procuração, declaração, identidade, comprovante de residência e histórico de créditos.
 - **Ações para protocolar, uma a uma:** uma linha por banco com a tese, a etapa, a situação (Faltam documentos / Peça ainda não gerada / Peça para revisar / **Pronta para protocolar** / Protocolada), a versão da peça e o kit. Botões:
@@ -329,6 +337,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Conferência "uma peça por banco": os cartões RMC/RCC lidos nos extratos são conferidos contra as ações do cliente (banco sem ação, ação com dois bancos, contrato na ação de outro banco, ação sem contrato, banco não identificado, duas ações do mesmo banco); aparece na tela do cliente, na aba Caso da mesa, no aviso da leitura dos contratos e no dossiê da peça |
 | 30/10/2026 | Claude | Geração da peça: confirmação sempre, botão travado até a versão chegar (trava também no servidor) e barra de progresso com a etapa |
 | 30/10/2026 | Claude | Juros da planilha desde cada desconto: critério confirmado pela Jessica |
 | 30/10/2026 | Claude | Pasta do Drive do caso: lida sozinha a cada 30 min (com subpastas, só o que é novo); "Atualizar da pasta" em segundo plano com aviso no sino e o motivo quando o Google recusa; o caso vindo do e-mail já grava a pasta dos anexos no card |

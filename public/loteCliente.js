@@ -169,6 +169,18 @@
         ${resto.length ? `<p class="lote-falta">Falta também: ${resto.map((f) => `<b>${e(f.rotulo)}</b> <small>(${e(f.motivo)})</small>`).join(' · ')}</p>` : ''}`;
     }
 
+    // Uma peça por banco (regra da Jessica, 30/10/2026): cartões RMC/RCC lidos nos extratos × ações do cliente.
+    function conferenciaHtml() {
+      const c = lote.conferencia;
+      if (!c) return '';
+      const problemas = c.problemas.filter((p) => p.tipo !== 'nao_lidos');
+      if (!c.lidos) return c.problemas.length ? `<p class="lote-falta">${e(c.problemas[0].texto)}</p>` : '<p class="lote-sub">Sem cartão RMC/RCC lido nos extratos.</p>';
+      const reu = (id) => { const a = lote.acoes.find((x) => x.id === id); return a ? (a.reu || a.titulo || `#${id}`) : `processo #${id}`; };
+      return `<ul class="lote-docs">${c.bancos.map((b) => `<li><span><b>${e(b.banco)}</b>: ${e(b.contratos.map((k) => `${k.nomeTipo} nº ${k.numero || 's/nº'}`).join(', '))}</span>
+          <small class="lote-bancos">${b.acoes.length ? `peça: ${b.acoes.map(reu).map(e).join(', ')}` : '<b>sem ação: precisa de uma peça própria</b>'}</small></li>`).join('')}</ul>
+        ${problemas.length ? problemas.map((p) => `<div class="lote-trava" role="alert">${e(p.texto)}</div>`).join('') : '<p class="lote-ok">Conferido: cada banco tem a sua peça.</p>'}`;
+    }
+
     function acaoHtml(a, i) {
       const protocolada = a.situacao === 'protocolada';
       const peca = a.peca ? `Peça v${a.peca.versao}${a.peca.final ? ' · <b>versão final</b>' : ''}` : 'Sem peça';
@@ -219,6 +231,8 @@
         </header>
         <main class="lote-corpo">
           <section class="lote-bloco"><h2>O que falta</h2>${faltasHtml()}</section>
+          <section class="lote-bloco"><h2>Uma peça por banco</h2>
+            <p class="lote-sub">Lido nos extratos: RMC e RCC do mesmo banco vão na mesma peça; de bancos diferentes, peças diferentes.</p>${conferenciaHtml()}</section>
           <section class="lote-bloco"><h2>Ações para protocolar, uma a uma</h2>
             <p class="lote-sub">Revise a peça na mesa, marque a versão final, baixe o kit e protocole. RMC e RCC do mesmo banco podem ir juntos (faixa "processo único" do quadro).</p>
             <div class="lote-acoes">${lote.acoes.map(acaoHtml).join('')}</div></section>

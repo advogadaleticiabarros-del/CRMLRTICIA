@@ -137,3 +137,85 @@ export function inventarioDaPeca(salvos: ContratoSalvo[], peca: PecaAlvo) {
   const linhas = grupos.flatMap((g) => g.contratos);
   return { grupos, total: linhas.length, entram: linhas.filter((l) => l.entra).length, reus: peca.reus.map((r) => r.nome || '').filter(Boolean) };
 }
+
+// ── conferência: uma peça por banco ──────────────────────────────────────────
+
+export type TipoProblema = 'falta_acao' | 'bancos_misturados' | 'acao_sem_contrato' | 'banco_nao_identificado' | 'mesmo_banco_separado' | 'nao_lidos';
+export interface ProblemaConferencia { tipo: TipoProblema; texto: string; acaoId?: number; banco?: string }
+export interface AcaoParaConferir { id: number; titulo: string | null; reus: Parte[] }
+export interface ConferenciaPecas {
+  /** Há cartão consignado (RMC/RCC) lido nos extratos. */
+  lidos: boolean;
+  /** Uma linha por banco = uma peça: os cartões daquele banco e as ações que cuidam deles. */
+  bancos: Array<{ banco: string; tipos: string[]; contratos: Array<{ numero: string | null; nomeTipo: string }>; acoes: number[] }>;
+  problemas: ProblemaConferencia[];
+}
+
+const listaNumeros = (cs: ContratoFicha[]) => cs.map((c) => `${nomeDoTipo(c.tipo)} nº ${c.numero || 's/nº'}`).join(', ');
+
+/**
+ * Regra da Jessica (30/10/2026): RMC e RCC de bancos diferentes são peças diferentes
+ * (RMC de um banco e RCC de outro → duas peças); do mesmo banco podem ir juntas.
+ * Confere os cartões consignados lidos nos extratos (cliente_contratos) contra as ações
+ * do cliente: banco sem ação, ação com dois bancos, contrato posto na ação de outro banco,
+ * ação cujo banco não aparece no extrato e duas ações do mesmo banco (podem juntar).
+ * Contrato que a Dra. tirou das peças (fora) não conta. Só avisa; quem decide é a Dra.
+ */
+export function conferirPecasPorBanco(contratos: ContratoSalvo[], acoes: AcaoParaConferir[]): ConferenciaPecas {
+  const problemas: ProblemaConferencia[] = [];
+  const cartoes = contratos.filter((s) => !s.fora && familiaDoContrato(s.dados.tipo) === 'cartao_consignado');
+  // Ação que pode cuidar de cartão: tese de cartão consignado ou tese não escrita no título.
+  const deCartao = acoes.filter((a) => { const f = familiaDaTese(a.titulo); return f === 'cartao_consignado' || f == null; });
+  const tese = (a: AcaoParaConferir) => familiaDaTese(a.titulo) === 'cartao_consignado';
+  const nomeAcao = (a: AcaoParaConferir) => `a ação #${a.id}${a.reus[0]?.nome ? ` (${a.reus[0].nome})` : ''}`;
+
+  if (!cartoes.length) {
+    if (acoes.some(tese)) problemas.push({ tipo: 'nao_lidos', texto: 'Nenhum cartão RMC/RCC lido nos extratos ainda: a conferência de uma peça por banco sai quando a equipe gerar a peça (leitura do extrato de empréstimos do INSS).' });
+    return { lidos: false, bancos: [], problemas };
+  }
+
+  // Ação contra dois bancos: peças diferentes.
+  for (const a of deCartao) {
+    const nucleos = [...new Set(a.reus.map((r) => nucleoBanco(r.nome)).filter((n) => n.length >= 2))];
+    if (nucleos.length > 1) problemas.push({ tipo: 'bancos_misturados', acaoId: a.id, texto: `A ação #${a.id} está contra bancos diferentes (${a.reus.map((r) => r.nome).filter(Boolean).join(' e ')}): cada banco é uma peça. Separar.` });
+  }
+
+  const grupos = new Map<string, { banco: string; contratos: ContratoSalvo[] }>();
+  const semBanco: ContratoFicha[] = [];
+  for (const s of cartoes) {
+    const k = nucleoBanco(s.dados.banco);
+    if (!s.dados.banco || k.length < 2) { semBanco.push(s.dados); continue; }
+    if (!grupos.has(k)) grupos.set(k, { banco: s.dados.banco, contratos: [] });
+    grupos.get(k)!.contratos.push(s);
+  }
+  if (semBanco.length) problemas.push({ tipo: 'banco_nao_identificado', texto: `${listaNumeros(semBanco)}: o banco não aparece no documento lido. Conferir no extrato de empréstimos do INSS para saber em qual peça entra.` });
+
+  const bancos: ConferenciaPecas['bancos'] = [];
+  for (const g of grupos.values()) {
+    const fichas = g.contratos.map((s) => s.dados);
+    const doBanco = deCartao.filter((a) => a.reus.some((r) => mesmoBanco(r.nome, g.banco)));
+    // Contrato posto pela Dra. numa ação de outro banco.
+    for (const s of g.contratos) {
+      const a = s.case_id != null ? acoes.find((x) => x.id === s.case_id) : null;
+      if (a && a.reus.length && !a.reus.some((r) => mesmoBanco(r.nome, g.banco))) {
+        problemas.push({ tipo: 'bancos_misturados', acaoId: a.id, banco: g.banco, texto: `${nomeDoTipo(s.dados.tipo)} nº ${s.dados.numero || 's/nº'} é do ${g.banco}, mas está em ${nomeAcao(a)}: banco diferente, peça diferente.` });
+      }
+    }
+    if (!doBanco.length) {
+      problemas.push({ tipo: 'falta_acao', banco: g.banco, texto: `${listaNumeros(fichas)} do ${g.banco}: não há ação contra este banco. Precisa de uma peça própria (ou tirar o contrato das peças na mesa, se não for contestado).` });
+    } else if (doBanco.length > 1) {
+      problemas.push({ tipo: 'mesmo_banco_separado', banco: g.banco, texto: `${doBanco.length} ações contra o ${g.banco} (${doBanco.map((a) => `#${a.id}`).join(', ')}): RMC e RCC do mesmo banco podem ir numa peça só ("Ver e juntar" no quadro).` });
+    }
+    bancos.push({
+      banco: g.banco, tipos: [...new Set(fichas.map((c) => nomeDoTipo(c.tipo)))],
+      contratos: fichas.map((c) => ({ numero: c.numero, nomeTipo: nomeDoTipo(c.tipo) })), acoes: doBanco.map((a) => a.id),
+    });
+  }
+
+  // Ação de cartão cujo banco não aparece nos cartões lidos.
+  for (const a of acoes.filter(tese)) {
+    if (!a.reus.length || a.reus.some((r) => [...grupos.values()].some((g) => mesmoBanco(r.nome, g.banco)))) continue;
+    problemas.push({ tipo: 'acao_sem_contrato', acaoId: a.id, texto: `${nomeAcao(a)}: o extrato não mostra cartão RMC/RCC deste banco. Conferir o extrato ou o réu da ação.` });
+  }
+  return { lidos: true, bancos, problemas };
+}
