@@ -16,6 +16,13 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: extrato de empréstimos nunca era lido (Gemini sem cota) (30/10/2026)
+
+**Sintoma:** o extrato de empréstimos completo do Valmirio (caso #110) continuava sem texto depois de "Ler os contratos" e de gerar a peça; o contrato do Itaú vinha sem número e o cálculo, zerado. Nenhum erro na tela.
+**Causa raiz:** `extractCaseDocuments` e `importDriveFolder` (`peticaoBuilder.ts`) liam os anexos do Drive só pelo Gemini gratuito (`aiExtractFromFile`, 20 leituras por dia). Com a cota esgotada, a leitura falhava calada e o documento ficava sem texto. A leitura com reserva (`aiLerArquivo`: Gemini e depois OpenAI com visão) já existia e leu o mesmo PDF sem problema.
+**Correção:** as duas leituras passaram a usar `aiLerArquivo`. O teste `tests/leituraDriveComReserva.test.mjs` barra a volta da chamada só pelo Gemini nesse arquivo.
+**Se acontecer de novo:** documento do Drive com `content` NULL depois de uma leitura = a IA recusou. Teste a leitura isolada do arquivo (`downloadDriveFile` + `aiLerArquivo`) para ver a mensagem. "You exceeded your current quota" é o Gemini; "no credits remaining" é a OpenAI sem crédito (recarregar em platform.openai.com → Billing).
+
 ## Incidente: a barra de progresso da Mesa não apareceu depois da publicação (30/10/2026)
 
 **Sintoma:** depois do deploy da barra de progresso, a Jessica pediu nova versão e viu o aviso antigo ("A equipe está montando a nova versão. Você será avisada no sino."), sem barra e com o botão destravado.
@@ -854,6 +861,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Extrato de empréstimos nunca lido: leitura dos anexos do Drive passou a usar a reserva (Gemini → OpenAI) |
 | 30/10/2026 | Claude | Card do cliente não ia para Separação de documentos: passou a arrastar e mover as ações dele |
 | 30/10/2026 | Claude | WhatsApp "session is not reconnectable": só o QR resolve (reconectado pela Uazapi em 30/10) |
 | 30/10/2026 | Claude | Disco cheio, 2ª vez: backup morto por falta de memória deixava dumps em claro no /tmp; backup passou a trabalhar em fluxo |

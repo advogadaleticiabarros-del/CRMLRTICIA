@@ -1,5 +1,5 @@
 import { db } from '../config/database';
-import { aiComplete, aiExtractFromFile } from './aiAssistant';
+import { aiComplete, aiLerArquivo } from './aiAssistant';
 import { driveFileId, downloadDriveFile, listarFilhosDrive, contaGoogleDoCrm } from './partnerInboxService';
 import { sincronizarPasta, type DepsPastaDrive, type ResultadoPasta } from './pastaDrive';
 import { produzirPeticao } from './esteiraPeca';
@@ -45,7 +45,7 @@ export async function extractCaseDocuments(caseId: number): Promise<number> {
     if (!fid) continue;
     const file = await downloadDriveFile(fid);
     if (!file || !READABLE(file.mimeType)) continue;
-    const r = await aiExtractFromFile(file.base64, file.mimeType, instructionFor(file.mimeType));
+    const r = await aiLerArquivo(file.base64, file.mimeType, instructionFor(file.mimeType));
     if (r.ok && r.text) {
       await db.query('UPDATE documents SET content = ? WHERE id = ?', [`[${tagFor(file.mimeType)} de "${d.name}"]\n${r.text}`, d.id]);
       n++;
@@ -72,7 +72,7 @@ export async function importDriveFolder(caseId: number, clientId: number | null,
       if (!READABLE(f.mimeType)) return null;
       const file = await downloadDriveFile(f.id);
       if (!file) return null;
-      const r = await aiExtractFromFile(file.base64, file.mimeType, instructionFor(file.mimeType));
+      const r = await aiLerArquivo(file.base64, file.mimeType, instructionFor(file.mimeType));
       return r.ok && r.text ? `[${tagFor(file.mimeType)} de "${f.name}"]\n${r.text}` : null;
     },
     gravar: async (d) => {
