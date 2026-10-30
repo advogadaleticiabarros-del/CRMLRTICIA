@@ -292,22 +292,38 @@ export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: 
 // ── quadro ──────────────────────────────────────────────────────────────────
 
 export interface LinhaQuadro { id: number; client_id: number | null; client_name?: string | null; production_stage: string | null; sla_days?: number | null; pendencias?: number | null; [k: string]: unknown }
-export type LinhaAgrupada = LinhaQuadro & { lote?: { casos: number[]; protocoladas: number; total: number; titulos: string[] } };
+export interface LoteQuadro { casos: number[]; protocoladas: number; total: number; titulos: string[]; mover: Record<string, number[]> }
+export type LinhaAgrupada = LinhaQuadro & { lote?: LoteQuadro };
 
 const ANTES_DO_PROTOCOLO = ETAPAS.slice(0, 5);
+
+/**
+ * Arrastar o card do cliente para uma coluna antes do protocolo: para a frente, avançam as ações
+ * que ficaram para trás (a que já está à frente fica); para trás, voltam todas. Protocolo não
+ * entra: é uma ação por vez, na tela do cliente.
+ */
+export function acoesParaMover(grupo: Array<Pick<LinhaQuadro, 'id' | 'production_stage'>>): Record<string, number[]> {
+  const idx = (s: unknown) => ETAPAS.indexOf(String(s));
+  const atual = idx(etapaDoLote(grupo));
+  const mover: Record<string, number[]> = {};
+  ANTES_DO_PROTOCOLO.forEach((destino, t) => {
+    mover[destino] = t === atual ? [] : grupo.filter((g) => (t > atual ? idx(g.production_stage) < t : idx(g.production_stage) > t)).map((g) => g.id);
+  });
+  return mover;
+}
 
 /**
  * Quadro da produção: cliente com 2 ou mais ações antes do protocolo vira UM card, na etapa
  * da ação mais atrasada (o maior prazo e a soma das pendências). Ações protocoladas,
  * concluídas ou recusadas seguem como cards próprios (cada uma já é um processo).
  */
-export function agruparQuadro<T extends LinhaQuadro>(rows: T[]): Array<T & { lote?: { casos: number[]; protocoladas: number; total: number; titulos: string[] } }> {
+export function agruparQuadro<T extends LinhaQuadro>(rows: T[]): Array<T & { lote?: LoteQuadro }> {
   const abertasPorCliente = new Map<number, T[]>();
   for (const r of rows) {
     if (r.client_id == null || !ANTES_DO_PROTOCOLO.includes(String(r.production_stage))) continue;
     const l = abertasPorCliente.get(r.client_id) || []; l.push(r); abertasPorCliente.set(r.client_id, l);
   }
-  const out: Array<T & { lote?: { casos: number[]; protocoladas: number; total: number; titulos: string[] } }> = [];
+  const out: Array<T & { lote?: LoteQuadro }> = [];
   const feitos = new Set<number>();
   for (const r of rows) {
     const grupo = r.client_id != null ? abertasPorCliente.get(r.client_id) : undefined;
@@ -322,7 +338,7 @@ export function agruparQuadro<T extends LinhaQuadro>(rows: T[]): Array<T & { lot
       production_stage: etapa,
       sla_days: Math.max(...grupo.map((g) => Number(g.sla_days) || 0)),
       pendencias: grupo.reduce((s, g) => s + (Number(g.pendencias) || 0), 0),
-      lote: { casos: grupo.map((g) => g.id), protocoladas, total: grupo.length + protocoladas, titulos: grupo.map((g) => String(g.title || '')) },
+      lote: { casos: grupo.map((g) => g.id), protocoladas, total: grupo.length + protocoladas, titulos: grupo.map((g) => String(g.title || '')), mover: acoesParaMover(grupo) },
     });
   }
   return out;

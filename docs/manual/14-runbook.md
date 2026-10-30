@@ -826,6 +826,18 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 ---
 
+## Incidente: card do cliente não ia para "Separação de documentos" (30/10/2026)
+
+**Sintoma:** em Peças em produção, o card do Valmirio (várias ações, um card só) não ia para a coluna "Separação de documentos". Ao arrastar, nada acontecia.
+
+**Causa raiz:** o "card único do cliente" (30/10) foi feito sem arrastar (sem `draggable` e sem `data-case`). Ele fica na coluna da ação **mais atrasada** (`etapaDoLote`), e nenhuma tela mudava a etapa do grupo: o card ficava preso.
+
+**Correção:** o card do cliente passou a arrastar. O servidor calcula, para cada coluna antes do protocolo, quais ações mover (`acoesParaMover`, em `loteProducao.ts`): para a frente, as que ficaram para trás; para trás, todas. O front chama a rota normal de etapa (`PATCH /api/cases/:id/production-stage`) para cada uma e avisa a que não moveu e o motivo. Protocolar e recusar continuam uma a uma, na tela do cliente.
+
+**Se voltar:** veja se o card tem `data-mover` no HTML (`/api/cases/production-board` devolve `lote.mover`). Se uma ação não moveu, o aviso traz o número do caso e o motivo dado pela rota de etapa (ex.: caso recusado).
+
+---
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -842,6 +854,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Card do cliente não ia para Separação de documentos: passou a arrastar e mover as ações dele |
 | 30/10/2026 | Claude | WhatsApp "session is not reconnectable": só o QR resolve (reconectado pela Uazapi em 30/10) |
 | 30/10/2026 | Claude | Disco cheio, 2ª vez: backup morto por falta de memória deixava dumps em claro no /tmp; backup passou a trabalhar em fluxo |
 | 28/10/2026 | Claude | +1 incidente: peça contra o Itaú citava contratos do PAN e da FACTA lidos no extrato do INSS (agora só entram os contratos do réu e da tese, ou os que a Dra. associa) |

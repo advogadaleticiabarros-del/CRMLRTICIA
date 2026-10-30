@@ -2858,7 +2858,7 @@ const ROUTES = {
         <div class="kf-col" data-stage="${sk}">
           <div class="kf-head">${label} <div class="prod-col-meta"><span class="prod-col-avg">~${avgDias(by[sk])}</span><span class="kf-count">${by[sk].length}</span></div></div>
           <div class="kf-cards" data-stage="${sk}">${by[sk].map((r) => r.lote ? `
-            <div class="kf-card kf-card-lote sla-${slaCls(r)}" data-cliente="${r.client_id}" data-stage="${r.production_stage}" title="Card do cliente: uma peça por banco, protocolo uma a uma">
+            <div class="kf-card kf-card-lote sla-${slaCls(r)}" draggable="true" data-cliente="${r.client_id}" data-stage="${r.production_stage}" data-mover='${JSON.stringify(r.lote.mover || {})}' title="Card do cliente: uma peça por banco, protocolo uma a uma">
               <div class="prod-card-top">${slaBadge(r)}${indicatorsHtml(r)}<span class="prod-lote-tag">${r.lote.casos.length} ações${r.lote.protocoladas ? ` · ${r.lote.protocoladas} protocolada(s)` : ''}</span></div>
               <strong>${esc2(r.client_name) || '— sem cliente'}</strong>
               <small class="prod-lote-bancos">${esc2(r.lote.titulos.map((t) => (String(t).split(/\s+[—–-]\s+|\s+[x×]\s+|\s+contra\s+/i).pop() || '').trim()).filter(Boolean).join(' · '))}</small>
@@ -3010,13 +3010,31 @@ const ROUTES = {
         };
       });
 
-      // Card do cliente (2+ ações antes do protocolo): abre a tela do cliente, não arrasta.
+      // Card do cliente (2+ ações antes do protocolo): o clique abre a tela do cliente; arrastar move
+      // as ações dele (lista calculada no servidor, acoesParaMover). Protocolo é uma a uma, na tela do cliente.
+      const moveLote = async (card, stage) => {
+        let mover = {}; try { mover = JSON.parse(card.dataset.mover || '{}'); } catch {}
+        const ids = mover[stage];
+        if (!ids) { toast('Protocolar ou recusar é uma ação por vez: abra o card do cliente', 'error'); load(); return; }
+        if (!ids.length) { load(); return; }
+        if (stage === 'criacao_inicial' && !(await uiConfirm(`Mover ${ids.length} ação(ões) para Criação inicial? Cada uma gera a sua peça com IA.`))) { load(); return; }
+        const falhas = [];
+        for (const id of ids) {
+          try { await api(`/api/cases/${id}/production-stage`, { method: 'PATCH', body: JSON.stringify({ stage }) }); }
+          catch (e) { falhas.push(`#${id}: ${e.pendencias?.length ? e.pendencias.join('; ') : e.message}`); }
+        }
+        if (falhas.length) toast(`${ids.length - falhas.length} de ${ids.length} movida(s). Não moveram:\n\n${falhas.join('\n')}`, 'error');
+        else toast(`${ids.length} ação(ões) movida(s) · registrado`);
+        load();
+      };
       $('#prod-board').querySelectorAll('.kf-card-lote').forEach((card) => {
         card.onclick = () => mesaDoCliente(Number(card.dataset.cliente), load);
+        card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', JSON.stringify({ cliente: card.dataset.cliente, from: card.dataset.stage })); card.style.opacity = '0.45'; });
+        card.addEventListener('dragend', () => { card.style.opacity = ''; });
       });
 
       // Drag & drop
-      $('#prod-board').querySelectorAll('.kf-card[draggable]').forEach((card) => {
+      $('#prod-board').querySelectorAll('.kf-card[draggable]:not(.kf-card-lote)').forEach((card) => {
         card.addEventListener('dragstart', (e) => { e.dataTransfer.setData('text/plain', JSON.stringify({ id: card.dataset.case, from: card.dataset.stage })); card.style.opacity = '0.45'; });
         card.addEventListener('dragend', () => { card.style.opacity = ''; });
         card.onclick = (e) => { if (e.target.closest('.prod-menu-btn') || e.target.closest('.prod-ctx-menu') || e.target.closest('.kf-revert')) return; mesaDoCaso(Number(card.dataset.case), load); };
@@ -3027,6 +3045,7 @@ const ROUTES = {
         zone.addEventListener('drop', (e) => {
           e.preventDefault(); zone.style.outline = '';
           let d2 = {}; try { d2 = JSON.parse(e.dataTransfer.getData('text/plain')); } catch {}
+          if (d2.cliente) { const lote = $('#prod-board').querySelector(`.kf-card-lote[data-cliente="${d2.cliente}"]`); if (lote) moveLote(lote, zone.dataset.stage); return; }
           moveStage(d2.id, zone.dataset.stage, d2.from);
         });
       });

@@ -160,6 +160,31 @@ test('quadro: cliente com 2+ ações antes do protocolo vira um card só, na eta
   assert.strictEqual(q.length, 3);
 });
 
+test('quadro: arrastar o card do cliente move as ações que ficaram para trás (caso real: card do Valmirio não ia para Separação)', () => {
+  const rows = [
+    { id: 110, client_id: 9, production_stage: 'em_analise' },
+    { id: 111, client_id: 9, production_stage: 'em_analise' },
+    { id: 112, client_id: 9, production_stage: 'criacao_inicial' },
+  ];
+  const { mover } = agruparQuadro(rows)[0].lote;
+  assert.deepStrictEqual(mover.separacao_documentos, [110, 111], 'avança só as atrasadas; a que já está à frente fica');
+  assert.deepStrictEqual(mover.revisao_inicial, [110, 111, 112]);
+  assert.deepStrictEqual(mover.em_analise, [], 'soltar na própria coluna não move nada');
+  assert.strictEqual(mover.protocolado, undefined, 'protocolo é uma a uma, na tela do cliente');
+  assert.strictEqual(mover.recusado, undefined);
+});
+
+test('quadro: arrastar o card do cliente para trás volta todas as ações', () => {
+  const rows = [
+    { id: 1, client_id: 9, production_stage: 'criacao_inicial' },
+    { id: 2, client_id: 9, production_stage: 'revisao_inicial' },
+  ];
+  const { mover } = agruparQuadro(rows)[0].lote;
+  assert.deepStrictEqual(mover.separacao_documentos, [1, 2]);
+  assert.deepStrictEqual(mover.criacao_inicial, []);
+  assert.deepStrictEqual(mover.aguardando_protocolo, [1, 2]);
+});
+
 test('senha do Meu INSS escrita na observação sai do texto e vai para o cofre', () => {
   const r = retirarSenhaInss('Encaminho o caso.\n🔐 DADOS DE ACESSO AO INSS\nSenha Meu INSS: Fict#2026#\nPontos principais');
   assert.strictEqual(r.senha, 'Fict#2026#');
