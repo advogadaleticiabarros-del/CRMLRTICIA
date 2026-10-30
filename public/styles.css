@@ -2729,3 +2729,19 @@ body.lote-aberto { overflow: hidden; }
 .lote-enviar-final:focus-within { outline: 2px solid var(--gold, #c9a227); outline-offset: 2px; }
 .lote-enviar-final { position: relative; }
 .lote-arquivo-oculto { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+
+/* Colar a peça revisada (card do cliente, 30/10/2026): folha com cara de peça. */
+.lote-colar { display: flex; flex-direction: column; gap: 10px; }
+.lote-colar-folha {
+  min-height: 46vh; max-height: 62vh; overflow: auto; padding: 28px 36px; border: 1px solid var(--border); border-radius: 10px;
+  background: #fff; color: #1d1d1d; font-family: 'Times New Roman', Times, serif; font-size: 12pt; line-height: 1.5; text-align: justify;
+}
+.lote-colar-folha:focus { outline: 2px solid var(--gold, #c9a227); outline-offset: 2px; }
+.lote-colar-folha:empty::before { content: attr(data-vazia); color: #8a8070; font-family: 'Inter', system-ui, sans-serif; font-size: 14px; }
+.lote-colar-folha p { margin: 0 0 6px; text-indent: 2.5cm; }
+.lote-colar-folha p[style*="center"], .lote-colar-folha p[style*="right"] { text-indent: 0; }
+.lote-colar-folha .lc-titulo { text-indent: 0; text-align: center; font-weight: 700; margin: 12px 0; }
+.lote-colar-folha .lc-citacao { text-indent: 0; margin-left: 4cm; font-size: 10pt; line-height: 1.2; }
+.lote-colar-folha .lc-item { text-indent: 0; margin-left: 1.25cm; }
+.lote-colar-rodape { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.lote-colar-status { margin-right: auto; font-size: 12.5px; color: var(--text-muted); }

@@ -235,14 +235,21 @@ test('Card do cliente: ações por banco, o que trava, kit de protocolo e protoc
   await tela.locator('[data-acao="padronizar"]').click();
   await expect(tela.locator('[data-acao="padronizar"]')).toHaveCount(0, { timeout: 15_000 });
 
-  // A Dra. revisou no Word e envia a peça: vira a versão final e a ação fica pronta.
-  const JSZip = (await import('jszip')).default;
-  const z = new JSZip();
-  z.file('word/document.xml', '<w:document><w:body><w:p><w:r><w:t>EXCELENTÍSSIMO SENHOR JUIZ</w:t></w:r></w:p><w:p><w:r><w:t>Peça revisada pela Dra.</w:t></w:r></w:p></w:body></w:document>');
-  const docx = await z.generateAsync({ type: 'nodebuffer' });
-  await tela.locator('.lote-acao').first().locator('[data-acao="enviar-final"]').setInputFiles({ name: 'peca revisada.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: docx });
+  // A Dra. revisou e cola a peça: vira a versão final no papel timbrado e a ação fica pronta.
+  await tela.locator('.lote-acao').first().locator('[data-acao="colar"]').click();
+  const folha = page.locator('.lote-colar-folha');
+  await expect(folha).toBeVisible();
+  await folha.evaluate((f) => {
+    const dt = new DataTransfer();
+    dt.setData('text/html', '<p align=center><b>EXCELENTÍSSIMO SENHOR JUIZ</b></p><p>Peça <i>revisada</i> pela Dra.</p><p>Nestes termos, pede deferimento.</p>');
+    f.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true, cancelable: true }));
+  });
+  await expect(folha.locator('p')).toHaveCount(3);
+  await page.locator('.lote-colar [data-acao="guardar"]').click();
   await expect(tela.locator('.lote-acao').first()).toContainText('Pronta para protocolar', { timeout: 15_000 });
   await expect(tela.locator('.lote-acao').first()).toContainText('versão final');
+  const [peca] = await Promise.all([page.waitForEvent('download'), tela.locator('.lote-acao').first().locator('[data-acao="peca"]').click()]);
+  expect(peca.suggestedFilename()).toMatch(/^Petição inicial - .* \(v\d+ final\)\.docx$/);
 
   // Protocolar a 1ª (já pronta: só pede o nº do processo).
   await tela.locator('.lote-acao').first().locator('[data-acao="protocolar"]').click();

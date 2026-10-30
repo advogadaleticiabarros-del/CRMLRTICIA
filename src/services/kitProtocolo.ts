@@ -1,12 +1,12 @@
 import JSZip from 'jszip';
 import PDFDocument from 'pdfkit';
-import { Document, Packer, Paragraph, TextRun, AlignmentType } from 'docx';
+import { docxNoTimbrado, formatarPeca, paragrafosDoTexto } from './papelTimbrado';
 import type { AcaoMontada } from './loteProducao';
 
 /**
  * Kit de protocolo de UMA ação (card único do cliente, 30/10/2026): um .zip com
- *  - "00 - Petição inicial - <réu>.docx" (Times 12, espaçamento 1,5, recuo de 2,5 cm),
- *    para revisar no Word ou copiar para o Jusbrasil;
+ *  - "00 - Petição inicial - <réu>.docx" no papel timbrado, na formatação das peças
+ *    (a versão final da Dra., se houver; papelTimbrado.ts);
  *  - os anexos na ordem do protocolo, já renomeados ("01 - Procuração - Cliente.pdf"),
  *    com as fotos convertidas em PDF (o PJe pede PDF);
  *  - "LEIA-ME.txt" com a ordem, o que ficou de fora (arquivo só no Drive) e o que falta.
@@ -31,24 +31,9 @@ export function imagemParaPdf(img: Buffer): Promise<Buffer> {
   });
 }
 
-const ehTitulo = (l: string) => l.length <= 120 && /[A-ZÀ-Ú]/.test(l) && l === l.toUpperCase();
-
-/** Peça em texto → .docx no padrão do escritório (Times New Roman 12, 1,5, recuo 2,5 cm). */
+/** Peça em texto → .docx no papel timbrado da Dra., na formatação das peças (papelTimbrado.ts). */
 export async function pecaParaDocx(texto: string): Promise<Buffer> {
-  const linhas = String(texto || '').replace(/\r/g, '').split('\n').map((l) => l.replace(/\*\*/g, '').replace(/^#+\s*/, '').trimEnd());
-  const paragrafos = linhas.map((l) => {
-    const t = l.trim();
-    if (!t) return new Paragraph({ children: [] });
-    const titulo = ehTitulo(t);
-    return new Paragraph({
-      alignment: titulo ? AlignmentType.CENTER : AlignmentType.JUSTIFIED,
-      indent: titulo ? undefined : { firstLine: 1417 },
-      spacing: { line: 360 },
-      children: [new TextRun({ text: t, bold: titulo, font: 'Times New Roman', size: 24 })],
-    });
-  });
-  const doc = new Document({ sections: [{ properties: { page: { margin: { top: 1701, bottom: 1134, left: 1701, right: 1134 } } }, children: paragrafos }] });
-  return Packer.toBuffer(doc);
+  return docxNoTimbrado(formatarPeca(paragrafosDoTexto(texto)));
 }
 
 const limpar = (s: string) => String(s || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();

@@ -3,6 +3,7 @@ import { montarLote, classificarDocumento, nomePadrao, type AcaoLote, type DocLo
 import { textoDoDocx, idDoArquivoNoDrive, type ArquivoKit } from './kitProtocolo';
 import { downloadDriveFile } from './partnerInboxService';
 import { retirarSenhaInss } from './senhaInssCliente';
+import { validarParagrafos, formatarPeca, docxNoTimbrado, textoDosParagrafos, paragrafosDoTexto } from './papelTimbrado';
 
 /**
  * Banco do card único do cliente (regras em loteProducao.ts).
@@ -59,17 +60,30 @@ const MAX_PECA = 15 * 1024 * 1024;
  * seguinte da petição da ação, já marcada como final (as outras deixam de ser), e é ela
  * que vai no kit, como veio. Do Word, o texto é lido para a revisão e a conferência.
  */
-export async function enviarVersaoFinal(e: { clientId: number; caseId: number; nome: string; base64: string; mime: string; userId: number; autor: string }): Promise<{ id: number; nome: string }> {
+export type PecaFinal = { paragrafos: unknown } | { nome: string; base64: string; mime: string };
+
+export async function enviarVersaoFinal(e: { clientId: number; caseId: number; userId: number; autor: string } & PecaFinal): Promise<{ id: number; nome: string }> {
   const [[c]] = await db.query('SELECT c.id, cl.name AS cliente FROM cases c JOIN clients cl ON cl.id = c.client_id WHERE c.id = ? AND c.client_id = ?', [e.caseId, e.clientId]) as any;
   if (!c) throw Object.assign(new Error('Ação não encontrada neste cliente'), { status: 404 });
-  const ehPdf = e.mime === 'application/pdf' || /\.pdf$/i.test(e.nome);
-  const ehDocx = e.mime === MIME_DOCX || /\.docx$/i.test(e.nome);
-  if (!ehPdf && !ehDocx) throw Object.assign(new Error('Envie a peça em Word (.docx) ou PDF'), { status: 400 });
-  const data = Buffer.from(String(e.base64).replace(/^data:[^,]*,/, ''), 'base64');
-  if (!data.length) throw Object.assign(new Error('Arquivo vazio'), { status: 400 });
-  if (data.length > MAX_PECA) throw Object.assign(new Error('Arquivo maior que 15 MB'), { status: 400 });
-  const texto = ehDocx ? await textoDoDocx(data) : null;
-  if (ehDocx && !texto) throw Object.assign(new Error('Não consegui ler esse Word. Confira se é um .docx'), { status: 400 });
+  let data: Buffer, texto: string, mime: string, origem: string, nomeOriginal: string | null = null;
+  if ('paragrafos' in e) {
+    // Colada na tela: vira o .docx no papel timbrado, na formatação das peças.
+    let ps;
+    try { ps = validarParagrafos(e.paragrafos); } catch (err: any) { throw Object.assign(new Error(err.message), { status: 400 }); }
+    data = await docxNoTimbrado(formatarPeca(ps));
+    texto = textoDosParagrafos(ps); mime = MIME_DOCX; origem = 'colada pela Dra. e posta no papel timbrado';
+  } else {
+    const ehPdf = e.mime === 'application/pdf' || /\.pdf$/i.test(e.nome);
+    const ehDocx = e.mime === MIME_DOCX || /\.docx$/i.test(e.nome);
+    if (!ehPdf && !ehDocx) throw Object.assign(new Error('Envie a peça em Word (.docx) ou PDF'), { status: 400 });
+    data = Buffer.from(String(e.base64).replace(/^data:[^,]*,/, ''), 'base64');
+    if (!data.length) throw Object.assign(new Error('Arquivo vazio'), { status: 400 });
+    if (data.length > MAX_PECA) throw Object.assign(new Error('Arquivo maior que 15 MB'), { status: 400 });
+    const lido = ehDocx ? await textoDoDocx(data) : null;
+    if (ehDocx && !lido) throw Object.assign(new Error('Não consegui ler esse Word. Confira se é um .docx'), { status: 400 });
+    texto = lido ?? '[Versão final enviada em PDF pela Dra.: o texto está no arquivo.]';
+    mime = ehPdf ? 'application/pdf' : MIME_DOCX; origem = `enviada pela Dra. (${ehPdf ? 'PDF' : 'Word'})`; nomeOriginal = e.nome.slice(0, 255);
+  }
   const [irmas] = await db.query("SELECT id, name FROM documents WHERE case_id = ? AND name LIKE 'Petição Inicial%' ORDER BY id DESC", [e.caseId]) as any;
   const n = Math.max(0, ...(irmas as any[]).map((d) => Number(String(d.name).match(/\(v(\d+)/)?.[1] || 1))) + 1;
   const nome = `Petição Inicial — ${c.cliente} (v${n} · versão final da Dra.)`;
@@ -77,11 +91,23 @@ export async function enviarVersaoFinal(e: { clientId: number; caseId: number; n
   const [ins] = await db.query(
     `INSERT INTO documents (client_id, case_id, name, type, folder, content, data, mime, status, created_by, versao_de, final_em, nome_original)
      VALUES (?, ?, ?, 'peca', 'processos', ?, ?, ?, 'pendente', ?, ?, NOW(), ?)`,
-    [e.clientId, e.caseId, nome, texto ?? '[Versão final enviada em PDF pela Dra.: o texto está no arquivo.]', data, ehPdf ? 'application/pdf' : MIME_DOCX,
-      e.userId, (irmas as any[])[0]?.id ?? null, e.nome.slice(0, 255)]) as any;
+    [e.clientId, e.caseId, nome, texto, data, mime, e.userId, (irmas as any[])[0]?.id ?? null, nomeOriginal]) as any;
   await db.query("INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, ?, 'atualizacao', ?)",
-    [e.caseId, e.userId, e.autor, `Versão final enviada pela Dra. (${ehPdf ? 'PDF' : 'Word'}): ${nome}. É ela que vai no kit de protocolo.`]).catch(() => {});
+    [e.caseId, e.userId, e.autor, `Versão final ${origem}: ${nome}. É ela que vai no kit de protocolo.`]).catch(() => {});
   return { id: ins.insertId, nome };
+}
+
+/** A peça da ação para baixar: a versão final (como foi guardada) ou a mais nova, no papel timbrado. */
+export async function pecaParaBaixar(clientId: number, caseId: number): Promise<{ data: Buffer; nome: string; mime: string } | null> {
+  const lote = await carregarLote(clientId);
+  const a = lote?.acoes.find((x) => x.id === caseId);
+  if (!lote || !a?.peca) return null;
+  const [[d]] = await db.query('SELECT data, mime, content FROM documents WHERE id = ? AND client_id = ?', [a.peca.docId, clientId]) as any;
+  if (!d) return null;
+  const base = `Petição inicial - ${lote.cliente} x ${a.reu || 'caso ' + a.id} (v${a.peca.versao}${a.peca.final ? ' final' : ''})`.replace(/[\\/:*?"<>|]+/g, ' ');
+  if (d.data && (d.mime === MIME_DOCX || d.mime === 'application/pdf')) return { data: d.data, mime: d.mime, nome: `${base}.${d.mime === MIME_DOCX ? 'docx' : 'pdf'}` };
+  if (!d.content) return null;
+  return { data: await docxNoTimbrado(formatarPeca(paragrafosDoTexto(d.content))), mime: MIME_DOCX, nome: `${base}.docx` };
 }
 
 /** Dá o nome padrão aos documentos do cliente; o nome de chegada fica em nome_original. */

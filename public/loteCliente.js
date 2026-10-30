@@ -32,6 +32,108 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
 
+  // ── Colar a peça revisada ─────────────────────────────────────────────────
+  // O que vem colado (Word, Jusbrasil, e-mail) vira uma lista de parágrafos com o tipo
+  // (título, citação, item), o alinhamento e os trechos em negrito/itálico/sublinhado.
+  // O servidor só recebe esse dado (nunca HTML) e monta o .docx no papel timbrado.
+  const BLOCO = new Set(['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'LI', 'BLOCKQUOTE', 'TR', 'UL', 'OL', 'TABLE', 'TBODY', 'THEAD', 'SECTION', 'ARTICLE', 'PRE']);
+  const FORA = new Set(['SCRIPT', 'STYLE', 'HEAD', 'TITLE', 'META', 'LINK', 'NOSCRIPT', 'TEMPLATE', 'SVG', 'IFRAME', 'OBJECT', 'EMBED']);
+  const ALINHA = { left: 'left', center: 'center', right: 'right', justify: 'justify' };
+  const alinhamentoDe = (n) => ALINHA[String((n.style && n.style.textAlign) || n.getAttribute('align') || '').toLowerCase()] || '';
+  // Recuo à esquerda em cm (o Word marca a citação com recuo, não com <blockquote>).
+  const recuoCm = (n) => {
+    const m = String((n.style && n.style.marginLeft) || '').match(/^([\d.]+)(cm|mm|pt|px|in)$/);
+    if (!m) return 0;
+    const v = Number(m[1]);
+    return { cm: v, mm: v / 10, pt: v / 28.35, px: v / 37.8, in: v * 2.54 }[m[2]];
+  };
+
+  function blocosDoNo(raiz) {
+    const out = []; let cur = null;
+    const abrir = (tipo, al) => { cur = { tipo, alinhamento: al, runs: [] }; out.push(cur); };
+    const andar = (n, fmt, tipo, al) => {
+      if (n.nodeType === 3) {
+        const t = n.nodeValue.replace(/[\s\u00a0]+/g, ' ');
+        if (!t.trim() && !cur) return;
+        if (!cur) abrir(tipo, al);
+        cur.runs.push({ t, ...fmt });
+        return;
+      }
+      if (n.nodeType !== 1 || FORA.has(n.tagName)) return;
+      if (n.tagName === 'BR') { cur = null; return; }
+      const st = n.style || {};
+      const f = {
+        b: !!(fmt.b || /^(B|STRONG)$/.test(n.tagName) || /bold|[6-9]00/.test(st.fontWeight || '')),
+        i: !!(fmt.i || /^(I|EM)$/.test(n.tagName) || st.fontStyle === 'italic'),
+        u: !!(fmt.u || n.tagName === 'U' || /underline/.test(st.textDecoration || st.textDecorationLine || '')),
+      };
+      if (BLOCO.has(n.tagName)) {
+        const t2 = (n.dataset && n.dataset.tipo) || (/^H\d$/.test(n.tagName) ? 'titulo' : n.tagName === 'LI' ? 'item'
+          : n.tagName === 'BLOCKQUOTE' || recuoCm(n) >= 2.5 ? 'citacao' : tipo);
+        const al2 = alinhamentoDe(n) || al;
+        cur = null;
+        [...n.childNodes].forEach((c) => andar(c, f, t2, al2));
+        cur = null;
+        return;
+      }
+      [...n.childNodes].forEach((c) => andar(c, f, tipo, al));
+    };
+    andar(raiz, { b: false, i: false, u: false }, 'p', '');
+    // Junta trechos iguais e tira espaços das pontas.
+    return out.map((p) => {
+      const runs = [];
+      for (const r of p.runs) {
+        const ult = runs[runs.length - 1];
+        if (ult && ult.b === r.b && ult.i === r.i && ult.u === r.u) ult.t += r.t; else runs.push({ ...r });
+      }
+      if (runs.length) { runs[0].t = runs[0].t.replace(/^\s+/, ''); runs[runs.length - 1].t = runs[runs.length - 1].t.replace(/\s+$/, ''); }
+      return { ...p, runs: runs.filter((r) => r.t).map((r) => ({ t: r.t, ...(r.b ? { b: true } : {}), ...(r.i ? { i: true } : {}), ...(r.u ? { u: true } : {}) })) };
+    }).filter((p) => p.runs.some((r) => r.t.trim()));
+  }
+
+  const blocosDoTexto = (texto) => String(texto || '').replace(/\r/g, '').split('\n').filter((l) => l.trim()).map((l) => ({ tipo: 'p', alinhamento: '', runs: [{ t: l.trim() }] }));
+
+  function htmlDosBlocos(blocos) {
+    const run = (r) => { let h = e(r.t); if (r.u) h = `<u>${h}</u>`; if (r.i) h = `<i>${h}</i>`; if (r.b) h = `<b>${h}</b>`; return h; };
+    return blocos.map((p) => `<p data-tipo="${p.tipo}" class="lc-${p.tipo}"${p.alinhamento ? ` style="text-align:${p.alinhamento}"` : ''}>${p.runs.map(run).join('')}</p>`).join('');
+  }
+
+  function abrirColar(acao, aoGuardar) {
+    const caixa = el(`<div class="lote-colar">
+      <p class="lote-sub">Cole aqui a peça revisada de <b>${e(acao.reu || 'esta ação')}</b> (do Word, do Jusbrasil ou de onde estiver). O CRM põe no <b>papel timbrado</b>, em Times 12, espaçamento 1,5, recuo de 2,5 cm, títulos centralizados em negrito e o fecho preso à assinatura. Ela vira a versão final e vai no kit.</p>
+      <div class="lote-colar-folha" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Peça revisada" data-vazia="Clique aqui e cole (Ctrl+V)"></div>
+      <div class="lote-colar-rodape"><span class="lote-colar-status" aria-live="polite"></span>
+        <button type="button" class="btn-sm" data-acao="cancelar">Cancelar</button>
+        <button type="button" class="btn-primary" data-acao="guardar">Guardar como versão final</button></div>
+    </div>`);
+    const folha = caixa.querySelector('.lote-colar-folha');
+    const status = caixa.querySelector('.lote-colar-status');
+    const contar = () => { const n = blocosDoNo(folha).length; status.textContent = n ? `${n} parágrafo(s)` : ''; };
+    folha.addEventListener('paste', (ev) => {
+      ev.preventDefault();
+      const html = ev.clipboardData.getData('text/html');
+      const blocos = html ? blocosDoNo(new DOMParser().parseFromString(html, 'text/html').body) : blocosDoTexto(ev.clipboardData.getData('text/plain'));
+      folha.innerHTML = htmlDosBlocos(blocos);
+      contar();
+    });
+    folha.addEventListener('input', contar);
+    caixa.querySelector('[data-acao="cancelar"]').onclick = () => closeModal();
+    const guardar = caixa.querySelector('[data-acao="guardar"]');
+    guardar.onclick = async () => {
+      const paragrafos = blocosDoNo(folha);
+      if (!paragrafos.length) { toast('Cole a peça antes de guardar', 'error'); return; }
+      guardar.disabled = true; guardar.textContent = 'Pondo no papel timbrado…';
+      try {
+        const r = await api(`/api/lote/${acao.clienteId}/acao/${acao.id}/versao-final`, { method: 'POST', body: JSON.stringify({ paragrafos }) });
+        closeModal(); toast(`Versão final guardada no papel timbrado: ${r.nome}. Já vai no kit.`);
+        await aoGuardar();
+      } catch (err) { toast(err.message, 'error'); guardar.disabled = false; guardar.textContent = 'Guardar como versão final'; }
+    };
+    openModal(`Peça revisada · ${acao.reu || 'ação'}`, caixa, { wide: true });
+    setTimeout(() => folha.focus(), 40);
+  }
+  window.__loteColar = { blocosDoNo, blocosDoTexto, htmlDosBlocos };
+
   window.mesaDoCliente = async function mesaDoCliente(clientId, aoMudar) {
     document.querySelector('.lote-cli')?.remove();
     const voltarFoco = document.activeElement;
@@ -84,7 +186,8 @@
         <div class="lote-acao-botoes">
           <button type="button" class="btn-sm" data-acao="abrir">Abrir a mesa</button>
           ${a.peca && !a.peca.final && !protocolada ? `<button type="button" class="btn-sm" data-acao="final">Marcar a v${a.peca.versao} como final</button>` : ''}
-          ${protocolada ? '' : `<label class="btn-sm lote-enviar-final" title="Revisou no Word? Envie aqui: vira a versão final e vai no kit como está">Enviar a peça revisada (versão final)<input type="file" data-acao="enviar-final" accept=".docx,.pdf" class="lote-arquivo-oculto"></label>`}
+          ${protocolada ? '' : '<button type="button" class="btn-sm" data-acao="colar" title="Cole a peça revisada: o CRM põe no papel timbrado, na formatação das peças">Colar a peça revisada (versão final)</button>'}
+          ${a.peca ? '<button type="button" class="btn-sm" data-acao="peca">Baixar a peça (timbrado)</button>' : ''}
           <button type="button" class="btn-sm" data-acao="kit">Baixar o kit (.zip)</button>
           ${protocolada ? '' : `<button type="button" class="btn-primary btn-sm" data-acao="protocolar"${a.situacao === 'pronta' ? '' : ' title="A peça ainda não está marcada como versão final"'}>Protocolar</button>`}
         </div>
@@ -137,17 +240,13 @@
           try { await api(`/api/mesa/documento/${a.peca.docId}/final`, { method: 'POST', body: JSON.stringify({ final: true }) }); toast(`v${a.peca.versao} marcada como versão final`); mudou = true; await recarregar(); }
           catch (err) { toast(err.message, 'error'); fin.disabled = false; }
         };
-        const envFinal = card.querySelector('[data-acao="enviar-final"]');
-        if (envFinal) envFinal.onchange = async () => {
-          const f = envFinal.files[0];
-          if (!f) return;
-          if (!/\.(docx|pdf)$/i.test(f.name)) { toast('Envie a peça em Word (.docx) ou PDF', 'error'); return; }
-          if (f.size > 15 * 1024 * 1024) { toast('Arquivo maior que 15 MB', 'error'); return; }
-          const base64 = await new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = erro; r.readAsDataURL(f); });
-          try {
-            const r2 = await api(`/api/lote/${clientId}/acao/${id}/versao-final`, { method: 'POST', body: JSON.stringify({ name: f.name, file_base64: base64, mime: f.type || '' }) });
-            toast(`Guardada como versão final: ${r2.nome}. Já vai no kit.`); mudou = true; await recarregar();
-          } catch (err) { toast(err.message, 'error'); }
+        const colar = card.querySelector('[data-acao="colar"]');
+        if (colar) colar.onclick = () => abrirColar({ ...a, clienteId: clientId }, async () => { mudou = true; await recarregar(); });
+        const baixarPeca = card.querySelector('[data-acao="peca"]');
+        if (baixarPeca) baixarPeca.onclick = async () => {
+          baixarPeca.disabled = true;
+          try { await baixar(`/api/lote/${clientId}/acao/${id}/peca`, 'peca.docx'); } catch (err) { toast(err.message, 'error'); }
+          baixarPeca.disabled = false;
         };
         const prot = card.querySelector('[data-acao="protocolar"]');
         if (prot) prot.onclick = async () => {
