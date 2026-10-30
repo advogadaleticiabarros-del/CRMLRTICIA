@@ -2,9 +2,13 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 30/10/2026. Último commit: critério dos juros confirmado (desde cada desconto).
+**Última atualização:** 30/10/2026. Último commit: geração da peça com confirmação, trava e barra de progresso.
 
 ## Últimas entregas (mais recentes primeiro)
+- **30/10 (noite, 4):** **Geração da peça com confirmação, trava e barra de progresso** (pedidos da Jessica: "trave o botão depois do primeiro clique, até chegar a versão, e sempre confirme antes"; "uma barra mostrando que a versão está sendo gerada").
+  - Sempre confirma; o botão fica travado até a versão chegar; o servidor recusa um 2º pedido da mesma peça (409). Ações diferentes geram em paralelo.
+  - Barra no canto da Mesa com a etapa ("Etapa X de 9"), o tempo decorrido e a versão nova aberta ao chegar. `travaGeracaoPeca.ts`, rota `GET /api/cases/:id/peticao-inicial/status`. 9 testes novos.
+  - **Não verificado em produção:** só aparece na próxima geração real. A Jessica confirmou que o HISCON estará juntado em todos os casos de consignado/RMC/RCC.
 - **30/10 (noite, 3):** **Critério dos juros confirmado** pela Jessica: "sempre juros atualizados", ou seja, juros e correção desde cada desconto, nunca desde a citação. É o padrão que já estava no código; só a documentação mudou (decision log e manual 06).
 - **30/10 (noite):** **Pasta do Drive do caso lida sozinha** (caso do Valmirio: "Ler a pasta" ficava em "Lendo…" e não trazia nada; a Jessica: "por que o endereço da pasta já não fica fixado e os documentos não vêm sozinhos?").
   - Causas: a leitura passava dos 60 s do servidor; erro do Google virava "pasta vazia"; o card do caso vindo do e-mail apontava para outra pasta (vazia, de outra conta Google) e não para a dos anexos; subpastas ignoradas.

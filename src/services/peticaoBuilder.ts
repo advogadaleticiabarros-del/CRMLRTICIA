@@ -4,6 +4,7 @@ import { driveFileId, downloadDriveFile, listarFilhosDrive, contaGoogleDoCrm } f
 import { sincronizarPasta, type DepsPastaDrive, type ResultadoPasta } from './pastaDrive';
 import { produzirPeticao } from './esteiraPeca';
 import { depsEsteiraMysql } from './esteiraPecaMysql';
+import { travaGeracaoPeca } from './travaGeracaoPeca';
 import { brl } from './pecaCalculos';
 import { planilhaMarkdown, planilhaXlsx } from './planilhaCalculos';
 import { montarDemonstrativo, demonstrativoMarkdown, demonstrativoPdf } from './demonstrativoDescontos';
@@ -226,7 +227,9 @@ export async function buildPeticaoInicial(caseId: number, actorId: number, force
   const [[cf]] = await db.query('SELECT client_id, drive_folder_url FROM cases WHERE id = ?', [caseId]) as any;
   if (cf?.drive_folder_url) await importDriveFolder(caseId, cf.client_id ?? null, cf.drive_folder_url, actorId).catch(() => 0);
 
-  const r = await produzirPeticao(caseId, depsEsteiraMysql);
+  // A etapa vai para a barra de progresso da tela (só vale com a trava da geração).
+  const r = await produzirPeticao(caseId, { ...depsEsteiraMysql, etapa: (e) => travaGeracaoPeca.marcar(caseId, e) });
+  travaGeracaoPeca.marcar(caseId, 'salvando');
   if (!r.ok) return { ok: false, message: r.message };
   const clientId = cf?.client_id ?? null;
   const juntos = r.casos.length > 1;

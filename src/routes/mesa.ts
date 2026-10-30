@@ -9,6 +9,7 @@ import {
 } from '../services/mesaCaso';
 import { sugestoesDeJuncao, familiaDaTese, reusDoCaso, NOME_FAMILIA, ETAPAS_ANTES_DO_PROTOCOLO } from '../services/pecaConsolidacao';
 import { inventarioDaPeca, nomeDoTipo } from '../services/contratosDoCaso';
+import { travaGeracaoPeca } from '../services/travaGeracaoPeca';
 
 /**
  * Mesa do caso: a tela de trabalho da produção (regras em services/mesaCaso.ts).
@@ -237,6 +238,7 @@ router.get('/:caseId', async (req: Request, res: Response) => {
 
   res.json({
     caso: { ...c, relato }, partes, checklist, pecas, documentos, etapas, atual,
+    gerandoPeca: travaGeracaoPeca.emAndamento(c.unido_ao_caso || caseId),
     dossie: dossie ? { id: dossie.id, name: dossie.name, created_at: dossie.created_at } : null,
     planilha: planilha ? { id: planilha.id, name: planilha.name, created_at: planilha.created_at, tem_arquivo: Number(planilha.tem_arquivo) === 1 } : null,
     demonstrativo: demonstrativo ? { id: demonstrativo.id, name: demonstrativo.name, created_at: demonstrativo.created_at, tem_arquivo: Number(demonstrativo.tem_arquivo) === 1 } : null,

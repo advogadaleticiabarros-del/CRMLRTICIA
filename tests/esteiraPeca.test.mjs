@@ -420,3 +420,13 @@ test('levantarContratos: lê as fontes, guarda todos os contratos do cliente e n
   assert.ok(chamadas.every((c) => c.nivel === 'leitura'), 'só leitura, sem escolha de modelo nem redação');
   assert.match(chamadas[0].prompt, /"banco"/);
 });
+
+// Barra de progresso (30/10/2026): a esteira avisa cada etapa, na ordem, para a tela mostrar.
+test('a esteira avisa as etapas na ordem (barra de progresso)', async () => {
+  const { deps } = fakeDeps();
+  const etapas = [];
+  deps.etapa = (e) => etapas.push(e);
+  const r = await produzirPeticao(1, deps);
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(etapas, ['leitura', 'calculos', 'estrategia', 'fundamentos', 'redacao', 'conferencia']);
+});

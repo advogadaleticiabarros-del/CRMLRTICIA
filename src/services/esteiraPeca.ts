@@ -47,6 +47,8 @@ export interface DepsEsteira {
   /** Índices do Bacen (INPC, IPCA, Selic) para a planilha de cálculos; sem eles a planilha sai nominal. */
   indices?(): Promise<{ indices: IndicesMensais; avisos: string[] } | null>;
   registrar(agente: string, texto: string): void;
+  /** Avisa a etapa que começa (barra de progresso da tela). */
+  etapa?(nome: 'leitura' | 'calculos' | 'estrategia' | 'fundamentos' | 'redacao' | 'conferencia'): void;
   hoje?(): Date;
 }
 
@@ -107,6 +109,7 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
   const relato = casos.map((c) => c.relato).filter((r) => r && r.trim()).join('\n\n');
 
   // 2) Dra. Helena: lê tudo e monta a ficha de fatos.
+  deps.etapa?.('leitura');
   const fontes = montarFontes(await deps.fontes(casos.map((c) => c.id), caso).catch(() => []));
   const rFicha = fontes.lidas.length
     ? await deps.ia(promptFichaDeFatos({ area: caso.legal_area, cliente: caso.cliente, casos: rotulos }, fontes.texto), 'leitura').catch((e) => ({ ok: false, message: e?.message }))
@@ -126,6 +129,7 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
   };
 
   // 3) Cálculos em código; o Calculista atualiza cada desconto (planilha de cálculos).
+  deps.etapa?.('calculos');
   const hoje = deps.hoje?.() || new Date();
   let calculo = calcularPeca({ contratos: ficha.contratos, descontos: ficha.descontos, hoje });
   if (calculo.descontos.length && deps.indices) {
@@ -138,6 +142,7 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
   deps.registrar('analista', `leu ${fontes.lidas.length} fonte(s) de ${caso.cliente} para a petição inicial: ${ficha.contratos.length} contrato(s) desta peça${sep.fora.length ? ` (${sep.fora.length} de outro banco/tese ficaram fora)` : ''}, ${ficha.descontos.length} desconto(s)${calculo.indebito.total.restituir ? `, ${brl(calculo.indebito.total.restituir)} a restituir` : ''}`);
 
   // 4) Cérebro: estratégia e modelos pelo guia do escritório.
+  deps.etapa?.('estrategia');
   const cat = await deps.catalogo(caso.legal_area).catch(() => ({ guia: '', itens: [] as ItemCatalogo[] }));
   let escolha: Escolha = { estrategia: null, modelos: [], teses: [], motivo: null };
   if (cat.itens.length) {
@@ -153,9 +158,11 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
     : `não achou modelo no cofre para a petição de ${caso.cliente}`);
 
   // 5) Dra. Júlia: fundamentos que existem, com o texto oficial (ela registra a própria ação).
+  deps.etapa?.('fundamentos');
   const fundamentos = await deps.fundamentos(`${rotulos.join('\n')}\n${escolha.estrategia || ''}\n${resumoDaFicha(ficha)}\n${relato.slice(0, 2000)}`, caso.legal_area).catch(() => '');
 
   // 6) Redação com raciocínio alto, seguindo as regras aprendidas, e conferência dos valores.
+  deps.etapa?.('redacao');
   const partesContrarias = juntarPartes(casos);
   const regras = await deps.regras(caso.legal_area, casos.map((c) => c.id)).catch(() => []);
   const prompt = montarPromptRedacao({
@@ -167,6 +174,7 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
   if (!out.ok || !out.text) return { ok: false, message: out.message || 'A IA não devolveu a petição' };
   deps.registrar('estagiario', `redigiu a petição inicial de ${caso.cliente}${casos.length > 1 ? ` reunindo ${casos.length} casos contra a mesma parte` : ''}`);
 
+  deps.etapa?.('conferencia');
   const conferencia = conferirValores(out.text, calculo);
   const lista = casos.map((c) => ({ id: c.id, titulo: c.titulo }));
   return {

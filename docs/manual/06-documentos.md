@@ -133,6 +133,12 @@ Pedido da Jessica: "preciso que os documentos sejam lidos de fato, os cálculos 
 
 A geração leva alguns minutos e roda em segundo plano: o aviso chega no sino. A revisão automática roda em seguida, sobre a petição (nunca sobre o dossiê).
 
+**Confirmação, trava e barra de progresso (desde 30/10/2026, pedido da Jessica: "trave o botão depois do primeiro clique, até chegar a versão, e sempre confirme antes" e "uma barra mostrando que a versão está sendo gerada"):**
+- "Pedir nova versão à equipe" (Mesa) e "Gerar nova versão da petição" (painel da produção) **sempre pedem confirmação**.
+- Depois do clique, o botão fica **travado** até a versão chegar. O servidor também recusa um segundo pedido da mesma peça enquanto ela está sendo gerada (erro 409), inclusive o gatilho de "Criação inicial". Peças de ações diferentes continuam gerando ao mesmo tempo.
+- **Barra de progresso** no canto da Mesa: etapa atual (lendo os documentos, cálculos, estratégia, fundamentos, redação, conferência, salvando, revisão automática), "Etapa X de 9" e o tempo decorrido. Atualiza a cada 4 s. Quando termina, a mesa abre a versão nova sozinha ("A nova versão chegou (vN)") ou avisa que terminou sem versão nova (o motivo fica no sino). No painel da produção, o próprio botão mostra a etapa.
+- A trava fica na memória do servidor (`src/services/travaGeracaoPeca.ts`); trava esquecida solta sozinha em 30 min. Reinício do servidor no meio da geração solta a trava junto. Rota `GET /api/cases/:id/peticao-inicial/status`. Testes: `tests/travaGeracaoPeca.test.mjs` e a ordem das etapas em `tests/esteiraPeca.test.mjs`.
+
 Código: `src/services/esteiraPeca.ts` (ordem dos agentes), `pecaCalculos.ts`, `planilhaCalculos.ts` (Calculista), `indicesEconomicos.ts` e `indicesEconomicosMysql.ts` (Bacen), `xlsxSimples.ts` (arquivo .xlsx), `pecaConsolidacao.ts`, `pecaDossie.ts`, `esteiraPecaMysql.ts` (banco). Testes: `tests/esteiraPeca.test.mjs` e `tests/planilhaCalculos.test.mjs`. Tabela `pecas_conjuntas` (migration 167).
 
 ### Contratos nos documentos: o que entra em cada peça (desde 28/10/2026)
@@ -323,6 +329,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Geração da peça: confirmação sempre, botão travado até a versão chegar (trava também no servidor) e barra de progresso com a etapa |
 | 30/10/2026 | Claude | Juros da planilha desde cada desconto: critério confirmado pela Jessica |
 | 30/10/2026 | Claude | Pasta do Drive do caso: lida sozinha a cada 30 min (com subpastas, só o que é novo); "Atualizar da pasta" em segundo plano com aviso no sino e o motivo quando o Google recusa; o caso vindo do e-mail já grava a pasta dos anexos no card |
 | 30/10/2026 | Claude | Demonstrativo de descontos (PDF) por peça: contratos do réu (nº, RMC/RCC, banco, inclusão), o que já foi descontado mês a mês com a fonte e a base do valor da causa; salvo a cada versão da peça, na aba Cálculos da mesa e no kit da ação antes da planilha. O extrato original continua inteiro no protocolo |

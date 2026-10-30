@@ -16,6 +16,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 30/10/2026 — Trava da geração da peça na memória do servidor
+**Decisão:** a trava "esta peça já está sendo gerada" e a etapa da barra de progresso ficam num mapa em memória (`travaGeracaoPeca.ts`), não numa tabela.
+**Motivo:** o CRM roda num único processo (PM2 `crm-juridico`) e a geração também vive nesse processo: se ele reiniciar, a geração se perde junto com a trava, então não há o que proteger no banco. Sem migration e sem consulta a cada 4 s ao banco. Trava esquecida solta em 30 min.
+**Rever se:** o CRM passar a rodar em mais de um processo (cluster) ou a geração virar uma fila de trabalhos.
+
 ### 30/10/2026 — Juros desde cada desconto: critério confirmado
 **Decisão:** confirmado o critério da entrada de 28/10 ("Planilha de cálculos"): juros de mora e correção monetária contam **desde cada desconto**, nunca desde a citação. A planilha, o demonstrativo e o valor da causa saem sempre com os juros atualizados até a data-base.
 **Quem decidiu:** a Jessica, em 30/10/2026 ("sim, sempre juros atualizados").
@@ -283,6 +288,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Trava da geração da peça em memória (processo único), com etapa para a barra de progresso |
 | 30/10/2026 | Claude | Juros desde cada desconto confirmados pela Jessica (sempre atualizados, nunca desde a citação) |
 | 28/10/2026 | Claude | Planilha de cálculos: correção e juros desde cada desconto (Lei 14.905/2024 a partir de 09/2024), índices do Bacen em cache, .xlsx próprio |
 | 28/10/2026 | Claude | Contratos guardados por cliente; a Dra. associa cada um a um processo; regra automática conservadora (banco do réu + mesma tese) |

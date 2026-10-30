@@ -8654,11 +8654,28 @@ async function caseDetail(id, onSave) {
         danalyze.disabled = false; danalyze.innerHTML = orig;
       };
       const genBtn = panel.querySelector('#prod-gen-peticao');
-      if (genBtn) genBtn.onclick = async () => {
-        genBtn.disabled = true; genBtn.textContent = 'Gerando com IA…';
-        try { await api(`/api/cases/${id}/peticao-inicial`, { method: 'POST', body: '{}' }); toast('A equipe está montando a petição: leitura dos documentos, cálculos, modelo e redação. Você será avisada no sino quando terminar.'); genBtn.textContent = 'Em produção pela equipe…'; }
-        catch (e) { toast(e.message, 'error'); genBtn.disabled = false; genBtn.textContent = 'Gerar nova versão da petição (IA)'; }
-      };
+      if (genBtn) {
+        // Trava + andamento (30/10/2026): o botão fica travado e mostra a etapa até a versão chegar.
+        const rotuloGen = genBtn.innerHTML;
+        const acompanhar = async () => {
+          if (!genBtn.isConnected) return;
+          const s = await api(`/api/cases/${id}/peticao-inicial/status`).catch(() => ({ gerando: true, andamento: null }));
+          if (!genBtn.isConnected) return;
+          if (s.gerando) {
+            genBtn.disabled = true;
+            genBtn.textContent = s.andamento ? `Gerando… etapa ${s.andamento.passo} de ${s.andamento.total}: ${s.andamento.rotulo}` : 'Gerando…';
+            setTimeout(acompanhar, 4000);
+          } else { genBtn.disabled = false; genBtn.innerHTML = rotuloGen; }
+        };
+        acompanhar();
+        genBtn.onclick = async () => {
+          if (!await uiConfirm('Gerar uma nova versão da petição? A equipe lê tudo de novo e monta outra versão (leva alguns minutos e usa a IA). As versões atuais continuam guardadas.')) return;
+          genBtn.disabled = true; genBtn.textContent = 'Gerando…';
+          try { await api(`/api/cases/${id}/peticao-inicial`, { method: 'POST', body: '{}' }); toast('A equipe está montando a petição. O botão mostra a etapa, e o aviso chega no sino.'); }
+          catch (e) { toast(e.message, 'error'); }
+          setTimeout(acompanhar, 1500);
+        };
+      }
       panel.querySelectorAll('[data-doc]').forEach((b) => b.onclick = async () => {
         try {
           const g = await api('/api/documents/' + b.dataset.doc);

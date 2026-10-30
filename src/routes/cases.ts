@@ -6,6 +6,7 @@ import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
 import { montarEndereco } from '../services/contractTemplates';
 import { buildPeticaoInicial, analyzeCaseDrive } from '../services/peticaoBuilder';
+import { travaGeracaoPeca } from '../services/travaGeracaoPeca';
 import { revisarPeticaoDoCaso } from '../services/peticaoReviewer';
 import { slaDiasEfetivosSql } from '../services/productionSla';
 import { retirarSenhaInss } from '../services/senhaInssCliente';
@@ -249,16 +250,30 @@ router.post('/:id/contexto', async (req: Request, res: Response) => {
 // Em segundo plano: a esteira (leitura, cálculos, modelo, redação) leva minutos.
 router.post('/:id/peticao-inicial', async (req: Request, res: Response) => {
   const caseId = Number(req.params.id), userId = req.user!.id;
-  const [[c]] = await db.query('SELECT id, title FROM cases WHERE id = ?', [caseId]) as any;
+  const [[c]] = await db.query('SELECT id, title, unido_ao_caso FROM cases WHERE id = ?', [caseId]) as any;
   if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
+  // Trava (30/10/2026): um segundo pedido enquanto a peça está sendo gerada é recusado.
+  const alvo = c.unido_ao_caso || caseId;
+  const andamento = travaGeracaoPeca.emAndamento(alvo);
+  if (andamento) { res.status(409).json({ error: 'A nova versão desta peça já está sendo gerada. Aguarde o aviso no sino.', emAndamento: true, andamento }); return; }
   const avisar = (ok: boolean, message: string) => notificationService.create({
     userId, caseId, title: ok ? 'Petição inicial gerada' : 'Falha ao gerar a petição inicial', message,
     notificationType: ok ? 'peticao_gerada' : 'peticao_falhou', channel: 'sistema', scheduledAt: new Date(),
   }).catch(() => {});
-  buildPeticaoInicial(caseId, userId, true)
-    .then((r) => avisar(r.ok, r.ok ? `${c.title || 'Processo'} — v${r.version} pronta${(r.casos?.length || 0) > 1 ? ` (peça conjunta de ${r.casos!.length} casos)` : ''}. Confira a petição e o "Dossiê da peça" em Documentos do caso.` : (r.message || 'Erro desconhecido')))
+  travaGeracaoPeca.executar(alvo, () => buildPeticaoInicial(caseId, userId, true))
+    .then(({ valor: r }) => r && avisar(r.ok, r.ok ? `${c.title || 'Processo'} — v${r.version} pronta${(r.casos?.length || 0) > 1 ? ` (peça conjunta de ${r.casos!.length} casos)` : ''}. Confira a petição e o "Dossiê da peça" em Documentos do caso.` : (r.message || 'Erro desconhecido')))
     .catch((e: any) => avisar(false, `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`));
   res.status(202).json({ success: true, emAndamento: true });
+});
+
+// ── GET /api/cases/:id/peticao-inicial/status — a peça está sendo gerada? ────
+// A tela usa para manter o botão travado até a versão chegar (30/10/2026).
+router.get('/:id/peticao-inicial/status', async (req: Request, res: Response) => {
+  const caseId = Number(req.params.id);
+  const [[c]] = await db.query('SELECT id, unido_ao_caso FROM cases WHERE id = ?', [caseId]) as any;
+  if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
+  const andamento = travaGeracaoPeca.emAndamento(c.unido_ao_caso || caseId);
+  res.json({ gerando: !!andamento, andamento });
 });
 
 // ── PATCH /api/cases/:id/production-meta — etiquetas e responsável ───────────
@@ -887,8 +902,12 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   // RODA EM BACKGROUND — a leitura de anexos (Gemini visão) pode levar dezenas
   // de segundos; travar a resposta aqui prendia a tela ao mover o card.
   if (stage === 'criacao_inicial' && c.production_stage !== 'criacao_inicial') {
-    buildPeticaoInicial(Number(id), req.user!.id)
+    const [[u]] = await db.query('SELECT unido_ao_caso FROM cases WHERE id = ?', [Number(id)]) as any;
+    // Com a trava: se a peça já está sendo gerada (botão "nova versão"), não gera outra.
+    const alvoPeca = u?.unido_ao_caso || Number(id);
+    travaGeracaoPeca.executar(alvoPeca, () => buildPeticaoInicial(Number(id), req.user!.id)
       .then(async (r) => {
+        if (r.ok) travaGeracaoPeca.marcar(alvoPeca, 'revisao');
         // Revisão automática logo após gerar (antes só rodava ao mover para
         // "Revisão inicial"): os pontos de atenção já chegam junto da minuta.
         const rev = r.ok ? await revisarPeticaoDoCaso(Number(id), req.user!.id).catch(() => null) : null;
@@ -901,7 +920,7 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
           message: r.ok ? `${c.title || 'Processo'} — confira em Documentos do caso.${revTxt}` : (r.message || 'Erro desconhecido'),
           notificationType: r.ok ? 'peticao_gerada' : 'peticao_falhou', channel: 'sistema', scheduledAt: new Date(),
         });
-      })
+      }))
       .catch((e: any) => notificationService.create({
         userId: req.user!.id, caseId: Number(id),
         title: 'Falha ao gerar a petição inicial',

@@ -266,7 +266,7 @@
         ${p && p.final_em ? '<span class="mesa-tag mesa-tag-ok">Versão final · travada</span>' : ''}
         ${st.d.revisao && !st.comparar ? `<button type="button" class="mesa-btn mesa-btn-sm${st.aoLado ? ' mesa-ligado' : ''}" data-acao="ao-lado" aria-pressed="${st.aoLado}">${st.aoLado ? 'Esconder o parecer' : 'Parecer da revisão ao lado'}</button>` : ''}
         <span class="mesa-espaco"></span>
-        <button type="button" class="mesa-btn mesa-btn-sm" data-acao="nova-versao" title="A equipe lê tudo de novo e monta outra versão">Pedir nova versão à equipe</button>
+        <button type="button" class="mesa-btn mesa-btn-sm" data-acao="nova-versao" title="A equipe lê tudo de novo e monta outra versão"${st.d.gerandoPeca ? ' disabled' : ''}>${st.d.gerandoPeca ? 'Gerando a nova versão…' : 'Pedir nova versão à equipe'}</button>
         ${p ? `<button type="button" class="mesa-btn mesa-btn-sm" data-acao="final">${p.final_em ? 'Destravar para editar' : 'Marcar como versão final'}</button>` : ''}`;
     }
 
@@ -555,6 +555,43 @@
     }
 
     function renderTudo() { renderTopo(); renderJornada(); renderAgora(); renderEsq(); renderDir(); renderCentro(); }
+    // ── geração da peça: botão travado + barra de progresso até a versão chegar (30/10/2026) ──
+    // Pedido da Jessica: "trave o botão depois do primeiro clique, até chegar a versão" e
+    // "uma barra mostrando que a versão está sendo gerada". A etapa vem do servidor.
+    const ger = { timer: null, el: null, antes: 0 };
+    function decorrido(desde) {
+      const s = Math.max(0, Math.round((Date.now() - new Date(desde).getTime()) / 1000)), m = Math.floor(s / 60);
+      return m ? `${m} min ${String(s % 60).padStart(2, '0')} s` : `${s} s`;
+    }
+    function barraGeracao(a) {
+      const btn = q('[data-acao="nova-versao"]');
+      if (btn) { btn.disabled = !!a; btn.textContent = a ? 'Gerando a nova versão…' : 'Pedir nova versão à equipe'; }
+      if (!a) { if (ger.el) { ger.el.remove(); ger.el = null; } return; }
+      if (!ger.el) { ger.el = document.createElement('div'); ger.el.className = 'mesa-gerando'; ger.el.setAttribute('role', 'status'); ov.appendChild(ger.el); }
+      const pct = Math.min(97, Math.round(((a.passo - 0.5) / a.total) * 100));
+      ger.el.innerHTML = `
+        <div class="mesa-gerando-topo"><strong>Gerando a nova versão da peça</strong><span>${esc(decorrido(a.desde))}</span></div>
+        <div class="mesa-gerando-barra" role="progressbar" aria-label="Andamento da geração" aria-valuemin="0" aria-valuemax="${a.total}" aria-valuenow="${a.passo}"><span style="width:${pct}%"></span></div>
+        <div class="mesa-gerando-etapa">Etapa ${a.passo} de ${a.total}: ${esc(a.rotulo)}</div>
+        <small>Leva cerca de 5 a 10 minutos. Pode continuar trabalhando; o botão fica travado até a versão chegar.</small>`;
+    }
+    async function verificarGeracao() {
+      clearTimeout(ger.timer);
+      if (!ov.isConnected) return;
+      let s;
+      try { s = await api(`/api/cases/${caseId}/peticao-inicial/status`); } catch { ger.timer = setTimeout(verificarGeracao, 8000); return; }
+      if (!ov.isConnected) return;
+      if (s.gerando) { st.d.gerandoPeca = s.andamento; barraGeracao(s.andamento); ger.timer = setTimeout(verificarGeracao, 4000); return; }
+      const estava = !!st.d.gerandoPeca;
+      st.d.gerandoPeca = null; barraGeracao(null);
+      if (!estava) return;
+      st.mudou = true;
+      await recarregar(false); st.docId = null; await carregar(); st.doc = null; renderCentro();
+      if (st.d.pecas.length > ger.antes) toast(`A nova versão chegou (v${st.d.pecas[st.d.pecas.length - 1].versao}).`);
+      else toast('A geração terminou sem versão nova. Veja o motivo no sino.', 'error');
+    }
+    function acompanharGeracao(a) { ger.antes = st.d.pecas.length; st.d.gerandoPeca = a; barraGeracao(a); ger.timer = setTimeout(verificarGeracao, 3000); }
+
     async function recarregar(tudo) { await carregar(); if (tudo) renderTudo(); else { renderTopo(); renderJornada(); renderAgora(); renderDir(); renderEsq(); } }
 
     // ── ações ───────────────────────────────────────────────────────────────
@@ -676,10 +713,22 @@
           await recarregar(false); st.doc = null; renderCentro();
         } catch (e) { toast(e.message, 'error'); }
       },
-      'nova-versao': async () => {
-        if (st.d.pecas.length && !await uiConfirm('Pedir uma nova versão à equipe? Ela lê tudo de novo e monta outra versão; as atuais continuam guardadas.')) return;
-        try { await api(`/api/cases/${caseId}/peticao-inicial`, { method: 'POST', body: '{}' }); st.mudou = true; toast('A equipe está montando a nova versão. Você será avisada no sino.'); }
-        catch (e) { toast(e.message, 'error'); }
+      'nova-versao': async (b) => {
+        if (st.d.gerandoPeca) { toast('A nova versão já está sendo gerada. Acompanhe pela barra.'); return; }
+        // Sempre confirma antes (gera custo de IA e uma versão nova).
+        const msg = st.d.pecas.length
+          ? 'Gerar uma nova versão da peça? A equipe lê tudo de novo e monta outra versão (leva alguns minutos e usa a IA). As versões atuais continuam guardadas.'
+          : 'Gerar a petição agora? A equipe lê os documentos, faz os cálculos e redige (leva alguns minutos e usa a IA).';
+        if (!await uiConfirm(msg)) return;
+        b.disabled = true;
+        try {
+          await api(`/api/cases/${caseId}/peticao-inicial`, { method: 'POST', body: '{}' });
+          st.mudou = true;
+          acompanharGeracao({ desde: new Date().toISOString(), etapa: 'inicio', rotulo: 'Começando', passo: 1, total: 9 });
+        } catch (e) {
+          toast(e.message, 'error');
+          if (/sendo gerada/i.test(e.message)) { ger.antes = st.d.pecas.length; st.d.gerandoPeca = st.d.gerandoPeca || { desde: new Date().toISOString(), etapa: 'inicio', rotulo: 'Começando', passo: 1, total: 9 }; verificarGeracao(); } else b.disabled = false;
+        }
       },
       fmt: (b) => { const papel = q('.mesa-papel'); if (!papel || papel.getAttribute('contenteditable') !== 'true') return; papel.focus(); document.execCommand(b.dataset.cmd, false, null); aoEditar(); },
       proximo: () => {
@@ -814,6 +863,7 @@
     });
 
     renderTudo();
+    if (st.d.gerandoPeca) acompanharGeracao(st.d.gerandoPeca);
     ov.tabIndex = -1; ov.focus({ preventScroll: true });
   };
 })();
