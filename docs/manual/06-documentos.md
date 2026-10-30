@@ -50,7 +50,7 @@ Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análi
   - checklist grande, em que clicar marca o que chegou;
   - coleta da Dra. Camila: o que pediu, o que chegou e as cobranças preparadas;
   - enviar arquivos (escolher ou arrastar; PDF, foto ou Word, até 15 MB);
-  - pasta do Drive e a lista dos documentos do caso.
+  - pasta do Drive e a lista dos documentos do caso. **A pasta é lida sozinha** a cada 30 minutos (7h–21h) enquanto o caso está em produção, antes do protocolo: arquivos novos, inclusive de subpastas, entram no caso já lidos pela IA. **"Atualizar da pasta"** puxa na hora (em segundo plano, com aviso no sino) e, se o Google recusar, o sino diz o motivo e o que fazer (por exemplo, compartilhar a pasta com a conta Google do CRM). No caso que vem do e-mail da parceria, o link da pasta já fica gravado no card e é a mesma pasta onde os anexos do e-mail foram salvos (desde 30/10/2026). Código: `src/services/pastaDrive.ts`.
 - **Centro, abas Caso, Documentos, Peça, Revisão, Cálculos e Dossiê da peça.** A aba **Cálculos** mostra a planilha do Calculista (ver Esteira da petição inicial) com o botão "Baixar planilha (.xlsx)". Na Peça:
   - o texto abre como folha de papel e é editável: negrito, itálico, sublinhado, alinhamento, listas, recuo, títulos e citação;
   - os campos a preencher ficam em amarelo, e "Próximo" pula entre eles;
@@ -323,6 +323,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Pasta do Drive do caso: lida sozinha a cada 30 min (com subpastas, só o que é novo); "Atualizar da pasta" em segundo plano com aviso no sino e o motivo quando o Google recusa; o caso vindo do e-mail já grava a pasta dos anexos no card |
 | 30/10/2026 | Claude | Demonstrativo de descontos (PDF) por peça: contratos do réu (nº, RMC/RCC, banco, inclusão), o que já foi descontado mês a mês com a fonte e a base do valor da causa; salvo a cada versão da peça, na aba Cálculos da mesa e no kit da ação antes da planilha. O extrato original continua inteiro no protocolo |
 | 30/10/2026 | Claude | Colar a peça revisada: vira o .docx no papel timbrado da Dra., na formatação das peças (Times 12, 1,5, recuo 2,5 cm, títulos centralizados, citação recuada, fecho preso à assinatura); "Baixar a peça (timbrado)"; a peça da equipe no kit também sai no timbrado |
 | 30/10/2026 | Claude | Card do cliente: "Enviar a peça revisada (versão final)" em Word ou PDF (vai no kit como veio e deixa a ação pronta) e "Marcar a vN como final"; o kit baixa do Google Drive os documentos que só têm link; a leitura da pasta do Drive não reimporta documento renomeado |

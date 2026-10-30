@@ -292,13 +292,23 @@ router.patch('/:id/production-meta', async (req: Request, res: Response) => {
 });
 
 // ── POST /api/cases/:id/analisar-documentos — lê a pasta do Drive e gera a análise-checklist
+// Roda em segundo plano e avisa no sino: baixar e ler cada arquivo com IA passava
+// dos 60 s do servidor e a tela ficava em "Lendo…" (caso do Valmirio, 30/10/2026).
 router.post('/:id/analisar-documentos', async (req: Request, res: Response) => {
-  try {
-    const r = await analyzeCaseDrive(Number(req.params.id), req.user!.id);
-    res.json(r);
-  } catch (e: any) {
-    res.status(500).json({ ok: false, message: e?.message || 'Falha ao analisar os documentos' });
-  }
+  const caseId = Number(req.params.id), userId = req.user!.id;
+  const [[c]] = await db.query('SELECT id, title FROM cases WHERE id = ?', [caseId]) as any;
+  if (!c) { res.status(404).json({ ok: false, message: 'Caso não encontrado' }); return; }
+  const avisar = (ok: boolean, message: string) => notificationService.create({
+    userId, caseId, title: ok ? 'Pasta do Drive lida' : 'Não consegui ler a pasta do Drive', message,
+    notificationType: ok ? 'pasta_drive_lida' : 'pasta_drive_falhou', channel: 'sistema', scheduledAt: new Date(),
+  }).catch(() => {});
+  analyzeCaseDrive(caseId, userId)
+    .then((r) => {
+      if (r.erroDrive) return avisar(false, `${c.title || 'Caso'}: ${r.erroDrive}`);
+      return avisar(true, `${c.title || 'Caso'}: ${r.imported} arquivo(s) novo(s), ${r.docsLidos} documento(s) lido(s).${r.ok ? ' A análise (checklist) está em Documentos.' : ` A análise não saiu: ${r.message || 'erro da IA'}.`}`);
+    })
+    .catch((e: any) => avisar(false, `${c.title || 'Caso'}: ${e?.message || 'erro desconhecido'}`));
+  res.status(202).json({ ok: true, emAndamento: true });
 });
 
 // ── POST /api/cases/:id/production-notes — observação/pendência/atualização ──

@@ -5,6 +5,10 @@
 **Última atualização:** 30/10/2026. Último commit: demonstrativo de descontos (PDF) por peça.
 
 ## Últimas entregas (mais recentes primeiro)
+- **30/10 (noite):** **Pasta do Drive do caso lida sozinha** (caso do Valmirio: "Ler a pasta" ficava em "Lendo…" e não trazia nada; a Jessica: "por que o endereço da pasta já não fica fixado e os documentos não vêm sozinhos?").
+  - Causas: a leitura passava dos 60 s do servidor; erro do Google virava "pasta vazia"; o card do caso vindo do e-mail apontava para outra pasta (vazia, de outra conta Google) e não para a dos anexos; subpastas ignoradas.
+  - Agora: leitura automática a cada 30 min (7h–21h) dos casos em produção; "Atualizar da pasta" em segundo plano com aviso no sino e o motivo da falha; o caso vindo do e-mail já grava a pasta dos anexos. `src/services/pastaDrive.ts`, 7 testes novos.
+  - **Pendente:** conferir no sino o resultado do caso 115. Se disser "não está compartilhada", compartilhar a pasta do Valmirio com a conta Google do CRM (o e-mail aparece no aviso). Casos antigos com pasta de outra conta podem precisar do mesmo. Ver o runbook e `docs/contexto/relatorios/2026-10-30-pasta-drive-lida-sozinha.md`.
 - **30/10 (noite, 2):** **Demonstrativo de descontos (PDF) por peça** (pedido da Jessica: separar do extrato o que é de cada peça, RMC/RCC, nº do contrato, tudo o que já foi descontado; "o extrato original vai também no protocolo, é só um demonstrativo separado para base de cálculo também do valor da causa").
   - A cada versão da peça sai "Demonstrativo de descontos — Cliente (vN)": contratos do réu, o que foi descontado mês a mês (com a fonte) e a base do valor da causa. Fica na Mesa → aba Cálculos e no kit da ação, antes da planilha. O extrato original continua inteiro.
   - **Não verificado em produção:** sai na próxima "gerar nova versão" da peça.

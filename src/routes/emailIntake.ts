@@ -4,7 +4,6 @@ import { db } from '../config/database';
 import { env } from '../config/env';
 import { enqueueIntake, confirmIntake, ParsedIntake } from '../services/emailIntake';
 import { getInboxAuthUrl, getInboxStatus, updateInboxConfig, disconnectInbox, syncInboxNow, processAttachmentsForImport, getOrCreateCaseFolderUrl, downloadClientAttachmentsFromGmail } from '../services/partnerInboxService';
-import { createProductionFolder } from '../services/DriveService';
 
 const router = Router();
 
@@ -113,29 +112,17 @@ router.post('/:id/confirm', async (req: Request, res: Response) => {
       console.error('[email-intake/confirm] falha ao processar anexos do import', req.params.id, e);
     }
 
-    // Auto-criar pasta Drive individual por caso (igual ao fluxo manual de parceria)
-    if (out.caseIds.length > 0) {
-      try {
-        const [cases] = await db.query(
-          `SELECT c.id, c.title, c.legal_area, cl.name AS client_name
-             FROM cases c LEFT JOIN clients cl ON cl.id = c.client_id
-            WHERE c.id IN (${out.caseIds.map(() => '?').join(',')})`,
-          out.caseIds
-        ) as any;
-        for (const c of cases) {
-          createProductionFolder(req.user!.id, c.client_name || 'Cliente', c.legal_area || 'Geral', (c.title || '').substring(0, 50))
-            .then((result) => {
-              if (result) {
-                db.query('UPDATE cases SET drive_folder_url = ? WHERE id = ?', [result.folderUrl, c.id])
-                  .catch((e) => console.error('[email-intake/confirm] falha ao salvar drive_folder_url do caso', c.id, e));
-              }
-            })
-            .catch((e) => console.error('[email-intake/confirm] falha ao criar pasta Drive do caso (fire-and-forget)', c.id, e));
+    // Pasta do Drive de cada caso = a MESMA pasta onde os anexos foram gravados
+    // ("CRM Jurídico - Anexos → Cliente → Caso"), criada pela conta que o CRM usa para ler.
+    // Até 30/10/2026 o card recebia outra pasta, vazia e de outra conta, e "Ler a pasta"
+    // não achava nada (caso do Valmirio). Em sequência para não duplicar a pasta do cliente.
+    if (out.caseIds.length > 0 && out.clientId) {
+      (async () => {
+        for (const caseId of out.caseIds) {
+          const url = await getOrCreateCaseFolderUrl(out.clientId, caseId);
+          if (url) await db.query("UPDATE cases SET drive_folder_url = ? WHERE id = ? AND (drive_folder_url IS NULL OR drive_folder_url = '')", [url, caseId]);
         }
-      } catch (e) {
-        // silent por design (não bloqueia o retorno), mas registrado.
-        console.error('[email-intake/confirm] falha ao preparar criação de pastas Drive por caso', out.caseIds, e);
-      }
+      })().catch((e) => console.error('[email-intake/confirm] falha ao gravar a pasta do Drive dos casos', out.caseIds, e));
     }
 
     res.json({ success: true, ...out, anexos });

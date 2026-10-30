@@ -569,6 +569,12 @@ export function startCronJobs() {
   // dias — é só telemetria técnica (rotina rodou/deu erro), sem ligação com
   // cliente/processo/financeiro. Sozinha já tinha passado de 21 mil linhas em
   // 3 semanas e era o maior consumidor de espaço do banco no Railway.
+  // Pastas do Drive dos casos em produção: a cada 30 min (7h–21h) traz os arquivos
+  // novos para o caso, sem precisar de botão (pedido da Jessica, 30/10/2026).
+  cron.schedule('25,55 7-21 * * *', () => {
+    runJob('producao:pastas-drive', async () => (await import('../services/peticaoBuilder')).sincronizarPastasEmProducao(), { silencioso: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // Alarme de disco (Dr. Bento): todo dia às 8h05; avisa a partir de 85%.
   // Em 16/10/2026 o cache de build do Docker do Orbit levou o disco a 81% sem ninguém ver.
   cron.schedule('5 8 * * *', () => {

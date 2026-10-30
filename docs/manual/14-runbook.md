@@ -16,6 +16,26 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: "Ler a pasta" do Drive travava em "Lendo…" e não trazia documento nenhum
+
+**Sintoma (30/10/2026, caso do Valmirio, caso 115):** na Mesa do caso, aba Documentos, "Ler a pasta" ficava em "Lendo…" e o caso continuava com "Documentos do caso · 0", embora a pasta do Drive tivesse arquivos novos. O log do nginx mostrou `upstream timed out ... POST /api/cases/115/analisar-documentos`.
+
+**Causas (eram quatro):**
+1. **Tempo:** a rota baixava e lia cada arquivo com IA e ainda gerava a análise antes de responder. Passava dos 60 s do nginx.
+2. **Erro escondido:** `listDriveFolderFiles` devolvia lista vazia em qualquer falha do Google (pasta não compartilhada, permissão faltando, conexão expirada). A tela não tinha como saber.
+3. **Duas pastas e duas contas:** ao confirmar o caso vindo do e-mail, os anexos iam para "CRM Jurídico - Anexos → Cliente → Caso" (conta do Gmail da parceria), mas o card recebia **outra** pasta, criada vazia por `createProductionFolder` com a conta Google da agenda de quem confirmou. A conta que lê (Gmail da parceria) nem sempre enxerga essa pasta.
+4. **Subpastas ignoradas** e **nada lia a pasta sozinho**: só o botão.
+
+**Correção (30/10/2026):**
+- `src/services/pastaDrive.ts`: lê a pasta com as subpastas, traz só o que é novo e traduz a falha do Google em mensagem ("compartilhe a pasta com a conta Google do CRM (e-mail)", "reconecte o Google em Parcerias → Gmail da parceria"). Testes: `tests/pastaDrive.test.mjs`.
+- `POST /api/cases/:id/analisar-documentos` roda em segundo plano e avisa no sino ("Pasta do Drive lida" ou "Não consegui ler a pasta do Drive", com o motivo). O botão virou "Atualizar da pasta".
+- Cron `producao:pastas-drive` (a cada 30 min, 7h–21h): casos em produção antes do protocolo, com pasta, recebem os arquivos novos sozinhos.
+- Confirmação do e-mail: o card recebe a **mesma** pasta dos anexos (`getOrCreateCaseFolderUrl`), da conta que lê.
+
+**Como reconhecer de novo:** aviso no sino "Não consegui ler a pasta do Drive". Se disser "não está compartilhada", abra a pasta no Drive e compartilhe (leitor) com o e-mail citado. Casos antigos com a pasta de outra conta (como o do Valmirio) precisam desse compartilhamento uma vez. Erros do cron ficam no log como `[pasta-drive] caso N ...`.
+
+---
+
 ## Incidente: senha do Meu INSS em texto aberto na observação do card
 
 **Sintoma:** em 30/10/2026, a observação de um card da produção (caso de parceria) tinha a senha do Meu INSS do cliente em claro, colada junto com o e-mail do parceiro ("DADOS DE ACESSO AO INSS / Senha Meu INSS: ...").

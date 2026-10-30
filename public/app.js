@@ -8647,15 +8647,9 @@ async function caseDetail(id, onSave) {
         out.innerHTML = '<div class="spinner"></div>';
         try {
           await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ drive_folder_url: url }) });
-          const r = await api(`/api/cases/${id}/analisar-documentos`, { method: 'POST' });
-          if (r.ok) {
-            toast(`Análise pronta — ${r.imported || 0} novo(s) do Drive · ${r.docsLidos || 0} documento(s) lido(s)`);
-            out.innerHTML = `<div style="border:1px solid var(--border);border-radius:12px;background:var(--surface);padding:14px 16px;max-height:60vh;overflow:auto">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><strong style="color:var(--navy)">Análise do caso (checklist)</strong>
-                  <small style="color:var(--text-muted)">salvo em Documentos do caso</small></div>
-                <div style="white-space:pre-wrap;font-size:13px;line-height:1.6">${esc(r.text)}</div></div>`;
-            loadProd();
-          } else { out.innerHTML = ''; toast('Não foi possível analisar: ' + (r.message || ''), 'error'); }
+          await api(`/api/cases/${id}/analisar-documentos`, { method: 'POST' });
+          out.innerHTML = '';
+          toast('Lendo a pasta em segundo plano. Você será avisada no sino quando terminar.');
         } catch (e) { out.innerHTML = ''; toast(e.message, 'error'); }
         danalyze.disabled = false; danalyze.innerHTML = orig;
       };

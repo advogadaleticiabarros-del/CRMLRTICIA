@@ -464,6 +464,30 @@ export async function listDriveFolderFiles(folderId: string): Promise<{ id: stri
   } catch { return []; }
 }
 
+/** Filhos diretos (arquivos e subpastas) de uma pasta. Lança o erro do Google (ver pastaDrive.ts). */
+export async function listarFilhosDrive(folderId: string): Promise<{ id: string; name: string; mimeType: string }[]> {
+  const auth = await authedClient();
+  const drive = google.drive({ version: 'v3', auth });
+  const out: any[] = [];
+  let pageToken: string | undefined;
+  do {
+    const r = await drive.files.list({
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: 'nextPageToken, files(id, name, mimeType)', pageSize: 100, pageToken,
+      supportsAllDrives: true, includeItemsFromAllDrives: true,
+    });
+    for (const f of r.data.files || []) out.push(f);
+    pageToken = r.data.nextPageToken || undefined;
+  } while (pageToken && out.length < 300);
+  return out;
+}
+
+/** E-mail da conta Google que o CRM usa para ler o Drive (para dizer com quem compartilhar a pasta). */
+export async function contaGoogleDoCrm(): Promise<string | null> {
+  const row = await loadIntegration().catch(() => null);
+  return row?.google_email || null;
+}
+
 /** Baixa os bytes de um arquivo do Drive (base64) + mimeType. Para análise por IA. */
 export async function downloadDriveFile(fileId: string): Promise<{ base64: string; mimeType: string; name: string } | null> {
   try {
