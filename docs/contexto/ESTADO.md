@@ -2,9 +2,14 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 28/10/2026. Último commit: Calculista (planilha de cálculos da peça).
+**Última atualização:** 30/10/2026. Último commit: backup em fluxo (o backup derrubava o CRM por falta de memória).
 
 ## Últimas entregas (mais recentes primeiro)
+- **30/10:** **Backup derrubava o CRM e enchia o disco** (alarme de disco em 89%).
+  - Com o dump em 925 MB, o backup passava de 4 GB de memória e o sistema matava o CRM no meio da cópia (9 vezes entre 29 e 30/10). **Não houve backup novo de 28/10 22h até o deploy desta correção.** Cada tentativa deixava um .sql de 925 MB em claro no /tmp (eram 21 GB).
+  - Agora o backup comprime, cifra, confere e envia em fluxo, com o mesmo formato de arquivo. No teste de carga com 904 MB, o pico de memória foi de 187 MB. Cada backup também apaga as sobras de tentativas anteriores.
+  - **Pendente no servidor:** rodar `docker builder prune -f` (o cache do Orbit está em 44 GB; a faxina semanal com `until=168h` não está dando conta) e conferir o primeiro backup depois do deploy. A prova mensal de restauração ainda carrega o arquivo inteiro na memória.
+  - Ver o runbook ("Disco do servidor cheio", segunda vez) e `docs/contexto/relatorios/2026-10-30-backup-em-fluxo-disco-cheio.md`.
 - **28/10 (noite):** **Dr. Augusto, Calculista** (pedido da Jessica: "algum agente analise os extratos e faça planilhas de cálculos para colocar nas peças").
   - Na esteira da petição inicial, cada desconto lido nos extratos vira uma linha da **planilha de cálculos**: devolução simples ou em dobro, correção monetária (INPC até 08/2024, IPCA depois) e juros de mora (1% a.m. até 08/2024, taxa legal depois), desde cada desconto.
   - Índices do Bacen guardados em `indices_economicos` (migration 172).

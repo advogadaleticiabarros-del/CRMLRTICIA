@@ -191,6 +191,22 @@ A Jessica: "Não envie mais nenhuma mensagem sem consentimento. Principalmente s
 - **Faxina semanal** no crontab do root: `0 4 * * 0 docker builder prune -f --filter until=168h`, que mantém só a última semana. Log em `/var/log/docker-builder-prune.log`.
 - **Alarme de disco** no CRM: rotina `manutencao:disco`, todo dia às 8h05 (`discoServidor.ts`). Avisa no sino e no WhatsApp a partir de 85% e marca como urgente a partir de 92%.
 
+### Segunda vez (30/10/2026): backup morrendo por falta de memória
+
+**Sintoma:** alarme de disco em 89% (10 GB livres). `/tmp` com 21 GB: 23 arquivos `crm-backup-*.sql` de ~925 MB cada, **em claro**. Cache do Docker de volta a 44 GB.
+
+**Causa raiz:** o banco cresceu (dump de 925 MB). O backup lia o dump inteiro, comprimia, cifrava e conferia **na memória**, e o processo do CRM chegava a 4,2 GB. A VPS tem 8 GB e nenhum swap, então o sistema operacional matava o CRM no meio da cópia (`Out of memory: Killed process ... node /home/crmapp/app/dist/index.js`, 9 vezes entre 29 e 30/10). Com o processo morto, o `finally` que apaga o .sql temporário nunca rodava, e a recuperação automática tentava de novo a cada 45 min, deixando mais um arquivo. Efeitos: **nenhum backup novo desde 28/10 22h** e o CRM caindo por cerca de 1 minuto a cada tentativa.
+
+**Como confirmar:** `journalctl -k | grep "Killed process"` mostra o node do crmapp e `ls /tmp/crm-backup-*.sql` mostra as sobras. A pasta `~crmapp/backups-crm` fica sem arquivo novo.
+
+**Correção (código):** o backup agora trabalha em fluxo (`cifrarArquivoEmFluxo` e `abrirBackupEmFluxo` em `src/utils/crypto.ts`). O dump é comprimido e cifrado direto num arquivo `.parcial-…` em `~/backups-crm`. Esse arquivo é conferido lendo do disco, depois renomeado para backup local, e o MEGA o envia lendo do disco. O formato do arquivo é o mesmo, então os backups antigos e a restauração continuam valendo. No teste de carga com um dump de 904 MB, o pico de memória foi de 187 MB. No começo de cada backup, `limparSobrasDeTentativas` apaga .sql órfãos do `/tmp` e parciais velhos.
+
+**Correção (servidor):** apagar as sobras (`rm /tmp/crm-backup-*.sql`, sem backup em andamento) e `docker builder prune -f`.
+
+**Ponto de atenção:** a faxina semanal com `--filter until=168h` não segurou o cache do Docker, que voltou a 44 GB em duas semanas. Considerar a faxina sem filtro ou com limite de tamanho.
+
+**Ainda carrega tudo na memória:** a prova mensal de restauração (`restoreService.ts`) baixa o arquivo do MEGA com `downloadBuffer` e decifra na memória (cerca de 1 GB hoje). Vale passar para fluxo também, com `abrirBackupEmFluxo`.
+
 ---
 
 ## Incidente: Laya "online" no PM2, mas sem responder
@@ -775,6 +791,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Disco cheio, 2ª vez: backup morto por falta de memória deixava dumps em claro no /tmp; backup passou a trabalhar em fluxo |
 | 28/10/2026 | Claude | +1 incidente: peça contra o Itaú citava contratos do PAN e da FACTA lidos no extrato do INSS (agora só entram os contratos do réu e da tese, ou os que a Dra. associa) |
 | 22/10/2026 | Claude | +1 incidente: recado ao cliente da produção não salvava (rota ignorava `client_message`) |
 | 22/10/2026 | Claude | +1 incidente: petição inicial sem contexto (busca de modelos limitada a 40, teses vazias na importação, fontes ignoradas, sem cálculos) |

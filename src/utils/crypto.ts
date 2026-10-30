@@ -1,4 +1,8 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import zlib from 'zlib';
+import { Readable, Duplex, pipeline as streamPipeline } from 'stream';
+import { pipeline } from 'stream/promises';
 
 /**
  * Cifragem de dados sensíveis EM REPOUSO (LGPD).
@@ -189,6 +193,59 @@ export function decryptBuffer(buf: Buffer): Buffer {
   const d = crypto.createDecipheriv('aes-256-gcm', k, iv);
   d.setAuthTag(tag);
   return Buffer.concat([d.update(cifra), d.final()]);
+}
+
+// ── Backup em fluxo (30/10/2026) ────────────────────────────────────────────
+// Com o dump em 925 MB, ler + comprimir + cifrar na memória passava de 4 GB e o
+// sistema operacional matava o CRM no meio do backup. As duas funções abaixo
+// fazem o mesmo trabalho lendo e gravando aos pedaços, no MESMO formato acima.
+
+/**
+ * Comprime (gzip) e cifra o arquivo `origem` direto em `destino`, sem carregar
+ * nada inteiro na memória. A etiqueta (tag) do GCM só existe no fim, então o
+ * cabeçalho é gravado com um espaço reservado e a etiqueta entra no lugar dele
+ * depois. Sem chave, grava só o gzip (igual ao encryptBuffer). Devolve o tamanho.
+ */
+export async function cifrarArquivoEmFluxo(origem: string, destino: string): Promise<number> {
+  const k = chave();
+  if (!k) {
+    console.warn('⚠️  [crypto] Backup será enviado SEM cifragem (sem chave definida).');
+    await pipeline(fs.createReadStream(origem), zlib.createGzip(), fs.createWriteStream(destino));
+    return fs.statSync(destino).size;
+  }
+  const iv = crypto.randomBytes(12);
+  const c = crypto.createCipheriv('aes-256-gcm', k, iv);
+  fs.writeFileSync(destino, Buffer.concat([MAGIC, iv, Buffer.alloc(16)]));
+  await pipeline(fs.createReadStream(origem), zlib.createGzip(), c, fs.createWriteStream(destino, { flags: 'r+', start: MAGIC.length + 28 }));
+  const fd = fs.openSync(destino, 'r+');
+  try { fs.writeSync(fd, c.getAuthTag(), 0, 16, MAGIC.length + 12); } finally { fs.closeSync(fd); }
+  return fs.statSync(destino).size;
+}
+
+/**
+ * Abre um arquivo de backup (cifrado por nós ou antigo, em claro) e devolve o
+ * SQL descomprimido em fluxo. Arquivo adulterado ou cortado vira erro no fluxo.
+ */
+export function abrirBackupEmFluxo(caminho: string): Readable {
+  const cabeca = Buffer.alloc(MAGIC.length + 28);
+  const fd = fs.openSync(caminho, 'r');
+  let lidos: number;
+  try { lidos = fs.readSync(fd, cabeca, 0, cabeca.length, 0); } finally { fs.closeSync(fd); }
+  if (!isEncryptedBuffer(cabeca.subarray(0, lidos))) {
+    return pipelineEmFluxo(fs.createReadStream(caminho), zlib.createGunzip());
+  }
+  const k = chave();
+  if (!k) throw new Error('Backup cifrado, mas ENCRYPTION_KEY não está definida — impossível restaurar.');
+  const d = crypto.createDecipheriv('aes-256-gcm', k, cabeca.subarray(MAGIC.length, MAGIC.length + 12));
+  d.setAuthTag(cabeca.subarray(MAGIC.length + 12, MAGIC.length + 28));
+  return pipelineEmFluxo(fs.createReadStream(caminho, { start: MAGIC.length + 28 }), d, zlib.createGunzip());
+}
+
+/** Encadeia os fluxos e devolve o último; erro em qualquer etapa chega ao último. */
+function pipelineEmFluxo(...etapas: [Readable, ...Duplex[]]): Readable {
+  const fim = etapas[etapas.length - 1] as Duplex;
+  streamPipeline(etapas as any, (err: NodeJS.ErrnoException | null) => { if (err) fim.destroy(err); });
+  return fim;
 }
 
 /** Cifra os campos indicados de um objeto (para INSERT/UPDATE). */

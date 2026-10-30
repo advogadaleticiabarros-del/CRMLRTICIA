@@ -1,15 +1,10 @@
 import os from 'os';
 import fs from 'fs';
 import path from 'path';
-import zlib from 'zlib';
 import mysqldump from 'mysqldump';
 import { env } from '../config/env';
-import { promisify } from 'util';
-import { Readable } from 'stream';
-import { encryptBuffer, decryptBuffer, isEncryptedBuffer } from '../utils/crypto';
+import { cifrarArquivoEmFluxo, abrirBackupEmFluxo } from '../utils/crypto';
 import { planoRetencao, RETENCAO_MEGA, RETENCAO_LOCAL } from './backupRegras';
-
-const gzipAsync = promisify(zlib.gzip);
 
 // megajs publica os tipos só via "exports"; sob moduleResolution "node" o TS não
 // os resolve, então carregamos via require (tipado como any) para evitar TS7016.
@@ -72,15 +67,13 @@ async function openMega(): Promise<{ storage: any; folder: any } | null> {
 }
 
 /**
- * Gera o dump lógico do MySQL, comprime e cifra — UM único dump por
- * execução, reaproveitado pelos dois destinos (evita dobrar a carga no
- * banco a cada backup). Sempre limpa o .sql temporário, mesmo se falhar.
+ * Gera o dump lógico do MySQL e grava, já comprimido e cifrado, em `destino` —
+ * UM único dump por execução, reaproveitado pelos dois destinos (evita dobrar a
+ * carga no banco). Tudo em fluxo (cifrarArquivoEmFluxo): com 925 MB de SQL, a
+ * versão que montava o arquivo na memória passava de 4 GB e o sistema
+ * operacional matava o CRM (29-30/10/2026). Sempre limpa o .sql temporário.
  */
-async function gerarDumpCifrado(stamp: string): Promise<{ buffer: Buffer; filename: string }> {
-  const cifrado = !!(process.env.ENCRYPTION_KEY || process.env.JWT_SECRET);
-  // .enc no nome deixa explícito que o arquivo está cifrado (a restauração
-  // detecta pelo conteúdo, não pelo nome — o sufixo é só para o humano).
-  const filename = `${PREFIX}${stamp}.sql.gz${cifrado ? '.enc' : ''}`;
+async function gerarDumpCifrado(stamp: string, destino: string): Promise<number> {
   const tmpPath = path.join(os.tmpdir(), `${PREFIX}${stamp}.sql`);
 
   try {
@@ -108,28 +101,45 @@ async function gerarDumpCifrado(stamp: string): Promise<{ buffer: Buffer; filena
     // LGPD: cifra o dump ANTES de sair daqui. O arquivo carrega CPF, laudos
     // médicos e conversas — quem tiver acesso a qualquer um dos destinos não
     // pode lê-lo sem a ENCRYPTION_KEY.
-    // gzip assíncrono: o síncrono travava o sistema inteiro por vários segundos.
-    const buffer = encryptBuffer(await gzipAsync(await fs.promises.readFile(tmpPath)));
-    return { buffer, filename };
+    return await cifrarArquivoEmFluxo(tmpPath, destino);
   } finally {
     // O .sql temporário está em CLARO no disco — apagar sempre, mesmo se falhar.
     try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
   }
 }
 
+const PREFIXO_PARCIAL = '.parcial-';
+
+/**
+ * Apaga sobras de tentativas que morreram no meio (processo morto não chega ao
+ * finally): .sql em claro no /tmp e arquivos parciais na pasta de backup. Em
+ * 30/10/2026 eram 23 dumps de 925 MB (21 GB do disco), todos em claro. Só roda
+ * com a trava do backup na mão, então nada disso está em uso.
+ */
+function limparSobrasDeTentativas(): void {
+  const apagar = (dir: string, casa: (f: string) => boolean) => {
+    try {
+      for (const f of fs.readdirSync(dir).filter(casa)) {
+        try { fs.unlinkSync(path.join(dir, f)); } catch { /* ignore */ }
+      }
+    } catch { /* pasta inexistente */ }
+  };
+  apagar(os.tmpdir(), (f) => f.startsWith(PREFIX) && f.endsWith('.sql'));
+  apagar(LOCAL_BACKUP_DIR, (f) => f.startsWith(PREFIXO_PARCIAL));
+}
+
 /**
  * Confere o arquivo ANTES de mandá-lo para os destinos e antes de apagar
- * cópias antigas: decifra, descomprime de ponta a ponta (o gzip valida o CRC)
- * e confere que o dump tem as tabelas principais. Lê em fluxo — não monta o
- * SQL inteiro na memória.
+ * cópias antigas: decifra, descomprime de ponta a ponta (o gzip valida o CRC,
+ * o GCM valida a etiqueta) e confere que o dump tem as tabelas principais.
+ * Lê em fluxo, direto do disco — não monta nada inteiro na memória.
  */
-export async function verificarBackup(buffer: Buffer): Promise<VerificacaoBackup> {
+export async function verificarArquivoBackup(caminho: string): Promise<VerificacaoBackup> {
   try {
-    const gz = isEncryptedBuffer(buffer) ? decryptBuffer(buffer) : buffer;
     const tabelas = new Set<string>();
     let bytes = 0; let resto = '';
     const re = /CREATE TABLE[^`]*`([^`]+)`/g;
-    for await (const chunk of Readable.from([gz]).pipe(zlib.createGunzip())) {
+    for await (const chunk of abrirBackupEmFluxo(caminho)) {
       bytes += chunk.length;
       const txt = resto + chunk.toString('latin1');
       let m: RegExpExecArray | null;
@@ -147,17 +157,20 @@ export async function verificarBackup(buffer: Buffer): Promise<VerificacaoBackup
   }
 }
 
-/** Envia o dump para o MEGA, confere o tamanho lá e faz a rotação (backupRegras). */
-async function enviarParaMega(buffer: Buffer, filename: string): Promise<DestinoResultado> {
+/** Envia o arquivo para o MEGA lendo do disco, confere o tamanho lá e faz a rotação (backupRegras). */
+async function enviarParaMega(caminho: string, filename: string): Promise<DestinoResultado> {
   let session: { storage: any; folder: any } | null = null;
   try {
     session = await openMega();
     if (!session) return { ok: false, message: 'MEGA_EMAIL/MEGA_PASSWORD não configurados' };
     const { folder } = session;
 
-    const enviado: any = await comTempoLimite(folder.upload({ name: filename, size: buffer.length }, buffer).complete, LIMITE_MEGA_MS, 'Envio ao MEGA');
-    if (enviado && enviado.size != null && Number(enviado.size) !== buffer.length) {
-      return { ok: false, message: `Arquivo chegou ao MEGA com tamanho diferente (${enviado.size} de ${buffer.length} bytes)` };
+    const tamanho = fs.statSync(caminho).size;
+    const upload = folder.upload({ name: filename, size: tamanho });
+    fs.createReadStream(caminho).on('error', (e) => upload.destroy(e)).pipe(upload);
+    const enviado: any = await comTempoLimite(upload.complete, LIMITE_MEGA_MS, 'Envio ao MEGA');
+    if (enviado && enviado.size != null && Number(enviado.size) !== tamanho) {
+      return { ok: false, message: `Arquivo chegou ao MEGA com tamanho diferente (${enviado.size} de ${tamanho} bytes)` };
     }
 
     // Rotação só depois do envio conferido — nunca apaga cópia antiga sem a nova estar lá.
@@ -167,7 +180,7 @@ async function enviarParaMega(buffer: Buffer, filename: string): Promise<Destino
       for (const f of (folder.children || []).filter((x: any) => apagar.includes(x.name))) await f.delete(true);
     } catch { /* rotação é best-effort */ }
 
-    return { ok: true, file: filename, sizeKB: Math.round(buffer.length / 1024) };
+    return { ok: true, file: filename, sizeKB: Math.round(tamanho / 1024) };
   } catch (e: any) {
     return { ok: false, message: 'Falha ao enviar para o MEGA: ' + (e?.message || String(e)) };
   } finally {
@@ -175,13 +188,11 @@ async function enviarParaMega(buffer: Buffer, filename: string): Promise<Destino
   }
 }
 
-/** Grava o dump em ~/backups-crm e faz a rotação (mantém só os RETENTION_LOCAL mais recentes). */
-async function enviarParaLocal(buffer: Buffer, filename: string): Promise<DestinoResultado> {
+/** Promove o arquivo parcial (já conferido) a backup em ~/backups-crm e faz a rotação (backupRegras). */
+function salvarLocal(parcial: string, filename: string): DestinoResultado {
   try {
-    fs.mkdirSync(LOCAL_BACKUP_DIR, { recursive: true });
     const destino = path.join(LOCAL_BACKUP_DIR, filename);
-    await fs.promises.writeFile(destino, buffer);
-    if (fs.statSync(destino).size !== buffer.length) return { ok: false, message: 'Arquivo local gravado com tamanho diferente' };
+    fs.renameSync(parcial, destino);
 
     try {
       const arquivos = fs.readdirSync(LOCAL_BACKUP_DIR).filter((f) => f.startsWith(PREFIX));
@@ -189,7 +200,7 @@ async function enviarParaLocal(buffer: Buffer, filename: string): Promise<Destin
       for (const old of apagar) fs.unlinkSync(path.join(LOCAL_BACKUP_DIR, old));
     } catch { /* rotação é best-effort */ }
 
-    return { ok: true, file: filename, sizeKB: Math.round(buffer.length / 1024) };
+    return { ok: true, file: filename, sizeKB: Math.round(fs.statSync(destino).size / 1024) };
   } catch (e: any) {
     return { ok: false, message: 'Falha ao gravar backup local: ' + (e?.message || String(e)) };
   }
@@ -203,21 +214,30 @@ async function enviarParaLocal(buffer: Buffer, filename: string): Promise<Destin
  */
 export async function runBackup(): Promise<BackupMultiDestino> {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19); // 2026-06-22T18-30-00
+  // .enc no nome deixa explícito que o arquivo está cifrado (a restauração
+  // detecta pelo conteúdo, não pelo nome — o sufixo é só para o humano).
+  const cifrado = !!(process.env.ENCRYPTION_KEY || process.env.JWT_SECRET);
+  const filename = `${PREFIX}${stamp}.sql.gz${cifrado ? '.enc' : ''}`;
+  // Nasce com nome de parcial: até ser conferido, não entra na rotação nem
+  // aparece como "backup mais recente".
+  const parcial = path.join(LOCAL_BACKUP_DIR, `${PREFIXO_PARCIAL}${filename}`);
   fs.mkdirSync(LOCAL_BACKUP_DIR, { recursive: true });
   fs.writeFileSync(ARQUIVO_TRAVA, new Date().toISOString());
   try {
-    const { buffer, filename } = await gerarDumpCifrado(stamp);
+    limparSobrasDeTentativas();
+    await gerarDumpCifrado(stamp, parcial);
 
     // Arquivo com defeito não vai para lugar nenhum (e não empurra cópias boas para fora da rotação).
-    const verificacao = await verificarBackup(buffer);
+    const verificacao = await verificarArquivoBackup(parcial);
     if (!verificacao.ok) throw new Error(`Cópia gerada com defeito, não foi salva: ${verificacao.message}`);
 
-    const [mega, local] = await Promise.all([
-      enviarParaMega(buffer, filename),
-      enviarParaLocal(buffer, filename),
-    ]);
+    // Local primeiro (só renomeia, instantâneo); o MEGA lê do arquivo que ficou.
+    // A falha de um continua não impedindo o outro.
+    const local = salvarLocal(parcial, filename);
+    const mega = await enviarParaMega(local.ok ? path.join(LOCAL_BACKUP_DIR, filename) : parcial, filename);
     return { mega, local, verificacao };
   } finally {
+    try { fs.unlinkSync(parcial); } catch { /* já virou backup ou nem nasceu */ }
     try { fs.unlinkSync(ARQUIVO_TRAVA); } catch { /* ignore */ }
   }
 }
