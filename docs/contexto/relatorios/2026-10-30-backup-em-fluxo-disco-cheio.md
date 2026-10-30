@@ -23,8 +23,9 @@ A Jessica pediu ajuda para verificar o alarme "Disco do servidor do CRM em 89% (
 ## Verificado
 - Testes de backup, criptografia e regras: 30 passaram, 0 falharam. `npm test` completo: 1.132 passaram, 0 falharam. Lint: 0 erros (o único aviso já existia).
 - Teste de carga local com dump falso de 904 MB: pico de 187 MB de memória, conferência aprovada, 6 s.
-- **Não verificado:** o backup real em produção depois do deploy e o envio por stream ao MEGA. O tipo do megajs aceita `UploadStream`, que é um Writable, mas esse caminho não rodou de verdade.
-- **Não feito no servidor:** a limpeza (`rm /tmp/crm-backup-*.sql` e `docker builder prune -f`) foi barrada pela permissão do auto mode. Com o deploy, o próprio backup apaga os .sql órfãos na próxima execução.
+- Deploy `8b70e13`: testes e deploy OK (11:54 a 11:57 UTC).
+- **Produção:** o backup `crm-backup-2026-10-30T12-00-00` (código novo) saiu com `m:1 l:1 v:1`, 457 MB de SQL e 126 tabelas, sem nenhum "Killed process". O envio por stream ao MEGA funcionou. Os .sql órfãos do /tmp sumiram (apagados pela `limparSobrasDeTentativas`), e o disco foi de 89% para 25% (72 GB livres).
+- Com a autorização da Jessica, rodei `rm /tmp/crm-backup-*.sql` (já não havia nenhum) e `docker builder prune -f`. O cache já estava em 0 B: não ficou claro quem limpou antes, mas há atividade do Docker às 11:54 UTC.
 
 ## Decisões e porquês
 - Mesmo formato de arquivo, para os backups antigos, a restauração e a prova continuarem funcionando sem migração.
@@ -33,8 +34,7 @@ A Jessica pediu ajuda para verificar o alarme "Disco do servidor do CRM em 89% (
 - Descartado: swap ou mais RAM na VPS. Isso só adiaria o problema, porque o banco continua crescendo.
 
 ## Pendente
-- Jessica: autorizar `docker builder prune -f` na VPS. Também rever a faxina semanal: `--filter until=168h` não segurou o cache, que voltou a 44 GB em duas semanas. Sugestão: tirar o filtro.
-- Conferir o primeiro backup depois do deploy: arquivo novo em `~crmapp/backups-crm`, log `backup:diario` OK e nenhum "Killed process".
+- Trocar a faxina semanal no crontab do root para `docker builder prune -f` sem `--filter until=168h`. Esse filtro não segurou o cache, que voltou a 44 GB em duas semanas. A edição remota foi barrada pela permissão do auto mode, mesmo com a autorização da Jessica.
 - Passar `restoreService.ts` (prova mensal) para fluxo: ainda usa `downloadBuffer` e `decryptBuffer` com cerca de 1 GB na memória.
 
 ## Próxima sessão
