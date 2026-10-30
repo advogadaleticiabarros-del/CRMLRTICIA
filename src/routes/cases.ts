@@ -5,8 +5,9 @@ import { logTimeline } from '../services/TimelineService';
 import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
 import { montarEndereco } from '../services/contractTemplates';
-import { buildPeticaoInicial, analyzeCaseDrive } from '../services/peticaoBuilder';
+import { analyzeCaseDrive } from '../services/peticaoBuilder';
 import { travaGeracaoPeca } from '../services/travaGeracaoPeca';
+import { geracaoPeca, andamentoDaPeca } from '../services/geracaoPecaMysql';
 import { revisarPeticaoDoCaso } from '../services/peticaoReviewer';
 import { slaDiasEfetivosSql } from '../services/productionSla';
 import { retirarSenhaInss } from '../services/senhaInssCliente';
@@ -254,15 +255,12 @@ router.post('/:id/peticao-inicial', async (req: Request, res: Response) => {
   if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
   // Trava (30/10/2026): um segundo pedido enquanto a peça está sendo gerada é recusado.
   const alvo = c.unido_ao_caso || caseId;
-  const andamento = travaGeracaoPeca.emAndamento(alvo);
+  const andamento = await andamentoDaPeca(alvo);
   if (andamento) { res.status(409).json({ error: 'A nova versão desta peça já está sendo gerada. Aguarde o aviso no sino.', emAndamento: true, andamento }); return; }
-  const avisar = (ok: boolean, message: string) => notificationService.create({
-    userId, caseId, title: ok ? 'Petição inicial gerada' : 'Falha ao gerar a petição inicial', message,
-    notificationType: ok ? 'peticao_gerada' : 'peticao_falhou', channel: 'sistema', scheduledAt: new Date(),
-  }).catch(() => {});
-  travaGeracaoPeca.executar(alvo, () => buildPeticaoInicial(caseId, userId, true))
-    .then(({ valor: r }) => r && avisar(r.ok, r.ok ? `${c.title || 'Processo'} — v${r.version} pronta${(r.casos?.length || 0) > 1 ? ` (peça conjunta de ${r.casos!.length} casos)` : ''}. Confira a petição e o "Dossiê da peça" em Documentos do caso.` : (r.message || 'Erro desconhecido')))
-    .catch((e: any) => avisar(false, `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`));
+  // Registrada no banco: se o CRM reiniciar no meio (publicação), é retomada sozinha (30/10/2026).
+  if (!geracaoPeca.pedir({ alvo, caseId, userId, origem: 'manual', titulo: c.title || null })) {
+    res.status(409).json({ error: 'A nova versão desta peça já está sendo gerada. Aguarde o aviso no sino.', emAndamento: true, andamento: travaGeracaoPeca.emAndamento(alvo) }); return;
+  }
   res.status(202).json({ success: true, emAndamento: true });
 });
 
@@ -272,7 +270,7 @@ router.get('/:id/peticao-inicial/status', async (req: Request, res: Response) =>
   const caseId = Number(req.params.id);
   const [[c]] = await db.query('SELECT id, unido_ao_caso FROM cases WHERE id = ?', [caseId]) as any;
   if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
-  const andamento = travaGeracaoPeca.emAndamento(c.unido_ao_caso || caseId);
+  const andamento = await andamentoDaPeca(c.unido_ao_caso || caseId);
   res.json({ gerando: !!andamento, andamento });
 });
 
@@ -903,30 +901,9 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
   // de segundos; travar a resposta aqui prendia a tela ao mover o card.
   if (stage === 'criacao_inicial' && c.production_stage !== 'criacao_inicial') {
     const [[u]] = await db.query('SELECT unido_ao_caso FROM cases WHERE id = ?', [Number(id)]) as any;
-    // Com a trava: se a peça já está sendo gerada (botão "nova versão"), não gera outra.
-    const alvoPeca = u?.unido_ao_caso || Number(id);
-    travaGeracaoPeca.executar(alvoPeca, () => buildPeticaoInicial(Number(id), req.user!.id)
-      .then(async (r) => {
-        if (r.ok) travaGeracaoPeca.marcar(alvoPeca, 'revisao');
-        // Revisão automática logo após gerar (antes só rodava ao mover para
-        // "Revisão inicial"): os pontos de atenção já chegam junto da minuta.
-        const rev = r.ok ? await revisarPeticaoDoCaso(Number(id), req.user!.id).catch(() => null) : null;
-        const revTxt = rev?.ok && rev.resumo
-          ? ` Revisão automática: ${rev.resumo.itens_ok}/${rev.resumo.itens_verificados} itens OK${rev.resumo.pendencias_criticas ? `, ${rev.resumo.pendencias_criticas} pendência(s) crítica(s)` : ''}.`
-          : '';
-        return notificationService.create({
-          userId: req.user!.id, caseId: Number(id),
-          title: r.ok ? 'Petição inicial gerada' : 'Falha ao gerar a petição inicial',
-          message: r.ok ? `${c.title || 'Processo'} — confira em Documentos do caso.${revTxt}` : (r.message || 'Erro desconhecido'),
-          notificationType: r.ok ? 'peticao_gerada' : 'peticao_falhou', channel: 'sistema', scheduledAt: new Date(),
-        });
-      }))
-      .catch((e: any) => notificationService.create({
-        userId: req.user!.id, caseId: Number(id),
-        title: 'Falha ao gerar a petição inicial',
-        message: `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`,
-        notificationType: 'peticao_falhou', channel: 'sistema', scheduledAt: new Date(),
-      }).catch(() => {}));
+    // Com trava (se a peça já está sendo gerada, não gera outra), registro no banco (retomada
+    // depois de reinício) e revisão automática logo após gerar: ver geracaoPeca.ts.
+    geracaoPeca.pedir({ alvo: u?.unido_ao_caso || Number(id), caseId: Number(id), userId: req.user!.id, origem: 'etapa', titulo: c.title || null });
   }
 
   // Ao mover para "REVISÃO INICIAL": revisa a petição (checagens estruturais +

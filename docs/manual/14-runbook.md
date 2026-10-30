@@ -16,6 +16,13 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: pediu uma nova versão da peça e ela nunca chegou (30/10/2026)
+
+**Sintoma:** a Jessica pediu "nova versão" da petição e ela não chegou: nenhuma versão nova, nenhum aviso no sino.
+**Causa raiz:** a geração roda em segundo plano dentro do processo do CRM. Em 30/10 houve quatro publicações em 35 minutos (20:35, 20:48, 20:58 e 21:07 UTC); cada uma reinicia o PM2 `crm-juridico` (`pm2 describe` mostrou o processo criado às 21:10:29). A geração em andamento morreu junto, sem salvar nada e sem avisar. Não foi possível confirmar no banco o horário do pedido (consulta à produção bloqueada pela permissão da sessão); a causa foi confirmada pelos reinícios e pelo código.
+**Correção:** cada geração fica registrada em `geracoes_peca_pendentes` (migration 174) até terminar. 20 s depois de o CRM iniciar, `geracaoPeca.retomar()` gera de novo o que ficou pela metade e o sino avisa "Retomada depois de uma atualização do sistema". Se a mesma geração já caiu 2 vezes, não volta mais e o sino pede para gerar de novo. Na tela, a barra mostra "Retomando depois de uma atualização do sistema" no intervalo. Código: `src/services/geracaoPeca.ts`, `geracaoPecaMysql.ts`; testes em `tests/geracaoPeca.test.mjs`.
+**Se acontecer de novo:** `SELECT * FROM geracoes_peca_pendentes;` mostra o que está pendente; o log do PM2 mostra "📝 N geração(ões) de peça retomada(s)". O pedido feito antes desta correção não foi registrado e não é retomado: é só pedir de novo.
+
 ## Incidente: "Ler a pasta" do Drive travava em "Lendo…" e não trazia documento nenhum
 
 **Sintoma (30/10/2026, caso do Valmirio, caso 115):** na Mesa do caso, aba Documentos, "Ler a pasta" ficava em "Lendo…" e o caso continuava com "Documentos do caso · 0", embora a pasta do Drive tivesse arquivos novos. O log do nginx mostrou `upstream timed out ... POST /api/cases/115/analisar-documentos`.

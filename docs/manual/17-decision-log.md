@@ -16,6 +16,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 30/10/2026 — Geração da peça registrada no banco para ser retomada (revê em parte a entrada seguinte)
+**Decisão:** a trava continua na memória, mas cada geração em andamento também fica em `geracoes_peca_pendentes`; no início do CRM, o que sobrou é gerado de novo (no máximo 2 retomadas por pedido).
+**Motivo:** a entrada seguinte supunha que perder a geração num reinício era aceitável. Na prática, as publicações reiniciam o CRM várias vezes por dia e a Jessica ficou sem a versão e sem aviso. Retomar sozinho é o que ela espera; o limite de 2 evita repetir sem fim uma geração que derruba o servidor.
+**Alternativa considerada:** só avisar no sino que a geração foi interrompida. Descartada: obriga a pedir de novo algo que o sistema pode refazer sozinho.
+
 ### 30/10/2026 — Trava da geração da peça na memória do servidor
 **Decisão:** a trava "esta peça já está sendo gerada" e a etapa da barra de progresso ficam num mapa em memória (`travaGeracaoPeca.ts`), não numa tabela.
 **Motivo:** o CRM roda num único processo (PM2 `crm-juridico`) e a geração também vive nesse processo: se ele reiniciar, a geração se perde junto com a trava, então não há o que proteger no banco. Sem migration e sem consulta a cada 4 s ao banco. Trava esquecida solta em 30 min.
@@ -288,6 +293,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Geração da peça registrada no banco e retomada depois de reinício (máx. 2 vezes) |
 | 30/10/2026 | Claude | Trava da geração da peça em memória (processo único), com etapa para a barra de progresso |
 | 30/10/2026 | Claude | Juros desde cada desconto confirmados pela Jessica (sempre atualizados, nunca desde a citação) |
 | 28/10/2026 | Claude | Planilha de cálculos: correção e juros desde cada desconto (Lei 14.905/2024 a partir de 09/2024), índices do Bacen em cache, .xlsx próprio |

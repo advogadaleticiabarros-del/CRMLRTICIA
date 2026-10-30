@@ -123,6 +123,17 @@ async function bootstrap() {
   if (process.env.CRONS_DESLIGADOS === '1') console.log('⏸️  Cron jobs desligados (CRONS_DESLIGADOS=1)');
   else { startCronJobs(); console.log('⏰ Cron jobs iniciados'); }
 
+  // Peças que um reinício (ex.: publicação) interrompeu no meio são geradas de novo,
+  // com aviso no sino (30/10/2026). Espera o CRM assentar antes de chamar a IA.
+  if (process.env.CRONS_DESLIGADOS !== '1') {
+    setTimeout(() => {
+      import('./services/geracaoPecaMysql')
+        .then(({ geracaoPeca }) => geracaoPeca.retomar())
+        .then((n) => { if (n) console.log(`📝 ${n} geração(ões) de peça retomada(s) depois do reinício`); })
+        .catch((e) => console.error('Retomar gerações de peça:', e?.message || e));
+    }, 20_000);
+  }
+
   // 6. Shutdown gracioso
   const shutdown = async (signal: string) => {
     console.log(`\n${signal} recebido — encerrando...`);

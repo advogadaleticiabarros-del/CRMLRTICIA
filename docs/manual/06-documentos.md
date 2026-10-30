@@ -145,7 +145,8 @@ A geração leva alguns minutos e roda em segundo plano: o aviso chega no sino. 
 - "Pedir nova versão à equipe" (Mesa) e "Gerar nova versão da petição" (painel da produção) **sempre pedem confirmação**.
 - Depois do clique, o botão fica **travado** até a versão chegar. O servidor também recusa um segundo pedido da mesma peça enquanto ela está sendo gerada (erro 409), inclusive o gatilho de "Criação inicial". Peças de ações diferentes continuam gerando ao mesmo tempo.
 - **Barra de progresso** no canto da Mesa: etapa atual (lendo os documentos, cálculos, estratégia, fundamentos, redação, conferência, salvando, revisão automática), "Etapa X de 9" e o tempo decorrido. Atualiza a cada 4 s. Quando termina, a mesa abre a versão nova sozinha ("A nova versão chegou (vN)") ou avisa que terminou sem versão nova (o motivo fica no sino). No painel da produção, o próprio botão mostra a etapa.
-- A trava fica na memória do servidor (`src/services/travaGeracaoPeca.ts`); trava esquecida solta sozinha em 30 min. Reinício do servidor no meio da geração solta a trava junto. Rota `GET /api/cases/:id/peticao-inicial/status`. Testes: `tests/travaGeracaoPeca.test.mjs` e a ordem das etapas em `tests/esteiraPeca.test.mjs`.
+- A trava fica na memória do servidor (`src/services/travaGeracaoPeca.ts`); trava esquecida solta sozinha em 30 min.
+- **Atualização do sistema no meio da geração (desde 30/10/2026):** cada geração fica registrada no banco (`geracoes_peca_pendentes`) até terminar. Se o CRM reiniciar no meio (publicação, queda), ela é **retomada sozinha** quando o CRM volta, e o sino avisa "Retomada depois de uma atualização do sistema". A barra mostra "Retomando…" no intervalo. Se a mesma geração cair 2 vezes, o sino pede para gerar de novo. Código: `src/services/geracaoPeca.ts` (ponto único das duas entradas: botão e etapa "Criação inicial") e `geracaoPecaMysql.ts`. Rota `GET /api/cases/:id/peticao-inicial/status`. Testes: `tests/travaGeracaoPeca.test.mjs` e a ordem das etapas em `tests/esteiraPeca.test.mjs`.
 
 Código: `src/services/esteiraPeca.ts` (ordem dos agentes), `pecaCalculos.ts`, `planilhaCalculos.ts` (Calculista), `indicesEconomicos.ts` e `indicesEconomicosMysql.ts` (Bacen), `xlsxSimples.ts` (arquivo .xlsx), `pecaConsolidacao.ts`, `pecaDossie.ts`, `esteiraPecaMysql.ts` (banco). Testes: `tests/esteiraPeca.test.mjs` e `tests/planilhaCalculos.test.mjs`. Tabela `pecas_conjuntas` (migration 167).
 
@@ -337,6 +338,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Geração da peça retomada sozinha depois de um reinício do CRM (registro em `geracoes_peca_pendentes`, migration 174) |
 | 30/10/2026 | Claude | Conferência "uma peça por banco": os cartões RMC/RCC lidos nos extratos são conferidos contra as ações do cliente (banco sem ação, ação com dois bancos, contrato na ação de outro banco, ação sem contrato, banco não identificado, duas ações do mesmo banco); aparece na tela do cliente, na aba Caso da mesa, no aviso da leitura dos contratos e no dossiê da peça |
 | 30/10/2026 | Claude | Geração da peça: confirmação sempre, botão travado até a versão chegar (trava também no servidor) e barra de progresso com a etapa |
 | 30/10/2026 | Claude | Juros da planilha desde cada desconto: critério confirmado pela Jessica |
