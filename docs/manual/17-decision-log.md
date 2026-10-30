@@ -16,6 +16,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 30/10/2026 — Juros desde cada desconto: critério confirmado
+**Decisão:** confirmado o critério da entrada de 28/10 ("Planilha de cálculos"): juros de mora e correção monetária contam **desde cada desconto**, nunca desde a citação. A planilha, o demonstrativo e o valor da causa saem sempre com os juros atualizados até a data-base.
+**Quem decidiu:** a Jessica, em 30/10/2026 ("sim, sempre juros atualizados").
+**Efeito:** nenhuma mudança de código; o padrão de `planilhaCalculos.ts` já é este. Deixa de ser pendência.
+
 ### 28/10/2026 — Contratos do cliente guardados um a um, e a Dra. diz em qual processo cada um entra
 - Pedido da Jessica, depois da peça do Itaú com contratos do PAN e da FACTA: "uma forma de você me trazer tudo que ele tem e eu poder associar e produzir uma peça só", relacionando o tipo (RCC, RMC, empréstimo) e a parte contrária.
 - **Os contratos são do cliente, não do caso** (`cliente_contratos`). O extrato do INSS é um só e alimenta vários processos. Guardar por caso duplicaria os mesmos contratos em cada card.
@@ -278,6 +283,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Juros desde cada desconto confirmados pela Jessica (sempre atualizados, nunca desde a citação) |
 | 28/10/2026 | Claude | Planilha de cálculos: correção e juros desde cada desconto (Lei 14.905/2024 a partir de 09/2024), índices do Bacen em cache, .xlsx próprio |
 | 28/10/2026 | Claude | Contratos guardados por cliente; a Dra. associa cada um a um processo; regra automática conservadora (banco do réu + mesma tese) |
 | 22/10/2026 | Claude | Processo único por banco e família de tese, sugerido pelo quadro e confirmado pela Dra. (substitui a junção automática) |

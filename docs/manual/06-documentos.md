@@ -114,7 +114,7 @@ Pedido da Jessica: "preciso que os documentos sejam lidos de fato, os cálculos 
    - valor da causa: soma do que foi calculado, com a restituição **atualizada** pela planilha do Calculista (abaixo). Sem valor de dano moral definido, a peça deixa **[valor do dano moral]**.
    - **Planilha de cálculos (Dr. Augusto, Calculista — desde 28/10/2026, pedido da Jessica: "algum agente analise os extratos e faça planilhas de cálculos para colocar nas peças"):** cada desconto lido nos extratos vira uma linha: competência, contrato, valor descontado, devolução (simples ou em dobro), fator de correção, valor corrigido, juros de mora e total. Critério padrão, escrito na própria planilha:
      - **correção monetária** desde cada desconto (Súmula 43/STJ), com os índices do mês seguinte ao desconto até a data-base: **INPC até 08/2024** e **IPCA a partir de 09/2024** (Lei 14.905/2024). Índice negativo não reduz o valor original;
-     - **juros de mora** simples desde cada desconto (Súmula 54/STJ), sobre o valor corrigido: **1% ao mês até 08/2024** e, depois, a **taxa legal** (Selic − IPCA do mês, nunca negativa);
+     - **juros de mora** simples desde cada desconto (Súmula 54/STJ; critério confirmado pela Jessica em 30/10/2026: "sempre juros atualizados", nunca desde a citação), sobre o valor corrigido: **1% ao mês até 08/2024** e, depois, a **taxa legal** (Selic − IPCA do mês, nunca negativa);
      - **data-base:** o último mês fechado com índice publicado (o IPCA sai por volta do dia 10 do mês seguinte);
      - **índices:** API SGS do Banco Central (INPC 188, IPCA 433, Selic acumulada no mês 4390), guardados na tabela `indices_economicos` (migration 172). Só se busca o que falta; o mês corrente nunca entra. Bacen fora do ar: usa o que já está guardado; sem nada guardado, a planilha sai nominal, com aviso;
      - os juros pagos a mais da revisão da taxa (tabela Price) continuam nominais;
@@ -323,6 +323,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Juros da planilha desde cada desconto: critério confirmado pela Jessica |
 | 30/10/2026 | Claude | Pasta do Drive do caso: lida sozinha a cada 30 min (com subpastas, só o que é novo); "Atualizar da pasta" em segundo plano com aviso no sino e o motivo quando o Google recusa; o caso vindo do e-mail já grava a pasta dos anexos no card |
 | 30/10/2026 | Claude | Demonstrativo de descontos (PDF) por peça: contratos do réu (nº, RMC/RCC, banco, inclusão), o que já foi descontado mês a mês com a fonte e a base do valor da causa; salvo a cada versão da peça, na aba Cálculos da mesa e no kit da ação antes da planilha. O extrato original continua inteiro no protocolo |
 | 30/10/2026 | Claude | Colar a peça revisada: vira o .docx no papel timbrado da Dra., na formatação das peças (Times 12, 1,5, recuo 2,5 cm, títulos centralizados, citação recuada, fecho preso à assinatura); "Baixar a peça (timbrado)"; a peça da equipe no kit também sai no timbrado |
