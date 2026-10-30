@@ -5,6 +5,7 @@
 **Última atualização:** 30/10/2026. Último commit: card único do cliente na produção (ações por banco, kit de protocolo, documentos renomeados).
 
 ## Últimas entregas (mais recentes primeiro)
+- **30/10 (tarde):** **WhatsApp caiu ("session is not reconnectable").** O WhatsApp derrubou a sessão do lado dele; a Jessica reconectou pelo painel da Uazapi (QR). O runbook dizia "só aguardar" e foi corrigido: com esse erro, só o QR resolve. Causa da queda e mensagens perdidas não conferidas (acesso à VPS negado pela permissão). Ver `docs/contexto/relatorios/2026-10-30-whatsapp-sessao-nao-reconectavel.md`.
 - **30/10 (noite):** **Card único do cliente na produção** (pedido da Jessica, caso real com 6 bancos: "tudo centralizado em um único card... documentos renomeados e as peças prontas para que eu revise e protocole um a um").
   - **Regra confirmada:** uma peça por banco; RMC e RCC do mesmo banco podem ir juntos.
   - Cliente com 2+ ações antes do protocolo vira **um card** no quadro. A tela do cliente mostra o que trava (o **extrato de empréstimos do INSS** trava consignado e cartão consignado), as ações por banco com a situação, **"Baixar o kit (.zip)"** (peça em Word + anexos numerados, renomeados, na ordem, fotos em PDF, LEIA-ME) e **"Protocolar"** uma a uma. Documentos com nome padrão ("Dar o nome padrão"; o nome de chegada fica em `documents.nome_original`, migration 173).
