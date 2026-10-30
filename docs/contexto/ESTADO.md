@@ -10,7 +10,8 @@
   - **Regra confirmada:** uma peça por banco; RMC e RCC do mesmo banco podem ir juntos.
   - Cliente com 2+ ações antes do protocolo vira **um card** no quadro. A tela do cliente mostra o que trava (o **extrato de empréstimos do INSS** trava consignado e cartão consignado), as ações por banco com a situação, **"Baixar o kit (.zip)"** (peça em Word + anexos numerados, renomeados, na ordem, fotos em PDF, LEIA-ME) e **"Protocolar"** uma a uma. Documentos com nome padrão ("Dar o nome padrão"; o nome de chegada fica em `documents.nome_original`, migration 173).
   - **Segurança:** a senha do Meu INSS estava em claro na observação de um card (e ia para a IA). Agora vai para o cofre do cliente ao salvar e no início do CRM. Ver runbook.
-  - **Caso do print (6 ações):** continua travado até juntar o extrato de empréstimos do Meu INSS e o histórico de créditos desde 2022. O print PAN/FACTA já vai só para os kits desses dois bancos.
+  - **Caso do print (6 ações):** o histórico de créditos de 2021 a 2026 já está no caso; continua travado só pelo **extrato de empréstimos consignados do Meu INSS** (HISCON), que ainda não está nos documentos. O print PAN/FACTA já vai só para os kits desses dois bancos.
+  - **Versão final enviada pela Dra.:** "Enviar a peça revisada (versão final)" (Word ou PDF) na tela do cliente; vai no kit como veio. O kit agora baixa do Google Drive os documentos que só têm link (os 11 do caso estão assim).
   - Ver `docs/manual/06-documentos.md` ("Card único do cliente") e `docs/contexto/relatorios/2026-10-30-card-unico-do-cliente.md`.
 - **30/10:** **Backup derrubava o CRM e enchia o disco** (alarme de disco em 89%).
   - Com o dump em 925 MB, o backup passava de 4 GB de memória e o sistema matava o CRM no meio da cópia (9 vezes entre 29 e 30/10). **Não houve backup novo de 28/10 22h até o deploy desta correção.** Cada tentativa deixava um .sql de 925 MB em claro no /tmp (eram 21 GB).

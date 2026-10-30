@@ -38,3 +38,10 @@ Jessica, com o caso real de um cliente com 6 bancos (Itaú, Pine, Banrisul, C6, 
 
 ## Próxima sessão
 Conferir com `gh run list` se o CI e o deploy passaram, e abrir o card do cliente em produção. Skills: `tdd`, `codebase-design`, `verification-before-completion`.
+
+## Adendo (30/10, noite): versão final enviada pela Dra. e kit com os arquivos do Drive
+- **Pedido:** "caso eu faça a revisão e tenha a peça aprimorada, quero incluir a peça como V FINAL... e depois baixar os kits".
+- **Feito:** "Enviar a peça revisada (versão final)" (Word ou PDF; `enviarVersaoFinal`, rota `POST /api/lote/:clientId/acao/:caseId/versao-final`); vai no kit como veio. "Marcar a vN como final" na tela do cliente. A ação com versão final fica "Pronta".
+- **Achado na produção:** os 11 documentos do caso estão só no Google Drive (o CRM guarda o link), e o kit sairia sem eles. Agora o kit baixa do Drive na hora (`arquivoDoKit`). A leitura da pasta do Drive passou a reconhecer o documento renomeado (`nome_original`), para não importar de novo.
+- **Correção de informação:** o histórico de créditos de 2021 a 2026 já estava no caso (6 arquivos, um por ano). O que falta é o extrato de empréstimos consignados (HISCON): o arquivo "EXTRATO_DE_EMPRESTIMO_CONSIGNADO" é um histórico de créditos de 09 e 10/2026 e não cita banco.
+- **Verificado:** 5 testes novos (texto do Word, versão final no kit como veio, id do Drive, ação pronta com versão final); suíte inteira sem falhas; teste de ponta a ponta do card do cliente ampliado (envia a peça em Word, fica pronta, protocola).

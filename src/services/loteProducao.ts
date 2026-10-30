@@ -237,7 +237,7 @@ export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: 
     const kit: ItemKit[] = anexos.map((x, i) => {
       const n = (visto.get(x.c.tipo) || 0) + 1; visto.set(x.c.tipo, n);
       return {
-        docId: x.d.id, tipo: x.c.tipo, original: x.d.name, temArquivo: !!Number(x.d.has_data), link: x.d.file_url || null,
+        docId: x.d.id, tipo: x.c.tipo, original: x.d.name, temArquivo: !!Number(x.d.has_data) || /drive\.google\.com/.test(String(x.d.file_url || '')), link: x.d.file_url || null,
         imagem: ehImagem(x.d.name, x.d.mime),
         nome: nomeNoKit({ ordem: i + 1, rotulo: x.c.rotulo, cliente: e.cliente, original: x.d.name, mime: x.d.mime, parte: [n, totalPorTipo.get(x.c.tipo) || 1] }),
       };
@@ -245,11 +245,12 @@ export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: 
     const familia = familiaDaTese(a.titulo);
     const faltam = requisitosComuns([familia]).filter((f) => !tiposPresentes.has(f.tipo));
     const etapa = String(a.production_stage);
+    // Versão final marcada (ou enviada) pela Dra. é decisão dela: a ação fica pronta, e o que falta segue listado.
     const situacao: SituacaoAcao = etapa === 'recusado' ? 'recusada'
       : PROTOCOLADO.includes(etapa) ? 'protocolada'
-        : faltam.some((f) => f.bloqueia) ? 'faltam_documentos'
-          : !p ? 'em_preparo'
-            : p.d.final_em ? 'pronta' : 'revisar';
+        : p?.d.final_em ? 'pronta'
+          : faltam.some((f) => f.bloqueia) ? 'faltam_documentos'
+            : !p ? 'em_preparo' : 'revisar';
     return {
       ...a, reu: reuDe.get(a.id) || null, familia, nomeFamilia: familia ? NOME_FAMILIA[familia] : null,
       peca: p ? { docId: p.d.id, versao: versaoDoNome(p.d.name) || 1, final: !!p.d.final_em, nome: p.d.name } : null,

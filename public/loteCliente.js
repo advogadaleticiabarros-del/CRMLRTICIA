@@ -78,11 +78,13 @@
           <p>${e(a.nomeFamilia || 'Tese não identificada')} · ${e(ETAPA[a.production_stage] || a.production_stage || '')}${a.case_number ? ` · nº <b>${e(a.case_number)}</b>` : ''}</p>
           <p class="lote-acao-meta">${chip(a.situacao)} <span>${peca}</span> <span>${anexos}${a.planilha ? ' + planilha' : ''}</span></p>
           <details class="lote-kit"><summary>Ver o kit de protocolo</summary>
-            <ol>${a.kit.map((k) => `<li>${e(k.nome)}${!k.temArquivo ? ' <small class="lote-aviso">só no Drive: baixar à parte</small>' : ''}<small>chegou como ${e(k.original)}</small></li>`).join('') || '<li>Nenhum anexo ainda.</li>'}</ol>
+            <ol>${a.kit.map((k) => `<li>${e(k.nome)}${!k.temArquivo ? ' <small class="lote-aviso">sem arquivo no CRM: juntar à parte</small>' : ''}<small>chegou como ${e(k.original)}</small></li>`).join('') || '<li>Nenhum anexo ainda.</li>'}</ol>
           </details>
         </div>
         <div class="lote-acao-botoes">
           <button type="button" class="btn-sm" data-acao="abrir">Abrir a mesa</button>
+          ${a.peca && !a.peca.final && !protocolada ? `<button type="button" class="btn-sm" data-acao="final">Marcar a v${a.peca.versao} como final</button>` : ''}
+          ${protocolada ? '' : `<label class="btn-sm lote-enviar-final" title="Revisou no Word? Envie aqui: vira a versão final e vai no kit como está">Enviar a peça revisada (versão final)<input type="file" data-acao="enviar-final" accept=".docx,.pdf" class="lote-arquivo-oculto"></label>`}
           <button type="button" class="btn-sm" data-acao="kit">Baixar o kit (.zip)</button>
           ${protocolada ? '' : `<button type="button" class="btn-primary btn-sm" data-acao="protocolar"${a.situacao === 'pronta' ? '' : ' title="A peça ainda não está marcada como versão final"'}>Protocolar</button>`}
         </div>
@@ -128,6 +130,24 @@
           const b = ev.currentTarget; b.disabled = true; const t = b.textContent; b.textContent = 'Montando o kit…';
           try { await baixar(`/api/lote/${clientId}/acao/${id}/kit`, 'kit.zip'); toast('Kit baixado: peça em Word, anexos renomeados e LEIA-ME'); } catch (err) { toast(err.message, 'error'); }
           b.disabled = false; b.textContent = t;
+        };
+        const fin = card.querySelector('[data-acao="final"]');
+        if (fin) fin.onclick = async () => {
+          fin.disabled = true;
+          try { await api(`/api/mesa/documento/${a.peca.docId}/final`, { method: 'POST', body: JSON.stringify({ final: true }) }); toast(`v${a.peca.versao} marcada como versão final`); mudou = true; await recarregar(); }
+          catch (err) { toast(err.message, 'error'); fin.disabled = false; }
+        };
+        const envFinal = card.querySelector('[data-acao="enviar-final"]');
+        if (envFinal) envFinal.onchange = async () => {
+          const f = envFinal.files[0];
+          if (!f) return;
+          if (!/\.(docx|pdf)$/i.test(f.name)) { toast('Envie a peça em Word (.docx) ou PDF', 'error'); return; }
+          if (f.size > 15 * 1024 * 1024) { toast('Arquivo maior que 15 MB', 'error'); return; }
+          const base64 = await new Promise((ok, erro) => { const r = new FileReader(); r.onload = () => ok(String(r.result)); r.onerror = erro; r.readAsDataURL(f); });
+          try {
+            const r2 = await api(`/api/lote/${clientId}/acao/${id}/versao-final`, { method: 'POST', body: JSON.stringify({ name: f.name, file_base64: base64, mime: f.type || '' }) });
+            toast(`Guardada como versão final: ${r2.nome}. Já vai no kit.`); mudou = true; await recarregar();
+          } catch (err) { toast(err.message, 'error'); }
         };
         const prot = card.querySelector('[data-acao="protocolar"]');
         if (prot) prot.onclick = async () => {

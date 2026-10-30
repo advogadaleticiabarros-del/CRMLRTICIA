@@ -235,9 +235,17 @@ test('Card do cliente: ações por banco, o que trava, kit de protocolo e protoc
   await tela.locator('[data-acao="padronizar"]').click();
   await expect(tela.locator('[data-acao="padronizar"]')).toHaveCount(0, { timeout: 15_000 });
 
-  // Protocolar a 1ª (peça ainda não final: confirma), com o nº do processo.
+  // A Dra. revisou no Word e envia a peça: vira a versão final e a ação fica pronta.
+  const JSZip = (await import('jszip')).default;
+  const z = new JSZip();
+  z.file('word/document.xml', '<w:document><w:body><w:p><w:r><w:t>EXCELENTÍSSIMO SENHOR JUIZ</w:t></w:r></w:p><w:p><w:r><w:t>Peça revisada pela Dra.</w:t></w:r></w:p></w:body></w:document>');
+  const docx = await z.generateAsync({ type: 'nodebuffer' });
+  await tela.locator('.lote-acao').first().locator('[data-acao="enviar-final"]').setInputFiles({ name: 'peca revisada.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: docx });
+  await expect(tela.locator('.lote-acao').first()).toContainText('Pronta para protocolar', { timeout: 15_000 });
+  await expect(tela.locator('.lote-acao').first()).toContainText('versão final');
+
+  // Protocolar a 1ª (já pronta: só pede o nº do processo).
   await tela.locator('.lote-acao').first().locator('[data-acao="protocolar"]').click();
-  await page.locator('#uid-ok').click();
   await page.locator('#uid-input').fill('5000001-00.2026.8.08.0001');
   await page.keyboard.press('Enter');
   await expect(tela.locator('.lote-acao').first()).toContainText('Protocolada', { timeout: 15_000 });

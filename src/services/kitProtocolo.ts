@@ -53,6 +53,35 @@ export async function pecaParaDocx(texto: string): Promise<Buffer> {
 
 const limpar = (s: string) => String(s || '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
 
+/** Texto de um .docx (a peça revisada que a Dra. envia), um parágrafo por linha. Não é .docx: null. */
+export async function textoDoDocx(buf: Buffer): Promise<string | null> {
+  try {
+    const z = await JSZip.loadAsync(buf);
+    const xml = await z.file('word/document.xml')?.async('string');
+    if (!xml) return null;
+    const ent = (t: string) => t.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+    const paragrafos = xml.split(/<\/w:p>/).map((p) =>
+      ent((p.match(/<w:t(?:\s[^>]*)?>[^<]*<\/w:t>|<w:tab\/>|<w:br\/>/g) || [])
+        .map((t) => (t.startsWith('<w:tab') ? '\t' : t.startsWith('<w:br') ? '\n' : t.replace(/<[^>]+>/g, ''))).join('')));
+    const texto = paragrafos.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+    return texto || null;
+  } catch { return null; }
+}
+
+/** Id do arquivo num link do Google Drive (/file/d/<id>/ ou ?id=<id>). */
+export function idDoArquivoNoDrive(url: string | null | undefined): string | null {
+  const u = String(url || '');
+  if (!/drive\.google\.com/.test(u)) return null;
+  const m = u.match(/\/file\/d\/([\w-]+)/) || u.match(/[?&]id=([\w-]+)/);
+  return m ? m[1] : null;
+}
+
+const EXT_PECA: Record<string, string> = {
+  'application/pdf': 'pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/msword': 'doc',
+};
+
 export async function montarKit(acao: AcaoMontada, cliente: string, deps: DepsKit): Promise<{ zip: Buffer; nome: string; incluidos: number; fora: string[] }> {
   const zip = new JSZip();
   const leia: string[] = [`Kit de protocolo — ${cliente}`, `Ação: ${acao.titulo || `caso #${acao.id}`}`, `Réu: ${acao.reu || 'não identificado'}`, ''];
@@ -61,9 +90,14 @@ export async function montarKit(acao: AcaoMontada, cliente: string, deps: DepsKi
 
   if (acao.peca) {
     const p = await deps.arquivo(acao.peca.docId);
-    if (p?.content) {
+    const rotulo = `00 - Petição inicial (v${acao.peca.versao}${acao.peca.final ? ', versão final' : ', AINDA NÃO MARCADA COMO FINAL'})`;
+    // A versão que a Dra. enviou (Word ou PDF) vai como ela mandou; a da equipe vira Word no padrão do escritório.
+    if (p?.data && EXT_PECA[String(p.mime)]) {
+      zip.file(`00 - Petição inicial - ${limpar(acao.reu || cliente)}.${EXT_PECA[String(p.mime)]}`, p.data);
+      leia.push(`${rotulo}, arquivo enviado pela Dra.`);
+    } else if (p?.content) {
       zip.file(`00 - Petição inicial - ${limpar(acao.reu || cliente)}.docx`, await pecaParaDocx(p.content));
-      leia.push(`00 - Petição inicial (v${acao.peca.versao}${acao.peca.final ? ', versão final' : ', AINDA NÃO MARCADA COMO FINAL'})`);
+      leia.push(rotulo);
     }
   } else leia.push('00 - Petição inicial: ainda não gerada');
 
@@ -72,7 +106,7 @@ export async function montarKit(acao: AcaoMontada, cliente: string, deps: DepsKi
     const a = await deps.arquivo(item.docId);
     if (!a?.data) {
       fora.push(item.nome);
-      leia.push(`  ${item.nome}  ← NÃO INCLUÍDO: ${item.link ? `arquivo só no Drive (${item.link})` : 'documento sem arquivo guardado no CRM'}`);
+      leia.push(`  ${item.nome}  ← NÃO INCLUÍDO: ${item.link ? `não deu para baixar do Drive (${item.link})` : 'documento sem arquivo guardado no CRM'}`);
       continue;
     }
     let dados = a.data;

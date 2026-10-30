@@ -36,8 +36,38 @@ test('kit: peça em .docx, anexos com o nome padrão, foto em PDF e LEIA-ME com 
   assert.ok(xml.includes('Times New Roman') && xml.includes('vem propor ação'));
   const leia = await zip.file('LEIA-ME.txt').async('string');
   assert.ok(leia.includes('AINDA NÃO MARCADA COMO FINAL'));
-  assert.ok(leia.includes('03 - Comprovante de residência - Fulano.pdf  ← NÃO INCLUÍDO: arquivo só no Drive'));
+  assert.ok(leia.includes('03 - Comprovante de residência - Fulano.pdf  ← NÃO INCLUÍDO: não deu para baixar do Drive'));
   assert.ok(leia.includes('Extrato de empréstimos consignados do INSS (OBRIGATÓRIO)'));
   assert.strictEqual(r.incluidos, 2);
   assert.strictEqual(r.nome, 'Kit Fulano x Banco Teste S.A..zip');
+});
+
+// Pedido de 30/10/2026: "caso eu faça a revisão e tenha a peça aprimorada, quero incluir
+// a peça como V FINAL... e depois baixar os kits".
+import { textoDoDocx, pecaParaDocx, idDoArquivoNoDrive } from '../dist/services/kitProtocolo.js';
+
+test('peça enviada em Word: o texto é lido parágrafo a parágrafo (revisão e conferência continuam lendo)', async () => {
+  const docx = await pecaParaDocx('EXCELENTÍSSIMO SENHOR JUIZ\n\nFulano vem propor ação & pedir R$ 1.000,00.');
+  const t = await textoDoDocx(docx);
+  assert.ok(t.includes('EXCELENTÍSSIMO SENHOR JUIZ'));
+  assert.ok(t.includes('Fulano vem propor ação & pedir R$ 1.000,00.'));
+  assert.strictEqual(await textoDoDocx(Buffer.from('não é docx')), null);
+});
+
+test('kit: a versão final enviada pela Dra. vai como ela mandou (o arquivo original, não um Word refeito)', async () => {
+  const original = Buffer.from('%PDF-1.4 peça revisada pela Dra.');
+  const a = { ...acao, peca: { docId: 9, versao: 3, final: true, nome: 'Petição Inicial — Fulano (v3 · versão final da Dra.)' }, kit: [] };
+  const r = await montarKit(a, 'Fulano', { arquivo: async (id) => (id === 9 ? { data: original, mime: 'application/pdf', content: null } : null) });
+  const zip = await JSZip.loadAsync(r.zip);
+  const nome = Object.keys(zip.files).find((n) => n.startsWith('00 - '));
+  assert.strictEqual(nome, '00 - Petição inicial - Banco Teste S.A..pdf');
+  assert.deepStrictEqual(await zip.file(nome).async('nodebuffer'), original);
+  assert.ok((await zip.file('LEIA-ME.txt').async('string')).includes('v3, versão final'));
+});
+
+test('arquivo que está só no Google Drive: o id sai do link para o kit baixar', () => {
+  assert.strictEqual(idDoArquivoNoDrive('https://drive.google.com/file/d/1AbC_x-9/view'), '1AbC_x-9');
+  assert.strictEqual(idDoArquivoNoDrive('https://drive.google.com/open?id=1AbC_x-9'), '1AbC_x-9');
+  assert.strictEqual(idDoArquivoNoDrive('https://exemplo.com/x.pdf'), null);
+  assert.strictEqual(idDoArquivoNoDrive(null), null);
 });

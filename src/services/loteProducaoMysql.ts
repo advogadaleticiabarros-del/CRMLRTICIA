@@ -1,6 +1,7 @@
 import { db } from '../config/database';
 import { montarLote, classificarDocumento, nomePadrao, type AcaoLote, type DocLote, type Lote } from './loteProducao';
-import type { ArquivoKit } from './kitProtocolo';
+import { textoDoDocx, idDoArquivoNoDrive, type ArquivoKit } from './kitProtocolo';
+import { downloadDriveFile } from './partnerInboxService';
 import { retirarSenhaInss } from './senhaInssCliente';
 
 /**
@@ -37,9 +38,50 @@ export async function carregarLote(clientId: number): Promise<Lote | null> {
   return montarLote({ cliente: cl.name, acoes, documentos });
 }
 
+/** Arquivo do kit: o guardado no CRM ou, se o documento veio do Google Drive (só o link), baixado de lá na hora. */
 export async function arquivoDoKit(clientId: number, docId: number): Promise<ArquivoKit | null> {
-  const [[d]] = await db.query('SELECT data, mime, content FROM documents WHERE id = ? AND client_id = ?', [docId, clientId]) as any;
-  return d ? { data: d.data || null, mime: d.mime, content: d.content } : null;
+  const [[d]] = await db.query('SELECT data, mime, content, file_url FROM documents WHERE id = ? AND client_id = ?', [docId, clientId]) as any;
+  if (!d) return null;
+  if (d.data) return { data: d.data, mime: d.mime, content: d.content };
+  const idDrive = idDoArquivoNoDrive(d.file_url);
+  if (idDrive) {
+    const f = await downloadDriveFile(idDrive).catch(() => null);
+    if (f) return { data: Buffer.from(f.base64, 'base64'), mime: f.mimeType, content: d.content };
+  }
+  return { data: null, mime: d.mime, content: d.content };
+}
+
+const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const MAX_PECA = 15 * 1024 * 1024;
+
+/**
+ * A Dra. revisou a peça fora do CRM e envia a versão final (Word ou PDF): vira a versão
+ * seguinte da petição da ação, já marcada como final (as outras deixam de ser), e é ela
+ * que vai no kit, como veio. Do Word, o texto é lido para a revisão e a conferência.
+ */
+export async function enviarVersaoFinal(e: { clientId: number; caseId: number; nome: string; base64: string; mime: string; userId: number; autor: string }): Promise<{ id: number; nome: string }> {
+  const [[c]] = await db.query('SELECT c.id, cl.name AS cliente FROM cases c JOIN clients cl ON cl.id = c.client_id WHERE c.id = ? AND c.client_id = ?', [e.caseId, e.clientId]) as any;
+  if (!c) throw Object.assign(new Error('Ação não encontrada neste cliente'), { status: 404 });
+  const ehPdf = e.mime === 'application/pdf' || /\.pdf$/i.test(e.nome);
+  const ehDocx = e.mime === MIME_DOCX || /\.docx$/i.test(e.nome);
+  if (!ehPdf && !ehDocx) throw Object.assign(new Error('Envie a peça em Word (.docx) ou PDF'), { status: 400 });
+  const data = Buffer.from(String(e.base64).replace(/^data:[^,]*,/, ''), 'base64');
+  if (!data.length) throw Object.assign(new Error('Arquivo vazio'), { status: 400 });
+  if (data.length > MAX_PECA) throw Object.assign(new Error('Arquivo maior que 15 MB'), { status: 400 });
+  const texto = ehDocx ? await textoDoDocx(data) : null;
+  if (ehDocx && !texto) throw Object.assign(new Error('Não consegui ler esse Word. Confira se é um .docx'), { status: 400 });
+  const [irmas] = await db.query("SELECT id, name FROM documents WHERE case_id = ? AND name LIKE 'Petição Inicial%' ORDER BY id DESC", [e.caseId]) as any;
+  const n = Math.max(0, ...(irmas as any[]).map((d) => Number(String(d.name).match(/\(v(\d+)/)?.[1] || 1))) + 1;
+  const nome = `Petição Inicial — ${c.cliente} (v${n} · versão final da Dra.)`;
+  await db.query("UPDATE documents SET final_em = NULL WHERE case_id = ? AND name LIKE 'Petição Inicial%'", [e.caseId]);
+  const [ins] = await db.query(
+    `INSERT INTO documents (client_id, case_id, name, type, folder, content, data, mime, status, created_by, versao_de, final_em, nome_original)
+     VALUES (?, ?, ?, 'peca', 'processos', ?, ?, ?, 'pendente', ?, ?, NOW(), ?)`,
+    [e.clientId, e.caseId, nome, texto ?? '[Versão final enviada em PDF pela Dra.: o texto está no arquivo.]', data, ehPdf ? 'application/pdf' : MIME_DOCX,
+      e.userId, (irmas as any[])[0]?.id ?? null, e.nome.slice(0, 255)]) as any;
+  await db.query("INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, ?, 'atualizacao', ?)",
+    [e.caseId, e.userId, e.autor, `Versão final enviada pela Dra. (${ehPdf ? 'PDF' : 'Word'}): ${nome}. É ela que vai no kit de protocolo.`]).catch(() => {});
+  return { id: ins.insertId, nome };
 }
 
 /** Dá o nome padrão aos documentos do cliente; o nome de chegada fica em nome_original. */

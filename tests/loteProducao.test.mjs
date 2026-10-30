@@ -118,6 +118,16 @@ test('lote: peça mais recente da ação (v2), e ação com peça final fica "pr
   assert.strictEqual(itau.situacao, 'pronta');
 });
 
+test('lote: peça marcada como versão final pela Dra. deixa a ação "pronta", mesmo com documento faltando (fica avisado)', () => {
+  const comFinal = docs.map((d) => d.id === 636 ? { ...d, final_em: '2026-10-30' } : d);
+  const l = montarLote({ cliente: 'Fulano', acoes, documentos: [...comFinal, doc(900, 'Petição Inicial — Fulano (v3 · versão final da Dra.)', 'texto', { case_id: 110, type: 'peca', final_em: '2026-10-31', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' })] });
+  const itau = l.acoes.find((a) => a.id === 110);
+  assert.strictEqual(itau.peca.docId, 900, 'a versão final mais nova');
+  assert.strictEqual(itau.peca.versao, 3);
+  assert.strictEqual(itau.situacao, 'pronta');
+  assert.ok(itau.faltam.some((f) => f.bloqueia), 'o que falta continua listado');
+});
+
 test('lote: ação protocolada fica como protocolada, e a etapa do card é a da ação mais atrasada', () => {
   const l = montarLote({ cliente: 'Fulano', acoes: [acao(1, 'RMC — Banco X', 'protocolado', { case_number: '5000001-00.2026' }), acao(2, 'Empréstimo consignado — Banco Y', 'revisao_inicial'), acao(3, 'Empréstimo consignado — Banco Z', 'separacao_documentos')], documentos: [] });
   assert.strictEqual(l.acoes[0].situacao, 'protocolada');

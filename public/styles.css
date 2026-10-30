@@ -2724,3 +2724,8 @@ body.lote-aberto { overflow: hidden; }
 .kf-card-lote { border-left: 3px solid var(--gold, #c9a227); }
 .prod-lote-tag { font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: var(--surface-2); color: var(--text-soft); }
 .prod-lote-bancos { display: block; margin-top: 2px; font-size: 12px; color: var(--text-muted); }
+
+.lote-enviar-final { display: inline-flex; align-items: center; justify-content: center; text-align: center; cursor: pointer; }
+.lote-enviar-final:focus-within { outline: 2px solid var(--gold, #c9a227); outline-offset: 2px; }
+.lote-enviar-final { position: relative; }
+.lote-arquivo-oculto { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }

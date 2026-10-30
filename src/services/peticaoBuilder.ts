@@ -62,7 +62,8 @@ export async function importDriveFolder(caseId: number, clientId: number | null,
   const files = await listDriveFolderFiles(fid);
   let n = 0;
   for (const f of files) {
-    const [[dup]] = await db.query('SELECT id FROM documents WHERE case_id = ? AND name = ? LIMIT 1', [caseId, f.name]) as any;
+    // Também pelo nome de chegada: o card do cliente pode ter dado o nome padrão ao documento (30/10/2026).
+    const [[dup]] = await db.query('SELECT id FROM documents WHERE case_id = ? AND (name = ? OR nome_original = ?) LIMIT 1', [caseId, f.name, f.name]) as any;
     if (dup) continue;
     if (!READABLE(f.mimeType)) {
       // Guarda o arquivo (link) mesmo sem leitura por IA (ex.: vídeo/formato não suportado).
