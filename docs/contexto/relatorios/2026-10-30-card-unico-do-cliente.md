@@ -33,7 +33,7 @@ Jessica, com o caso real de um cliente com 6 bancos (Itaú, Pine, Banrisul, C6, 
 
 ## Pendente
 - **Equipe:** baixar no Meu INSS do cliente o extrato de empréstimos consignados e o histórico de créditos desde 2022, enviar pela tela do cliente e gerar as peças.
-- **Jessica:** confirmar que empréstimo consignado e cartão do mesmo banco seguem em peças separadas.
+- ~~Jessica: confirmar empréstimo e cartão do mesmo banco~~ → confirmado em 30/10: são peças diferentes (já é assim no sistema).
 - **Ideias, não feitas:** planilha em PDF no kit (hoje vai o .xlsx); juntar os 6 históricos de créditos em um PDF só; marcar sozinho como "Pronta" quando a peça final não tem campos em amarelo.
 
 ## Próxima sessão

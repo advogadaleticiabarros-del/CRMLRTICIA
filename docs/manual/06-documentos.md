@@ -69,7 +69,7 @@ Acompanha o trabalho de **redigir e protocolar** uma peça, por etapa: Em análi
 
 Pedido da Jessica (caso real com 6 bancos): "preciso de tudo centralizado em um único card, pois está bem bagunçado criar vários cards diferentes, mesmo que vamos fazer vários processos distintos para protocolar... 80% o CRM deve me entregar pronto, organizado, com os documentos renomeados e as peças prontas para que eu revise e protocole um a um".
 
-**Regra de divisão (Jessica, 30/10):** cada banco (parte contrária) tem a **sua peça**. RMC e RCC **do mesmo banco** podem ir juntos (faixa "processo único"). Empréstimo consignado e cartão do mesmo banco continuam separados (regra de 22/10).
+**Regra de divisão (Jessica, 30/10):** cada banco (parte contrária) tem a **sua peça**. RMC e RCC **do mesmo banco** podem ir juntos (faixa "processo único"). Empréstimo consignado e cartão consignado (RMC/RCC) do mesmo banco são **peças diferentes** (regra de 22/10, confirmada pela Jessica em 30/10).
 
 **No quadro:** cliente com **2 ou mais ações antes do protocolo** aparece como **um card** ("6 ações", com os bancos embaixo), na etapa da ação mais atrasada, com o maior prazo e a soma das pendências. O card do cliente não se arrasta: cada ação anda pela própria tela. Ação protocolada volta a ter card próprio (já é um processo, com nº).
 
