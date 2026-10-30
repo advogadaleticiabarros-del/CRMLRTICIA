@@ -16,6 +16,13 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: a barra de progresso da Mesa não apareceu depois da publicação (30/10/2026)
+
+**Sintoma:** depois do deploy da barra de progresso, a Jessica pediu nova versão e viu o aviso antigo ("A equipe está montando a nova versão. Você será avisada no sino."), sem barra e com o botão destravado.
+**Causa raiz:** o `?v=<deploy>` que obriga o navegador a baixar a tela nova só era colocado em `app.js`, `whatsapp.js`, `portal-parceiro.js` e `styles.css` (lista fixa em `src/app.ts`). As telas criadas depois (`mesa.js`, `loteCliente.js`, `escritorio.js`, `leis.js`, `visaoCliente.js`) ficavam de fora e o navegador podia continuar com a versão antiga.
+**Correção:** `src/utils/versionarIndexHtml.ts` versiona todo script da raiz de `public/` (fora `/vendor/` e `/socket.io/`). O teste `tests/versionarIndexHtml.test.mjs` lê o `index.html` real e falha se algum script próprio ficar sem versão, então uma tela nova nunca mais fica de fora.
+**Se acontecer de novo:** `curl -s https://crm.advogadaleticiabarros.com.br/ | grep '.js'` deve mostrar `?v=` em todos os scripts próprios. Na hora, Ctrl+Shift+R resolve para quem está com a tela antiga.
+
 ## Incidente: pediu uma nova versão da peça e ela nunca chegou (30/10/2026)
 
 **Sintoma:** a Jessica pediu "nova versão" da petição e ela não chegou: nenhuma versão nova, nenhum aviso no sino.
