@@ -8,6 +8,7 @@ import {
   type Fonte, type FichaDeFatos, type Escolha, type ItemCatalogo, type ContratoFicha,
 } from './pecaDossie';
 import { chaveLeituraCliente } from './leituraUnica';
+import { aplicarEnderecamento } from './enderecamentoPeca';
 import { separarParaPeca, mesmoBanco, chaveContrato, conferirPecasPorBanco, type ContratoSalvo, type PecaAlvo, type AcaoParaConferir, type ConferenciaPecas } from './contratosDoCaso';
 
 /**
@@ -255,6 +256,7 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
   });
   const out = await deps.ia(prompt, 'redacao').catch((e) => ({ ok: false, message: e?.message, text: undefined }));
   if (!out.ok || !out.text) return { ok: false, message: out.message || 'A IA não devolveu a petição' };
+  out.text = aplicarEnderecamento(out.text, caso.legal_area);
   deps.registrar('estagiario', `redigiu a petição inicial de ${caso.cliente}${casos.length > 1 ? ` reunindo ${casos.length} casos contra a mesma parte` : ''}`);
 
   deps.etapa?.('conferencia');

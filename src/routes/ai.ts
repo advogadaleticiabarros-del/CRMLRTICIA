@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
 import { aiComplete, findOfficeModel } from '../services/aiAssistant';
+import { regraEnderecamento, aplicarEnderecamento } from '../services/enderecamentoPeca';
 
 const router = Router();
 
@@ -162,6 +163,9 @@ router.post('/generate', async (req: Request, res: Response) => {
   const [[lawyer]] = await db.query("SELECT name, oab_number, oab_uf FROM lawyers WHERE active = 1 ORDER BY id LIMIT 1") as any;
 
   let prompt = tpl.build({ client, proc, lawyer, inputs: inputs || {} });
+  // Petição inicial trabalhista: cabeçalho fixo do escritório (regra de 30/10/2026).
+  const areaPeca = type === 'peticao_inicial' ? (proc?.legal_area || inputs?.area || null) : null;
+  if (regraEnderecamento(areaPeca)) prompt += `\n\n${regraEnderecamento(areaPeca)}`;
   const title = `${tpl.label}${client ? ' — ' + client.name : ''}`;
 
   // Se o escritório tiver um MODELO próprio para este tipo de peça, usa-o como
@@ -186,7 +190,7 @@ router.post('/generate', async (req: Request, res: Response) => {
   // Tenta geração automática (grátis) se houver chave configurada.
   // Redação de peça → Gemini (com fallback no Groq).
   const auto = await autoGenerate(prompt, 'gemini');
-  const result = auto.ok ? (auto.text || '') : '';
+  const result = auto.ok ? aplicarEnderecamento(auto.text || '', areaPeca) : '';
   const status = auto.ok ? 'completed' : 'pending';
 
   const [r] = await db.query(
