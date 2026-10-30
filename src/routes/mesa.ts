@@ -132,7 +132,7 @@ router.post('/:caseId/contratos/levantar', async (req: Request, res: Response) =
     .then((r) => {
       const problemas = (r.conferencia?.problemas || []).filter((p) => p.tipo !== 'nao_lidos');
       const porBanco = problemas.length ? ` Atenção, uma peça por banco: ${problemas.map((p) => p.texto).join(' ')}` : '';
-      return avisar(r.ok, r.ok ? `${c.title || 'Processo'} — ${r.contratos} contrato(s) em ${r.fontes} documento(s). Veja na aba Caso da mesa.${porBanco}` : `${c.title || 'Processo'} — ${r.message}`);
+      return avisar(r.ok, r.ok ? `${c.title || 'Processo'} — ${r.contratos} contrato(s) em ${r.fontes} documento(s)${r.reaproveitada ? ' (os mesmos documentos já lidos para outra ação do cliente: sem nova leitura pela IA)' : ''}. Veja na aba Caso da mesa.${porBanco}` : `${c.title || 'Processo'} — ${r.message}`);
     })
     .catch((e: any) => avisar(false, `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`));
   res.status(202).json({ success: true, emAndamento: true });

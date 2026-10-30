@@ -79,6 +79,11 @@ Pedido da Jessica (caso real com 6 bancos): "preciso de tudo centralizado em um 
 - **ação sem contrato:** a ação de cartão é contra um banco que não aparece nos cartões lidos (conferir o extrato ou o réu);
 - **banco não identificado:** o contrato foi lido sem o banco (conferir no extrato de empréstimos do INSS);
 - **mesmo banco separado:** duas ações de cartão contra o mesmo banco, que podem ir numa peça só ("Ver e juntar").
+**Leitura única dos documentos do cliente (desde 30/10/2026, pedido da Jessica: "os documentos de todos os processos do Valmiro são os mesmos, quero que leia uma vez só... isso vale para as outras produções similares também... se for a mesma pasta, uma leitura só"):** vale para qualquer cliente com mais de uma ação em produção (antes do protocolo, mesma área).
+- **Arquivo:** o arquivo do Drive que outra ação já leu (mesmo ID, ou seja, a mesma pasta) tem a leitura **copiada**, sem baixar e sem IA. Arquivo com o mesmo conteúdo (cópia em outra pasta, PDF juntado em cada ação) também é lido uma vez: a memória é pelo conteúdo (`documento_leituras`, `leituraUnica.ts`).
+- **Ficha de fatos:** a Dra. Helena lê os documentos de **todas as ações do cliente juntas** (o mesmo conteúdo entra uma vez) e lista tudo, de todos os bancos. A ficha fica guardada. Enquanto os documentos forem os mesmos, as outras peças e o "Ler os contratos" usam a ficha guardada, e cada peça separa o que é do seu banco. Mensagem nova no WhatsApp ou anotação nova **não** obriga a ler de novo. Documento novo ou diferente, sim. Peças pedidas ao mesmo tempo esperam a mesma leitura. Leitura que falhou não fica guardada.
+- **Continua por peça:** a escolha do modelo, os fundamentos e a redação, que usam os documentos da própria ação (já lidos, sem IA de novo). A nota da produção e o aviso do sino dizem quando a leitura foi reaproveitada.
+
 Contrato tirado das peças pela Dra. não conta, e empréstimo consignado fica fora desta conferência. **Onde aparece:** na tela do cliente (bloco "Uma peça por banco"), na Mesa → aba Caso → "Contratos nos documentos", no aviso do sino depois de "Ler os contratos agora" e no "A conferir" do dossiê de cada peça gerada. Só avisa: quem decide é a Dra.
 
 **Ao clicar, abre a tela do cliente:**
@@ -338,6 +343,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Leitura única dos documentos do cliente: arquivo do Drive já lido em outra ação é copiado (mesmo ID ou mesmo conteúdo); a ficha de fatos é lida uma vez para todas as ações do cliente e reaproveitada nas outras peças e no "Ler os contratos" enquanto os documentos não mudam |
 | 30/10/2026 | Claude | Geração da peça retomada sozinha depois de um reinício do CRM (registro em `geracoes_peca_pendentes`, migration 174) |
 | 30/10/2026 | Claude | Conferência "uma peça por banco": os cartões RMC/RCC lidos nos extratos são conferidos contra as ações do cliente (banco sem ação, ação com dois bancos, contrato na ação de outro banco, ação sem contrato, banco não identificado, duas ações do mesmo banco); aparece na tela do cliente, na aba Caso da mesa, no aviso da leitura dos contratos e no dossiê da peça |
 | 30/10/2026 | Claude | Geração da peça: confirmação sempre, botão travado até a versão chegar (trava também no servidor) e barra de progresso com a etapa |

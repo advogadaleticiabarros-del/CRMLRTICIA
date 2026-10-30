@@ -3,7 +3,8 @@ import { aiComplete, aiLerArquivo } from './aiAssistant';
 import { registrarAcaoAgente } from './usoIa';
 import { reusDoCaso, type CasoParaJuntar } from './pecaConsolidacao';
 import type { DepsEsteira, CasoEsteira } from './esteiraPeca';
-import type { Fonte, ItemCatalogo, ContratoFicha } from './pecaDossie';
+import type { Fonte, ItemCatalogo, ContratoFicha, FichaDeFatos } from './pecaDossie';
+import { lerUmaVez, refDoConteudo, type CacheLeitura } from './leituraUnica';
 import { chaveContrato, type ContratoSalvo, type AcaoParaConferir } from './contratosDoCaso';
 import { indicesDoBacen } from './indicesEconomicosMysql';
 
@@ -74,17 +75,34 @@ async function candidatosCorrelatos(c: CasoEsteira): Promise<CasoParaJuntar[]> {
   return rows.map((r: any) => ({ ...r, partes: partes.filter((p: any) => p.case_id === r.id).map((p: any) => ({ nome: p.nome, cpf_cnpj: p.cpf_cnpj })) }));
 }
 
-/** Texto integral de um arquivo guardado, lido uma vez só (cache em documento_leituras). */
+/** Memória das leituras pela IA (documento_leituras), usada pela leitura única (leituraUnica.ts). */
+export const cacheLeiturasMysql: CacheLeitura = {
+  buscar: async (ref) => {
+    const [[c]] = await db.query('SELECT leitura FROM documento_leituras WHERE ref = ?', [ref]) as any;
+    if (!c) return null;
+    const l = jsonDe(c.leitura);
+    return l?.texto ? String(l.texto) : null;
+  },
+  guardar: async (ref, fonte, texto) => {
+    await db.query('INSERT IGNORE INTO documento_leituras (ref, fonte, leitura) VALUES (?, ?, ?)', [ref, fonte.slice(0, 255), JSON.stringify({ texto })]);
+  },
+};
+
+/**
+ * Texto integral de um arquivo guardado, lido uma vez só. A memória é pelo conteúdo: o
+ * mesmo PDF juntado em várias ações do cliente vai para a IA uma vez (30/10/2026).
+ * A chave antiga (por documento) continua valendo para o que já foi lido.
+ */
 async function textoDoArquivo(ref: string, fonte: string, mime: string, carregar: () => Promise<Buffer | null>): Promise<string> {
-  const chave = `texto:${ref}`;
-  const [[c]] = await db.query('SELECT leitura FROM documento_leituras WHERE ref = ?', [chave]) as any;
-  if (c) { const l = typeof c.leitura === 'string' ? JSON.parse(c.leitura) : c.leitura; return String(l?.texto || ''); }
+  const antiga = await cacheLeiturasMysql.buscar(`texto:${ref}`).catch(() => null);
+  if (antiga) return antiga;
   const buf = await carregar();
   if (!buf || buf.length > MAX_BYTES) return '';
-  const r = await aiLerArquivo(buf.toString('base64'), mime, PROMPT_TRANSCRICAO);
-  if (!r.ok || !r.text) return '';
-  await db.query('INSERT IGNORE INTO documento_leituras (ref, fonte, leitura) VALUES (?, ?, ?)', [chave, fonte.slice(0, 255), JSON.stringify({ texto: r.text })]);
-  return r.text;
+  const texto = await lerUmaVez(cacheLeiturasMysql, refDoConteudo('texto', mime, buf), fonte, async () => {
+    const r = await aiLerArquivo(buf.toString('base64'), mime, PROMPT_TRANSCRICAO);
+    return r.ok && r.text ? r.text : null;
+  });
+  return texto || '';
 }
 
 async function fontes(caseIds: number[], principal: CasoEsteira): Promise<Fonte[]> {
@@ -138,13 +156,44 @@ async function fontes(caseIds: number[], principal: CasoEsteira): Promise<Fonte[
     const linhas = msgs
       .map((m: any) => `[${new Date(m.msg_time).toLocaleDateString('pt-BR')}] ${m.from_me ? 'Escritório' : 'Cliente'}: ${String(m.body).replace(/\s+/g, ' ').slice(0, 700)}`)
       .filter((l: string) => l.length > 25);
-    if (linhas.length) out.push({ nome: 'Conversa do WhatsApp com o cliente', texto: linhas.join('\n') });
+    if (linhas.length) out.push({ nome: 'Conversa do WhatsApp com o cliente', texto: linhas.join('\n'), muda: true });
   }
 
   const [notas] = await db.query(
     `SELECT case_id, kind, text, created_at FROM production_notes WHERE case_id IN (?) AND kind IN ('observacao','pendencia') ORDER BY created_at ASC`, [caseIds]) as any;
-  if (notas.length) out.push({ nome: 'Anotações da equipe na produção', texto: notas.map((n: any) => `- caso #${n.case_id} (${n.kind}): ${n.text}`).join('\n') });
+  if (notas.length) out.push({ nome: 'Anotações da equipe na produção', texto: notas.map((n: any) => `- caso #${n.case_id} (${n.kind}): ${n.text}`).join('\n'), muda: true });
   return out;
+}
+
+/**
+ * Leitura única: os documentos de todas as ações do cliente em produção (antes do
+ * protocolo, mesma área), com o mesmo conteúdo uma vez só. O mesmo extrato juntado em
+ * cada ação, ou a mesma pasta do Drive, entra uma vez na leitura.
+ */
+async function fontesDoCliente(clientId: number, principal: CasoEsteira): Promise<Fonte[]> {
+  const [casos] = await db.query(
+    `SELECT id FROM cases WHERE client_id = ? AND id <> ? AND (legal_area <=> ?)
+        AND production_stage IS NOT NULL AND production_stage NOT IN ('protocolado', 'concluido', 'recusado') ORDER BY id`,
+    [clientId, principal.id, principal.legal_area]) as any;
+  const ids = [...new Set<number>([principal.id, ...casos.map((c: any) => Number(c.id))])];
+  const vistos = new Set<string>();
+  return (await fontes(ids, principal)).filter((f) => {
+    const t = String(f.texto || '').trim();
+    if (!t) return true;
+    if (vistos.has(t)) return false;
+    vistos.add(t);
+    return true;
+  });
+}
+
+async function leituraGuardada(chave: string): Promise<FichaDeFatos | null> {
+  const t = await cacheLeiturasMysql.buscar(chave);
+  if (!t) return null;
+  try { return JSON.parse(t) as FichaDeFatos; } catch { return null; }
+}
+
+async function guardarLeitura(chave: string, ficha: FichaDeFatos): Promise<void> {
+  await cacheLeiturasMysql.guardar(chave, 'Ficha de fatos (leitura única do cliente)', JSON.stringify(ficha));
 }
 
 const secao = (md: string, titulo: string) => {
@@ -247,7 +296,7 @@ export async function acoesDoCliente(clientId: number): Promise<AcaoParaConferir
 }
 
 export const depsEsteiraMysql: DepsEsteira = {
-  caso, candidatosCorrelatos, fontes, catalogo, modelos, teses, fundamentos, regras, contratosSalvos, guardarContratos, acoesDoCliente,
+  caso, candidatosCorrelatos, fontes, fontesDoCliente, leituraGuardada, guardarLeitura, catalogo, modelos, teses, fundamentos, regras, contratosSalvos, guardarContratos, acoesDoCliente,
   indices: indicesDoBacen,
   ia: (prompt, nivel) => aiComplete(prompt, nivel === 'redacao' ? 'openai-alto' : nivel === 'leitura' ? 'openai-medio' : 'openai'),
   registrar: registrarAcaoAgente,

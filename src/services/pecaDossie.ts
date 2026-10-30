@@ -88,12 +88,6 @@ export function parseContratos(v: unknown): ContratoFicha[] {
   }));
 }
 
-/** Resposta da leitura só de contratos (promptContratos): a lista de contratos. */
-export function parseListaContratos(texto: string): ContratoFicha[] | null {
-  const o = extrairJson(texto);
-  return o && typeof o === 'object' ? parseContratos(o.contratos) : null;
-}
-
 export function parseFichaDeFatos(texto: string): FichaDeFatos {
   const o = extrairJson(texto);
   if (!o || typeof o !== 'object') return fichaVazia('A leitura dos documentos pela IA falhou: a ficha de fatos ficou vazia. Conferir os documentos à mão.');
@@ -114,7 +108,8 @@ export function parseFichaDeFatos(texto: string): FichaDeFatos {
 
 // ── fontes ──────────────────────────────────────────────────────────────────
 
-export interface Fonte { nome: string; texto: string }
+/** `muda`: fonte que cresce sempre (conversa, anotações). Entra na leitura, mas não obriga a ler tudo de novo (leituraUnica.ts). */
+export interface Fonte { nome: string; texto: string; muda?: boolean }
 
 /** Junta as fontes num texto só, cortando as grandes sem deixar nenhuma de fora. */
 export function montarFontes(fontes: Fonte[], lim = { porFonte: 40000, total: 200000 }) {
@@ -132,15 +127,19 @@ export function montarFontes(fontes: Fonte[], lim = { porFonte: 40000, total: 20
 
 // ── Dra. Helena: ficha de fatos ─────────────────────────────────────────────
 
-export function promptFichaDeFatos(ctx: { area: string | null; cliente: string; casos: string[] }, fontesTexto: string): string {
+/** `todasAsAcoes`: leitura única do cliente, que serve a todas as peças dele (uma por banco). */
+export function promptFichaDeFatos(ctx: { area: string | null; cliente: string; casos: string[]; todasAsAcoes?: boolean }, fontesTexto: string): string {
   return `FICHA DE FATOS — você é a analista de documentos de um escritório de advocacia (área: ${ctx.area || 'não informada'}).
-Leia TODAS as fontes abaixo (documentos, extratos, contratos, conversas de WhatsApp e relato) do(a) cliente ${ctx.cliente} e monte a ficha de fatos que vai embasar UMA petição inicial.
-Pedidos/casos reunidos nesta peça:
+${ctx.todasAsAcoes
+    ? `Leia TODAS as fontes abaixo (documentos, extratos, contratos, conversas de WhatsApp e relato) do(a) cliente ${ctx.cliente} e monte a ficha de fatos que vai embasar TODAS as ações dele(a): esta leitura é feita uma vez e serve a cada peça (uma por banco). Liste tudo, de todos os bancos; o sistema separa depois o que é de cada peça.
+Ações do cliente:`
+    : `Leia TODAS as fontes abaixo (documentos, extratos, contratos, conversas de WhatsApp e relato) do(a) cliente ${ctx.cliente} e monte a ficha de fatos que vai embasar UMA petição inicial.
+Pedidos/casos reunidos nesta peça:`}
 ${ctx.casos.map((c) => `- ${c}`).join('\n')}
 
 Responda SOMENTE com JSON neste formato:
 {"reus":[{"nome":"...","cnpj":"...","endereco":"...","fonte":"nome da fonte"}],
- "contratos":[{"numero":"...","tipo":"emprestimo_consignado|emprestimo_pessoal|rmc|rcc|cartao_comum|refinanciamento|portabilidade|outro","banco":"...","data":"dd/mm/aaaa","valor_liberado":0,"parcela":0,"n_parcelas":0,"parcelas_pagas":0,"taxa_mensal":0,"taxa_media_mercado":0,"inicio_desconto":"mm/aaaa","fim_desconto":"mm/aaaa","situacao":"ativo|excluido|encerrado","fonte":"..."}],
+ "contratos":[{"numero":"...","tipo":"emprestimo_consignado|emprestimo_pessoal|rmc|rcc|cartao_comum|refinanciamento|portabilidade|outro","banco":"...","data":"dd/mm/aaaa","valor_liberado":0,"parcela":0,"n_parcelas":0,"parcelas_pagas":0,"taxa_mensal":0,"taxa_media_mercado":0,"inicio_desconto":"mm/aaaa","fim_desconto":"mm/aaaa","situacao":"ativo|excluido|encerrado|suspenso","fonte":"..."}],
  "descontos":[{"competencia":"mm/aaaa","valor":0,"contrato":"nº do contrato","banco":"banco do desconto, se o extrato mostrar","fonte":"..."}],
  "fatos":[{"data":"dd/mm/aaaa","texto":"fato objetivo","fonte":"..."}],
  "valores":[{"descricao":"...","valor":0,"data":"...","fonte":"..."}],
@@ -153,30 +152,12 @@ Regras:
 - NUNCA invente, deduza ou complete. Só o que está escrito nas fontes. Campo sem informação: null. Lista sem itens: [].
 - TODO item leva "fonte" com o nome exato da fonte de onde saiu (o título depois de "===").
 - "descontos": cada desconto mensal que aparece em extrato de pagamento do benefício, holerite ou fatura (um item por mês e por contrato). Não repita o mesmo mês do mesmo contrato. Sempre com o nº do contrato e o banco quando o extrato mostrar.
-- "contratos": TODOS os contratos das fontes, de qualquer banco, cada um com o seu banco. O sistema separa depois o que é desta peça.
+- "contratos": TODOS os contratos das fontes, de qualquer banco, cada um com o seu banco ("banco" é obrigatório quando o documento mostra). O mesmo contrato em duas fontes aparece uma vez só (mesmo número). O sistema separa depois o que é de cada peça.
 - Extrato de empréstimos do INSS (HISCON): cada contrato com nº, banco, tipo (empréstimo, RMC = reserva de margem de cartão, RCC = reserva de cartão consignado de benefício), data de inclusão, valor liberado/emprestado, valor da parcela, quantidade de parcelas, início e fim do desconto e situação.
 - Tipo do contrato: "emprestimo_consignado" quando a parcela é descontada no benefício ou na folha (inclui refinanciamento e portabilidade); "emprestimo_pessoal" quando é pago por boleto ou débito em conta (crédito pessoal, CDC); "rmc"/"rcc" para cartão consignado; "cartao_comum" para cartão de crédito sem desconto no benefício. Na dúvida, "outro".
 - Taxas em % ao mês, como número (2,14% a.m. → 2.14). "taxa_media_mercado" só se alguma fonte trouxer a taxa média do Bacen.
 - "triagem": responda pelas fontes (conversa e relato contam). Ex.: cliente disse que nunca recebeu o cartão → "recebeu_cartao": false. Sem informação → null.
 - "vinculo" só em caso trabalhista; senão null.
-- Valores em número (R$ 1.234,56 → 1234.56).
-
-FONTES:
-${fontesTexto}`;
-}
-
-/** Leitura só dos contratos (sem redigir): alimenta a lista que a Dra. associa aos processos. */
-export function promptContratos(ctx: { cliente: string }, fontesTexto: string): string {
-  return `CONTRATOS DO CLIENTE — você é a analista de documentos de um escritório de advocacia.
-Liste TODOS os contratos bancários que aparecem nas fontes abaixo do(a) cliente ${ctx.cliente} (extrato de empréstimos do INSS/HISCON, contratos, faturas, extratos, conversa), de QUALQUER banco.
-Responda SOMENTE com JSON:
-{"contratos":[{"numero":"...","tipo":"emprestimo_consignado|emprestimo_pessoal|rmc|rcc|cartao_comum|refinanciamento|portabilidade|outro","banco":"nome do banco como está no documento","data":"dd/mm/aaaa","valor_liberado":0,"parcela":0,"n_parcelas":0,"parcelas_pagas":0,"taxa_mensal":0,"inicio_desconto":"mm/aaaa","fim_desconto":"mm/aaaa","situacao":"ativo|excluido|encerrado|suspenso","fonte":"nome da fonte"}]}
-Regras:
-- NUNCA invente nem complete: só o que está escrito. Campo sem informação: null.
-- "banco" é obrigatório quando o documento mostra: é o que decide em qual processo o contrato entra.
-- Tipo: "rmc" = reserva de margem para cartão de crédito; "rcc" = reserva de cartão consignado de benefício; "emprestimo_consignado" quando a parcela é descontada no benefício ou na folha (inclui refinanciamento e portabilidade); "emprestimo_pessoal" quando é pago por boleto ou débito em conta. Na dúvida, "outro".
-- O mesmo contrato em duas fontes aparece uma vez só (mesmo número).
-- "fonte": o título exato da fonte, depois de "===".
 - Valores em número (R$ 1.234,56 → 1234.56).
 
 FONTES:

@@ -4,9 +4,10 @@ import type { IndicesMensais } from './indicesEconomicos';
 import { mesmaParte, reusDoCaso, type CasoParaJuntar, type Parte } from './pecaConsolidacao';
 import {
   montarFontes, promptFichaDeFatos, parseFichaDeFatos, fichaVazia, promptEscolhaModelo, parseEscolha, resumoDaFicha,
-  montarPromptRedacao, conferirValores, relatorioDossie, promptContratos, parseListaContratos,
+  montarPromptRedacao, conferirValores, relatorioDossie,
   type Fonte, type FichaDeFatos, type Escolha, type ItemCatalogo, type ContratoFicha,
 } from './pecaDossie';
+import { chaveLeituraCliente } from './leituraUnica';
 import { separarParaPeca, mesmoBanco, chaveContrato, conferirPecasPorBanco, type ContratoSalvo, type PecaAlvo, type AcaoParaConferir, type ConferenciaPecas } from './contratosDoCaso';
 
 /**
@@ -49,6 +50,15 @@ export interface DepsEsteira {
   /** Índices do Bacen (INPC, IPCA, Selic) para a planilha de cálculos; sem eles a planilha sai nominal. */
   indices?(): Promise<{ indices: IndicesMensais; avisos: string[] } | null>;
   registrar(agente: string, texto: string): void;
+  /**
+   * Leitura única (30/10/2026): documentos de TODAS as ações do cliente em produção, sem
+   * repetir conteúdo. Com ela, a ficha de fatos é lida uma vez e serve a todas as peças.
+   * Sem ela, lê só as fontes desta peça.
+   */
+  fontesDoCliente?(clientId: number, caso: CasoEsteira): Promise<Fonte[]>;
+  /** Ficha já lida desses mesmos documentos (chave de leituraUnica.ts). */
+  leituraGuardada?(chave: string): Promise<FichaDeFatos | null>;
+  guardarLeitura?(chave: string, ficha: FichaDeFatos): Promise<void>;
   /** Avisa a etapa que começa (barra de progresso da tela). */
   etapa?(nome: 'leitura' | 'calculos' | 'estrategia' | 'fundamentos' | 'redacao' | 'conferencia'): void;
   hoje?(): Date;
@@ -62,6 +72,8 @@ export type ResultadoEsteira =
     ficha: FichaDeFatos; calculo: CalculoPeca; escolha: Escolha;
     conferencia: ReturnType<typeof conferirValores>;
     fora: Array<{ contrato: ContratoFicha; motivo: string }>;
+    /** A ficha veio da leitura já feita para outra peça do cliente (sem nova leitura pela IA). */
+    leituraReaproveitada: boolean;
   };
 
 function juntarPartes(casos: CasoEsteira[]): Parte[] {
@@ -100,27 +112,76 @@ async function conferirLeitura(clientId: number, salvos: ContratoSalvo[], lidos:
 
 const problemasDaConferencia = (c: ConferenciaPecas | null) => (c?.problemas || []).filter((p) => p.tipo !== 'nao_lidos');
 
+interface LeituraDoCliente { ficha: FichaDeFatos; lidas: number; ok: boolean; message?: string; reaproveitada: boolean }
+const FALHOU = /^A leitura dos documentos pela IA falhou/;
+// Peças do mesmo cliente pedidas juntas esperam a mesma leitura. Chave pela função
+// fontesDoCliente: cada geração usa uma cópia das deps, mas a função é a mesma.
+const lendoAgora = new WeakMap<object, Map<number, Promise<LeituraDoCliente>>>();
+
+/**
+ * Dra. Helena lê os documentos do cliente e monta a ficha de fatos com tudo, de todos os
+ * bancos. Com a leitura única, lê uma vez por cliente: enquanto os documentos forem os
+ * mesmos, as outras peças (e "Ler os contratos") usam a ficha guardada; cada peça separa
+ * depois o que é do seu banco (separarParaPeca).
+ */
+async function lerDocumentos(casos: CasoEsteira[], deps: DepsEsteira): Promise<LeituraDoCliente> {
+  const caso = casos[0];
+  const unica = caso.client_id != null && deps.fontesDoCliente ? deps.fontesDoCliente : null;
+  if (!unica || caso.client_id == null) return lerAgora(casos, deps, null);
+  let porCliente = lendoAgora.get(unica);
+  if (!porCliente) lendoAgora.set(unica, (porCliente = new Map()));
+  const emCurso = porCliente.get(caso.client_id);
+  if (emCurso) return emCurso.then((l) => ({ ...l, reaproveitada: l.ok }));
+  const p = lerAgora(casos, deps, caso.client_id);
+  porCliente.set(caso.client_id, p);
+  try { return await p; } finally { porCliente.delete(caso.client_id); }
+}
+
+async function lerAgora(casos: CasoEsteira[], deps: DepsEsteira, clientId: number | null): Promise<LeituraDoCliente> {
+  const caso = casos[0];
+  const todas = clientId != null ? await deps.fontesDoCliente!(clientId, caso).catch(() => null) : null;
+  const brutas = todas ?? await deps.fontes(casos.map((c) => c.id), caso).catch(() => []);
+  const fontes = montarFontes(brutas);
+  if (!fontes.lidas.length) return { ficha: fichaVazia(), lidas: 0, ok: false, message: 'nenhuma fonte com texto', reaproveitada: false };
+  const chave = todas && clientId != null ? chaveLeituraCliente(clientId, brutas) : null;
+  const guardada = chave ? await deps.leituraGuardada?.(chave).catch(() => null) : null;
+  if (guardada) {
+    deps.registrar('analista', `reaproveitou a leitura dos documentos de ${caso.cliente} (os mesmos já lidos para outra peça): sem nova leitura pela IA`);
+    return { ficha: guardada, lidas: fontes.lidas.length, ok: true, reaproveitada: true };
+  }
+  const rotulos = todas
+    ? ((await deps.acoesDoCliente?.(clientId!).catch(() => null)) || casos).map((c) => `Ação #${c.id}: ${('titulo' in c && c.titulo) || 'sem título'}`)
+    : casos.map((c) => `Caso #${c.id}: ${c.titulo || 'sem título'}`);
+  const r = await deps.ia(promptFichaDeFatos({ area: caso.legal_area, cliente: caso.cliente, casos: rotulos, todasAsAcoes: !!todas }, fontes.texto), 'leitura')
+    .catch((e) => ({ ok: false, message: e?.message, text: undefined }));
+  if (!r.ok || !r.text) return { ficha: fichaVazia(), lidas: fontes.lidas.length, ok: false, message: r.message || 'sem resposta', reaproveitada: false };
+  const ficha = parseFichaDeFatos(r.text);
+  const falhou = ficha.lacunas.some((l) => FALHOU.test(l));
+  if (chave && !falhou) await deps.guardarLeitura?.(chave, ficha).catch(() => {});
+  return { ficha, lidas: fontes.lidas.length, ok: !falhou, message: falhou ? 'resposta sem JSON' : undefined, reaproveitada: false };
+}
+
 /**
  * Só a leitura dos contratos (sem redigir): a Dra. Helena lista todos os contratos
  * das fontes, de qualquer banco, e eles ficam guardados no cliente para a Dra.
  * dizer em qual processo cada um entra.
  */
-export async function levantarContratos(caseId: number, deps: DepsEsteira): Promise<{ ok: boolean; contratos?: number; fontes?: number; message?: string; conferencia?: ConferenciaPecas | null }> {
+export async function levantarContratos(caseId: number, deps: DepsEsteira): Promise<{ ok: boolean; contratos?: number; fontes?: number; message?: string; conferencia?: ConferenciaPecas | null; reaproveitada?: boolean }> {
   const casos = await casosDaPeca(caseId, deps);
   const caso = casos[0];
   if (caso.client_id == null) return { ok: false, message: 'O caso não tem cliente cadastrado' };
-  const fontes = montarFontes(await deps.fontes(casos.map((c) => c.id), caso).catch(() => []));
-  if (!fontes.lidas.length) return { ok: false, message: 'Nenhum documento com texto para ler' };
-  const r = await deps.ia(promptContratos({ cliente: caso.cliente }, fontes.texto), 'leitura').catch((e) => ({ ok: false, message: e?.message, text: undefined }));
-  const contratos = r.ok && r.text ? parseListaContratos(r.text) : null;
-  if (!contratos) return { ok: false, message: `A leitura dos contratos falhou (${r.message || 'resposta sem JSON'})` };
+  // A mesma leitura da peça (ficha de fatos): "Ler os contratos" e depois a peça = uma leitura só.
+  const l = await lerDocumentos(casos, deps);
+  if (!l.lidas) return { ok: false, message: 'Nenhum documento com texto para ler' };
+  if (!l.ok) return { ok: false, message: `A leitura dos contratos falhou (${l.message || 'resposta sem JSON'})` };
+  const contratos = l.ficha.contratos;
   await deps.guardarContratos?.(caso.client_id, contratos);
-  deps.registrar('analista', `listou ${contratos.length} contrato(s) de ${caso.cliente} em ${fontes.lidas.length} fonte(s), para a Dra. associar aos processos`);
+  deps.registrar('analista', `listou ${contratos.length} contrato(s) de ${caso.cliente} em ${l.lidas} fonte(s), para a Dra. associar aos processos`);
   const salvos = (await deps.contratosSalvos?.(caso.client_id).catch(() => [])) ?? [];
   const conferencia = await conferirLeitura(caso.client_id, salvos, contratos, deps);
   const problemas = problemasDaConferencia(conferencia);
   if (problemas.length) deps.registrar('analista', `conferiu uma peça por banco para ${caso.cliente}: ${problemas.map((p) => p.texto).join(' | ')}`);
-  return { ok: true, contratos: contratos.length, fontes: fontes.lidas.length, conferencia };
+  return { ok: true, contratos: contratos.length, fontes: l.lidas, conferencia, reaproveitada: l.reaproveitada };
 }
 
 export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promise<ResultadoEsteira> {
@@ -132,13 +193,12 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
 
   // 2) Dra. Helena: lê tudo e monta a ficha de fatos.
   deps.etapa?.('leitura');
+  const leitura = await lerDocumentos(casos, deps);
+  const lida = leitura.ok
+    ? leitura.ficha
+    : fichaVazia(`A leitura dos documentos pela IA falhou (${leitura.message || 'sem resposta'}): a ficha de fatos ficou vazia. Conferir os documentos à mão.`);
+  // A redação usa os documentos desta peça (com os textos já guardados, sem nova leitura).
   const fontes = montarFontes(await deps.fontes(casos.map((c) => c.id), caso).catch(() => []));
-  const rFicha = fontes.lidas.length
-    ? await deps.ia(promptFichaDeFatos({ area: caso.legal_area, cliente: caso.cliente, casos: rotulos }, fontes.texto), 'leitura').catch((e) => ({ ok: false, message: e?.message }))
-    : { ok: false, message: 'nenhuma fonte com texto' };
-  const lida = rFicha.ok && 'text' in rFicha && rFicha.text
-    ? parseFichaDeFatos(rFicha.text)
-    : fichaVazia(`A leitura dos documentos pela IA falhou (${rFicha.message || 'sem resposta'}): a ficha de fatos ficou vazia. Conferir os documentos à mão.`);
 
   // Todos os contratos lidos ficam no cliente; na peça, só os do réu e da tese (ou os que a Dra. escolheu).
   const alvo = pecaAlvo(casos);
@@ -202,6 +262,7 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
   const lista = casos.map((c) => ({ id: c.id, titulo: c.titulo }));
   return {
     ok: true, peticao: out.text, cliente: caso.cliente, casos: lista, fontesLidas: fontes.lidas, ficha, calculo, escolha, conferencia, fora: sep.fora,
+    leituraReaproveitada: leitura.reaproveitada,
     dossie: relatorioDossie({ cliente: caso.cliente, casos: lista, lidas: fontes.lidas, semTexto: fontes.semTexto, ficha, calculo, escolha, conferencia, fora: sep.fora }),
   };
 }

@@ -3,7 +3,8 @@ import { aiComplete, aiLerArquivo } from './aiAssistant';
 import { driveFileId, downloadDriveFile, listarFilhosDrive, contaGoogleDoCrm } from './partnerInboxService';
 import { sincronizarPasta, type DepsPastaDrive, type ResultadoPasta } from './pastaDrive';
 import { produzirPeticao } from './esteiraPeca';
-import { depsEsteiraMysql } from './esteiraPecaMysql';
+import { depsEsteiraMysql, cacheLeiturasMysql } from './esteiraPecaMysql';
+import { lerUmaVez, refDoConteudo } from './leituraUnica';
 import { travaGeracaoPeca } from './travaGeracaoPeca';
 import { brl } from './pecaCalculos';
 import { planilhaMarkdown, planilhaXlsx } from './planilhaCalculos';
@@ -32,6 +33,26 @@ function instructionFor(mime: string): string {
 }
 const tagFor = (mime: string) => AUDIO_OK.test(mime) ? 'Transcrição por IA' : 'Extraído por IA';
 
+/**
+ * Mesma pasta, uma leitura só (pedido da Jessica, 30/10/2026): o arquivo do Drive que
+ * outra ação já leu (mesmo ID) tem a leitura copiada, sem baixar nem chamar a IA.
+ */
+async function leituraJaFeita(fileId: string, excetoDocId = 0): Promise<string | null> {
+  const [[d]] = await db.query(
+    `SELECT content FROM documents WHERE file_url LIKE ? AND id <> ? AND type <> 'ia' AND content IS NOT NULL AND content <> '' ORDER BY id LIMIT 1`,
+    [`%${fileId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`, excetoDocId]) as any;
+  return d?.content ? String(d.content) : null;
+}
+
+/** Lê o arquivo baixado pela IA, uma vez por conteúdo (cópia do mesmo arquivo em outra pasta também vale). */
+async function lerArquivoDoDrive(file: { base64: string; mimeType: string }, nome: string): Promise<string | null> {
+  const texto = await lerUmaVez(cacheLeiturasMysql, refDoConteudo('drive', file.mimeType, file.base64), nome, async () => {
+    const r = await aiLerArquivo(file.base64, file.mimeType, instructionFor(file.mimeType));
+    return r.ok && r.text ? r.text : null;
+  });
+  return texto ? `[${tagFor(file.mimeType)} de "${nome}"]\n${texto}` : null;
+}
+
 /** Lê os anexos do caso (que ainda não têm texto) com a IA e salva o conteúdo. */
 export async function extractCaseDocuments(caseId: number): Promise<number> {
   const [docs] = await db.query(
@@ -43,11 +64,14 @@ export async function extractCaseDocuments(caseId: number): Promise<number> {
   for (const d of docs || []) {
     const fid = driveFileId(d.file_url);
     if (!fid) continue;
-    const file = await downloadDriveFile(fid);
-    if (!file || !READABLE(file.mimeType)) continue;
-    const r = await aiLerArquivo(file.base64, file.mimeType, instructionFor(file.mimeType));
-    if (r.ok && r.text) {
-      await db.query('UPDATE documents SET content = ? WHERE id = ?', [`[${tagFor(file.mimeType)} de "${d.name}"]\n${r.text}`, d.id]);
+    let texto = await leituraJaFeita(fid, d.id);
+    if (!texto) {
+      const file = await downloadDriveFile(fid);
+      if (!file || !READABLE(file.mimeType)) continue;
+      texto = await lerArquivoDoDrive(file, d.name);
+    }
+    if (texto) {
+      await db.query('UPDATE documents SET content = ? WHERE id = ?', [texto, d.id]);
       n++;
     }
   }
@@ -70,10 +94,11 @@ export async function importDriveFolder(caseId: number, clientId: number | null,
     // Formato não legível (vídeo, planilha...) entra só com o link.
     ler: async (f) => {
       if (!READABLE(f.mimeType)) return null;
+      const jaLida = await leituraJaFeita(f.id);
+      if (jaLida) return jaLida;
       const file = await downloadDriveFile(f.id);
       if (!file) return null;
-      const r = await aiLerArquivo(file.base64, file.mimeType, instructionFor(file.mimeType));
-      return r.ok && r.text ? `[${tagFor(file.mimeType)} de "${f.name}"]\n${r.text}` : null;
+      return lerArquivoDoDrive(file, f.name);
     },
     gravar: async (d) => {
       await db.query(
@@ -267,7 +292,7 @@ export async function buildPeticaoInicial(caseId: number, actorId: number, force
   const docId = ins.insertId;
 
   const faltam = r.conferencia.filter((c) => !c.presente).length;
-  const resumo = `Esteira da peça: ${r.fontesLidas.length} fonte(s) lida(s) · modelo: ${r.escolha.modelos.join(' + ') || 'nenhum do cofre'}`
+  const resumo = `Esteira da peça: ${r.fontesLidas.length} fonte(s) lida(s)${r.leituraReaproveitada ? ' (leitura dos documentos reaproveitada de outra peça do cliente, sem nova leitura pela IA)' : ''} · modelo: ${r.escolha.modelos.join(' + ') || 'nenhum do cofre'}`
     + (r.calculo.indebito.total.restituir ? ` · a restituir ${brl(r.calculo.indebito.total.restituir)}` : '')
     + (r.calculo.atualizacao?.dataBase ? ` · atualizado pelo Calculista ${brl(r.calculo.atualizacao.total.total)} (planilha de cálculos)` : '')
     + (r.calculo.valorDaCausa.total ? ` · valor da causa calculado ${brl(r.calculo.valorDaCausa.total)}` : '')
