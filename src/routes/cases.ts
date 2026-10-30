@@ -6,6 +6,7 @@ import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
 import { montarEndereco } from '../services/contractTemplates';
 import { analyzeCaseDrive } from '../services/peticaoBuilder';
+import { tarefasEmAndamento } from '../services/tarefasEmAndamento';
 import { travaGeracaoPeca } from '../services/travaGeracaoPeca';
 import { geracaoPeca, andamentoDaPeca } from '../services/geracaoPecaMysql';
 import { revisarPeticaoDoCaso } from '../services/peticaoReviewer';
@@ -315,13 +316,15 @@ router.post('/:id/analisar-documentos', async (req: Request, res: Response) => {
     userId, caseId, title: ok ? 'Pasta do Drive lida' : 'Não consegui ler a pasta do Drive', message,
     notificationType: ok ? 'pasta_drive_lida' : 'pasta_drive_falhou', channel: 'sistema', scheduledAt: new Date(),
   }).catch(() => {});
-  analyzeCaseDrive(caseId, userId)
-    .then((r) => {
-      if (r.erroDrive) return avisar(false, `${c.title || 'Caso'}: ${r.erroDrive}`);
-      return avisar(true, `${c.title || 'Caso'}: ${r.imported} arquivo(s) novo(s), ${r.docsLidos} documento(s) lido(s).${r.ok ? ' A análise (checklist) está em Documentos.' : ` A análise não saiu: ${r.message || 'erro da IA'}.`}`);
-    })
-    .catch((e: any) => avisar(false, `${c.title || 'Caso'}: ${e?.message || 'erro desconhecido'}`));
-  res.status(202).json({ ok: true, emAndamento: true });
+  // Barra e confirmação de conclusão na tela (30/10/2026); o sino continua avisando.
+  const tarefa = tarefasEmAndamento.rodar({ userId, caseId, tipo: 'pasta_drive', titulo: `Ler a pasta do Drive: ${c.title || 'Caso'}`, rotulo: 'Abrindo a pasta do Drive' }, async (t) => {
+    const r = await analyzeCaseDrive(caseId, userId, t.etapa).catch((e: any) => ({ erroDrive: e?.message || 'erro desconhecido' }) as any);
+    if (r.erroDrive) { await avisar(false, `${c.title || 'Caso'}: ${r.erroDrive}`); return { ok: false, mensagem: r.erroDrive }; }
+    const msg = `${r.imported} arquivo(s) novo(s), ${r.docsLidos} documento(s) lido(s).${r.ok ? ' A análise (checklist) está em Documentos.' : ` A análise não saiu: ${r.message || 'erro da IA'}.`}`;
+    await avisar(true, `${c.title || 'Caso'}: ${msg}`);
+    return { ok: true, mensagem: msg };
+  });
+  res.status(202).json({ ok: true, emAndamento: true, tarefaId: tarefa.id });
 });
 
 // ── POST /api/cases/:id/production-notes — observação/pendência/atualização ──

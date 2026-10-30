@@ -1,7 +1,7 @@
 import { db } from '../config/database';
 import { aiComplete, aiLerArquivo } from './aiAssistant';
 import { driveFileId, downloadDriveFile, listarFilhosDrive, contaGoogleDoCrm } from './partnerInboxService';
-import { sincronizarPasta, type DepsPastaDrive, type ResultadoPasta } from './pastaDrive';
+import { sincronizarPasta, type DepsPastaDrive, type ResultadoPasta, type ProgressoPasta } from './pastaDrive';
 import { produzirPeticao } from './esteiraPeca';
 import { depsEsteiraMysql, cacheLeiturasMysql } from './esteiraPecaMysql';
 import { lerUmaVez, refDoConteudo } from './leituraUnica';
@@ -54,14 +54,15 @@ async function lerArquivoDoDrive(file: { base64: string; mimeType: string }, nom
 }
 
 /** Lê os anexos do caso (que ainda não têm texto) com a IA e salva o conteúdo. */
-export async function extractCaseDocuments(caseId: number): Promise<number> {
+export async function extractCaseDocuments(caseId: number, progresso?: (feito: number, total: number, nome: string) => void): Promise<number> {
   const [docs] = await db.query(
     `SELECT id, name, file_url FROM documents
       WHERE case_id = ? AND file_url IS NOT NULL AND file_url <> '' AND (content IS NULL OR content = '')
       ORDER BY id ASC LIMIT 20`, [caseId]
   ) as any;
   let n = 0;
-  for (const d of docs || []) {
+  for (const [i, d] of (docs || []).entries()) {
+    try { progresso?.(i, docs.length, d.name); } catch { /* só a barra */ }
     const fid = driveFileId(d.file_url);
     if (!fid) continue;
     let texto = await leituraJaFeita(fid, d.id);
@@ -83,7 +84,7 @@ export async function extractCaseDocuments(caseId: number): Promise<number> {
  * e grava como documentos do caso (com conteúdo). Dedup por nome. Requer o
  * escopo drive.readonly (a advogada reconecta o Google para conceder).
  */
-export async function importDriveFolder(caseId: number, clientId: number | null, folderUrl: string, actorId: number): Promise<ResultadoPasta> {
+export async function importDriveFolder(caseId: number, clientId: number | null, folderUrl: string, actorId: number, progresso?: ProgressoPasta): Promise<ResultadoPasta> {
   const deps: DepsPastaDrive = {
     listarFilhos: listarFilhosDrive,
     // Também pelo nome de chegada: o card do cliente pode ter dado o nome padrão ao documento (30/10/2026).
@@ -108,7 +109,7 @@ export async function importDriveFolder(caseId: number, clientId: number | null,
       );
     },
   };
-  return sincronizarPasta(deps, { caseId, clientId, folderUrl, actorId }, await contaGoogleDoCrm());
+  return sincronizarPasta(deps, { caseId, clientId, folderUrl, actorId }, await contaGoogleDoCrm(), progresso);
 }
 
 /**
@@ -140,7 +141,9 @@ export async function sincronizarPastasEmProducao(): Promise<{ casos: number; no
  * novo no Drive e refaz a análise. Substitui a análise anterior do caso.
  */
 export async function analyzeCaseDrive(
-  caseId: number, actorId: number
+  caseId: number, actorId: number,
+  /** Andamento para a barra da tela (30/10/2026). */
+  etapa?: (rotulo: string, feito?: number | null, total?: number | null) => void,
 ): Promise<{ ok: boolean; docId?: number; text?: string; message?: string; imported: number; docsLidos: number; erroDrive?: string }> {
   const [[cf]] = await db.query(
     'SELECT client_id, title, legal_area, description, drive_folder_url FROM cases WHERE id = ?', [caseId]
@@ -149,12 +152,16 @@ export async function analyzeCaseDrive(
 
   // 1) puxa novidades do Drive (dedup por nome) e 2) lê anexos ainda sem texto.
   let imported = 0, erroDrive: string | undefined;
+  const marcar = (r: string, f?: number | null, t?: number | null) => { try { etapa?.(r, f, t); } catch { /* só a barra */ } };
   if (cf.drive_folder_url) {
-    const pasta = await importDriveFolder(caseId, cf.client_id ?? null, cf.drive_folder_url, actorId)
+    marcar('Abrindo a pasta do Drive');
+    const pasta = await importDriveFolder(caseId, cf.client_id ?? null, cf.drive_folder_url, actorId,
+      (feito, total, nome) => marcar(nome ? `Pasta: lendo ${nome} (${feito + 1} de ${total})` : `Pasta: ${total} arquivo(s) encontrados`, feito, total))
       .catch((e: any) => ({ novos: [] as string[], erro: String(e?.message || e) }));
     imported = pasta.novos.length; erroDrive = pasta.erro;
   }
-  await extractCaseDocuments(caseId).catch(() => 0);
+  await extractCaseDocuments(caseId, (feito, total, nome) => marcar(`Lendo o texto de ${nome} (${feito + 1} de ${total})`, feito, total)).catch(() => 0);
+  marcar('Montando a análise do caso (checklist) com a IA');
 
   const clientId = cf.client_id ?? null;
   const [[cl]] = clientId ? await db.query('SELECT name, cpf_cnpj, email, phone, address FROM clients WHERE id = ?', [clientId]) as any : [[null]];

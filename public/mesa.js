@@ -572,17 +572,11 @@
       const s = Math.max(0, Math.round((Date.now() - new Date(desde).getTime()) / 1000)), m = Math.floor(s / 60);
       return m ? `${m} min ${String(s % 60).padStart(2, '0')} s` : `${s} s`;
     }
+    // A barra em si fica no painel de tarefas (tarefas.js), igual às outras ações demoradas;
+    // aqui o botão fica travado e mostra a etapa.
     function barraGeracao(a) {
       const btn = q('[data-acao="nova-versao"]');
-      if (btn) { btn.disabled = !!a; btn.textContent = a ? 'Gerando a nova versão…' : 'Pedir nova versão à equipe'; }
-      if (!a) { if (ger.el) { ger.el.remove(); ger.el = null; } return; }
-      if (!ger.el) { ger.el = document.createElement('div'); ger.el.className = 'mesa-gerando'; ger.el.setAttribute('role', 'status'); ov.appendChild(ger.el); }
-      const pct = Math.min(97, Math.round(((a.passo - 0.5) / a.total) * 100));
-      ger.el.innerHTML = `
-        <div class="mesa-gerando-topo"><strong>Gerando a nova versão da peça</strong><span>${esc(decorrido(a.desde))}</span></div>
-        <div class="mesa-gerando-barra" role="progressbar" aria-label="Andamento da geração" aria-valuemin="0" aria-valuemax="${a.total}" aria-valuenow="${a.passo}"><span style="width:${pct}%"></span></div>
-        <div class="mesa-gerando-etapa">Etapa ${a.passo} de ${a.total}: ${esc(a.rotulo)}</div>
-        <small>Leva cerca de 5 a 10 minutos. Pode continuar trabalhando; o botão fica travado até a versão chegar.</small>`;
+      if (btn) { btn.disabled = !!a; btn.textContent = a ? `Gerando… etapa ${a.passo} de ${a.total} (${decorrido(a.desde)})` : 'Pedir nova versão à equipe'; }
     }
     async function verificarGeracao() {
       clearTimeout(ger.timer);
@@ -599,7 +593,16 @@
       if (st.d.pecas.length > ger.antes) toast(`A nova versão chegou (v${st.d.pecas[st.d.pecas.length - 1].versao}).`);
       else toast('A geração terminou sem versão nova. Veja o motivo no sino.', 'error');
     }
-    function acompanharGeracao(a) { ger.antes = st.d.pecas.length; st.d.gerandoPeca = a; barraGeracao(a); ger.timer = setTimeout(verificarGeracao, 3000); }
+    function acompanharGeracao(a) { ger.antes = st.d.pecas.length; st.d.gerandoPeca = a; barraGeracao(a); ger.timer = setTimeout(verificarGeracao, 3000); if (window.acompanharTarefas) window.acompanharTarefas(); }
+    // Tarefa deste caso terminou (pasta, contratos, análise, revisão): a mesa mostra o resultado sem reabrir.
+    const aoTerminarTarefa = async (ev) => {
+      if (!ov.isConnected) { document.removeEventListener('tarefa-terminou', aoTerminarTarefa); return; }
+      const t = ev.detail; if (!t || Number(t.caseId) !== Number(caseId) || t.tipo === 'peca') return;
+      st.mudou = true;
+      try { await recarregar(false); renderCentro(); } catch { /* a confirmação já está no painel */ }
+      const bp = q('[data-acao="ler-pasta"]'); if (bp) { bp.disabled = false; bp.textContent = 'Atualizar da pasta'; }
+    };
+    document.addEventListener('tarefa-terminou', aoTerminarTarefa);
 
     async function recarregar(tudo) { await carregar(); if (tudo) renderTudo(); else { renderTopo(); renderJornada(); renderAgora(); renderDir(); renderEsq(); } }
 
@@ -703,14 +706,14 @@
       },
       'ler-contratos': async (b) => {
         b.disabled = true;
-        try { await api(`/api/mesa/${caseId}/contratos/levantar`, { method: 'POST', body: '{}' }); toast('A Dra. Helena está lendo os contratos. Você será avisada no sino.'); }
+        try { await api(`/api/mesa/${caseId}/contratos/levantar`, { method: 'POST', body: '{}' }); toast('A Dra. Helena está lendo os contratos. Acompanhe pela barra no canto da tela.'); if (window.acompanharTarefas) window.acompanharTarefas(); }
         catch (e) { toast(e.message, 'error'); b.disabled = false; }
       },
       'ver-final': (b) => { st.aba = 'peca'; st.docId = Number(b.dataset.doc); st.comparar = false; renderCentro(); },
       'ir-aprovar': async () => { await fechar(); location.hash = '#escritorio'; },
       analisar: async (b) => {
         b.disabled = true;
-        try { await api(`/api/mesa/${caseId}/analisar`, { method: 'POST', body: '{}' }); toast('A Dra. Helena está lendo os documentos. Você será avisada no sino.'); }
+        try { await api(`/api/mesa/${caseId}/analisar`, { method: 'POST', body: '{}' }); toast('A Dra. Helena está lendo os documentos. Acompanhe pela barra no canto da tela.'); if (window.acompanharTarefas) window.acompanharTarefas(); }
         catch (e) { toast(e.message, 'error'); b.disabled = false; }
       },
       final: async () => {
@@ -762,7 +765,7 @@
         catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Tentar de novo'; }
       },
       revisar: async () => {
-        try { await api(`/api/mesa/${caseId}/revisar`, { method: 'POST', body: '{}' }); toast('A revisão começou. Você será avisada no sino.'); }
+        try { await api(`/api/mesa/${caseId}/revisar`, { method: 'POST', body: '{}' }); toast('A revisão começou. Acompanhe pela barra no canto da tela.'); if (window.acompanharTarefas) window.acompanharTarefas(); }
         catch (e) { toast(e.message, 'error'); }
       },
       'baixar-demonstrativo': () => {
@@ -816,8 +819,9 @@
         try {
           await api(`/api/cases/${caseId}/production-meta`, { method: 'PATCH', body: JSON.stringify({ drive_folder_url: url }) });
           await api(`/api/cases/${caseId}/analisar-documentos`, { method: 'POST' });
-          toast('Lendo a pasta em segundo plano. Você será avisada no sino quando os documentos entrarem.');
-          b.textContent = 'Lendo em segundo plano…';
+          toast('Lendo a pasta. Acompanhe pela barra no canto da tela.');
+          b.textContent = 'Lendo a pasta…';
+          if (window.acompanharTarefas) window.acompanharTarefas();
           st.mudou = true;
         } catch (e) { toast(e.message, 'error'); b.disabled = false; b.textContent = 'Atualizar da pasta'; }
       },

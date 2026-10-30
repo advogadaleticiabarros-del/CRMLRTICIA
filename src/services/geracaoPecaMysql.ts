@@ -5,6 +5,7 @@ import { travaGeracaoPeca, ETAPAS_GERACAO, type Andamento } from './travaGeracao
 import { buildPeticaoInicial } from './peticaoBuilder';
 import { revisarPeticaoDoCaso } from './peticaoReviewer';
 import { notificationService } from './NotificationService';
+import { tarefasEmAndamento } from './tarefasEmAndamento';
 
 export const geracaoPeca = criarGeracaoPeca({
   trava: travaGeracaoPeca,
@@ -18,6 +19,18 @@ export const geracaoPeca = criarGeracaoPeca({
       userId, caseId, title: titulo, message: mensagem,
       notificationType: ok ? 'peticao_gerada' : 'peticao_falhou', channel: 'sistema', scheduledAt: new Date(),
     });
+  },
+  // Painel de tarefas da tela: a barra segue as etapas da trava ("Etapa X de 9").
+  tarefa: (p, retomada) => {
+    const c = tarefasEmAndamento.iniciar({
+      userId: p.userId, caseId: p.caseId, tipo: 'peca',
+      titulo: `${retomada ? 'Retomando a peça' : 'Gerar a peça'}: ${p.titulo || 'Processo'}`,
+    });
+    c.acompanhar(() => {
+      const a = travaGeracaoPeca.emAndamento(p.alvo);
+      return a ? { rotulo: `Etapa ${a.passo} de ${a.total}: ${a.rotulo}`, feito: a.passo - 0.5, total: a.total } : null;
+    });
+    return c;
   },
   pendentes: {
     guardar: async (p) => {

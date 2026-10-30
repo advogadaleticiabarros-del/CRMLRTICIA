@@ -116,9 +116,13 @@ function moneyField(label, name, value) {
 }
 const fmtDate = (d) => d ? new Date(d).toLocaleDateString('pt-BR') : '—';
 const badge = (txt) => `<span class="badge ${txt}">${(txt || '').replace(/_/g, ' ')}</span>`;
+// Fica mais tempo na tela (era 3 s e sumia antes de dar para ler), e o erro mais ainda.
+// Um aviso novo não é apagado pelo prazo do anterior (30/10/2026).
+let toastTimer = null;
 function toast(msg, type = 'success') {
   const t = $('#toast'); t.textContent = msg; t.className = `toast ${type}`;
-  setTimeout(() => t.classList.add('hidden'), 3000);
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.add('hidden'), type === 'error' ? 9000 : 5000);
 }
 function openModal(title, bodyEl, opts) {
   $('#modal-title').textContent = title;
@@ -773,6 +777,7 @@ let quickSearchInited = false;
 function showApp() {
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
+  if (typeof window.acompanharTarefas === 'function') window.acompanharTarefas(); // painel de tarefas (30/10/2026)
   if (!quickSearchInited) { initQuickSearch(); initModalDragToClose(); initLargeTitleCollapse(); initCompactTitleSync(); quickSearchInited = true; }
   const novoBtn = $('#novo-btn'); if (novoBtn) novoBtn.classList.toggle('hidden', !navForRole().includes('hoje'));
   $('#user-name').innerHTML = `${USER?.name || ''}<small style="display:block;color:var(--gold-soft);font-size:11px">${ROLE_PT[USER?.role] || ''}</small>`;
@@ -8668,7 +8673,8 @@ async function caseDetail(id, onSave) {
           await api(`/api/cases/${id}/production-meta`, { method: 'PATCH', body: JSON.stringify({ drive_folder_url: url }) });
           await api(`/api/cases/${id}/analisar-documentos`, { method: 'POST' });
           out.innerHTML = '';
-          toast('Lendo a pasta em segundo plano. Você será avisada no sino quando terminar.');
+          toast('Lendo a pasta. Acompanhe pela barra no canto da tela.');
+          if (window.acompanharTarefas) window.acompanharTarefas();
         } catch (e) { out.innerHTML = ''; toast(e.message, 'error'); }
         danalyze.disabled = false; danalyze.innerHTML = orig;
       };
@@ -8690,7 +8696,7 @@ async function caseDetail(id, onSave) {
         genBtn.onclick = async () => {
           if (!await uiConfirm('Gerar uma nova versão da petição? A equipe lê tudo de novo e monta outra versão (leva alguns minutos e usa a IA). As versões atuais continuam guardadas.')) return;
           genBtn.disabled = true; genBtn.textContent = 'Gerando…';
-          try { await api(`/api/cases/${id}/peticao-inicial`, { method: 'POST', body: '{}' }); toast('A equipe está montando a petição. O botão mostra a etapa, e o aviso chega no sino.'); }
+          try { await api(`/api/cases/${id}/peticao-inicial`, { method: 'POST', body: '{}' }); toast('A equipe está montando a petição. Acompanhe pela barra no canto da tela.'); if (window.acompanharTarefas) window.acompanharTarefas(); }
           catch (e) { toast(e.message, 'error'); }
           setTimeout(acompanhar, 1500);
         };

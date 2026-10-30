@@ -64,10 +64,14 @@ export function erroDoDrive(e: any, contaCrm?: string | null): string {
 
 export type ResultadoPasta = { novos: string[]; erro?: string };
 
+/** Andamento para a barra da tela: (vistos, total, arquivo que está sendo lido ou null). */
+export type ProgressoPasta = (feito: number, total: number, nome: string | null) => void;
+
 export async function sincronizarPasta(
   deps: DepsPastaDrive,
   caso: { caseId: number; clientId: number | null; folderUrl: string; actorId: number; pastaId?: string },
   contaCrm?: string | null,
+  progresso?: ProgressoPasta,
 ): Promise<ResultadoPasta> {
   const pastaId = caso.pastaId || idDaPasta(caso.folderUrl);
   if (!pastaId) return { novos: [], erro: 'O link da pasta do Drive não é válido. Copie o link da pasta (drive.google.com/drive/folders/...).' };
@@ -76,12 +80,16 @@ export async function sincronizarPasta(
   catch (e) { return { novos: [], erro: erroDoDrive(e, contaCrm) }; }
 
   const novos: string[] = [];
-  for (const f of arquivos) {
+  const avisar: ProgressoPasta = (a, b, c) => { try { progresso?.(a, b, c); } catch { /* a barra nunca derruba a leitura */ } };
+  avisar(0, arquivos.length, null);
+  for (const [i, f] of arquivos.entries()) {
     if (await deps.jaTem(caso.caseId, f.name)) continue;
+    avisar(i, arquivos.length, f.name);
     let conteudo: string | null = null;
     try { conteudo = await deps.ler(f); } catch { conteudo = null; } // fica o link; a leitura tenta de novo depois
     await deps.gravar({ caseId: caso.caseId, clientId: caso.clientId, nome: f.name, link: `https://drive.google.com/file/d/${f.id}/view`, conteudo, actorId: caso.actorId });
     novos.push(f.name);
   }
+  avisar(arquivos.length, arquivos.length, null);
   return { novos };
 }

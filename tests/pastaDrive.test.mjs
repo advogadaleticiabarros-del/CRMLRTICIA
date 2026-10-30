@@ -76,3 +76,13 @@ test('sincronizarPasta: um arquivo que falha não impede os outros', async () =>
   assert.deepStrictEqual(gravados.sort(), ['HISCON.pdf', 'RG.pdf']); // RG entra só com o link, sem texto
   assert.strictEqual(r.novos.length, 2);
 });
+
+test('sincronizarPasta: avisa o andamento arquivo a arquivo (barra da tela, 30/10/2026)', async () => {
+  const passos = [];
+  const deps = { listarFilhos, jaTem: async (_c, nome) => nome === 'RG.pdf', ler: async () => 'texto', gravar: async () => {} };
+  await sincronizarPasta(deps, { caseId: 1, clientId: 2, folderUrl: 'raiz', actorId: 1, pastaId: 'raiz' }, null,
+    (feito, total, nome) => passos.push([feito, total, nome]));
+  assert.deepStrictEqual(passos[0], [0, 2, null], 'primeiro: quantos arquivos há na pasta');
+  assert.deepStrictEqual(passos.at(-1), [2, 2, null], 'por último: todos vistos');
+  assert.ok(passos.some(([, , n]) => n === 'HISCON.pdf'), 'mostra o nome do arquivo que está lendo');
+});

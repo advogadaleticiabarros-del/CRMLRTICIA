@@ -10,6 +10,7 @@ import {
 import { sugestoesDeJuncao, familiaDaTese, reusDoCaso, NOME_FAMILIA, ETAPAS_ANTES_DO_PROTOCOLO } from '../services/pecaConsolidacao';
 import { inventarioDaPeca, nomeDoTipo } from '../services/contratosDoCaso';
 import { andamentoDaPeca } from '../services/geracaoPecaMysql';
+import { tarefasEmAndamento } from '../services/tarefasEmAndamento';
 
 /**
  * Mesa do caso: a tela de trabalho da produção (regras em services/mesaCaso.ts).
@@ -128,14 +129,20 @@ router.post('/:caseId/contratos/levantar', async (req: Request, res: Response) =
     userId, caseId, title: ok ? 'Contratos lidos nos documentos' : 'Não deu para ler os contratos', message,
     notificationType: 'analise_documentos', channel: 'sistema', scheduledAt: new Date(),
   }).catch(() => {});
-  levantarContratos(caseId, depsEsteiraMysql)
-    .then((r) => {
+  const tarefa = tarefasEmAndamento.rodar({ userId, caseId, tipo: 'contratos', titulo: `Ler os contratos: ${c.title || 'Processo'}`, rotulo: 'Dra. Helena lendo os documentos' }, async () => {
+    try {
+      const r = await levantarContratos(caseId, depsEsteiraMysql);
       const problemas = (r.conferencia?.problemas || []).filter((p) => p.tipo !== 'nao_lidos');
       const porBanco = problemas.length ? ` Atenção, uma peça por banco: ${problemas.map((p) => p.texto).join(' ')}` : '';
-      return avisar(r.ok, r.ok ? `${c.title || 'Processo'} — ${r.contratos} contrato(s) em ${r.fontes} documento(s)${r.reaproveitada ? ' (os mesmos documentos já lidos para outra ação do cliente: sem nova leitura pela IA)' : ''}. Veja na aba Caso da mesa.${porBanco}` : `${c.title || 'Processo'} — ${r.message}`);
-    })
-    .catch((e: any) => avisar(false, `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`));
-  res.status(202).json({ success: true, emAndamento: true });
+      const msg = r.ok ? `${r.contratos} contrato(s) em ${r.fontes} documento(s)${r.reaproveitada ? ' (os mesmos documentos já lidos para outra ação do cliente: sem nova leitura pela IA)' : ''}. Veja na aba Caso da mesa.${porBanco}` : String(r.message || 'Erro desconhecido');
+      await avisar(r.ok, `${c.title || 'Processo'} — ${msg}`);
+      return { ok: r.ok, mensagem: msg };
+    } catch (e: any) {
+      await avisar(false, `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`);
+      return { ok: false, mensagem: e?.message || 'Erro desconhecido' };
+    }
+  });
+  res.status(202).json({ success: true, emAndamento: true, tarefaId: tarefa.id });
 });
 
 /** A Dra. diz em qual processo o contrato entra: um caso do cliente, "fora" (nenhum) ou "auto" (volta à regra). */
@@ -266,14 +273,18 @@ router.post('/:caseId/analisar', async (req: Request, res: Response) => {
   if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
   const { analisarCaso } = await import('../services/analistaServico');
   const { notificationService } = await import('../services/NotificationService');
-  analisarCaso(caseId, { avisar: false })
-    .then((r: any) => notificationService.create({
-      userId, caseId, title: r?.ok === false ? 'A Dra. Helena não conseguiu analisar' : 'Análise dos documentos pronta',
-      message: r?.ok === false ? `${c.title || 'Processo'} — ${r.erro || 'sem documentos para ler'}` : `${c.title || 'Processo'} — veja na aba Caso da mesa.`,
+  const tarefa = tarefasEmAndamento.rodar({ userId, caseId, tipo: 'analise', titulo: `Análise dos documentos: ${c.title || 'Processo'}`, rotulo: 'Dra. Helena lendo os documentos' }, async () => {
+    const r: any = await analisarCaso(caseId, { avisar: false }).catch((e: any) => ({ ok: false, erro: e?.message || 'Erro desconhecido' }));
+    const ok = r?.ok !== false;
+    const msg = ok ? 'Pronta: veja na aba Caso da mesa.' : String(r.erro || 'sem documentos para ler');
+    await notificationService.create({
+      userId, caseId, title: ok ? 'Análise dos documentos pronta' : 'A Dra. Helena não conseguiu analisar',
+      message: `${c.title || 'Processo'} — ${ok ? 'veja na aba Caso da mesa.' : msg}`,
       notificationType: 'analise_documentos', channel: 'sistema', scheduledAt: new Date(),
-    }))
-    .catch(() => {});
-  res.status(202).json({ success: true, emAndamento: true });
+    }).catch(() => {});
+    return { ok, mensagem: msg };
+  });
+  res.status(202).json({ success: true, emAndamento: true, tarefaId: tarefa.id });
 });
 
 router.get('/documento/:id', async (req: Request, res: Response) => {
@@ -385,10 +396,13 @@ router.post('/:caseId/revisar', async (req: Request, res: Response) => {
     userId, caseId, title: ok ? 'Revisão da petição concluída' : 'Falha ao revisar a petição', message,
     notificationType: ok ? 'revisao_concluida' : 'revisao_falhou', channel: 'sistema', scheduledAt: new Date(),
   }).catch(() => {});
-  revisarPeticaoDoCaso(caseId, userId)
-    .then((r) => avisar(r.ok, r.ok ? `${c.title || 'Processo'} — parecer na aba Revisão da mesa do caso.` : (r.message || 'Erro desconhecido')))
-    .catch((e: any) => avisar(false, `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}`));
-  res.status(202).json({ success: true, emAndamento: true });
+  const tarefa = tarefasEmAndamento.rodar({ userId, caseId, tipo: 'revisao', titulo: `Revisão da petição: ${c.title || 'Processo'}`, rotulo: 'Revisando a peça' }, async () => {
+    const r = await revisarPeticaoDoCaso(caseId, userId).catch((e: any) => ({ ok: false, message: `${c.title || 'Processo'} — ${e?.message || 'Erro desconhecido'}` }) as any);
+    const msg = r.ok ? 'Parecer pronto na aba Revisão da mesa do caso.' : (r.message || 'Erro desconhecido');
+    await avisar(r.ok, r.ok ? `${c.title || 'Processo'} — parecer na aba Revisão da mesa do caso.` : msg);
+    return { ok: r.ok, mensagem: msg };
+  });
+  res.status(202).json({ success: true, emAndamento: true, tarefaId: tarefa.id });
 });
 
 router.post('/licao/:id', async (req: Request, res: Response) => {

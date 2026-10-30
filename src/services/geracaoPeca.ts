@@ -30,6 +30,8 @@ export interface DepsGeracao {
   gerar(caseId: number, userId: number, force: boolean): Promise<{ ok: boolean; version?: number; message?: string; casos?: number[] }>;
   revisar(caseId: number, userId: number): Promise<ResumoRevisao | null>;
   avisar(a: { userId: number; caseId: number; ok: boolean; titulo: string; mensagem: string }): Promise<void>;
+  /** Painel de tarefas da tela (barra + confirmação de conclusão, 30/10/2026). Opcional. */
+  tarefa?(p: Pendente, retomada: boolean): { concluir(mensagem: string): void; falhar(mensagem: string): void };
   pendentes: {
     guardar(p: Pendente): Promise<void>;
     apagar(alvo: number): Promise<void>;
@@ -41,13 +43,14 @@ export function criarGeracaoPeca(deps: DepsGeracao) {
   const rodando = new Set<Promise<void>>();
   const quieto = <T>(p: Promise<T>) => p.catch(() => undefined);
 
-  async function executar(p: Pendente, retomada: boolean): Promise<void> {
+  async function executar(p: Pendente, retomada: boolean, painel: { concluir(m: string): void; falhar(m: string): void }): Promise<void> {
     const nome = p.titulo || 'Processo';
     const prefixo = retomada ? 'Retomada depois de uma atualização do sistema. ' : '';
     try {
       await quieto(deps.pendentes.guardar(p));
       const r = await deps.gerar(p.caseId, p.userId, p.origem === 'manual');
       if (!r.ok) {
+        painel.falhar(r.message || 'Erro desconhecido');
         await quieto(deps.avisar({ userId: p.userId, caseId: p.caseId, ok: false, titulo: 'Falha ao gerar a petição inicial', mensagem: `${prefixo}${nome} — ${r.message || 'Erro desconhecido'}` }));
         return;
       }
@@ -59,11 +62,13 @@ export function criarGeracaoPeca(deps: DepsGeracao) {
       }
       const versao = r.version ? `v${r.version} pronta` : 'pronta';
       const conjunta = (r.casos?.length || 0) > 1 ? ` (peça conjunta de ${r.casos!.length} casos)` : '';
+      painel.concluir(`Peça ${versao}${conjunta}. Abra a mesa do caso para conferir.${rev}`);
       await quieto(deps.avisar({
         userId: p.userId, caseId: p.caseId, ok: true, titulo: 'Petição inicial gerada',
         mensagem: `${prefixo}${nome} — ${versao}${conjunta}. Confira a petição e o "Dossiê da peça" em Documentos do caso.${rev}`,
       }));
     } catch (e: any) {
+      painel.falhar(e?.message || 'Erro desconhecido');
       await quieto(deps.avisar({ userId: p.userId, caseId: p.caseId, ok: false, titulo: 'Falha ao gerar a petição inicial', mensagem: `${prefixo}${nome} — ${e?.message || 'Erro desconhecido'}` }));
     } finally {
       await quieto(deps.pendentes.apagar(p.alvo));
@@ -72,7 +77,9 @@ export function criarGeracaoPeca(deps: DepsGeracao) {
 
   function iniciar(p: Pendente, retomada: boolean): boolean {
     if (!deps.trava.iniciar(p.alvo)) return false;
-    const t = executar(p, retomada).finally(() => { deps.trava.terminar(p.alvo); rodando.delete(t); });
+    let painel = { concluir: (_m: string) => {}, falhar: (_m: string) => {} };
+    try { if (deps.tarefa) painel = deps.tarefa(p, retomada); } catch { /* o painel nunca impede a geração */ }
+    const t = executar(p, retomada, painel).finally(() => { deps.trava.terminar(p.alvo); rodando.delete(t); });
     rodando.add(t);
     return true;
   }

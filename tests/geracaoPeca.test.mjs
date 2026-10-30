@@ -123,3 +123,18 @@ test('o SQL do registro bate com as migrations (tabela e colunas existem)', () =
   assert.deepEqual(tabelasInexistentes, []);
   assert.deepEqual(colunasInexistentes, []);
 });
+
+test('a geração aparece no painel de tarefas e termina com a confirmação (30/10/2026)', async () => {
+  const eventos = [];
+  const tarefa = (p, retomada) => { eventos.push(['inicio', p.alvo, retomada]); return { concluir: (m) => eventos.push(['ok', m]), falhar: (m) => eventos.push(['falhou', m]) }; };
+  const f = fakes({ tarefa }); const g = criarGeracaoPeca(f.deps);
+  g.pedir(pedido());
+  await g.ocioso();
+  assert.deepStrictEqual(eventos[0], ['inicio', 110, false]);
+  assert.strictEqual(eventos[1][0], 'ok');
+  assert.match(eventos[1][1], /v3 pronta/);
+
+  const e2 = []; const f2 = fakes({ tarefa: () => ({ concluir: (m) => e2.push(['ok', m]), falhar: (m) => e2.push(['falhou', m]) }), gerar: async () => ({ ok: false, message: 'sem documentos' }) });
+  const g2 = criarGeracaoPeca(f2.deps); g2.pedir(pedido()); await g2.ocioso();
+  assert.deepStrictEqual(e2, [['falhou', 'sem documentos']]);
+});
