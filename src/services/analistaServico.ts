@@ -5,8 +5,10 @@ import { registrarAcaoAgente } from './usoIa';
 import { NUMERO_DRA } from './esteiraComercialServico';
 import {
   PROMPT_LEITURA_CRITICA, parseLeituraCritica, promptFatosDaHistoria, parseFatos, cruzar, promptCruzamentoLivre, parseApontamentosIa,
-  relatorioAnalise, mensagemAnaliseDra, pedidosDeReenvio, mensagemReenvio, type LeituraDoc,
+  relatorioAnalise, mensagemAnaliseDra, pedidosDeReenvio, mensagemReenvio, comoLerDocumento, lidoPelaAnalise, type LeituraDoc,
 } from './analistaDocumentos';
+import { downloadDriveFile } from './partnerInboxService';
+import { idDoArquivoNoDrive } from './kitProtocolo';
 
 /**
  * Dra. Helena com banco, IA e WhatsApp (regras em analistaDocumentos.ts).
@@ -37,13 +39,29 @@ async function arquivosDoCliente(clientId: number, caseId: number, phone: string
     out.push({ ref: `media:${m.id}`, fonte: m.file_name || `arquivo ${m.id}`, mime: m.mime, tam: Number(m.tam) || 0,
       carregar: async () => { const [[r]] = await db.query('SELECT data FROM whatsapp_media WHERE id = ?', [m.id]) as any; return r?.data ? Buffer.from(r.data) : null; } });
   }
+  // Guardados no CRM ou só com o link do Drive (pasta do caso): os do Drive são baixados na leitura.
   const [docs] = await db.query(
-    `SELECT id, name, mime, LENGTH(data) AS tam FROM documents
-      WHERE (client_id = ? OR case_id = ?) AND data IS NOT NULL AND (mime LIKE 'image/%' OR mime = 'application/pdf')
-      ORDER BY created_at DESC LIMIT ?`, [clientId, caseId, MAX_ARQUIVOS]).catch(() => [[]]) as any;
+    `SELECT id, name, mime, LENGTH(data) AS tam, (data IS NOT NULL) AS tem_arquivo, file_url FROM documents
+      WHERE (client_id = ? OR case_id = ?) AND (data IS NOT NULL OR file_url LIKE '%drive.google.com%')
+      ORDER BY created_at DESC LIMIT ?`, [clientId, caseId, MAX_ARQUIVOS * 3]).catch(() => [[]]) as any;
+  let n = 0;
   for (const d of docs) {
-    out.push({ ref: `doc:${d.id}`, fonte: d.name || `documento ${d.id}`, mime: d.mime, tam: Number(d.tam) || 0,
-      carregar: async () => { const [[r]] = await db.query('SELECT data FROM documents WHERE id = ?', [d.id]) as any; return r?.data ? Buffer.from(r.data) : null; } });
+    const como = comoLerDocumento(d);
+    if (!como || n >= MAX_ARQUIVOS) continue;
+    n++;
+    const a: Arquivo = { ref: `doc:${d.id}`, fonte: d.name || `documento ${d.id}`, mime: d.mime, tam: Number(d.tam) || 0, carregar: async () => null };
+    if (como === 'guardado') {
+      a.carregar = async () => { const [[r]] = await db.query('SELECT data FROM documents WHERE id = ?', [d.id]) as any; return r?.data ? Buffer.from(r.data) : null; };
+    } else {
+      a.carregar = async () => {
+        const id = idDoArquivoNoDrive(d.file_url);
+        const f = id ? await downloadDriveFile(id).catch(() => null) : null;
+        if (!f || !lidoPelaAnalise(f.mimeType)) return null;
+        a.mime = f.mimeType;
+        return Buffer.from(f.base64, 'base64');
+      };
+    }
+    out.push(a);
   }
   return out.slice(0, MAX_ARQUIVOS * 2);
 }
@@ -54,7 +72,7 @@ async function lerArquivo(a: Arquivo): Promise<LeituraDoc | null> {
   if (c) return typeof c.leitura === 'string' ? JSON.parse(c.leitura) : c.leitura;
   if (a.tam > MAX_BYTES) return null;
   const buf = await a.carregar();
-  if (!buf) return null;
+  if (!buf || buf.length > MAX_BYTES) return null;
   const r = await aiLerArquivo(buf.toString('base64'), a.mime, PROMPT_LEITURA_CRITICA);
   const l = r.ok && r.text ? parseLeituraCritica(r.text) : null;
   if (l) await db.query('INSERT IGNORE INTO documento_leituras (ref, fonte, leitura) VALUES (?, ?, ?)', [a.ref, a.fonte.slice(0, 255), JSON.stringify(l)]);
@@ -85,8 +103,10 @@ async function marcar(ref: string, marco: string): Promise<boolean> {
   return r.affectedRows === 1;
 }
 
-export async function analisarCaso(caseId: number, opts: { avisar?: boolean; pedirReenvio?: boolean } = {}) {
+export async function analisarCaso(caseId: number, opts: { avisar?: boolean; pedirReenvio?: boolean; etapa?: (rotulo: string, feito?: number | null, total?: number | null) => void } = {}) {
   const avisar = opts.avisar !== false, pedirReenvio = opts.pedirReenvio !== false;
+  // Andamento para a barra da tela (30/10/2026); nunca derruba a análise.
+  const andamento = (r: string, f?: number | null, t?: number | null) => { try { opts.etapa?.(r, f, t); } catch { /* só a barra */ } };
   const [[c]] = await db.query(
     `SELECT cs.id, cs.client_id, cl.name, cl.cpf_cnpj, cl.phone FROM cases cs JOIN clients cl ON cl.id = cs.client_id WHERE cs.id = ?`, [caseId]) as any;
   if (!c) return { ok: false as const, erro: 'Caso não encontrado' };
@@ -95,11 +115,15 @@ export async function analisarCaso(caseId: number, opts: { avisar?: boolean; ped
   if (!arquivos.length) return { ok: false as const, erro: 'O cliente ainda não mandou nenhuma foto ou PDF.' };
   const docs: Array<{ fonte: string; l: LeituraDoc }> = [];
   const falhas: string[] = [];
-  for (const a of arquivos) {
+  // A leitura dos arquivos é a maior parte do tempo: ocupa até 80% da barra.
+  const total = arquivos.length + 2;
+  for (const [i, a] of arquivos.entries()) {
+    andamento(`Lendo ${a.fonte} (${i + 1} de ${arquivos.length})`, i, total);
     const l = await lerArquivo(a).catch(() => null);
     if (l) docs.push({ fonte: a.fonte, l }); else falhas.push(a.fonte);
   }
 
+  andamento('Conferindo os documentos com a história contada', arquivos.length, total);
   const historia = await historiaDoCliente(c.id, c.client_id, c.phone);
   let fatos = {};
   if (historia.trim()) {
@@ -113,6 +137,7 @@ export async function analisarCaso(caseId: number, opts: { avisar?: boolean; ped
   }
   for (const f of falhas) achados.push({ nivel: 'info', tema: 'não lido', texto: `${f}: não consegui ler (arquivo grande demais ou formato ruim). Conferir à mão.`, fontes: [f] });
 
+  andamento('Salvando a análise', arquivos.length + 1, total);
   const relatorio = relatorioAnalise(c.name, achados, docs.map((d) => ({ fonte: d.fonte, tipo: d.l.tipo })));
   const [[admin]] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
   const [doc] = await db.query(

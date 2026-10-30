@@ -603,6 +603,28 @@
       const bp = q('[data-acao="ler-pasta"]'); if (bp) { bp.disabled = false; bp.textContent = 'Atualizar da pasta'; }
     };
     document.addEventListener('tarefa-terminou', aoTerminarTarefa);
+    // Barra dentro da própria seção (pedido da Jessica, 30/10/2026: print da "Análise dos
+    // documentos" só com o botão apagado). O botão fica travado e mostra a porcentagem.
+    const ACAO_DA_TAREFA = { analise: ['analisar', 'Analisando'], contratos: ['ler-contratos', 'Lendo os contratos'], pasta_drive: ['ler-pasta', 'Lendo a pasta'], revisao: ['revisar', 'Revisando'] };
+    const aoAtualizarTarefas = (ev) => {
+      if (!ov.isConnected) { document.removeEventListener('tarefas-atualizadas', aoAtualizarTarefas); return; }
+      const minhas = (ev.detail || []).filter((t) => Number(t.caseId) === Number(caseId) && t.estado === 'rodando' && ACAO_DA_TAREFA[t.tipo]);
+      ov.querySelectorAll('.mesa-tarefa-inline').forEach((x) => { if (!minhas.some((t) => t.id === x.dataset.tarefa)) x.remove(); });
+      for (const t of minhas) {
+        const [acao, verbo] = ACAO_DA_TAREFA[t.tipo];
+        ov.querySelectorAll(`[data-acao="${acao}"]`).forEach((b) => {
+          b.disabled = true; b.textContent = `${verbo}… ${t.pct != null ? `${t.pct}%` : ''}`.trim();
+          const lugar = b.closest('.mesa-campo') || b.closest('.mesa-secao-cab') || b.closest('.mesa-parecer-cab') || b;
+          let barra = lugar.parentElement.querySelector(`:scope > .mesa-tarefa-inline[data-tarefa="${t.id}"]`);
+          if (!barra) { barra = document.createElement('div'); barra.className = 'mesa-tarefa-inline'; barra.dataset.tarefa = t.id; barra.setAttribute('role', 'status'); lugar.after(barra); }
+          barra.innerHTML = `${t.pct == null ? '<div class="tarefa-barra indeterminada" role="progressbar" aria-label="Em andamento"><span></span></div>'
+            : `<div class="tarefa-barra" role="progressbar" aria-label="Andamento" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${t.pct}"><span style="width:${t.pct}%"></span></div>`}
+            <small>${esc(t.rotulo)} · ${esc(decorrido(t.desde))}</small>`;
+        });
+      }
+    };
+    document.addEventListener('tarefas-atualizadas', aoAtualizarTarefas);
+    if (window.acompanharTarefas) setTimeout(window.acompanharTarefas, 600); // ao abrir a mesa com tarefa rodando
 
     async function recarregar(tudo) { await carregar(); if (tudo) renderTudo(); else { renderTopo(); renderJornada(); renderAgora(); renderDir(); renderEsq(); } }
 

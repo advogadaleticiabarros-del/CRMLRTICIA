@@ -273,8 +273,8 @@ router.post('/:caseId/analisar', async (req: Request, res: Response) => {
   if (!c) { res.status(404).json({ error: 'Caso não encontrado' }); return; }
   const { analisarCaso } = await import('../services/analistaServico');
   const { notificationService } = await import('../services/NotificationService');
-  const tarefa = tarefasEmAndamento.rodar({ userId, caseId, tipo: 'analise', titulo: `Análise dos documentos: ${c.title || 'Processo'}`, rotulo: 'Dra. Helena lendo os documentos' }, async () => {
-    const r: any = await analisarCaso(caseId, { avisar: false }).catch((e: any) => ({ ok: false, erro: e?.message || 'Erro desconhecido' }));
+  const tarefa = tarefasEmAndamento.rodar({ userId, caseId, tipo: 'analise', titulo: `Análise dos documentos: ${c.title || 'Processo'}`, rotulo: 'Dra. Helena separando os arquivos do cliente' }, async (t) => {
+    const r: any = await analisarCaso(caseId, { avisar: false, etapa: t.etapa }).catch((e: any) => ({ ok: false, erro: e?.message || 'Erro desconhecido' }));
     const ok = r?.ok !== false;
     const msg = ok ? 'Pronta: veja na aba Caso da mesa.' : String(r.erro || 'sem documentos para ler');
     await notificationService.create({

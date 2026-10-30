@@ -117,6 +117,9 @@
     }
     st.conhecidas = new Map(lista.map((t) => [t.id, t]));
     render(lista);
+    // A Mesa do caso usa para mostrar a barra dentro da própria seção (análise, contratos, pasta, revisão).
+    window.ultimasTarefas = lista;
+    document.dispatchEvent(new CustomEvent('tarefas-atualizadas', { detail: lista }));
     st.timer = setTimeout(atualizar, lista.some((t) => t.estado === 'rodando') ? RAPIDO : PARADO);
   }
 

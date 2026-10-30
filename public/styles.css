@@ -2553,6 +2553,8 @@ body.mesa-aberta { overflow: hidden; }
 .tarefa-acoes { display: flex; justify-content: flex-end; gap: 6px; }
 .tarefa-acoes [data-tarefa-ok] { background: var(--text); color: var(--surface); border-color: var(--text); min-width: 56px; }
 .toast { bottom: calc(26px + var(--tarefas-h, 0px)); }
+.mesa-tarefa-inline { display: grid; gap: 5px; margin: 8px 0 10px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+.mesa-tarefa-inline small { color: var(--text-muted); font-size: 12.5px; overflow-wrap: anywhere; }
 @media (max-width: 560px) { .tarefas-painel { right: 10px; left: 10px; bottom: 10px; width: auto; } }
 @media (prefers-reduced-motion: reduce) {
   .tarefa-barra span { transition: none; }

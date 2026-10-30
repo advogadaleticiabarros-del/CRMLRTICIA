@@ -10,6 +10,9 @@ Jessica: "toda a ação preciso de confirmação de conclusão, pode colocar bar
 - Tela: `public/tarefas.js` (painel fixo no canto, barra, etapa, tempo, "✓ Concluído"/"✕ Não concluído" até o OK, "OK em todas", "Abrir o caso", recolher). A Mesa se atualiza quando uma tarefa do caso termina; a barra própria da Mesa (`.mesa-gerando`) saiu, e o botão continua travado com a etapa. Toast passou de 3 s para 5 s (erro, 9 s) e sobe acima do painel.
 - Documentação: `docs/manual/06-documentos.md` (seção "Painel de tarefas" + changelog), `docs/manual/17-decision-log.md`, `docs/api/rotas.md`.
 
+## Ajuste (mesma noite)
+Print da Jessica: a seção "Análise dos documentos" só mostrava o botão apagado. Agora a barra aparece dentro da própria seção da Mesa (análise, contratos, pasta, revisão), o botão mostra "Analisando… 38%", e a análise da Dra. Helena conta arquivo por arquivo (`analistaServico.analisarCaso`, opção `etapa`). Evento `tarefas-atualizadas` emitido por `public/tarefas.js`. Testado no navegador com o trecho real do `mesa.js`. A aba que estava aberta antes da publicação precisa ser recarregada (F5).
+
 ## Verificado
 - `npm run lint`: 0 erros. `npm run build`: OK. `npm test`: 1.247 aprovados, 0 falhas, 33 pulados (os de banco, que rodam no CI). 15 testes novos (13 do registro, 1 do andamento da pasta, 1 do painel na geração).
 - Painel testado no navegador (Playwright, página de teste com o CSS real e respostas simuladas): 3 tarefas rodando com barras; depois concluída/falhou com selos e aviso; OK remove; recolher funciona.

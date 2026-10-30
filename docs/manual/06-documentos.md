@@ -158,6 +158,7 @@ A geração leva alguns minutos e roda em segundo plano: o aviso chega no sino. 
 - Cada tarefa mostra o nome do caso, a **barra**, a etapa e o tempo. Na leitura da pasta a barra anda arquivo por arquivo ("Pasta: lendo HISCON.pdf (4 de 11)", depois "Lendo o texto de … (2 de 5)" e "Montando a análise"); na peça, "Etapa X de 9". Quando não há contagem (contratos, análise, revisão), a barra fica em movimento.
 - Ao terminar, a tarefa vira **"✓ Concluído"** (com o resultado: quantos arquivos e documentos, quantos contratos…) ou **"✕ Não concluído"** (com o motivo, ex.: pasta não compartilhada). A confirmação **fica na tela até a pessoa clicar em OK** ("OK em todas" quando há várias) e tem "Abrir o caso". Também sai um aviso rápido, e o sino continua avisando como antes.
 - A Mesa aberta se atualiza sozinha quando uma tarefa do caso termina.
+- **Barra dentro da própria seção da Mesa** (print da Jessica: a "Análise dos documentos" ficava só com o botão apagado): Análise dos documentos, Contratos nos documentos, Atualizar da pasta e Revisar mostram a barra logo abaixo do título, com o que está sendo feito ("Lendo RG frente.jpg (3 de 6)") e o tempo; o botão fica travado com a porcentagem ("Analisando… 38%"). Reabrir a mesa no meio da tarefa mostra a barra de novo. A análise da Dra. Helena conta arquivo por arquivo (`analisarCaso`, opção `etapa`).
 - O painel recolhe num clique (fica só "2 tarefas em andamento"). Cada pessoa vê só as tarefas que ela pediu.
 - Se o CRM for atualizado no meio, a tarefa aparece como "Não concluído: o sistema foi atualizado no meio" (a peça é retomada sozinha; as outras é preciso pedir de novo). Tarefa sem resposta por 2 h vira falha; confirmação não lida some depois de 1 dia.
 - Os avisos rápidos (toast) agora ficam 5 s (erros, 9 s), em vez de 3 s, e sobem acima do painel.
@@ -355,6 +356,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 30/10/2026 | Claude | Barra também dentro da seção da Mesa (análise, contratos, pasta, revisão), com o botão mostrando a porcentagem; a análise da Dra. Helena conta arquivo por arquivo |
 | 30/10/2026 | Claude | Painel de tarefas: toda ação demorada (pasta do Drive, contratos, análise, revisão, geração da peça) mostra barra e etapa no canto da tela e termina com confirmação "Concluído"/"Não concluído" que fica até o OK; avisos rápidos ficam mais tempo |
 | 30/10/2026 | Claude | Cabeçalho fixo da peça trabalhista: "DOUTO JUÍZO DA ___ VARA DO TRABALHO DE (CIDADE) – (ESTADO)", no pedido à IA e conferido na 1ª linha depois da redação (`enderecamentoPeca.ts`) |
 | 30/10/2026 | Claude | Leitura única dos documentos do cliente: arquivo do Drive já lido em outra ação é copiado (mesmo ID ou mesmo conteúdo); a ficha de fatos é lida uma vez para todas as ações do cliente e reaproveitada nas outras peças e no "Ler os contratos" enquanto os documentos não mudam |
