@@ -1,4 +1,4 @@
-import { chaveContrato, mesmoBanco, familiaDoContrato } from './contratosDoCaso';
+import { chaveContrato, mesmoBanco, nucleoBanco, familiaDoContrato } from './contratosDoCaso';
 import { NOME_FAMILIA, type Familia } from './pecaConsolidacao';
 import type { ContratoFicha, FichaDeFatos } from './pecaDossie';
 import { brl, mesBr, calcularPeca, type CalculoPeca } from './pecaCalculos';
@@ -111,7 +111,7 @@ export function apurarDescontos(e: { contratos: ContratoFicha[]; lancamentos: La
         && (!l.banco || !j.c.banco || mesmoBanco(l.banco, j.c.banco)));
       const peloValor = livres.filter((j) => mesmoValor(j.c.parcela, l.valor));
       if (peloValor.length) {
-        const bancos = new Set(peloValor.map((j) => j.c.banco || '?'));
+        const bancos = new Set(peloValor.map((j) => nucleoBanco(j.c.banco) || '?'));
         const iguais = lista.filter((x) => x.valor === l.valor && familiaDaRubrica(x.rubrica) === fam).length;
         const jaFeitos = janelas.filter((j) => usados.has(`${j.nome}|${mes}`) && mesmoValor(j.c.parcela, l.valor)).length;
         if (bancos.size > 1 && iguais - jaFeitos < peloValor.length) {

@@ -40,9 +40,10 @@ const APELIDOS: Array<[RegExp, string]> = [
 
 /** O que identifica o banco: o 1º nome que sobra ("Itaú Consignado S.A." → "itau"). */
 export function nucleoBanco(nome: string | null | undefined): string {
-  const norm = normalizarNomeParte(nome);
+  // O extrato do INSS põe o código do banco na frente ("341 - BANCO ITAU SA"): número sozinho não é o nome.
+  const tokens = normalizarNomeParte(nome).split(' ').filter((t) => t && !/^\d+$/.test(t));
+  const norm = tokens.join(' ');
   for (const [re, apelido] of APELIDOS) if (re.test(norm)) return apelido;
-  const tokens = norm.split(' ').filter(Boolean);
   const proprios = tokens.filter((t) => !GENERICO.has(t));
   return (proprios[0] || tokens[0] || '');
 }

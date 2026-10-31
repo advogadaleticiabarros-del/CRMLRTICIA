@@ -181,3 +181,19 @@ test('mesmoBanco: nome jurídico do extrato = nome conhecido da ação; bancos e
   assert.ok(!mesmoBanco('BANCO COOPERATIVO SICREDI S.A.', 'BANCO COOPERATIVO SICOOB S.A.'));
   assert.ok(!mesmoBanco('Banco do Brasil', 'BANCO DO NORDESTE DO BRASIL S.A.'));
 });
+
+test('mesmoBanco: o código do banco na frente (extrato do INSS: "341 - BANCO ITAU SA") não muda o banco (Valmirio, 31/10/2026)', () => {
+  assert.ok(mesmoBanco('341 - BANCO ITAU SA', 'Banco Itaú S.A.'));
+  assert.ok(mesmoBanco('623 - BANCO PAN S A', 'Banco PAN S.A.'));
+  assert.ok(mesmoBanco('626 - BANCO C6 CONSIGNADOS A', 'Banco C6 Consignado'));
+  assert.ok(mesmoBanco('643 - BANCO PINE S A', 'Banco Pine S.A.'));
+  assert.ok(!mesmoBanco('341 - BANCO ITAU SA', '623 - BANCO PAN S A'));
+  // Contrato do Itaú lido no extrato entra na peça contra o Itaú.
+  const r = separarParaPeca({
+    contratos: [{ numero: '632706066', tipo: 'emprestimo_consignado', banco: '341 - BANCO ITAU SA', data: '22/04/2021' }],
+    descontos: [{ competencia: '2026-01', valor: 43.64, contrato: '632706066' }], salvos: [],
+    peca: { casos: [{ id: 110, titulo: 'Fulano · empréstimo consignado — Banco Itaú S.A.' }], reus: [{ nome: 'Banco Itaú S.A.' }] },
+  });
+  assert.strictEqual(r.entram.length, 1);
+  assert.strictEqual(r.descontos.length, 1);
+});
