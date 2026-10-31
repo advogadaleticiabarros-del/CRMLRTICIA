@@ -1,4 +1,5 @@
-import { chaveContrato, mesmoBanco } from './contratosDoCaso';
+import { chaveContrato, mesmoBanco, familiaDoContrato } from './contratosDoCaso';
+import { NOME_FAMILIA, type Familia } from './pecaConsolidacao';
 import type { ContratoFicha, FichaDeFatos } from './pecaDossie';
 import { brl, mesBr, calcularPeca, type CalculoPeca } from './pecaCalculos';
 import { atualizarCalculo } from './planilhaCalculos';
@@ -163,24 +164,31 @@ export function apurarFicha(ficha: FichaDeFatos, hoje: Date): FichaDeFatos {
   };
 }
 
-export interface CalculoDoBanco { banco: string; contratos: ContratoFicha[]; calculo: CalculoPeca }
+export interface CalculoDoBanco {
+  banco: string;
+  /** Família de tese (empréstimo consignado, cartão consignado RMC/RCC…): cada uma é uma peça. */
+  familia: Familia | null; modalidade: string;
+  contratos: ContratoFicha[]; calculo: CalculoPeca;
+}
 
 /**
- * A planilha de cada banco, feita na leitura: cada peça (uma por banco) já nasce com o
- * seu cálculo, e o que é de outro banco nunca se mistura. Contrato sem banco fica de fora
- * (aviso na apuração).
+ * O cálculo de cada peça, feito na leitura: um por banco E modalidade (regra da Jessica:
+ * uma peça por banco; empréstimo consignado e cartão consignado são processos separados;
+ * RMC e RCC do mesmo banco vão juntos). Dentro de cada um, cada contrato tem a sua linha.
+ * Contrato sem banco fica de fora (aviso na apuração).
  */
 export function calcularPorBanco(ficha: FichaDeFatos, indices: IndicesMensais | null, hoje: Date): CalculoDoBanco[] {
-  const grupos: CalculoDoBanco['contratos'][] = [];
+  const grupos: Array<{ familia: Familia | null; contratos: ContratoFicha[] }> = [];
   for (const c of ficha.contratos.filter((x) => x.banco)) {
-    const g = grupos.find((l) => mesmoBanco(l[0].banco, c.banco));
-    if (g) g.push(c); else grupos.push([c]);
+    const familia = familiaDoContrato(c.tipo);
+    const g = grupos.find((x) => x.familia === familia && mesmoBanco(x.contratos[0].banco, c.banco));
+    if (g) g.contratos.push(c); else grupos.push({ familia, contratos: [c] });
   }
-  return grupos.map((contratos) => {
+  return grupos.map(({ familia, contratos }) => {
     const nomes = new Set(contratos.map((c) => c.numero || `${c.tipo || 'contrato'} ${c.banco || ''}`.trim()));
-    const descontos = ficha.descontos.filter((d) => (d.contrato && nomes.has(d.contrato)) || (!d.contrato && d.banco && mesmoBanco(d.banco, contratos[0].banco)))
+    const descontos = ficha.descontos.filter((d) => d.contrato && nomes.has(d.contrato))
       .map((d) => ({ competencia: d.competencia, valor: d.valor, contrato: d.contrato, fonte: d.fonte }));
     const base = calcularPeca({ contratos, descontos, hoje, jaApurados: true });
-    return { banco: contratos[0].banco as string, contratos, calculo: atualizarCalculo(base, indices, hoje) };
-  }).sort((a, b) => a.banco.localeCompare(b.banco, 'pt-BR'));
+    return { banco: contratos[0].banco as string, familia, modalidade: familia ? NOME_FAMILIA[familia] : 'Modalidade não identificada', contratos, calculo: atualizarCalculo(base, indices, hoje) };
+  }).sort((a, b) => a.banco.localeCompare(b.banco, 'pt-BR') || a.modalidade.localeCompare(b.modalidade, 'pt-BR'));
 }

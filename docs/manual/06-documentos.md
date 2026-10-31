@@ -126,7 +126,7 @@ Pedido da Jessica: "preciso que os documentos sejam lidos de fato, os cálculos 
      - rubrica 216 → empréstimo, com a **parcela do mesmo valor** e ativo naquele mês; 217 → cartão RMC; 268 → cartão RCC (o valor do cartão varia: vale o único cartão daquele tipo ativo no mês);
      - parcela igual em contratos de bancos diferentes com um só desconto no mês, ou valor que não bate com nenhuma parcela: fica **sem dono**, fora do cálculo, com o motivo no dossiê ("decidir à mão"). Nada some calado;
      - meses que **nenhum** extrato de pagamento cobre são estimados pela parcela do contrato (do início do desconto até o fim, o nº de parcelas ou o último mês fechado), com aviso. Mês coberto pelo extrato sem desconto não é estimado;
-     - "Ler os contratos" (e a leitura nova na geração da peça) já salva a **"Planilha de cálculos — Cliente · Banco (leitura dos documentos)"**, uma por banco, na ação daquele banco (tabela + .xlsx). O aviso do sino diz quantos descontos e quanto a restituir em cada banco. Cada peça usa só os descontos dos seus contratos.
+     - "Ler os contratos" (e a leitura nova na geração da peça) já salva a **"Planilha de cálculos — Cliente · Banco · Modalidade (leitura dos documentos)"**, **uma por banco e modalidade**, que é uma por peça: empréstimo consignado e cartão consignado do mesmo banco têm cálculos separados; RMC e RCC do mesmo banco ficam no mesmo cálculo (a mesma peça), cada contrato na sua linha. Fica na ação daquele banco e modalidade (tabela + .xlsx). O aviso do sino diz quantos descontos e quanto a restituir em cada uma. Cada peça usa só os descontos dos seus contratos.
    - devolução do indébito por contrato **em dobro, em todos os meses** (art. 42, parágrafo único, do CDC; **STJ, Tema 929**, Corte Especial, 15/09/2026, sem modulação). Até 31/10/2026 o sistema usava a modulação antiga (EAREsp 600.663/RS: simples até 03/2021). O marco fica em `MARCO_DOBRO` (`pecaCalculos.ts`). Mês repetido em dois documentos conta uma vez;
    - sem nenhum desconto apurado, a peça **não** escreve R$ 0,00: deixa [valor a apurar] e pede a exibição dos descontos pelo réu;
    - contrato só com parcela e mês de início: o sistema monta os meses até o fim do contrato ou até hoje e avisa que é estimativa;
@@ -365,6 +365,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 31/10/2026 | Claude | Planilha da leitura separada por banco **e modalidade** (empréstimo consignado ≠ cartão RMC/RCC), igual às peças |
 | 31/10/2026 | Claude | Calculista na leitura: descontos do HISCRE ligados aos contratos do HISCON pela rubrica, parcela e período; planilha por banco salva na leitura; tudo em dobro (Tema 929 do STJ); juros pela Taxa Legal oficial do Bacen (SGS 29543); peça sem descontos não escreve R$ 0,00; revisão automática em toda versão nova; a peça lê também os documentos guardados só no cliente |
 | 30/10/2026 | Claude | A análise da Dra. Helena passa a ler os documentos do caso que estão só como link do Google Drive (antes dizia "O cliente ainda não mandou nenhuma foto ou PDF") |
 | 30/10/2026 | Claude | Barra também dentro da seção da Mesa (análise, contratos, pasta, revisão), com o botão mostrando a porcentagem; a análise da Dra. Helena conta arquivo por arquivo |

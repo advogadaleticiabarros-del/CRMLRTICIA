@@ -139,3 +139,29 @@ test('calcularPorBanco: uma planilha por banco, cada uma só com os descontos do
   assert.strictEqual(r[1].calculo.indebito.total.restituir, 482);
   assert.ok(r[0].calculo.atualizacao, 'sai a planilha (nominal, sem índices)');
 });
+
+test('calcularPorBanco: mesmo banco, modalidades diferentes = cálculos separados (empréstimo consignado ≠ cartão RMC/RCC); RMC e RCC do mesmo banco juntos', async () => {
+  const { calcularPorBanco } = await import('../dist/services/contabilista.js');
+  const ficha = parseFichaDeFatos(JSON.stringify({
+    contratos: [
+      { numero: 'E1', tipo: 'emprestimo_consignado', banco: 'Banco Itaú S.A.', parcela: 43.64, inicio_desconto: '01/2022' },
+      { numero: 'R1', tipo: 'rmc', banco: 'Itaú Consignado S.A.', inicio_desconto: '01/2022' },
+      { numero: 'C1', tipo: 'rcc', banco: 'Banco Itaú S.A.', inicio_desconto: '01/2022' },
+    ],
+    descontos: [
+      { competencia: '01/2022', valor: 43.64, rubrica: '216 CONSIGNACAO EMPRESTIMO BANCARIO' },
+      { competencia: '01/2022', valor: 70, rubrica: '217 EMPRESTIMO SOBRE A RMC' },
+      { competencia: '01/2022', valor: 30, rubrica: '268 CONSIGNACAO - CARTAO' },
+    ],
+    competencias_extrato: ['01/2022'],
+  }));
+  const hoje = new Date(2022, 1, 10);
+  const r = calcularPorBanco(apurarFicha(ficha, hoje), null, hoje);
+  // O nome do banco vem do 1º contrato do grupo ("Itaú Consignado S.A." é o mesmo Itaú).
+  assert.deepStrictEqual(r.map((b) => b.modalidade).sort(), ['Cartão consignado (RMC/RCC)', 'Empréstimo consignado']);
+  const cartao = r.find((b) => b.familia === 'cartao_consignado'), emp = r.find((b) => b.familia === 'emprestimo_consignado');
+  assert.strictEqual(cartao.calculo.indebito.total.descontado, 100, 'RMC 70 + RCC 30, cada um na sua linha');
+  assert.deepStrictEqual(cartao.calculo.indebito.porContrato.map((c) => c.contrato).sort(), ['C1', 'R1']);
+  assert.strictEqual(emp.calculo.indebito.total.descontado, 43.64);
+  assert.deepStrictEqual(emp.calculo.indebito.porContrato.map((c) => c.contrato), ['E1']);
+});

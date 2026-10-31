@@ -1,7 +1,7 @@
 import { db } from '../config/database';
 import { aiComplete, aiLerArquivo } from './aiAssistant';
 import { registrarAcaoAgente } from './usoIa';
-import { reusDoCaso, type CasoParaJuntar } from './pecaConsolidacao';
+import { reusDoCaso, familiaDaTese, type CasoParaJuntar } from './pecaConsolidacao';
 import type { DepsEsteira, CasoEsteira } from './esteiraPeca';
 import type { Fonte, ItemCatalogo, ContratoFicha, FichaDeFatos } from './pecaDossie';
 import { lerUmaVez, refDoConteudo, type CacheLeitura } from './leituraUnica';
@@ -309,9 +309,11 @@ export async function guardarPlanilhasDoCliente(clientId: number, cliente: strin
   const acoes = await acoesDoCliente(clientId).catch(() => [] as AcaoParaConferir[]);
   const [[admin]] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
   for (const b of porBanco) {
-    const acao = acoes.find((a) => a.reus.some((r) => mesmoBanco(r.nome, b.banco)));
-    const nome = `Planilha de cálculos — ${cliente} · ${b.banco} (leitura dos documentos)`.slice(0, 255);
-    const cab = { cliente, reus: [b.banco], casos: acao ? [{ id: acao.id, titulo: acao.titulo }] : [] };
+    // A ação do mesmo banco e da mesma modalidade (título do processo); sem ela, a do banco.
+    const doBanco = acoes.filter((a) => a.reus.some((r) => mesmoBanco(r.nome, b.banco)));
+    const acao = doBanco.find((a) => b.familia && familiaDaTese(a.titulo) === b.familia) || (doBanco.length === 1 ? doBanco[0] : undefined);
+    const nome = `Planilha de cálculos — ${cliente} · ${b.banco} · ${b.modalidade} (leitura dos documentos)`.slice(0, 255);
+    const cab = { cliente, reus: [`${b.banco} — ${b.modalidade}`], casos: acao ? [{ id: acao.id, titulo: acao.titulo }] : [] };
     const xlsx = await planilhaXlsx(b.calculo, cab).catch(() => null);
     await db.query('DELETE FROM documents WHERE client_id = ? AND name = ?', [clientId, nome]);
     await db.query(

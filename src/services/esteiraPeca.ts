@@ -173,7 +173,7 @@ async function lerAgora(casos: CasoEsteira[], deps: DepsEsteira, clientId: numbe
  * das fontes, de qualquer banco, e eles ficam guardados no cliente para a Dra.
  * dizer em qual processo cada um entra.
  */
-export async function levantarContratos(caseId: number, deps: DepsEsteira): Promise<{ ok: boolean; contratos?: number; fontes?: number; message?: string; conferencia?: ConferenciaPecas | null; reaproveitada?: boolean; porBanco?: Array<{ banco: string; restituir: number; descontos: number }>; avisos?: string[] }> {
+export async function levantarContratos(caseId: number, deps: DepsEsteira): Promise<{ ok: boolean; contratos?: number; fontes?: number; message?: string; conferencia?: ConferenciaPecas | null; reaproveitada?: boolean; porBanco?: Array<{ banco: string; modalidade: string; restituir: number; descontos: number }>; avisos?: string[] }> {
   const casos = await casosDaPeca(caseId, deps);
   const caso = casos[0];
   if (caso.client_id == null) return { ok: false, message: 'O caso não tem cliente cadastrado' };
@@ -200,8 +200,8 @@ async function calculoNaLeitura(clientId: number, cliente: string, ficha: FichaD
   const ind = deps.indices ? await deps.indices().catch(() => null) : null;
   const porBanco = calcularPorBanco(apurada, ind?.indices ?? null, hoje);
   if (porBanco.length) await deps.guardarPlanilhasDoCliente?.(clientId, cliente, porBanco).catch(() => {});
-  const resumo = porBanco.map((b) => ({ banco: b.banco, restituir: b.calculo.valorDaCausa.restituicao, descontos: b.calculo.descontos.length }));
-  if (resumo.length) deps.registrar('calculista', `apurou os descontos de ${cliente} por banco: ${resumo.map((b) => `${b.banco} ${b.descontos} desconto(s), ${brl(b.restituir)} a restituir`).join(' · ')}`);
+  const resumo = porBanco.map((b) => ({ banco: b.banco, modalidade: b.modalidade, restituir: b.calculo.valorDaCausa.restituicao, descontos: b.calculo.descontos.length }));
+  if (resumo.length) deps.registrar('calculista', `apurou os descontos de ${cliente} por banco e modalidade: ${resumo.map((b) => `${b.banco} (${b.modalidade}) ${b.descontos} desconto(s), ${brl(b.restituir)} a restituir`).join(' · ')}`);
   return { porBanco: resumo, avisos: apurada.lacunas.slice(ficha.lacunas.length) };
 }
 

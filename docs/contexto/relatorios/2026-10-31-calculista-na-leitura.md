@@ -23,6 +23,9 @@ A Jessica colou a peça do caso do Itaú (empréstimo consignado) e a revisão: 
 - Tema 929 aplicado como regra padrão. A fonte lida é jornalística (Migalhas, Cálculo Jurídico), não o acórdão. Para voltar: `MARCO_DOBRO = '2021-03'`.
 - Agosto/2024: 1% ao mês até 08/2024, Taxa Legal desde 09/2024 (convenção da Justiça Federal).
 
+## Ajuste (mesmo dia)
+- Pergunta da Jessica: "os cálculos estão sendo separados por banco e modalidade? Cada um tem que ter o seu cálculo." A peça já separava (banco + família de tese), mas a planilha salva na leitura juntava o empréstimo e o cartão do mesmo banco. Agora é uma planilha por banco **e** modalidade, igual às peças; RMC e RCC do mesmo banco seguem juntos (regra de 30/10), cada contrato na sua linha. Teste novo em `tests/contabilista.test.mjs`.
+
 ## Pendente
 - Jessica/Dra.: no caso do Itaú, clicar "Ler os contratos" (o sino mostra o cálculo por banco) e depois "gerar nova versão". Conferir a planilha do Itaú em Documentos e o "Faltando ou a conferir" do dossiê. Se o contrato do Itaú aparecer sem parcela ou sem início, a transcrição antiga do HISCON perdeu colunas: reenviar o arquivo.
 - Dra.: confirmar a tese do Tema 929 no acórdão publicado.
