@@ -204,3 +204,45 @@ test('senha repetida no texto sai de todas as vezes, mesmo depois de um marcador
   assert.strictEqual(meio.senha, 'Fict#2026#', 'acha a senha que sobrou depois do marcador');
   assert.ok(!meio.texto.includes('Fict#2026#'));
 });
+
+// ── Introdução do caso e documentos sem repetição (31/10/2026, print da Jessica) ──
+
+test('lote: o mesmo arquivo do Drive em várias ações entra uma vez na lista e no kit (o kit do Itaú tinha 39 anexos)', () => {
+  const link = 'https://drive.google.com/file/d/hiscre24/view';
+  const repetidos = [110, 111, 112].map((caso, i) => doc(950 + i, 'historico-creditos (24).pdf', null, { case_id: caso, file_url: link }));
+  const l = montarLote({ cliente: 'Fulano', acoes, documentos: [...docs, ...repetidos, doc(960, 'RG (2).pdf', null, { duplicado_de: 563 })] });
+  assert.strictEqual(l.documentos.filter((d) => d.original === 'historico-creditos (24).pdf').length, 2, 'o 618 (sem link) e um só dos três do Drive');
+  assert.ok(!l.documentos.some((d) => d.docId === 960), 'o já marcado como repetido não aparece');
+  for (const a of l.acoes) assert.strictEqual(a.kit.filter((k) => k.original === 'historico-creditos (24).pdf').length, 2, `${a.id}`);
+});
+
+test('apresentação: assunto, bancos, relato e o próximo passo (travado pelo extrato do INSS)', () => {
+  const comRelato = acoes.map((a, i) => i === 1 ? { ...a, relato: '  Aposentado, percebeu descontos de vários bancos no benefício.  ' } : a);
+  const l = montarLote({ cliente: 'Fulano', acoes: comRelato, documentos: docs });
+  const ap = l.apresentacao;
+  assert.match(ap.assunto, /benefício do INSS/);
+  assert.match(ap.assunto, /Empréstimo consignado/);
+  assert.match(ap.assunto, /Cartão consignado/);
+  assert.deepStrictEqual(ap.bancos, ['Banco Itaú S.A.', 'Banco Pine S.A.', 'Banco Banrisul S.A.', 'Banco C6 Consignado', 'Banco PAN S.A.', 'Facta Financeira S.A.']);
+  assert.strictEqual(ap.relato, 'Aposentado, percebeu descontos de vários bancos no benefício.');
+  assert.strictEqual(ap.proximo.tipo, 'trava');
+  assert.match(ap.proximo.texto, /Extrato de empréstimos consignados do INSS/);
+});
+
+test('apresentação: sem trava, o próximo passo diz quais peças gerar, revisar ou protocolar', () => {
+  const completos = [...docs, doc(700, 'extrato_emprestimo_consignado_completo.pdf'), doc(701, 'comprovante de residencia.pdf')];
+  const l = montarLote({ cliente: 'Fulano', acoes, documentos: completos });
+  assert.strictEqual(l.apresentacao.proximo.tipo, 'gerar');
+  assert.match(l.apresentacao.proximo.texto, /5 ações/);
+  assert.match(l.apresentacao.proximo.texto, /Banco Pine S\.A\./);
+  const so2 = montarLote({ cliente: 'Fulano', acoes: acoes.slice(0, 1), documentos: completos });
+  assert.strictEqual(so2.apresentacao.proximo.tipo, 'revisar');
+  const final = montarLote({ cliente: 'Fulano', acoes: acoes.slice(0, 1), documentos: completos.map((d) => d.id === 636 ? { ...d, final_em: '2026-10-31' } : d) });
+  assert.strictEqual(final.apresentacao.proximo.tipo, 'protocolar');
+  assert.strictEqual(final.apresentacao.relato, null);
+});
+
+test('apresentação: sem ponto dobrado quando o último banco termina em "S.A."', () => {
+  const l = montarLote({ cliente: 'Fulano', acoes, documentos: [...docs, doc(700, 'extrato_emprestimo_consignado_completo.pdf'), doc(701, 'comprovante de residencia.pdf')] });
+  assert.match(l.apresentacao.proximo.texto, /Facta Financeira S\.A\.$/);
+});

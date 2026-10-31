@@ -123,7 +123,7 @@ async function fontes(caseIds: number[], principal: CasoEsteira): Promise<Fonte[
   // Também os documentos guardados só no cliente (sem caso), que a análise da Dra. Helena já via.
   const [docs] = await db.query(
     `SELECT id, case_id, name, content, mime, (data IS NOT NULL) AS tem_arquivo FROM documents
-      WHERE (case_id IN (?) OR (case_id IS NULL AND ? IS NOT NULL AND client_id = ?)) AND ${filtroGeradas} ORDER BY id ASC`,
+      WHERE (case_id IN (?) OR (case_id IS NULL AND ? IS NOT NULL AND client_id = ?)) AND duplicado_de IS NULL AND ${filtroGeradas} ORDER BY id ASC`,
     [caseIds, principal.client_id, principal.client_id, ...PECAS_GERADAS]) as any;
   let arquivos = 0;
   for (const d of docs) {

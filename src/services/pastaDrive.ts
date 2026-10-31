@@ -9,16 +9,19 @@
  * Dependências injetadas (Drive, banco, IA): a ligação real fica em pastaDriveMysql.ts.
  */
 
-export type ArquivoDrive = { id: string; name: string; mimeType: string };
+/** md5Checksum: o conteúdo do arquivo segundo o Drive (não vem nos documentos nativos do Google). */
+export type ArquivoDrive = { id: string; name: string; mimeType: string; md5Checksum?: string | null };
 
 export type DepsPastaDrive = {
   /** Filhos diretos da pasta (arquivos e subpastas). Lança erro se o Google recusar. */
   listarFilhos(pastaId: string): Promise<ArquivoDrive[]>;
-  /** O caso já tem documento com esse nome (ou com esse nome de chegada)? */
-  jaTem(caseId: number, nome: string): Promise<boolean>;
+  /** O cliente já tem este arquivo (mesmo ID ou conteúdo em qualquer ação; mesmo nome nesta ação)? */
+  jaTem(caseId: number, nome: string, arquivo: ArquivoDrive): Promise<boolean>;
   /** Baixa e lê o arquivo; null quando não é legível (vídeo, planilha...). */
   ler(arquivo: ArquivoDrive): Promise<string | null>;
-  gravar(doc: { caseId: number; clientId: number | null; nome: string; link: string; conteudo: string | null; actorId: number }): Promise<void>;
+  gravar(doc: { caseId: number; clientId: number | null; nome: string; link: string; conteudo: string | null; actorId: number; md5: string | null }): Promise<void>;
+  /** Todos os arquivos vistos na pasta (para guardar o md5 nos documentos antigos). */
+  vistos?(arquivos: ArquivoDrive[]): Promise<void>;
 };
 
 const MIME_PASTA = 'application/vnd.google-apps.folder';
@@ -62,7 +65,8 @@ export function erroDoDrive(e: any, contaCrm?: string | null): string {
   return `Não consegui ler a pasta do Drive: ${msg || 'erro desconhecido'}`;
 }
 
-export type ResultadoPasta = { novos: string[]; erro?: string };
+/** repetidos: cópias de um arquivo da própria pasta (mesmo conteúdo, outro nome), que não entram. */
+export type ResultadoPasta = { novos: string[]; repetidos?: string[]; erro?: string };
 
 /** Andamento para a barra da tela: (vistos, total, arquivo que está sendo lido ou null). */
 export type ProgressoPasta = (feito: number, total: number, nome: string | null) => void;
@@ -79,17 +83,22 @@ export async function sincronizarPasta(
   try { arquivos = await listarPasta(deps.listarFilhos, pastaId); }
   catch (e) { return { novos: [], erro: erroDoDrive(e, contaCrm) }; }
 
-  const novos: string[] = [];
+  try { await deps.vistos?.(arquivos); } catch { /* só o md5 dos antigos */ }
+  const novos: string[] = [], repetidos: string[] = [];
+  const conteudos = new Set<string>();
   const avisar: ProgressoPasta = (a, b, c) => { try { progresso?.(a, b, c); } catch { /* a barra nunca derruba a leitura */ } };
   avisar(0, arquivos.length, null);
   for (const [i, f] of arquivos.entries()) {
-    if (await deps.jaTem(caso.caseId, f.name)) continue;
+    const md5 = f.md5Checksum ? String(f.md5Checksum).toLowerCase() : null;
+    if (md5 && conteudos.has(md5)) { repetidos.push(f.name); continue; }
+    if (md5) conteudos.add(md5);
+    if (await deps.jaTem(caso.caseId, f.name, f)) continue;
     avisar(i, arquivos.length, f.name);
     let conteudo: string | null = null;
     try { conteudo = await deps.ler(f); } catch { conteudo = null; } // fica o link; a leitura tenta de novo depois
-    await deps.gravar({ caseId: caso.caseId, clientId: caso.clientId, nome: f.name, link: `https://drive.google.com/file/d/${f.id}/view`, conteudo, actorId: caso.actorId });
+    await deps.gravar({ caseId: caso.caseId, clientId: caso.clientId, nome: f.name, link: `https://drive.google.com/file/d/${f.id}/view`, conteudo, actorId: caso.actorId, md5 });
     novos.push(f.name);
   }
   avisar(arquivos.length, arquivos.length, null);
-  return { novos };
+  return { novos, repetidos };
 }

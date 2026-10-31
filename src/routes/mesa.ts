@@ -28,8 +28,10 @@ async function documentosDoCaso(caseId: number) {
     `SELECT id, case_id, name, type, status, created_at, updated_at, visible_to_client, versao_de, final_em, file_url,
             (content IS NOT NULL AND content <> '') AS tem_texto, (data IS NOT NULL) AS tem_arquivo
        FROM documents
-      WHERE case_id = ? OR id IN (SELECT document_id FROM pecas_conjuntas WHERE case_id = ?)
-      ORDER BY id ASC`, [caseId, caseId]) as any;
+      WHERE (case_id = ? OR id IN (SELECT document_id FROM pecas_conjuntas WHERE case_id = ?)
+             OR (case_id IS NULL AND client_id = (SELECT client_id FROM cases WHERE id = ?)))
+        AND duplicado_de IS NULL
+      ORDER BY id ASC`, [caseId, caseId, caseId]) as any;
   return rows as any[];
 }
 

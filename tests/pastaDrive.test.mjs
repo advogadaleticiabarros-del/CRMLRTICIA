@@ -86,3 +86,37 @@ test('sincronizarPasta: avisa o andamento arquivo a arquivo (barra da tela, 30/1
   assert.deepStrictEqual(passos.at(-1), [2, 2, null], 'por último: todos vistos');
   assert.ok(passos.some(([, , n]) => n === 'HISCON.pdf'), 'mostra o nome do arquivo que está lendo');
 });
+
+// ── Só o que falta (31/10/2026, caso do Valmirio: 52 documentos, cópias em cada ação) ──
+
+test('sincronizarPasta: cópias com o mesmo conteúdo na própria pasta entram uma vez só', async () => {
+  const gravados = [], vistos = [];
+  const deps = {
+    listarFilhos: async () => [
+      { id: 'h1', name: 'Histórico (2).pdf', mimeType: 'application/pdf', md5Checksum: 'aaa' },
+      { id: 'h2', name: 'Histórico (3).pdf', mimeType: 'application/pdf', md5Checksum: 'aaa' },
+      { id: 'h3', name: 'historico-creditos (25).pdf', mimeType: 'application/pdf', md5Checksum: 'bbb' },
+    ],
+    jaTem: async () => false,
+    ler: async (f) => `texto de ${f.name}`,
+    gravar: async (d) => { gravados.push(d.nome); },
+    vistos: async (arqs) => { vistos.push(...arqs.map((a) => a.id)); },
+  };
+  const r = await sincronizarPasta(deps, { caseId: 115, clientId: 9, folderUrl: '', actorId: 1, pastaId: 'raiz' });
+  assert.deepStrictEqual(gravados, ['Histórico (2).pdf', 'historico-creditos (25).pdf']);
+  assert.deepStrictEqual(r.repetidos, ['Histórico (3).pdf']);
+  assert.deepStrictEqual(vistos, ['h1', 'h2', 'h3'], 'o md5 dos arquivos vistos é guardado para reconhecer os antigos');
+});
+
+test('sincronizarPasta: a conferência recebe o arquivo inteiro (ID e conteúdo), não só o nome', async () => {
+  const perguntas = [];
+  const deps = {
+    listarFilhos: async () => [{ id: 'x1', name: 'RG.pdf', mimeType: 'application/pdf', md5Checksum: 'ccc' }],
+    jaTem: async (caseId, nome, f) => { perguntas.push([caseId, nome, f.id, f.md5Checksum]); return true; },
+    ler: async () => { throw new Error('não devia ler o que já existe'); },
+    gravar: async () => { throw new Error('não devia gravar'); },
+  };
+  const r = await sincronizarPasta(deps, { caseId: 112, clientId: 9, folderUrl: '', actorId: 1, pastaId: 'raiz' });
+  assert.deepStrictEqual(perguntas, [[112, 'RG.pdf', 'x1', 'ccc']]);
+  assert.deepStrictEqual(r.novos, []);
+});

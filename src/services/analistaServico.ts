@@ -42,7 +42,7 @@ async function arquivosDoCliente(clientId: number, caseId: number, phone: string
   // Guardados no CRM ou só com o link do Drive (pasta do caso): os do Drive são baixados na leitura.
   const [docs] = await db.query(
     `SELECT id, name, mime, LENGTH(data) AS tam, (data IS NOT NULL) AS tem_arquivo, file_url FROM documents
-      WHERE (client_id = ? OR case_id = ?) AND (data IS NOT NULL OR file_url LIKE '%drive.google.com%')
+      WHERE (client_id = ? OR case_id = ?) AND duplicado_de IS NULL AND (data IS NOT NULL OR file_url LIKE '%drive.google.com%')
       ORDER BY created_at DESC LIMIT ?`, [clientId, caseId, MAX_ARQUIVOS * 3]).catch(() => [[]]) as any;
   let n = 0;
   for (const d of docs) {

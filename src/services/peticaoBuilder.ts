@@ -1,7 +1,8 @@
 import { db } from '../config/database';
 import { aiComplete, aiLerArquivo } from './aiAssistant';
 import { driveFileId, downloadDriveFile, listarFilhosDrive, contaGoogleDoCrm } from './partnerInboxService';
-import { sincronizarPasta, type DepsPastaDrive, type ResultadoPasta, type ProgressoPasta } from './pastaDrive';
+import { sincronizarPasta, idDaPasta, type DepsPastaDrive, type ResultadoPasta, type ProgressoPasta } from './pastaDrive';
+import { clienteJaTem, registrarMd5DoDrive, organizarDuplicados } from './documentosDuplicadosMysql';
 import { produzirPeticao } from './esteiraPeca';
 import { depsEsteiraMysql, cacheLeiturasMysql } from './esteiraPecaMysql';
 import { lerUmaVez, refDoConteudo } from './leituraUnica';
@@ -55,10 +56,12 @@ async function lerArquivoDoDrive(file: { base64: string; mimeType: string }, nom
 
 /** Lê os anexos do caso (que ainda não têm texto) com a IA e salva o conteúdo. */
 export async function extractCaseDocuments(caseId: number, progresso?: (feito: number, total: number, nome: string) => void): Promise<number> {
+  // Também os do cliente (sem ação), que valem para todas; os repetidos nunca são lidos (31/10/2026).
   const [docs] = await db.query(
     `SELECT id, name, file_url FROM documents
-      WHERE case_id = ? AND file_url IS NOT NULL AND file_url <> '' AND (content IS NULL OR content = '')
-      ORDER BY id ASC LIMIT 20`, [caseId]
+      WHERE (case_id = ? OR (case_id IS NULL AND client_id = (SELECT client_id FROM cases WHERE id = ?)))
+        AND duplicado_de IS NULL AND file_url IS NOT NULL AND file_url <> '' AND (content IS NULL OR content = '')
+      ORDER BY id ASC LIMIT 20`, [caseId, caseId]
   ) as any;
   let n = 0;
   for (const [i, d] of (docs || []).entries()) {
@@ -81,17 +84,37 @@ export async function extractCaseDocuments(caseId: number, progresso?: (feito: n
 
 /**
  * Importa os arquivos de uma PASTA do Drive indicada no caso: baixa, lê com IA
- * e grava como documentos do caso (com conteúdo). Dedup por nome. Requer o
- * escopo drive.readonly (a advogada reconecta o Google para conceder).
+ * e grava como documentos (com conteúdo). Só entra o que o cliente ainda não tem
+ * (31/10/2026, caso do Valmirio): mesmo arquivo do Drive ou mesmo conteúdo em qualquer
+ * ação dele, ou mesmo nome nesta ação. A pasta usada por mais de uma ação do cliente
+ * grava no cliente (vale para todas). Uma leitura por cliente de cada vez: o botão e a
+ * leitura automática ao mesmo tempo gravavam o mesmo arquivo duas vezes.
+ * Requer o escopo drive.readonly (a advogada reconecta o Google para conceder).
  */
-export async function importDriveFolder(caseId: number, clientId: number | null, folderUrl: string, actorId: number, progresso?: ProgressoPasta): Promise<ResultadoPasta> {
+const filaPorCliente = new Map<string, Promise<unknown>>();
+
+export function importDriveFolder(caseId: number, clientId: number | null, folderUrl: string, actorId: number, progresso?: ProgressoPasta): Promise<ResultadoPasta> {
+  const chave = clientId ? `cliente:${clientId}` : `caso:${caseId}`;
+  const antes = filaPorCliente.get(chave) || Promise.resolve();
+  const agora = antes.catch(() => null).then(() => importarPasta(caseId, clientId, folderUrl, actorId, progresso));
+  filaPorCliente.set(chave, agora);
+  agora.finally(() => { if (filaPorCliente.get(chave) === agora) filaPorCliente.delete(chave); }).catch(() => null);
+  return agora;
+}
+
+async function importarPasta(caseId: number, clientId: number | null, folderUrl: string, actorId: number, progresso?: ProgressoPasta): Promise<ResultadoPasta> {
+  const pastaId = idDaPasta(folderUrl);
+  let pastaDoCliente = false;
+  if (clientId && pastaId) {
+    const [[outra]] = await db.query(
+      'SELECT id FROM cases WHERE client_id = ? AND id <> ? AND drive_folder_url LIKE ? LIMIT 1',
+      [clientId, caseId, `%${pastaId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`]) as any;
+    pastaDoCliente = !!outra;
+  }
   const deps: DepsPastaDrive = {
     listarFilhos: listarFilhosDrive,
-    // Também pelo nome de chegada: o card do cliente pode ter dado o nome padrão ao documento (30/10/2026).
-    jaTem: async (id, nome) => {
-      const [[dup]] = await db.query('SELECT id FROM documents WHERE case_id = ? AND (name = ? OR nome_original = ?) LIMIT 1', [id, nome, nome]) as any;
-      return !!dup;
-    },
+    jaTem: (id, _nome, f) => clienteJaTem(clientId, id, f),
+    vistos: (arquivos) => registrarMd5DoDrive(clientId, caseId, arquivos),
     // Formato não legível (vídeo, planilha...) entra só com o link.
     ler: async (f) => {
       if (!READABLE(f.mimeType)) return null;
@@ -103,13 +126,16 @@ export async function importDriveFolder(caseId: number, clientId: number | null,
     },
     gravar: async (d) => {
       await db.query(
-        `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, content, status, created_by)
-         VALUES (?, ?, ?, 'anexo', 'processos', ?, ?, 'recebido', ?)`,
-        [d.clientId, d.caseId, d.nome, d.link, d.conteudo, d.actorId]
+        `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, content, status, created_by, drive_md5)
+         VALUES (?, ?, ?, 'anexo', 'processos', ?, ?, 'recebido', ?, ?)`,
+        [d.clientId, pastaDoCliente ? null : d.caseId, d.nome, d.link, d.conteudo, d.actorId, d.md5]
       );
     },
   };
-  return sincronizarPasta(deps, { caseId, clientId, folderUrl, actorId }, await contaGoogleDoCrm(), progresso);
+  const r = await sincronizarPasta(deps, { caseId, clientId, folderUrl, actorId }, await contaGoogleDoCrm(), progresso);
+  // Os repetidos que já estavam (de antes desta regra) ficam marcados e saem da tela, do kit e das leituras.
+  if (clientId && !r.erro) await organizarDuplicados(clientId).catch((e) => console.warn('[pasta-drive] repetidos', clientId, e?.message || e));
+  return r;
 }
 
 /**
@@ -166,7 +192,9 @@ export async function analyzeCaseDrive(
   const clientId = cf.client_id ?? null;
   const [[cl]] = clientId ? await db.query('SELECT name, cpf_cnpj, email, phone, address FROM clients WHERE id = ?', [clientId]) as any : [[null]];
   const [docs] = await db.query(
-    "SELECT name, content FROM documents WHERE case_id = ? AND content IS NOT NULL AND content <> '' ORDER BY id ASC LIMIT 30", [caseId]
+    `SELECT name, content FROM documents
+      WHERE (case_id = ? OR (case_id IS NULL AND ? IS NOT NULL AND client_id = ?)) AND duplicado_de IS NULL
+        AND content IS NOT NULL AND content <> '' ORDER BY id ASC LIMIT 30`, [caseId, clientId, clientId]
   ) as any;
   const docsTxt = (docs || []).map((d: any) => `--- ${d.name} ---\n${String(d.content).slice(0, 4000)}`).join('\n\n').slice(0, 28000);
   const relato = cf.description || '';

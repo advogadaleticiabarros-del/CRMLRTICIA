@@ -455,7 +455,7 @@ export async function listDriveFolderFiles(folderId: string): Promise<{ id: stri
     do {
       const r = await drive.files.list({
         q: `'${folderId}' in parents and trashed=false and mimeType != 'application/vnd.google-apps.folder'`,
-        fields: 'nextPageToken, files(id, name, mimeType)', pageSize: 100, pageToken,
+        fields: 'nextPageToken, files(id, name, mimeType, md5Checksum)', pageSize: 100, pageToken,
       });
       for (const f of r.data.files || []) out.push(f);
       pageToken = r.data.nextPageToken || undefined;
@@ -465,7 +465,7 @@ export async function listDriveFolderFiles(folderId: string): Promise<{ id: stri
 }
 
 /** Filhos diretos (arquivos e subpastas) de uma pasta. Lança o erro do Google (ver pastaDrive.ts). */
-export async function listarFilhosDrive(folderId: string): Promise<{ id: string; name: string; mimeType: string }[]> {
+export async function listarFilhosDrive(folderId: string): Promise<{ id: string; name: string; mimeType: string; md5Checksum?: string | null }[]> {
   const auth = await authedClient();
   const drive = google.drive({ version: 'v3', auth });
   const out: any[] = [];
@@ -473,7 +473,7 @@ export async function listarFilhosDrive(folderId: string): Promise<{ id: string;
   do {
     const r = await drive.files.list({
       q: `'${folderId}' in parents and trashed=false`,
-      fields: 'nextPageToken, files(id, name, mimeType)', pageSize: 100, pageToken,
+      fields: 'nextPageToken, files(id, name, mimeType, md5Checksum)', pageSize: 100, pageToken,
       supportsAllDrives: true, includeItemsFromAllDrives: true,
     });
     for (const f of r.data.files || []) out.push(f);

@@ -365,6 +365,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 31/10/2026 | Claude | Documentos repetidos do cliente: arquivo do Drive já existente em qualquer ação (mesmo ID ou mesmo conteúdo/md5) não entra de novo; cópias "(2)" da pasta ficam de fora; o repetido é marcado (`documents.duplicado_de`, migration 176), não apagado, e sai da tela, do kit e das leituras |
 | 31/10/2026 | Claude | Análise da Dra. Helena: a leitura de cada documento leva a data de hoje (Brasília); "data futura" só é apontada se a data for mesmo posterior a hoje |
 | 31/10/2026 | Claude | Planilha da leitura separada por banco **e modalidade** (empréstimo consignado ≠ cartão RMC/RCC), igual às peças |
 | 31/10/2026 | Claude | Calculista na leitura: descontos do HISCRE ligados aos contratos do HISCON pela rubrica, parcela e período; planilha por banco salva na leitura; tudo em dobro (Tema 929 do STJ); juros pela Taxa Legal oficial do Bacen (SGS 29543); peça sem descontos não escreve R$ 0,00; revisão automática em toda versão nova; a peça lê também os documentos guardados só no cliente |

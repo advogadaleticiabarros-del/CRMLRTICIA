@@ -1,5 +1,6 @@
 import { reusDoCaso, familiaDaTese, normalizarNomeParte, NOME_FAMILIA, type Familia, type Parte } from './pecaConsolidacao';
 import { nucleoBanco, conferirPecasPorBanco, type ContratoSalvo, type ConferenciaPecas } from './contratosDoCaso';
+import { semDuplicados } from './documentosDuplicados';
 
 /**
  * Card único do cliente na produção (pedido da Jessica, 30/10/2026): "tudo centralizado
@@ -87,6 +88,8 @@ export interface DocLote {
   id: number; case_id: number | null; name: string; type: string | null; mime: string | null;
   content: string | null; has_data: boolean | number; file_url: string | null;
   versao_de?: number | null; final_em?: string | Date | null; created_at?: string | Date | null;
+  /** Conteúdo (md5) e marca de repetido: o mesmo arquivo em várias ações aparece uma vez (documentosDuplicados.ts). */
+  md5?: string | null; duplicado_de?: number | null;
 }
 
 export interface Classificacao { tipo: TipoDoc; rotulo: string; ordem: number; escopo: Escopo }
@@ -165,6 +168,8 @@ function requisitosComuns(familias: Array<Familia | null>): Falta[] {
 export interface AcaoLote {
   id: number; titulo: string | null; production_stage: string | null; case_number: string | null;
   legal_area: string | null; partes: Parte[];
+  /** Relato cadastrado no caso (para a introdução do card). */
+  relato?: string | null;
 }
 
 export type SituacaoAcao = 'faltam_documentos' | 'em_preparo' | 'revisar' | 'pronta' | 'protocolada' | 'recusada';
@@ -193,6 +198,46 @@ export interface Lote {
   resumo: { total: number; prontas: number; protocoladas: number; travadas: number };
   /** Cartões RMC/RCC lidos nos extratos × ações: uma peça por banco (contratosDoCaso.ts). */
   conferencia: ConferenciaPecas;
+  /** Introdução do caso, no topo do card (31/10/2026). */
+  apresentacao: Apresentacao;
+  /** Documentos repetidos que saíram da lista (o mesmo arquivo em mais de uma ação, ou cópia). */
+  repetidos: number;
+}
+
+export interface Apresentacao {
+  /** Do que se trata: "Descontos no benefício do INSS: Empréstimo consignado e Cartão consignado (RMC/RCC)". */
+  assunto: string;
+  /** Réus das ações abertas, na ordem das ações (uma peça por banco). */
+  bancos: string[];
+  /** O relato cadastrado (o primeiro que houver nas ações). */
+  relato: string | null;
+  /** O que fazer agora, para o card inteiro. */
+  proximo: { tipo: 'trava' | 'gerar' | 'revisar' | 'protocolar' | 'feito'; texto: string };
+}
+
+const listaPt = (xs: string[]) => xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} e ${xs[xs.length - 1]}`;
+
+export function apresentarCaso(acoes: AcaoMontada[], faltamComuns: Falta[]): Apresentacao {
+  const abertas = acoes.filter((a) => a.situacao !== 'recusada');
+  const familias = [...new Set(abertas.map((a) => a.familia).filter(Boolean) as Familia[])];
+  const nomes = familias.map((f) => NOME_FAMILIA[f]);
+  const consignado = familias.some((f) => CONSIGNADO.includes(f));
+  const areas = [...new Set(abertas.map((a) => a.legal_area).filter(Boolean))];
+  const assunto = consignado ? `Descontos no benefício do INSS: ${listaPt(nomes)}`
+    : nomes.length ? listaPt(nomes) : areas.length ? `Área: ${listaPt(areas as string[])}` : 'Assunto ainda não identificado';
+  const relato = abertas.map((a) => String(a.relato || '').replace(/\s+/g, ' ').trim()).find(Boolean) || null;
+  // Sem ponto dobrado quando o último banco termina em "S.A.".
+  const reus = (xs: AcaoMontada[]) => listaPt(xs.map((a) => a.reu || a.titulo || `caso #${a.id}`)).replace(/\.$/, '');
+  const qtd = (xs: AcaoMontada[]) => `${xs.length} ${xs.length === 1 ? 'ação' : 'ações'}`;
+  const trava = faltamComuns.find((f) => f.bloqueia);
+  const de = (sit: SituacaoAcao) => abertas.filter((a) => a.situacao === sit);
+  let proximo: Apresentacao['proximo'];
+  if (trava) proximo = { tipo: 'trava', texto: `Juntar o ${trava.rotulo}: ${trava.motivo}. Sem ele, nenhuma peça sai completa.` };
+  else if (de('em_preparo').length) proximo = { tipo: 'gerar', texto: `Gerar a peça de ${qtd(de('em_preparo'))}: ${reus(de('em_preparo'))}.` };
+  else if (de('revisar').length) proximo = { tipo: 'revisar', texto: `Revisar e marcar como versão final a peça de ${qtd(de('revisar'))}: ${reus(de('revisar'))}.` };
+  else if (de('pronta').length) proximo = { tipo: 'protocolar', texto: `Protocolar ${qtd(de('pronta'))}: ${reus(de('pronta'))}.` };
+  else proximo = { tipo: 'feito', texto: 'Todas as ações deste cliente já foram protocoladas.' };
+  return { assunto, bancos: abertas.filter((a) => a.situacao !== 'protocolada').map((a) => a.reu || a.titulo || `caso #${a.id}`), relato, proximo };
 }
 
 export const ETAPAS = ['em_analise', 'separacao_documentos', 'criacao_inicial', 'revisao_inicial', 'aguardando_protocolo', 'protocolado', 'concluido'];
@@ -211,7 +256,9 @@ const GERADOS_DA_ACAO: TipoDoc[] = ['planilha', 'demonstrativo'];
 const versaoDoNome = (nome: string) => Number(String(nome).match(/\(v(\d+)/)?.[1] || 0);
 
 export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: DocLote[]; contratos?: ContratoSalvo[] }): Lote {
-  const cls = e.documentos.map((d) => ({ d, c: classificarDocumento(d) }));
+  // Cada arquivo uma vez (31/10/2026): o mesmo arquivo do Drive em várias ações, ou cópia já marcada, sai da lista e do kit.
+  const unicos = semDuplicados(e.documentos);
+  const cls = unicos.map((d) => ({ d, c: classificarDocumento(d) }));
   const reuDe = new Map(e.acoes.map((a) => [a.id, String(reusDoCaso({ partes: a.partes, titulo: a.titulo })[0]?.nome || '') || null]));
   const idsAcoes = new Set(e.acoes.map((a) => a.id));
 
@@ -283,6 +330,8 @@ export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: 
       protocoladas: acoes.filter((a) => a.situacao === 'protocolada').length,
       travadas: acoes.filter((a) => a.situacao === 'faltam_documentos').length,
     },
+    apresentacao: apresentarCaso(acoes, faltamComuns),
+    repetidos: e.documentos.length - unicos.length,
     conferencia: conferirPecasPorBanco(e.contratos || [], e.acoes
       .filter((a) => a.production_stage !== 'recusado')
       .map((a) => ({ id: a.id, titulo: a.titulo, reus: reusDoCaso({ partes: a.partes, titulo: a.titulo }) }))),

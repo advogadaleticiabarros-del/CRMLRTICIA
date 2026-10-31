@@ -16,7 +16,7 @@ export async function carregarLote(clientId: number): Promise<Lote | null> {
   const [[cl]] = await db.query('SELECT id, name FROM clients WHERE id = ?', [clientId]) as any;
   if (!cl) return null;
   const [casos] = await db.query(
-    `SELECT id, title, production_stage, case_number, legal_area, unido_ao_caso
+    `SELECT id, title, description, production_stage, case_number, legal_area, unido_ao_caso
        FROM cases
       WHERE client_id = ? AND production_stage IS NOT NULL AND production_stage <> 'recusado'
         AND (production_stage NOT IN ('protocolado','concluido') OR protocoled_at IS NULL OR protocoled_at >= DATE_SUB(NOW(), INTERVAL 60 DAY))
@@ -28,11 +28,12 @@ export async function carregarLote(clientId: number): Promise<Lote | null> {
     ? await db.query("SELECT case_id, nome, cpf_cnpj FROM case_partes WHERE papel = 'contraria' AND case_id IN (?)", [ids]) as any
     : [[]];
   const acoes: AcaoLote[] = principais.map((c) => ({
-    id: c.id, titulo: c.title, production_stage: c.production_stage, case_number: c.case_number, legal_area: c.legal_area,
+    id: c.id, titulo: c.title, production_stage: c.production_stage, case_number: c.case_number, legal_area: c.legal_area, relato: c.description,
     partes: (partes as any[]).filter((p) => principalDe.get(p.case_id) === c.id).map((p) => ({ nome: p.nome, cpf_cnpj: p.cpf_cnpj })),
   }));
   const [docs] = await db.query(
-    `SELECT id, case_id, name, type, mime, LEFT(content, 4000) AS content, (data IS NOT NULL) AS has_data, file_url, versao_de, final_em, created_at
+    `SELECT id, case_id, name, type, mime, LEFT(content, 4000) AS content, (data IS NOT NULL) AS has_data, file_url, versao_de, final_em, created_at,
+            COALESCE(drive_md5, IF(data IS NULL, NULL, MD5(data))) AS md5, duplicado_de
        FROM documents
       WHERE (client_id = ? AND (case_id IS NULL OR case_id IN (?)))
       ORDER BY id`, [clientId, ids.length ? ids : [0]]) as any;
