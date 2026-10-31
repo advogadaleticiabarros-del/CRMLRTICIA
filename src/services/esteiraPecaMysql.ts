@@ -324,7 +324,7 @@ export async function guardarPlanilhasDoCliente(clientId: number, cliente: strin
 export const depsEsteiraMysql: DepsEsteira = {
   caso, candidatosCorrelatos, fontes, fontesDoCliente, leituraGuardada, guardarLeitura, catalogo, modelos, teses, fundamentos, regras, contratosSalvos, guardarContratos, acoesDoCliente, guardarPlanilhasDoCliente,
   indices: indicesDoBacen,
-  ia: (prompt, nivel) => aiComplete(prompt, nivel === 'redacao' ? 'openai-alto' : nivel === 'leitura' ? 'openai-medio' : 'openai'),
+  ia: (prompt, nivel) => aiComplete(prompt, nivel === 'redacao' ? 'openai-redacao' : nivel === 'leitura' ? 'openai-medio' : 'openai'),
   registrar: registrarAcaoAgente,
   hoje: () => new Date(),
 };

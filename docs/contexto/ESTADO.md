@@ -2,9 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 31/10/2026. Último commit: anexos do Drive transcritos na íntegra (Calculista do Itaú ainda dava R$ 0,00).
+**Última atualização:** 31/10/2026. Último commit: GPT-6 Sol só na redação da peça, GPT-6 Luna no resto.
 
 ## Últimas entregas (mais recentes primeiro)
+- **31/10 (9):** **IA paga por nível** (Jessica: "qualidade e economizar ao mesmo tempo"). A redação da peça vai para o **GPT-6 Sol** (≈ US$ 0,14 por peça); todo o resto para o **GPT-6 Luna**, mais barato que o 5.6. Se o modelo novo for recusado, cai sozinho no GPT-5.6 Luna (`openaiModelos.ts`, 10 testes). **Não verificado:** nomes dos modelos na API (chave local vencida; `.env` da VPS não lido). **Pendente:** conferir `OPENAI_MODEL` no `.env` da VPS (se for `gpt-5.6-luna`, remover) e, depois da próxima peça, ver se o painel de IA paga mostra uso `openai_smart`. Ver `docs/contexto/relatorios/2026-10-31-gpt6-sol-na-redacao.md`.
 - **31/10 (8):** **Demonstrativo do Itaú ainda com R$ 0,00 "mesmo com todos os documentos"** (Jessica, print do demonstrativo: contrato 632706066 sem inclusão, 0 meses).
   - Causa: os documentos do Valmirio são links do Drive, e o Drive era lido com um pedido de **resumo** em tópicos. Do extrato de empréstimos sobrava o cabeçalho, sem parcela, início e inclusão de cada contrato; do histórico de créditos, só alguns valores. O Calculista não tinha com o que ligar os descontos aos contratos. O resumo ficava guardado, então gerar de novo repetia o erro.
   - Agora todo PDF e foto (do Drive ou do CRM) é transcrito na íntegra (`transcricaoDocumento.ts`), e os resumos antigos de extratos são relidos na próxima leitura do caso. Demonstrativo: "A restituir (em dobro)", pelo Tema 929. 5 testes novos.

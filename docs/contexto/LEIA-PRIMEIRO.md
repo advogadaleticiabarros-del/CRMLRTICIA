@@ -17,7 +17,7 @@
 - **Testes:** `npm run build` e depois `npm test` (node:test, arquivos `tests/*.test.mjs`, que leem de `dist/`). Hoje: cerca de 805 testes, 0 falhas. Nunca entregue com teste falhando.
 - **Manual vivo:** `docs/manual/` (00–17). O espelho de leitura no Obsidian fica em `C:\Users\prosy\Documents\CRM LETICIA\CRMLeticia\Documentação Técnica\`.
 - **WhatsApp:** Uazapi, número do escritório (27) 99515-1402. Webhook em `src/routes/whatsapp-webhook.ts`.
-- **IA:** `src/services/aiAssistant.ts`. Gemini (às vezes sem cota), Groq (limite gratuito por minuto) e OpenAI GPT-5.6 Luna (reserva/principal do assistente; barato).
+- **IA:** `src/services/aiAssistant.ts`. Gemini (às vezes sem cota), Groq (limite gratuito por minuto) e OpenAI por nível (`openaiModelos.ts`, desde 31/10/2026): GPT-6 Luna barato para quase tudo e GPT-6 Sol só na redação da peça; modelo recusado cai no GPT-5.6 Luna.
 
 ## Regras de trabalho (obrigatórias)
 1. **Commit + push automáticos** ao fim de toda alteração, sem perguntar. Depois acompanhe o deploy e avise se falhar. Mensagem de commit em português, terminando com `Co-Authored-By`.

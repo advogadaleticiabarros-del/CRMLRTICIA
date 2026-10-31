@@ -1,6 +1,7 @@
 import { db } from '../config/database';
 import { parseMovimentacaoJson, PROMPT_MOVIMENTACAO_JSON } from './movimentacaoIa';
 import { registrarUsoIa, registrarAcaoAgente } from './usoIa';
+import { criarChamadaOpenAI } from './openaiModelos';
 import { PERGUNTAS_LEAD, lerQualificacaoLaya, perguntarLaya, depsLayaPadrao } from './laya';
 
 /**
@@ -20,7 +21,7 @@ import { PERGUNTAS_LEAD, lerQualificacaoLaya, perguntarLaya, depsLayaPadrao } fr
  * explicitamente preferido, nunca entra no fallback automático de
  * gemini/groq (que seguem grátis e são a base padrão do escritório).
  */
-type Provider = 'gemini' | 'groq' | 'openai' | 'openai-smart' | 'openai-medio' | 'openai-alto';
+type Provider = 'gemini' | 'groq' | 'openai' | 'openai-smart' | 'openai-medio' | 'openai-alto' | 'openai-redacao';
 
 async function callGemini(prompt: string, json = false): Promise<{ ok: boolean; text?: string; message?: string }> {
   const key = process.env.GEMINI_API_KEY;
@@ -60,47 +61,38 @@ async function callGroq(prompt: string, json = false): Promise<{ ok: boolean; te
   return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
 }
 
-// Dois níveis de modelo OpenAI (GPT-5.6), conforme decidido com a advogada:
-// LUNA é o padrão pra praticamente tudo (US$0,20/US$1,20 por milhão de
-// tokens — barato o bastante pra usar com liberdade); SOL só entra quando
-// alguém pedir explicitamente o nível mais forte pra um caso "muito
-// extremo" (nenhum ponto do sistema escala pra SOL sozinho hoje).
-// Esforço de raciocínio da LUNA: 'low' no dia a dia; 'medium' para ler
-// documentos e extrair números; 'high' para redigir a petição inicial.
-async function callOpenAI(prompt: string, tier: 'default' | 'smart' = 'default', esforco: 'low' | 'medium' | 'high' = 'low'): Promise<{ ok: boolean; text?: string; message?: string }> {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key) return { ok: false, message: 'sem_openai' };
-  const model = tier === 'smart'
-    ? (process.env.OPENAI_MODEL_SMART || 'gpt-5.6-sol')
-    : (process.env.OPENAI_MODEL || 'gpt-5.6-luna');
-  const body: Record<string, unknown> = { model, messages: [{ role: 'user', content: prompt }] };
-  if (tier === 'default') body.reasoning_effort = esforco;
-  const r = await fetch('https://api.openai.com/v1/chat/completions', {
-    method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-    body: JSON.stringify(body),
-  });
-  const d: any = await r.json();
-  if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro OpenAI' };
-  registrarUsoIa(tier === 'smart' ? 'openai_smart' : 'openai');
-  return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
-}
+// Modelos da OpenAI por nível (openaiModelos.ts, decisão de 31/10/2026): GPT-6 Luna barato
+// pra tudo, com esforço 'low' no dia a dia, 'medium' pra ler documentos e extrair números e
+// 'high' pra textos longos; GPT-6 Sol só na redação da peça ('redacao') ou quando alguém
+// pedir o nível mais forte. Modelo recusado cai sozinho no GPT-5.6 Luna/Sol de antes.
+const chamarOpenAI = criarChamadaOpenAI({
+  chave: () => process.env.OPENAI_API_KEY,
+  env: () => process.env,
+  enviar: async (body) => {
+    const r = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: JSON.stringify(body),
+    });
+    return { ok: r.ok, status: r.status, dados: await r.json().catch(() => ({})) };
+  },
+  registrar: registrarUsoIa,
+});
 
 /**
  * Executa um prompt no provedor preferido, com fallback automático no outro.
  * @param prefer  'gemini' para redigir peças, 'groq' para análise/triagem,
- *                'openai' (GPT-5.6 Luna) e 'openai-smart' (GPT-5.6 Sol) —
+ *                'openai*' (GPT-6 Luna por esforço; 'openai-redacao' e 'openai-smart' no GPT-6 Sol) —
  *                sem fallback automático de/para gemini/groq nesses casos.
  */
 export async function aiComplete(
   prompt: string,
   prefer: Provider = 'gemini'
 ): Promise<{ ok: boolean; text?: string; message?: string }> {
-  if (prefer === 'openai' || prefer === 'openai-smart') {
-    const r = await callOpenAI(prompt, prefer === 'openai-smart' ? 'smart' : 'default');
-    return r;
-  }
-  if (prefer === 'openai-medio') return callOpenAI(prompt, 'default', 'medium');
-  if (prefer === 'openai-alto') return callOpenAI(prompt, 'default', 'high');
+  if (prefer === 'openai') return chamarOpenAI(prompt, 'baixo');
+  if (prefer === 'openai-medio') return chamarOpenAI(prompt, 'medio');
+  if (prefer === 'openai-alto') return chamarOpenAI(prompt, 'alto');
+  if (prefer === 'openai-redacao') return chamarOpenAI(prompt, 'redacao');
+  if (prefer === 'openai-smart') return chamarOpenAI(prompt, 'forte');
   const order: Provider[] = prefer === 'groq' ? ['groq', 'gemini'] : ['gemini', 'groq'];
   let lastMsg = 'sem_chave';
   for (const p of order) {
