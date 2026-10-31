@@ -39,3 +39,11 @@ Jessica: "Você consegue fazer uma pesquisa minuciosa sobre montagem de peças i
   - calculadora de valor da causa com teto do JEC e do JEF;
   - aviso de temas suspensos (Tema 1.414) antes de gerar a peça.
 - Skills: `domain-modeling`, `tdd`, `codebase-design`, `verification-before-completion`.
+
+## Atualização (mesmo dia)
+- **Decisão da Jessica:** as ações de RMC **continuam sendo protocoladas** mesmo com a suspensão do Tema 1.414. A regra entrou em `docs/contexto/LEIA-PRIMEIRO.md` (regras do negócio).
+- As demais decisões (dobro do Calculista e regras novas na esteira) ficam para depois.
+- Pesquisa guardada:
+  - no git;
+  - na memória do Claude;
+  - numa cópia de leitura no Obsidian, em `Pesquisas/Produção de peças processuais (31-10-2026).md`.

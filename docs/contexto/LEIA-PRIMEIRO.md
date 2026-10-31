@@ -40,6 +40,7 @@
 - **Parceria INFINITY LAW** (`partners.id=1`): 30% divididos em 15% dela e 15% da parceira; a entrada é do escritório. A provisão separa "seu" e "da parceira".
 - **Prints/PDFs de processo que ela manda:** cadastre processo, ficha, partes e valores e anexe o documento. **Não crie prazos, tarefas nem agenda**: o monitoramento automático faz isso.
 - **Uma peça por banco:** RMC e RCC do mesmo banco vão na mesma peça; de bancos diferentes (RMC de um, RCC de outro), peças diferentes. A leitura dos extratos confere isso (`conferirPecasPorBanco`).
+- **RMC e o Tema 1.414/STJ (decisão de 31/10/2026):** as ações de RMC continuam sendo protocoladas mesmo com a suspensão nacional; não bloquear a produção por isso. Base de regras para montar peças: `docs/pesquisas/2026-10-31-producao-pecas-processuais.md`.
 - **Uma pessoa, uma ficha:** nunca duplique (busque por CPF e por nome); processo novo vai na ficha existente. Parte contrária vai em `case_partes`, nunca vira cliente. Todo lançamento financeiro fica ligado ao caso, com o nº do processo.
 - **Ficha completa:** use tudo o que vier (CPF, endereço com CEP, telefone, e-mail, nascimento, profissão nas `notes`) e sempre o `valor_causa`.
 - **Repasses de processos arquivados** já foram feitos: marque como repassado, sem perguntar.
