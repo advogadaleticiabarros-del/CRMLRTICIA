@@ -295,6 +295,10 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Decisão:** o documento repetido do cliente fica **marcado** (`documents.duplicado_de`) e sai da tela, do kit e das leituras; nunca é apagado. "Mesmo arquivo" é o mesmo ID do Drive ou o mesmo md5 (conteúdo idêntico), em qualquer ação do cliente. O **nome** igual só conta dentro da própria ação. O arquivo que está em mais de uma ação passa a ser do cliente (`case_id` NULL). A introdução do card do cliente ("Sobre o caso") é montada pelas regras, sem IA.
 **Motivo:** marcar dá para desfazer e não perde documento por engano de comparação. Nome igual em pastas de bancos diferentes pode ser arquivo diferente. A esteira, a análise e a Mesa já leem os documentos do cliente para todas as ações, então uma linha só basta, sem copiar o documento por ação. A introdução pelas regras é instantânea, não custa leitura e não inventa fatos.
 
+### 31/10/2026 — "Sobre o caso" sai do que foi lido, nunca da descrição de uma ação
+**Decisão:** a síntese do card do cliente é montada pelas regras a partir dos contratos do extrato de empréstimos (`cliente_contratos`), da ficha de fatos da leitura única (descontos, triagem, fatos, pedidos, lacunas), do relato do atendimento (lead) e da origem (parceria, data do e-mail). Não usa IA para escrever o texto e não usa a descrição das ações.
+**Motivo:** a descrição de cada ação é gerada por banco a partir do e-mail do parceiro: mostrar uma delas descreve um pedaço do caso como se fosse o todo. Um resumo jurídico precisa de cada contrato com número, datas e parcela, e isso já está lido e guardado. Escrever pelas regras é instantâneo, não custa leitura e não inventa: o que não foi lido aparece como "ainda não lido".
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.
@@ -311,6 +315,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 31/10/2026 | Claude | "Sobre o caso" pelo que foi lido, nunca pela descrição de uma ação |
 | 31/10/2026 | Claude | Documentos repetidos marcados, não apagados; introdução do card do cliente pelas regras |
 | 31/10/2026 | Claude | Tema 929 (tudo em dobro), Taxa Legal oficial do Bacen e Calculista na leitura (HISCON × HISCRE em código) |
 | 30/10/2026 | Claude | Geração da peça registrada no banco e retomada depois de reinício (máx. 2 vezes) |

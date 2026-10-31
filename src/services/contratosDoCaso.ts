@@ -19,9 +19,30 @@ export interface Situacao { entra: boolean; origem: 'dra' | 'automatica'; motivo
 /** Palavras que não identificam o banco (além das que normalizarNomeParte já tira). */
 const GENERICO = new Set(['financeira', 'credito', 'financiamento', 'financiamentos', 'investimento', 'investimentos', 'consignado', 'consignados', 'sociedade', 'instituicao']);
 
+/**
+ * Nome jurídico (como vem no extrato de empréstimos do INSS) → nome conhecido (como a ação
+ * costuma chamar o réu). Sem isto, todo "Banco do Estado de ..." virava "estado" e os bancos
+ * estaduais se confundiam entre si e não batiam com "Banrisul", "Banese"... (31/10/2026).
+ * Testado já normalizado (sem acento, sem "banco", "do", "de", "S.A.").
+ */
+const APELIDOS: Array<[RegExp, string]> = [
+  [/\bestado rio grande sul\b|\bbanrisul\b/, 'banrisul'],
+  [/\bestado sergipe\b|\bbanese\b/, 'banese'],
+  [/\bestado para\b|\bbanpara\b/, 'banpara'],
+  [/\bestado espirito santo\b|\bbanestes\b/, 'banestes'],
+  [/^brasilia\b|\bbrb\b/, 'brb'],
+  [/\bnordeste brasil\b|^bnb\b|\bbnb\b/, 'bnb'],
+  [/\bamazonia\b|\bbasa\b/, 'basa'],
+  [/\bcaixa economica federal\b|^caixa\b|\bcef\b/, 'caixa'],
+  [/\bcooperativo sicredi\b|\bsicredi\b/, 'sicredi'],
+  [/\bcooperativo (brasil|sicoob)\b|\bsicoob\b|\bbancoob\b/, 'sicoob'],
+];
+
 /** O que identifica o banco: o 1º nome que sobra ("Itaú Consignado S.A." → "itau"). */
 export function nucleoBanco(nome: string | null | undefined): string {
-  const tokens = normalizarNomeParte(nome).split(' ').filter(Boolean);
+  const norm = normalizarNomeParte(nome);
+  for (const [re, apelido] of APELIDOS) if (re.test(norm)) return apelido;
+  const tokens = norm.split(' ').filter(Boolean);
   const proprios = tokens.filter((t) => !GENERICO.has(t));
   return (proprios[0] || tokens[0] || '');
 }

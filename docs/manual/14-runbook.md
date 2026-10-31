@@ -16,6 +16,13 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: "Sobre o caso" mostrava só o Itaú; bancos estaduais confundidos entre si (31/10/2026)
+
+**Sintoma:** no card do Valmirio (6 bancos), o "Sobre o caso" mostrava "Descontos indevidos... pelo Banco Itaú S.A. · Tipo: empréstimo consignado".
+**Causa raiz:** a 1ª versão do bloco usava a descrição da primeira ação, que a IA gerou a partir do e-mail do parceiro, uma por banco. Ao refazer a síntese com os contratos do extrato, apareceu um 2º defeito: `nucleoBanco` (`contratosDoCaso.ts`) reduzia todo "Banco do Estado de ..." a "estado". O extrato do INSS traz o nome jurídico ("BANCO DO ESTADO DO RIO GRANDE DO SUL S.A."), então o contrato do Banrisul não batia com a ação "Banco Banrisul S.A." e, pior, Banrisul, Banese e Banpará eram tratados como o mesmo banco na conferência "uma peça por banco" e na escolha dos contratos de cada peça.
+**Correção:** síntese do cliente inteiro pelo que foi lido (`sinteseCaso.ts`); tabela de nomes jurídicos → nome conhecido em `nucleoBanco` (Banrisul, Banese, Banpará, Banestes, BRB, BNB, Basa, Caixa, Sicredi, Sicoob), com testes em `tests/contratosDoCaso.test.mjs`.
+**Se acontecer de novo:** banco que aparece como "sem ação" na síntese e cuja ação aparece "sem contrato" = o nome do extrato não bateu com o réu. Acrescente o nome jurídico em `APELIDOS` (`contratosDoCaso.ts`) com um teste.
+
 ## Incidente: documentos repetidos no card do cliente e 39 anexos no kit (31/10/2026)
 
 **Sintoma:** o card do Valmirio mostrava 52 documentos, com o mesmo "historico-creditos (24).pdf" duas vezes e várias cópias do histórico de créditos; o kit de cada banco tinha 39 anexos. Cada atualização da pasta podia trazer mais.

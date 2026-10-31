@@ -1,6 +1,8 @@
 import { db } from '../config/database';
 import { contratosSalvos } from './esteiraPecaMysql';
 import { montarLote, classificarDocumento, nomePadrao, type AcaoLote, type DocLote, type Lote } from './loteProducao';
+import { sintetizarCaso } from './sinteseCaso';
+import { fontesDaSintese } from './sinteseCasoMysql';
 import { textoDoDocx, idDoArquivoNoDrive, type ArquivoKit } from './kitProtocolo';
 import { downloadDriveFile } from './partnerInboxService';
 import { retirarSenhaInss } from './senhaInssCliente';
@@ -16,7 +18,7 @@ export async function carregarLote(clientId: number): Promise<Lote | null> {
   const [[cl]] = await db.query('SELECT id, name FROM clients WHERE id = ?', [clientId]) as any;
   if (!cl) return null;
   const [casos] = await db.query(
-    `SELECT id, title, description, production_stage, case_number, legal_area, unido_ao_caso
+    `SELECT id, title, production_stage, case_number, legal_area, unido_ao_caso
        FROM cases
       WHERE client_id = ? AND production_stage IS NOT NULL AND production_stage <> 'recusado'
         AND (production_stage NOT IN ('protocolado','concluido') OR protocoled_at IS NULL OR protocoled_at >= DATE_SUB(NOW(), INTERVAL 60 DAY))
@@ -28,7 +30,7 @@ export async function carregarLote(clientId: number): Promise<Lote | null> {
     ? await db.query("SELECT case_id, nome, cpf_cnpj FROM case_partes WHERE papel = 'contraria' AND case_id IN (?)", [ids]) as any
     : [[]];
   const acoes: AcaoLote[] = principais.map((c) => ({
-    id: c.id, titulo: c.title, production_stage: c.production_stage, case_number: c.case_number, legal_area: c.legal_area, relato: c.description,
+    id: c.id, titulo: c.title, production_stage: c.production_stage, case_number: c.case_number, legal_area: c.legal_area,
     partes: (partes as any[]).filter((p) => principalDe.get(p.case_id) === c.id).map((p) => ({ nome: p.nome, cpf_cnpj: p.cpf_cnpj })),
     unidos: (casos as any[]).filter((u) => u.unido_ao_caso === c.id).map((u) => ({ id: u.id, titulo: u.title })),
   }));
@@ -42,7 +44,14 @@ export async function carregarLote(clientId: number): Promise<Lote | null> {
   // Contrato posto num pedido unido conta na ação principal.
   const salvos = (await contratosSalvos(clientId).catch(() => []))
     .map((c) => ({ ...c, case_id: c.case_id == null ? null : (principalDe.get(c.case_id) ?? c.case_id) }));
-  return montarLote({ cliente: cl.name, acoes, documentos, contratos: salvos });
+  const lote = montarLote({ cliente: cl.name, acoes, documentos, contratos: salvos });
+  // "Sobre o caso" do cliente inteiro, pelo que foi lido (31/10/2026): nunca a descrição de uma ação só.
+  const fontes = await fontesDaSintese(clientId, ids).catch(() => ({ ficha: null, relatoCliente: null, origem: null }));
+  lote.sintese = sintetizarCaso({
+    cliente: cl.name, contratos: salvos, ...fontes,
+    acoes: lote.acoes.map((a) => ({ id: a.id, reu: a.reu, titulo: a.titulo, familia: a.familia, situacao: a.situacao })),
+  });
+  return lote;
 }
 
 /** Arquivo do kit: o guardado no CRM ou, se o documento veio do Google Drive (só o link), baixado de lá na hora. */

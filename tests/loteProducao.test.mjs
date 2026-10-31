@@ -216,15 +216,14 @@ test('lote: o mesmo arquivo do Drive em várias ações entra uma vez na lista e
   for (const a of l.acoes) assert.strictEqual(a.kit.filter((k) => k.original === 'historico-creditos (24).pdf').length, 2, `${a.id}`);
 });
 
-test('apresentação: assunto, bancos, relato e o próximo passo (travado pelo extrato do INSS)', () => {
-  const comRelato = acoes.map((a, i) => i === 1 ? { ...a, relato: '  Aposentado, percebeu descontos de vários bancos no benefício.  ' } : a);
-  const l = montarLote({ cliente: 'Fulano', acoes: comRelato, documentos: docs });
+test('apresentação: assunto, bancos e o próximo passo (travado pelo extrato do INSS); a descrição de uma ação não vira relato do caso', () => {
+  const l = montarLote({ cliente: 'Fulano', acoes, documentos: docs });
   const ap = l.apresentacao;
   assert.match(ap.assunto, /benefício do INSS/);
   assert.match(ap.assunto, /Empréstimo consignado/);
   assert.match(ap.assunto, /Cartão consignado/);
   assert.deepStrictEqual(ap.bancos, ['Banco Itaú S.A.', 'Banco Pine S.A.', 'Banco Banrisul S.A.', 'Banco C6 Consignado', 'Banco PAN S.A.', 'Facta Financeira S.A.']);
-  assert.strictEqual(ap.relato, 'Aposentado, percebeu descontos de vários bancos no benefício.');
+  assert.ok(!('relato' in ap), 'o relato do caso vem da síntese do cliente inteiro (sinteseCaso.ts)');
   assert.strictEqual(ap.proximo.tipo, 'trava');
   assert.match(ap.proximo.texto, /Extrato de empréstimos consignados do INSS/);
 });
@@ -239,7 +238,6 @@ test('apresentação: sem trava, o próximo passo diz quais peças gerar, revisa
   assert.strictEqual(so2.apresentacao.proximo.tipo, 'revisar');
   const final = montarLote({ cliente: 'Fulano', acoes: acoes.slice(0, 1), documentos: completos.map((d) => d.id === 636 ? { ...d, final_em: '2026-10-31' } : d) });
   assert.strictEqual(final.apresentacao.proximo.tipo, 'protocolar');
-  assert.strictEqual(final.apresentacao.relato, null);
 });
 
 test('apresentação: sem ponto dobrado quando o último banco termina em "S.A."', () => {

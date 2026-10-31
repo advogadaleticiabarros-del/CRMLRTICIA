@@ -1,6 +1,7 @@
 import { reusDoCaso, familiaDaTese, normalizarNomeParte, mesmaParte, NOME_FAMILIA, ETAPAS_ANTES_DO_PROTOCOLO, type Familia, type Parte } from './pecaConsolidacao';
 import { nucleoBanco, mesmoBanco, conferirPecasPorBanco, familiasDaAcao, type ContratoSalvo, type ConferenciaPecas } from './contratosDoCaso';
 import { semDuplicados } from './documentosDuplicados';
+import type { SinteseCaso } from './sinteseCaso';
 
 /**
  * Card único do cliente na produção (pedido da Jessica, 30/10/2026): "tudo centralizado
@@ -168,8 +169,6 @@ function requisitosComuns(familias: Array<Familia | null>): Falta[] {
 export interface AcaoLote {
   id: number; titulo: string | null; production_stage: string | null; case_number: string | null;
   legal_area: string | null; partes: Parte[];
-  /** Relato cadastrado no caso (para a introdução do card). */
-  relato?: string | null;
   /** Pedidos unidos a esta ação (processo único): seguem a etapa e a peça dela. */
   unidos?: Array<{ id: number; titulo: string | null }>;
 }
@@ -206,6 +205,8 @@ export interface Lote {
   apresentacao: Apresentacao;
   /** Documentos repetidos que saíram da lista (o mesmo arquivo em mais de uma ação, ou cópia). */
   repetidos: number;
+  /** Síntese do caso inteiro pelo que foi lido nos documentos (sinteseCaso.ts); posta pelo carregarLote. */
+  sintese?: SinteseCaso;
 }
 
 export interface Apresentacao {
@@ -213,8 +214,6 @@ export interface Apresentacao {
   assunto: string;
   /** Réus das ações abertas, na ordem das ações (uma peça por banco). */
   bancos: string[];
-  /** O relato cadastrado (o primeiro que houver nas ações). */
-  relato: string | null;
   /** O que fazer agora, para o card inteiro. */
   proximo: { tipo: 'trava' | 'gerar' | 'revisar' | 'protocolar' | 'feito'; texto: string };
 }
@@ -229,7 +228,6 @@ export function apresentarCaso(acoes: AcaoMontada[], faltamComuns: Falta[]): Apr
   const areas = [...new Set(abertas.map((a) => a.legal_area).filter(Boolean))];
   const assunto = consignado ? `Descontos no benefício do INSS: ${listaPt(nomes)}`
     : nomes.length ? listaPt(nomes) : areas.length ? `Área: ${listaPt(areas as string[])}` : 'Assunto ainda não identificado';
-  const relato = abertas.map((a) => String(a.relato || '').replace(/\s+/g, ' ').trim()).find(Boolean) || null;
   // Sem ponto dobrado quando o último banco termina em "S.A.".
   const reus = (xs: AcaoMontada[]) => listaPt(xs.map((a) => a.reu || a.titulo || `caso #${a.id}`)).replace(/\.$/, '');
   const qtd = (xs: AcaoMontada[]) => `${xs.length} ${xs.length === 1 ? 'ação' : 'ações'}`;
@@ -241,7 +239,7 @@ export function apresentarCaso(acoes: AcaoMontada[], faltamComuns: Falta[]): Apr
   else if (de('revisar').length) proximo = { tipo: 'revisar', texto: `Revisar e marcar como versão final a peça de ${qtd(de('revisar'))}: ${reus(de('revisar'))}.` };
   else if (de('pronta').length) proximo = { tipo: 'protocolar', texto: `Protocolar ${qtd(de('pronta'))}: ${reus(de('pronta'))}.` };
   else proximo = { tipo: 'feito', texto: 'Todas as ações deste cliente já foram protocoladas.' };
-  return { assunto, bancos: abertas.filter((a) => a.situacao !== 'protocolada').map((a) => a.reu || a.titulo || `caso #${a.id}`), relato, proximo };
+  return { assunto, bancos: abertas.filter((a) => a.situacao !== 'protocolada').map((a) => a.reu || a.titulo || `caso #${a.id}`), proximo };
 }
 
 export const ETAPAS = ['em_analise', 'separacao_documentos', 'criacao_inicial', 'revisao_inicial', 'aguardando_protocolo', 'protocolado', 'concluido'];

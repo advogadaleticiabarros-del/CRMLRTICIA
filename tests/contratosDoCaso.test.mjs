@@ -164,3 +164,20 @@ test('inventarioDaPeca: agrupa por banco e diz, para cada contrato, se entra nes
   assert.strictEqual(porNumero['0059967160'].nomeTipo, 'Cartão RMC');
   assert.strictEqual(inv.entram, 1);
 });
+
+// 31/10/2026: o extrato de empréstimos do INSS traz o nome jurídico ("BANCO DO ESTADO DO RIO GRANDE
+// DO SUL S.A."), e a ação, o nome conhecido ("Banco Banrisul S.A."). Antes, todo "Banco do Estado
+// de ..." virava "estado": Banrisul, Banese e Banpará eram tratados como o mesmo banco.
+test('mesmoBanco: nome jurídico do extrato = nome conhecido da ação; bancos estaduais não se confundem', () => {
+  assert.ok(mesmoBanco('BANCO DO ESTADO DO RIO GRANDE DO SUL S.A.', 'Banco Banrisul S.A.'));
+  assert.ok(mesmoBanco('BANCO DO ESTADO DE SERGIPE S.A.', 'Banese'));
+  assert.ok(mesmoBanco('BANCO DO ESTADO DO PARA S.A.', 'Banpará'));
+  assert.ok(mesmoBanco('BANCO DE BRASILIA S.A.', 'BRB - Banco de Brasília'));
+  assert.ok(mesmoBanco('BANCO DO NORDESTE DO BRASIL S.A.', 'BNB'));
+  assert.ok(mesmoBanco('BANCO COOPERATIVO SICREDI S.A.', 'Sicredi'));
+  assert.ok(mesmoBanco('CAIXA ECONOMICA FEDERAL', 'Caixa'));
+  assert.ok(!mesmoBanco('BANCO DO ESTADO DO RIO GRANDE DO SUL S.A.', 'BANCO DO ESTADO DE SERGIPE S.A.'));
+  assert.ok(!mesmoBanco('BANCO DO ESTADO DO PARA S.A.', 'Banco Banrisul S.A.'));
+  assert.ok(!mesmoBanco('BANCO COOPERATIVO SICREDI S.A.', 'BANCO COOPERATIVO SICOOB S.A.'));
+  assert.ok(!mesmoBanco('Banco do Brasil', 'BANCO DO NORDESTE DO BRASIL S.A.'));
+});

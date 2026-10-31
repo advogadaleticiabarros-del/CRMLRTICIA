@@ -187,25 +187,62 @@
         <p class="lote-sub">RMC e RCC do mesmo banco vão na mesma peça; de bancos diferentes, peças diferentes.</p></details>`;
     }
 
+    // Síntese do caso inteiro (31/10/2026, segundo print da Jessica: o bloco mostrava a descrição
+    // da ação do Itaú como se fosse o caso). Vem de src/services/sinteseCaso.ts: só o que foi lido
+    // nos documentos (contratos do extrato de empréstimos, descontos, triagem, fatos), sem IA.
+    const brl = (v) => Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    const maisTexto = (txt, cls) => txt.length > 360
+      ? `<details class="${cls}"><summary>${e(txt.slice(0, 340).replace(/\s+\S*$/, ''))}… <span>ler tudo</span></summary><p>${e(txt)}</p></details>`
+      : `<p class="${cls}">${e(txt)}</p>`;
+
+    function contratoHtml(k) {
+      const partes = [
+        k.inclusao ? `incluído em ${e(k.inclusao)}` : '',
+        k.parcela ? `parcela ${brl(k.parcela)}${k.nParcelas ? ` × ${k.nParcelas}` : ''}` : '',
+        k.inicio ? `desconta desde ${e(k.inicio)}${k.fim ? ` até ${e(k.fim)}` : ''}` : '',
+        k.situacao ? e(k.situacao) : '',
+      ].filter(Boolean);
+      return `<li><b>${e(k.tipo)}</b> nº ${e(k.numero || 's/nº')}${partes.length ? `<small>${partes.join(' · ')}</small>` : ''}</li>`;
+    }
+
+    function instituicaoHtml(inst, n) {
+      const acao = inst.acoes.map((id) => lote.acoes.find((a) => a.id === id)).find(Boolean);
+      const sit = acao ? chip(acao.situacao) : '<span class="lote-chip lote-grave">sem ação</span>';
+      const desc = inst.descontos
+        ? `<p class="lote-inst-desc">Descontos lidos no benefício: <b>${brl(inst.descontos.total)}</b> em ${inst.descontos.meses} ${inst.descontos.meses === 1 ? 'mês' : 'meses'} (${e(inst.descontos.de)} a ${e(inst.descontos.ate)})${inst.descontos.estimados ? ` · mais ${inst.descontos.estimados} mês(es) estimado(s) pela parcela` : ''}</p>`
+        : '';
+      return `<li class="lote-inst"><div class="lote-inst-cab"><span class="lote-banco-nome" data-n="${n}">${e(inst.banco)}${acao ? `<small>${e(acao.nomeFamilia || 'tese não identificada')}</small>` : ''}</span>${sit}</div>
+        ${inst.contratos.length ? `<ul class="lote-inst-contratos">${inst.contratos.map(contratoHtml).join('')}</ul>` : '<p class="lote-inst-desc lote-relato-vazio">Nenhum contrato lido deste banco.</p>'}
+        ${desc}</li>`;
+    }
+
     function introHtml() {
-      const ap = lote.apresentacao, r = lote.resumo;
+      const ap = lote.apresentacao, r = lote.resumo, s = lote.sintese;
       const abertas = lote.acoes.filter((a) => a.situacao !== 'recusada');
-      const relato = ap.relato
-        ? (ap.relato.length > 320
-          ? `<details class="lote-relato"><summary>${e(ap.relato.slice(0, 300).replace(/\s+\S*$/, ''))}… <span>ler tudo</span></summary><p>${e(ap.relato)}</p></details>`
-          : `<p class="lote-relato">${e(ap.relato)}</p>`)
-        : '<p class="lote-relato lote-relato-vazio">Sem relato cadastrado nas ações.</p>';
+      const insts = s ? s.instituicoes : abertas.map((a) => ({ banco: a.reu || a.titulo || `Caso #${a.id}`, acoes: [a.id], contratos: [], descontos: null }));
+      const lista = (titulo, itens) => itens.length ? `<h3>${titulo}</h3><ul class="lote-faltas">${itens.map((t) => `<li>${e(t)}</li>`).join('')}</ul>` : '';
       return `<section class="lote-bloco lote-intro" aria-labelledby="lote-assunto">
           <p class="lote-sobre">Sobre o caso</p>
           <h2 id="lote-assunto">${e(ap.assunto)}</h2>
           <p class="lote-intro-linha">${abertas.length} ${abertas.length === 1 ? 'ação' : 'ações'}, uma peça por banco${lote.etapa ? ` · etapa: <b>${e(ETAPA[lote.etapa] || lote.etapa)}</b>` : ''} · ${r.prontas} pronta(s) · ${r.protocoladas} protocolada(s)</p>
-          ${relato}
+          ${s ? maisTexto(s.paragrafo, 'lote-relato') : ''}
+          ${s && s.relatoCliente ? `<div class="lote-relato-cliente"><span>Relato do cliente no atendimento</span>${maisTexto(s.relatoCliente, 'lote-relato')}</div>` : ''}
           <div class="lote-proximo lote-${PROXIMO[ap.proximo.tipo]}${ap.proximo.tipo === 'trava' ? ' lote-trava" role="alert"' : '"'}><b>${ap.proximo.tipo === 'trava' ? 'Travado' : 'Próximo passo'}</b><span>${e(ap.proximo.texto)}</span></div>
+          ${s && s.alertas.length ? `<ul class="lote-alertas">${s.alertas.map((t) => `<li>${e(t)}</li>`).join('')}</ul>` : ''}
           <div class="lote-intro-grade">
-            <div><h3>Bancos (uma ação cada)</h3>
-              <ol class="lote-bancos-lista">${abertas.map((a) => `<li><span class="lote-banco-nome">${e(a.reu || a.titulo || `Caso #${a.id}`)}<small>${e(a.nomeFamilia || 'tese não identificada')}</small></span>${chip(a.situacao)}</li>`).join('')}</ol></div>
-            <div><h3>Documentos comuns</h3>${faltasHtml()}${conferenciaHtml()}</div>
+            <div><h3>Instituições e contratos${s && s.base === 'lida' ? ' <small>(extrato de empréstimos do INSS)</small>' : ''}</h3>
+              <ol class="lote-bancos-lista">${insts.map((i, n) => instituicaoHtml(i, n + 1)).join('')}</ol>
+              ${s && s.foraDasPecas ? `<p class="lote-sub">${s.foraDasPecas} contrato(s) lido(s) que a Dra. tirou das peças.</p>` : ''}</div>
+            <div>
+              ${s ? lista('Pontos de fato (o que as fontes dizem)', s.pontos) : ''}
+              ${s ? lista('O que o cliente pede', s.pedidos) : ''}
+              <h3>Documentos comuns</h3>${faltasHtml()}${conferenciaHtml()}
+            </div>
           </div>
+          ${s && s.fatos.length ? `<details class="lote-conf"><summary>Linha do tempo <small>${s.fatos.length} fato(s) lido(s) nos documentos</small></summary>
+            <ol class="lote-tempo">${s.fatos.map((f) => `<li><b>${e(f.data || 'sem data')}</b> ${e(f.texto)}</li>`).join('')}</ol></details>` : ''}
+          ${s && s.lacunas.length ? `<details class="lote-conf"><summary>O que falta apurar <small>${s.lacunas.length} ponto(s) sem fonte</small></summary>
+            <ul class="lote-faltas">${s.lacunas.map((t) => `<li>${e(t)}</li>`).join('')}</ul></details>` : ''}
         </section>`;
     }
 
