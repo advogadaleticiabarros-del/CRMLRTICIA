@@ -5,8 +5,10 @@ import { registrarAcaoAgente } from './usoIa';
 import { NUMERO_DRA } from './esteiraComercialServico';
 import {
   PROMPT_LEITURA_CRITICA, parseLeituraCritica, promptFatosDaHistoria, parseFatos, cruzar, promptCruzamentoLivre, parseApontamentosIa,
-  relatorioAnalise, mensagemAnaliseDra, pedidosDeReenvio, mensagemReenvio, type LeituraDoc,
+  relatorioAnalise, mensagemAnaliseDra, pedidosDeReenvio, mensagemReenvio, comoLerDocumento, lidoPelaAnalise, type LeituraDoc,
 } from './analistaDocumentos';
+import { downloadDriveFile } from './partnerInboxService';
+import { idDoArquivoNoDrive } from './kitProtocolo';
 
 /**
  * Dra. Helena com banco, IA e WhatsApp (regras em analistaDocumentos.ts).
@@ -37,13 +39,29 @@ async function arquivosDoCliente(clientId: number, caseId: number, phone: string
     out.push({ ref: `media:${m.id}`, fonte: m.file_name || `arquivo ${m.id}`, mime: m.mime, tam: Number(m.tam) || 0,
       carregar: async () => { const [[r]] = await db.query('SELECT data FROM whatsapp_media WHERE id = ?', [m.id]) as any; return r?.data ? Buffer.from(r.data) : null; } });
   }
+  // Guardados no CRM ou só com o link do Drive (pasta do caso): os do Drive são baixados na leitura.
   const [docs] = await db.query(
-    `SELECT id, name, mime, LENGTH(data) AS tam FROM documents
-      WHERE (client_id = ? OR case_id = ?) AND data IS NOT NULL AND (mime LIKE 'image/%' OR mime = 'application/pdf')
-      ORDER BY created_at DESC LIMIT ?`, [clientId, caseId, MAX_ARQUIVOS]).catch(() => [[]]) as any;
+    `SELECT id, name, mime, LENGTH(data) AS tam, (data IS NOT NULL) AS tem_arquivo, file_url FROM documents
+      WHERE (client_id = ? OR case_id = ?) AND (data IS NOT NULL OR file_url LIKE '%drive.google.com%')
+      ORDER BY created_at DESC LIMIT ?`, [clientId, caseId, MAX_ARQUIVOS * 3]).catch(() => [[]]) as any;
+  let n = 0;
   for (const d of docs) {
-    out.push({ ref: `doc:${d.id}`, fonte: d.name || `documento ${d.id}`, mime: d.mime, tam: Number(d.tam) || 0,
-      carregar: async () => { const [[r]] = await db.query('SELECT data FROM documents WHERE id = ?', [d.id]) as any; return r?.data ? Buffer.from(r.data) : null; } });
+    const como = comoLerDocumento(d);
+    if (!como || n >= MAX_ARQUIVOS) continue;
+    n++;
+    const a: Arquivo = { ref: `doc:${d.id}`, fonte: d.name || `documento ${d.id}`, mime: d.mime, tam: Number(d.tam) || 0, carregar: async () => null };
+    if (como === 'guardado') {
+      a.carregar = async () => { const [[r]] = await db.query('SELECT data FROM documents WHERE id = ?', [d.id]) as any; return r?.data ? Buffer.from(r.data) : null; };
+    } else {
+      a.carregar = async () => {
+        const id = idDoArquivoNoDrive(d.file_url);
+        const f = id ? await downloadDriveFile(id).catch(() => null) : null;
+        if (!f || !lidoPelaAnalise(f.mimeType)) return null;
+        a.mime = f.mimeType;
+        return Buffer.from(f.base64, 'base64');
+      };
+    }
+    out.push(a);
   }
   return out.slice(0, MAX_ARQUIVOS * 2);
 }
@@ -54,7 +72,7 @@ async function lerArquivo(a: Arquivo): Promise<LeituraDoc | null> {
   if (c) return typeof c.leitura === 'string' ? JSON.parse(c.leitura) : c.leitura;
   if (a.tam > MAX_BYTES) return null;
   const buf = await a.carregar();
-  if (!buf) return null;
+  if (!buf || buf.length > MAX_BYTES) return null;
   const r = await aiLerArquivo(buf.toString('base64'), a.mime, PROMPT_LEITURA_CRITICA);
   const l = r.ok && r.text ? parseLeituraCritica(r.text) : null;
   if (l) await db.query('INSERT IGNORE INTO documento_leituras (ref, fonte, leitura) VALUES (?, ?, ?)', [a.ref, a.fonte.slice(0, 255), JSON.stringify(l)]);
@@ -103,6 +121,12 @@ export async function analisarCaso(caseId: number, opts: { avisar?: boolean; ped
     andamento(`Lendo ${a.fonte} (${i + 1} de ${arquivos.length})`, i, total);
     const l = await lerArquivo(a).catch(() => null);
     if (l) docs.push({ fonte: a.fonte, l }); else falhas.push(a.fonte);
+  }
+  if (!docs.length) {
+    const doDrive = arquivos.filter((a) => a.tam === 0).length;
+    return { ok: false as const, erro: doDrive
+      ? `Não consegui ler nenhum dos ${arquivos.length} arquivos (${doDrive} estão só no Google Drive). Confira se a pasta do cliente está compartilhada com a conta Google do CRM.`
+      : `Não consegui ler nenhum dos ${arquivos.length} arquivos do cliente (grandes demais ou ilegíveis). Conferir à mão.` };
   }
 
   andamento('Conferindo os documentos com a história contada', arquivos.length, total);
