@@ -2,9 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 31/10/2026. Último commit: pesquisa sobre produção de peças processuais.
+**Última atualização:** 31/10/2026. Último commit: documentos que faltam em tom âmbar suave no card do cliente.
 
 ## Últimas entregas (mais recentes primeiro)
+- **31/10 (7):** **Documentos que faltam com cor própria** (Jessica: "coloração diferente, sutil"). No card do cliente ("Documentos comuns"), cada "Falta: ..." tem fundo âmbar claro, filete à esquerda e título âmbar; o que trava a geração fica no mesmo estilo em vermelho. Só CSS (`.lote-faltas`), conferido nos temas claro e escuro. Ver `docs/contexto/relatorios/2026-10-31-faltas-cor-sutil.md`.
 - **31/10 (6):** **Pesquisa sobre produção de peças** (Jessica: "pesquisa minuciosa sobre montagem de peças iniciais, contestações... sobre a produção mesmo"). Arquivo `docs/pesquisas/2026-10-31-producao-pecas-processuais.md`, com fontes primárias, checklists por peça e por área, prazos e recomendações para a esteira. Nenhum código mudou.
   - **A decidir com a Dra.:** o Calculista aplica "tudo em dobro" sem a modulação de 03/2021, mas a tese do Tema 929 não foi publicada e a modulação do EAREsp 600.663 continua valendo.
   - **Tema 1.414/STJ:** suspensão nacional das ações de RMC. **Decisão da Jessica (31/10):** continuar protocolando mesmo assim (regra em LEIA-PRIMEIRO).

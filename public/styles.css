@@ -2801,8 +2801,11 @@ details.lote-relato p { margin: 0; white-space: pre-line; }
 .lote-tempo li { padding: 3px 0; }
 .lote-tempo b { font-variant-numeric: tabular-nums; margin-right: 6px; }
 .lote-faltas { margin: 0 0 10px; padding: 0; list-style: none; }
-.lote-faltas li { padding: 6px 0; border-bottom: 1px solid var(--border-soft); font-size: 13px; }
+/* Documento que falta: tom âmbar suave, aparece sem gritar (pedido da Jessica, 31/10/2026). */
+.lote-faltas li { padding: 6px 10px; margin-bottom: 4px; border-left: 2px solid var(--amber); border-radius: 0 6px 6px 0; background: color-mix(in srgb, var(--lote-ambar-bg) 60%, transparent); font-size: 13px; }
+.lote-faltas b { color: var(--lote-ambar); font-weight: 600; }
 .lote-faltas small { display: block; color: var(--text-muted); font-size: 12px; }
+.lote-faltas li.lote-falta-trava { border-left-color: var(--lote-grave); background: color-mix(in srgb, var(--lote-grave-bg) 60%, transparent); }
 .lote-falta-trava b { color: var(--lote-grave); }
 .lote-conf summary, .lote-grupo summary { cursor: pointer; padding: 7px 0; font-size: 13px; color: var(--text-soft); }
 .lote-conf summary .lote-chip { margin-left: 6px; }
