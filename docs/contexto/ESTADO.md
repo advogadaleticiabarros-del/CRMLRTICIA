@@ -2,10 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 31/10/2026. Último commit: análise da Dra. Helena com a data de hoje (Brasília).
+**Última atualização:** 31/10/2026. Último commit: card do cliente com introdução do caso e documentos agrupados.
 
 ## Últimas entregas (mais recentes primeiro)
-- **31/10 (3):** **Documentos repetidos do cliente** (Jessica: "deve vir apenas os documentos que não estão"; caso do Valmirio com 52 documentos). O mesmo arquivo do Drive (ID ou conteúdo) não entra de novo em nenhuma ação; o repetido é marcado, não apagado, e sai da tela, do kit e das leituras. Migration 176. **Pendente:** "Atualizar da pasta" no caso do Valmirio e conferir o kit. Ver `docs/contexto/relatorios/2026-10-31-documentos-repetidos.md`.
+- **31/10 (3):** **Card do cliente: introdução do caso e documentos repetidos** (Jessica: "preciso de uma introdução do caso, está muito bagunçado"; "deve vir apenas os documentos que não estão"; caso do Valmirio com 52 documentos e 39 anexos no kit). Bloco "Sobre o caso" no topo (assunto, relato, próximo passo, bancos com a situação, o que falta); documentos agrupados por tipo. O mesmo arquivo do Drive (ID ou conteúdo) não entra de novo em nenhuma ação; o repetido é marcado, não apagado, e sai da tela, do kit e das leituras. Migration 176. **Pendente:** "Atualizar da pasta" no caso do Valmirio e conferir o kit. Ver `docs/contexto/relatorios/2026-10-31-documentos-repetidos.md`.
 - **31/10 (2):** **Dra. Helena acusava "data de emissão futura" em datas passadas** (print da Jessica: procuração de 20/10/2026 e RG de 16/04/2025 apontados como graves). O relógio do CRM estava certo: a IA não recebia a data de hoje e usava a do próprio treinamento. Agora o pedido leva a data de Brasília, e o indício com data já passada é descartado (vale também para as leituras guardadas). **Pendente:** "Analisar de novo" no caso do Valmirio. Ver `docs/contexto/relatorios/2026-10-31-analise-data-de-hoje.md`.
 - **31/10:** **Peça do Valmirio/Itaú saiu com R$ 0,00 e texto genérico; a revisão era de outra versão** (Jessica: "sem cálculo, sem valores... quero a minha planilha calculada no momento da leitura pelo contabilista").
   - Causa: o histórico de créditos (HISCRE) mostra os descontos só pela rubrica, sem banco; a regra "uma peça por banco" descartava todos eles. A revisão só rodava na 1ª versão.

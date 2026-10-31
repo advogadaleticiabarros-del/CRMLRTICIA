@@ -16,6 +16,13 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: documentos repetidos no card do cliente e 39 anexos no kit (31/10/2026)
+
+**Sintoma:** o card do Valmirio mostrava 52 documentos, com o mesmo "historico-creditos (24).pdf" duas vezes e várias cópias do histórico de créditos; o kit de cada banco tinha 39 anexos. Cada atualização da pasta podia trazer mais.
+**Causa raiz:** `importDriveFolder` (`peticaoBuilder.ts`) só conferia o **nome, dentro da mesma ação**. As 6 ações do cliente leem a mesma pasta, então cada arquivo entrava uma vez por ação; cópias com outro nome e o mesmo conteúdo também entravam; e o botão "Atualizar da pasta" e a leitura automática (a cada 30 min) podiam rodar juntos e gravar o mesmo arquivo duas vezes.
+**Correção:** conferência no cliente inteiro pelo ID do Drive e pelo md5 (`clienteJaTem`, `documentosDuplicadosMysql.ts`); cópias da própria pasta pulam (`sincronizarPasta`); uma leitura de pasta por cliente de cada vez; os repetidos que já existiam são marcados em `documents.duplicado_de` (migration 176) a cada leitura da pasta e saem da tela, do kit, da Mesa e das leituras. Nada foi apagado.
+**Se acontecer de novo:** conferir no banco `SELECT id, case_id, name, file_url, drive_md5, duplicado_de FROM documents WHERE client_id = ? ORDER BY drive_md5, id`. Repetido sem marca: rode "Atualizar da pasta" no caso (a marca é feita ao fim da leitura). Arquivo que não é repetido e foi marcado: `UPDATE documents SET duplicado_de = NULL WHERE id = ?` (o md5 do Drive é o mesmo só para conteúdo idêntico, byte a byte).
+
 ## Incidente: extrato de empréstimos nunca era lido (Gemini sem cota) (30/10/2026)
 
 **Sintoma:** o extrato de empréstimos completo do Valmirio (caso #110) continuava sem texto depois de "Ler os contratos" e de gerar a peça; o contrato do Itaú vinha sem número e o cálculo, zerado. Nenhum erro na tela.

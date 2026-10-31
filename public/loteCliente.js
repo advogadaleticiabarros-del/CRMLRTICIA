@@ -162,11 +162,14 @@
 
     const chip = (sit) => `<span class="lote-chip lote-${SIT[sit][1]}">${SIT[sit][0]}</span>`;
 
+    // Introdução do caso (31/10/2026, Jessica: "ao abrir o card, preciso de uma introdução do caso,
+    // está muito bagunçado"): do que se trata, o relato, o próximo passo, os bancos com a situação
+    // de cada um, o que falta e a conferência "uma peça por banco", tudo no primeiro bloco.
+    const PROXIMO = { trava: 'grave', gerar: 'ambar', revisar: 'ambar', protocolar: 'ok', feito: 'feito' };
+
     function faltasHtml() {
-      if (!lote.faltamComuns.length) return '<p class="lote-ok">Documentos comuns completos: servem a todas as ações.</p>';
-      const trava = lote.faltamComuns.filter((f) => f.bloqueia), resto = lote.faltamComuns.filter((f) => !f.bloqueia);
-      return `${trava.map((f) => `<div class="lote-trava" role="alert"><b>Travado: falta o ${e(f.rotulo)}.</b> Por quê: ${e(f.motivo)}.</div>`).join('')}
-        ${resto.length ? `<p class="lote-falta">Falta também: ${resto.map((f) => `<b>${e(f.rotulo)}</b> <small>(${e(f.motivo)})</small>`).join(' · ')}</p>` : ''}`;
+      if (!lote.faltamComuns.length) return '<p class="lote-ok">Completos: servem a todas as ações.</p>';
+      return `<ul class="lote-faltas">${lote.faltamComuns.map((f) => `<li${f.bloqueia ? ' class="lote-falta-trava"' : ''}><b>Falta: ${e(f.rotulo)}</b> <small>${e(f.motivo)}</small></li>`).join('')}</ul>`;
     }
 
     // Uma peça por banco (regra da Jessica, 30/10/2026): cartões RMC/RCC lidos nos extratos × ações do cliente.
@@ -174,11 +177,36 @@
       const c = lote.conferencia;
       if (!c) return '';
       const problemas = c.problemas.filter((p) => p.tipo !== 'nao_lidos');
-      if (!c.lidos) return c.problemas.length ? `<p class="lote-falta">${e(c.problemas[0].texto)}</p>` : '<p class="lote-sub">Sem cartão RMC/RCC lido nos extratos.</p>';
+      if (!c.lidos) return `<p class="lote-sub lote-conf-linha">${c.problemas.length ? e(c.problemas[0].texto) : 'Nenhum cartão RMC/RCC lido nos extratos.'}</p>`;
       const reu = (id) => { const a = lote.acoes.find((x) => x.id === id); return a ? (a.reu || a.titulo || `#${id}`) : `processo #${id}`; };
-      return `<ul class="lote-docs">${c.bancos.map((b) => `<li><span><b>${e(b.banco)}</b>: ${e(b.contratos.map((k) => `${k.nomeTipo} nº ${k.numero || 's/nº'}`).join(', '))}</span>
+      const resumo = problemas.length ? `<span class="lote-chip lote-grave">${problemas.length} ponto(s) a conferir</span>` : '<span class="lote-chip lote-ok">cada banco tem a sua peça</span>';
+      return `<details class="lote-conf"${problemas.length ? ' open' : ''}><summary>Cartões RMC/RCC lidos nos extratos ${resumo}</summary>
+        <ul class="lote-docs">${c.bancos.map((b) => `<li><span><b>${e(b.banco)}</b>: ${e(b.contratos.map((k) => `${k.nomeTipo} nº ${k.numero || 's/nº'}`).join(', '))}</span>
           <small class="lote-bancos">${b.acoes.length ? `peça: ${b.acoes.map(reu).map(e).join(', ')}` : '<b>sem ação: precisa de uma peça própria</b>'}</small></li>`).join('')}</ul>
-        ${problemas.length ? problemas.map((p) => `<div class="lote-trava" role="alert">${e(p.texto)}</div>`).join('') : '<p class="lote-ok">Conferido: cada banco tem a sua peça.</p>'}`;
+        ${problemas.map((p) => `<div class="lote-trava" role="alert">${e(p.texto)}</div>`).join('')}
+        <p class="lote-sub">RMC e RCC do mesmo banco vão na mesma peça; de bancos diferentes, peças diferentes.</p></details>`;
+    }
+
+    function introHtml() {
+      const ap = lote.apresentacao, r = lote.resumo;
+      const abertas = lote.acoes.filter((a) => a.situacao !== 'recusada');
+      const relato = ap.relato
+        ? (ap.relato.length > 320
+          ? `<details class="lote-relato"><summary>${e(ap.relato.slice(0, 300).replace(/\s+\S*$/, ''))}… <span>ler tudo</span></summary><p>${e(ap.relato)}</p></details>`
+          : `<p class="lote-relato">${e(ap.relato)}</p>`)
+        : '<p class="lote-relato lote-relato-vazio">Sem relato cadastrado nas ações.</p>';
+      return `<section class="lote-bloco lote-intro" aria-labelledby="lote-assunto">
+          <p class="lote-sobre">Sobre o caso</p>
+          <h2 id="lote-assunto">${e(ap.assunto)}</h2>
+          <p class="lote-intro-linha">${abertas.length} ${abertas.length === 1 ? 'ação' : 'ações'}, uma peça por banco${lote.etapa ? ` · etapa: <b>${e(ETAPA[lote.etapa] || lote.etapa)}</b>` : ''} · ${r.prontas} pronta(s) · ${r.protocoladas} protocolada(s)</p>
+          ${relato}
+          <div class="lote-proximo lote-${PROXIMO[ap.proximo.tipo]}${ap.proximo.tipo === 'trava' ? ' lote-trava" role="alert"' : '"'}><b>${ap.proximo.tipo === 'trava' ? 'Travado' : 'Próximo passo'}</b><span>${e(ap.proximo.texto)}</span></div>
+          <div class="lote-intro-grade">
+            <div><h3>Bancos (uma ação cada)</h3>
+              <ol class="lote-bancos-lista">${abertas.map((a) => `<li><span class="lote-banco-nome">${e(a.reu || a.titulo || `Caso #${a.id}`)}<small>${e(a.nomeFamilia || 'tese não identificada')}</small></span>${chip(a.situacao)}</li>`).join('')}</ol></div>
+            <div><h3>Documentos comuns</h3>${faltasHtml()}${conferenciaHtml()}</div>
+          </div>
+        </section>`;
     }
 
     function acaoHtml(a, i) {
@@ -206,17 +234,27 @@
       </article>`;
     }
 
+    // Documentos agrupados por tipo (o mesmo tipo com vários arquivos fica recolhido). Repetidos já saíram no servidor.
     function docsHtml() {
       const visiveis = lote.documentos.filter((d) => d.escopo !== 'interno');
       const reu = (id) => { const a = lote.acoes.find((x) => x.id === id); return a ? (a.reu || `#${id}`) : `#${id}`; };
       const linha = (d) => `<li><span>${e(d.padrao || d.original)}</span>${d.padrao && d.padrao !== d.original ? `<small>chegou como ${e(d.original)}</small>` : ''}
         ${d.escopo === 'acao' ? `<small class="lote-bancos">${d.acoes.length ? d.acoes.map(reu).map(e).join(', ') : '<b>sem ação: anexe no card do banco certo</b>'}</small>` : ''}</li>`;
+      const porTipo = (lista) => {
+        const grupos = new Map();
+        for (const d of lista) grupos.set(d.rotulo, [...(grupos.get(d.rotulo) || []), d]);
+        if (!grupos.size) return '<p class="lote-sub">Nenhum.</p>';
+        return [...grupos.entries()].map(([rotulo, ds]) => ds.length === 1
+          ? `<ul class="lote-docs">${linha(ds[0])}</ul>`
+          : `<details class="lote-grupo"><summary><span>${e(rotulo)}</span> <small>${ds.length} arquivos</small></summary><ul class="lote-docs">${ds.map(linha).join('')}</ul></details>`).join('');
+      };
       const comuns = visiveis.filter((d) => d.escopo === 'comum'), deAcao = visiveis.filter((d) => d.escopo === 'acao');
       const aPadronizar = visiveis.filter((d) => d.padrao && d.padrao !== d.original).length;
-      return `<div class="lote-docs-cab"><span>${visiveis.length} documento(s) do cliente</span>
+      return `<div class="lote-docs-cab"><span>${visiveis.length} documento(s), cada um uma vez${lote.repetidos ? ` · <b>${lote.repetidos}</b> repetido(s) fora da lista e do kit` : ''}</span>
           ${aPadronizar ? `<button type="button" class="btn-sm" data-acao="padronizar">Dar o nome padrão a ${aPadronizar} documento(s)</button>` : ''}</div>
-        <h4>Comuns a todas as ações</h4><ul class="lote-docs">${comuns.map(linha).join('') || '<li>Nenhum.</li>'}</ul>
-        <h4>De um banco</h4><ul class="lote-docs">${deAcao.map(linha).join('') || '<li>Nenhum.</li>'}</ul>
+        ${lote.repetidos ? '<p class="lote-sub">Repetido é o mesmo arquivo em mais de uma ação, ou uma cópia com outro nome. Não é apagado: só não aparece, não vai no kit e não é lido de novo.</p>' : ''}
+        <h4>Comuns a todas as ações</h4>${porTipo(comuns)}
+        <h4>De um banco</h4>${porTipo(deAcao)}
         <label class="lote-enviar">Enviar documento do cliente (vale para todas as ações)
           <input type="file" multiple data-acao="enviar" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx"></label>`;
     }
@@ -227,14 +265,12 @@
         <header class="mesa-topo">
           <button type="button" class="mesa-voltar" data-acao="fechar">← Voltar ao quadro</button>
           <div class="mesa-quem"><h1>${e(lote.cliente)}</h1>
-            <p>${r.total} ${r.total === 1 ? 'ação' : 'ações'} (uma peça por banco) · ${r.prontas} pronta(s) · ${r.protocoladas} protocolada(s)${r.travadas ? ` · <b>${r.travadas} travada(s)</b>` : ''}</p></div>
+            <p>Card do cliente · ${r.total} ${r.total === 1 ? 'ação' : 'ações'}${r.travadas ? ` · <b>${r.travadas} travada(s)</b>` : ''}</p></div>
         </header>
         <main class="lote-corpo">
-          <section class="lote-bloco"><h2>O que falta</h2>${faltasHtml()}</section>
-          <section class="lote-bloco"><h2>Uma peça por banco</h2>
-            <p class="lote-sub">Lido nos extratos: RMC e RCC do mesmo banco vão na mesma peça; de bancos diferentes, peças diferentes.</p>${conferenciaHtml()}</section>
+          ${introHtml()}
           <section class="lote-bloco"><h2>Ações para protocolar, uma a uma</h2>
-            <p class="lote-sub">Revise a peça na mesa, marque a versão final, baixe o kit e protocole. RMC e RCC do mesmo banco podem ir juntos (faixa "processo único" do quadro).</p>
+            <p class="lote-sub">Revise a peça na mesa, marque a versão final, baixe o kit e protocole.</p>
             <div class="lote-acoes">${lote.acoes.map(acaoHtml).join('')}</div></section>
           <section class="lote-bloco"><h2>Documentos do cliente</h2>${docsHtml()}</section>
         </main>`;

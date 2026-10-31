@@ -291,6 +291,10 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Decisão:** dos 84 mil decretos federais do repositório, o CRM baixa só os de 1988 em diante, mais os regulamentos consolidados (RPS e outros).
 **Motivo:** as áreas do escritório (trabalhista, previdenciário, família e consumidor) quase nunca citam decreto anterior à Constituição. Os decretos-leis antigos que importam (CLT, CP, CPP, LINDB) estão em outra pasta, que vem inteira.
 
+### 31/10/2026 — Documentos repetidos marcados, não apagados; introdução do card pelas regras
+**Decisão:** o documento repetido do cliente fica **marcado** (`documents.duplicado_de`) e sai da tela, do kit e das leituras; nunca é apagado. "Mesmo arquivo" é o mesmo ID do Drive ou o mesmo md5 (conteúdo idêntico), em qualquer ação do cliente. O **nome** igual só conta dentro da própria ação. O arquivo que está em mais de uma ação passa a ser do cliente (`case_id` NULL). A introdução do card do cliente ("Sobre o caso") é montada pelas regras, sem IA.
+**Motivo:** marcar dá para desfazer e não perde documento por engano de comparação. Nome igual em pastas de bancos diferentes pode ser arquivo diferente. A esteira, a análise e a Mesa já leem os documentos do cliente para todas as ações, então uma linha só basta, sem copiar o documento por ação. A introdução pelas regras é instantânea, não custa leitura e não inventa fatos.
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.
@@ -307,6 +311,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 31/10/2026 | Claude | Documentos repetidos marcados, não apagados; introdução do card do cliente pelas regras |
 | 31/10/2026 | Claude | Tema 929 (tudo em dobro), Taxa Legal oficial do Bacen e Calculista na leitura (HISCON × HISCRE em código) |
 | 30/10/2026 | Claude | Geração da peça registrada no banco e retomada depois de reinício (máx. 2 vezes) |
 | 30/10/2026 | Claude | Trava da geração da peça em memória (processo único), com etapa para a barra de progresso |
