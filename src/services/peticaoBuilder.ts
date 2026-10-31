@@ -6,6 +6,7 @@ import { clienteJaTem, registrarMd5DoDrive, organizarDuplicados } from './docume
 import { produzirPeticao } from './esteiraPeca';
 import { depsEsteiraMysql, cacheLeiturasMysql } from './esteiraPecaMysql';
 import { lerUmaVez, refDoConteudo } from './leituraUnica';
+import { promptLeituraArquivo, rotuloLeitura, resumoAntigoDeExtrato, REF_LEITURA_DRIVE } from './transcricaoDocumento';
 import { travaGeracaoPeca } from './travaGeracaoPeca';
 import { brl } from './pecaCalculos';
 import { planilhaMarkdown, planilhaXlsx } from './planilhaCalculos';
@@ -25,46 +26,42 @@ import { numeroDaVersao } from './mesaCaso';
 const DOC_OK = /^(application\/pdf|image\/(jpeg|jpg|png|webp|heic|heif))$/i;
 const AUDIO_OK = /^audio\//i; // Gemini transcreve áudio nativamente (mp3, ogg/opus do WhatsApp, m4a, wav…)
 const READABLE = (m: string) => DOC_OK.test(m) || AUDIO_OK.test(m);
-/** Instrução conforme o tipo de arquivo (documento/foto vs. áudio). */
-function instructionFor(mime: string): string {
-  if (AUDIO_OK.test(mime)) {
-    return `Este é um ÁUDIO (possível prova). 1) TRANSCREVA integralmente em português, verbatim e fiel; identifique quem fala quando possível (ex.: "Homem:", "Mulher:"). 2) Em seguida, liste os PONTOS JURIDICAMENTE RELEVANTES: datas, valores, fatos, promessas/ameaças/confissões e o que o áudio comprova. NÃO invente nada; marque [inaudível] onde não der para entender. Formato: "TRANSCRIÇÃO:" e depois "PONTOS RELEVANTES:".`;
-  }
-  return `Você é um analista jurídico. Leia este documento (anexo de um caso) e extraia, de forma objetiva e FIEL, todo o conteúdo e os dados relevantes para uma petição: tipo do documento, partes envolvidas, CPF/CNPJ, valores, datas, números (contrato, benefício, processo, conta), endereços e o que o documento comprova. NÃO invente nada; se algo estiver ilegível, escreva "[ilegível]". Responda em português, em tópicos curtos.`;
-}
-const tagFor = (mime: string) => AUDIO_OK.test(mime) ? 'Transcrição por IA' : 'Extraído por IA';
 
 /**
  * Mesma pasta, uma leitura só (pedido da Jessica, 30/10/2026): o arquivo do Drive que
  * outra ação já leu (mesmo ID) tem a leitura copiada, sem baixar nem chamar a IA.
+ * Resumo antigo de extrato não é copiado: precisa da transcrição integral (31/10/2026).
  */
 async function leituraJaFeita(fileId: string, excetoDocId = 0): Promise<string | null> {
-  const [[d]] = await db.query(
-    `SELECT content FROM documents WHERE file_url LIKE ? AND id <> ? AND type <> 'ia' AND content IS NOT NULL AND content <> '' ORDER BY id LIMIT 1`,
+  const [rows] = await db.query(
+    `SELECT name, content FROM documents WHERE file_url LIKE ? AND id <> ? AND type <> 'ia' AND content IS NOT NULL AND content <> '' ORDER BY id LIMIT 5`,
     [`%${fileId.replace(/[\\%_]/g, (c) => `\\${c}`)}%`, excetoDocId]) as any;
+  const d = (rows || []).find((r: any) => !resumoAntigoDeExtrato(r.content, r.name));
   return d?.content ? String(d.content) : null;
 }
 
-/** Lê o arquivo baixado pela IA, uma vez por conteúdo (cópia do mesmo arquivo em outra pasta também vale). */
+/** Lê o arquivo baixado pela IA, na íntegra, uma vez por conteúdo (cópia do mesmo arquivo em outra pasta também vale). */
 async function lerArquivoDoDrive(file: { base64: string; mimeType: string }, nome: string): Promise<string | null> {
-  const texto = await lerUmaVez(cacheLeiturasMysql, refDoConteudo('drive', file.mimeType, file.base64), nome, async () => {
-    const r = await aiLerArquivo(file.base64, file.mimeType, instructionFor(file.mimeType));
+  const texto = await lerUmaVez(cacheLeiturasMysql, refDoConteudo(REF_LEITURA_DRIVE, file.mimeType, file.base64), nome, async () => {
+    const r = await aiLerArquivo(file.base64, file.mimeType, promptLeituraArquivo(file.mimeType));
     return r.ok && r.text ? r.text : null;
   });
-  return texto ? `[${tagFor(file.mimeType)} de "${nome}"]\n${texto}` : null;
+  return texto ? `${rotuloLeitura(file.mimeType, nome)}\n${texto}` : null;
 }
 
 /** Lê os anexos do caso (que ainda não têm texto) com a IA e salva o conteúdo. */
 export async function extractCaseDocuments(caseId: number, progresso?: (feito: number, total: number, nome: string) => void): Promise<number> {
   // Também os do cliente (sem ação), que valem para todas; os repetidos nunca são lidos (31/10/2026).
-  const [docs] = await db.query(
-    `SELECT id, name, file_url FROM documents
-      WHERE (case_id = ? OR (case_id IS NULL AND client_id = (SELECT client_id FROM cases WHERE id = ?)))
-        AND duplicado_de IS NULL AND file_url IS NOT NULL AND file_url <> '' AND (content IS NULL OR content = '')
-      ORDER BY id ASC LIMIT 20`, [caseId, caseId]
-  ) as any;
+  const doCaso = `(case_id = ? OR (case_id IS NULL AND client_id = (SELECT client_id FROM cases WHERE id = ?)))
+        AND duplicado_de IS NULL AND file_url IS NOT NULL AND file_url <> ''`;
+  const [vazios] = await db.query(
+    `SELECT id, name, file_url FROM documents WHERE ${doCaso} AND (content IS NULL OR content = '') ORDER BY id ASC LIMIT 20`, [caseId, caseId]) as any;
+  // Extratos lidos no tempo do resumo (sem parcela, início e inclusão): transcreve de novo (31/10/2026).
+  const [resumos] = await db.query(
+    `SELECT id, name, file_url, LEFT(content, 4000) AS inicio FROM documents WHERE ${doCaso} AND content LIKE '[Extraído por IA de %' ORDER BY id ASC`, [caseId, caseId]) as any;
+  const docs = [...(vazios || []), ...(resumos || []).filter((d: any) => resumoAntigoDeExtrato(d.inicio, d.name)).slice(0, 10)];
   let n = 0;
-  for (const [i, d] of (docs || []).entries()) {
+  for (const [i, d] of docs.entries()) {
     try { progresso?.(i, docs.length, d.name); } catch { /* só a barra */ }
     const fid = driveFileId(d.file_url);
     if (!fid) continue;

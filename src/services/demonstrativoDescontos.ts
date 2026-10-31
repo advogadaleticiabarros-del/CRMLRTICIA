@@ -1,5 +1,5 @@
 import PDFDocument from 'pdfkit';
-import { brl, mesBr, r2, type CalculoPeca } from './pecaCalculos';
+import { brl, mesBr, r2, MARCO_DOBRO, type CalculoPeca } from './pecaCalculos';
 import { chaveContrato, nomeDoTipo } from './contratosDoCaso';
 import type { CabecalhoPlanilha } from './planilhaCalculos';
 import type { ContratoFicha } from './pecaDossie';
@@ -106,7 +106,7 @@ function linhasValorDaCausa(d: Demonstrativo): Array<[string, string]> {
   const v = d.valorDaCausa;
   const l: Array<[string, string]> = [
     ['Total descontado até agora (valor nominal)', brl(d.totalDescontado)],
-    ['A restituir (simples até 03/2021; em dobro a partir de 04/2021)', brl(v.restituirNominal)],
+    [MARCO_DOBRO ? `A restituir (simples até ${mesBr(MARCO_DOBRO)}; em dobro depois)` : 'A restituir (em dobro)', brl(v.restituirNominal)],
   ];
   if (v.atualizadoAte) l.push([`Restituição atualizada até ${mesBr(v.atualizadoAte)} (correção e juros — ver Planilha de cálculos)`, brl(v.restituicao)]);
   if (v.jurosPagosAMais) l.push(['Juros pagos a mais (revisão da taxa)', brl(v.jurosPagosAMais)]);

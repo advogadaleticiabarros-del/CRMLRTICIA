@@ -877,6 +877,13 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 - **Correção:** Calculista na leitura (`src/services/contabilista.ts`). A ficha copia a rubrica de cada desconto e os meses cobertos. O código liga cada desconto ao contrato do HISCON pela família da rubrica, pela parcela e pelo período, e estima só os meses sem extrato. A planilha de cada banco é salva já na leitura. Sem descontos, a peça usa [valor a apurar], nunca R$ 0,00. Toda versão nova é revisada. A chave da leitura guardada subiu de versão (`VERSAO_FICHA = 2`, em `leituraUnica.ts`), então a ficha antiga, sem rubricas, não é reaproveitada. Teste que reproduz o caso: "produzirPeticao (caso Valmirio)" em `tests/esteiraPeca.test.mjs` (dava 0 no código antigo).
 - **Como reconhecer de novo:** peça com R$ 0,00 ou "[valor a apurar]". Abra o "Dossiê da peça" → "Faltando ou a conferir": o Calculista diz quais descontos ficaram sem dono e por quê (parcela que não bate, dois bancos com a mesma parcela) e quais contratos não têm desconto, parcela ou início. Se o extrato de empréstimos (HISCON) não estiver no caso, junte-o e clique em "Ler os contratos".
 
+## Incidente: demonstrativo do Itaú com R$ 0,00 "mesmo com todos os documentos" (31/10/2026, 2ª vez)
+
+- **Sintoma:** depois da correção do Calculista, o demonstrativo do Valmirio contra o Itaú continuou com o contrato 632706066 sem data de inclusão, 0 meses e R$ 0,00. A peça dizia que "não foram apurados descontos individualizados" e citava do histórico de créditos só alguns valores "entre outros".
+- **Causa raiz:** os documentos do caso estão todos como **link do Google Drive**. O Drive era lido (`lerArquivoDoDrive`, em `peticaoBuilder.ts`) com um pedido de **resumo** ("extraia... em tópicos curtos"), não de transcrição. Do extrato de empréstimos (HISCON) sobrava o cabeçalho (10 contratos, comprometimento, margem), sem a parcela, o início e a inclusão de cada contrato. Do HISCRE sobravam alguns valores. O resumo ficava gravado em `documents.content` e na memória `documento_leituras`, então gerar de novo repetia o mesmo texto. A transcrição integral (`PROMPT_TRANSCRICAO`) só valia para arquivo guardado no banco.
+- **Correção:** um pedido de leitura só para todos os caminhos (`src/services/transcricaoDocumento.ts`): PDF e foto, do banco ou do Drive, são transcritos na íntegra, com todas as colunas. O rótulo novo é "[Transcrito por IA de ...]", e a memória do Drive tem prefixo novo (`drive-integral`). Resumos antigos de **extratos** (rótulo "[Extraído por IA de ...]" com extrato, INSS, consignado, empréstimo, rubrica ou benefício) são transcritos de novo na próxima leitura do caso (até 10 por vez). Os outros resumos (RG, comprovante) ficam como estão. Como o texto muda, a ficha do cliente é lida de novo e os contratos guardados são atualizados. Rótulo do demonstrativo corrigido: "A restituir (em dobro)", pelo Tema 929. Teste: `tests/transcricaoDocumento.test.mjs`.
+- **Como reconhecer de novo:** contrato no demonstrativo sem "Inclusão" e com 0 meses; ou, em Documentos, o texto de um extrato começando com "[Extraído por IA de" e em tópicos. Resolve com "Ler os contratos" no caso (relê os extratos) e depois "gerar nova versão".
+
 ## Incidente: Dra. Helena acusava "data de emissão futura" em datas já passadas (31/10/2026)
 
 - **Sintoma:** na Mesa → "Análise dos documentos", pontos graves "possível alteração" como "Data de emissão futura (20/10/2026)" na procuração e "Data de emissão (16/04/2025) é futura" no RG, numa análise feita em 31/10/2026.
@@ -900,6 +907,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 31/10/2026 | Claude | Demonstrativo do Itaú ainda com R$ 0,00: o Drive era lido com resumo, sem as colunas do HISCON; agora tudo é transcrito na íntegra e os resumos antigos de extrato são relidos |
 | 31/10/2026 | Claude | Peça do Itaú com R$ 0,00: descontos do HISCRE sem banco eram descartados; Calculista liga cada desconto ao contrato. Revisão em toda versão nova |
 | 30/10/2026 | Claude | Extrato de empréstimos nunca lido: leitura dos anexos do Drive passou a usar a reserva (Gemini → OpenAI) |
 | 30/10/2026 | Claude | Card do cliente não ia para Separação de documentos: passou a arrastar e mover as ações dele |

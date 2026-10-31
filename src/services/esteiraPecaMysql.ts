@@ -1,5 +1,6 @@
 import { db } from '../config/database';
 import { aiComplete, aiLerArquivo } from './aiAssistant';
+import { PROMPT_TRANSCRICAO } from './transcricaoDocumento';
 import { registrarAcaoAgente } from './usoIa';
 import { reusDoCaso, type CasoParaJuntar } from './pecaConsolidacao';
 import type { DepsEsteira, CasoEsteira } from './esteiraPeca';
@@ -30,10 +31,6 @@ const PASTA_AREA: Record<string, string> = {
   familia: 'Fam_lia', execucao: 'Execu__o', extrajudicial: 'Extrajudicial',
 };
 const pastaDaArea = (area: string | null) => PASTA_AREA[String(area || '').toLowerCase()] || null;
-
-const PROMPT_TRANSCRICAO = `Transcreva este documento INTEGRALMENTE e com fidelidade, em português. Preserve todos os números, datas, valores, nomes, CPF/CNPJ e números de contrato.
-Tabelas (extrato do INSS/HISCON/HISCRE, fatura, holerite, extrato bancário): uma linha por registro, colunas separadas por " | ", com o cabeçalho. Transcreva TODAS as linhas e TODAS as colunas, inclusive as da direita (no HISCON: data de inclusão, início e fim do desconto, quantidade de parcelas, valor da parcela, valor emprestado). No histórico de créditos (HISCRE), cada competência com todas as rubricas e valores (ex.: "216 CONSIGNACAO EMPRESTIMO BANCARIO | 43,64").
-Não resuma, não interprete e não invente. Trecho ilegível: [ilegível]. Comece com uma linha "TIPO: <tipo do documento>".`;
 
 const PECAS_GERADAS = ['Petição Inicial%', 'Revisão da Petição%', 'Dossiê da peça%', 'Planilha de cálculos%', 'Demonstrativo de descontos%'];
 
