@@ -1,15 +1,21 @@
 /**
  * Índices econômicos mensais do Bacen (SGS) para a planilha de cálculos:
- * INPC, IPCA e Selic acumulada no mês, em % ao mês, por competência "aaaa-mm".
+ * INPC, IPCA, Selic acumulada no mês e a Taxa Legal (art. 406 do Código Civil), em % ao
+ * mês, por competência "aaaa-mm". A Taxa Legal é a oficial publicada pelo Bacen (SGS 29543,
+ * Resolução CMN 5.171/2024: razão entre a Selic e o IPCA-15 do mês anterior, piso zero),
+ * desde 08/2024.
  * Guarda em cache (indices_economicos) e só busca o que falta; o mês corrente
  * nunca entra (a Selic dele é parcial). Banco e rede entram por `DepsIndices`
  * (indicesEconomicosMysql.ts); testes em tests/planilhaCalculos.test.mjs.
  */
 
-export type Serie = 'inpc' | 'ipca' | 'selic';
-export const SERIES_BACEN: Record<Serie, number> = { inpc: 188, ipca: 433, selic: 4390 };
+export type Serie = 'inpc' | 'ipca' | 'selic' | 'legal';
+export const SERIES_BACEN: Record<Serie, number> = { inpc: 188, ipca: 433, selic: 4390, legal: 29543 };
+/** A série começa depois do "desde" geral: a Taxa Legal só existe a partir de 08/2024. */
+const INICIO_SERIE: Partial<Record<Serie, string>> = { legal: '2024-08' };
 
-export type IndicesMensais = Record<Serie, Record<string, number>>;
+/** `legal` é opcional para quem monta índices à mão (testes, índices antigos sem a série). */
+export type IndicesMensais = Record<'inpc' | 'ipca' | 'selic', Record<string, number>> & { legal?: Record<string, number> };
 export interface LinhaIndice { serie: Serie; competencia: string; valor: number }
 
 export interface DepsIndices {
@@ -44,14 +50,15 @@ const dataBr = (c: string, ultimoDia = false) => {
 
 /** Cache + o que faltar no Bacen (em janelas de até 10 anos, limite da API). */
 export async function carregarIndices(deps: DepsIndices, desde = '2005-01'): Promise<{ indices: IndicesMensais; avisos: string[] }> {
-  const indices: IndicesMensais = { inpc: {}, ipca: {}, selic: {} };
+  const indices: Record<Serie, Record<string, number>> = { inpc: {}, ipca: {}, selic: {}, legal: {} };
   const avisos: string[] = [];
   for (const l of await deps.cache().catch(() => [] as LinhaIndice[])) if (indices[l.serie]) indices[l.serie][l.competencia] = Number(l.valor);
   const ultimoFechado = somarMeses(mesDe(deps.hoje()), -1);
   const novos: LinhaIndice[] = [];
   for (const serie of Object.keys(SERIES_BACEN) as Serie[]) {
     const tem = Object.keys(indices[serie]).sort();
-    let ini = tem.length ? somarMeses(tem[tem.length - 1], 1) : desde;
+    const inicio = INICIO_SERIE[serie] && INICIO_SERIE[serie]! > desde ? INICIO_SERIE[serie]! : desde;
+    let ini = tem.length ? somarMeses(tem[tem.length - 1], 1) : inicio;
     if (ini > ultimoFechado) continue;
     while (ini <= ultimoFechado) {
       const fimJanela = somarMeses(ini, 12 * 10 - 13); // < 10 anos-calendário por chamada

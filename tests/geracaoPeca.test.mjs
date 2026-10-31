@@ -68,6 +68,15 @@ test('pela etapa "Criação inicial": não força versão nova e já revisa', as
   assert.match(f.avisos[0].mensagem, /8\/10 itens OK, 1 pendência\(s\) crítica\(s\)/);
 });
 
+test('"gerar nova versão" também revisa a versão nova (31/10/2026: a revisão do caso Valmirio era de uma versão antiga)', async () => {
+  const f = fakes(); const g = criarGeracaoPeca(f.deps);
+  g.pedir(pedido({ origem: 'manual' }));
+  await g.ocioso();
+  assert.strictEqual(f.gerados[0].force, true);
+  assert.deepStrictEqual(f.revisados, [110]);
+  assert.match(f.avisos[0].mensagem, /Revisão automática: 8\/10 itens OK/);
+});
+
 test('falha da IA: avisa a falha, limpa o registro e solta a trava', async () => {
   const f = fakes({ gerar: async () => { throw new Error('IA sem cota'); } });
   const g = criarGeracaoPeca(f.deps);

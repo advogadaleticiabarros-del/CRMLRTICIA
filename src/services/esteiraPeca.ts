@@ -9,6 +9,7 @@ import {
 } from './pecaDossie';
 import { chaveLeituraCliente } from './leituraUnica';
 import { aplicarEnderecamento } from './enderecamentoPeca';
+import { apurarFicha, calcularPorBanco, type CalculoDoBanco } from './contabilista';
 import { separarParaPeca, mesmoBanco, chaveContrato, conferirPecasPorBanco, type ContratoSalvo, type PecaAlvo, type AcaoParaConferir, type ConferenciaPecas } from './contratosDoCaso';
 
 /**
@@ -48,7 +49,12 @@ export interface DepsEsteira {
   guardarContratos?(clientId: number, contratos: ContratoFicha[]): Promise<void>;
   /** Ações do cliente (processos, com o réu), para conferir uma peça por banco; pedido unido conta no principal. */
   acoesDoCliente?(clientId: number): Promise<AcaoParaConferir[]>;
-  /** Índices do Bacen (INPC, IPCA, Selic) para a planilha de cálculos; sem eles a planilha sai nominal. */
+  /**
+   * Planilhas do cliente feitas na leitura, uma por banco (Calculista, 31/10/2026): ficam
+   * no cliente para a Dra. conferir e servem de base para cada peça.
+   */
+  guardarPlanilhasDoCliente?(clientId: number, cliente: string, porBanco: CalculoDoBanco[]): Promise<void>;
+  /** Índices do Bacen (INPC, IPCA, Selic, Taxa Legal) para a planilha de cálculos; sem eles a planilha sai nominal. */
   indices?(): Promise<{ indices: IndicesMensais; avisos: string[] } | null>;
   registrar(agente: string, texto: string): void;
   /**
@@ -167,7 +173,7 @@ async function lerAgora(casos: CasoEsteira[], deps: DepsEsteira, clientId: numbe
  * das fontes, de qualquer banco, e eles ficam guardados no cliente para a Dra.
  * dizer em qual processo cada um entra.
  */
-export async function levantarContratos(caseId: number, deps: DepsEsteira): Promise<{ ok: boolean; contratos?: number; fontes?: number; message?: string; conferencia?: ConferenciaPecas | null; reaproveitada?: boolean }> {
+export async function levantarContratos(caseId: number, deps: DepsEsteira): Promise<{ ok: boolean; contratos?: number; fontes?: number; message?: string; conferencia?: ConferenciaPecas | null; reaproveitada?: boolean; porBanco?: Array<{ banco: string; restituir: number; descontos: number }>; avisos?: string[] }> {
   const casos = await casosDaPeca(caseId, deps);
   const caso = casos[0];
   if (caso.client_id == null) return { ok: false, message: 'O caso não tem cliente cadastrado' };
@@ -182,7 +188,21 @@ export async function levantarContratos(caseId: number, deps: DepsEsteira): Prom
   const conferencia = await conferirLeitura(caso.client_id, salvos, contratos, deps);
   const problemas = problemasDaConferencia(conferencia);
   if (problemas.length) deps.registrar('analista', `conferiu uma peça por banco para ${caso.cliente}: ${problemas.map((p) => p.texto).join(' | ')}`);
-  return { ok: true, contratos: contratos.length, fontes: l.lidas, conferencia, reaproveitada: l.reaproveitada };
+  // Calculista na leitura: cada desconto no contrato e no banco certos, e a planilha de cada banco.
+  const c = await calculoNaLeitura(caso.client_id, caso.cliente, l.ficha, deps);
+  return { ok: true, contratos: contratos.length, fontes: l.lidas, conferencia, reaproveitada: l.reaproveitada, porBanco: c.porBanco, avisos: c.avisos };
+}
+
+/** O Calculista apura os descontos da ficha por contrato e guarda a planilha de cada banco do cliente. */
+async function calculoNaLeitura(clientId: number, cliente: string, ficha: FichaDeFatos, deps: DepsEsteira) {
+  const hoje = deps.hoje?.() || new Date();
+  const apurada = apurarFicha(ficha, hoje);
+  const ind = deps.indices ? await deps.indices().catch(() => null) : null;
+  const porBanco = calcularPorBanco(apurada, ind?.indices ?? null, hoje);
+  if (porBanco.length) await deps.guardarPlanilhasDoCliente?.(clientId, cliente, porBanco).catch(() => {});
+  const resumo = porBanco.map((b) => ({ banco: b.banco, restituir: b.calculo.valorDaCausa.restituicao, descontos: b.calculo.descontos.length }));
+  if (resumo.length) deps.registrar('calculista', `apurou os descontos de ${cliente} por banco: ${resumo.map((b) => `${b.banco} ${b.descontos} desconto(s), ${brl(b.restituir)} a restituir`).join(' · ')}`);
+  return { porBanco: resumo, avisos: apurada.lacunas.slice(ficha.lacunas.length) };
 }
 
 export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promise<ResultadoEsteira> {
@@ -195,9 +215,12 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
   // 2) Dra. Helena: lê tudo e monta a ficha de fatos.
   deps.etapa?.('leitura');
   const leitura = await lerDocumentos(casos, deps);
+  // O Calculista liga cada desconto do extrato do benefício ao contrato (e ao banco) certo.
   const lida = leitura.ok
-    ? leitura.ficha
+    ? apurarFicha(leitura.ficha, deps.hoje?.() || new Date())
     : fichaVazia(`A leitura dos documentos pela IA falhou (${leitura.message || 'sem resposta'}): a ficha de fatos ficou vazia. Conferir os documentos à mão.`);
+  // Leitura nova (não reaproveitada): o Calculista refaz as planilhas do cliente, uma por banco.
+  if (leitura.ok && !leitura.reaproveitada && caso.client_id != null) await calculoNaLeitura(caso.client_id, caso.cliente, leitura.ficha, deps).catch(() => null);
   // A redação usa os documentos desta peça (com os textos já guardados, sem nova leitura).
   const fontes = montarFontes(await deps.fontes(casos.map((c) => c.id), caso).catch(() => []));
 
@@ -215,7 +238,7 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
   // 3) Cálculos em código; o Calculista atualiza cada desconto (planilha de cálculos).
   deps.etapa?.('calculos');
   const hoje = deps.hoje?.() || new Date();
-  let calculo = calcularPeca({ contratos: ficha.contratos, descontos: ficha.descontos, hoje });
+  let calculo = calcularPeca({ contratos: ficha.contratos, descontos: ficha.descontos, hoje, jaApurados: leitura.ok });
   if (calculo.descontos.length && deps.indices) {
     const ind = await deps.indices().catch(() => null);
     calculo = atualizarCalculo(calculo, ind?.indices ?? null, hoje);

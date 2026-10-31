@@ -134,7 +134,9 @@ router.post('/:caseId/contratos/levantar', async (req: Request, res: Response) =
       const r = await levantarContratos(caseId, depsEsteiraMysql);
       const problemas = (r.conferencia?.problemas || []).filter((p) => p.tipo !== 'nao_lidos');
       const porBanco = problemas.length ? ` Atenção, uma peça por banco: ${problemas.map((p) => p.texto).join(' ')}` : '';
-      const msg = r.ok ? `${r.contratos} contrato(s) em ${r.fontes} documento(s)${r.reaproveitada ? ' (os mesmos documentos já lidos para outra ação do cliente: sem nova leitura pela IA)' : ''}. Veja na aba Caso da mesa.${porBanco}` : String(r.message || 'Erro desconhecido');
+      const { brl } = await import('../services/pecaCalculos');
+      const calculo = r.porBanco?.length ? ` Calculista: ${r.porBanco.map((b) => `${b.banco}, ${b.descontos} desconto(s), ${brl(b.restituir)} a restituir`).join('; ')} (planilha de cada banco em Documentos).` : '';
+      const msg = r.ok ? `${r.contratos} contrato(s) em ${r.fontes} documento(s)${r.reaproveitada ? ' (os mesmos documentos já lidos para outra ação do cliente: sem nova leitura pela IA)' : ''}. Veja na aba Caso da mesa.${calculo}${porBanco}` : String(r.message || 'Erro desconhecido');
       await avisar(r.ok, `${c.title || 'Processo'} — ${msg}`);
       return { ok: r.ok, mensagem: msg };
     } catch (e: any) {

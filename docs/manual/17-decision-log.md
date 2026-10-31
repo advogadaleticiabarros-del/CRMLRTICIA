@@ -16,6 +16,20 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 31/10/2026 — Devolução em dobro de todos os descontos (Tema 929 do STJ)
+**Decisão:** a planilha e a peça devolvem em dobro todos os descontos, sem o marco de 30/03/2021 (`MARCO_DOBRO = null` em `pecaCalculos.ts`).
+**Motivo:** a Corte Especial do STJ concluiu o Tema 929 em 15/09/2026 sem modulação: a dobra não depende de má-fé e não fica restrita às cobranças posteriores a 30/03/2021 (Migalhas, "Tema 929: Como fica a repetição do indébito em dobro?"; Cálculo Jurídico, 21/09/2026). A Jessica pediu o cálculo "100% assertivo".
+**Ressalva:** a fonte lida não é o acórdão; conferir a tese publicada pelo STJ. Para voltar à regra antiga, basta `MARCO_DOBRO = '2021-03'`.
+
+### 31/10/2026 — Juros pela Taxa Legal publicada pelo Bacen
+**Decisão:** de 09/2024 em diante, os juros de mora são a Taxa Legal mensal da série SGS 29543, somada mês a mês; sem a taxa do mês, Selic − IPCA com aviso.
+**Motivo:** a Resolução CMN 5.171/2024 define a metodologia (razão entre a Selic e o IPCA-15 do mês anterior, piso zero, juros simples). A conta que o sistema fazia (Selic − IPCA do próprio mês) dá outro número. Fonte: estudo da Divisão de Cálculos da JFRS publicado pelo TRF4.
+**Convenção de agosto/2024:** 1% ao mês até 08/2024, inclusive; Taxa Legal a partir de 09/2024 (a mesma do programa de cálculos da Justiça Federal).
+
+### 31/10/2026 — Calculista liga os descontos aos contratos em código, na leitura
+**Decisão:** a IA só copia cada desconto do histórico de créditos com a rubrica; a atribuição ao contrato (rubrica + parcela + período) é feita em código (`contabilista.ts`), e a planilha de cada banco é salva já na leitura.
+**Motivo:** o histórico de créditos não mostra o banco. Pedir à IA o banco de cada desconto gerava descontos sem dono, que a regra "uma peça por banco" descartava: a peça do Valmirio saiu com R$ 0,00. A regra em código é testável e não inventa: o que é ambíguo fica sem dono, com o motivo.
+
 ### 30/10/2026 — Geração da peça registrada no banco para ser retomada (revê em parte a entrada seguinte)
 **Decisão:** a trava continua na memória, mas cada geração em andamento também fica em `geracoes_peca_pendentes`; no início do CRM, o que sobrou é gerado de novo (no máximo 2 retomadas por pedido).
 **Motivo:** a entrada seguinte supunha que perder a geração num reinício era aceitável. Na prática, as publicações reiniciam o CRM várias vezes por dia e a Jessica ficou sem a versão e sem aviso. Retomar sozinho é o que ela espera; o limite de 2 evita repetir sem fim uma geração que derruba o servidor.
@@ -293,6 +307,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 31/10/2026 | Claude | Tema 929 (tudo em dobro), Taxa Legal oficial do Bacen e Calculista na leitura (HISCON × HISCRE em código) |
 | 30/10/2026 | Claude | Geração da peça registrada no banco e retomada depois de reinício (máx. 2 vezes) |
 | 30/10/2026 | Claude | Trava da geração da peça em memória (processo único), com etapa para a barra de progresso |
 | 30/10/2026 | Claude | Juros desde cada desconto confirmados pela Jessica (sempre atualizados, nunca desde a citação) |

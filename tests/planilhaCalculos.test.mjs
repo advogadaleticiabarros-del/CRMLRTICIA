@@ -39,7 +39,7 @@ function depsIndices({ cache = [], bacen, hoje = new Date(2026, 9, 28) } = {}) {
 }
 
 test('carregarIndices: cache em dia não chama o Bacen', async () => {
-  const cache = ['inpc', 'ipca', 'selic'].map((serie) => ({ serie, competencia: '2026-09', valor: 0.5 }));
+  const cache = ['inpc', 'ipca', 'selic', 'legal'].map((serie) => ({ serie, competencia: '2026-09', valor: 0.5 }));
   const t = depsIndices({ cache });
   const r = await carregarIndices(t.deps);
   assert.strictEqual(t.chamadas.length, 0);
@@ -111,17 +111,42 @@ test('atualizarIndebito: data-base é o último mês fechado; desconto do própr
 });
 
 test('atualizarIndebito: correção composta a partir do mês seguinte; juros simples 1% a.m. até 08/2024', () => {
-  // desconto 2021-02 (simples): meses de 2021-03 a 2021-05 → 3 meses (data-base forçada pelos índices).
+  // desconto 2021-02 (em dobro, Tema 929): meses de 2021-03 a 2021-05 → 3 meses (data-base forçada pelos índices).
   const p = atualizarIndebito([{ competencia: '2021-02', valor: 100, contrato: 'A' }], indicesFixos({ ate: '2021-05' }), HOJE);
   assert.strictEqual(p.dataBase, '2021-05');
   const l = p.linhas[0];
-  assert.strictEqual(l.regra, 'simples');
-  assert.strictEqual(l.restituir, 100);
+  assert.strictEqual(l.regra, 'dobro', 'Tema 929 do STJ: sem o marco de 30/03/2021');
+  assert.strictEqual(l.restituir, 200);
   assert.strictEqual(l.fator, 1.030301);
-  assert.strictEqual(l.corrigido, 103.03);
+  assert.strictEqual(l.corrigido, 206.06);
   assert.strictEqual(l.jurosPct, 3);
-  assert.strictEqual(l.juros, 3.09);
-  assert.strictEqual(l.total, 106.12);
+  assert.strictEqual(l.juros, 6.18);
+  assert.strictEqual(l.total, 212.24);
+});
+
+test('atualizarIndebito: a partir de 09/2024 os juros são a Taxa Legal publicada pelo Bacen (SGS 29543), não Selic − IPCA', () => {
+  const ind = indicesFixos({ inpc: 5, ipca: 0.4, selic: 1.0, ate: '2024-10' });
+  ind.legal = { '2024-08': 0.605306, '2024-09': 0.676227, '2024-10': 0.704241 };
+  const p = atualizarIndebito([{ competencia: '2024-08', valor: 50, contrato: 'A' }], ind, HOJE);
+  assert.strictEqual(p.linhas[0].jurosPct, 1.380468, 'set/2024 0,676227% + out/2024 0,704241%, somados (juros simples)');
+  assert.ok(p.meses.every((m) => m.legalOficial));
+  assert.ok(!p.avisos.some((a) => /Taxa Legal/.test(a)));
+});
+
+test('atualizarIndebito: sem a Taxa Legal publicada, usa Selic − IPCA e avisa', () => {
+  const ind = indicesFixos({ ipca: 0.4, selic: 1.0, ate: '2024-10' });
+  ind.legal = { '2024-09': 0.676227 };
+  const p = atualizarIndebito([{ competencia: '2024-08', valor: 50, contrato: 'A' }], ind, HOJE);
+  assert.strictEqual(p.linhas[0].jurosPct, 1.276227);
+  assert.ok(p.avisos.some((a) => /Taxa Legal do Bacen não disponível em 10\/2024/.test(a)));
+});
+
+test('carregarIndices: a Taxa Legal (29543) só é buscada a partir de 08/2024', async () => {
+  const t = depsIndices({ bacen: () => [] });
+  await carregarIndices(t.deps, '2005-01');
+  const legal = t.chamadas.filter((c) => c.codigo === 29543);
+  assert.ok(legal.length >= 1);
+  assert.strictEqual(legal[0].de, '01/08/2024');
 });
 
 test('atualizarIndebito: a partir de 09/2024 corrige pelo IPCA e os juros são a taxa legal (Selic − IPCA)', () => {
@@ -186,13 +211,13 @@ const DESCONTOS = [
 
 test('atualizarCalculo: usa os descontos sem repetição e o valor da causa passa a ser o atualizado', () => {
   const nominal = calcularPeca({ contratos: [], descontos: DESCONTOS, danoMoral: 5000, hoje: HOJE });
-  assert.strictEqual(nominal.valorDaCausa.restituicao, 300);
+  assert.strictEqual(nominal.valorDaCausa.restituicao, 400, 'dois descontos únicos, em dobro');
   const c = atualizarCalculo(nominal, indicesFixos(), HOJE);
   assert.strictEqual(c.atualizacao.linhas.length, 2);
   assert.strictEqual(c.valorDaCausa.restituicao, c.atualizacao.total.total);
-  assert.ok(c.valorDaCausa.restituicao > 300);
+  assert.ok(c.valorDaCausa.restituicao > 400);
   assert.strictEqual(c.valorDaCausa.total, Math.round((c.atualizacao.total.total + 5000) * 100) / 100);
-  assert.strictEqual(c.indebito.total.restituir, 300, 'o nominal continua no cálculo');
+  assert.strictEqual(c.indebito.total.restituir, 400, 'o nominal continua no cálculo');
 });
 
 test('atualizarCalculo sem descontos não cria planilha', () => {
@@ -217,7 +242,9 @@ test('planilhaMarkdown: tabela mês a mês, critérios e resumo do valor da caus
   const md = planilhaMarkdown(c, CAB);
   assert.match(md, /^# Planilha de cálculos — Cliente Teste/);
   assert.match(md, /\| Competência \| Contrato \|/);
-  assert.match(md, /\| 02\/2021 \| 123 \| R\$ 100,00 \| simples/);
+  assert.match(md, /\| 02\/2021 \| 123 \| R\$ 100,00 \| em dobro/);
+  assert.match(md, /Tema 929/);
+  assert.match(md, /Taxa Legal/);
   assert.match(md, /Súmula 43/);
   assert.match(md, /Súmula 54/);
   assert.match(md, /Valor da causa/i);

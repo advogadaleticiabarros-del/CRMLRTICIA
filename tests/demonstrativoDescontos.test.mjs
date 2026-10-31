@@ -48,15 +48,15 @@ test('agrupa os descontos por contrato (nº com ou sem pontuação), com tipo, b
   assert.strictEqual(d.totalMeses, 4);
 });
 
-test('valor da causa: sem planilha atualizada usa a restituição nominal (simples até 03/2021, dobro depois) + dano moral', () => {
+test('valor da causa: sem planilha atualizada usa a restituição nominal (tudo em dobro, Tema 929) + dano moral', () => {
   const { contratos, calculo } = cenario();
   const d = montarDemonstrativo({ calculo, contratos, cab: { cliente: 'Fulana', geradaEm: HOJE } });
-  // 50 simples + 50×2 + 30,50×2×2 = 272
-  assert.strictEqual(d.valorDaCausa.restituirNominal, 272);
-  assert.strictEqual(d.valorDaCausa.restituicao, 272);
+  // 50×2 + 50×2 + 30,50×2×2 = 322
+  assert.strictEqual(d.valorDaCausa.restituirNominal, 322);
+  assert.strictEqual(d.valorDaCausa.restituicao, 322);
   assert.strictEqual(d.valorDaCausa.atualizadoAte, null);
   assert.strictEqual(d.valorDaCausa.danoMoral, 10000);
-  assert.strictEqual(d.valorDaCausa.total, 10272);
+  assert.strictEqual(d.valorDaCausa.total, 10322);
 });
 
 test('valor da causa: com a planilha do Calculista, usa a restituição atualizada e a data-base', () => {

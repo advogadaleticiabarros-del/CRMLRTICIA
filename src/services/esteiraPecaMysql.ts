@@ -7,6 +7,10 @@ import type { Fonte, ItemCatalogo, ContratoFicha, FichaDeFatos } from './pecaDos
 import { lerUmaVez, refDoConteudo, type CacheLeitura } from './leituraUnica';
 import { chaveContrato, type ContratoSalvo, type AcaoParaConferir } from './contratosDoCaso';
 import { indicesDoBacen } from './indicesEconomicosMysql';
+import { mesmoBanco } from './contratosDoCaso';
+import type { CalculoDoBanco } from './contabilista';
+import { planilhaMarkdown, planilhaXlsx } from './planilhaCalculos';
+import { MIME_XLSX } from './xlsxSimples';
 
 /**
  * Esteira da petição inicial com banco e IA de verdade (regras em esteiraPeca.ts).
@@ -28,7 +32,7 @@ const PASTA_AREA: Record<string, string> = {
 const pastaDaArea = (area: string | null) => PASTA_AREA[String(area || '').toLowerCase()] || null;
 
 const PROMPT_TRANSCRICAO = `Transcreva este documento INTEGRALMENTE e com fidelidade, em português. Preserve todos os números, datas, valores, nomes, CPF/CNPJ e números de contrato.
-Tabelas (extrato do INSS/HISCON/HISCRE, fatura, holerite, extrato bancário): uma linha por registro, colunas separadas por " | ", com o cabeçalho. Transcreva TODAS as linhas.
+Tabelas (extrato do INSS/HISCON/HISCRE, fatura, holerite, extrato bancário): uma linha por registro, colunas separadas por " | ", com o cabeçalho. Transcreva TODAS as linhas e TODAS as colunas, inclusive as da direita (no HISCON: data de inclusão, início e fim do desconto, quantidade de parcelas, valor da parcela, valor emprestado). No histórico de créditos (HISCRE), cada competência com todas as rubricas e valores (ex.: "216 CONSIGNACAO EMPRESTIMO BANCARIO | 43,64").
 Não resuma, não interprete e não invente. Trecho ilegível: [ilegível]. Comece com uma linha "TIPO: <tipo do documento>".`;
 
 const PECAS_GERADAS = ['Petição Inicial%', 'Revisão da Petição%', 'Dossiê da peça%', 'Planilha de cálculos%', 'Demonstrativo de descontos%'];
@@ -116,12 +120,14 @@ async function fontes(caseIds: number[], principal: CasoEsteira): Promise<Fonte[
     if (c?.relato) out.push({ nome: `Relato cadastrado — caso #${id}`, texto: c.relato });
   }
   const filtroGeradas = PECAS_GERADAS.map(() => 'name NOT LIKE ?').join(' AND ');
+  // Também os documentos guardados só no cliente (sem caso), que a análise da Dra. Helena já via.
   const [docs] = await db.query(
     `SELECT id, case_id, name, content, mime, (data IS NOT NULL) AS tem_arquivo FROM documents
-      WHERE case_id IN (?) AND ${filtroGeradas} ORDER BY id ASC`, [caseIds, ...PECAS_GERADAS]) as any;
+      WHERE (case_id IN (?) OR (case_id IS NULL AND ? IS NOT NULL AND client_id = ?)) AND ${filtroGeradas} ORDER BY id ASC`,
+    [caseIds, principal.client_id, principal.client_id, ...PECAS_GERADAS]) as any;
   let arquivos = 0;
   for (const d of docs) {
-    const nome = `${d.name} (caso #${d.case_id})`;
+    const nome = d.case_id ? `${d.name} (caso #${d.case_id})` : `${d.name} (documento do cliente)`;
     if (d.content && String(d.content).trim()) { out.push({ nome, texto: String(d.content) }); continue; }
     if (!d.tem_arquivo || !/^(application\/pdf|image\/)/i.test(String(d.mime || '')) || arquivos >= MAX_ARQUIVOS) { out.push({ nome, texto: '' }); continue; }
     arquivos++;
@@ -295,8 +301,28 @@ export async function acoesDoCliente(clientId: number): Promise<AcaoParaConferir
   });
 }
 
+/**
+ * Planilha de cálculos de cada banco, feita na leitura dos documentos. Fica na ação daquele
+ * banco (ou no cliente, sem ação do banco) e a leitura seguinte substitui a anterior.
+ */
+export async function guardarPlanilhasDoCliente(clientId: number, cliente: string, porBanco: CalculoDoBanco[]): Promise<void> {
+  const acoes = await acoesDoCliente(clientId).catch(() => [] as AcaoParaConferir[]);
+  const [[admin]] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
+  for (const b of porBanco) {
+    const acao = acoes.find((a) => a.reus.some((r) => mesmoBanco(r.nome, b.banco)));
+    const nome = `Planilha de cálculos — ${cliente} · ${b.banco} (leitura dos documentos)`.slice(0, 255);
+    const cab = { cliente, reus: [b.banco], casos: acao ? [{ id: acao.id, titulo: acao.titulo }] : [] };
+    const xlsx = await planilhaXlsx(b.calculo, cab).catch(() => null);
+    await db.query('DELETE FROM documents WHERE client_id = ? AND name = ?', [clientId, nome]);
+    await db.query(
+      `INSERT INTO documents (client_id, case_id, name, type, folder, content, data, mime, status, created_by)
+       VALUES (?, ?, ?, 'ia', 'processos', ?, ?, ?, 'pendente', ?)`,
+      [clientId, acao?.id ?? null, nome, planilhaMarkdown(b.calculo, cab), xlsx, xlsx ? MIME_XLSX : null, admin?.id ?? null]);
+  }
+}
+
 export const depsEsteiraMysql: DepsEsteira = {
-  caso, candidatosCorrelatos, fontes, fontesDoCliente, leituraGuardada, guardarLeitura, catalogo, modelos, teses, fundamentos, regras, contratosSalvos, guardarContratos, acoesDoCliente,
+  caso, candidatosCorrelatos, fontes, fontesDoCliente, leituraGuardada, guardarLeitura, catalogo, modelos, teses, fundamentos, regras, contratosSalvos, guardarContratos, acoesDoCliente, guardarPlanilhasDoCliente,
   indices: indicesDoBacen,
   ia: (prompt, nivel) => aiComplete(prompt, nivel === 'redacao' ? 'openai-alto' : nivel === 'leitura' ? 'openai-medio' : 'openai'),
   registrar: registrarAcaoAgente,

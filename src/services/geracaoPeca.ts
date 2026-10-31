@@ -55,7 +55,8 @@ export function criarGeracaoPeca(deps: DepsGeracao) {
         return;
       }
       let rev = '';
-      if (p.origem === 'etapa') {
+      // Toda versão nova é revisada, também a pedida à mão: a revisão é sempre da versão que chegou.
+      if (r.version || p.origem === 'etapa') {
         deps.trava.marcar(p.alvo, 'revisao');
         const s = await deps.revisar(p.caseId, p.userId).catch(() => null);
         if (s) rev = ` Revisão automática: ${s.itens_ok}/${s.itens_verificados} itens OK${s.pendencias_criticas ? `, ${s.pendencias_criticas} pendência(s) crítica(s)` : ''}.`;

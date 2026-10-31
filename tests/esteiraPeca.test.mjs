@@ -10,7 +10,7 @@ import {
 } from '../dist/services/pecaConsolidacao.js';
 import {
   valorNumero, taxaNumero, parseFichaDeFatos, montarFontes, promptFichaDeFatos, parseEscolha,
-  montarPromptRedacao, conferirValores, relatorioDossie,
+  montarPromptRedacao, conferirValores, relatorioDossie, blocoCalculos,
 } from '../dist/services/pecaDossie.js';
 import { produzirPeticao, levantarContratos } from '../dist/services/esteiraPeca.js';
 import { auditarArquivos } from './helpers/schemaAudit.mjs';
@@ -39,7 +39,7 @@ test('parcelaPrice: sem juros divide; uma parcela soma os juros', () => {
   assert.ok(Math.abs(p - 246.76) < 0.02, `parcela ${p}`);
 });
 
-test('calcularIndebito: até 03/2021 devolve simples, depois em dobro (EAREsp 600.663)', () => {
+test('calcularIndebito: tudo em dobro, também antes de 03/2021 (STJ, Tema 929, 15/09/2026, sem modulação)', () => {
   const r = calcularIndebito([
     { competencia: '2021-02', valor: 100, contrato: 'A' },
     { competencia: '2021-03', valor: 100, contrato: 'A' },
@@ -47,13 +47,13 @@ test('calcularIndebito: até 03/2021 devolve simples, depois em dobro (EAREsp 60
     { competencia: '2021-05', valor: 50.25, contrato: 'B' },
   ]);
   assert.strictEqual(r.total.descontado, 350.25);
-  assert.strictEqual(r.total.restituirSimples, 200);
-  assert.strictEqual(r.total.restituirDobro, 300.5);
-  assert.strictEqual(r.total.restituir, 500.5);
+  assert.strictEqual(r.total.restituirSimples, 0);
+  assert.strictEqual(r.total.restituirDobro, 700.5);
+  assert.strictEqual(r.total.restituir, 700.5);
   const a = r.porContrato.find((x) => x.contrato === 'A');
   assert.strictEqual(a.meses, 3);
-  assert.strictEqual(a.simples.meses, 2);
-  assert.strictEqual(a.dobro.meses, 1);
+  assert.strictEqual(a.simples.meses, 0);
+  assert.strictEqual(a.dobro.meses, 3);
   assert.strictEqual(a.periodo, '02/2021 a 04/2021');
 });
 
@@ -108,7 +108,7 @@ test('calcularPeca: contrato com taxa mas sem a taxa média vira aviso, não nú
 test('calcularPeca: contrato só com parcela e início do desconto vira meses estimados, com aviso', () => {
   const c = calcularPeca({ contratos: [{ numero: 'R1', tipo: 'rmc', parcela: 50, inicio_desconto: '2021-02', n_parcelas: 4 }], descontos: [], hoje: new Date('2026-10-21') });
   assert.strictEqual(c.indebito.total.descontado, 200);
-  assert.strictEqual(c.indebito.total.restituir, 300);
+  assert.strictEqual(c.indebito.total.restituir, 400, 'Tema 929: 2021 também em dobro');
   assert.ok(c.avisos.some((a) => /R1/.test(a) && /estimad/i.test(a)));
 });
 
@@ -459,4 +459,73 @@ test('sem acoesDoCliente (deps antigas), a leitura segue sem conferência', asyn
   const r = await levantarContratos(1, deps);
   assert.strictEqual(r.ok, true);
   assert.strictEqual(r.conferencia, null);
+});
+
+// ── caso real (31/10/2026): Valmirio contra o Itaú, peça com R$ 0,00 ─────────
+// HISCON com contratos do Itaú, Pan e Facta; HISCRE com os descontos só pela rubrica
+// (sem banco). Antes: os descontos sem banco eram descartados e a peça saía zerada.
+const FICHA_HISCRE_SEM_BANCO = JSON.stringify({
+  contratos: [
+    { numero: '632706066', tipo: 'emprestimo_consignado', banco: 'Banco Itaú S.A.', valor_liberado: '2.080,30', parcela: '43,64', situacao: 'ativo', fonte: 'HISCON.pdf' },
+    { numero: '777001', tipo: 'emprestimo_consignado', banco: 'Banco Pan S.A.', parcela: '120,00', situacao: 'ativo', fonte: 'HISCON.pdf' },
+    { numero: 'RMC-9', tipo: 'rmc', banco: 'Facta Financeira S.A.', situacao: 'ativo', fonte: 'HISCON.pdf' },
+  ],
+  descontos: ['01/2026', '02/2026', '03/2026'].flatMap((c) => [
+    { competencia: c, valor: '43,64', rubrica: '216 CONSIGNACAO EMPRESTIMO BANCARIO', fonte: 'HISCRE.pdf' },
+    { competencia: c, valor: '120,00', rubrica: '216 CONSIGNACAO EMPRESTIMO BANCARIO', fonte: 'HISCRE.pdf' },
+    { competencia: c, valor: '55,10', rubrica: '217 EMPRESTIMO SOBRE A RMC', fonte: 'HISCRE.pdf' },
+  ]),
+  competencias_extrato: ['01/2026', '02/2026', '03/2026'],
+});
+
+test('produzirPeticao (caso Valmirio): os descontos sem banco do HISCRE vão para o contrato do Itaú pela parcela; a peça não sai zerada', async () => {
+  const guardadas = [];
+  const { deps, chamadas } = fakeDeps({
+    caso: async (id) => ({ id, client_id: 7, legal_area: 'consumidor', production_stage: 'criacao_inicial', titulo: 'Empréstimo consignado', cliente: 'Cliente Teste', qualificacao: 'Nome: Cliente Teste', advogada: 'Dra. Teste', relato: 'não autorizou', partes: [{ nome: 'Banco Itaú S.A.' }], phone: null }),
+    candidatosCorrelatos: async () => [],
+    ia: async (prompt, nivel) => {
+      chamadas.push({ prompt, nivel });
+      if (nivel === 'leitura') return { ok: true, text: FICHA_HISCRE_SEM_BANCO };
+      if (nivel === 'escolha') return { ok: true, text: '{"estrategia":"inexistência","modelos":["M1"],"teses":[],"motivo":"x"}' };
+      return { ok: true, text: 'PETIÇÃO' };
+    },
+    fontesDoCliente: async () => [{ nome: 'HISCON.pdf', texto: 'hiscon' }, { nome: 'HISCRE.pdf', texto: 'hiscre' }],
+    guardarPlanilhasDoCliente: async (clientId, cliente, porBanco) => { guardadas.push(...porBanco); },
+    hoje: () => new Date(2026, 3, 10),
+  });
+  const r = await produzirPeticao(1, deps);
+  assert.strictEqual(r.ok, true);
+  assert.deepStrictEqual(r.ficha.contratos.map((c) => c.numero), ['632706066'], 'na peça, só o contrato do réu');
+  assert.strictEqual(r.calculo.indebito.total.descontado, 130.92, '3 × R$ 43,64');
+  assert.strictEqual(r.calculo.indebito.total.restituir, 261.84, 'em dobro');
+  assert.ok(r.calculo.valorDaCausa.total > 0);
+  const redacao = chamadas[chamadas.length - 1].prompt;
+  assert.match(redacao, /Contrato 632706066: 3 desconto\(s\) de 01\/2026 a 03\/2026/);
+  assert.doesNotMatch(redacao, /SEM DESCONTOS APURADOS/);
+  // Na leitura, a planilha de cada banco do cliente (Itaú e Pan; o cartão da Facta varia, vai pela rubrica 217).
+  assert.deepStrictEqual(guardadas.map((b) => b.banco), ['Banco Itaú S.A.', 'Banco Pan S.A.', 'Facta Financeira S.A.']);
+  assert.strictEqual(guardadas[2].calculo.indebito.total.descontado, 165.3);
+});
+
+test('levantarContratos: a leitura já devolve o cálculo de cada banco', async () => {
+  const { levantarContratos } = await import('../dist/services/esteiraPeca.js');
+  const { deps } = fakeDeps({
+    caso: async (id) => ({ id, client_id: 7, legal_area: 'consumidor', titulo: 'Empréstimo consignado', cliente: 'Cliente Teste', qualificacao: '', advogada: '', relato: '', partes: [{ nome: 'Banco Itaú S.A.' }], phone: null }),
+    candidatosCorrelatos: async () => [],
+    ia: async () => ({ ok: true, text: FICHA_HISCRE_SEM_BANCO }),
+    fontesDoCliente: async () => [{ nome: 'HISCON.pdf', texto: 'hiscon' }],
+    hoje: () => new Date(2026, 3, 10),
+  });
+  const r = await levantarContratos(1, deps);
+  assert.strictEqual(r.ok, true);
+  const itau = r.porBanco.find((b) => /Itaú/.test(b.banco));
+  assert.strictEqual(itau.descontos, 3);
+  assert.strictEqual(itau.restituir, 261.84);
+});
+
+test('blocoCalculos sem descontos: nunca manda escrever R$ 0,00', () => {
+  const b = blocoCalculos(calcularPeca({ contratos: [], descontos: [], hoje: new Date(2026, 9, 1) }));
+  assert.match(b, /SEM DESCONTOS APURADOS/);
+  assert.match(b, /\[valor a apurar\]/);
+  assert.doesNotMatch(b, /VALOR DA CAUSA: R\$ 0,00/);
 });

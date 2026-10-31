@@ -18,7 +18,10 @@ export interface ContratoFicha extends ComFonte {
 export interface FichaDeFatos {
   reus: Array<{ nome: string; cnpj: string | null; endereco: string | null } & ComFonte>;
   contratos: ContratoFicha[];
-  descontos: Array<{ competencia: string; valor: number; contrato: string | null; banco?: string | null } & ComFonte>;
+  /** rubrica: como o extrato do benefício chama o desconto ("216 CONSIGNACAO EMPRESTIMO BANCARIO"); origem: lido no extrato ou estimado pela parcela (contabilista.ts). */
+  descontos: Array<{ competencia: string; valor: number; contrato: string | null; banco?: string | null; rubrica?: string | null; origem?: 'extrato' | 'estimado' } & ComFonte>;
+  /** Meses ("aaaa-mm") que algum extrato de pagamento do benefício (HISCRE) cobre: mês coberto sem desconto não é estimado. */
+  competencias_extrato?: string[];
   fatos: Array<{ data: string | null; texto: string } & ComFonte>;
   valores: Array<{ descricao: string; valor: number | null; data: string | null } & ComFonte>;
   vinculo: Record<string, string | null> | null;
@@ -96,8 +99,9 @@ export function parseFichaDeFatos(texto: string): FichaDeFatos {
   f.reus = lista(o.reus).map((r) => ({ nome: txt(r?.nome, 255) || '', cnpj: txt(r?.cnpj ?? r?.cpf_cnpj, 30), endereco: txt(r?.endereco), fonte: txt(r?.fonte, 255) })).filter((r) => r.nome);
   f.contratos = parseContratos(o.contratos);
   f.descontos = lista(o.descontos)
-    .map((d) => ({ competencia: competencia(d?.competencia), valor: valorNumero(d?.valor), contrato: txt(d?.contrato, 80), ...(txt(d?.banco, 255) ? { banco: txt(d?.banco, 255) } : {}), fonte: txt(d?.fonte, 255) }))
+    .map((d) => ({ competencia: competencia(d?.competencia), valor: valorNumero(d?.valor), contrato: txt(d?.contrato, 80), ...(txt(d?.banco, 255) ? { banco: txt(d?.banco, 255) } : {}), ...(txt(d?.rubrica, 120) ? { rubrica: txt(d?.rubrica, 120) } : {}), fonte: txt(d?.fonte, 255) }))
     .filter((d): d is FichaDeFatos['descontos'][number] => !!d.competencia && d.valor != null && d.valor > 0);
+  f.competencias_extrato = [...new Set(lista(o.competencias_extrato).map((c) => competencia(c)).filter((c): c is string => !!c))].sort();
   f.fatos = lista(o.fatos).map((x) => ({ data: txt(x?.data, 20), texto: txt(x?.texto, 1000) || '', fonte: txt(x?.fonte, 255) })).filter((x) => x.texto);
   f.valores = lista(o.valores).map((x) => ({ descricao: txt(x?.descricao, 255) || '', valor: valorNumero(x?.valor), data: txt(x?.data, 20), fonte: txt(x?.fonte, 255) })).filter((x) => x.descricao);
   if (o.vinculo && typeof o.vinculo === 'object') f.vinculo = Object.fromEntries(Object.entries(o.vinculo).map(([k, v]) => [k, txt(v, 255)]));
@@ -141,7 +145,8 @@ ${ctx.casos.map((c) => `- ${c}`).join('\n')}
 Responda SOMENTE com JSON neste formato:
 {"reus":[{"nome":"...","cnpj":"...","endereco":"...","fonte":"nome da fonte"}],
  "contratos":[{"numero":"...","tipo":"emprestimo_consignado|emprestimo_pessoal|rmc|rcc|cartao_comum|refinanciamento|portabilidade|outro","banco":"...","data":"dd/mm/aaaa","valor_liberado":0,"parcela":0,"n_parcelas":0,"parcelas_pagas":0,"taxa_mensal":0,"taxa_media_mercado":0,"inicio_desconto":"mm/aaaa","fim_desconto":"mm/aaaa","situacao":"ativo|excluido|encerrado|suspenso","fonte":"..."}],
- "descontos":[{"competencia":"mm/aaaa","valor":0,"contrato":"nº do contrato","banco":"banco do desconto, se o extrato mostrar","fonte":"..."}],
+ "descontos":[{"competencia":"mm/aaaa","valor":0,"rubrica":"código e nome da rubrica, como no extrato","contrato":"nº do contrato, se o extrato mostrar","banco":"banco do desconto, se o extrato mostrar","fonte":"..."}],
+ "competencias_extrato":["mm/aaaa"],
  "fatos":[{"data":"dd/mm/aaaa","texto":"fato objetivo","fonte":"..."}],
  "valores":[{"descricao":"...","valor":0,"data":"...","fonte":"..."}],
  "vinculo":{"empregador":"...","admissao":"...","demissao":"...","cargo":"...","salario":"...","jornada":"...","motivo_saida":"..."},
@@ -152,9 +157,10 @@ Responda SOMENTE com JSON neste formato:
 Regras:
 - NUNCA invente, deduza ou complete. Só o que está escrito nas fontes. Campo sem informação: null. Lista sem itens: [].
 - TODO item leva "fonte" com o nome exato da fonte de onde saiu (o título depois de "===").
-- "descontos": cada desconto mensal que aparece em extrato de pagamento do benefício, holerite ou fatura (um item por mês e por contrato). Não repita o mesmo mês do mesmo contrato. Sempre com o nº do contrato e o banco quando o extrato mostrar.
+- "descontos": TODO desconto mensal de empréstimo ou cartão que aparece em extrato de pagamento do benefício (histórico de créditos do INSS, HISCRE), holerite ou fatura: um item por linha de desconto, em todos os meses do extrato, sem pular nenhum. O histórico de créditos NÃO mostra o banco: copie a "rubrica" exatamente como está (ex.: "216 CONSIGNACAO EMPRESTIMO BANCARIO", "217 EMPRESTIMO SOBRE A RMC", "268 CONSIGNACAO - CARTAO") e o valor; deixe "contrato" e "banco" null quando o extrato não mostrar. O sistema liga cada desconto ao contrato do extrato de empréstimos pelo valor da parcela. Dois descontos iguais no mesmo mês são dois itens. Não liste imposto de renda, pensão alimentícia nem o crédito do benefício.
+- "competencias_extrato": todos os meses (mm/aaaa) que os extratos de pagamento do benefício cobrem, com ou sem desconto. Serve para saber em que meses NÃO houve desconto.
 - "contratos": TODOS os contratos das fontes, de qualquer banco, cada um com o seu banco ("banco" é obrigatório quando o documento mostra). O mesmo contrato em duas fontes aparece uma vez só (mesmo número). O sistema separa depois o que é de cada peça.
-- Extrato de empréstimos do INSS (HISCON): cada contrato com nº, banco, tipo (empréstimo, RMC = reserva de margem de cartão, RCC = reserva de cartão consignado de benefício), data de inclusão, valor liberado/emprestado, valor da parcela, quantidade de parcelas, início e fim do desconto e situação.
+- Extrato de empréstimos do INSS (HISCON): cada contrato com nº, banco, tipo (empréstimo, RMC = reserva de margem de cartão, RCC = reserva de cartão consignado de benefício), data de inclusão, valor liberado/emprestado, valor da parcela, quantidade de parcelas, competência de início e de fim do desconto e situação. Leia TODAS as colunas da tabela (o HISCON é largo: "Início de desconto", "Fim de desconto", "Qtde. parcelas", "Data inclusão" costumam ficar à direita). "inicio_desconto" e "parcela" são essenciais para o cálculo: não os deixe null se aparecerem.
 - Tipo do contrato: "emprestimo_consignado" quando a parcela é descontada no benefício ou na folha (inclui refinanciamento e portabilidade); "emprestimo_pessoal" quando é pago por boleto ou débito em conta (crédito pessoal, CDC); "rmc"/"rcc" para cartão consignado; "cartao_comum" para cartão de crédito sem desconto no benefício. Na dúvida, "outro".
 - Taxas em % ao mês, como número (2,14% a.m. → 2.14). "taxa_media_mercado" só se alguma fonte trouxer a taxa média do Bacen.
 - "triagem": responda pelas fontes (conversa e relato contam). Ex.: cliente disse que nunca recebeu o cartão → "recebeu_cartao": false. Sem informação → null.
@@ -214,10 +220,13 @@ export function parseEscolha(texto: string, catalogo: ItemCatalogo[]): Escolha {
 
 export function blocoCalculos(c: CalculoPeca): string {
   const l: string[] = [];
-  if (c.indebito.porContrato.length) {
-    l.push('Repetição do indébito (modulação do STJ, EAREsp 600.663/RS: descontos até 03/2021 devolvidos de forma simples; de 04/2021 em diante, em dobro):');
+  if (!c.indebito.porContrato.length) {
+    l.push('SEM DESCONTOS APURADOS nos documentos: NÃO escreva "R$ 0,00" como restituição nem como valor da causa. Use [valor a apurar — juntar o histórico de créditos do INSS] e peça a exibição dos descontos pelo réu.');
+  } else {
+    l.push('Repetição do indébito em dobro de todos os descontos (art. 42, parágrafo único, do CDC; STJ, Tema 929: sem o marco de 30/03/2021):');
     for (const p of c.indebito.porContrato) {
-      l.push(`- Contrato ${p.contrato}: ${p.meses} desconto(s) de ${p.periodo}, total descontado ${brl(p.descontado)}; simples ${brl(p.simples.valor)} (${p.simples.meses} mês/meses); em dobro ${brl(p.dobro.restituir)} (${p.dobro.meses} mês/meses, pagos ${brl(p.dobro.pago)}); a restituir ${brl(p.restituir)}.`);
+      const est = c.descontos.filter((d) => d.contrato === p.contrato && /estimado/i.test(String(d.fonte || ''))).length;
+      l.push(`- Contrato ${p.contrato}: ${p.meses} desconto(s) de ${p.periodo}${est ? ` (${est} deles estimados pela parcela do contrato, nos meses sem extrato)` : ''}, total descontado ${brl(p.descontado)}; a restituir ${brl(p.restituir)}${p.simples.meses ? ` (simples ${brl(p.simples.valor)}; em dobro ${brl(p.dobro.restituir)})` : ' (em dobro)'}.`);
     }
     l.push(`- TOTAL descontado ${brl(c.indebito.total.descontado)} · TOTAL a restituir ${brl(c.indebito.total.restituir)}.`);
   }
@@ -226,11 +235,12 @@ export function blocoCalculos(c: CalculoPeca): string {
   }
   const a = c.atualizacao;
   if (a?.dataBase) {
-    l.push(`Valores atualizados até ${mesBr(a.dataBase)}, conforme a planilha de cálculos anexa (correção monetária e juros de mora desde cada desconto: INPC/1% a.m. até 08/2024; IPCA/taxa legal a partir de 09/2024):`);
+    l.push(`Valores atualizados até ${mesBr(a.dataBase)}, conforme a planilha de cálculos anexa (correção monetária e juros de mora desde cada desconto, Súmulas 43 e 54 do STJ: INPC e 1% a.m. até 08/2024; IPCA e Taxa Legal do Bacen a partir de 09/2024, art. 406 do Código Civil e Resolução CMN 5.171/2024):`);
     for (const p of a.porContrato) l.push(`- Contrato ${p.contrato}: a restituir ${brl(p.restituir)}; corrigido ${brl(p.corrigido)}; juros de mora ${brl(p.juros)}; total atualizado ${brl(p.total)}.`);
     l.push(`- TOTAL ATUALIZADO a restituir: ${brl(a.total.total)}.`);
   }
   const v = c.valorDaCausa;
+  if (!v.total) { l.push('VALOR DA CAUSA: [valor a apurar] + [valor do dano moral] — sem descontos apurados, não use R$ 0,00.'); return l.join('\n'); }
   l.push(`VALOR DA CAUSA: ${brl(v.total)}${v.danoMoral == null ? ' + [valor do dano moral] (somar o dano moral pedido ao valor da causa)' : ''} = restituição${a?.dataBase ? ' atualizada' : ''} ${brl(v.restituicao)}${v.jurosPagosAMais ? ` + juros pagos a mais ${brl(v.jurosPagosAMais)}` : ''}${v.danoMoral != null ? ` + dano moral ${brl(v.danoMoral)}` : ''}.`);
   return l.join('\n');
 }
@@ -263,6 +273,8 @@ REGRAS ANTI-INVENÇÃO (obrigatórias):
 - Dados da parte contrária só se constarem de documento ou do cadastro abaixo; o que vier só do relato vai como alegação, marcado "[a comprovar — não consta em documento]".
 - Os CÁLCULOS abaixo foram feitos pelo sistema a partir dos documentos: use exatamente estes valores, sem recalcular nem arredondar, numa seção "DOS CÁLCULOS" e nos pedidos. Onde o cálculo indica [colchete], mantenha o colchete.${d.calculo.atualizacao?.dataBase ? '\n- Os valores atualizados vêm da PLANILHA DE CÁLCULOS que acompanha a petição: na seção "DOS CÁLCULOS", diga que o detalhamento mês a mês está na planilha anexa e liste-a em "DAS PROVAS"/documentos.' : ''}
 - Cite leis e súmulas só da lista de FUNDAMENTOS VERIFICADOS ou das teses do escritório; qualquer outra citação vai marcada [conferir].
+- A peça é DESTE caso, não do modelo: em DOS FATOS, conte a história do cliente com os dados concretos da ficha e dos cálculos (quem é, o benefício e o valor, cada contrato com número, banco, data, valor e parcela, desde quando descontam, quantos meses, quanto já foi descontado, o que o cliente diz). Os descontos mês a mês estão apurados nos CÁLCULOS: nunca diga que os documentos "não individualizam" os descontos quando o cálculo os traz. Em DOS CÁLCULOS, uma tabela por contrato (período, nº de descontos, total descontado, a restituir em dobro, total atualizado). Não repita a mesma ressalva em várias seções.
+- Os "avisos" das lacunas são para a equipe conferir: não os transcreva como texto da peça.
 - Siga a ESTRATÉGIA escolhida e use os MODELOS DO ESCRITÓRIO como referência de estrutura, teses e estilo — adapte aos fatos; nunca copie nomes, números ou valores do modelo.
 
 ${d.regras?.length ? `REGRAS DO ESCRITÓRIO (aprendidas com as correções da advogada; valem acima do modelo):\n${d.regras.map((r) => `- ${r}`).join('\n')}\n\n` : ''}${regraEnderecamento(d.area) ? `${regraEnderecamento(d.area)}\n\n` : ''}Estrutura: endereçamento ao juízo competente; qualificação do autor; qualificação do(s) réu(s); DOS FATOS (cronológico, cada fato com a prova que o sustenta, ex.: "conforme extrato do INSS anexo"); DO DIREITO (teses do escritório e fundamentos verificados); DOS CÁLCULOS; DA TUTELA DE URGÊNCIA (se cabível pelos fatos); DOS PEDIDOS (com os valores calculados); DAS PROVAS; DO VALOR DA CAUSA; fecho. Português jurídico formal.

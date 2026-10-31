@@ -1,4 +1,4 @@
-import { brl, mesBr, r2, MARCO_DOBRO, type CalculoPeca, type Desconto } from './pecaCalculos';
+import { brl, mesBr, r2, regraDevolucao, type CalculoPeca, type Desconto } from './pecaCalculos';
 import { somarMeses, mesDe, type IndicesMensais } from './indicesEconomicos';
 import { gerarXlsx, type Celula } from './xlsxSimples';
 
@@ -14,10 +14,11 @@ import { gerarXlsx, type Celula } from './xlsxSimples';
 export const MARCO_LEI_14905 = '2024-08';
 
 export const CRITERIOS = [
-  'Devolução: descontos até 03/2021 de forma simples; de 04/2021 em diante, em dobro (art. 42, parágrafo único, do CDC; STJ, EAREsp 600.663/RS).',
+  'Devolução em dobro de todos os descontos (art. 42, parágrafo único, do CDC; STJ, Tema 929, Corte Especial, 2026: a devolução em dobro não depende de má-fé e não tem mais o marco de 30/03/2021).',
+  'Prescrição: cinco anos (art. 27 do CDC), contados do último desconto indevido no benefício, segundo o entendimento das Turmas de Direito Privado do STJ; com os descontos ainda ativos, todos entram no cálculo.',
   'Correção monetária desde cada desconto (Súmula 43 do STJ), pelos índices do mês seguinte ao desconto até a data-base: INPC até 08/2024 e IPCA a partir de 09/2024 (art. 389, parágrafo único, do Código Civil, na redação da Lei 14.905/2024). Índice negativo não reduz o valor original.',
-  'Juros de mora simples desde cada desconto (Súmula 54 do STJ; art. 398 do Código Civil), sobre o valor corrigido: 1% ao mês até 08/2024 (art. 406 do Código Civil, redação anterior, c/c art. 161, § 1º, do CTN) e, a partir de 09/2024, a taxa legal: Selic menos IPCA do mês, nunca negativa (art. 406, §§ 1º a 3º, do Código Civil).',
-  'Fonte dos índices: Banco Central do Brasil, SGS — INPC (série 188), IPCA (série 433) e Selic acumulada no mês (série 4390).',
+  'Juros de mora simples desde cada desconto (Súmula 54 do STJ; art. 398 do Código Civil), sobre o valor corrigido: 1% ao mês até 08/2024 (art. 406 do Código Civil, redação anterior, c/c art. 161, § 1º, do CTN) e, a partir de 09/2024, a Taxa Legal mensal publicada pelo Banco Central (art. 406, §§ 1º a 3º, do Código Civil, e Resolução CMN 5.171/2024: Selic deduzida a inflação, nunca negativa), somada mês a mês (juros simples, art. 6º da Resolução).',
+  'Fonte dos índices: Banco Central do Brasil, SGS — INPC (série 188), IPCA (série 433) e Taxa Legal (série 29543). Sem a Taxa Legal publicada para algum mês, usa-se a Selic acumulada no mês (série 4390) menos o IPCA, com aviso.',
 ];
 
 export interface LinhaPlanilha {
@@ -27,6 +28,8 @@ export interface LinhaPlanilha {
 export interface MesIndice {
   competencia: string; indice: 'INPC' | 'IPCA'; correcao: number | null;
   regraJuros: '1% a.m.' | 'taxa legal'; selic: number | null; juros: number | null;
+  /** A taxa do mês é a Taxa Legal publicada pelo Bacen (e não a conta Selic − IPCA). */
+  legalOficial?: boolean;
 }
 export interface TotaisPlanilha { descontado: number; restituir: number; corrigido: number; juros: number; total: number }
 export interface PlanilhaAtualizada {
@@ -41,12 +44,15 @@ export interface PlanilhaAtualizada {
 }
 
 const r4 = (n: number) => Number(n.toFixed(4));
+const r6 = (n: number) => Number(n.toFixed(6));
 const ultimo = (o: Record<string, number>) => Object.keys(o).sort().pop() || null;
 
 function taxasDoMes(m: string, ind: IndicesMensais): MesIndice {
   if (m <= MARCO_LEI_14905) return { competencia: m, indice: 'INPC', correcao: ind.inpc[m] ?? null, regraJuros: '1% a.m.', selic: null, juros: 1 };
-  const ipca = ind.ipca[m] ?? null, selic = ind.selic[m] ?? null;
-  return { competencia: m, indice: 'IPCA', correcao: ipca, regraJuros: 'taxa legal', selic, juros: ipca == null || selic == null ? null : r4(Math.max(0, selic - ipca)) };
+  const ipca = ind.ipca[m] ?? null, selic = ind.selic[m] ?? null, legal = ind.legal?.[m] ?? null;
+  // A Taxa Legal oficial do Bacen; sem ela (ainda não publicada ou índices antigos), Selic − IPCA.
+  const juros = legal != null ? r6(Math.max(0, legal)) : ipca == null || selic == null ? null : r4(Math.max(0, selic - ipca));
+  return { competencia: m, indice: 'IPCA', correcao: ipca, regraJuros: 'taxa legal', selic, juros, legalOficial: legal != null };
 }
 
 function somar(l: Array<Pick<LinhaPlanilha, 'descontado' | 'restituir' | 'corrigido' | 'juros' | 'total'>>): TotaisPlanilha {
@@ -75,11 +81,13 @@ export function atualizarIndebito(descontos: Desconto[], indices: IndicesMensais
     for (let m = ini; m <= dataBase; m = somarMeses(m, 1)) meses.push(taxasDoMes(m, indices));
     const faltam = meses.filter((m) => m.correcao == null || m.juros == null).map((m) => mesBr(m.competencia));
     if (faltam.length) avisos.push(`Índice não publicado pelo Bacen em ${faltam.join(', ')}: contado como zero nesses meses.`);
+    const semLegal = meses.filter((m) => m.regraJuros === 'taxa legal' && !m.legalOficial && m.juros != null).map((m) => mesBr(m.competencia));
+    if (semLegal.length) avisos.push(`Taxa Legal do Bacen não disponível em ${semLegal.join(', ')}: juros calculados pela Selic do mês menos o IPCA (aproximação). Gerar de novo depois da publicação.`);
   }
   const pos = new Map(meses.map((m, i) => [m.competencia, i]));
 
   const linhas: LinhaPlanilha[] = validos.map((d) => {
-    const regra = d.competencia <= MARCO_DOBRO ? 'simples' : 'dobro';
+    const regra = regraDevolucao(d.competencia);
     const restituir = r2(regra === 'dobro' ? d.valor * 2 : d.valor);
     let fator = 1, jurosPct = 0;
     const i0 = pos.get(somarMeses(d.competencia, 1));
@@ -87,7 +95,7 @@ export function atualizarIndebito(descontos: Desconto[], indices: IndicesMensais
       for (const m of meses.slice(i0)) { fator *= 1 + (m.correcao ?? 0) / 100; jurosPct += m.juros ?? 0; }
     }
     fator = Math.max(1, Number(fator.toFixed(6)));
-    jurosPct = r4(jurosPct);
+    jurosPct = r6(jurosPct);
     const corrigido = r2(restituir * fator);
     const juros = r2((corrigido * jurosPct) / 100);
     return { competencia: d.competencia, contrato: d.contrato, descontado: d.valor, regra, restituir, fator, corrigido, jurosPct, juros, total: r2(corrigido + juros) };
@@ -197,7 +205,8 @@ export async function planilhaXlsx(c: CalculoPeca, cab: CabecalhoPlanilha): Prom
     ...(p?.meses || []).map((m): Celula[] => [
       mesBr(m.competencia), m.indice, m.correcao != null ? { v: m.correcao, s: 'percentual' } : 'não publicado',
       m.selic != null ? { v: m.selic, s: 'percentual' } : (m.regraJuros === 'taxa legal' ? 'não publicado' : '—'),
-      m.regraJuros, m.juros != null ? { v: m.juros, s: 'percentual' } : 'não publicado',
+      m.regraJuros === 'taxa legal' ? (m.legalOficial ? 'Taxa Legal (Bacen)' : 'Selic − IPCA (sem a Taxa Legal)') : m.regraJuros,
+      m.juros != null ? { v: m.juros, s: 'percentual' } : 'não publicado',
     ]),
   ];
   return gerarXlsx([

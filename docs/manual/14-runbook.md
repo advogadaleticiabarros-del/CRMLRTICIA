@@ -853,6 +853,16 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 - **Junto:** a barra da análise criou uma função `marcar` dentro de `analisarCaso` com o mesmo nome da trava do pedido de reenvio ao cliente; a trava deixava de funcionar. Renomeada para `andamento`, e o teste barra a repetição.
 - **Como reconhecer de novo:** "não mandou nenhuma foto ou PDF" num caso que tem documentos na aba Documentos. Confira se os documentos têm arquivo ou só link. Se a nova mensagem falar em "só no Google Drive", o problema é o compartilhamento da pasta (ver o incidente da pasta do Drive).
 
+## Incidente: peça do Itaú com restituição de R$ 0,00 e revisão de outra versão (31/10/2026)
+
+- **Sintoma:** a nova versão da peça do Valmirio contra o Itaú saiu com "Restituição: R$ 0,00", valor da causa "R$ 0,00 + [valor do dano moral]" e texto genérico ("não há individualização completa dos descontos"), mesmo com o histórico de créditos e o extrato de empréstimos no caso. A revisão anexada falava de Banco Pan, Facta e R$ 966,31, que não estavam na peça.
+- **Causa raiz:**
+  1. O histórico de créditos do INSS (HISCRE) mostra os descontos só pela rubrica, sem banco. A ficha de fatos devolvia esses descontos sem contrato e sem banco. Em `separarParaPeca` (`contratosDoCaso.ts`), desconto sem banco é descartado quando há contratos de outros bancos (Pan, Facta) no extrato. Sobrou zero desconto.
+  2. O contrato do Itaú veio sem o "início do desconto", então nem a estimativa pela parcela rodou.
+  3. A revisão automática só rodava na 1ª versão (etapa "Criação inicial"). A versão pedida à mão não era revisada, e a revisão mais recente do caso era de uma versão antiga.
+- **Correção:** Calculista na leitura (`src/services/contabilista.ts`). A ficha copia a rubrica de cada desconto e os meses cobertos. O código liga cada desconto ao contrato do HISCON pela família da rubrica, pela parcela e pelo período, e estima só os meses sem extrato. A planilha de cada banco é salva já na leitura. Sem descontos, a peça usa [valor a apurar], nunca R$ 0,00. Toda versão nova é revisada. A chave da leitura guardada subiu de versão (`VERSAO_FICHA = 2`, em `leituraUnica.ts`), então a ficha antiga, sem rubricas, não é reaproveitada. Teste que reproduz o caso: "produzirPeticao (caso Valmirio)" em `tests/esteiraPeca.test.mjs` (dava 0 no código antigo).
+- **Como reconhecer de novo:** peça com R$ 0,00 ou "[valor a apurar]". Abra o "Dossiê da peça" → "Faltando ou a conferir": o Calculista diz quais descontos ficaram sem dono e por quê (parcela que não bate, dois bancos com a mesma parcela) e quais contratos não têm desconto, parcela ou início. Se o extrato de empréstimos (HISCON) não estiver no caso, junte-o e clique em "Ler os contratos".
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -869,6 +879,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 31/10/2026 | Claude | Peça do Itaú com R$ 0,00: descontos do HISCRE sem banco eram descartados; Calculista liga cada desconto ao contrato. Revisão em toda versão nova |
 | 30/10/2026 | Claude | Extrato de empréstimos nunca lido: leitura dos anexos do Drive passou a usar a reserva (Gemini → OpenAI) |
 | 30/10/2026 | Claude | Card do cliente não ia para Separação de documentos: passou a arrastar e mover as ações dele |
 | 30/10/2026 | Claude | WhatsApp "session is not reconnectable": só o QR resolve (reconectado pela Uazapi em 30/10) |

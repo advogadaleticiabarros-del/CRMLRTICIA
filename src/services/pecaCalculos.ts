@@ -1,7 +1,8 @@
 /**
  * Cálculos da petição inicial feitos em código (a IA só redige com eles).
- * - Repetição do indébito com a modulação do STJ (EAREsp 600.663/RS, 30/03/2021):
- *   cobrança até 03/2021 volta simples; de 04/2021 em diante, em dobro.
+ * - Repetição do indébito em dobro (art. 42, parágrafo único, do CDC). Desde o Tema 929
+ *   do STJ (Corte Especial, 15/09/2026, sem modulação) TODO desconto indevido volta em
+ *   dobro; a modulação antiga (EAREsp 600.663/RS: simples até 03/2021) caiu.
  * - Juros: parcela recalculada pela tabela Price com a taxa média de mercado.
  * - Valor da causa: soma do que foi calculado; o dano moral só entra se informado.
  * Aqui os valores são nominais; a correção monetária e os juros de mora entram
@@ -25,6 +26,8 @@ export interface EntradaCalculo {
   descontos: Desconto[];
   danoMoral?: number | null;
   hoje?: Date;
+  /** Descontos já apurados pelo Calculista na leitura (contabilista.ts): não estima de novo. */
+  jaApurados?: boolean;
 }
 
 const somarMeses = (c: string, n: number) => {
@@ -53,8 +56,15 @@ export function estimarDescontos(contratos: ContratoCalculo[], lidos: Desconto[]
   return { descontos, estimados };
 }
 
-/** Última competência devolvida de forma simples (cobranças até 30/03/2021). */
-export const MARCO_DOBRO = '2021-03';
+/**
+ * Última competência devolvida de forma simples; null = tudo em dobro. Era '2021-03'
+ * (modulação do EAREsp 600.663/RS); o Tema 929 do STJ (15/09/2026) afastou a modulação.
+ * Ver docs/manual/17-decision-log.md.
+ */
+export const MARCO_DOBRO = null as string | null;
+
+/** Devolução do desconto daquele mês: simples ou em dobro. */
+export const regraDevolucao = (competencia: string): 'simples' | 'dobro' => (MARCO_DOBRO && competencia <= MARCO_DOBRO ? 'simples' : 'dobro');
 
 export const r2 = (n: number) => (n < 0 ? -1 : 1) * Math.round(Number((Math.abs(n) * 100).toFixed(6))) / 100;
 
@@ -116,8 +126,8 @@ export function calcularIndebito(descontos: Desconto[]): Indebito {
   const porContrato: IndebitoContrato[] = [];
   for (const [contrato, lista] of grupos) {
     lista.sort((a, b) => a.competencia.localeCompare(b.competencia));
-    const simples = lista.filter((d) => d.competencia <= MARCO_DOBRO);
-    const dobro = lista.filter((d) => d.competencia > MARCO_DOBRO);
+    const simples = lista.filter((d) => regraDevolucao(d.competencia) === 'simples');
+    const dobro = lista.filter((d) => regraDevolucao(d.competencia) === 'dobro');
     const soma = (l: Desconto[]) => r2(l.reduce((s, d) => s + d.valor, 0));
     const vSimples = soma(simples), vDobro = soma(dobro);
     porContrato.push({
@@ -172,7 +182,7 @@ export interface CalculoPeca {
 
 export function calcularPeca(e: EntradaCalculo): CalculoPeca {
   const avisos: string[] = [];
-  const est = estimarDescontos(e.contratos || [], e.descontos || [], e.hoje || new Date());
+  const est = e.jaApurados ? { descontos: [] as Desconto[], estimados: [] as string[] } : estimarDescontos(e.contratos || [], e.descontos || [], e.hoje || new Date());
   for (const n of est.estimados) avisos.push(`Contrato ${n}: descontos mês a mês estimados pela parcela e pelo período do contrato — conferir com o extrato do benefício.`);
   const todos = [...(e.descontos || []), ...est.descontos];
   const indebito = calcularIndebito(todos);

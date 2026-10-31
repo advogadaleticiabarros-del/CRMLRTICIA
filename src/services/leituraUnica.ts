@@ -39,7 +39,14 @@ export async function lerUmaVez(cache: CacheLeitura, ref: string, fonte: string,
  * marcadas `muda` (conversa do WhatsApp, anotações) entram na leitura, mas mensagem
  * nova não obriga a IA a ler tudo de novo.
  */
+/**
+ * Versão do que a ficha guarda. Sobe quando o pedido de leitura muda: a ficha antiga não
+ * serve mais e os documentos são lidos de novo. v2 (31/10/2026): rubrica de cada desconto
+ * do HISCRE e os meses que o extrato cobre, para o Calculista (contabilista.ts).
+ */
+export const VERSAO_FICHA = 2;
+
 export function chaveLeituraCliente(clientId: number, fontes: Array<{ texto: string; muda?: boolean }>): string {
   const textos = [...new Set(fontes.filter((f) => !f.muda).map((f) => String(f.texto || '').trim()).filter(Boolean))].sort();
-  return `ficha:${clientId}:${sha1(textos.map((t) => `${t.length}:${t}`))}`;
+  return `ficha${VERSAO_FICHA}:${clientId}:${sha1(textos.map((t) => `${t.length}:${t}`))}`;
 }
