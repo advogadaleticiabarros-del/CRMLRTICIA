@@ -301,19 +301,22 @@ export async function acoesDoCliente(clientId: number): Promise<AcaoParaConferir
 
 /**
  * Planilha de cálculos de cada banco, feita na leitura dos documentos. Fica na ação daquele
- * banco (ou no cliente, sem ação do banco) e a leitura seguinte substitui a anterior.
+ * banco e modalidade (ou no cliente, sem essa ação). Cada leitura troca o conjunto inteiro:
+ * o nome do banco muda de uma leitura para outra e as antigas se acumulavam (31/10/2026).
  */
 export async function guardarPlanilhasDoCliente(clientId: number, cliente: string, porBanco: CalculoDoBanco[]): Promise<void> {
   const acoes = await acoesDoCliente(clientId).catch(() => [] as AcaoParaConferir[]);
   const [[admin]] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1 ORDER BY id LIMIT 1") as any;
+  await db.query("DELETE FROM documents WHERE client_id = ? AND type = 'ia' AND name LIKE 'Planilha de cálculos — %(leitura dos documentos)'", [clientId]);
   for (const b of porBanco) {
-    // A ação do mesmo banco e da mesma modalidade (título do processo); sem ela, a do banco.
+    // A ação do mesmo banco e da mesma modalidade; ação de outra modalidade não serve
+    // (empréstimo e cartão consignado são processos separados). Ação sem tese no título vale.
     const doBanco = acoes.filter((a) => a.reus.some((r) => mesmoBanco(r.nome, b.banco)));
-    const acao = doBanco.find((a) => b.familia && familiasDaAcao(a).includes(b.familia)) || (doBanco.length === 1 ? doBanco[0] : undefined);
+    const acao = doBanco.find((a) => b.familia && familiasDaAcao(a).includes(b.familia))
+      || (doBanco.length === 1 && !familiasDaAcao(doBanco[0]).length ? doBanco[0] : undefined);
     const nome = `Planilha de cálculos — ${cliente} · ${b.banco} · ${b.modalidade} (leitura dos documentos)`.slice(0, 255);
     const cab = { cliente, reus: [`${b.banco} — ${b.modalidade}`], casos: acao ? [{ id: acao.id, titulo: acao.titulo }] : [] };
     const xlsx = await planilhaXlsx(b.calculo, cab).catch(() => null);
-    await db.query('DELETE FROM documents WHERE client_id = ? AND name = ?', [clientId, nome]);
     await db.query(
       `INSERT INTO documents (client_id, case_id, name, type, folder, content, data, mime, status, created_by)
        VALUES (?, ?, ?, 'ia', 'processos', ?, ?, ?, 'pendente', ?)`,
