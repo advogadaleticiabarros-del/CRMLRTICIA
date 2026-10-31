@@ -10,6 +10,7 @@ import {
 import { chaveLeituraCliente } from './leituraUnica';
 import { aplicarEnderecamento } from './enderecamentoPeca';
 import { apurarFicha, calcularPorBanco, type CalculoDoBanco } from './contabilista';
+import { juntarHiscre } from './hiscre';
 import { separarParaPeca, mesmoBanco, chaveContrato, conferirPecasPorBanco, type ContratoSalvo, type PecaAlvo, type AcaoParaConferir, type ConferenciaPecas } from './contratosDoCaso';
 
 /**
@@ -154,7 +155,7 @@ async function lerAgora(casos: CasoEsteira[], deps: DepsEsteira, clientId: numbe
   const guardada = chave ? await deps.leituraGuardada?.(chave).catch(() => null) : null;
   if (guardada) {
     deps.registrar('analista', `reaproveitou a leitura dos documentos de ${caso.cliente} (os mesmos já lidos para outra peça): sem nova leitura pela IA`);
-    return { ficha: guardada, lidas: fontes.lidas.length, ok: true, reaproveitada: true };
+    return { ficha: juntarHiscre(guardada, brutas), lidas: fontes.lidas.length, ok: true, reaproveitada: true };
   }
   const rotulos = todas
     ? ((await deps.acoesDoCliente?.(clientId!).catch(() => null)) || casos).map((c) => `Ação #${c.id}: ${('titulo' in c && c.titulo) || 'sem título'}`)
@@ -165,7 +166,8 @@ async function lerAgora(casos: CasoEsteira[], deps: DepsEsteira, clientId: numbe
   const ficha = parseFichaDeFatos(r.text);
   const falhou = ficha.lacunas.some((l) => FALHOU.test(l));
   if (chave && !falhou) await deps.guardarLeitura?.(chave, ficha).catch(() => {});
-  return { ficha, lidas: fontes.lidas.length, ok: !falhou, message: falhou ? 'resposta sem JSON' : undefined, reaproveitada: false };
+  // Os descontos do histórico de créditos saem da transcrição, em código: a IA não lista centenas de linhas.
+  return { ficha: falhou ? ficha : juntarHiscre(ficha, brutas), lidas: fontes.lidas.length, ok: !falhou, message: falhou ? 'resposta sem JSON' : undefined, reaproveitada: false };
 }
 
 /**
