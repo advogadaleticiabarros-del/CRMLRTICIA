@@ -249,3 +249,42 @@ test('parseApontamentosIa: lista de contradições extras, marcadas para conferi
   assert.match(a[0].texto, /conferir/);
   assert.deepStrictEqual(parseApontamentosIa('x'), []);
 });
+
+// ── Datas de hoje (31/10/2026): a IA não sabe que dia é hoje ────────────────
+
+test('promptLeituraCritica: diz à IA a data de hoje no horário de Brasília', async () => {
+  const { promptLeituraCritica } = await import('../dist/services/analistaDocumentos.js');
+  // 01/11 às 01h UTC ainda é 31/10 às 22h em Brasília.
+  const p = promptLeituraCritica(new Date('2026-11-01T01:00:00Z'));
+  assert.match(p, /31\/10\/2026/);
+  assert.doesNotMatch(p, /01\/11\/2026/);
+});
+
+test('cruzar: "data futura" que já passou não vira possível alteração (print de 31/10/2026)', () => {
+  const hojeReal = new Date('2026-10-31T15:00:00Z');
+  const a = cruzar({ cadastro: CADASTRO, fatos: {}, hoje: hojeReal, docs: [
+    { fonte: 'procuracao.pdf', l: leitura({ tipo: 'outro', data_emissao: '2026-10-20', indicios_alteracao: ['Data de emissão futura (20/10/2026)'] }) },
+    { fonte: 'RG .pdf', l: leitura({ tipo: 'rg', data_emissao: '2025-04-16', indicios_alteracao: ['Data de emissão (16/04/2025) é futura'] }) },
+    { fonte: 'rg2.pdf', l: leitura({ tipo: 'rg', data_emissao: '2025-04-16', indicios_alteracao: ['Data de emissão no futuro'] }) },
+  ] });
+  assert.ok(!a.some((x) => x.tema === 'possível alteração'), JSON.stringify(a));
+});
+
+test('cruzar: data realmente futura e outros indícios continuam graves', () => {
+  const hojeReal = new Date('2026-10-31T15:00:00Z');
+  const a = cruzar({ cadastro: CADASTRO, fatos: {}, hoje: hojeReal, docs: [
+    { fonte: 'atestado.pdf', l: leitura({ tipo: 'atestado', indicios_alteracao: ['Data de emissão futura (15/12/2026)'] }) },
+    { fonte: 'holerite.pdf', l: leitura({ tipo: 'holerite', data_emissao: '2026-01-05', indicios_alteracao: ['Data futura (05/01/2026)', 'fonte diferente no salário'] }) },
+  ] });
+  assert.ok(a.some((x) => x.tema === 'possível alteração' && x.fontes.includes('atestado.pdf')));
+  const h = a.find((x) => x.tema === 'possível alteração' && x.fontes.includes('holerite.pdf'));
+  assert.ok(h && /fonte diferente/.test(h.texto) && !/futura/.test(h.texto), JSON.stringify(h));
+});
+
+test('cruzar: "hoje" é o dia de Brasília, não o de UTC', () => {
+  // 31/10 às 22h em Brasília = 01/11 01h UTC: um documento de 01/11 ainda é futuro.
+  const a = cruzar({ cadastro: CADASTRO, fatos: {}, hoje: new Date('2026-11-01T01:00:00Z'), docs: [
+    { fonte: 'doc.pdf', l: leitura({ tipo: 'outro', indicios_alteracao: ['Data de emissão futura (01/11/2026)'] }) },
+  ] });
+  assert.ok(a.some((x) => x.tema === 'possível alteração'));
+});

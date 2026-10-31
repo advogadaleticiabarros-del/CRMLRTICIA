@@ -2,9 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 31/10/2026. Último commit: Calculista na leitura (peça do Itaú não sai mais zerada).
+**Última atualização:** 31/10/2026. Último commit: análise da Dra. Helena com a data de hoje (Brasília).
 
 ## Últimas entregas (mais recentes primeiro)
+- **31/10 (2):** **Dra. Helena acusava "data de emissão futura" em datas passadas** (print da Jessica: procuração de 20/10/2026 e RG de 16/04/2025 apontados como graves). O relógio do CRM estava certo: a IA não recebia a data de hoje e usava a do próprio treinamento. Agora o pedido leva a data de Brasília, e o indício com data já passada é descartado (vale também para as leituras guardadas). **Pendente:** "Analisar de novo" no caso do Valmirio. Ver `docs/contexto/relatorios/2026-10-31-analise-data-de-hoje.md`.
 - **31/10:** **Peça do Valmirio/Itaú saiu com R$ 0,00 e texto genérico; a revisão era de outra versão** (Jessica: "sem cálculo, sem valores... quero a minha planilha calculada no momento da leitura pelo contabilista").
   - Causa: o histórico de créditos (HISCRE) mostra os descontos só pela rubrica, sem banco; a regra "uma peça por banco" descartava todos eles. A revisão só rodava na 1ª versão.
   - Agora: **Calculista na leitura** (`contabilista.ts`) liga cada desconto ao contrato do HISCON pela rubrica (216/217/268), pela parcela e pelo período; o ambíguo fica "sem dono" com o motivo; os meses sem extrato são estimados pela parcela. "Ler os contratos" já salva **uma planilha por banco e modalidade** (empréstimo consignado separado do cartão RMC/RCC; RMC e RCC do mesmo banco juntos, como nas peças). Toda versão nova é revisada. A peça sem descontos usa [valor a apurar], nunca R$ 0,00. A ficha guardada mudou de versão: a próxima leitura do Valmirio lê de novo.

@@ -23,7 +23,13 @@ const ROTULO_TIPO: Record<string, string> = {
 };
 const rotulo = (t: string) => ROTULO_TIPO[t] || 'documento';
 
-export const PROMPT_LEITURA_CRITICA = `Você é analista de documentos de um escritório de advocacia e lê UM documento com olhar crítico.
+/** Dia de hoje em Brasília, "aaaa-mm-dd" (às 22h de Brasília o UTC já está no dia seguinte). */
+export const hojeBrasilia = (agora: Date = new Date()) => agora.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+
+/** O pedido de leitura leva a data de hoje: sem ela, a IA usa a data do próprio treinamento
+ *  e acusava "data futura" em documentos de 2025 e 2026 (31/10/2026). */
+export const promptLeituraCritica = (agora: Date = new Date()) => `Você é analista de documentos de um escritório de advocacia e lê UM documento com olhar crítico.
+HOJE É ${hojeBrasilia(agora).split('-').reverse().join('/')} (horário de Brasília). Só é data futura a que vem DEPOIS de hoje.
 Responda SOMENTE com JSON, sem texto fora dele:
 {"tipo":"${TIPOS_DOCUMENTO.join('|')}",
  "legivel":true|false, "completo":true|false,
@@ -40,7 +46,7 @@ Regras:
 - "completo": false se estiver cortado, faltar página, faltar frente ou verso, ou a CTPS não mostrar a página do contrato.
 - "competencias_fgts": os meses que TÊM depósito no extrato (um item por mês).
 - "salario": o salário contratual (CTPS) ou o salário base (holerite).
-- "indicios_alteracao": sinais objetivos de montagem ou edição (fontes ou alinhamentos diferentes no mesmo campo, recortes, sobreposição, datas impossíveis, números rasurados). Lista vazia se não houver. Não especule.`;
+- "indicios_alteracao": sinais objetivos de montagem ou edição (fontes ou alinhamentos diferentes no mesmo campo, recortes, sobreposição, datas impossíveis ou posteriores a hoje, números rasurados). Lista vazia se não houver. Não especule.`;
 
 export interface LeituraDoc {
   tipo: string; legivel: boolean; completo: boolean;
@@ -215,9 +221,19 @@ export interface EntradaCruzamento {
   hoje: Date;
 }
 
+/** Tira o indício de "data futura" quando a data já passou (leituras antigas foram feitas sem a data de hoje). */
+function indiciosValidos(l: LeituraDoc, hoje: string): string[] {
+  return l.indicios_alteracao.filter((t) => {
+    if (!/futur/i.test(t)) return true;
+    const datas = [...t.matchAll(/(?<!\d)\d{1,2}\/\d{1,2}\/\d{4}(?!\d)/g)].map((m) => dataIso(m[0])).filter(Boolean) as string[];
+    if (!datas.length && l.data_emissao) datas.push(l.data_emissao);
+    return !datas.length || datas.some((d) => d > hoje);
+  });
+}
+
 export function cruzar(e: EntradaCruzamento): Achado[] {
   const out: Achado[] = [];
-  const hoje = e.hoje.toISOString().slice(0, 10);
+  const hoje = hojeBrasilia(e.hoje);
   const f = e.fatos || {};
   const add = (a: Achado) => out.push(a);
 
@@ -225,7 +241,8 @@ export function cruzar(e: EntradaCruzamento): Achado[] {
   for (const { fonte, l } of e.docs) {
     if (!l.legivel) add({ nivel: 'atencao', tema: 'legibilidade', texto: `${fonte} (${rotulo(l.tipo)}) está ilegível ou borrado.`, fontes: [fonte], reenvio: `${rotulo(l.tipo)} de novo, com foto nítida (sem reflexo e sem cortar as bordas)` });
     if (!l.completo) add({ nivel: 'atencao', tema: 'documento incompleto', texto: `${fonte} (${rotulo(l.tipo)}) está cortado ou faltando página/frente e verso.`, fontes: [fonte], reenvio: `${rotulo(l.tipo)} completo (todas as páginas, frente e verso)` });
-    if (l.indicios_alteracao.length) add({ nivel: 'grave', tema: 'possível alteração', texto: `${fonte}: ${l.indicios_alteracao.join('; ')}. Conferir o original antes de usar; não comentar com o cliente sem a Dra.`, fontes: [fonte] });
+    const indicios = indiciosValidos(l, hoje);
+    if (indicios.length) add({ nivel: 'grave', tema: 'possível alteração', texto: `${fonte}: ${indicios.join('; ')}. Conferir o original antes de usar; não comentar com o cliente sem a Dra.`, fontes: [fonte] });
   }
 
   // 2) Identidade: nome, CPF e nascimento.

@@ -4,7 +4,7 @@ import { sendText } from './uazapiInstance';
 import { registrarAcaoAgente } from './usoIa';
 import { NUMERO_DRA } from './esteiraComercialServico';
 import {
-  PROMPT_LEITURA_CRITICA, parseLeituraCritica, promptFatosDaHistoria, parseFatos, cruzar, promptCruzamentoLivre, parseApontamentosIa,
+  promptLeituraCritica, parseLeituraCritica, promptFatosDaHistoria, parseFatos, cruzar, promptCruzamentoLivre, parseApontamentosIa,
   relatorioAnalise, mensagemAnaliseDra, pedidosDeReenvio, mensagemReenvio, comoLerDocumento, lidoPelaAnalise, type LeituraDoc,
 } from './analistaDocumentos';
 import { downloadDriveFile } from './partnerInboxService';
@@ -73,7 +73,7 @@ async function lerArquivo(a: Arquivo): Promise<LeituraDoc | null> {
   if (a.tam > MAX_BYTES) return null;
   const buf = await a.carregar();
   if (!buf || buf.length > MAX_BYTES) return null;
-  const r = await aiLerArquivo(buf.toString('base64'), a.mime, PROMPT_LEITURA_CRITICA);
+  const r = await aiLerArquivo(buf.toString('base64'), a.mime, promptLeituraCritica());
   const l = r.ok && r.text ? parseLeituraCritica(r.text) : null;
   if (l) await db.query('INSERT IGNORE INTO documento_leituras (ref, fonte, leitura) VALUES (?, ?, ?)', [a.ref, a.fonte.slice(0, 255), JSON.stringify(l)]);
   return l;
