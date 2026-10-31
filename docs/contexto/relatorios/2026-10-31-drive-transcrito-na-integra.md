@@ -19,6 +19,12 @@ Rodei "Ler os contratos" e "gerar nova versão" no caso do Itaú por script na V
 3. **v9:** com tudo inteiro, a IA parou a lista de descontos em 2021 (centenas de linhas). `src/services/hiscre.ts` lê os descontos do histórico em código.
 4. **v10:** Itaú com 2 contratos, 64 descontos cada (05/2021 a 09/2026), R$ 4.367,36 descontados e R$ 12.618,30 atualizados; demonstrativo, planilha e peça batem.
 
+## Depois: cálculos de todas as ações e dano moral padrão
+- Pedido da Jessica: "leia uma única vez para todos os processos... as demais já com os cálculos prontos, focando nas teses"; "padrão de dano moral 10.000,00 para todas as peças desse mesmo perfil".
+- A leitura já era única por cliente. Faltava deixar as planilhas limpas e ligadas: cada leitura agora troca o conjunto inteiro (as antigas se acumulavam porque o nome do banco muda entre leituras), e a planilha só vai para a ação da mesma modalidade.
+- Dano moral padrão de R$ 10.000,00 em empréstimo consignado e cartão consignado (`danoMoralPadrao`), na peça, nas planilhas e no valor da causa. Testes: `tests/danoMoralPadrao.test.mjs` e caso Valmirio em `tests/esteiraPeca.test.mjs`.
+- Conferido em produção: 6 ações do Valmirio com a planilha na ação certa e o valor da causa já com o dano moral; peça v11 do Itaú com R$ 22.618,30 (R$ 12.618,30 + R$ 10.000,00).
+
 ## Decisões
 - Reler só os resumos antigos de extratos, não de todos os documentos: os outros (RG, comprovante) já servem como estão, e reler tudo gastaria cota da IA em todos os clientes.
 
