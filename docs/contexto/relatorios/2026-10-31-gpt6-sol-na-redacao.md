@@ -28,8 +28,8 @@ A Jessica comparou os modelos novos da OpenAI (GPT-6 Astra, GPT-6.1 Sol, GPT-6.1
 - Ficaram no `OPENAI_MODEL || 'gpt-5.6-luna'` de antes, sem reserva: a leitura com visão (`aiLerArquivo`) e o `briefingAudienciaJob`.
 
 ## Pendente
-- Jessica ou quem tiver acesso à VPS: conferir `grep -E '^OPENAI_MODEL' /home/crmapp/app/.env`. Se apontar para `gpt-5.6-luna`, remover a linha para valer o GPT-6 Luna.
-- Na próxima peça gerada: conferir no painel de IA paga se apareceu uso `openai_smart` (sinal de que o Sol atendeu). Se não apareceu, o nome do modelo foi recusado; ver nos logs do PM2 e ajustar `OPENAI_MODEL_REDACAO`.
+- Jessica: confirmar que `grep -E '^OPENAI_MODEL' /home/crmapp/app/.env` não mostra nada depois de apagar as linhas e reiniciar; senão o dia a dia segue no GPT-5.6 Luna.
+- O painel do Escritório virtual soma `openai` e `openai_smart` num gráfico só; para separar o Sol do Luna hoje, só pela consulta a `ia_uso_diario` (oferecido separar no painel, não pedido).
 - A chave local do `.env` está vencida (só afeta testes manuais neste computador).
 
 ## Próxima sessão
