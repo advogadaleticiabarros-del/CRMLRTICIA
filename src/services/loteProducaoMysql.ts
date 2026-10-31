@@ -30,6 +30,7 @@ export async function carregarLote(clientId: number): Promise<Lote | null> {
   const acoes: AcaoLote[] = principais.map((c) => ({
     id: c.id, titulo: c.title, production_stage: c.production_stage, case_number: c.case_number, legal_area: c.legal_area, relato: c.description,
     partes: (partes as any[]).filter((p) => principalDe.get(p.case_id) === c.id).map((p) => ({ nome: p.nome, cpf_cnpj: p.cpf_cnpj })),
+    unidos: (casos as any[]).filter((u) => u.unido_ao_caso === c.id).map((u) => ({ id: u.id, titulo: u.title })),
   }));
   const [docs] = await db.query(
     `SELECT id, case_id, name, type, mime, LEFT(content, 4000) AS content, (data IS NOT NULL) AS has_data, file_url, versao_de, final_em, created_at,

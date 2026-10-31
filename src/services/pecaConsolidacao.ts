@@ -5,7 +5,8 @@
  * - empréstimo consignado: um ou vários contratos, refinanciamento e portabilidade;
  * - empréstimo pessoal;
  * - cartão comum (anuidade, cartão não solicitado).
- * Famílias diferentes nunca juntam, mesmo contra o mesmo banco (teses muito diferentes).
+ * Famílias diferentes nunca juntam SOZINHAS; à mão, a Dra. pode juntar teses diferentes do
+ * mesmo banco (31/10/2026, conferirJuncao em loteProducao.ts). Bancos diferentes, nunca.
  * Juros abusivos são pedido dentro da peça da família, não processo à parte.
  * O sistema SUGERE; a Dra. confirma (cases.unido_ao_caso).
  */

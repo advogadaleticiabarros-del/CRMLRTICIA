@@ -142,7 +142,13 @@ export function inventarioDaPeca(salvos: ContratoSalvo[], peca: PecaAlvo) {
 
 export type TipoProblema = 'falta_acao' | 'bancos_misturados' | 'acao_sem_contrato' | 'banco_nao_identificado' | 'mesmo_banco_separado' | 'nao_lidos';
 export interface ProblemaConferencia { tipo: TipoProblema; texto: string; acaoId?: number; banco?: string }
-export interface AcaoParaConferir { id: number; titulo: string | null; reus: Parte[] }
+/** titulos: os pedidos unidos a esta ação (processo único), que trazem as teses deles. */
+export interface AcaoParaConferir { id: number; titulo: string | null; reus: Parte[]; titulos?: Array<string | null> }
+
+/** Teses da ação: a do título e as dos pedidos unidos a ela (empréstimo + cartão do mesmo banco, 31/10/2026). */
+export function familiasDaAcao(a: Pick<AcaoParaConferir, 'titulo' | 'titulos'>): Familia[] {
+  return [...new Set([a.titulo, ...(a.titulos || [])].map((t) => familiaDaTese(t)).filter((f): f is Familia => !!f))];
+}
 export interface ConferenciaPecas {
   /** Há cartão consignado (RMC/RCC) lido nos extratos. */
   lidos: boolean;
@@ -165,8 +171,8 @@ export function conferirPecasPorBanco(contratos: ContratoSalvo[], acoes: AcaoPar
   const problemas: ProblemaConferencia[] = [];
   const cartoes = contratos.filter((s) => !s.fora && familiaDoContrato(s.dados.tipo) === 'cartao_consignado');
   // Ação que pode cuidar de cartão: tese de cartão consignado ou tese não escrita no título.
-  const deCartao = acoes.filter((a) => { const f = familiaDaTese(a.titulo); return f === 'cartao_consignado' || f == null; });
-  const tese = (a: AcaoParaConferir) => familiaDaTese(a.titulo) === 'cartao_consignado';
+  const tese = (a: AcaoParaConferir) => familiasDaAcao(a).includes('cartao_consignado');
+  const deCartao = acoes.filter((a) => tese(a) || !familiasDaAcao(a).length);
   const nomeAcao = (a: AcaoParaConferir) => `a ação #${a.id}${a.reus[0]?.nome ? ` (${a.reus[0].nome})` : ''}`;
 
   if (!cartoes.length) {

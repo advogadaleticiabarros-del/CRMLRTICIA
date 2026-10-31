@@ -1,5 +1,5 @@
-import { reusDoCaso, familiaDaTese, normalizarNomeParte, NOME_FAMILIA, type Familia, type Parte } from './pecaConsolidacao';
-import { nucleoBanco, conferirPecasPorBanco, type ContratoSalvo, type ConferenciaPecas } from './contratosDoCaso';
+import { reusDoCaso, familiaDaTese, normalizarNomeParte, mesmaParte, NOME_FAMILIA, ETAPAS_ANTES_DO_PROTOCOLO, type Familia, type Parte } from './pecaConsolidacao';
+import { nucleoBanco, mesmoBanco, conferirPecasPorBanco, familiasDaAcao, type ContratoSalvo, type ConferenciaPecas } from './contratosDoCaso';
 import { semDuplicados } from './documentosDuplicados';
 
 /**
@@ -170,6 +170,8 @@ export interface AcaoLote {
   legal_area: string | null; partes: Parte[];
   /** Relato cadastrado no caso (para a introdução do card). */
   relato?: string | null;
+  /** Pedidos unidos a esta ação (processo único): seguem a etapa e a peça dela. */
+  unidos?: Array<{ id: number; titulo: string | null }>;
 }
 
 export type SituacaoAcao = 'faltam_documentos' | 'em_preparo' | 'revisar' | 'pronta' | 'protocolada' | 'recusada';
@@ -183,6 +185,8 @@ export interface ItemKit { docId: number; nome: string; tipo: TipoDoc; original:
 
 export interface AcaoMontada extends AcaoLote {
   reu: string | null; familia: Familia | null; nomeFamilia: string | null;
+  /** Todas as teses da peça: a da ação e as dos pedidos unidos a ela. */
+  familias: Familia[];
   peca: { docId: number; versao: number; final: boolean; nome: string } | null;
   planilha: { docId: number; nome: string } | null;
   kit: ItemKit[]; faltam: Falta[]; situacao: SituacaoAcao;
@@ -219,7 +223,7 @@ const listaPt = (xs: string[]) => xs.length <= 1 ? xs.join('') : `${xs.slice(0, 
 
 export function apresentarCaso(acoes: AcaoMontada[], faltamComuns: Falta[]): Apresentacao {
   const abertas = acoes.filter((a) => a.situacao !== 'recusada');
-  const familias = [...new Set(abertas.map((a) => a.familia).filter(Boolean) as Familia[])];
+  const familias = [...new Set(abertas.flatMap((a) => a.familias?.length ? a.familias : a.familia ? [a.familia] : []))];
   const nomes = familias.map((f) => NOME_FAMILIA[f]);
   const consignado = familias.some((f) => CONSIGNADO.includes(f));
   const areas = [...new Set(abertas.map((a) => a.legal_area).filter(Boolean))];
@@ -273,7 +277,8 @@ export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: 
   };
   const destino = cls.map((x) => ({ ...x, acoes: acoesDoDoc(x.d, x.c) }));
 
-  const familias = e.acoes.map((a) => familiaDaTese(a.titulo));
+  const familiasDe = (a: AcaoLote) => familiasDaAcao({ titulo: a.titulo, titulos: (a.unidos || []).map((u) => u.titulo) });
+  const familias = e.acoes.flatMap((a) => { const fs = familiasDe(a); return fs.length ? fs : [null]; });
   const tiposPresentes = new Set(destino.filter((x) => x.c.escopo === 'comum').map((x) => x.c.tipo));
   const faltamComuns = requisitosComuns(familias).filter((f) => !tiposPresentes.has(f.tipo));
 
@@ -297,8 +302,8 @@ export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: 
         nome: nomeNoKit({ ordem: i + 1, rotulo: x.c.rotulo, cliente: e.cliente, original: x.d.name, mime: x.d.mime, parte: [n, totalPorTipo.get(x.c.tipo) || 1] }),
       };
     });
-    const familia = familiaDaTese(a.titulo);
-    const faltam = requisitosComuns([familia]).filter((f) => !tiposPresentes.has(f.tipo));
+    const fs = familiasDe(a), familia = familiaDaTese(a.titulo) || fs[0] || null;
+    const faltam = requisitosComuns(fs.length ? fs : [null]).filter((f) => !tiposPresentes.has(f.tipo));
     const etapa = String(a.production_stage);
     // Versão final marcada (ou enviada) pela Dra. é decisão dela: a ação fica pronta, e o que falta segue listado.
     const situacao: SituacaoAcao = etapa === 'recusado' ? 'recusada'
@@ -307,7 +312,8 @@ export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: 
           : faltam.some((f) => f.bloqueia) ? 'faltam_documentos'
             : !p ? 'em_preparo' : 'revisar';
     return {
-      ...a, reu: reuDe.get(a.id) || null, familia, nomeFamilia: familia ? NOME_FAMILIA[familia] : null,
+      ...a, unidos: a.unidos || [], reu: reuDe.get(a.id) || null, familia, familias: fs,
+      nomeFamilia: fs.length ? fs.map((f) => NOME_FAMILIA[f]).join(' + ') : null,
       peca: p ? { docId: p.d.id, versao: versaoDoNome(p.d.name) || 1, final: !!p.d.final_em, nome: p.d.name } : null,
       planilha: planilhas[0] ? { docId: planilhas[0].d.id, nome: planilhas[0].d.name } : null,
       kit, faltam, situacao,
@@ -334,8 +340,33 @@ export function montarLote(e: { cliente: string; acoes: AcaoLote[]; documentos: 
     repetidos: e.documentos.length - unicos.length,
     conferencia: conferirPecasPorBanco(e.contratos || [], e.acoes
       .filter((a) => a.production_stage !== 'recusado')
-      .map((a) => ({ id: a.id, titulo: a.titulo, reus: reusDoCaso({ partes: a.partes, titulo: a.titulo }) }))),
+      .map((a) => ({ id: a.id, titulo: a.titulo, titulos: (a.unidos || []).map((u) => u.titulo), reus: reusDoCaso({ partes: a.partes, titulo: a.titulo }) }))),
   };
+}
+
+// ── junção escolhida pela Dra. ──────────────────────────────────────────────
+
+export interface CasoParaJuncao { id: number; client_id: number | null; production_stage: string | null; titulo: string | null; partes: Parte[] }
+
+const mesmoReu = (a: Parte, b: Parte) => mesmaParte(a, b) || mesmoBanco(a.nome, b.nome);
+
+/**
+ * A Dra. marca duas ou mais ações na tela do cliente e junta em UMA inicial (Jessica,
+ * 31/10/2026). Teses diferentes podem (empréstimo consignado com cartão RMC/RCC); bancos
+ * diferentes nunca: cada banco é uma peça. A sugestão automática (sugestoesDeJuncao)
+ * continua só com a mesma tese. Devolve o motivo de não juntar, ou null quando pode.
+ */
+export function conferirJuncao(casos: CasoParaJuncao[]): string | null {
+  if (casos.length < 2) return 'Escolha ao menos duas ações para juntar';
+  if (casos[0].client_id == null || casos.some((c) => c.client_id !== casos[0].client_id)) return 'Só dá para juntar ações do mesmo cliente';
+  if (casos.some((c) => !ETAPAS_ANTES_DO_PROTOCOLO.includes(String(c.production_stage)))) return 'Só dá para juntar ações que ainda não foram protocoladas';
+  const reus = casos.map((c) => ({ c, reus: reusDoCaso({ partes: c.partes, titulo: c.titulo }) }));
+  const semReu = reus.find((x) => !x.reus.length);
+  if (semReu) return `A ação #${semReu.c.id} não tem parte contrária cadastrada: cadastre o banco antes de juntar`;
+  const base = reus[0];
+  const outro = reus.find((x) => !x.reus.some((p) => base.reus.some((q) => mesmoReu(p, q))));
+  if (outro) return `Só dá para juntar ações contra o mesmo banco: ${base.reus[0].nome || `#${base.c.id}`} e ${outro.reus[0].nome || `#${outro.c.id}`} são bancos diferentes, cada um é uma peça`;
+  return null;
 }
 
 // ── quadro ──────────────────────────────────────────────────────────────────

@@ -10,6 +10,7 @@ import {
 import { sugestoesDeJuncao, familiaDaTese, reusDoCaso, NOME_FAMILIA, ETAPAS_ANTES_DO_PROTOCOLO } from '../services/pecaConsolidacao';
 import { inventarioDaPeca, nomeDoTipo } from '../services/contratosDoCaso';
 import { andamentoDaPeca } from '../services/geracaoPecaMysql';
+import { conferirJuncao } from '../services/loteProducao';
 import { tarefasEmAndamento } from '../services/tarefasEmAndamento';
 
 /**
@@ -62,8 +63,13 @@ router.post('/juntar', async (req: Request, res: Response) => {
             (SELECT COUNT(*) FROM cases u WHERE u.unido_ao_caso = cases.id) AS pedidos_unidos
        FROM cases WHERE id IN (?)`, [ids]) as any;
   if (rows.length !== ids.length) { res.status(404).json({ error: 'Algum pedido não foi encontrado' }); return; }
-  if (new Set(rows.map((r: any) => r.client_id)).size !== 1) { res.status(400).json({ error: 'Só dá para juntar pedidos do mesmo cliente' }); return; }
-  if (rows.some((r: any) => !ETAPAS_ANTES_DO_PROTOCOLO.includes(r.production_stage))) { res.status(400).json({ error: 'Só dá para juntar pedidos que ainda não foram protocolados' }); return; }
+  // Mesmo cliente, antes do protocolo e contra o mesmo banco; a tese pode ser outra (regra em loteProducao.ts).
+  const [partes] = await db.query("SELECT case_id, nome, cpf_cnpj FROM case_partes WHERE papel = 'contraria' AND case_id IN (?)", [ids]) as any;
+  const motivo = conferirJuncao(rows.map((r: any) => ({
+    id: r.id, client_id: r.client_id, production_stage: r.production_stage, titulo: r.title,
+    partes: partes.filter((p: any) => p.case_id === r.id).map((p: any) => ({ nome: p.nome, cpf_cnpj: p.cpf_cnpj })),
+  })));
+  if (motivo) { res.status(400).json({ error: motivo }); return; }
   const ordem = (s: string) => ETAPAS_ANTES_DO_PROTOCOLO.indexOf(s);
   const pedido = Number(req.body?.principal);
   const principal = rows.find((r: any) => r.id === pedido)
@@ -75,7 +81,7 @@ router.post('/juntar', async (req: Request, res: Response) => {
   const nota = (id: number, texto: string) => db.query(
     "INSERT INTO production_notes (case_id, user_id, author_name, kind, text) VALUES (?, ?, ?, 'atualizacao', ?)", [id, req.user!.id, req.user!.name, texto]).catch(() => {});
   await nota(principal.id, `Processo único: ${outros.map((i: number) => `#${i}`).join(', ')} unido(s) a este caso. Uma peça, um protocolo.`);
-  for (const id of outros) await nota(id, `Unido ao processo do caso #${principal.id} (mesmo banco e mesma tese). Segue a etapa dele.`);
+  for (const id of outros) await nota(id, `Unido ao processo do caso #${principal.id} (mesmo banco). Segue a etapa dele.`);
   res.json({ success: true, principal: principal.id, unidos: outros });
 });
 

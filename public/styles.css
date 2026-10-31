@@ -2746,6 +2746,13 @@ body.lote-aberto { overflow: hidden; }
 .lote-kit ol { margin: 6px 0 0; padding-left: 20px; }
 .lote-kit li { overflow-wrap: anywhere; }
 .lote-acao-corpo { min-width: 0; }
+.lote-acao-lado { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.lote-marcar { width: 18px; height: 18px; margin: 0; accent-color: var(--gold); cursor: pointer; }
+.lote-unidos { margin-top: 8px; padding: 6px 10px; border-left: 3px solid var(--border-soft); font-size: 13px; color: var(--text-soft); }
+.lote-unidos ul { margin: 2px 0 0; padding-left: 16px; }
+.lote-link { background: none; border: 0; padding: 0 2px; color: var(--gold); text-decoration: underline; cursor: pointer; font: inherit; }
+.lote-juntar { position: sticky; bottom: 12px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 12px; padding: 10px 14px; border: 1px solid var(--border-soft); border-radius: 12px; background: var(--surface-2); box-shadow: 0 6px 18px rgba(0,0,0,.08); font-size: 14px; color: var(--text); }
+.lote-juntar[hidden] { display: none; }
 .lote-kit li small, .lote-docs li small { display: block; color: var(--text-muted); font-size: 12px; }
 .lote-aviso { color: var(--lote-ambar) !important; display: inline !important; }
 .lote-docs-cab { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; color: var(--text-soft); }

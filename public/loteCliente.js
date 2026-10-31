@@ -213,12 +213,15 @@
       const protocolada = a.situacao === 'protocolada';
       const peca = a.peca ? `Peça v${a.peca.versao}${a.peca.final ? ' · <b>versão final</b>' : ''}` : 'Sem peça';
       const anexos = a.kit.length ? `${a.kit.length} anexo(s)` : 'nenhum anexo';
+      const unidos = (a.unidos || []).map((u) => `<li>#${u.id} — ${e(u.titulo || 'sem título')}${protocolada ? '' : ` <button type="button" class="lote-link" data-separar="${u.id}">Separar</button>`}</li>`).join('');
       return `<article class="lote-acao" data-id="${a.id}">
-        <div class="lote-acao-n">${i + 1}</div>
+        <div class="lote-acao-lado"><div class="lote-acao-n">${i + 1}</div>
+          ${protocolada ? '' : `<input type="checkbox" class="lote-marcar" data-juntar="${a.id}" aria-label="Marcar ${e(a.reu || a.titulo || `a ação #${a.id}`)} para juntar em uma inicial">`}</div>
         <div class="lote-acao-corpo">
           <h3>${e(a.reu || a.titulo || `Caso #${a.id}`)}</h3>
           <p>${e(a.nomeFamilia || 'Tese não identificada')} · ${e(ETAPA[a.production_stage] || a.production_stage || '')}${a.case_number ? ` · nº <b>${e(a.case_number)}</b>` : ''}</p>
           <p class="lote-acao-meta">${chip(a.situacao)} <span>${peca}</span> <span>${anexos}${a.planilha ? ' + planilha' : ''}</span></p>
+          ${unidos ? `<div class="lote-unidos"><small>Na mesma inicial:</small><ul>${unidos}</ul></div>` : ''}
           <details class="lote-kit"><summary>Ver o kit de protocolo</summary>
             <ol>${a.kit.map((k) => `<li>${e(k.nome)}${!k.temArquivo ? ' <small class="lote-aviso">sem arquivo no CRM: juntar à parte</small>' : ''}<small>chegou como ${e(k.original)}</small></li>`).join('') || '<li>Nenhum anexo ainda.</li>'}</ol>
           </details>
@@ -270,8 +273,10 @@
         <main class="lote-corpo">
           ${introHtml()}
           <section class="lote-bloco"><h2>Ações para protocolar, uma a uma</h2>
-            <p class="lote-sub">Revise a peça na mesa, marque a versão final, baixe o kit e protocole.</p>
-            <div class="lote-acoes">${lote.acoes.map(acaoHtml).join('')}</div></section>
+            <p class="lote-sub">Revise a peça na mesa, marque a versão final, baixe o kit e protocole. Para fazer uma inicial só, marque as ações do mesmo banco (empréstimo e cartão, por exemplo) e clique em "Juntar em uma inicial".</p>
+            <div class="lote-acoes">${lote.acoes.map(acaoHtml).join('')}</div>
+            <div class="lote-juntar" role="status" aria-live="polite" hidden><span></span>
+              <button type="button" class="btn-primary btn-sm" data-acao="juntar">Juntar em uma inicial</button></div></section>
           <section class="lote-bloco"><h2>Documentos do cliente</h2>${docsHtml()}</section>
         </main>`;
       q('[data-acao="fechar"]').onclick = fechar;
@@ -308,6 +313,34 @@
             toast('Protocolada · próxima ação'); mudou = true; await recarregar();
           } catch (err) { toast(err.message, 'error'); }
         };
+      });
+      // Juntar: a Dra. marca ações do mesmo banco e elas viram UMA inicial (bancos diferentes, o servidor recusa).
+      const barra = q('.lote-juntar'), marcas = [...ov.querySelectorAll('[data-juntar]')];
+      const marcadas = () => marcas.filter((m) => m.checked).map((m) => lote.acoes.find((x) => x.id === Number(m.dataset.juntar))).filter(Boolean);
+      const atualizarBarra = () => {
+        const n = marcadas().length;
+        barra.hidden = n === 0;
+        barra.querySelector('span').textContent = n < 2 ? 'Marque mais uma ação do mesmo banco para juntar.' : `${n} ações marcadas`;
+        barra.querySelector('button').disabled = n < 2;
+      };
+      marcas.forEach((m) => { m.onchange = atualizarBarra; });
+      barra.querySelector('button').onclick = async (ev) => {
+        const sel = marcadas();
+        if (sel.length < 2) return;
+        const lista = sel.map((a) => `• ${a.reu || a.titulo || `#${a.id}`} — ${a.nomeFamilia || 'tese não identificada'}`).join('\n');
+        if (!(await uiConfirm(`Juntar em uma inicial só?\n\n${lista}\n\nUma peça, um kit e um protocolo. Só ações contra o mesmo banco. Dá para separar depois.`))) return;
+        const b = ev.currentTarget; b.disabled = true;
+        try {
+          const r2 = await api('/api/mesa/juntar', { method: 'POST', body: JSON.stringify({ casos: sel.map((a) => a.id) }) });
+          toast(`Juntadas na ação #${r2.principal}. Gere a peça de novo na mesa para ela trazer todos os pedidos.`);
+          mudou = true; await recarregar();
+        } catch (err) { toast(err.message, 'error'); b.disabled = false; }
+      };
+      ov.querySelectorAll('[data-separar]').forEach((b) => b.onclick = async () => {
+        if (!(await uiConfirm(`Separar o pedido #${b.dataset.separar}? Ele volta a ser uma ação com peça própria.`))) return;
+        b.disabled = true;
+        try { await api(`/api/mesa/${b.dataset.separar}/separar`, { method: 'POST', body: '{}' }); toast('Pedido separado: volta a ser uma ação própria'); mudou = true; await recarregar(); }
+        catch (err) { toast(err.message, 'error'); b.disabled = false; }
       });
       const pad = q('[data-acao="padronizar"]');
       if (pad) pad.onclick = async () => {

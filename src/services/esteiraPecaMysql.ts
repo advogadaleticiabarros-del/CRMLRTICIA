@@ -1,13 +1,13 @@
 import { db } from '../config/database';
 import { aiComplete, aiLerArquivo } from './aiAssistant';
 import { registrarAcaoAgente } from './usoIa';
-import { reusDoCaso, familiaDaTese, type CasoParaJuntar } from './pecaConsolidacao';
+import { reusDoCaso, type CasoParaJuntar } from './pecaConsolidacao';
 import type { DepsEsteira, CasoEsteira } from './esteiraPeca';
 import type { Fonte, ItemCatalogo, ContratoFicha, FichaDeFatos } from './pecaDossie';
 import { lerUmaVez, refDoConteudo, type CacheLeitura } from './leituraUnica';
 import { chaveContrato, type ContratoSalvo, type AcaoParaConferir } from './contratosDoCaso';
 import { indicesDoBacen } from './indicesEconomicosMysql';
-import { mesmoBanco } from './contratosDoCaso';
+import { mesmoBanco, familiasDaAcao } from './contratosDoCaso';
 import type { CalculoDoBanco } from './contabilista';
 import { planilhaMarkdown, planilhaXlsx } from './planilhaCalculos';
 import { MIME_XLSX } from './xlsxSimples';
@@ -297,7 +297,8 @@ export async function acoesDoCliente(clientId: number): Promise<AcaoParaConferir
   const principal = new Map<number, number>(casos.map((c: any) => [c.id, c.unido_ao_caso || c.id]));
   return casos.filter((c: any) => !c.unido_ao_caso).map((c: any) => {
     const ps = partes.filter((p: any) => principal.get(p.case_id) === c.id).map((p: any) => ({ nome: p.nome, cpf_cnpj: p.cpf_cnpj }));
-    return { id: c.id, titulo: c.title, reus: reusDoCaso({ partes: ps, titulo: c.title }) };
+    const titulos = casos.filter((u: any) => u.unido_ao_caso === c.id).map((u: any) => u.title);
+    return { id: c.id, titulo: c.title, titulos, reus: reusDoCaso({ partes: ps, titulo: c.title }) };
   });
 }
 
@@ -311,7 +312,7 @@ export async function guardarPlanilhasDoCliente(clientId: number, cliente: strin
   for (const b of porBanco) {
     // A ação do mesmo banco e da mesma modalidade (título do processo); sem ela, a do banco.
     const doBanco = acoes.filter((a) => a.reus.some((r) => mesmoBanco(r.nome, b.banco)));
-    const acao = doBanco.find((a) => b.familia && familiaDaTese(a.titulo) === b.familia) || (doBanco.length === 1 ? doBanco[0] : undefined);
+    const acao = doBanco.find((a) => b.familia && familiasDaAcao(a).includes(b.familia)) || (doBanco.length === 1 ? doBanco[0] : undefined);
     const nome = `Planilha de cálculos — ${cliente} · ${b.banco} · ${b.modalidade} (leitura dos documentos)`.slice(0, 255);
     const cab = { cliente, reus: [`${b.banco} — ${b.modalidade}`], casos: acao ? [{ id: acao.id, titulo: acao.titulo }] : [] };
     const xlsx = await planilhaXlsx(b.calculo, cab).catch(() => null);
