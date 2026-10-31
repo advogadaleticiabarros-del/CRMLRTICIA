@@ -117,13 +117,37 @@ export function parseFichaDeFatos(texto: string): FichaDeFatos {
 export interface Fonte { nome: string; texto: string; muda?: boolean }
 
 /** Junta as fontes num texto só, cortando as grandes sem deixar nenhuma de fora. */
-export function montarFontes(fontes: Fonte[], lim = { porFonte: 40000, total: 200000 }) {
+/** Extrato do INSS (HISCON/HISCRE): é dele que o Calculista tira contratos e descontos, então tem prioridade no espaço. */
+const EXTRATO_INSS = /hiscon|hiscre|hist[oó]rico de cr[eé]ditos|extrato.{0,20}(empr[eé]stimo|consigna)/i;
+
+/**
+ * Cada fonte recebe o que precisa: as pequenas entram inteiras e o espaço que sobra vai
+ * primeiro para os extratos do INSS, depois para o resto. A divisão igual (total / nº de
+ * fontes) cortava os históricos de créditos do Valmirio em ~8.700 caracteres (31/10/2026).
+ */
+export function montarFontes(fontes: Fonte[], lim = { porFonte: 60000, total: 260000 }) {
   const lidas: string[] = [], semTexto: string[] = [];
   const blocos: string[] = [];
   const comTexto = fontes.filter((f) => { if (String(f.texto || '').trim()) return true; semTexto.push(f.nome); return false; });
-  const cota = Math.min(lim.porFonte, Math.floor(lim.total / Math.max(1, comTexto.length)));
-  for (const f of comTexto) {
-    const t = String(f.texto).trim();
+  const textos = comTexto.map((f) => String(f.texto).trim());
+  const extrato = comTexto.map((f, i) => EXTRATO_INSS.test(f.nome) || EXTRATO_INSS.test(textos[i].slice(0, 300)));
+  const cotas = new Array<number>(comTexto.length).fill(0);
+  let restante = lim.total;
+  // 1º as pequenas (o que couber na parte igual de cada uma), depois os extratos, depois o resto.
+  const parteIgual = Math.floor(lim.total / Math.max(1, comTexto.length));
+  const fila = textos.map((t, i) => i).sort((a, b) => {
+    const pa = textos[a].length <= parteIgual ? 0 : extrato[a] ? 1 : 2, pb = textos[b].length <= parteIgual ? 0 : extrato[b] ? 1 : 2;
+    return pa - pb || textos[a].length - textos[b].length;
+  });
+  // Nenhuma fonte fica sem nada: as que ainda faltam guardam um mínimo cada.
+  const minimo = Math.min(2000, parteIgual);
+  for (const [k, i] of fila.entries()) {
+    const reserva = (fila.length - k - 1) * minimo;
+    cotas[i] = Math.max(Math.min(textos[i].length, minimo), Math.min(textos[i].length, lim.porFonte, restante - reserva));
+    restante -= cotas[i];
+  }
+  for (const [i, f] of comTexto.entries()) {
+    const t = textos[i], cota = cotas[i];
     blocos.push(`=== ${f.nome} ===\n${t.length > cota ? `${t.slice(0, cota)}\n[... trecho cortado: o documento tem ${t.length} caracteres]` : t}`);
     lidas.push(f.nome);
   }

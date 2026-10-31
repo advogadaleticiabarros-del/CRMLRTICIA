@@ -529,3 +529,22 @@ test('blocoCalculos sem descontos: nunca manda escrever R$ 0,00', () => {
   assert.match(b, /\[valor a apurar\]/);
   assert.doesNotMatch(b, /VALOR DA CAUSA: R\$ 0,00/);
 });
+
+test('montarFontes: documento pequeno entra inteiro e o espaço que sobra vai para os extratos (Valmirio, 31/10/2026)', () => {
+  // Antes: divisão igual (total / nº de fontes) cortava cada histórico de créditos em ~8.700 caracteres
+  // mesmo com o RG usando 900; o Calculista via só os meses de 2026.
+  const hiscre = (n) => ({ nome: `Histórico de créditos do INSS (${n}).pdf`, texto: `TIPO: HISCRE ${n}\n` + 'x'.repeat(19000) });
+  const fontes = montarFontes([
+    { nome: 'RG.pdf', texto: 'r'.repeat(900) },
+    { nome: 'Procuração.pdf', texto: 'p'.repeat(1300) },
+    { nome: 'contrato.pdf', texto: 'c'.repeat(28000) },
+    { nome: 'extrato_emprestimo_consignado.pdf', texto: 'TIPO: HISCON\n' + 'e'.repeat(43000) },
+    ...[1, 2, 3, 4, 5, 6].map(hiscre),
+  ], { porFonte: 60000, total: 165000 });
+  assert.match(fontes.texto, /=== RG\.pdf ===\nr{900}\n/);
+  for (const n of [1, 2, 3, 4, 5, 6]) assert.match(fontes.texto, new RegExp(`=== Histórico de créditos do INSS \\(${n}\\)\\.pdf ===\\nTIPO: HISCRE ${n}\\nx{19000}(\\n|$)`), `histórico ${n} cortado`);
+  assert.match(fontes.texto, /=== extrato_emprestimo_consignado\.pdf ===\nTIPO: HISCON\ne{43000}\n/);
+  // O contrato (não é extrato) é o que fica com o resto e é cortado.
+  assert.match(fontes.texto, /=== contrato\.pdf ===\nc+\n\[\.\.\. trecho cortado/);
+  assert.ok(fontes.texto.length <= 165000 + 2000);
+});

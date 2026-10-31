@@ -42,9 +42,10 @@ export async function lerUmaVez(cache: CacheLeitura, ref: string, fonte: string,
 /**
  * Versão do que a ficha guarda. Sobe quando o pedido de leitura muda: a ficha antiga não
  * serve mais e os documentos são lidos de novo. v2 (31/10/2026): rubrica de cada desconto
- * do HISCRE e os meses que o extrato cobre, para o Calculista (contabilista.ts).
+ * do HISCRE e os meses que o extrato cobre, para o Calculista (contabilista.ts). v3 (31/10/2026):
+ * os extratos deixaram de ir cortados para a leitura (montarFontes).
  */
-export const VERSAO_FICHA = 2;
+export const VERSAO_FICHA = 3;
 
 export function chaveLeituraCliente(clientId: number, fontes: Array<{ texto: string; muda?: boolean }>): string {
   const textos = [...new Set(fontes.filter((f) => !f.muda).map((f) => String(f.texto || '').trim()).filter(Boolean))].sort();
