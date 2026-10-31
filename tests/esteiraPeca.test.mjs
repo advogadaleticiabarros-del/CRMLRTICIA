@@ -279,7 +279,7 @@ function fakeDeps(over = {}) {
       chamadas.push({ prompt, nivel });
       if (nivel === 'leitura') return { ok: true, text: '{"descontos":[{"competencia":"2022-01","valor":"100","contrato":"A","fonte":"doc-caso-1.pdf"}]}' };
       if (nivel === 'escolha') return { ok: true, text: '{"estrategia":"nulidade","modelos":["M1"],"teses":["T1"],"motivo":"x"}' };
-      return { ok: true, text: 'PETIÇÃO ... restituição de R$ 200,00 ... valor da causa R$ 200,00' };
+      return { ok: true, text: 'PETIÇÃO ... restituição de R$ 200,00 ... dano moral de R$ 10.000,00 ... valor da causa R$ 10.200,00' };
     },
     registrar: (agente, texto) => acoes.push({ agente, texto }),
     ...over,
@@ -499,12 +499,16 @@ test('produzirPeticao (caso Valmirio): os descontos sem banco do HISCRE vão par
   assert.strictEqual(r.calculo.indebito.total.descontado, 130.92, '3 × R$ 43,64');
   assert.strictEqual(r.calculo.indebito.total.restituir, 261.84, 'em dobro');
   assert.ok(r.calculo.valorDaCausa.total > 0);
+  // Dano moral padrão do escritório para descontos de banco no benefício (Jessica, 31/10/2026): R$ 10.000,00.
+  assert.strictEqual(r.calculo.valorDaCausa.danoMoral, 10000);
   const redacao = chamadas[chamadas.length - 1].prompt;
+  assert.match(redacao, /DANO MORAL: pedir R\$ 10\.000,00/);
   assert.match(redacao, /Contrato 632706066: 3 desconto\(s\) de 01\/2026 a 03\/2026/);
   assert.doesNotMatch(redacao, /SEM DESCONTOS APURADOS/);
   // Na leitura, a planilha de cada banco do cliente (Itaú e Pan; o cartão da Facta varia, vai pela rubrica 217).
   assert.deepStrictEqual(guardadas.map((b) => b.banco), ['Banco Itaú S.A.', 'Banco Pan S.A.', 'Facta Financeira S.A.']);
   assert.strictEqual(guardadas[2].calculo.indebito.total.descontado, 165.3);
+  assert.ok(guardadas.every((g) => g.calculo.valorDaCausa.danoMoral === 10000), 'planilha de cada banco já com o dano moral padrão');
 });
 
 test('levantarContratos: a leitura já devolve o cálculo de cada banco', async () => {

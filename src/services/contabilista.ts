@@ -1,7 +1,7 @@
 import { chaveContrato, mesmoBanco, nucleoBanco, familiaDoContrato } from './contratosDoCaso';
 import { NOME_FAMILIA, type Familia } from './pecaConsolidacao';
 import type { ContratoFicha, FichaDeFatos } from './pecaDossie';
-import { brl, mesBr, calcularPeca, type CalculoPeca } from './pecaCalculos';
+import { brl, mesBr, calcularPeca, danoMoralPadrao, type CalculoPeca } from './pecaCalculos';
 import { atualizarCalculo } from './planilhaCalculos';
 import type { IndicesMensais } from './indicesEconomicos';
 
@@ -188,7 +188,7 @@ export function calcularPorBanco(ficha: FichaDeFatos, indices: IndicesMensais | 
     const nomes = new Set(contratos.map((c) => c.numero || `${c.tipo || 'contrato'} ${c.banco || ''}`.trim()));
     const descontos = ficha.descontos.filter((d) => d.contrato && nomes.has(d.contrato))
       .map((d) => ({ competencia: d.competencia, valor: d.valor, contrato: d.contrato, fonte: d.fonte }));
-    const base = calcularPeca({ contratos, descontos, hoje, jaApurados: true });
+    const base = calcularPeca({ contratos, descontos, hoje, jaApurados: true, danoMoral: danoMoralPadrao([familia]) });
     return { banco: contratos[0].banco as string, familia, modalidade: familia ? NOME_FAMILIA[familia] : 'Modalidade não identificada', contratos, calculo: atualizarCalculo(base, indices, hoje) };
   }).sort((a, b) => a.banco.localeCompare(b.banco, 'pt-BR') || a.modalidade.localeCompare(b.modalidade, 'pt-BR'));
 }

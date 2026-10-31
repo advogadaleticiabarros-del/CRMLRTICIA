@@ -264,7 +264,9 @@ export function blocoCalculos(c: CalculoPeca): string {
     l.push(`- TOTAL ATUALIZADO a restituir: ${brl(a.total.total)}.`);
   }
   const v = c.valorDaCausa;
-  if (!v.total) { l.push('VALOR DA CAUSA: [valor a apurar] + [valor do dano moral] — sem descontos apurados, não use R$ 0,00.'); return l.join('\n'); }
+  if (v.danoMoral != null) l.push(`DANO MORAL: pedir ${brl(v.danoMoral)} (padrão do escritório para descontos de banco no benefício do INSS).`);
+  const dano = v.danoMoral != null ? brl(v.danoMoral) : '[valor do dano moral]';
+  if (!(v.total - (v.danoMoral || 0))) { l.push(`VALOR DA CAUSA: [valor a apurar] + ${dano} — sem descontos apurados, não use R$ 0,00.`); return l.join('\n'); }
   l.push(`VALOR DA CAUSA: ${brl(v.total)}${v.danoMoral == null ? ' + [valor do dano moral] (somar o dano moral pedido ao valor da causa)' : ''} = restituição${a?.dataBase ? ' atualizada' : ''} ${brl(v.restituicao)}${v.jurosPagosAMais ? ` + juros pagos a mais ${brl(v.jurosPagosAMais)}` : ''}${v.danoMoral != null ? ` + dano moral ${brl(v.danoMoral)}` : ''}.`);
   return l.join('\n');
 }
@@ -339,6 +341,7 @@ export function conferirValores(peticao: string, c: CalculoPeca): Array<{ rotulo
   const itens: Array<{ rotulo: string; valor: number }> = [];
   if (c.indebito.total.restituir > 0) itens.push({ rotulo: 'Total a restituir', valor: c.indebito.total.restituir });
   if (c.valorDaCausa.jurosPagosAMais > 0) itens.push({ rotulo: 'Juros pagos a mais', valor: c.valorDaCausa.jurosPagosAMais });
+  if (c.valorDaCausa.danoMoral) itens.push({ rotulo: 'Dano moral (padrão)', valor: c.valorDaCausa.danoMoral });
   if (c.atualizacao?.dataBase && c.atualizacao.total.total > 0) itens.push({ rotulo: 'Total atualizado (planilha)', valor: c.atualizacao.total.total });
   if (c.valorDaCausa.total > 0) itens.push({ rotulo: 'Valor da causa (calculado)', valor: c.valorDaCausa.total });
   return itens.map((i) => ({ ...i, presente: t.includes(semRS(i.valor)) }));

@@ -63,6 +63,17 @@ export function estimarDescontos(contratos: ContratoCalculo[], lidos: Desconto[]
  */
 export const MARCO_DOBRO = null as string | null;
 
+/**
+ * Dano moral padrão do escritório (Jessica, 31/10/2026: "10.000,00 para todas as peças desse
+ * mesmo perfil"): descontos de banco no benefício do INSS, empréstimo consignado ou cartão
+ * consignado (RMC/RCC). Outras teses ficam sem valor ([valor do dano moral]).
+ */
+export const DANO_MORAL_PADRAO = 10000;
+const FAMILIAS_COM_DANO_PADRAO = new Set(['emprestimo_consignado', 'cartao_consignado']);
+export function danoMoralPadrao(familias: Array<string | null | undefined>): number | null {
+  return familias.some((f) => f && FAMILIAS_COM_DANO_PADRAO.has(f)) ? DANO_MORAL_PADRAO : null;
+}
+
 /** Devolução do desconto daquele mês: simples ou em dobro. */
 export const regraDevolucao = (competencia: string): 'simples' | 'dobro' => (MARCO_DOBRO && competencia <= MARCO_DOBRO ? 'simples' : 'dobro');
 

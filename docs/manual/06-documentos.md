@@ -381,6 +381,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 31/10/2026 | Claude | Dano moral padrão de R$ 10.000,00 nas peças de empréstimo consignado e cartão consignado (RMC/RCC): entra na peça, na planilha de cada banco e no valor da causa. Banco com o código na frente ("341 - BANCO ITAU SA") bate com o réu; extratos inteiros na leitura; descontos do histórico de créditos lidos em código |
 | 31/10/2026 | Claude | Redação da peça no GPT-6 Sol (esforço alto); leituras e o resto no GPT-6 Luna. Modelo recusado cai no GPT-5.6 Luna sozinho |
 | 31/10/2026 | Claude | Anexos do Drive transcritos na íntegra (antes, resumo em tópicos); resumos antigos de extratos são relidos na próxima leitura do caso. Demonstrativo: "A restituir (em dobro)" |
 | 31/10/2026 | Claude | "Sobre o caso" refeito como síntese do cliente inteiro pelo que foi lido (contratos do extrato por instituição, descontos, triagem, pedidos, linha do tempo, lacunas, alertas); o relato de uma ação deixou de aparecer como relato do caso. Nome jurídico do banco no extrato = nome conhecido da ação (Banrisul, Banese, Banpará, BRB, BNB, Caixa, Sicredi, Sicoob) |

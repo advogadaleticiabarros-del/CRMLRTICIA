@@ -1,7 +1,7 @@
-import { calcularPeca, brl, mesBr, type CalculoPeca } from './pecaCalculos';
+import { calcularPeca, brl, mesBr, danoMoralPadrao, type CalculoPeca } from './pecaCalculos';
 import { atualizarCalculo } from './planilhaCalculos';
 import type { IndicesMensais } from './indicesEconomicos';
-import { mesmaParte, reusDoCaso, type CasoParaJuntar, type Parte } from './pecaConsolidacao';
+import { mesmaParte, reusDoCaso, familiaDaTese, type CasoParaJuntar, type Parte } from './pecaConsolidacao';
 import {
   montarFontes, promptFichaDeFatos, parseFichaDeFatos, fichaVazia, promptEscolhaModelo, parseEscolha, resumoDaFicha,
   montarPromptRedacao, conferirValores, relatorioDossie,
@@ -11,7 +11,7 @@ import { chaveLeituraCliente } from './leituraUnica';
 import { aplicarEnderecamento } from './enderecamentoPeca';
 import { apurarFicha, calcularPorBanco, type CalculoDoBanco } from './contabilista';
 import { juntarHiscre } from './hiscre';
-import { separarParaPeca, mesmoBanco, chaveContrato, conferirPecasPorBanco, type ContratoSalvo, type PecaAlvo, type AcaoParaConferir, type ConferenciaPecas } from './contratosDoCaso';
+import { separarParaPeca, mesmoBanco, familiaDoContrato, chaveContrato, conferirPecasPorBanco, type ContratoSalvo, type PecaAlvo, type AcaoParaConferir, type ConferenciaPecas } from './contratosDoCaso';
 
 /**
  * Esteira da petição inicial — cada agente faz a sua parte, nesta ordem:
@@ -240,7 +240,9 @@ export async function produzirPeticao(caseId: number, deps: DepsEsteira): Promis
   // 3) Cálculos em código; o Calculista atualiza cada desconto (planilha de cálculos).
   deps.etapa?.('calculos');
   const hoje = deps.hoje?.() || new Date();
-  let calculo = calcularPeca({ contratos: ficha.contratos, descontos: ficha.descontos, hoje, jaApurados: leitura.ok });
+  // Dano moral padrão pelo perfil da ação (tese do título e contratos da peça).
+  const danoMoral = danoMoralPadrao([...casos.map((c) => familiaDaTese(c.titulo)), ...ficha.contratos.map((c) => familiaDoContrato(c.tipo))]);
+  let calculo = calcularPeca({ contratos: ficha.contratos, descontos: ficha.descontos, hoje, jaApurados: leitura.ok, danoMoral });
   if (calculo.descontos.length && deps.indices) {
     const ind = await deps.indices().catch(() => null);
     calculo = atualizarCalculo(calculo, ind?.indices ?? null, hoje);
