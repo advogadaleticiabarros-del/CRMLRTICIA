@@ -20,7 +20,7 @@ A Jessica comparou os modelos novos da OpenAI (GPT-6 Astra, GPT-6.1 Sol, GPT-6.1
 - **Não verificado:** se a VPS define `OPENAI_MODEL`. Se definir (ex.: `gpt-5.6-luna`), esse valor manda no resto, e o Luna novo só entra se a variável for trocada ou removida.
 
 - **Verificado em produção (16:20):** `ia_uso_diario` hoje: `openai` 119, `openai_smart` 2. O Sol atendeu a redação (só ela conta `openai_smart`, e só em caso de sucesso).
-- O `.env` da VPS tinha `OPENAI_MODEL=gpt-5.6-luna` e `OPENAI_MODEL_SMART=gpt-5.6-sol` (print da Jessica); foram passados os comandos para apagar as duas linhas, com cópia em `.env.bak`, e reiniciar o PM2.
+- O `.env` da VPS tinha `OPENAI_MODEL=gpt-5.6-luna` e `OPENAI_MODEL_SMART=gpt-5.6-sol` (print da Jessica); a pedido dela ("faça isso por mim"), as duas linhas foram apagadas (cópia em `.env.bak-20261031-1321`) e o PM2 foi reiniciado: online, sem `OPENAI_MODEL` no processo, site com HTTP 200.
 
 ## Decisões e porquês
 - Terra descartado: custa 4 a 5 vezes o Luna, sem ganho claro na peça. Astra descartado: custa 5 vezes o Sol. Os preços vêm de sites de terceiros (lançamentos de set. e out./2026); conferir na página oficial.
@@ -28,7 +28,7 @@ A Jessica comparou os modelos novos da OpenAI (GPT-6 Astra, GPT-6.1 Sol, GPT-6.1
 - Ficaram no `OPENAI_MODEL || 'gpt-5.6-luna'` de antes, sem reserva: a leitura com visão (`aiLerArquivo`) e o `briefingAudienciaJob`.
 
 ## Pendente
-- Jessica: confirmar que `grep -E '^OPENAI_MODEL' /home/crmapp/app/.env` não mostra nada depois de apagar as linhas e reiniciar; senão o dia a dia segue no GPT-5.6 Luna.
+- Não verificado ainda: uma chamada real do Luna depois do reinício caindo no `gpt-6-luna` (e não na reserva 5.6). Se o GPT-6 Luna for recusado, o CRM usa o 5.6 sozinho, sem quebrar nada.
 - O painel do Escritório virtual soma `openai` e `openai_smart` num gráfico só; para separar o Sol do Luna hoje, só pela consulta a `ia_uso_diario` (oferecido separar no painel, não pedido).
 - A chave local do `.env` está vencida (só afeta testes manuais neste computador).
 
