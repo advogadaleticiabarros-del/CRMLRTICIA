@@ -48,6 +48,7 @@ Manter isso em módulos próprios (em vez de misturar com as parcelas dos seus p
 | 03/09/2026 | Claude | Criação do documento |
 | 04/09/2026 | Claude | Filtro de pagador do Correspondente virou multi-seleção com busca (era `<select multiple>` nativo, exigia Ctrl/Cmd+clique) |
 | 22/09/2026 | Claude | Ficha do parceiro ganha campo de telefone (WhatsApp), usado pra reconhecimento automático de conversa |
+| 13/11/2026 | Claude | Fechamento do caso com RPV: valores (repasse, cliente, parceria, nosso caixa), recibo e vídeo-depoimento; caso encerrado |
 
 ---
 ◀ [Cobrança e parcelas](08-cobranca.md) · [Visão geral](00-visao-geral.md) · Próximo: [Monitoramento automático](10-monitoramento.md) ▶
@@ -55,3 +56,28 @@ Manter isso em módulos próprios (em vez de misturar com as parcelas dos seus p
 ## Repasse "sem data" (02/10/2026)
 
 Repasse a parceiro pode ficar **sem vencimento** ("sem data" na lista) enquanto o valor ainda não entrou, como no êxito da parceria Infinity Law (30% de honorários, metade para cada). O vencimento é definido depois, ao editar o repasse. A migration 151 permite `repasses.data_vencimento` nulo. O registro de êxito/sucumbência da parceria (`POST /api/partners/cases/:id/resultado`) agora cria a receita e o repasse sem data, em vez de "hoje + 7 dias".
+
+## Fechamento do caso com RPV (13/11/2026)
+
+Quando o RPV de um caso de parceria sai, a Dra. saca o valor inteiro e transfere à parceira a parte da cliente mais a parte da parceria. A parceira paga a cliente e manda o **recibo** e um **vídeo-depoimento** da cliente falando do recebimento.
+
+**Onde:** Parcerias → escolha o parceiro → botão **"Finalizar (RPV)"** na linha do caso. Depois de salvo, o botão vira **"Fechamento"** (para corrigir valores ou anexar o que faltou).
+
+**O que se informa:** valor sacado, data do saque, percentuais (vêm do acordo do parceiro: Infinity Law 30% de honorários, metade para cada), data do repasse, data em que a cliente recebeu, recibo e vídeo (arquivo ou link do Drive). Se a cliente ou a parceria receberam valor diferente do cálculo, abra "Valores diferentes do cálculo?" e informe o valor real.
+
+**A conta (aparece ao vivo no formulário):**
+- vai para a cliente = valor sacado × (100% − honorários);
+- honorários = valor sacado − parte da cliente;
+- fica com a parceria = honorários × fatia da parceria;
+- **repasse à parceira** = cliente + parceria (a transferência que a Dra. faz);
+- **entra no nosso caixa** = honorários − parceria.
+
+Exemplo: RPV de R$ 10.000,00 → cliente R$ 7.000,00; parceria R$ 1.500,00; repasse R$ 8.500,00; nosso caixa R$ 1.500,00.
+
+**O que o CRM faz ao salvar:**
+- **Financeiro:** a receita dos honorários (R$ 3.000,00 no exemplo) entra como recebida na data do saque. O repasse da parceria (R$ 1.500,00) entra como repassado. A descrição do repasse mostra a transferência total e a divisão. O dinheiro da cliente só passa pela conta e não vira receita: fica registrado no fechamento.
+- Se o caso já tinha "Êxito" lançado pelo botão "Êxito / Sucumb." (receita e repasse pendentes sem data), esses lançamentos são **reaproveitados**, sem duplicar. Salvar de novo atualiza os mesmos lançamentos.
+- **Caso finalizado:** o caso fica com status `encerrado`, resultado "procedente" (se ainda não houver outro) e valor obtido = valor sacado. A etapa da esteira não muda ("Concluído" ali significa só que a peça foi protocolada). **Nenhuma mensagem é enviada à cliente.**
+- **Comprovantes:** recibo (PDF ou foto, até 15 MB) e vídeo (até 500 MB) vão para a pasta do caso no Drive (Raiz → Cliente → Caso) e aparecem nos documentos do caso, pasta Financeiro. Se o Drive falhar, o recibo fica guardado no próprio CRM. Para o vídeo, cole o link. Na lista, o caso aparece como "Finalizado", com "falta recibo" ou "falta vídeo" enquanto faltar um deles.
+
+Código: `src/services/fechamentoRpvParceria.ts` (regra), `fechamentoRpvParceriaMysql.ts` (banco), rotas `/api/partners/cases/:id/fechamento` em `src/routes/partners.ts`; migration 177 (`parceria_fechamentos`). O envio do arquivo passa pelo nginx com limite próprio de 500 MB só nesse endereço.

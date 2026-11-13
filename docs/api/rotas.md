@@ -4,7 +4,7 @@
 > Acesso: **público** (sem login), **logado** (qualquer usuário), **equipe** (admin, advogada, staff), **admin**.
 > Dentro de cada rota pode haver checagem extra (ex.: dono do registro, papel parceiro).
 
-**498 rotas em 80 grupos.**
+**502 rotas em 80 grupos.**
 
 ## `/api/access-logs` · admin · `src/routes/accessLogs.ts`
 
@@ -682,6 +682,10 @@
 | POST | `/api/partners/:id/cases` |
 | GET | `/api/partners/:id/cases` |
 | POST | `/api/partners/cases/:caseId/resultado` |
+| GET | `/api/partners/cases/:caseId/fechamento` |
+| POST | `/api/partners/cases/:caseId/fechamento` |
+| POST | `/api/partners/cases/:caseId/fechamento/arquivo` |
+| POST | `/api/partners/cases/:caseId/fechamento/link` |
 
 ## `/api/payments` · equipe · `src/routes/payments.ts`
 

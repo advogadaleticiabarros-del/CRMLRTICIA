@@ -125,9 +125,13 @@ router.get('/:id/cases', async (req: Request, res: Response) => {
            ${pendenciasAbertasSql('c.id')} AS pendencias,
            cl.name AS client_name,
            (SELECT COALESCE(SUM(valor),0) FROM financial_records fr WHERE fr.case_id = c.id AND fr.tipo='receita') AS receita,
-           (SELECT COALESCE(SUM(valor),0) FROM repasses r WHERE r.case_id = c.id) AS repasse_parceiro
+           (SELECT COALESCE(SUM(valor),0) FROM repasses r WHERE r.case_id = c.id) AS repasse_parceiro,
+           pf.id AS fechamento_id, pf.valor_sacado AS fech_sacado, pf.valor_repasse AS fech_repasse,
+           pf.valor_cliente AS fech_cliente, pf.valor_parceira AS fech_parceira, pf.valor_escritorio AS fech_escritorio,
+           pf.recibo_document_id AS fech_recibo, pf.video_document_id AS fech_video
       FROM cases c
       LEFT JOIN clients cl ON cl.id = c.client_id
+      LEFT JOIN parceria_fechamentos pf ON pf.case_id = c.id
      WHERE c.partner_id = ?
      ORDER BY c.created_at DESC`, [req.params.id]) as any;
   res.json(rows);
@@ -187,6 +191,131 @@ router.post('/cases/:caseId/resultado', async (req: Request, res: Response) => {
   });
 
   res.json({ success: true, receita, repasse });
+});
+
+// ── Fechamento do caso com RPV (13/11/2026) ─────────────────────────────────
+// A Dra. saca o RPV, repassa à parceira (cliente + parte da parceria), a parceira
+// paga a cliente e manda recibo + vídeo-depoimento. Regra em fechamentoRpvParceria.ts.
+
+router.get('/cases/:caseId/fechamento', async (req: Request, res: Response) => {
+  const caseId = Number(req.params.caseId);
+  const { repoFechamentoMysql, lerFechamento } = await import('../services/fechamentoRpvParceriaMysql');
+  const { situacaoFechamento } = await import('../services/fechamentoRpvParceria');
+  const caso = await repoFechamentoMysql.buscarCaso(caseId);
+  if (!caso || !caso.partner_id) { res.status(404).json({ error: 'Caso de parceria não encontrado' }); return; }
+  const f = await lerFechamento(caseId);
+  const [[cv]] = await db.query('SELECT valor_causa FROM cases WHERE id = ?', [caseId]).catch(() => [[null]]) as any;
+  res.json({
+    caso: { id: caso.id, client_name: caso.client_name, case_number: caso.case_number, partner_name: caso.partner_name, valor_causa: cv?.valor_causa ?? null },
+    acordo: { honorarios_percentual: Number(caso.success_fee_percent ?? 30), parceira_percentual: Number(caso.partner_split_percent ?? 50) },
+    fechamento: f,
+    situacao: f ? situacaoFechamento(f) : null,
+  });
+});
+
+router.post('/cases/:caseId/fechamento', async (req: Request, res: Response) => {
+  const { registrarFechamentoRpv, ErroFechamento } = await import('../services/fechamentoRpvParceria');
+  const { repoFechamentoMysql } = await import('../services/fechamentoRpvParceriaMysql');
+  const b = req.body || {};
+  try {
+    const out = await registrarFechamentoRpv(repoFechamentoMysql, {
+      caseId: Number(req.params.caseId), userId: req.user!.id, valorSacado: Number(b.valor_sacado),
+      honorariosPercentual: b.honorarios_percentual, parceiraPercentual: b.parceira_percentual,
+      valorCliente: b.valor_cliente, valorParceira: b.valor_parceira,
+      dataSaque: b.data_saque, dataRepasse: b.data_repasse, dataPagamentoCliente: b.data_pagamento_cliente,
+      observacoes: b.observacoes,
+    });
+    res.json({ success: true, ...out });
+  } catch (err) {
+    if (err instanceof ErroFechamento) { res.status(err.status).json({ error: err.message }); return; }
+    throw err;
+  }
+});
+
+const LIMITE_RECIBO = 15 * 1024 * 1024;
+const LIMITE_VIDEO = 500 * 1024 * 1024;
+
+/** Recibo/vídeo: corpo cru (o arquivo em si), tipo e nome na URL. Vai para a pasta do caso no Drive. */
+router.post('/cases/:caseId/fechamento/arquivo', async (req: Request, res: Response) => {
+  const caseId = Number(req.params.caseId);
+  const tipo = req.query.tipo === 'video' ? 'video' : req.query.tipo === 'recibo' ? 'recibo' : null;
+  const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  const nomeOriginal = String(req.query.nome || '').replace(/[\\/:*?"<>|\r\n]/g, ' ').trim().slice(0, 150);
+  if (!tipo) { res.status(400).json({ error: 'Tipo deve ser recibo ou video' }); return; }
+  const aceito = tipo === 'video' ? mime.startsWith('video/') : (mime.startsWith('image/') || mime === 'application/pdf');
+  if (!aceito) { res.status(400).json({ error: tipo === 'video' ? 'Envie um arquivo de vídeo' : 'O recibo deve ser PDF ou foto' }); return; }
+  const limite = tipo === 'video' ? LIMITE_VIDEO : LIMITE_RECIBO;
+  if (Number(req.headers['content-length'] || 0) > limite) {
+    res.status(413).json({ error: tipo === 'video' ? 'Vídeo maior que 500 MB: cole o link do Drive' : 'Recibo maior que 15 MB' }); return;
+  }
+
+  const { lerFechamento, ligarComprovante } = await import('../services/fechamentoRpvParceriaMysql');
+  const f = await lerFechamento(caseId);
+  if (!f) { res.status(400).json({ error: 'Registre os valores do fechamento antes de anexar' }); return; }
+  const [[c]] = await db.query('SELECT client_id FROM cases WHERE id = ?', [caseId]) as any;
+  const rotulo = tipo === 'video' ? 'Vídeo-depoimento do recebimento' : 'Recibo de pagamento à cliente';
+  const nome = `${rotulo}${nomeOriginal ? ' - ' + nomeOriginal : ''}`;
+
+  const { enviarArquivoParaPastaDoCaso } = await import('../services/partnerInboxService');
+  const { PassThrough, Readable } = await import('stream');
+  let documentId: number;
+  try {
+    if (tipo === 'recibo') {
+      // Recibo é pequeno: lê inteiro; se o Drive falhar, guarda no próprio CRM.
+      const partes: Buffer[] = []; let total = 0;
+      for await (const ch of req) { total += ch.length; if (total > LIMITE_RECIBO) { res.status(413).json({ error: 'Recibo maior que 15 MB' }); return; } partes.push(ch as Buffer); }
+      const buf = Buffer.concat(partes);
+      if (!buf.length) { res.status(400).json({ error: 'Arquivo vazio' }); return; }
+      let url: string | null = null;
+      try { url = (await enviarArquivoParaPastaDoCaso(c.client_id, caseId, nome, mime, Readable.from(buf))).url; }
+      catch (e) { console.warn('[fechamento] recibo fica no CRM — Drive falhou:', e instanceof Error ? e.message : e); }
+      const [ins] = await db.query(
+        `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, data, mime, status, created_by)
+         VALUES (?, ?, ?, 'recibo_parceria', 'financeiro', ?, ?, ?, 'recebido', ?)`,
+        [c.client_id, caseId, nome, url, url ? null : buf, url ? null : mime, req.user!.id]) as any;
+      documentId = ins.insertId;
+    } else {
+      // Vídeo: em fluxo direto para o Drive, contando o tamanho.
+      let total = 0;
+      const contador = new PassThrough();
+      req.on('data', (ch: Buffer) => { total += ch.length; if (total > LIMITE_VIDEO) req.destroy(new Error('Vídeo maior que 500 MB')); });
+      req.pipe(contador);
+      const up = await enviarArquivoParaPastaDoCaso(c.client_id, caseId, nome, mime, contador);
+      const [ins] = await db.query(
+        `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, status, created_by)
+         VALUES (?, ?, ?, 'video_depoimento', 'financeiro', ?, 'recebido', ?)`,
+        [c.client_id, caseId, nome, up.url, req.user!.id]) as any;
+      documentId = ins.insertId;
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error('[fechamento] envio do arquivo falhou:', msg);
+    if (!res.headersSent) res.status(502).json({ error: `Não foi possível enviar ao Drive (${msg}). Cole o link do arquivo.` });
+    return;
+  }
+  await ligarComprovante(caseId, tipo, documentId);
+  await logTimeline({ clientId: c.client_id, caseId, eventType: 'parceria_fechamento_comprovante', description: `${rotulo} anexado ao fechamento.`, userId: req.user!.id });
+  res.status(201).json({ success: true, document_id: documentId });
+});
+
+/** Recibo/vídeo que já está num link (Drive, por exemplo). */
+router.post('/cases/:caseId/fechamento/link', async (req: Request, res: Response) => {
+  const caseId = Number(req.params.caseId);
+  const tipo = req.body?.tipo === 'video' ? 'video' : req.body?.tipo === 'recibo' ? 'recibo' : null;
+  const url = String(req.body?.url || '').trim();
+  if (!tipo) { res.status(400).json({ error: 'Tipo deve ser recibo ou video' }); return; }
+  if (!/^https:\/\/\S+$/i.test(url) || url.length > 1000) { res.status(400).json({ error: 'Cole um link começando com https://' }); return; }
+  const { lerFechamento, ligarComprovante } = await import('../services/fechamentoRpvParceriaMysql');
+  if (!(await lerFechamento(caseId))) { res.status(400).json({ error: 'Registre os valores do fechamento antes de anexar' }); return; }
+  const [[c]] = await db.query('SELECT client_id FROM cases WHERE id = ?', [caseId]) as any;
+  const rotulo = tipo === 'video' ? 'Vídeo-depoimento do recebimento' : 'Recibo de pagamento à cliente';
+  const [ins] = await db.query(
+    `INSERT INTO documents (client_id, case_id, name, type, folder, file_url, status, created_by)
+     VALUES (?, ?, ?, ?, 'financeiro', ?, 'recebido', ?)`,
+    [c.client_id, caseId, rotulo, tipo === 'video' ? 'video_depoimento' : 'recibo_parceria', url, req.user!.id]) as any;
+  await ligarComprovante(caseId, tipo, ins.insertId);
+  await logTimeline({ clientId: c.client_id, caseId, eventType: 'parceria_fechamento_comprovante', description: `${rotulo} (link) anexado ao fechamento.`, userId: req.user!.id });
+  res.status(201).json({ success: true, document_id: ins.insertId });
 });
 
 export default router;

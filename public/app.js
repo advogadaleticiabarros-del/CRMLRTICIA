@@ -3156,16 +3156,20 @@ const ROUTES = {
             return `<tr class="parc-main" data-open="${c.id}" style="cursor:pointer">
               <td><strong>${esc(c.client_name || '—')}</strong><br><span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">Parceria: ${esc(p.name)}</span></td>
               <td>${esc(c.title || '—')}${c.case_number ? `<br><small style="color:var(--text-muted)">nº ${esc(c.case_number)}</small>` : ''}<br><small style="color:var(--text-muted)">${esc(c.legal_area || '')}</small></td>
-              <td>${proto ? `<span class="badge protocolado" style="background:#e3f0e6;color:var(--green)">${STAGE_PT[c.production_stage]}</span>` : (STAGE_PT[c.production_stage] || '—')}</td>
+              <td>${c.fechamento_id
+                ? `<span class="badge" style="background:#e3f0e6;color:var(--green)">Finalizado</span>${[!c.fech_recibo && 'recibo', !c.fech_video && 'vídeo'].filter(Boolean).map((x) => `<br><small style="color:var(--gold-deep,#a67a34)">falta ${x}</small>`).join('')}`
+                : proto ? `<span class="badge protocolado" style="background:#e3f0e6;color:var(--green)">${STAGE_PT[c.production_stage]}</span>` : (STAGE_PT[c.production_stage] || '—')}</td>
               <td style="color:${atras ? 'var(--red)' : 'var(--text)'}">${proto ? '✓' : (c.sla_days ?? 0) + '/10d'}${!proto && Number(c.pendencias) ? ' <span style="color:var(--blue,#2f6fb0)" title="SLA pausado — pendência aberta">⏸</span>' : ''}</td>
               <td>${money(c.receita)}</td>
               <td>${money(c.repasse_parceiro)}</td>
-              <td style="white-space:nowrap"><button class="btn-sm" data-result="${c.id}" data-name="${esc(c.client_name || '')}">Êxito / Sucumb.</button></td></tr>
+              <td style="white-space:nowrap"><button class="btn-sm" data-result="${c.id}" data-name="${esc(c.client_name || '')}">Êxito / Sucumb.</button>
+                <button class="btn-sm" data-fech="${c.id}" title="${c.fechamento_id ? `Repasse ${money(c.fech_repasse)} · cliente ${money(c.fech_cliente)} · parceria ${money(c.fech_parceira)} · nosso caixa ${money(c.fech_escritorio)}` : 'RPV sacado: registrar repasse, recibo e vídeo da cliente'}">${c.fechamento_id ? 'Fechamento' : 'Finalizar (RPV)'}</button></td></tr>
             <tr class="parc-drawer" id="drawer-${c.id}" style="display:none"><td colspan="7" style="background:var(--surface-2);padding:0"><div class="dr-body" style="padding:16px"></div></td></tr>`;
           }).join('')}</tbody></table></div>` : '<div class="empty">Nenhum caso com esses filtros.</div>';
         $('#parc-rows').querySelectorAll('[data-result]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); resultadoForm(b.dataset.result, b.dataset.name, loadCases); });
+        $('#parc-rows').querySelectorAll('[data-fech]').forEach((b) => b.onclick = (e) => { e.stopPropagation(); fechamentoRpvForm(b.dataset.fech, loadCases); });
         $('#parc-rows').querySelectorAll('.parc-main').forEach((tr) => tr.onclick = async (e) => {
-          if (e.target.closest('[data-result]')) return;
+          if (e.target.closest('[data-result], [data-fech]')) return;
           const id = tr.dataset.open, drawer = $(`#drawer-${id}`);
           const open = drawer.style.display === 'none';
           drawer.style.display = open ? 'table-row' : 'none';
@@ -4637,6 +4641,150 @@ function resultadoForm(caseId, clientName, onSave) {
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Registrar resultado (êxito/sucumbência)', form);
+}
+
+// ── Fechamento do caso de parceria com RPV (13/11/2026) ──────────────────────
+// A Dra. saca o RPV, repassa à parceira (parte da cliente + parte da parceria),
+// a parceira paga a cliente e manda recibo + vídeo-depoimento. Aqui se registram
+// os valores (o caso fica finalizado) e se anexam os dois comprovantes.
+const brNum = (v) => (v === null || v === undefined || v === '') ? '' : Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+// Mesma conta de src/services/fechamentoRpvParceria.ts (calcularDivisaoRpv), em centavos.
+function divisaoRpvTela(sacado, honPct, parcPct, cliente, parceira) {
+  const c = (v) => Math.round(Number(v || 0) * 100);
+  const s = c(sacado);
+  const cli = cliente !== null ? c(cliente) : Math.round(s * (1 - honPct / 100));
+  const hon = s - cli;
+  const par = parceira !== null ? c(parceira) : Math.round(hon * parcPct / 100);
+  return { sacado: s / 100, cliente: cli / 100, honorarios: hon / 100, parceira: par / 100, escritorio: (hon - par) / 100, repasse: (cli + par) / 100 };
+}
+function tipoDoArquivo(file, tipo) {
+  if (file.type) return file.type;
+  const ext = (file.name.split('.').pop() || '').toLowerCase();
+  const mapa = { mp4: 'video/mp4', mov: 'video/quicktime', webm: 'video/webm', '3gp': 'video/3gpp', pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', heic: 'image/heic' };
+  return mapa[ext] || (tipo === 'video' ? 'video/mp4' : 'application/octet-stream');
+}
+// Envia o arquivo cru (sem base64), com barra de progresso. Vai para a pasta do caso no Drive.
+function enviarArquivoFechamento(caseId, tipo, file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `/api/partners/cases/${caseId}/fechamento/arquivo?tipo=${tipo}&nome=${encodeURIComponent(file.name)}`);
+    if (TOKEN) xhr.setRequestHeader('Authorization', `Bearer ${TOKEN}`);
+    xhr.setRequestHeader('Content-Type', tipoDoArquivo(file, tipo));
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.round(e.loaded * 100 / e.total)); };
+    xhr.onload = () => {
+      let d = null; try { d = JSON.parse(xhr.responseText); } catch { /* resposta sem JSON (ex.: 413 do servidor) */ }
+      if (xhr.status >= 200 && xhr.status < 300) resolve(d);
+      else reject(new Error(d?.error || (xhr.status === 413 ? 'Arquivo grande demais: cole o link do Drive' : `Falha no envio (${xhr.status})`)));
+    };
+    xhr.onerror = () => reject(new Error('A conexão caiu durante o envio'));
+    xhr.send(file);
+  });
+}
+
+async function fechamentoRpvForm(caseId, onSave) {
+  let info;
+  try { info = await api(`/api/partners/cases/${caseId}/fechamento`); } catch (err) { toast(err.message, 'error'); return; }
+  const f = info.fechamento || {};
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+  const d10 = (v) => v ? String(v).slice(0, 10) : '';
+  const linhaComprovante = (tipo, rotulo, nome, url, noCrm, docId) => {
+    const atual = url
+      ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(nome || 'abrir')}</a>`
+      : (noCrm ? `<a href="#" data-doc-file="${docId}">${esc(nome || 'abrir')}</a>` : '');
+    return `<fieldset class="card" style="padding:10px 12px;margin:0;border:1px solid var(--border)">
+      <legend style="font-weight:600;font-size:13px;padding:0 4px">${rotulo}</legend>
+      ${atual ? `<div style="font-size:13px;margin-bottom:6px">✓ Anexado: ${atual} <span style="color:var(--text-muted)">(enviar outro substitui)</span></div>`
+        : `<div style="font-size:13px;margin-bottom:6px;color:var(--gold-deep,#a67a34)">Ainda não anexado</div>`}
+      <div class="form-row">
+        <label>Arquivo<input type="file" name="arq_${tipo}" accept="${tipo === 'video' ? 'video/*' : 'application/pdf,image/*'}"></label>
+        <label>ou link (Drive)<input type="url" name="link_${tipo}" placeholder="https://drive.google.com/..."></label>
+      </div>
+      <div class="fech-prog" data-prog="${tipo}" style="display:none;font-size:12px;color:var(--text-muted)"><progress max="100" value="0" style="width:100%"></progress><span></span></div>
+    </fieldset>`;
+  };
+  const form = el(`<form class="form-grid">
+    <p class="sub">${esc(info.caso.client_name || '')}${info.caso.case_number ? ` · proc. ${esc(info.caso.case_number)}` : ''} · ${esc(info.caso.partner_name || '')}</p>
+    <div class="form-row">${moneyField('Valor sacado do RPV *', 'valor_sacado', brNum(f.valor_sacado))}${field('Data do saque', 'data_saque', { type: 'date', value: d10(f.data_saque) || hoje })}</div>
+    <div class="form-row">${field('Honorários (%)', 'honorarios_percentual', { type: 'number', step: '0.01', value: f.honorarios_percentual ?? info.acordo.honorarios_percentual })}${field('Fatia da parceria nos honorários (%)', 'parceira_percentual', { type: 'number', step: '0.01', value: f.parceira_percentual ?? info.acordo.parceira_percentual })}</div>
+    <details id="fech-ajuste">
+      <summary style="cursor:pointer;font-size:13px">Valores diferentes do cálculo? (o que a cliente e a parceria receberam de fato)</summary>
+      <div class="form-row" style="margin-top:8px">${moneyField('Valor pago à cliente', 'valor_cliente', '')}${moneyField('Valor que ficou com a parceria', 'valor_parceira', '')}</div>
+      <p class="sub" style="margin:0">Deixe em branco para usar os percentuais acima.</p>
+    </details>
+    <div id="fech-resumo" class="card" style="padding:12px 16px;background:var(--surface-2)"></div>
+    <div class="form-row">${field('Data do repasse à parceira', 'data_repasse', { type: 'date', value: d10(f.data_repasse) || hoje })}${field('Data em que a cliente recebeu', 'data_pagamento_cliente', { type: 'date', value: d10(f.data_pagamento_cliente) })}</div>
+    <div style="font-weight:600;margin-top:4px">Comprovantes da parceira</div>
+    ${linhaComprovante('recibo', 'Recibo assinado pela cliente', f.recibo_nome, f.recibo_url, Number(f.recibo_no_crm), f.recibo_document_id)}
+    ${linhaComprovante('video', 'Vídeo-depoimento do recebimento', f.video_nome, f.video_url, 0, f.video_document_id)}
+    ${field('Observações', 'observacoes', { type: 'textarea', value: f.observacoes || '' })}
+    <p class="sub">Ao salvar, o caso fica <strong>finalizado</strong>, a receita dos honorários entra como recebida e o repasse da parceria como repassado. Nada é enviado à cliente. O recibo e o vídeo vão para a pasta do caso no Drive.</p>
+    <button type="submit" class="btn-primary">${f.id ? 'Salvar fechamento' : 'Finalizar caso'}</button>
+  </form>`);
+  // Valores ajustados: só preenche se diferem do cálculo (senão o campo fica em branco = automático)
+  if (f.id) {
+    const auto = divisaoRpvTela(f.valor_sacado, Number(f.honorarios_percentual), Number(f.parceira_percentual), null, null);
+    if (Number(f.valor_cliente) !== auto.cliente) form.querySelector('[name=valor_cliente]').value = brNum(f.valor_cliente);
+    const autoParc = divisaoRpvTela(f.valor_sacado, Number(f.honorarios_percentual), Number(f.parceira_percentual), Number(f.valor_cliente), null);
+    if (Number(f.valor_parceira) !== autoParc.parceira) form.querySelector('[name=valor_parceira]').value = brNum(f.valor_parceira);
+    form.querySelector('#fech-ajuste').open = !!(form.querySelector('[name=valor_cliente]').value || form.querySelector('[name=valor_parceira]').value);
+  }
+  const g = (n) => form.querySelector(`[name=${n}]`).value;
+  const opcional = (n) => (g(n).trim() === '' ? null : parseMoneyBR(g(n)));
+  const resumo = () => {
+    const d = divisaoRpvTela(parseMoneyBR(g('valor_sacado')), Number(g('honorarios_percentual')) || 0, Number(g('parceira_percentual')) || 0, opcional('valor_cliente'), opcional('valor_parceira'));
+    const linha = (t, v, extra = '', forte = false) => `<div style="display:flex;justify-content:space-between;gap:12px;padding:3px 0;${forte ? 'font-weight:700;border-top:1px solid var(--border);margin-top:4px;padding-top:6px' : ''}"><span>${t}${extra ? ` <small style="color:var(--text-muted)">${extra}</small>` : ''}</span><span style="font-variant-numeric:tabular-nums">${money(v)}</span></div>`;
+    const invalido = d.sacado <= 0 || d.cliente < 0 || d.cliente > d.sacado || d.parceira < 0 || d.parceira > Math.max(d.honorarios, 0);
+    form.querySelector('#fech-resumo').innerHTML =linha('Valor sacado', d.sacado)
+      + linha('Vai para a cliente', d.cliente)
+      + linha('Fica com a parceria', d.parceira)
+      + linha('Repasse à parceira', d.repasse, '(cliente + parceria)', true)
+      + linha('Entra no nosso caixa', d.escritorio, `(honorários ${money(d.honorarios)} − parceria)`, true)
+      + (invalido && d.sacado > 0 ? '<div style="color:var(--red);font-size:12px;margin-top:6px">Valores não fecham: confira o que foi pago à cliente e à parceria.</div>' : '');
+  };
+  form.querySelectorAll('input').forEach((i) => i.addEventListener('input', resumo));
+  resumo();
+  form.querySelectorAll('[data-doc-file]').forEach((a) => a.onclick = async (e) => {
+    e.preventDefault();
+    const r = await fetch(`/api/documents/${a.dataset.docFile}/file`, { headers: { Authorization: `Bearer ${TOKEN}` } });
+    if (!r.ok) { toast('Não foi possível abrir o arquivo', 'error'); return; }
+    window.open(URL.createObjectURL(await r.blob()), '_blank');
+  });
+
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const sacado = parseMoneyBR(g('valor_sacado'));
+    if (!(sacado > 0)) { toast('Informe o valor sacado do RPV', 'error'); return; }
+    const btn = form.querySelector('button[type=submit]'); btn.disabled = true; btn.textContent = 'Salvando…';
+    try {
+      const out = await api(`/api/partners/cases/${caseId}/fechamento`, { method: 'POST', body: JSON.stringify({
+        valor_sacado: sacado, honorarios_percentual: g('honorarios_percentual'), parceira_percentual: g('parceira_percentual'),
+        valor_cliente: opcional('valor_cliente'), valor_parceira: opcional('valor_parceira'),
+        data_saque: g('data_saque'), data_repasse: g('data_repasse'), data_pagamento_cliente: g('data_pagamento_cliente') || null,
+        observacoes: g('observacoes'),
+      }) });
+      const avisos = [];
+      for (const tipo of ['recibo', 'video']) {
+        const arq = form.querySelector(`[name=arq_${tipo}]`).files[0];
+        const link = form.querySelector(`[name=link_${tipo}]`).value.trim();
+        const rot = tipo === 'video' ? 'vídeo' : 'recibo';
+        try {
+          if (arq) {
+            const box = form.querySelector(`[data-prog=${tipo}]`); box.style.display = 'block';
+            btn.textContent = `Enviando o ${rot}…`;
+            await enviarArquivoFechamento(caseId, tipo, arq, (p) => { box.querySelector('progress').value = p; box.querySelector('span').textContent = ` ${p}%`; });
+          } else if (link) {
+            await api(`/api/partners/cases/${caseId}/fechamento/link`, { method: 'POST', body: JSON.stringify({ tipo, url: link }) });
+          }
+        } catch (err) { avisos.push(`${rot}: ${err.message}`); }
+      }
+      closeModal();
+      const d = out.divisao;
+      if (avisos.length) toast(`Fechamento salvo, mas faltou anexar — ${avisos.join(' · ')}`, 'error');
+      else toast(`Caso finalizado · repasse ${money(d.valorRepasse)} · nosso caixa ${money(d.valorEscritorio)}`);
+      onSave && onSave();
+    } catch (err) { toast(err.message, 'error'); btn.disabled = false; btn.textContent = f.id ? 'Salvar fechamento' : 'Finalizar caso'; }
+  };
+  openModal(f.id ? 'Fechamento do caso (RPV)' : 'Finalizar caso de parceria (RPV)', form, { wide: true });
 }
 
 // Cadastro/edição de parceiro (empresa que indica clientes)
