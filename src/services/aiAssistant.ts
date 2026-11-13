@@ -409,7 +409,7 @@ export async function runEstagiarioForDeadline(opts: {
     // 1) ANÁLISE / triagem — Groq (o "outro"): leitura rápida da intimação.
     const analisePrompt = `Você é assistente jurídico(a) experiente. Leia a intimação/decisão abaixo e responda em tópicos curtos e objetivos, sem inventar nada fora do texto:
 1) RESUMO em 2-4 linhas, em linguagem simples.
-2) PRAZO: o tipo provável é "${suggestedType}" (${suggestedDays} dias úteis) — confirme se faz sentido ou sugira o correto.
+2) PRAZO: o tipo provável é "${suggestedType}"${suggestedDays ? ` (${suggestedDays} dias úteis)` : ' (o sistema não identificou o prazo com segurança)'} — confirme se faz sentido ou sugira o correto.
 3) PRÓXIMA AÇÃO recomendada.
 4) RISCO/ATENÇÃO: pontos críticos.
 

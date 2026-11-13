@@ -32,6 +32,39 @@ Uma vez confirmado ou descartado, o mesmo prazo não é recriado nas sincroniza�
 
 **Data do vencimento ao confirmar (corrigido 28/09/2026):** a data é calculada em dias úteis pelo mesmo cálculo da calculadora de prazos (CPC arts. 219/220/224): pula sábado, domingo, feriados nacionais e forenses (Carnaval, Quinta/Sexta-feira Santa, Corpus Christi, 11/08, 01/11, 08/12 etc.) e a suspensão de 20/12 a 20/01. Feriado **municipal** da comarca não entra — em data apertada, confira o calendário do tribunal. Antes dessa correção, a confirmação só pulava fim de semana.
 
+### Prazo certo de cada intimação do DJEN (desde 13/11/2026)
+
+**Por quê:** a Dra. comparou com o relatório do Égide (13/11/2026). O CRM dava "apelação, 15 dias" para a sentença do Juizado Federal (o certo é recurso inominado, 10 dias), dava "manifestação, 15 dias" para homologação de cálculos e ata de julgamento, e só calculava a data depois de alguém confirmar. Termo dado: 07/12. Termo certo: 01/12.
+
+**Como funciona agora** (`src/services/prazoIntimacao.ts`, regra fixa e sem IA, com teste):
+- **Tipo de justiça:** Justiça do Trabalho pelo nº CNJ (segmento 5) ou pelo tribunal (TRT/TST); Juizado pelo órgão ou pela classe; senão, CPC.
+- **Recurso pela tabela do Leitor de decisão:**
+  - sentença: recurso inominado (10) no Juizado, recurso ordinário (8) no Trabalho, apelação (15) no rito comum;
+  - acórdão: revista (8) no Trabalho, pedido de uniformização ou RE (15) no Juizado, REsp/RE (15) no rito comum;
+  - contrarrazões: 10, 8 ou 15;
+  - embargos de declaração da outra parte: 5;
+  - réplica e laudo, no rito comum: 15.
+- **Prazo escrito na decisão** ("no prazo de 5 (cinco) dias", "em quinze dias") vale. Prazo **em horas** vai para revisão humana.
+- **Sem prazo para nós:** ata de julgamento (o recurso conta do acórdão), alvará, retorno ou remessa dos autos, arquivamento, acordo homologado, audiência designada, trânsito em julgado e "apenas ciência". Não viram prazo; aparecem só no relatório diário.
+- **Revisão humana:** homologação de cálculos, citação (o prazo conta da audiência ou da juntada) e qualquer texto que não deixe claro o prazo. Nunca sai data inventada; aparece o motivo.
+- **Contagem** (Lei 11.419/2006, art. 4º, §§3º e 4º; CPC, art. 224, §§2º e 3º):
+  - publicação = 1º dia útil após a disponibilização no DJEN;
+  - a contagem começa no dia útil seguinte, em dias úteis, com feriados nacionais, forenses e do ES e o recesso de 20/12 a 20/01.
+- **Duas datas:** a **data limite** (último dia pela lei) e o **protocolar até** (um dia útil antes, por segurança). O Égide entrega uma data só, equivalente ao "protocolar até".
+- **Embargos de declaração:** vêm como alerta, com data própria (5 dias úteis).
+- O prazo detectado já nasce com a data limite (`detected_deadlines.due_date`), o `protocolar_ate` e a análise completa (`analise`, JSON; migration 178). A tarefa "Analisar …" vence no "protocolar até". `start_date` passou a ser a data da **publicação**, e confirmar ou o mutirão contam a partir dela.
+- Na tela, o cartão "Prazos detectados" mostra o ato, os dias, a data limite, o protocolar até, os alertas e a explicação da contagem. Prazos detectados antes de 13/11 continuam no formato antigo.
+
+### Relatório diário de intimações (desde 13/11/2026)
+
+Todo dia às **7h25**, depois da busca no DJEN das 7h, rotina `intimacoes:relatorio-diario`. Dia sem publicação nova: nada é enviado.
+- **E-mail** para os usuários admin/advogado ativos com e-mail: resumo (publicações, processos, prazos, para revisar), quadro e a análise de cada publicação. Cada análise traz polo ativo e passivo, cliente no CRM, do que se trata (resumo da IA), providência, prazo, data limite, protocolar até, alertas, como a data foi contada e o link. Anexos: **relatório em PDF**, **planilha CSV** (Excel) e **recorte em PDF** (inteiro teor, sem análise).
+- **WhatsApp** da Dra. e da Jessica: versão curta, com os prazos e as datas primeiro. Nunca vai para cliente.
+- Cada relatório traz só o que entrou depois do anterior (`relatorio_intimacoes_envios`).
+- A IA só escreve o "do que se trata"; prazo e data são sempre da regra fixa.
+- Admin: `GET /api/relatorio-intimacoes/previa?dias=N` (HTML, sem enviar; `&formato=json`) e `POST /api/relatorio-intimacoes/enviar` (manda agora).
+- Código: `relatorioIntimacoes.ts` (montagem), `relatorioIntimacoesJob.ts` (banco e envio).
+
 ## Cliente certo na descoberta por OAB (corrigido 02/10/2026)
 
 Quando a advogada é a única intimada, todas as partes da intimação viravam candidatas a cliente e a primeira da lista ganhava — muitas vezes a empresa ré ou o INSS (16 casos encontrados). Agora `escolherCliente` (`src/services/djen.ts`, testado): uma parte só → ela; senão ignora ente público (INSS, União, Estado, Município, Fazenda) e, havendo pessoa física, ignora empresas; sobrando várias, fica a do polo ativo; ambíguo → sem cliente (cadastro manual).
@@ -155,6 +188,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 13/11/2026 | Claude | Prazo certo de cada intimação do DJEN (tipo de justiça, contagem da publicação, data limite e protocolar até, revisão humana) e relatório diário de intimações (e-mail com PDF, CSV e recorte + WhatsApp da equipe) |
 | 14/10/2026 | Claude | Leitor aplicado também às decisões dos últimos 15 dias (`leitor:decisoes-recentes`, no boot e às 7h50); a Dra. ainda não tinha recebido nenhuma leitura |
 | 14/10/2026 | Claude | Leitor de sentença e Secretária particular: sentença/acórdão chegam à Dra. resumidos, com ganhos/perdas, valor e prazos de recurso (tabela fixa + `contarPrazo`) |
 | 07/10/2026 | Claude | Fase sugerida ignora menções a atos futuros nas intimações do DJEN; "julgado (im)procedente" conta como sentença e "contrarrazões" como recurso |

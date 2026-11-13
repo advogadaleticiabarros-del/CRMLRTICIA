@@ -57,6 +57,7 @@ import contractRoutes from './routes/contracts';
 import lawyerRoutes from './routes/lawyers';
 import processRoutes from './routes/processes';
 import detectedDeadlineRoutes from './routes/detected-deadlines';
+import relatorioIntimacoesRoutes from './routes/relatorio-intimacoes';
 import journeyRoutes from './routes/journey';
 import controladoriaRoutes from './routes/controladoria';
 import correspondenteRoutes from './routes/correspondente';
@@ -228,6 +229,7 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.use('/api/payments',              authenticate, requireStaff, paymentsRoutes);
   app.use('/api/processes',             authenticate, requireStaff, processRoutes);
   app.use('/api/prazos-detectados',     authenticate, requireStaff, detectedDeadlineRoutes);
+  app.use('/api/relatorio-intimacoes',  authenticate, requireAdmin, relatorioIntimacoesRoutes);
   app.use('/api/journey',               authenticate, requireStaff, journeyRoutes);
   app.use('/api/controladoria',         authenticate, requireStaff, controladoriaRoutes);
   app.use('/api/correspondente',        authenticate, requireStaff, correspondenteRoutes);

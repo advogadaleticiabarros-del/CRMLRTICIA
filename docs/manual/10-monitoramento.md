@@ -15,6 +15,7 @@ Consulte quando precisar saber COM QUE FREQUÊNCIA algo roda sozinho, o que faze
 | Rotina | Quando roda | O que faz |
 |---|---|---|
 | `monitoramento:descoberta-oab` | 7h, 13h, 19h | Varre o DJEN atrás de publicações endereçadas à OAB cadastrada |
+| `intimacoes:relatorio-diario` | 7h25 | **Novo (13/11/2026).** Relatório das publicações novas do DJEN: e-mail (PDF, CSV, recorte) e WhatsApp da equipe, com prazo, data limite e protocolar até. Ver [Processos](04-processos.md#relatório-diário-de-intimações-desde-13112026) |
 | `monitoramento:processos` | de hora em hora, 7h–20h | Sincroniza cada processo já cadastrado com sua fonte (DataJud/API do tribunal) |
 | `monitoramento:processos-email` | 8h, 19h | Varre a caixa de e-mail conectada atrás de movimentação de tribunal fora do DJEN |
 | `monitoramento:processos-pre-briefing` | 6h | Sincronização extra antes do briefing matinal, pra ele sair com dado fresco |
@@ -78,6 +79,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 13/11/2026 | Claude | Nova rotina `intimacoes:relatorio-diario` (7h25); prazo das publicações do DJEN pela regra de `prazoIntimacao.ts` |
 | 26/10/2026 | Claude | Captura do DJEN: parte "REPRESENTANTE e B. F. S. C." (menor em segredo de justiça) cria a ficha do representante; nome só com iniciais não vira ficha nem é juntado a outra ficha com as mesmas iniciais (ver runbook) |
 | 03/09/2026 | Claude | Criação do documento; registrada a limpeza de HTML/entidades na entrada |
 | 20/09/2026 | Claude | Corrigida a frequência de `whatsapp:reconectar` — é uma vez no boot, não a cada 5 minutos (achado durante auditoria dos fluxos de WhatsApp) |

@@ -16,6 +16,15 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 13/11/2026 — Prazo da intimação por regra fixa, com duas datas e "revisão humana"
+**Decisão:** o prazo de cada intimação do DJEN sai de regra fixa (`prazoIntimacao.ts`), nunca da IA. A IA só resume o "do que se trata". A contagem parte da **publicação** (1º dia útil após a disponibilização; Lei 11.419/2006, art. 4º, §§3º e 4º; CPC, art. 224, §§2º e 3º). O resultado mostra **duas datas**: a data limite legal e o "protocolar até", um dia útil antes. Quando o texto não permite saber o prazo, aparece "revisão humana", com o motivo, e não uma data padrão.
+**Por quê:**
+- A Dra. tomou o Égide como referência. Ele conta a partir da disponibilização e entrega um dia útil antes do limite legal (Valci: Égide 30/11, CPC 01/12).
+- Mostrar só a data do Égide esconderia o limite real. Mostrar só a legal tiraria a margem a que ela está acostumada. As duas juntas resolvem.
+- A IA erra número de dias. Regra fixa com teste não erra calada.
+- "15 dias por padrão" (o comportamento antigo) dava data errada com cara de certa. Isso é pior que admitir que precisa conferir.
+**Ver:** runbook "prazo das intimações do DJEN com dias errados"; manual 04, seção "Prazo certo de cada intimação do DJEN".
+
 ### 13/11/2026 — A CEO no Escritório virtual não é um agente; temas festivos ficam no navegador
 **Decisão:** a Dra. Letícia aparece na sala como **CEO** (advogada chefe), fora da lista `AGENTES`. A Mesa da Chefe só **soma o que já existe** (rascunhos, propostas, contratos, prazos, fichas, erros, leituras, análises, qualificação, avisos e recados) em `mesaDaChefe.ts`, sem tabela nova.
 **Motivo:** o status de agente sai de rotinas e ações (`job_runs`, `agente_acoes`), e a CEO não roda rotina: ela confere. Como agente, ela apareceria "desligada". Uma caixa de entrada nova duplicaria filas que já têm dono e tela própria (Mensagens para aprovar, Prazos, Contratos), por isso cada item da mesa só leva para essas telas.

@@ -5,6 +5,13 @@
 **Última atualização:** 13/11/2026. Último commit: Escritório virtual com setores, a CEO e temas festivos.
 
 ## Últimas entregas (mais recentes primeiro)
+- **13/11 (5):** **Prazo certo das intimações + relatório diário** (Dra., comparando com o e-mail do Égide: "por que não conseguimos contar os prazos direito... com prazo correto e me dando a data final?").
+  - **Causas:** o prazo saía por palavra-chave (a sentença do JEF virou "apelação, 15 dias", termo 07/12; o certo é recurso inominado, 10 dias, termo 01/12); homologação e ata viravam "15 dias"; a data só aparecia depois de confirmar; não havia relatório.
+  - **Agora:** `prazoIntimacao.ts` define o prazo pelo tipo de justiça e conta da publicação. Saem duas datas: a **data limite** e o **protocolar até** (um dia útil antes, igual à data do Égide). Ato sem prazo não vira prazo; texto ambíguo vai para "revisão humana", com o motivo. O prazo detectado já nasce com as datas (migration 178).
+  - **Relatório diário às 7h25** (`intimacoes:relatorio-diario`): e-mail com PDF, planilha CSV e recorte, mais WhatsApp da Dra. e da Jessica. 19 testes novos.
+  - **Não verificado em produção:** o primeiro relatório sai amanhã às 7h25, se houver publicação nova. Prévia: `GET /api/relatorio-intimacoes/previa?dias=1` (admin).
+  - **Conferir:** se o e-mail do CRM (Resend/SMTP) está configurado na VPS; sem ele, só o WhatsApp chega.
+  - Ver `docs/contexto/relatorios/2026-11-13-prazo-intimacoes-relatorio-diario.md`.
 - **13/11 (4):** **Escritório virtual: setores, a CEO e temas festivos** (Jessica: "colocar temas festivos, mudar setores, colocar a CEO (advogada chefe) que confere tudo e recebe todos os fluxos, recados, avaliações").
   - 7 setores com área e placa na sala (`SETORES`, campo `setor` em cada agente); cartões agrupados por setor.
   - A Dra. Letícia como CEO no gabinete: envelopes voam das mesas até ela; o clique abre a **Mesa da Chefe** (para conferir, avaliações, ideias da reunião, recados) em `GET /api/escritorio/chefe` (`mesaDaChefe.ts`, 7 testes).

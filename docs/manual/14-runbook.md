@@ -16,6 +16,16 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: prazo das intimações do DJEN com dias errados e sem data final (corrigido em 13/11/2026)
+
+**Sintoma:** comparando com o relatório do Égide de 13/11/2026, a sentença de improcedência do Juizado Federal saiu no CRM como "Recurso (apelação), 15 dias", com termo calculado em 07/12. O certo era recurso inominado, 10 dias úteis, com termo em 01/12. A homologação de cálculos (TRT17) e a ata de julgamento (TRF2) viraram "prazo de 15 dias". A data só aparecia depois que alguém confirmava.
+**Causa raiz:** o detector (`deteccaoPrazo.ts`) escolhia o prazo só por palavra-chave ("sentença" = 15 dias, "intimação" = 15, "decisão" = 5), sem olhar o tipo de justiça. A contagem partia da data de disponibilização, e não da publicação. O "prazo a confirmar" nascia sem data.
+**Correção:** `prazoIntimacao.ts` passou a ser o ponto único da regra. O recurso sai do tipo de justiça; o prazo escrito na decisão vale; atos sem prazo não viram prazo; texto ambíguo vai para revisão humana. A contagem parte da publicação (1º dia útil após a disponibilização) e o resultado traz duas datas: a data limite e o "protocolar até". `monitoringService.detectDeadline` grava as duas na hora. O relatório diário (7h25) leva tudo por e-mail e WhatsApp. Testes: `tests/prazoIntimacao.test.mjs`, que usa os 4 casos de 13/11, e `tests/relatorioIntimacoes.test.mjs`.
+**Se acontecer de novo:**
+- Prazo com número de dias estranho: rode `analisarPrazoIntimacao` com o texto da publicação, o nº do processo e o órgão (veja o teste) e confira se o tipo de justiça saiu certo (`ritoDoProcesso`).
+- Ato novo sem regra: acrescente-o em `decidir()` com um teste.
+- Prazos detectados **antes** de 13/11 têm `start_date` = disponibilização e não têm `analise`. Ao confirmar, o vencimento sai um dia útil antes, do lado seguro.
+
 ## Incidente: mesas do Escritório virtual invisíveis ou piscando (desde 22/10/2026, corrigido em 13/11/2026)
 
 **Sintoma:** na sala do Escritório virtual apareciam os crachás e alguns agentes andando, mas as mesas (e quem estava sentado nelas) sumiam ou piscavam.

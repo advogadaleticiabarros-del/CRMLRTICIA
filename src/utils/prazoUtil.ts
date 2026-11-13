@@ -103,3 +103,22 @@ export function contarPrazo(inicioISO: string, dias: number, opts: PrazoOpts = {
 
   return { vencimento: iso(cursor), dias_pulados: pulados.length, pulados: pulados.slice(0, 40) };
 }
+
+/**
+ * 1º dia útil DEPOIS de `dataISO`. Para achar a data da PUBLICAÇÃO a partir da
+ * disponibilização no DJEN (Lei 11.419/2006, art. 4º, §3º; CPC art. 224, §2º)
+ * use `suspensaoFimAno: false`: no recesso a publicação acontece, só a
+ * contagem fica suspensa.
+ */
+export function proximoDiaUtil(dataISO: string, opts: PrazoOpts = { suspensaoFimAno: false }): string {
+  let d = addDays(new Date(dataISO + 'T12:00:00Z'), 1);
+  while (!ehDiaUtil(iso(d), opts).util) d = addDays(d, 1);
+  return iso(d);
+}
+
+/** Último dia útil ANTES de `dataISO` (margem de segurança: "protocolar até"). */
+export function diaUtilAnterior(dataISO: string, opts: PrazoOpts = {}): string {
+  let d = addDays(new Date(dataISO + 'T12:00:00Z'), -1);
+  while (!ehDiaUtil(iso(d), opts).util) d = addDays(d, -1);
+  return iso(d);
+}

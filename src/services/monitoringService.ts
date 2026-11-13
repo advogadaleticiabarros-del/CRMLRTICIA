@@ -1,3 +1,4 @@
+import { analisarPrazoIntimacao } from './prazoIntimacao';
 import { identificarGatilho } from '../utils/deteccaoPrazo';
 import { melhorFase } from '../utils/faseProcesso';
 import crypto from 'crypto';
@@ -195,10 +196,13 @@ export async function lerDecisoesRecentes(dias = 15, maxEnvios = 12): Promise<{ 
 }
 
 /** Cria "prazo a confirmar" (DJEN) ou alerta (DataJud) quando a movimentação contém palavra-gatilho. Nunca derruba o sync. */
-async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string; metadata?: { parties?: Array<{ nome?: string | null }> } | null }, processNumber?: string, movementId: number | null = null, source?: string): Promise<void> {
+async function detectDeadline(processId: number, clientId: number | null, m: { movement_date: string | null; title?: string; description?: string; metadata?: { parties?: Array<{ nome?: string | null }>; orgao?: string | null; classe?: string | null; tipoComunicacao?: string | null } | null }, processNumber?: string, movementId: number | null = null, source?: string): Promise<void> {
   try {
     const trig = identificarGatilho(m.title, m.description);
-    if (!trig) return;
+    const ehDatajud = !source || isDatajudSource(source);
+    // DataJud só tem o nome do andamento: sem palavra-gatilho, nada a fazer.
+    // DJEN/e-mail trazem o teor: toda publicação passa pela análise de prazo.
+    if (!trig && ehDatajud) return;
     const start = toDate(m.movement_date) || new Date();
     const DETECT_MAX_AGE_DAYS = 45;
     if ((Date.now() - start.getTime()) / 86_400_000 > DETECT_MAX_AGE_DAYS) return;
@@ -211,7 +215,7 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     // WhatsApp a cada vez (reportado: "múltiplas mensagens da mesma
     // movimentação e/ou processo"). INSERT IGNORE decide atomicamente: só
     // quem inserir de verdade (afetou 1 linha) manda a mensagem.
-    if (trig.marco) {
+    if (trig?.marco) {
       // Leitor de sentença/acórdão: com a íntegra (DJEN), a Dra. recebe a
       // decisão resumida, com ganhos/perdas e prazos de recurso. Só o nome do
       // andamento (DataJud) → cai no aviso curto abaixo, como antes.
@@ -247,50 +251,71 @@ async function detectDeadline(processId: number, clientId: number | null, m: { m
     }
 
     // DataJud: cria ALERTA em vez de falso prazo
-    if (!source || isDatajudSource(source)) {
-      await createMovementAlert(processId, clientId, m, trig.type);
+    if (ehDatajud) {
+      if (trig) await createMovementAlert(processId, clientId, m, trig.type);
       return;
     }
 
-    // DJEN (source = djen_oab): cria prazo a confirmar
-    const startStr = start.toISOString().split('T')[0];
+    // DJEN / e-mail do tribunal: prazo pelo tipo de justiça, contado da
+    // publicação, com a data limite já calculada (prazoIntimacao.ts). Ato sem
+    // prazo para nós (ata, alvará, ciência...) não vira prazo: aparece só no
+    // relatório diário de intimações.
+    const [[procInfo]] = await db.query('SELECT court FROM legal_processes WHERE id = ?', [processId]) as any;
+    const analise = analisarPrazoIntimacao({
+      numeroProcesso: processNumber, tribunal: procInfo?.court || null,
+      orgao: m.metadata?.orgao || null, classe: m.metadata?.classe || null,
+      tipo: m.metadata?.tipoComunicacao || m.title || null, texto: m.description || m.title || '',
+      disponibilizacao: start.toISOString().split('T')[0],
+    });
+    if (analise.categoria === 'sem_prazo') return;
+
+    const tipoPrazo = analise.categoria === 'prazo' ? analise.ato : `Revisão humana — ${analise.ato}`;
+    const startStr = analise.publicacao; // a contagem começa no dia útil seguinte (contarPrazo exclui o início)
     const movementText = (m.description || m.title || '');
 
     // Não recriar um prazo que já foi detectado para esta movimentação — mesmo que
     // o usuário já tenha CONFIRMADO ou DESCARTADO. Evita reenvio a cada sincronização.
     const [dup] = await db.query(
       `SELECT id FROM detected_deadlines
-        WHERE process_id = ? AND suggested_type = ?
-          AND (movement_id = ? OR start_date = ?)
+        WHERE process_id = ?
+          AND (movement_id = ? OR (suggested_type = ? AND start_date = ?))
         LIMIT 1`,
-      [processId, trig.type, movementId, startStr]
+      [processId, movementId, tipoPrazo, startStr]
     ) as any;
     if (dup.length) return;
 
     const [ddRes] = await db.query(
-      `INSERT INTO detected_deadlines (process_id, movement_id, client_id, movement_text, detected_keyword, suggested_type, suggested_days, start_date, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'a_confirmar')`,
-      [processId, movementId, clientId, movementText, trig.type, trig.type, trig.days, startStr]
+      `INSERT INTO detected_deadlines (process_id, movement_id, client_id, movement_text, detected_keyword, suggested_type, suggested_days, start_date, due_date, protocolar_ate, analise, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'a_confirmar')`,
+      [processId, movementId, clientId, movementText, (trig?.type || analise.ato).slice(0, 60), tipoPrazo, analise.dias, startStr,
+        analise.termoFinal, analise.protocolarAte, JSON.stringify(analise)]
     ) as any;
 
     // Playbooks da intimação (estagiário IA + aviso Telegram, conforme ligados).
     await runIntimacaoPlaybooks({
       detectedDeadlineId: ddRes.insertId, clientId, movementText,
-      suggestedType: trig.type, suggestedDays: trig.days, processNumber, processId,
+      suggestedType: tipoPrazo, suggestedDays: analise.dias ?? 0, processNumber, processId,
     });
 
+    const dataBr = (iso: string | null) => iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : '';
     const [admins] = await db.query("SELECT id FROM users WHERE role = 'admin' AND active = 1") as any;
     if (admins.length) {
       await db.query(
         `INSERT INTO tasks (user_id, client_id, title, description, due_date, priority, status, detected_deadline_id)
-         VALUES (?, ?, ?, ?, NOW(), 'alta', 'pendente', ?)`,
-        [admins[0].id, clientId, `Analisar ${trig.type}${processNumber ? ' — proc. ' + processNumber : ''}`, (m.description || m.title || '').slice(0, 1000), ddRes.insertId]
+         VALUES (?, ?, ?, ?, ?, 'alta', 'pendente', ?)`,
+        [admins[0].id, clientId, `Analisar ${tipoPrazo}${processNumber ? ' — proc. ' + processNumber : ''}`,
+          [analise.providencia, analise.explicacao, (m.description || m.title || '').slice(0, 800)].join('\n\n').slice(0, 2000),
+          analise.protocolarAte ? new Date(analise.protocolarAte + 'T12:00:00Z') : new Date(), ddRes.insertId]
       );
     }
+    const mensagem = analise.categoria === 'prazo'
+      ? `${analise.ato} (${analise.dias} dias úteis): data limite ${dataBr(analise.termoFinal)}, protocolar até ${dataBr(analise.protocolarAte)}${processNumber ? ` — proc. ${processNumber}` : ''}. Confira em Prazos.`
+      : `Intimação precisa de revisão humana (${analise.ato})${processNumber ? ` — proc. ${processNumber}` : ''}. Abra Prazos.`;
     for (const a of admins) {
       await notificationService.create({
-        userId: a.id, clientId: clientId ?? undefined, title: 'Possível prazo detectado',
-        message: `Intimação pode iniciar prazo (${trig.type}). Abra Prazos → confirmar a data.`,
+        userId: a.id, clientId: clientId ?? undefined,
+        title: analise.categoria === 'prazo' ? 'Prazo detectado' : 'Intimação para revisar',
+        message: mensagem,
         notificationType: 'prazo_detectado', channel: 'sistema', scheduledAt: new Date(),
       });
     }

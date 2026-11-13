@@ -1702,7 +1702,7 @@ const ROUTES = {
               <p class="dd-item-text">${esc(full.slice(0, 110))}${full.length > 110 ? '…' : ''}</p>
               ${full.length > 110 ? `<button class="btn-sm" data-full-dd="${d.id}">${svgIcon('file')}Ver na íntegra</button>` : ''}
               ${d.ai_summary ? `<div class="dd-item-ai"><strong>🧑‍🎓 Estagiário IA:</strong><br>${esc(d.ai_summary.slice(0, 400))}${d.ai_summary.length > 400 ? '…' : ''}</div>` : ''}
-              <div class="dd-item-suggest">Sugestão: <strong>${d.suggested_type || '—'}</strong> · ${d.suggested_days || '?'} dias</div>
+              ${ddPrazoHtml(d)}
               <div class="dd-item-actions">
                 <div class="dd-item-actions-ai">
                   ${d.ai_draft_id
@@ -4198,13 +4198,36 @@ function showMovementFull(d) {
   openModal('Movimentação na íntegra', el(`<div>${movementFullBlock(d)}</div>`));
 }
 
+// Prazo detectado: data limite já calculada pela regra fixa (prazoIntimacao.ts),
+// "protocolar até" (1 dia útil antes) e como a data foi contada.
+function ddAnalise(d) {
+  if (!d || !d.analise) return null;
+  if (typeof d.analise === 'object') return d.analise;
+  try { return JSON.parse(d.analise); } catch { return null; }
+}
+// Datas "AAAA-MM-DD" sem passar por Date: new Date('2026-12-01') no fuso de
+// Brasília vira 30/11 — num prazo, isso é um dia a menos na tela.
+const ddDataBr = (s) => s ? String(s).slice(0, 10).split('-').reverse().join('/') : '—';
+function ddPrazoHtml(d) {
+  const a = ddAnalise(d);
+  if (!a) return `<div class="dd-item-suggest">Sugestão: <strong>${esc(d.suggested_type || '—')}</strong> · ${d.suggested_days || '?'} dias</div>`;
+  if (a.categoria !== 'prazo') {
+    return `<div class="dd-item-suggest"><strong style="color:var(--warning, #b54708)">Revisão humana</strong> · ${esc(a.ato)}<br><span class="sub">${esc(a.providencia)}</span><br><span class="sub">${esc(a.explicacao)}</span></div>`;
+  }
+  return `<div class="dd-item-suggest"><strong>${esc(a.ato)}</strong> · ${a.dias} dias ${a.diasUteis ? 'úteis' : 'corridos'}
+    · data limite <strong>${ddDataBr(a.termoFinal)}</strong> · protocolar até <strong style="color:var(--danger, #b42318)">${ddDataBr(a.protocolarAte)}</strong>
+    ${(a.alertas || []).map((t) => `<br><span class="sub">⚠ ${esc(t)}</span>`).join('')}
+    <br><span class="sub">${esc(a.explicacao)}</span></div>`;
+}
+
 async function confirmDeadlineForm(d, onSave) {
   const start = d.start_date ? new Date(d.start_date).toISOString().slice(0, 10) : '';
   const form = el(`<form class="form-grid">
     ${movementFullBlock(d)}
     ${field('Tipo de prazo', 'deadline_type', { value: d.suggested_type || '' })}
-    <div class="form-row">${field('Dias (úteis)', 'days', { type: 'number', value: d.suggested_days || 15 })}${field('Início', 'start_date', { type: 'date', value: start })}</div>
-    <p class="sub">A data-limite é calculada em dias úteis. Se o processo tiver caso vinculado, entra automaticamente nos alertas (30/15/7/3/1 dia).</p>
+    ${ddPrazoHtml(d)}
+    <div class="form-row">${field('Dias (úteis)', 'days', { type: 'number', value: d.suggested_days || 15 })}${field('Data da publicação', 'start_date', { type: 'date', value: start })}</div>
+    <p class="sub">A contagem começa no dia útil seguinte à publicação, em dias úteis, com feriados e recesso. Se o processo tiver caso vinculado, entra automaticamente nos alertas (30/15/7/3/1 dia).</p>
     <button type="submit" class="btn-primary">Confirmar prazo</button>
   </form>`);
   form.onsubmit = async (e) => {

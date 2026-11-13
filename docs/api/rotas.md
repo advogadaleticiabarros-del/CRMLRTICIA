@@ -4,7 +4,7 @@
 > Acesso: **público** (sem login), **logado** (qualquer usuário), **equipe** (admin, advogada, staff), **admin**.
 > Dentro de cada rota pode haver checagem extra (ex.: dono do registro, papel parceiro).
 
-**503 rotas em 80 grupos.**
+**505 rotas em 81 grupos.**
 
 ## `/api/access-logs` · admin · `src/routes/accessLogs.ts`
 
@@ -845,6 +845,13 @@
 | POST | `/api/receitas` |
 | PUT | `/api/receitas/:id` |
 | POST | `/api/receitas/:id/cancelar` |
+
+## `/api/relatorio-intimacoes` · admin · `src/routes/relatorio-intimacoes.ts`
+
+| Método | Caminho |
+|---|---|
+| GET | `/api/relatorio-intimacoes/previa` |
+| POST | `/api/relatorio-intimacoes/enviar` |
 
 ## `/api/repasses` · equipe · `src/routes/repasses.ts`
 

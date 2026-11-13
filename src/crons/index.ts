@@ -496,6 +496,16 @@ export function startCronJobs() {
     runJob('monitoramento:descoberta-oab', () => runDiscoveryJob());
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── relatório diário de intimações (13/11/2026): depois da busca das 7h,
+  // e-mail (PDF, planilha e recorte) + WhatsApp da equipe com o prazo e a data
+  // limite de cada publicação nova. Sem publicação nova, não manda nada.
+  cron.schedule('25 7 * * *', () => {
+    runJob('intimacoes:relatorio-diario', async () => {
+      const { enviarRelatorioIntimacoes } = await import('../services/relatorioIntimacoesJob');
+      return enviarRelatorioIntimacoes();
+    }, { janelaIdempotenciaMin: 60 });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── monitoramento processual (DataJud, por processo): de hora em hora, 07h–20h ── CRÍTICO
   // Antes rodava só 08h/16h (+ um extra às 06h, ver linha ~36) — publicação
   // judicial não costuma sair de madrugada, então concentra a frequência
