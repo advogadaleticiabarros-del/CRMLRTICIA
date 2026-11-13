@@ -55,6 +55,18 @@ const COR: Record<AnalisePrazo['categoria'], string> = { prazo: '#b42318', revis
 const ORDEM: Record<AnalisePrazo['categoria'], number> = { prazo: 0, revisao: 1, sem_prazo: 2 };
 
 /** Destinatários do DJEN → polo ativo / passivo ("A"/"P"; sem polo vai para o ativo). */
+/**
+ * Por que o e-mail do relatório não saiu (null quando ao menos um chegou).
+ * Antes a falha era silenciosa e ninguém sabia o motivo (13/11/2026).
+ */
+export function motivoFalhaEmail(resultados: Array<{ ok: boolean; skipped?: boolean; error?: string }>, destinatarios: number): string | null {
+  if (!destinatarios) return 'nenhum usuário admin/advogado ativo com e-mail cadastrado';
+  if (resultados.some((r) => r.ok)) return null;
+  if (resultados.every((r) => r.skipped)) return 'o envio de e-mail não está configurado no servidor (falta RESEND_API_KEY ou SMTP no .env)';
+  const erro = resultados.find((r) => r.error)?.error;
+  return `o servidor de e-mail recusou o envio: ${erro || 'erro desconhecido'}`;
+}
+
 export function polosDasPartes(partes: Array<{ nome?: string | null; polo?: string | null }> | null | undefined): { ativo: string[]; passivo: string[] } {
   const ativo: string[] = [], passivo: string[] = [];
   for (const p of partes || []) {

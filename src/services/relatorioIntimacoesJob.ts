@@ -11,7 +11,7 @@ import { sendEmail } from './EmailService';
 import { sendText } from './uazapiInstance';
 import { interpretarMovimentacao } from './aiAssistant';
 import { analisarPrazoIntimacao } from './prazoIntimacao';
-import { montarRelatorio, pdfRelatorio, pdfRecorte, polosDasPartes, type ItemRelatorio, type RelatorioIntimacoes } from './relatorioIntimacoes';
+import { montarRelatorio, pdfRelatorio, pdfRecorte, polosDasPartes, motivoFalhaEmail, type ItemRelatorio, type RelatorioIntimacoes } from './relatorioIntimacoes';
 
 /** Mesmos números que recebem os avisos de prazo (monitoringService). */
 const EQUIPE_WHATSAPP = ['5544991011402', '5527988798093'];
@@ -85,7 +85,7 @@ export async function previaRelatorio(dias = 1): Promise<RelatorioIntimacoes> {
   return montarRelatorio(itens, { oab: await oabPrincipal(), dataReferencia: hojeSP() });
 }
 
-export interface ResultadoEnvio { publicacoes: number; prazos: number; emails: number; whatsapp: boolean; pulado?: string }
+export interface ResultadoEnvio { publicacoes: number; prazos: number; emails: number; whatsapp: boolean; emailMotivo?: string | null; pulado?: string }
 
 export async function enviarRelatorioIntimacoes(opts: { dias?: number; mesmoSemNovas?: boolean } = {}): Promise<ResultadoEnvio> {
   const corte = await ultimoRelatado();
@@ -103,14 +103,20 @@ export async function enviarRelatorioIntimacoes(opts: { dias?: number; mesmoSemN
   const [users] = await db.query(
     "SELECT email FROM users WHERE active = 1 AND role IN ('admin','advogado') AND email IS NOT NULL AND email <> '' ORDER BY id"
   ) as any;
-  let emails = 0;
+  const resultados: Array<{ ok: boolean; skipped?: boolean; error?: string }> = [];
   for (const u of users) {
-    const r = await sendEmail({ to: u.email, subject: rel.assunto, html: rel.html, text: rel.texto, attachments: anexos }).catch(() => ({ ok: false }));
-    if (r.ok) emails++;
+    resultados.push(await sendEmail({ to: u.email, subject: rel.assunto, html: rel.html, text: rel.texto, attachments: anexos })
+      .catch((e: any) => ({ ok: false, error: String(e?.message || e) })));
   }
+  const emails = resultados.filter((r) => r.ok).length;
+  const emailMotivo = motivoFalhaEmail(resultados, users.length);
+  if (emailMotivo) console.warn(`[relatorio-intimacoes] e-mail não enviado: ${emailMotivo}`);
+
+  // Se o e-mail falhou, o WhatsApp avisa (senão a falha passa despercebida).
+  const textoWhats = emailMotivo ? `${rel.texto}\n\n⚠️ O e-mail com o PDF, a planilha e o recorte não saiu: ${emailMotivo}.` : rel.texto;
   let whatsapp = false;
   for (const n of EQUIPE_WHATSAPP) {
-    if (await sendText(n, rel.texto, 'Automático — relatório de intimações').catch(() => false)) whatsapp = true;
+    if (await sendText(n, textoWhats, 'Automático — relatório de intimações').catch(() => false)) whatsapp = true;
   }
 
   if (ultimoId && (emails || whatsapp)) {
@@ -119,5 +125,5 @@ export async function enviarRelatorioIntimacoes(opts: { dias?: number; mesmoSemN
       [ultimoId, rel.totais.publicacoes, rel.totais.prazos, emails ? 1 : 0, whatsapp ? 1 : 0]
     );
   }
-  return { publicacoes: rel.totais.publicacoes, prazos: rel.totais.prazos, emails, whatsapp };
+  return { publicacoes: rel.totais.publicacoes, prazos: rel.totais.prazos, emails, whatsapp, emailMotivo };
 }

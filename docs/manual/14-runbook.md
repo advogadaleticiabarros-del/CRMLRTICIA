@@ -26,6 +26,21 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 - Ato novo sem regra: acrescente-o em `decidir()` com um teste.
 - Prazos detectados **antes** de 13/11 têm `start_date` = disponibilização e não têm `analise`. Ao confirmar, o vencimento sai um dia útil antes, do lado seguro.
 
+## Relatório de intimações: o e-mail não chegou (13/11/2026)
+
+**Sintoma:** a Dra./Jessica não recebeu o e-mail do relatório de intimações.
+
+**Causa no dia 13/11:** a rotina entrou no ar às 11h46, depois do horário do envio (7h25), e ainda não tinha rodado. Além disso, a falha do e-mail era silenciosa: `sendEmail` devolve `skipped` quando o servidor não tem `RESEND_API_KEY` nem SMTP no `.env`, e ninguém ficava sabendo.
+
+**Correção:** `motivoFalhaEmail` (`relatorioIntimacoes.ts`). O motivo vai para o resumo da rotina `intimacoes:relatorio-diario`, para o log (`[relatorio-intimacoes] e-mail não enviado: ...`) e para o fim do WhatsApp do relatório.
+
+**Como resolver se acontecer de novo:** leia a linha de aviso no WhatsApp ou o resumo da rotina.
+- "não está configurado no servidor": preencha `RESEND_API_KEY` (e `EMAIL_FROM` num domínio verificado no Resend) ou `SMTP_HOST`/`SMTP_USER`/`SMTP_PASS` no `.env` da VPS e reinicie o PM2.
+- "recusou o envio": o texto traz o erro do provedor (por exemplo, domínio não verificado).
+- "nenhum usuário": cadastre o e-mail no usuário admin/advogado.
+
+Para mandar na hora: `POST /api/relatorio-intimacoes/enviar` (admin).
+
 ## Incidente: mesas do Escritório virtual invisíveis ou piscando (desde 22/10/2026, corrigido em 13/11/2026)
 
 **Sintoma:** na sala do Escritório virtual apareciam os crachás e alguns agentes andando, mas as mesas (e quem estava sentado nelas) sumiam ou piscavam.

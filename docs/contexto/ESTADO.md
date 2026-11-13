@@ -11,6 +11,7 @@
   - **Relatório diário às 7h25** (`intimacoes:relatorio-diario`): e-mail com PDF, planilha CSV e recorte, mais WhatsApp da Dra. e da Jessica. 19 testes novos.
   - **Não verificado em produção:** o primeiro relatório sai amanhã às 7h25, se houver publicação nova. Prévia: `GET /api/relatorio-intimacoes/previa?dias=1` (admin).
   - **Conferir:** se o e-mail do CRM (Resend/SMTP) está configurado na VPS; sem ele, só o WhatsApp chega.
+  - **Depois ("não chegou nenhum e-mail"):** no dia 13 a rotina ainda não tinha rodado (entrou no ar às 11h46; o envio é às 7h25). A falha do e-mail era silenciosa; agora o motivo vai para o resumo da rotina, para o log e para o fim do WhatsApp do relatório (`motivoFalhaEmail`). A configuração de e-mail da VPS continua **não verificada** (sem permissão para ler o servidor).
   - Ver `docs/contexto/relatorios/2026-11-13-prazo-intimacoes-relatorio-diario.md`.
 - **13/11 (4):** **Escritório virtual: setores, a CEO e temas festivos** (Jessica: "colocar temas festivos, mudar setores, colocar a CEO (advogada chefe) que confere tudo e recebe todos os fluxos, recados, avaliações").
   - 7 setores com área e placa na sala (`SETORES`, campo `setor` em cada agente); cartões agrupados por setor.

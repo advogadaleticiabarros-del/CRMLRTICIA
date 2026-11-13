@@ -41,5 +41,11 @@ A Dra. Letícia mandou o print do e-mail do Égide (relatório das intimações 
 - Prazos detectados antes de 13/11 continuam no formato antigo, com `start_date` = disponibilização. Ao confirmar, a data sai um dia útil antes, do lado seguro.
 - Feriados municipais e suspensões decretadas pelo tribunal ainda não entram na conta (aviso no relatório).
 
+## Continuação: "não chegou nenhum e-mail"
+- **Causa:** a rotina foi publicada às 11h46 de 13/11, e o envio automático é às 7h25, então ainda não tinha rodado. Além disso, a falha do e-mail era silenciosa: quando não há `RESEND_API_KEY` nem SMTP, `sendEmail` só devolve `skipped`.
+- **Feito:** `motivoFalhaEmail` em `relatorioIntimacoes.ts` (teste novo). O job grava o motivo no resumo da rotina e no log, e acrescenta um aviso ao WhatsApp do relatório. Runbook e manual 04 atualizados, com o espelho.
+- **Verificado:** 6/6 testes do relatório passam; tsc e lint sem erros. As 2 falhas do `npm test` são de `escritorioVirtual`, em alterações não commitadas de outra sessão, fora deste commit.
+- **Não verificado:** a configuração de e-mail da VPS (a leitura do servidor foi negada pela permissão).
+
 ## Próxima sessão
 Abrir `GET /api/relatorio-intimacoes/previa?dias=3` logado como admin e comparar com o próximo e-mail do Égide. Se algum ato sair errado, acrescentar a regra em `decidir()` (`prazoIntimacao.ts`) com um teste. Skills: `tdd`, `diagnosing-bugs`, `verification-before-completion`.

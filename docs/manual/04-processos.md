@@ -63,6 +63,7 @@ Todo dia às **7h25**, depois da busca no DJEN das 7h, rotina `intimacoes:relato
 - Cada relatório traz só o que entrou depois do anterior (`relatorio_intimacoes_envios`).
 - A IA só escreve o "do que se trata"; prazo e data são sempre da regra fixa.
 - Admin: `GET /api/relatorio-intimacoes/previa?dias=N` (HTML, sem enviar; `&formato=json`) e `POST /api/relatorio-intimacoes/enviar` (manda agora).
+- **E-mail que não sai:** o motivo (nenhum usuário com e-mail, e-mail não configurado no servidor ou erro do Resend/SMTP) vai para o resumo da rotina e para o log, e o WhatsApp do relatório ganha uma linha de aviso (`motivoFalhaEmail`).
 - Código: `relatorioIntimacoes.ts` (montagem), `relatorioIntimacoesJob.ts` (banco e envio).
 
 ## Cliente certo na descoberta por OAB (corrigido 02/10/2026)
@@ -188,6 +189,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 13/11/2026 | Claude | Relatório de intimações: quando o e-mail não sai, o motivo aparece no resumo da rotina, no log e no WhatsApp do relatório |
 | 13/11/2026 | Claude | Prazo certo de cada intimação do DJEN (tipo de justiça, contagem da publicação, data limite e protocolar até, revisão humana) e relatório diário de intimações (e-mail com PDF, CSV e recorte + WhatsApp da equipe) |
 | 14/10/2026 | Claude | Leitor aplicado também às decisões dos últimos 15 dias (`leitor:decisoes-recentes`, no boot e às 7h50); a Dra. ainda não tinha recebido nenhuma leitura |
 | 14/10/2026 | Claude | Leitor de sentença e Secretária particular: sentença/acórdão chegam à Dra. resumidos, com ganhos/perdas, valor e prazos de recurso (tabela fixa + `contarPrazo`) |

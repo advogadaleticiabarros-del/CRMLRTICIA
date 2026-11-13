@@ -61,3 +61,11 @@ test('dia sem publicação: relatório vazio não quebra', () => {
   assert.strictEqual(r.totais.publicacoes, 0);
   assert.match(r.texto, /nenhuma publica/i);
 });
+
+test('e-mail que não sai diz o motivo (13/11: "não chegou nenhum e-mail")', async () => {
+  const { motivoFalhaEmail } = await import('../dist/services/relatorioIntimacoes.js');
+  assert.strictEqual(motivoFalhaEmail([], 0), 'nenhum usuário admin/advogado ativo com e-mail cadastrado');
+  assert.match(motivoFalhaEmail([{ ok: false, skipped: true }], 1), /não está configurado no servidor/);
+  assert.match(motivoFalhaEmail([{ ok: false, error: 'Resend HTTP 403: domain not verified' }], 1), /Resend HTTP 403/);
+  assert.strictEqual(motivoFalhaEmail([{ ok: true }, { ok: false, error: 'x' }], 2), null, 'se um chegou, não é falha');
+});
