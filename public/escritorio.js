@@ -9,8 +9,10 @@
 // animações de CSS (digitar, andar, piscar) não reiniciarem.
 (function () {
   const NS = 'http://www.w3.org/2000/svg';
-  const LARG = 62, ALT = 36, W = 22, D = 13.5;
-  const ESPACO = 2.3, LIN_ESP = 1.6;
+  const LARG = 62, ALT = 36, W = 22;
+  // Profundidade do andar: cresce conforme as salas dos setores (planejarSala).
+  let D = 13.5;
+  const LIN_ESP = 1.55, CORREDOR = 0.9;
   const ESPINHA_X = 9.7, ALA_X = 15.4, CORREDOR_ALA_Y = 3.85;
   const VELOCIDADE = 1.5;
   const AMARELO = '#f6c90e', AMARELO_SOMBRA = '#d9ac00';
@@ -36,41 +38,79 @@
     { id: 'game2', atividade: 'videogame', p: { x: 14.0, y: 6.5 } },
     { id: 'cafe3', atividade: 'cafe', p: { x: 12.6, y: 8.9 } },
   ];
-  const mesaNa = (col, lin) => {
-    const bx = 0.9 + col * ESPACO, by = 1.0 + lin * LIN_ESP;
-    return { bx, by, lin, assento: { x: bx + 0.62, y: by - 0.38 } };
-  };
-  // Mesas fora da grade: o Cérebro trabalha dentro da biblioteca.
+  // Mesas fora das salas: o Cérebro trabalha dentro da biblioteca.
   const MESAS_ESPECIAIS = { cerebro: { bx: 10.5, by: 2.3 } };
   /**
-   * Planta da sala por setor (13/11/2026). Cada setor é um bloco de 2 mesas de
-   * largura, com a área pintada no chão e o nome. Os blocos vão, na ordem dos
-   * setores, para a metade (esquerda ou direita) que estiver mais vazia.
-   * Devolve a mesa de cada agente e as áreas dos setores.
+   * Salas dos setores (13/11/2026, pedido da Jessica: "separe os setores, com
+   * corredores e espaços separados"). Duas colunas de salas com um corredor no
+   * meio (x 4,5–5,3) e a espinha à direita (x ≈ 9,7); entre uma sala e outra da
+   * mesma coluna há um corredor, e na frente de todas o corredor da frente.
+   * Sala de setor grande: 2 mesas por fileira, porta na parede da direita.
+   * Dois setores pequenos (até 2 agentes) seguidos dividem o espaço lado a lado,
+   * 1 mesa por fileira; a sala da esquerda abre a porta para o corredor da frente.
+   * As maiores entram primeiro, cada uma na coluna mais curta.
    */
+  const COLUNAS = [{ x0: 0.3, x1: 4.5, corredorX: 4.9 }, { x0: 5.3, x1: 9.5, corredorX: ESPINHA_X }];
+  const alturaDaSala = (fileiras) => 1.0 + (fileiras - 1) * LIN_ESP + 1.05;
   function planejarSala(agentes, setores) {
-    const mesas = {}, zonas = [];
     const lista = (setores && setores.length ? setores : []).slice();
-    const conhecidos = new Set(lista.map((s) => s.id));
+    const conhecidos = new Set(lista.map((x) => x.id));
     if (agentes.some((a) => !conhecidos.has(a.setor))) lista.push({ id: '_outros', nome: 'Outros', emoji: '👥', cor: '#64748b' });
-    const linhas = [0, 0];
-    for (const s of lista) {
-      const doSetor = agentes.filter((a) => (s.id === '_outros' ? !conhecidos.has(a.setor) : a.setor === s.id));
-      const naGrade = doSetor.filter((a) => !MESAS_ESPECIAIS[a.id]);
-      if (!naGrade.length) continue;
-      const lado = linhas[0] <= linhas[1] ? 0 : 1, l0 = linhas[lado], qtd = Math.ceil(naGrade.length / 2);
-      naGrade.forEach((a, k) => { mesas[a.id] = mesaNa(lado * 2 + (k % 2), l0 + Math.floor(k / 2)); });
-      linhas[lado] += qtd;
-      zonas.push({ ...s, x0: 0.9 + lado * 2 * ESPACO - 0.4, x1: 0.9 + (lado * 2 + 1) * ESPACO + 1.45,
-        y0: 1.0 + l0 * LIN_ESP - 0.9, y1: 1.0 + (l0 + qtd - 1) * LIN_ESP + 0.68 });
+    const grupos = lista
+      .map((st) => ({ st, ags: agentes.filter((a) => !MESAS_ESPECIAIS[a.id] && (st.id === '_outros' ? !conhecidos.has(a.setor) : a.setor === st.id)) }))
+      .filter((g) => g.ags.length);
+    const celulas = [];
+    for (let i = 0; i < grupos.length; i++) {
+      const g = grupos[i], h = grupos[i + 1];
+      if (g.ags.length <= 2 && h && h.ags.length <= 2) { celulas.push({ dupla: [g, h], fileiras: 2, i }); i++; }
+      else celulas.push({ unica: g, fileiras: Math.ceil(g.ags.length / 2), i });
     }
+    celulas.sort((a, b) => b.fileiras - a.fileiras || a.i - b.i);
+    const fundo = [0.3, 0.3], vaos = [[], []], salas = [], mesas = {};
+    for (const c of celulas) {
+      const col = fundo[0] <= fundo[1] ? 0 : 1, C = COLUNAS[col];
+      const y0 = fundo[col] > 0.3 ? fundo[col] + CORREDOR : 0.3;
+      if (fundo[col] > 0.3) vaos[col].push(fundo[col] + CORREDOR / 2);
+      const y1 = y0 + alturaDaSala(c.fileiras), meio = (C.x0 + C.x1) / 2;
+      const partes = c.unica ? [{ g: c.unica, x0: C.x0, x1: C.x1, porFileira: 2, porta: 'direita' }]
+        : [{ g: c.dupla[0], x0: C.x0, x1: meio, porFileira: 1, porta: 'frente' }, { g: c.dupla[1], x0: meio, x1: C.x1, porFileira: 1, porta: 'direita' }];
+      for (const pt of partes) {
+        const sala = { ...pt.g.st, x0: pt.x0, x1: pt.x1, y0, y1, coluna: col, porta: pt.porta, faixaX: pt.x1 - 0.28, portaY: y1 - 0.75 };
+        pt.g.ags.forEach((a, k) => {
+          const bx = pt.x0 + 0.35 + (k % pt.porFileira) * 2.1, by = y0 + 1.0 + Math.floor(k / pt.porFileira) * LIN_ESP;
+          mesas[a.id] = { bx, by, sala, corrY: by - 0.75, assento: { x: bx + 0.62, y: by - 0.38 } };
+        });
+        salas.push(sala);
+      }
+      fundo[col] = y1;
+    }
+    const fundoMax = Math.max(...fundo);
     for (const a of agentes) {
       const esp = MESAS_ESPECIAIS[a.id];
-      if (esp) mesas[a.id] = { bx: esp.bx, by: esp.by, lin: null, assento: { x: esp.bx + 0.62, y: esp.by - 0.38 } };
+      if (esp) mesas[a.id] = { bx: esp.bx, by: esp.by, sala: null, assento: { x: esp.bx + 0.62, y: esp.by - 0.38 } };
     }
-    return { mesas, zonas };
+    // Do corredor do meio até a espinha: pelos corredores da coluna da direita ou pelo da frente.
+    const passagens = [...vaos[1], fundoMax + 0.6];
+    return { mesas, zonas: salas, salas, passagens, profundidade: Math.max(13.5, fundoMax + 1.2) };
   }
-  const corredorDaLinha = (lin) => 1.0 + lin * LIN_ESP - 0.75;
+  let SALAS = [], PASSAGENS = [];
+  const salaEm = (p) => SALAS.find((x) => p.x > x.x0 && p.x < x.x1 && p.y > x.y0 && p.y < x.y1) || null;
+  /** Caminho de dentro de uma sala até a espinha: fileira → faixa livre → porta → corredor. */
+  function saidaDaSala(sala, p, fileiraY) {
+    const r = [];
+    const y = fileiraY != null ? fileiraY : p.y;
+    if (fileiraY != null) r.push({ x: p.x, y });
+    r.push({ x: sala.faixaX, y });
+    if (sala.porta === 'direita') r.push({ x: sala.faixaX, y: sala.portaY }, { x: sala.x1 + 0.4, y: sala.portaY });
+    else r.push({ x: sala.faixaX, y: sala.y1 + CORREDOR / 2 });
+    const C = COLUNAS[sala.coluna], ult = r[r.length - 1];
+    if (ult.x !== C.corredorX) r.push({ x: C.corredorX, y: ult.y });
+    if (C.corredorX !== ESPINHA_X) {
+      const c = PASSAGENS.reduce((m, v) => (Math.abs(v - ult.y) < Math.abs(m - ult.y) ? v : m), PASSAGENS[PASSAGENS.length - 1]);
+      r.push({ x: C.corredorX, y: c }, { x: ESPINHA_X, y: c });
+    }
+    return r;
+  }
   const MESA_REUNIAO = { x: 18.7, y: 1.7 };
   const LUGARES_REUNIAO = Array.from({ length: 12 }, (_, i) => {
     const a = (i / 12) * Math.PI * 2;
@@ -80,12 +120,14 @@
   const CADEIRA_DRA = { x: 19.1, y: 5.25 };
   const LUGARES_SALA = [{ x: 18.3, y: 7.2 }, { x: 19.3, y: 7.2 }, { x: 17.4, y: 7.0 }, { x: 20.2, y: 7.0 }, { x: 18.8, y: 8.0 }];
 
-  function saida(p, lin) {
+  /** Caminho até a espinha. `m` = mesa (quando sai ou vai para a própria mesa). */
+  function saida(p, m) {
     if (p.x > ALA_X) return [{ x: 15.9, y: p.y }, { x: 15.9, y: CORREDOR_ALA_Y }, { x: ESPINHA_X, y: CORREDOR_ALA_Y }];
-    if (lin !== null && lin !== undefined) return [{ x: p.x, y: corredorDaLinha(lin) }, { x: ESPINHA_X, y: corredorDaLinha(lin) }];
+    const sala = (m && m.sala) || salaEm(p);
+    if (sala) return saidaDaSala(sala, p, m && m.sala ? m.corrY : null);
     return [{ x: ESPINHA_X, y: p.y }];
   }
-  const rota = (de, para, linDe, linPara) => [...saida(de, linDe), ...saida(para, linPara).reverse(), para];
+  const rota = (de, para, mDe, mPara) => [...saida(de, mDe), ...saida(para, mPara).reverse(), para];
 
   function andar(e, passo) {
     e.andando = e.caminho.length > 0;
@@ -143,6 +185,8 @@
     return null;
   }
   if (typeof window !== 'undefined') window.EscritorioTemas = { TEMAS, temaDoDia, pascoa };
+  // Para os testes: planta das salas e caminhos (tests/escritorioFrontend.test.mjs).
+  if (typeof window !== 'undefined') window.EscritorioPlanta = { planejarSala, rota, usarPlano: (pl) => { SALAS = pl.salas; PASSAGENS = pl.passagens; }, ESPINHA_X };
 
   /** Tema escolhido no seletor: 'auto' (pela data), 'nenhum' ou o id de um tema. */
   const CHAVE_TEMA = 'escritorio-tema';
@@ -238,7 +282,7 @@
   }
   /** Chapéu do tema por cima do cabelo (base = topo da cabeça conforme o penteado). */
   function chapeuDoTema(tipo, penteado, cor) {
-    const b = penteado === 'blackpower' ? -90 : penteado === 'coque' ? -86 : -79;
+    const b = penteado === 'blackpower' || penteado === 'blackLongo' ? -94 : penteado === 'coque' ? -86 : -79;
     switch (tipo) {
       case 'noel': return `<g><polygon points="-12,${b + 2} 12,${b + 2} 17,${b - 18}" fill="#dc2626"/><rect x="-13.5" y="${b - 1}" width="27" height="6" rx="3" fill="#fff"/><circle cx="17" cy="${b - 18}" r="3.8" fill="#fff"/></g>`;
       case 'festa': return `<g><polygon points="-8,${b + 2} 8,${b + 2} 0,${b - 20}" fill="#e7c77d" stroke="#b45309" stroke-width=".8"/><path d="M -5 ${b - 4} L 5 ${b - 8} M -3 ${b - 11} L 3 ${b - 13}" stroke="${cor}" stroke-width="2"/><circle cx="0" cy="${b - 21}" r="3" fill="${cor}"/></g>`;
@@ -292,7 +336,8 @@
     calculista:  { cabelo: 'curto', corCabelo: '#a8a29e', feminina: false, extra: 'oculos', terno: '#164e63' },
     voce:        { cabelo: 'longo', corCabelo: '#5a3825', feminina: true, terno: '#1e293b' },
     // A CEO (Dra. Letícia, advogada chefe): terno preto, lenço dourado e coroa.
-    ceo:         { cabelo: 'longo', corCabelo: '#2b1a10', feminina: true, extra: 'oculos', terno: '#0b0b0f', coroa: true },
+    // Dra. Letícia é negra, de cabelo black grande caindo para baixo (Jessica, 13/11/2026).
+    ceo:         { cabelo: 'blackLongo', corCabelo: '#120c08', feminina: true, extra: 'oculos', terno: '#0b0b0f', coroa: true, pele: '#6b3f22', peleSombra: '#4e2c17' },
   };
 
   function cabelo(tipo, cor, corAgente) {
@@ -302,6 +347,7 @@
       case 'longo': return `<path d="M -13 -62 Q -13 -80 0 -80 Q 13 -80 13 -62 L 14 -36 L 9 -36 L 9 -58 Q 0 -66 -9 -58 L -9 -36 L -14 -36 Z" fill="${cor}"/>`;
       case 'bone': return `<g><path d="M -12 -66 Q -12 -80 0 -80 Q 12 -80 12 -66 Z" fill="#1d4ed8"/><path d="M -12 -66 L 18 -66 Q 20 -63 16 -62 L -12 -62 Z" fill="#1e3a8a"/><text x="0" y="-70" font-size="6" font-weight="800" fill="#fff" text-anchor="middle">LB</text></g>`;
       case 'moicano': return `<path d="M -4 -70 L -6 -86 L -2 -80 L 0 -92 L 2 -80 L 6 -88 L 5 -70 Z" fill="${cor}"/>`;
+      case 'blackLongo': return `<g>${[[-18, -74, 13], [18, -74, 13], [-9, -86, 12], [9, -86, 12], [0, -80, 15], [-20, -58, 12], [20, -58, 12], [-19, -44, 11], [19, -44, 11], [-16, -32, 10], [16, -32, 10], [-10, -28, 8], [10, -28, 8]].map(([x, y, r]) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${cor}"/>`).join('')}</g>`;
       case 'blackpower': return `<g><circle cx="0" cy="-68" r="21" fill="${cor}"/>${[[-15, -80], [-6, -87], [5, -87], [14, -80], [-19, -67], [19, -67], [-16, -54], [16, -54]].map(([x, y]) => `<circle cx="${x}" cy="${y}" r="6" fill="${cor}"/>`).join('')}</g>`;
       case 'curto': return `<g><path d="M -12 -66 Q -12 -81 0 -81 Q 12 -81 12 -66 L 12 -62 L 10 -62 L 10 -67 Q 0 -73 -10 -67 L -10 -62 L -12 -62 Z" fill="${cor}"/><path d="M -6 -80 Q 2 -86 8 -79 Q 2 -81 -6 -80 Z" fill="${cor}"/></g>`;
       case 'cacheado': return `<g>${[-14, -8, -1, 6, 13, -12, 12, -15, 15].map((dx, i) => `<circle cx="${dx}" cy="${i < 5 ? -78 + Math.abs(dx) * 0.2 : i < 7 ? -64 : -52}" r="${i < 5 ? 7 : 6}" fill="${cor}"/>`).join('')}</g>`;
@@ -318,7 +364,7 @@
     const emPe = ['andando', 'cafe', 'lendo', 'pebolim', 'empe'].includes(pose);
     const d = `style="animation-delay:${atraso}s"`;
     const bracos = pose === 'digitando' || pose === 'pebolim' || pose === 'jogando' ? 'bracos-rapidos' : pose === 'andando' ? 'bracos-andando' : '';
-    const cabecaLonga = ['longo', 'ondulado', 'blackpower'].includes(v.cabelo);
+    const cabecaLonga = ['longo', 'ondulado', 'blackpower', 'blackLongo'].includes(v.cabelo);
     const pele = v.pele || AMARELO, peleSombra = v.peleSombra || AMARELO_SOMBRA;
     const xicara = pose === 'cafe' || pose === 'sentado';
     return `<g class="fig pose-${pose}" ${d}>`
@@ -400,12 +446,35 @@
       <polygon points="${pts(iso(ALA_X + 0.2, 4.6), iso(W - 0.2, 4.6), iso(W - 0.2, D - 0.2), iso(ALA_X + 0.2, D - 0.2))}" fill="#fef3c7" opacity="0.7"/>`;
   }
 
-  // Área de cada setor no chão: cor clarinha, contorno tracejado e o nome ao lado.
-  function zonasDoChao(zonas) {
-    return zonas.map((z) => {
+  // Salas dos setores: carpete cinza nos corredores, chão claro em cada sala e
+  // divisórias baixas (com a cor do setor no topo) deixando o vão da porta.
+  function zonasDoChao(salas) {
+    const carpete = [iso(0.05, 0.05), iso(10.3, 0.05), iso(10.3, D - 0.05), iso(0.05, D - 0.05)];
+    let html = `<polygon points="${pts(...carpete)}" fill="#d9e0ea"/>`;
+    const H = 20, ESP = 0.09, VAO = 0.42;
+    const paredes = [];
+    const lado = (x0, y0, x1, y1, cor) => paredes.push({ x0, y0, x1, y1, cor, k: (x0 + x1) / 2 + (y0 + y1) / 2 });
+    for (const z of salas) {
       const a = iso(z.x0, z.y0), b = iso(z.x1, z.y0), c = iso(z.x1, z.y1), e = iso(z.x0, z.y1);
-      return `<polygon points="${pts(a, b, c, e)}" fill="${z.cor}" fill-opacity="0.09" stroke="${z.cor}" stroke-opacity="0.45" stroke-width="1.6" stroke-dasharray="7 5"/>`;
-    }).join('');
+      html += `<polygon points="${pts(a, b, c, e)}" fill="#fff8ec"/><polygon points="${pts(a, b, c, e)}" fill="${z.cor}" fill-opacity="0.1"/>`;
+      lado(z.x0, z.y0, z.x1, z.y0, z.cor);
+      lado(z.x0, z.y0, z.x0, z.y1, z.cor);
+      if (z.porta === 'direita') {
+        lado(z.x1, z.y0, z.x1, z.portaY - VAO, z.cor); lado(z.x1, z.portaY + VAO, z.x1, z.y1, z.cor);
+        lado(z.x0, z.y1, z.x1, z.y1, z.cor);
+        html += `<polygon points="${pts(iso(z.x1 + 0.08, z.portaY - 0.32), iso(z.x1 + 0.55, z.portaY - 0.32), iso(z.x1 + 0.55, z.portaY + 0.32), iso(z.x1 + 0.08, z.portaY + 0.32))}" fill="${z.cor}" fill-opacity=".35"/>`;
+      } else {
+        lado(z.x0, z.y1, z.faixaX - VAO, z.y1, z.cor); lado(Math.min(z.x1, z.faixaX + VAO), z.y1, z.x1, z.y1, z.cor);
+        lado(z.x1, z.y0, z.x1, z.y1, z.cor);
+        html += `<polygon points="${pts(iso(z.faixaX - 0.32, z.y1 + 0.08), iso(z.faixaX + 0.2, z.y1 + 0.08), iso(z.faixaX + 0.2, z.y1 + 0.5), iso(z.faixaX - 0.32, z.y1 + 0.5))}" fill="${z.cor}" fill-opacity=".35"/>`;
+      }
+    }
+    paredes.sort((p, q) => p.k - q.k);
+    for (const w of paredes) {
+      if (w.y0 === w.y1) html += caixa(w.x0, w.y0 - ESP / 2, Math.max(0.01, w.x1 - w.x0), ESP, H, w.cor, '#e2e8f0', '#cbd5e1');
+      else html += caixa(w.x0 - ESP / 2, w.y0, ESP, Math.max(0.01, w.y1 - w.y0), H, w.cor, '#e2e8f0', '#cbd5e1');
+    }
+    return html;
   }
   // Placa com o nome do setor, na borda esquerda da área (camada de cima, para
   // não sumir atrás das mesas).
@@ -629,6 +698,8 @@
 
   function montarSala(container, agentesIniciais, opcoes) {
     const { setores = [], aoSelecionar, aoAbrirChefe } = opcoes;
+    let plano = planejarSala(agentesIniciais, setores);
+    D = plano.profundidade; SALAS = plano.salas; PASSAGENS = plano.passagens;
     const svg = novo('svg', { role: 'img', 'aria-label': 'Escritório virtual com os agentes do escritório', preserveAspectRatio: 'xMidYMid meet' });
     const cantos = [iso(0, 0), iso(W, 0), iso(W, D), iso(0, D)];
     const minX = cantos[3].x - 20, maxX = cantos[1].x + 20, minY = cantos[0].y - 200, maxY = cantos[2].y + 20;
@@ -650,12 +721,11 @@
     container.appendChild(svg);
     const caixaVista = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 
-    let plano = planejarSala(agentesIniciais, setores);
     gZonas.innerHTML = zonasDoChao(plano.zonas); gPlacas.innerHTML = placasDosSetores(plano.zonas);
-    const mesaDoAgente = (a) => plano.mesas[a.id] || mesaNa(0, 0);
+    const mesaDoAgente = (a) => plano.mesas[a.id] || { bx: 10.9, by: 9.6, sala: null, assento: { x: 11.5, y: 9.2 } };
 
     // Placa do gabinete
-    const pl = up(iso(19.2, 4.35), 58);
+    const pl = up(iso(21.0, 4.35), 58);
     gRotulos.insertAdjacentHTML('beforeend', `<g><rect x="${r1(pl.x - 128)}" y="${r1(pl.y - 12)}" width="256" height="22" rx="5" fill="#0f172a"/><text x="${r1(pl.x)}" y="${r1(pl.y + 3)}" font-size="10" font-weight="800" fill="#e7c77d" text-anchor="middle">👑 DIRETORIA · GABINETE DA DRA. LETÍCIA BARROS</text></g>`);
 
     const nos = []; // { k, node }
@@ -670,7 +740,7 @@
     figChefe.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirDaSala(ev); } });
     nos.push({ k: CADEIRA_DRA.x + CADEIRA_DRA.y - 0.15, node: figChefe }); camada.appendChild(figChefe);
     const tagChefe = novo('g'); gRotulos.appendChild(tagChefe);
-    tagChefe.setAttribute('transform', `translate(${r1(topoChefe.x)} ${r1(topoChefe.y - 124)})`);
+    tagChefe.setAttribute('transform', `translate(${r1(topoChefe.x)} ${r1(topoChefe.y - 156)})`);
     let chefe = { total: 0, urgentes: 0 }, assinaturaChefe = '';
     const desenharChefe = () => {
       const ass = `${temaAtivo ? temaAtivo.id : ''}|${chefe.total}|${chefe.urgentes}`;
@@ -779,7 +849,7 @@
         if (!e || !r) return;
         const naMesa = e.atividade === 'mesa' && !e.caminho.length;
         const irPara = (atividade, destino, vaga) => {
-          e.caminho = rota(e.pos, destino, naMesa ? m.lin : null, atividade === 'mesa' ? m.lin : null);
+          e.caminho = rota(e.pos, destino, naMesa ? m : null, atividade === 'mesa' ? m : null);
           e.atividade = atividade; e.vaga = vaga; e.ate = agoraMs + 9000 + Math.random() * 9000;
         };
         const chamado = chamados[a.id] || null;
@@ -941,9 +1011,10 @@
         const chegaram = novos.filter((a) => !ids.has(a.id));
         if (chegaram.length) {
           // Agente novo: refaz a planta e manda quem mudou de mesa para a mesa nova.
-          plano = planejarSala(novos, setores);
+          // (Se a planta ficar mais funda que o andar, recarregar a tela redesenha.)
+          plano = planejarSala(novos, setores); SALAS = plano.salas; PASSAGENS = plano.passagens;
           gZonas.innerHTML = zonasDoChao(plano.zonas); gPlacas.innerHTML = placasDosSetores(plano.zonas);
-          novos.forEach((a) => { const e = estados[a.id], m = mesaDoAgente(a); if (e) { e.caminho = rota(e.pos, m.assento, null, m.lin); e.atividade = 'mesa'; porId[a.id].assinaturaMesa = ''; } });
+          novos.forEach((a) => { const e = estados[a.id], m = mesaDoAgente(a); if (e) { e.caminho = rota(e.pos, m.assento, null, m); e.atividade = 'mesa'; porId[a.id].assinaturaMesa = ''; } });
         }
         chegaram.forEach((a) => criarAgente(a, novos.indexOf(a)));
       },

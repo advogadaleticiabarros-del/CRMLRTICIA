@@ -68,7 +68,7 @@ Menu **Escritório virtual**: uma sala em 3D (isométrica) com os **29 agentes**
 
 **Nomes:** Dra. ou Dr. + nome (Dra. Clara, Dr. Lucas, Dr. Davi, Dra. Paula…), escolha da Jessica em 14/10/2026. A Laya (a IA) e o Enzo (estagiário) ficam sem título. **Visual:** todos de terno (desde 14/10/2026, pedido da Jessica). A cor de cada agente aparece na gravata dos homens, no lenço das mulheres e no crachá.
 
-**Setores (desde 13/11/2026, pedido da Jessica):** os agentes sentam agrupados por setor, cada um com a sua área pintada no chão e uma placa com o nome:
+**Setores (desde 13/11/2026, pedido da Jessica):** cada setor é uma **sala separada**, com chão próprio, divisórias baixas na cor do setor, porta com tapete e uma placa com o nome. Entre as salas há corredores (carpete cinza): um no meio das duas colunas de salas, um entre cada sala e a seguinte e um na frente de todas, todos ligados ao corredor principal. Os agentes entram e saem pela porta e andam pelos corredores. Setor pequeno (até 2 agentes) divide o espaço com o vizinho, cada um na sua sala. As salas são:
 - 🗂️ **Gestão e secretaria:** Laya, Dra. Clara, Dra. Aurora, Dra. Rita e o Cérebro (este na biblioteca);
 - 🤝 **Comercial:** Dra. Carla, Dra. Bianca, Dr. Felipe, Dra. Camila, Dr. Rafael, Dr. Otávio e Dra. Helena;
 - 💬 **Atendimento:** Dr. Wagner e Dra. Lívia;
@@ -77,9 +77,9 @@ Menu **Escritório virtual**: uma sala em 3D (isométrica) com os **29 agentes**
 - 💰 **Financeiro:** Dr. Fábio e Dra. Pietra;
 - 🛡️ **Qualidade e TI:** Dr. Bento e Dr. Tomás.
 
-Os setores ficam em `SETORES` (`src/services/escritorioVirtual.ts`) e cada agente tem o campo `setor`. Para mudar alguém de setor, troque esse campo. A planta da sala se refaz sozinha (`planejarSala` em `public/escritorio.js`), e os cartões abaixo da sala também vêm agrupados por setor.
+Os setores ficam em `SETORES` (`src/services/escritorioVirtual.ts`) e cada agente tem o campo `setor`. Para mudar alguém de setor, troque esse campo. A planta se refaz sozinha (`planejarSala` em `public/escritorio.js`: as salas maiores entram primeiro, cada uma na coluna mais curta, e o andar fica mais fundo se precisar). Os caminhos saem pela porta (`saidaDaSala`), e um teste confere que nenhum caminho atravessa parede. Os cartões abaixo da sala também vêm agrupados por setor.
 
-**A CEO (desde 13/11/2026):** a **Dra. Letícia, advogada chefe**, senta no gabinete (placa "Diretoria"), de terno preto, lenço dourado e coroa, conferindo papéis. Ela não é um agente: é quem recebe tudo o que a equipe entrega.
+**A CEO (desde 13/11/2026):** a **Dra. Letícia, advogada chefe**, senta no gabinete (placa "Diretoria"). Ela é negra, de cabelo black grande caindo para baixo (pedido da Jessica), e usa terno preto, lenço dourado, óculos e coroa, conferindo papéis. Ela não é um agente: é quem recebe tudo o que a equipe entrega.
 - Envelopes voam das mesas até a mesa dela o tempo todo (mais de quem está trabalhando), com o ícone do setor de quem mandou.
 - O número em cima dela é o que espera a conferência dela (vermelho quando há mensagem urgente).
 - Clicar nela, no botão **👑 Mesa da Chefe** ou no cartão "Diretoria" abre a **Mesa da Chefe**:
@@ -279,6 +279,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 13/11/2026 | Claude | Escritório virtual: cada setor numa sala separada (divisórias, porta e corredores) e a CEO negra de cabelo black |
 | 13/11/2026 | Claude | Escritório virtual: setores com área própria na sala, a CEO (Dra. Letícia) com a Mesa da Chefe, temas festivos automáticos e conserto das mesas que sumiam |
 | 21/10/2026 | Claude | Pesquisa de Leis (bloco 18) e Dra. Júlia e Dra. Vera em funcionamento |
 | 16/10/2026 | Claude | Dr. Otávio (qualificação em % e copiloto da Dra. nas conversas, comando "montar proposta N") e tabela da OAB/RJ como parâmetro das propostas |

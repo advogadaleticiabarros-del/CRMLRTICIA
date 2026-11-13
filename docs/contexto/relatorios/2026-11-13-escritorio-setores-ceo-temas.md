@@ -10,9 +10,14 @@ Jessica, sobre https://crm.advogadaleticiabarros.com.br/#escritorio: "Colocar te
 - **Bug de produção:** as mesas da sala sumiam ou piscavam desde 22/10 por conflito com a classe `.mesa` da Mesa do caso. Classe trocada para `ev-mesa`. Registro em `docs/manual/14-runbook.md`.
 - Documentação em `docs/manual/00-visao-geral.md` (bloco do Escritório + Changelog) e `17-decision-log.md`; mapa da API regenerado em `docs/api/rotas.md`.
 
+## Continuação no mesmo dia
+- Jessica: "quero que de fato separe os setores, com corredores, e espaços separados". Cada setor virou uma sala com chão próprio, divisórias baixas na cor do setor, porta com tapete e placa. Duas colunas de salas, com corredor entre as colunas, entre as salas e na frente, ligados à espinha. A planta e os caminhos ficam em `planejarSala`/`saidaDaSala` (`public/escritorio.js`). O andar ficou mais fundo (`D` agora depende da planta, cerca de 17,2).
+- Jessica: "A Dra. Leticia é negra", "cabelo black grande para baixo". O visual `ceo` ganhou pele negra e o penteado `blackLongo`. O crachá dela subiu e a placa do gabinete foi para a direita, para não cobrirem o rosto.
+- Testes novos: salas sem sobreposição, com corredor entre elas e toda mesa dentro da sua sala; o caminho de cada agente só cruza parede no vão da porta.
+
 ## Verificado
 - `npm run build` OK; `npm run lint` sem erros, e nenhum aviso nos arquivos alterados.
-- `npm test`: 1413 testes, 0 falhas (os testes com banco ficam para o CI). Novos: `tests/mesaDaChefe.test.mjs` (7), setores em `escritorioVirtual.test.mjs` (2), temas, CEO e classe `ev-mesa` em `escritorioFrontend.test.mjs` (4).
+- `npm test`: 1420 testes, 0 falhas (depois das salas) (os testes com banco ficam para o CI). Novos: `tests/mesaDaChefe.test.mjs` (7), setores em `escritorioVirtual.test.mjs` (2), temas, CEO e classe `ev-mesa` em `escritorioFrontend.test.mjs` (4).
 - Prints do Playwright numa página de teste com dados fictícios: sala sem tema, Natal, Festa Junina e Carnaval; Mesa da Chefe; cartões; celular (390px). Sem erro no console.
 - **Não verificado:** a tela em produção com os dados reais, nem as consultas de `contagensDaChefe` no MySQL de produção. Cada uma é isolada: se falhar, vale 0.
 
