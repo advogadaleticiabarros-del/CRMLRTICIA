@@ -54,6 +54,11 @@ test('tela de demandas dativas tem campo de busca por assistido e filtro de coma
   assert.match(bloco, /dcase-comarca/);
 });
 
+// Desde 13/11/2026 a etapa se chama "Certidão emitida — cadastrar no e-Flow"
+// (caminho do pagamento; ver tests/fluxoPagamentoDativo.test.mjs). Filtro e
+// formulários usam a mesma lista DATIVE_STATUS.
 test('novo status aparece no select de filtro e no formulário de edição', () => {
-  assert.match(frontSrc, /aguardando_liberacao_requerimento.*Aguardando liberação do requerimento|Aguardando liberação do requerimento.*aguardando_liberacao_requerimento/);
+  assert.match(frontSrc, /\['aguardando_liberacao_requerimento','4 · Certidão emitida — cadastrar no e-Flow'\]/);
+  assert.match(frontSrc, /id="dcase-status"[^\n]*DATIVE_STATUS\.map/);
+  assert.match(frontSrc, /field\('Etapa', 'status', \{ value: d\?\.status \|\| 'nomeada', options: DATIVE_STATUS_OPTS \}\)/);
 });

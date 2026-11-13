@@ -80,7 +80,7 @@ export async function montarAReceber(filtro: { clientId?: number } = {}): Promis
   const [datCasos] = await db.query(`
     SELECT dc.id, dc.assisted_name, dc.comarca, dc.process_number, dc.estimated_value
       FROM dative_cases dc
-     WHERE dc.status NOT IN ('paga','recusada') AND dc.estimated_value > 0${so('dc.client_id')}
+     WHERE dc.status NOT IN ('paga','recusada','indeferida') AND dc.estimated_value > 0${so('dc.client_id')}
        AND NOT EXISTS (SELECT 1 FROM dative_payments dp WHERE dp.dative_case_id = dc.id)
      ORDER BY dc.nomeacao_date DESC LIMIT 300`) as any;
   for (const r of datCasos) rows.push({

@@ -1,6 +1,6 @@
 # 05 · Dativo
 
-**Área:** Atuação jurídica · **Autor:** Claude (levantado do código-fonte) · **Última atualização:** 03/09/2026 · **Versão:** 1.0 · **Status:** publicado · **Responsável:** Dra. Letícia Barros (dono do produto) · **Revisão:** atualizar sempre que o módulo mudar de comportamento
+**Área:** Atuação jurídica · **Autor:** Claude (levantado do código-fonte) · **Última atualização:** 13/11/2026 · **Versão:** 1.0 · **Status:** publicado · **Responsável:** Dra. Letícia Barros (dono do produto) · **Revisão:** atualizar sempre que o módulo mudar de comportamento
 
 ## TL;DR
 
@@ -10,9 +10,30 @@ Controle das nomeações da Defensoria (dativo), com detecção automática de n
 
 Consulte pra entender o ciclo de uma demanda dativa, como a detecção automática funciona (e o que fazer se duplicar), ou como o upload por câmera/financeiro do dativo se comporta.
 
-## Status de uma demanda
+## Status de uma demanda (caminho do pagamento)
 
-`nomeada` → `em_andamento` → `concluida` → `aguardando_liberacao_requerimento` → `a_receber` → `paga`.
+Desde 13/11/2026 o status segue o caminho real do pagamento do Estado do ES:
+
+| # | Status | Na tela | O que registra | Site |
+|---|---|---|---|---|
+| 1 | `nomeada` | Nomeação | nº do processo, data do aceite | — |
+| 2 | `em_andamento` | Atuação | audiências, relatos | — |
+| 3 | `concluida` | Atuação concluída — aguardando certidão | — | — |
+| 4 | `aguardando_liberacao_requerimento` | Certidão emitida — cadastrar no e-Flow | data da certidão | [e-Flow](https://e-flow.es.gov.br/flow-definition/38c32372-13cd-8e0c-630e-b1eca22972a9) |
+| 5 | `protocolada` | Protocolada — em análise no e-Docs | **código do protocolo** + data | [e-Docs](https://edocs.es.gov.br/) |
+| 6 | `deferida` / `indeferida` | Deferida — aguardando lista da Sefaz / Indeferida | decisão, data e motivo (se indeferida) | e-Docs |
+| 7 | `a_receber` | Na lista da Sefaz — disponível para saque | data e nº da lista | [Sefaz (OPV dativos)](https://sefaz.es.gov.br/obrigacoes-de-pequeno-valor-opv-dativos) |
+| 8 | `paga` | Recebida | baixa com o valor (cria o recebimento) | — |
+
+**Avanço automático:** preencher um passo na ficha e salvar leva a demanda para a etapa dele (data da certidão → 4; protocolo → 5; decisão → 6; lista da Sefaz → 7). Nunca volta etapa sozinho e nunca mexe em `paga` ou `recusada`; a etapa escolhida à mão vale como ponto de partida. A regra fica em `src/services/fluxoPagamentoDativo.ts` (fonte única das etapas, rótulos e links).
+
+**Na tela:** os três sites ficam no topo da Advocacia Dativa. A ficha mostra a faixa com as 8 etapas, o próximo passo, há quantos dias está parada e o botão do site certo; na etapa 5 tem "Copiar protocolo" (para colar na busca do e-Docs) e na 7, "Recebi no banco — dar baixa" (valor arbitrado, senão o estimado). A aba Projeção tem o quadro **Caminho do pagamento**, com as demandas de cada etapa da certidão em diante (`GET /api/dative/fluxo-pagamento`).
+
+**Dinheiro:** `protocolada` e `deferida` contam no "Realizado (a faturar)"; `indeferida` sai do estimado, das demandas ativas e do A Receber do financeiro até ser revertida.
+
+**Demandas antigas:** `a_receber` antes significava "procedimento aberto, dinheiro não caiu"; agora é "saiu na lista". As demandas que já estavam em `a_receber` ou em `aguardando_liberacao_requerimento` continuam onde estavam e precisam ser conferidas à mão (registrar o protocolo leva para a etapa certa).
+
+Histórico do status anterior:
 
 **`aguardando_liberacao_requerimento` (desde 25/09/2026):** a nomeação/ato terminou (o honorário pode ou não já ter sido arbitrado), mas o requerimento de pagamento ainda não foi registrado — por isso ainda não dá pra nem solicitar o pagamento. Só depois do requerimento registrado é que a demanda avança pra `a_receber` (procedimento de recebimento já aberto, dinheiro ainda não caiu). Antes desse status existir, não tinha como marcar esse meio-do-caminho: ou ficava em `concluida` (perdendo a informação de que já podia avançar) ou pulava direto pra `a_receber` (informação incorreta de que o requerimento já tinha sido protocolado).
 
@@ -71,6 +92,7 @@ Desde 25/09/2026, a listagem de demandas dativas tem busca por **nome do assisti
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 13/11/2026 | Claude | Caminho do pagamento: etapas `protocolada`, `deferida`, `indeferida` e campos de aceite, certidão, protocolo do e-Flow, decisão do e-Docs e lista da Sefaz (migration 179); avanço automático da etapa; links do e-Flow, e-Docs e Sefaz no topo; faixa de etapas e baixa na ficha; quadro na Projeção. A ficha não mostra mais o seletor de etapa em demanda recusada (salvar podia trocá-la para "Nomeada") |
 | 13/11/2026 | Claude | Ficha da demanda: botões "+ Incluir relato" e "+ Incluir audiência" nas próprias seções; a audiência já vem ligada à demanda aberta |
 | 26/10/2026 | Claude | Menor em segredo de justiça vem como "REPRESENTANTE e B. F. S. C." (iniciais de um ou mais assistidos): a ficha é do representante, as iniciais ficam só no assistido da demanda e entra na linha do tempo a nota "Segredo de justiça". Só iniciais, sem representante: aviso pedindo o nome dele. Antes dava erro 500 (ver runbook) |
 | 16/10/2026 | Claude | Corrigido: editar audiência pela ficha da demanda não salvava (duas funções com o mesmo nome e parâmetros trocados; ver runbook). Agora edita demanda, data, tipo, comarca, valor, status e observações |

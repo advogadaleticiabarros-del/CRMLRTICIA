@@ -2,10 +2,15 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { extrairNomeacaoDativa, aiExtractFromFile } from '../services/aiAssistant';
 import { stripDataUrlPrefix } from '../utils/dataUrl';
+import { hojeBrasilia } from '../services/analistaDocumentos';
+import {
+  ETAPAS_DATIVO, ETAPA_INDEFERIDA, LINKS_DATIVO, statusAposRegistro, resumoFluxo, validarCamposFluxo,
+} from '../services/fluxoPagamentoDativo';
 
 const router = Router();
 
-const CASE_STATUS = ['nomeada', 'em_andamento', 'concluida', 'aguardando_liberacao_requerimento', 'a_receber', 'paga', 'recusada'];
+// Ordem do caminho do pagamento: ver src/services/fluxoPagamentoDativo.ts.
+const CASE_STATUS = ['nomeada', 'em_andamento', 'concluida', 'aguardando_liberacao_requerimento', 'protocolada', 'deferida', 'indeferida', 'a_receber', 'paga', 'recusada'];
 const AREAS = ['criminal', 'familia', 'civel', 'previdenciario', 'trabalhista', 'infancia', 'outro'];
 const HEARING_STATUS = ['agendada', 'realizada', 'adiada', 'cancelada'];
 const PAY_STATUS = ['previsto', 'recebido'];
@@ -69,15 +74,15 @@ router.get('/summary', async (req: Request, res: Response) => {
   const [[totais]] = await db.query(`
     SELECT
       (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
-         FROM dative_cases dc WHERE dc.user_id = ? AND dc.status NOT IN ('paga','recusada'))                    AS estimado_total,
+         FROM dative_cases dc WHERE dc.user_id = ? AND dc.status NOT IN ('paga','recusada','indeferida'))       AS estimado_total,
       (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
-         FROM dative_cases dc WHERE dc.user_id = ? AND dc.status IN ('concluida','aguardando_liberacao_requerimento','a_receber'))                  AS realizado,
+         FROM dative_cases dc WHERE dc.user_id = ? AND dc.status IN ('concluida','aguardando_liberacao_requerimento','protocolada','deferida','a_receber')) AS realizado,
       (SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0)
          FROM dative_cases dc WHERE dc.user_id = ? AND dc.status = 'em_andamento')                              AS agendado,
       (SELECT COUNT(*) FROM dative_hearings WHERE user_id = ? AND status = 'realizada')                          AS audiencias_realizadas,
       (SELECT COUNT(*) FROM dative_hearings WHERE user_id = ? AND status = 'agendada' AND hearing_date >= NOW()) AS audiencias_futuras,
       (SELECT COALESCE(SUM(value),0) FROM dative_payments WHERE user_id = ? AND status = 'recebido')             AS recebido,
-      (SELECT COUNT(*) FROM dative_cases WHERE user_id = ? AND status NOT IN ('concluida','aguardando_liberacao_requerimento','a_receber','paga','recusada')) AS demandas_ativas
+      (SELECT COUNT(*) FROM dative_cases WHERE user_id = ? AND status NOT IN ('concluida','aguardando_liberacao_requerimento','protocolada','deferida','indeferida','a_receber','paga','recusada')) AS demandas_ativas
   `, Array(7).fill(userId)) as any;
 
   const aReceber = Math.max(0, Number(totais.realizado) - Number(totais.recebido));
@@ -113,6 +118,31 @@ router.get('/summary', async (req: Request, res: Response) => {
   });
 });
 
+// ── GET /api/dative/fluxo-pagamento — onde cada demanda está no caminho do
+// pagamento (certidão → e-Flow → e-Docs → Sefaz → banco), da certidão em diante.
+router.get('/fluxo-pagamento', async (req: Request, res: Response) => {
+  const [rows] = await db.query(
+    `SELECT id, comarca, assisted_name, process_number, status, nomeacao_date, estimated_value, arbitrated_value,
+            certidao_date, eflow_protocolo, eflow_protocolo_date, decisao_pagamento_date, sefaz_lista_date, sefaz_lista_ref
+       FROM dative_cases
+      WHERE user_id = ? AND status IN ('concluida','aguardando_liberacao_requerimento','protocolada','deferida','indeferida','a_receber')
+      ORDER BY nomeacao_date ASC`,
+    [req.user!.id]
+  ) as any;
+  const hoje = hojeBrasilia();
+  const etapas = [...ETAPAS_DATIVO.filter((e) => ['concluida', 'aguardando_liberacao_requerimento', 'protocolada', 'deferida', 'a_receber'].includes(e.status)), ETAPA_INDEFERIDA]
+    .map((e) => {
+      const casos = rows.filter((r: any) => r.status === e.status).map((r: any) => ({
+        id: r.id, comarca: r.comarca, assisted_name: r.assisted_name, process_number: r.process_number,
+        eflow_protocolo: r.eflow_protocolo, sefaz_lista_ref: r.sefaz_lista_ref,
+        valor: Number(r.arbitrated_value ?? r.estimated_value) || 0,
+        dias_na_etapa: resumoFluxo(r, hoje).dias_na_etapa,
+      }));
+      return { ...e, quantidade: casos.length, valor: casos.reduce((a: number, c: any) => a + c.valor, 0), casos };
+    });
+  res.json({ links: LINKS_DATIVO, etapas });
+});
+
 // ── DEMANDAS ────────────────────────────────────────────────────────────────
 // Pedido da Dra. Letícia (25/09/2026): pesquisar pelo nome do assistido
 // (representado) e filtrar por comarca — antes só dava pra filtrar por status.
@@ -128,7 +158,7 @@ router.get('/cases', async (req: Request, res: Response) => {
 
   const [rows] = await db.query(
     `SELECT id, process_number, comarca, vara, assisted_name, area, assunto, nomeacao_date, estimated_value, arbitrated_value, status, origem,
-            rejection_reason, rejected_at
+            rejection_reason, rejected_at, eflow_protocolo
      FROM dative_cases WHERE ${where.join(' AND ')} ORDER BY nomeacao_date DESC, created_at DESC`,
     params
   ) as any;
@@ -177,7 +207,7 @@ router.get('/cases/:id', async (req: Request, res: Response) => {
       WHERE n.dative_case_id = ? ORDER BY n.created_at DESC`,
     [req.params.id]
   ) as any;
-  res.json({ ...rows[0], hearings, relatos });
+  res.json({ ...rows[0], hearings, relatos, fluxo: resumoFluxo(rows[0], hojeBrasilia()) });
 });
 
 // ── POST /api/dative/cases/:id/extrair-ia — preenche juízo/decisão/parte a
@@ -346,6 +376,22 @@ router.put('/cases/:id', async (req: Request, res: Response) => {
   // o status igual à esteira de produção (production_stage = 'recusado').
   setIf('status', req.body.status, CASE_STATUS.includes(req.body.status) && req.body.status !== 'recusada');
   setIf('notes', req.body.notes);
+
+  // Caminho do pagamento (certidão → e-Flow → e-Docs → Sefaz): registrar um
+  // campo avança a etapa sozinho, nunca volta. A etapa escolhida à mão vale
+  // como ponto de partida.
+  const fluxo = validarCamposFluxo(req.body);
+  if (!fluxo.ok) { res.status(400).json({ error: fluxo.erro }); return; }
+  for (const [col, val] of Object.entries(fluxo.campos)) { fields.push(`${col} = ?`); params.push(val); }
+  const [[atual]] = await db.query(
+    `SELECT status, certidao_date, eflow_protocolo, decisao_pagamento, sefaz_lista_date FROM dative_cases WHERE id = ?`, [id]
+  ) as any;
+  const pedido = CASE_STATUS.includes(req.body.status) && req.body.status !== 'recusada' ? req.body.status : atual.status;
+  const proximo = statusAposRegistro(pedido, { ...atual, ...fluxo.campos });
+  if (proximo !== pedido) {
+    const i = fields.indexOf('status = ?');
+    if (i >= 0) params[i] = proximo; else { fields.push('status = ?'); params.push(proximo); }
+  }
 
   if (!fields.length) { res.status(400).json({ error: 'Nenhum campo válido para atualizar' }); return; }
   params.push(id);
@@ -520,11 +566,11 @@ router.put('/hearings/:id', async (req: Request, res: Response) => {
 // como paga — usado pela baixa direta no A Receber do Financeiro.
 router.patch('/cases/:id/receber', async (req: Request, res: Response) => {
   const [[c]] = await db.query(
-    'SELECT id, estimated_value, status FROM dative_cases WHERE id = ? AND user_id = ?',
+    'SELECT id, estimated_value, arbitrated_value, status FROM dative_cases WHERE id = ? AND user_id = ?',
     [req.params.id, req.user!.id]
   ) as any;
   if (!c) { res.status(404).json({ error: 'Demanda não encontrada' }); return; }
-  const valor = Number(req.body?.valor) > 0 ? Number(req.body.valor) : Number(c.estimated_value) || 0;
+  const valor = Number(req.body?.valor) > 0 ? Number(req.body.valor) : Number(c.arbitrated_value ?? c.estimated_value) || 0;
   if (valor <= 0) { res.status(400).json({ error: 'Informe o valor recebido' }); return; }
   await db.query(
     `INSERT INTO dative_payments (user_id, dative_case_id, reference, value, received_date, status)

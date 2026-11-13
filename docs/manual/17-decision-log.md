@@ -331,6 +331,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 13/11/2026 | Claude | Pagamento do dativo como etapas do próprio status (não uma tabela à parte): uma demanda tem um único pedido de pagamento, então o status já é o lugar certo. Os campos de cada passo (certidão, protocolo, decisão, lista) avançam a etapa sozinhos e nunca voltam; os nomes antigos do banco (`aguardando_liberacao_requerimento`, `a_receber`) foram mantidos, só ganharam rótulos novos, para não migrar dados |
 | 31/10/2026 | Claude | "Sobre o caso" pelo que foi lido, nunca pela descrição de uma ação |
 | 31/10/2026 | Claude | Documentos repetidos marcados, não apagados; introdução do card do cliente pelas regras |
 | 31/10/2026 | Claude | Tema 929 (tudo em dobro), Taxa Legal oficial do Bacen e Calculista na leitura (HISCON × HISCRE em código) |

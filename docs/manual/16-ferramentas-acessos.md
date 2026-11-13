@@ -32,6 +32,7 @@ Consulte antes de mexer em qualquer integração externa, pra saber o que depend
 | **Hostinger VPS** | Onde o sistema roda de fato | Sistema inteiro fora do ar (ver [Onde tudo roda](13-infraestrutura.md)) |
 | **VAPID (push)** | Notificação push do navegador | Notificação push no navegador (o resto do sistema continua normal) |
 | **Laya** (modelo de decisão local, grátis) | Qualifica o possível cliente (área, urgência, valor) antes da IA paga. Endereço na variável `LAYA_URL` (ex.: `http://127.0.0.1:8765`), serviço `laya` no PM2 | Nada quebra: sem a Laya, a qualificação volta para a IA de sempre. No Escritório virtual ela aparece "desligada" |
+| **e-Flow, e-Docs e Sefaz-ES** (sites do governo do ES, acesso da Dra.; o CRM só leva o link) | Pagamento do dativo: cadastrar a certidão (e-Flow, gera o protocolo), acompanhar o deferimento (e-Docs) e ver a lista de pagamento OPV (Sefaz). Links no topo da Advocacia Dativa e na ficha da demanda | Nada no CRM: os campos (protocolo, decisão, lista) são preenchidos à mão. Se um link mudar, troque em `src/services/fluxoPagamentoDativo.ts` e em `DATIVE_LINKS` (`public/app.js`) (ver [Dativo](05-dativo.md)) |
 
 **Laya: instalada na VPS do jurídico em 16/10/2026.**
 - **Onde está:** `laya` 0.4.8 + torch CPU em `/opt/laya`, PM2 `laya` do usuário crmapp, só em 127.0.0.1:8765. O modelo `multilingual` (cerca de 650 MB) fica em `/home/crmapp/.cache/huggingface`. `LAYA_URL=http://127.0.0.1:8765` está no `.env`.

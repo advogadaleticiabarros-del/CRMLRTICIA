@@ -2609,6 +2609,7 @@ const ROUTES = {
   async dativo(page) {
     page.innerHTML = `
       <div class="page-header"><div><h2>Advocacia Dativa</h2><p class="sub">Nomeações do Estado — separado dos honorários</p></div></div>
+      ${datLinksBar()}
       <div class="tabs" id="dat-tabs">
         <button class="tab active" data-tab="projecao">Projeção</button>
         <button class="tab" data-tab="demandas">Demandas</button>
@@ -9291,6 +9292,25 @@ async function portalCaseDetail(id) {
 
 // ── Módulo Dativo ──
 const DATIVE_AREAS = [['criminal','Criminal'],['familia','Família'],['civel','Cível'],['previdenciario','Previdenciário'],['trabalhista','Trabalhista'],['infancia','Infância'],['outro','Outro']].map(([v,t])=>({v,t}));
+// Caminho do pagamento do dativo (13/11/2026): nomeação → atuação → certidão →
+// e-Flow (protocolo) → e-Docs (deferido ou não) → lista da Sefaz → banco.
+// Mesma ordem e rótulos de src/services/fluxoPagamentoDativo.ts (a regra de
+// avanço fica lá; a ficha recebe o resumo pronto em d.fluxo).
+const DATIVE_STATUS = [['nomeada','1 · Nomeação'],['em_andamento','2 · Atuação'],['concluida','3 · Atuação concluída — aguardando certidão'],['aguardando_liberacao_requerimento','4 · Certidão emitida — cadastrar no e-Flow'],['protocolada','5 · Protocolada — em análise no e-Docs'],['deferida','6 · Deferida — aguardando lista da Sefaz'],['indeferida','6 · Indeferida'],['a_receber','7 · Na lista da Sefaz — disponível para saque'],['paga','8 · Recebida']];
+const DATIVE_STATUS_OPTS = DATIVE_STATUS.map(([v,t])=>({v,t}));
+const DATIVE_STATUS_LABEL = Object.fromEntries([...DATIVE_STATUS, ['recusada','Recusada']]);
+const datStatusBadge = (st) => `<span class="badge dat-st ${esc(st)}">${esc(DATIVE_STATUS_LABEL[st] || st)}</span>`;
+const DATIVE_LINKS = [
+  { nome: 'e-Flow', acao: 'Cadastrar a certidão', url: 'https://e-flow.es.gov.br/flow-definition/38c32372-13cd-8e0c-630e-b1eca22972a9' },
+  { nome: 'e-Docs', acao: 'Acompanhar o protocolo', url: 'https://edocs.es.gov.br/' },
+  { nome: 'Sefaz', acao: 'Ver a lista de pagamento', url: 'https://sefaz.es.gov.br/obrigacoes-de-pequeno-valor-opv-dativos' },
+];
+const datNomeDoLink = (url) => (DATIVE_LINKS.find((l) => l.url === url) || {}).nome || 'site';
+function datLinksBar() {
+  return `<nav id="dat-links" class="dat-links" aria-label="Sites do pagamento do dativo">
+    ${DATIVE_LINKS.map((l, i) => `<a href="${l.url}" target="_blank" rel="noopener"><span class="dat-links-n">${i + 1}</span><span><strong>${l.nome}</strong><small>${l.acao}</small></span><span aria-hidden="true">↗</span></a>`).join('')}
+  </nav>`;
+}
 
 const DATIVE_DOC_FOLDERS = [
   ['nomeacao', 'Termo de nomeação'],
@@ -9610,10 +9630,20 @@ async function dativeDocsSection(dativeCaseId, clientId, onSave) {
 }
 
 async function datProjecao(c) {
-  const [s, ar90] = await Promise.all([
+  const [s, ar90, fluxo] = await Promise.all([
     api('/api/dative/summary'),
     api('/api/dative/a-receber-90d').catch(() => ({ total_casos: 0, total_valor: 0, casos: [] })),
+    api('/api/dative/fluxo-pagamento').catch(() => ({ etapas: [] })),
   ]);
+  const colunas = (fluxo.etapas || []).filter((e) => e.status !== 'indeferida' || e.quantidade).map((e) => `
+    <div class="dat-quadro-col${e.status === 'indeferida' ? ' negado' : ''}">
+      <div class="dat-quadro-cab"><strong>${esc(e.rotulo)}</strong><small>${e.quantidade} · ${money(e.valor)}</small>
+        ${e.link ? `<a href="${e.link}" target="_blank" rel="noopener" class="dat-quadro-link">Abrir ${datNomeDoLink(e.link)} ↗</a>` : `<small>${esc(e.acao || '')}</small>`}</div>
+      ${e.casos.map((k) => `<button type="button" class="dat-quadro-caso" data-fluxo-caso="${k.id}">
+        <strong>${esc(k.assisted_name || k.process_number || 's/ nome')}</strong>
+        <small>${esc(k.comarca || '')}${k.eflow_protocolo ? ' · Prot. ' + esc(k.eflow_protocolo) : ''}${k.dias_na_etapa != null ? ' · ' + k.dias_na_etapa + ' dia(s)' : ''}</small>
+      </button>`).join('') || '<small class="dat-quadro-vazio">Nenhuma</small>'}
+    </div>`).join('');
   const arRows = (ar90.casos || []).map((d) => `
     <div class="mini-row" style="cursor:pointer" data-ar90="${d.id}">
       <span><strong>${esc(d.comarca)}</strong> ${d.assisted_name ? '— ' + esc(d.assisted_name) : ''}<br>
@@ -9632,18 +9662,23 @@ async function datProjecao(c) {
       ${kpi('Estimado total', money(s.estimado_total), 'money')}
     </div>
     <div class="dash-section">
-      <h3>A receber nos próximos 90 dias <small style="color:var(--text-muted);font-weight:400">· ${ar90.total_casos} caso(s) · ${money(ar90.total_valor)}</small></h3>
-      <div class="mini-list">${arRows ? arRows : '<div class="mini-row"><small>Nenhum caso em "a receber"</small></div>'}</div>
+      <h3>Caminho do pagamento <small style="color:var(--text-muted);font-weight:400">· da certidão até o saque</small></h3>
+      <div class="dat-quadro">${colunas || '<small>Nenhuma demanda depois da atuação</small>'}</div>
+    </div>
+    <div class="dash-section">
+      <h3>Disponível para saque (na lista da Sefaz) <small style="color:var(--text-muted);font-weight:400">· ${ar90.total_casos} caso(s) · ${money(ar90.total_valor)}</small></h3>
+      <div class="mini-list">${arRows ? arRows : '<div class="mini-row"><small>Nenhum caso na lista da Sefaz</small></div>'}</div>
     </div>
     ${miniList('Por comarca (demandas não pagas)', (s.por_comarca || []).map((x) => `<div class="mini-row"><span>${x.comarca} <small>(${x.demandas} dem.)</small></span><strong>${money(x.valor_realizado)}</strong></div>`))}
     ${miniList('Por mês (nomeação / a faturar)', (s.por_mes || []).map((m) => `<div class="mini-row"><span>${m.mes}</span><strong style="color:var(--green)">${money(m.realizado)}</strong></div>`))}`;
   c.querySelectorAll('[data-ar90]').forEach((b) => b.onclick = () => dativeCaseDetail(b.dataset.ar90, () => datProjecao(c)));
+  c.querySelectorAll('[data-fluxo-caso]').forEach((b) => b.onclick = () => dativeCaseDetail(b.dataset.fluxoCaso, () => datProjecao(c)));
 }
 
 async function datDemandas(c) {
   c.innerHTML = `<div class="toolbar">
       <button class="btn-gold" id="new-dcase">+ Nova demanda</button>
-      <select id="dcase-status" title="Filtrar por status"><option value="">Todos status</option><option value="nomeada">Nomeada</option><option value="em_andamento">Em andamento</option><option value="concluida">Concluída</option><option value="aguardando_liberacao_requerimento">Aguardando liberação do requerimento</option><option value="a_receber">A receber</option><option value="paga">Paga</option><option value="recusada">Recusada</option></select>
+      <select id="dcase-status" title="Filtrar por etapa"><option value="">Todas as etapas</option>${DATIVE_STATUS.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}<option value="recusada">Recusada</option></select>
       <input type="text" id="dcase-nome" placeholder="Buscar por assistido…" style="max-width:220px">
       <input type="text" id="dcase-comarca" placeholder="Filtrar por comarca…" style="max-width:200px">
     </div><div class="card"><div id="dcase-table"></div></div>`;
@@ -9676,7 +9711,7 @@ async function datDemandas(c) {
         <td>${d.assisted_name || '—'}</td>
         <td>${d.assunto ? `<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)">${esc(d.assunto)}</span>` : '<small style="color:var(--text-muted)">—</small>'}</td>
         <td><small style="color:var(--text-muted)">${esc(d.area)}</small></td><td>${fmtDate(d.nomeacao_date)}</td>
-        <td>${money(d.estimated_value)}</td><td>${badge(d.status)}${d.status === 'recusada' && d.rejection_reason ? `<br><small style="color:var(--text-muted)" title="${esc(d.rejection_reason)}">${esc(d.rejection_reason.length > 40 ? d.rejection_reason.slice(0, 40) + '…' : d.rejection_reason)}</small>` : ''}</td>
+        <td>${money(d.estimated_value)}</td><td>${datStatusBadge(d.status)}${d.eflow_protocolo ? `<br><small style="color:var(--text-muted)">Prot. ${esc(d.eflow_protocolo)}</small>` : ''}${d.status === 'recusada' && d.rejection_reason ? `<br><small style="color:var(--text-muted)" title="${esc(d.rejection_reason)}">${esc(d.rejection_reason.length > 40 ? d.rejection_reason.slice(0, 40) + '…' : d.rejection_reason)}</small>` : ''}</td>
         <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-sm" data-dcase="${d.id}">Abrir</button><button class="btn-sm" data-edit-dcase="${d.id}">Editar</button></div></td></tr>`).join('')}</tbody></table>`
       : '<div class="empty">Nenhuma demanda dativa</div>';
     document.querySelectorAll('[data-dcase]').forEach((b) => b.onclick = () => dativeCaseDetail(b.dataset.dcase, load));
@@ -9810,6 +9845,71 @@ async function dativeCaseForm(onSave) {
   openModal('Nova demanda dativa', form);
 }
 
+// Faixa com as 8 etapas do pagamento, a atual destacada e o próximo passo com o link.
+function datFluxoHtml(d) {
+  if (d.status === 'recusada' || !d.fluxo) return '';
+  const fl = d.fluxo;
+  const passos = DATIVE_STATUS.filter(([st]) => st !== 'indeferida');
+  const itens = passos.map(([st, rot], i) => {
+    const n = i + 1;
+    const negado = d.status === 'indeferida' && st === 'deferida';
+    const cls = negado ? 'negado atual' : n < fl.posicao ? 'feito' : n === fl.posicao ? 'atual' : '';
+    const nome = negado ? 'Indeferida' : rot.replace(/^\d · /, '').split(' — ')[0];
+    return `<li class="${cls}"${cls.includes('atual') ? ' aria-current="step"' : ''} title="${esc(rot)}"><span class="dat-fluxo-n">${n < fl.posicao && !negado ? '✓' : n}</span><span class="dat-fluxo-t">${esc(nome)}</span></li>`;
+  }).join('');
+  const prox = fl.proximo
+    ? `<span><strong>Próximo passo:</strong> ${esc(fl.proximo.acao)}${fl.dias_na_etapa != null ? ` <small>· ${fl.dias_na_etapa} dia(s) nesta etapa</small>` : ''}</span>`
+    : '<span><strong>Pagamento recebido.</strong></span>';
+  const botoes = [
+    fl.proximo && fl.proximo.link ? `<a class="btn-sm" href="${fl.proximo.link}" target="_blank" rel="noopener">Abrir ${datNomeDoLink(fl.proximo.link)} ↗</a>` : '',
+    d.eflow_protocolo && ['protocolada', 'deferida', 'indeferida'].includes(d.status) ? `<button type="button" class="btn-sm" id="dat-copiar-protocolo" title="Copia o código para colar na busca do e-Docs">Copiar protocolo ${esc(d.eflow_protocolo)}</button>` : '',
+    d.status === 'a_receber' ? '<button type="button" class="btn-gold btn-sm" id="dat-baixa">Recebi no banco — dar baixa</button>' : '',
+  ].filter(Boolean).join('');
+  return `<section id="dat-fluxo" class="dat-fluxo" aria-label="Caminho do pagamento">
+    <ol>${itens}</ol>
+    <div class="dat-fluxo-prox">${prox}${botoes ? `<div class="dat-fluxo-acoes">${botoes}</div>` : ''}</div>
+    ${d.status === 'indeferida' && d.decisao_pagamento_motivo ? `<small style="color:var(--red,#c0392b)">Motivo: ${esc(d.decisao_pagamento_motivo)}</small>` : ''}
+  </section>`;
+}
+
+function datLigarFluxo(form, d, id, onSave) {
+  const hoje = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' });
+  // Preencheu o passo e a data está vazia: a data vira hoje (dá para trocar).
+  const dataJunto = (campo, data) => {
+    const c = form.querySelector(`[name=${campo}]`); const dt = form.querySelector(`[name=${data}]`);
+    if (c && dt) c.addEventListener('change', () => { if (c.value.trim() && !dt.value) dt.value = hoje(); });
+  };
+  dataJunto('eflow_protocolo', 'eflow_protocolo_date');
+  dataJunto('decisao_pagamento', 'decisao_pagamento_date');
+  const decisao = form.querySelector('[name=decisao_pagamento]');
+  const motivo = form.querySelector('#dat-motivo-wrap');
+  if (decisao && motivo) decisao.addEventListener('change', () => { motivo.hidden = decisao.value !== 'indeferido'; });
+  const copiar = form.querySelector('#dat-copiar-protocolo');
+  if (copiar) copiar.onclick = async () => {
+    try { await navigator.clipboard.writeText(d.eflow_protocolo); toast('Protocolo copiado: cole na busca do e-Docs'); }
+    catch { toast('Não deu para copiar: ' + d.eflow_protocolo, 'error'); }
+  };
+  const baixa = form.querySelector('#dat-baixa');
+  if (baixa) baixa.onclick = () => {
+    const sugerido = Number(d.arbitrated_value ?? d.estimated_value) || '';
+    const bf = el(`<form class="form-grid">
+      <p style="font-size:13px;color:var(--text-muted)">Registra o recebimento com a data de hoje e a demanda passa para <strong>Recebida</strong>.</p>
+      ${field('Valor recebido (R$)', 'valor', { type: 'number', value: sugerido })}
+      <button type="submit" class="btn-primary">Dar baixa</button>
+    </form>`);
+    bf.onsubmit = async (e) => {
+      e.preventDefault();
+      const valor = Number(bf.querySelector('[name=valor]').value);
+      if (!(valor > 0)) { toast('Informe o valor recebido', 'error'); return; }
+      try {
+        await api(`/api/dative/cases/${id}/receber`, { method: 'PATCH', body: JSON.stringify({ valor }) });
+        toast('Baixa registrada'); closeModal(); onSave();
+      } catch (err) { toast(err.message, 'error'); }
+    };
+    openModal('Recebi no banco', bf);
+  };
+}
+
 async function dativeCaseDetail(id, onSave) {
   const d = await api('/api/dative/cases/' + id);
   // Audiências: clicáveis para editar (o valor do ato pode vir a mais ou a menos).
@@ -9835,14 +9935,23 @@ async function dativeCaseDetail(id, onSave) {
       ${d.status !== 'recusada' ? `<button type="button" class="btn-sm" id="dat-recusar" style="color:var(--red,#c0392b);border-color:var(--red,#c0392b)">Recusar nomeação</button>` : ''}
     </div>
     ${recusaHtml}
+    ${datFluxoHtml(d)}
     <strong style="color:var(--navy);font-size:13px">Dados da demanda — edite o que precisar</strong>
     ${field('Comarca *', 'comarca', { value: d.comarca || '' })}
     <div class="form-row">${field('Nº do processo', 'process_number', { value: d.process_number || '' })}${field('Vara', 'vara', { value: d.vara || '' })}</div>
     ${field('Assistido', 'assisted_name', { value: d.assisted_name || '' })}
     <div class="form-row">${field('Área', 'area', { value: d.area, options: DATIVE_AREAS })}${field('Data da nomeação *', 'nomeacao_date', { type: 'date', value: dinput })}</div>
     ${field('Assunto (etiqueta)', 'assunto', { value: d.assunto || '', placeholder: 'ex.: tráfico de drogas, divórcio litigioso, furto' })}
-    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d.estimated_value ?? 0 })}${field('Status', 'status', { value: d.status, options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Concluída'],['aguardando_liberacao_requerimento','Aguardando liberação do requerimento'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
+    <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d.estimated_value ?? 0 })}${d.status === 'recusada' ? '' : field('Etapa', 'status', { value: d.status, options: DATIVE_STATUS_OPTS })}</div>
     ${field('Observações', 'notes', { value: d.notes || '', type: 'textarea' })}
+    ${d.status === 'recusada' ? '' : `<hr style="border:none;border-top:1px solid var(--border)">
+    <strong style="color:var(--navy);font-size:13px">Caminho do pagamento — registre cada passo</strong>
+    <small style="color:var(--text-muted)">Ao preencher um passo e salvar, a etapa avança sozinha.</small>
+    <div class="form-row">${field('Data do aceite', 'aceite_date', { type: 'date', value: datDateInputValue(d.aceite_date) })}${field('Data da certidão', 'certidao_date', { type: 'date', value: datDateInputValue(d.certidao_date) })}</div>
+    <div class="form-row">${field('Protocolo do e-Flow (código)', 'eflow_protocolo', { value: esc(d.eflow_protocolo || ''), maxlength: 80 })}${field('Data do protocolo', 'eflow_protocolo_date', { type: 'date', value: datDateInputValue(d.eflow_protocolo_date) })}</div>
+    <div class="form-row">${field('Decisão no e-Docs', 'decisao_pagamento', { value: d.decisao_pagamento || '', options: [{ v: '', t: '— aguardando —' }, { v: 'deferido', t: 'Deferido' }, { v: 'indeferido', t: 'Indeferido' }] })}${field('Data da decisão', 'decisao_pagamento_date', { type: 'date', value: datDateInputValue(d.decisao_pagamento_date) })}</div>
+    <div id="dat-motivo-wrap"${d.decisao_pagamento === 'indeferido' ? '' : ' hidden'}>${field('Motivo do indeferimento', 'decisao_pagamento_motivo', { value: esc(d.decisao_pagamento_motivo || ''), maxlength: 500 })}</div>
+    <div class="form-row">${field('Saiu na lista da Sefaz em', 'sefaz_lista_date', { type: 'date', value: datDateInputValue(d.sefaz_lista_date) })}${field('Lista (nº ou referência)', 'sefaz_lista_ref', { value: esc(d.sefaz_lista_ref || ''), maxlength: 120 })}</div>`}
     <button class="btn-primary" id="dat-save">Salvar alterações</button>
     <hr style="border:none;border-top:1px solid var(--border)">
     <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -9867,9 +9976,14 @@ async function dativeCaseDetail(id, onSave) {
       assisted_name: g('assisted_name'), area: g('area'), nomeacao_date: g('nomeacao_date') || null,
       assunto: g('assunto'), estimated_value: g('estimated_value'), status: g('status'), notes: g('notes'),
     };
+    for (const n of ['aceite_date', 'certidao_date', 'eflow_protocolo', 'eflow_protocolo_date', 'decisao_pagamento',
+      'decisao_pagamento_date', 'decisao_pagamento_motivo', 'sefaz_lista_date', 'sefaz_lista_ref']) {
+      if (form.querySelector(`[name=${n}]`)) body[n] = g(n);
+    }
     try { await api('/api/dative/cases/' + id, { method: 'PUT', body: JSON.stringify(body) });
       closeModal(); toast('Demanda atualizada'); onSave(); } catch (e) { toast(e.message, 'error'); }
   };
+  datLigarFluxo(form, d, id, onSave);
   form.querySelectorAll('[data-hedit]').forEach((row) => {
     row.onclick = () => {
       const h = (d.hearings || []).find((x) => String(x.id) === row.dataset.hedit);
@@ -10027,7 +10141,7 @@ async function dativeCaseEditForm(onSave, d) {
     <div class="form-row">${field('&Aacute;rea', 'area', { value: d?.area || 'outro', options: DATIVE_AREAS })}${field('Data da nomea&ccedil;&atilde;o', 'nomeacao_date', { type: 'date', value: datDateInputValue(d?.nomeacao_date) })}</div>
     <div class="form-row">${field('Valor estimado (R$)', 'estimated_value', { type: 'number', value: d?.estimated_value ?? '' })}${d?.status === 'recusada'
       ? `<label>Status<select disabled><option>Recusada</option></select><small style="color:var(--text-muted)">Nomeação recusada — abra "Abrir" pra ver o motivo ou reverter</small></label>`
-      : field('Status', 'status', { value: d?.status || 'nomeada', options: [['nomeada','Nomeada'],['em_andamento','Em andamento'],['concluida','Conclu&iacute;da'],['aguardando_liberacao_requerimento','Aguardando libera&ccedil;&atilde;o do requerimento'],['a_receber','A receber'],['paga','Paga']].map(([v,t])=>({v,t})) })}</div>
+      : field('Etapa', 'status', { value: d?.status || 'nomeada', options: DATIVE_STATUS_OPTS })}</div>
     ${field('Observa&ccedil;&otilde;es', 'notes', { type: 'textarea', value: d?.notes || '' })}
     <button type="submit" class="btn-primary">Salvar altera&ccedil;&otilde;es</button>
     <button type="button" class="btn-sm" id="dcase-del" style="color:var(--red);border-color:var(--red)">Excluir demanda</button>
