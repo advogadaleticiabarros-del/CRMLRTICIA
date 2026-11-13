@@ -101,9 +101,6 @@ async function bootstrap() {
     console.log(`🚀 CRM Jurídico rodando em http://localhost:${env.PORT}`);
     console.log(`   Ambiente: ${env.NODE_ENV}`);
   });
-  // Envio do vídeo-depoimento do fechamento da parceria (até 500 MB) pode levar mais
-  // que os 5 min padrão do Node. O nginx na frente continua cortando conexão parada.
-  server.requestTimeout = 20 * 60 * 1000;
 
   // 4b. Tempo real (Socket.IO) — usado hoje só pela tela de WhatsApp, pra
   // avisar mensagem nova/status sem esperar o polling de 6s. Mesmo JWT da

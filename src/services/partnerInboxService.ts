@@ -519,25 +519,6 @@ async function ensureSubfolder(auth: any, parentId: string, name: string): Promi
   return id!;
 }
 
-/**
- * Envia um arquivo (em fluxo — vídeo grande não passa pela memória) para a pasta
- * do caso no Drive da parceria (Raiz → Cliente → Caso). Usado no fechamento do
- * caso de parceria (recibo e vídeo-depoimento). Devolve o link do arquivo.
- */
-export async function enviarArquivoParaPastaDoCaso(
-  clientId: number, caseId: number, nome: string, mimeType: string, corpo: NodeJS.ReadableStream,
-): Promise<{ id: string; url: string }> {
-  const auth = await authedClient();
-  const folderId = await ensureCaseFolder(auth, clientId, caseId);
-  const drive = google.drive({ version: 'v3', auth });
-  const up = await drive.files.create({
-    requestBody: { name: nome, parents: [folderId] },
-    media: { mimeType: mimeType || 'application/octet-stream', body: corpo },
-    fields: 'id, webViewLink',
-  });
-  return { id: up.data.id!, url: up.data.webViewLink || `https://drive.google.com/file/d/${up.data.id}/view` };
-}
-
 /** Caminho no Drive: Raiz → Cliente → Caso. Cada caso tem sua pasta exclusiva. */
 async function ensureCaseFolder(auth: any, clientId: number, caseId: number | null): Promise<string> {
   const rootId = await ensureRootFolder(auth);
