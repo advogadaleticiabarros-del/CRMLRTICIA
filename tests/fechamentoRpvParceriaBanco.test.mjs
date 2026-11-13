@@ -25,7 +25,7 @@ test('fechamento no banco: receita, repasse, caso encerrado e sem duplicar', asy
     if (!u) { t.skip('banco sem usuário'); return; }
     const [p] = await db.query(`INSERT INTO partners (name, success_fee_percent, partner_split_percent) VALUES ('Parceira Fictícia RPV', 30, 50)`);
     partnerId = p.insertId;
-    const [cl] = await db.query(`INSERT INTO clients (user_id, name) VALUES (?, 'Cliente Fictícia RPV')`, [u.id]);
+    const [cl] = await db.query(`INSERT INTO clients (created_by, name) VALUES (?, 'Cliente Fictícia RPV')`, [u.id]);
     clientId = cl.insertId;
     const [cs] = await db.query(
       `INSERT INTO cases (user_id, client_id, partner_id, title, case_number, status) VALUES (?, ?, ?, 'RPV teste', '0000001-00.2025.4.02.5001', 'ativo')`,
