@@ -9845,10 +9845,16 @@ async function dativeCaseDetail(id, onSave) {
     ${field('Observações', 'notes', { value: d.notes || '', type: 'textarea' })}
     <button class="btn-primary" id="dat-save">Salvar alterações</button>
     <hr style="border:none;border-top:1px solid var(--border)">
-    <strong style="font-size:13px">Relatos (atualizações registradas)</strong>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <strong style="font-size:13px">Relatos (atualizações registradas)</strong>
+      <button type="button" class="btn-sm" data-dat-add="relato">+ Incluir relato</button>
+    </div>
     <div>${relatos}</div>
     <hr style="border:none;border-top:1px solid var(--border)">
-    <strong style="font-size:13px">Audiências (clique para editar o valor/data)</strong>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+      <strong style="font-size:13px">Audiências (clique para editar o valor/data)</strong>
+      <button type="button" class="btn-sm" data-dat-add="audiencia">+ Incluir audiência</button>
+    </div>
     <div>${hearings}</div>
     <hr style="border:none;border-top:1px solid var(--border)">
     <div id="dat-docs-slot"></div>
@@ -9907,8 +9913,7 @@ async function dativeCaseDetail(id, onSave) {
       toast('Recusa revertida'); closeModal(); onSave();
     } catch (err) { toast(err.message || 'Erro ao reverter a recusa', 'error'); }
   };
-  const addRelatoBtn = form.querySelector('#dat-add-relato');
-  if (addRelatoBtn) addRelatoBtn.onclick = async () => {
+  const incluirRelato = async () => {
     const texto = await uiPrompt('Relato / atualização:');
     if (!texto || !texto.trim()) return;
     try {
@@ -9916,6 +9921,11 @@ async function dativeCaseDetail(id, onSave) {
       toast('Relato registrado'); closeModal(); dativeCaseDetail(id, onSave);
     } catch (e) { toast(e.message, 'error'); }
   };
+  const addRelatoBtn = form.querySelector('#dat-add-relato');
+  if (addRelatoBtn) addRelatoBtn.onclick = incluirRelato;
+  form.querySelector('[data-dat-add=relato]').onclick = incluirRelato;
+  form.querySelector('[data-dat-add=audiencia]').onclick = () =>
+    dativeHearingForm(() => dativeCaseDetail(id, onSave), d);
   const extrairIaBtn = form.querySelector('#dat-extrair-ia');
   if (extrairIaBtn) extrairIaBtn.onclick = async () => {
     extrairIaBtn.disabled = true; extrairIaBtn.textContent = 'Extraindo…';
@@ -9964,13 +9974,21 @@ async function dativeCaseDetail(id, onSave) {
   openModal('Demanda dativa', form);
 }
 
-async function dativeHearingForm(onSave) {
-  const cases = await api('/api/dative/cases');
-  if (!cases.length) { toast('Cadastre uma demanda antes', 'error'); return; }
+// `caso` (opcional): quando vem da ficha da demanda, a audiência já nasce ligada a ela.
+async function dativeHearingForm(onSave, caso) {
+  let demandaHtml;
+  if (caso) {
+    demandaHtml = `<input type="hidden" name="dative_case_id" value="${esc(String(caso.id))}">
+      <small style="color:var(--text-muted)">Demanda: ${esc(caso.comarca || '')} — ${esc(caso.assisted_name || caso.process_number || String(caso.id))}</small>`;
+  } else {
+    const cases = await api('/api/dative/cases');
+    if (!cases.length) { toast('Cadastre uma demanda antes', 'error'); return; }
+    demandaHtml = field('Demanda *', 'dative_case_id', { options: cases.map((c) => ({ v: c.id, t: `${c.comarca} — ${c.assisted_name || c.process_number || c.id}` })) });
+  }
   const form = el(`<form class="form-grid">
-    ${field('Demanda *', 'dative_case_id', { options: cases.map((c) => ({ v: c.id, t: `${c.comarca} — ${c.assisted_name || c.process_number || c.id}` })) })}
+    ${demandaHtml}
     <div class="form-row">${field('Data/hora *', 'hearing_date', { type: 'datetime-local' })}${field('Tipo', 'type')}</div>
-    <div class="form-row">${field('Comarca', 'comarca')}${field('Valor do ato (R$)', 'act_value', { type: 'number' })}</div>
+    <div class="form-row">${field('Comarca', 'comarca', { value: caso?.comarca || '' })}${field('Valor do ato (R$)', 'act_value', { type: 'number' })}</div>
     <button type="submit" class="btn-primary">Agendar audiência</button>
   </form>`);
   form.onsubmit = async (e) => {

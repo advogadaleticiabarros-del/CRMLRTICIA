@@ -5,6 +5,7 @@
 **Última atualização:** 13/11/2026. Último commit: Escritório virtual com setores, a CEO e temas festivos.
 
 ## Últimas entregas (mais recentes primeiro)
+- **13/11 (6):** **Incluir relato e audiência na ficha do dativo** (Jessica, com print das seções Relatos/Audiências/Documentos: "quero poder incluir isso no card dos dativos"). Cada seção ganhou "+ Incluir"; a audiência já nasce ligada à demanda aberta, com a comarca preenchida (antes só pela aba Audiências, escolhendo a demanda). Documentos já tinham o anexo ali. Só tela (`public/app.js`), 4 testes. **Não verificado no navegador.** Ver `docs/contexto/relatorios/2026-11-13-incluir-na-ficha-dativo.md`.
 - **13/11 (5):** **Prazo certo das intimações + relatório diário** (Dra., comparando com o e-mail do Égide: "por que não conseguimos contar os prazos direito... com prazo correto e me dando a data final?").
   - **Causas:** o prazo saía por palavra-chave (a sentença do JEF virou "apelação, 15 dias", termo 07/12; o certo é recurso inominado, 10 dias, termo 01/12); homologação e ata viravam "15 dias"; a data só aparecia depois de confirmar; não havia relatório.
   - **Agora:** `prazoIntimacao.ts` define o prazo pelo tipo de justiça e conta da publicação. Saem duas datas: a **data limite** e o **protocolar até** (um dia útil antes, igual à data do Égide). Ato sem prazo não vira prazo; texto ambíguo vai para "revisão humana", com o motivo. O prazo detectado já nasce com as datas (migration 178).

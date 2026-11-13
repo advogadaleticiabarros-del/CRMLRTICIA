@@ -38,6 +38,8 @@ Documentos físicos (1 a 10 páginas) podem ser fotografados direto pelo celular
 
 ## Audiências
 
+Na ficha da demanda, as seções **Relatos** e **Audiências** têm o botão **+ Incluir**: o relato é registrado ali mesmo e a audiência já nasce ligada àquela demanda (com a comarca preenchida), sem escolher numa lista. Os documentos são anexados na seção **Documentos** logo abaixo.
+
 Audiências da demanda dativa sincronizam automaticamente com o Google Calendar (mesmo mecanismo usado nas audiências de correspondente) — mudar o status (agendada/realizada/adiada/cancelada) atualiza a cor do evento na agenda.
 
 ## Financeiro do dativo
@@ -69,6 +71,7 @@ Desde 25/09/2026, a listagem de demandas dativas tem busca por **nome do assisti
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 13/11/2026 | Claude | Ficha da demanda: botões "+ Incluir relato" e "+ Incluir audiência" nas próprias seções; a audiência já vem ligada à demanda aberta |
 | 26/10/2026 | Claude | Menor em segredo de justiça vem como "REPRESENTANTE e B. F. S. C." (iniciais de um ou mais assistidos): a ficha é do representante, as iniciais ficam só no assistido da demanda e entra na linha do tempo a nota "Segredo de justiça". Só iniciais, sem representante: aviso pedindo o nome dele. Antes dava erro 500 (ver runbook) |
 | 16/10/2026 | Claude | Corrigido: editar audiência pela ficha da demanda não salvava (duas funções com o mesmo nome e parâmetros trocados; ver runbook). Agora edita demanda, data, tipo, comarca, valor, status e observações |
 | 25/09/2026 | Claude | Busca por nome do assistido + filtro por comarca na listagem de demandas; novo status `aguardando_liberacao_requerimento` entre `concluida` e `a_receber` (migration 135) |
