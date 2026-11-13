@@ -22,10 +22,9 @@ A regra de 30/10 (`2026-10-30-cabecalho-peca-trabalhista.md`) valia só para as 
 ## Decisões e porquês
 - Nas outras áreas, só a abertura é padronizada. O juízo competente (vara cível, juizado, Justiça Federal) continua sendo o que a IA escreveu, porque muda por área e por caso.
 - Na trabalhista, a peça que vem sem endereçamento ganha o cabeçalho no topo. Nas outras áreas, se a 1ª linha não parecer endereçamento, o texto fica como veio, para não inventar o juízo.
-- O "AO" também entrou no cabeçalho trabalhista, para seguir o "é AO DOUTO".
+- O "AO" também entrou no cabeçalho trabalhista, para seguir o "é AO DOUTO". **Confirmado pela Jessica em 13/11 ("está certo").**
 
 ## Pendente
-- Jessica: confirmar se o cabeçalho trabalhista com "AO" está certo (antes era "DOUTO JUÍZO DA…", sem o "AO").
 - Jessica: dizer se a regra vale também para contestação e recurso. Hoje vale só para a petição inicial.
 
 ## Próxima sessão
