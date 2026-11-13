@@ -16,6 +16,13 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: mesas do Escritório virtual invisíveis ou piscando (desde 22/10/2026, corrigido em 13/11/2026)
+
+**Sintoma:** na sala do Escritório virtual apareciam os crachás e alguns agentes andando, mas as mesas (e quem estava sentado nelas) sumiam ou piscavam.
+**Causa raiz:** as mesas da sala usavam a classe CSS `mesa`. Em 22/10/2026 a tela **Mesa do caso** criou em `styles.css` uma regra `.mesa` com animação de entrada, que começa com opacidade 0. A sala reordena as mesas a cada quadro em que alguém anda (para a profundidade ficar certa), e cada reordenação recomeçava a animação. As mesas ficavam quase sempre transparentes.
+**Correção:** a mesa da sala passou a usar a classe `ev-mesa` (`public/escritorio.js`). O teste `tests/escritorioFrontend.test.mjs` falha se a classe `mesa` voltar.
+**Se acontecer de novo:** elemento de tela que some ou pisca sem erro no console = procurar regra de CSS com o mesmo nome de classe em `styles.css` (principalmente `animation` ou `opacity`). Classes de uma tela devem ter o prefixo dela (`ev-` no escritório).
+
 ## Incidente: "Sobre o caso" mostrava só o Itaú; bancos estaduais confundidos entre si (31/10/2026)
 
 **Sintoma:** no card do Valmirio (6 bancos), o "Sobre o caso" mostrava "Descontos indevidos... pelo Banco Itaú S.A. · Tipo: empréstimo consignado".

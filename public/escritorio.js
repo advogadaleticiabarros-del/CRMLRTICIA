@@ -9,8 +9,8 @@
 // animações de CSS (digitar, andar, piscar) não reiniciarem.
 (function () {
   const NS = 'http://www.w3.org/2000/svg';
-  const LARG = 62, ALT = 36, W = 22, D = 11.5;
-  const COLS = 4, ESPACO = 2.3, LIN_ESP = 1.75;
+  const LARG = 62, ALT = 36, W = 22, D = 13.5;
+  const ESPACO = 2.3, LIN_ESP = 1.6;
   const ESPINHA_X = 9.7, ALA_X = 15.4, CORREDOR_ALA_Y = 3.85;
   const VELOCIDADE = 1.5;
   const AMARELO = '#f6c90e', AMARELO_SOMBRA = '#d9ac00';
@@ -36,19 +36,40 @@
     { id: 'game2', atividade: 'videogame', p: { x: 14.0, y: 6.5 } },
     { id: 'cafe3', atividade: 'cafe', p: { x: 12.6, y: 8.9 } },
   ];
-  const mesaDe = (i) => {
-    const col = i % COLS, lin = Math.floor(i / COLS);
+  const mesaNa = (col, lin) => {
     const bx = 0.9 + col * ESPACO, by = 1.0 + lin * LIN_ESP;
     return { bx, by, lin, assento: { x: bx + 0.62, y: by - 0.38 } };
   };
   // Mesas fora da grade: o Cérebro trabalha dentro da biblioteca.
   const MESAS_ESPECIAIS = { cerebro: { bx: 10.5, by: 2.3 } };
-  /** Mesa do agente: especial ou a próxima vaga da grade (as especiais não ocupam vaga). */
-  const mesaDoAgente = (lista, i) => {
-    const esp = MESAS_ESPECIAIS[lista[i].id];
-    if (esp) return { bx: esp.bx, by: esp.by, lin: null, assento: { x: esp.bx + 0.62, y: esp.by - 0.38 } };
-    return mesaDe(i - lista.slice(0, i).filter((a) => MESAS_ESPECIAIS[a.id]).length);
-  };
+  /**
+   * Planta da sala por setor (13/11/2026). Cada setor é um bloco de 2 mesas de
+   * largura, com a área pintada no chão e o nome. Os blocos vão, na ordem dos
+   * setores, para a metade (esquerda ou direita) que estiver mais vazia.
+   * Devolve a mesa de cada agente e as áreas dos setores.
+   */
+  function planejarSala(agentes, setores) {
+    const mesas = {}, zonas = [];
+    const lista = (setores && setores.length ? setores : []).slice();
+    const conhecidos = new Set(lista.map((s) => s.id));
+    if (agentes.some((a) => !conhecidos.has(a.setor))) lista.push({ id: '_outros', nome: 'Outros', emoji: '👥', cor: '#64748b' });
+    const linhas = [0, 0];
+    for (const s of lista) {
+      const doSetor = agentes.filter((a) => (s.id === '_outros' ? !conhecidos.has(a.setor) : a.setor === s.id));
+      const naGrade = doSetor.filter((a) => !MESAS_ESPECIAIS[a.id]);
+      if (!naGrade.length) continue;
+      const lado = linhas[0] <= linhas[1] ? 0 : 1, l0 = linhas[lado], qtd = Math.ceil(naGrade.length / 2);
+      naGrade.forEach((a, k) => { mesas[a.id] = mesaNa(lado * 2 + (k % 2), l0 + Math.floor(k / 2)); });
+      linhas[lado] += qtd;
+      zonas.push({ ...s, x0: 0.9 + lado * 2 * ESPACO - 0.4, x1: 0.9 + (lado * 2 + 1) * ESPACO + 1.45,
+        y0: 1.0 + l0 * LIN_ESP - 0.9, y1: 1.0 + (l0 + qtd - 1) * LIN_ESP + 0.68 });
+    }
+    for (const a of agentes) {
+      const esp = MESAS_ESPECIAIS[a.id];
+      if (esp) mesas[a.id] = { bx: esp.bx, by: esp.by, lin: null, assento: { x: esp.bx + 0.62, y: esp.by - 0.38 } };
+    }
+    return { mesas, zonas };
+  }
   const corredorDaLinha = (lin) => 1.0 + lin * LIN_ESP - 0.75;
   const MESA_REUNIAO = { x: 18.7, y: 1.7 };
   const LUGARES_REUNIAO = Array.from({ length: 12 }, (_, i) => {
@@ -73,6 +94,159 @@
       const alvo = e.caminho[0], dx = alvo.x - e.pos.x, dy = alvo.y - e.pos.y, dist = Math.hypot(dx, dy);
       if (dist <= resta) { e.pos = { ...alvo }; e.caminho.shift(); resta -= dist; }
       else { e.pos = { x: e.pos.x + (dx / dist) * resta, y: e.pos.y + (dy / dist) * resta }; resta = 0; }
+    }
+  }
+
+  // ── Temas festivos (13/11/2026, pedido da Jessica) ──────────────────────────
+  // Entram sozinhos pela data de Brasília; o seletor "Tema" da barra escolhe à mão
+  // (fica guardado só neste navegador). Cada tema decora as paredes (varal e
+  // faixa), põe um enfeite no chão, chapéu nos agentes e, alguns, confete ou neve.
+  const TEMAS = {
+    natal: { id: 'natal', nome: 'Natal', emoji: '🎄', faixa: 'Feliz Natal! 🎄', fundoFaixa: '#b91c1c', corFaixa: '#fff', varal: 'luzes', enfeite: 'arvore', particulas: 'neve', chapeu: 'noel' },
+    reveillon: { id: 'reveillon', nome: 'Réveillon', emoji: '🥂', faixa: 'Feliz Ano Novo! ✨', fundoFaixa: '#0f172a', corFaixa: '#e7c77d', varal: 'estrelas', enfeite: 'fogos', particulas: 'dourado', chapeu: 'festa' },
+    carnaval: { id: 'carnaval', nome: 'Carnaval', emoji: '🎭', faixa: 'Bom Carnaval! 🎉', fundoFaixa: '#7c3aed', corFaixa: '#fde047', varal: 'serpentina', enfeite: 'mascaras', particulas: 'confete', chapeu: 'mascara' },
+    mulher: { id: 'mulher', nome: 'Dia da Mulher', emoji: '🌷', faixa: '8 de março · Dia Internacional da Mulher 🌷', fundoFaixa: '#be185d', corFaixa: '#fff', varal: 'flores', enfeite: 'flores', particulas: 'petalas', chapeu: null },
+    pascoa: { id: 'pascoa', nome: 'Páscoa', emoji: '🐰', faixa: 'Feliz Páscoa! 🐣', fundoFaixa: '#fbcfe8', corFaixa: '#831843', varal: 'pastel', enfeite: 'ovos', particulas: null, chapeu: 'coelho' },
+    maes: { id: 'maes', nome: 'Dia das Mães', emoji: '💐', faixa: 'Feliz Dia das Mães! 💐', fundoFaixa: '#db2777', corFaixa: '#fff', varal: 'flores', enfeite: 'flores', particulas: 'petalas', chapeu: null },
+    junina: { id: 'junina', nome: 'Festa Junina', emoji: '🌽', faixa: 'Arraiá do escritório! 🌽🔥', fundoFaixa: '#a16207', corFaixa: '#fff7ed', varal: 'bandeirinhas', enfeite: 'fogueira', particulas: null, chapeu: 'palha' },
+    advogado: { id: 'advogado', nome: 'Dia do Advogado', emoji: '⚖️', faixa: '11 de agosto · Feliz Dia da Advocacia! ⚖️', fundoFaixa: '#1e293b', corFaixa: '#e7c77d', varal: 'baloes', enfeite: 'bolo', particulas: 'dourado', chapeu: 'festa' },
+    independencia: { id: 'independencia', nome: 'Independência', emoji: '🇧🇷', faixa: '7 de Setembro · Independência do Brasil', fundoFaixa: '#15803d', corFaixa: '#fde047', varal: 'brasil', enfeite: 'bandeira', particulas: null, chapeu: null },
+  };
+  /** Domingo de Páscoa (algoritmo de Meeus/Butcher), em UTC à meia-noite. */
+  function pascoa(ano) {
+    const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100, d = Math.floor(b / 4), e = b % 4;
+    const f = Math.floor((b + 8) / 25), g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+    return new Date(Date.UTC(ano, mes - 1, dia));
+  }
+  /** Tema da data (no horário de Brasília) ou null. A ordem resolve as sobreposições. */
+  function temaDoDia(data) {
+    const [ano, mes, dia] = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' })
+      .format(data).split('-').map(Number);
+    const hoje = Date.UTC(ano, mes - 1, dia), DIA = 86400000;
+    const md = mes * 100 + dia;
+    const entre = (ini, fim) => md >= ini && md <= fim;
+    const p = pascoa(ano).getTime(), perto = (de, ate) => hoje >= p + de * DIA && hoje <= p + ate * DIA;
+    // Dia das Mães: 2º domingo de maio (vale de sexta a domingo).
+    const primeiroMaio = new Date(Date.UTC(ano, 4, 1)).getUTCDay();
+    const maes = Date.UTC(ano, 4, 1 + ((7 - primeiroMaio) % 7) + 7);
+    if (entre(1227, 1231) || entre(101, 106)) return TEMAS.reveillon;
+    if (entre(1201, 1226)) return TEMAS.natal;
+    if (perto(-51, -46)) return TEMAS.carnaval;
+    if (perto(-7, 1)) return TEMAS.pascoa;
+    if (entre(306, 308)) return TEMAS.mulher;
+    if (hoje >= maes - 2 * DIA && hoje <= maes) return TEMAS.maes;
+    if (entre(601, 710)) return TEMAS.junina;
+    if (entre(809, 811)) return TEMAS.advogado;
+    if (entre(901, 907)) return TEMAS.independencia;
+    return null;
+  }
+  if (typeof window !== 'undefined') window.EscritorioTemas = { TEMAS, temaDoDia, pascoa };
+
+  /** Tema escolhido no seletor: 'auto' (pela data), 'nenhum' ou o id de um tema. */
+  const CHAVE_TEMA = 'escritorio-tema';
+  const lerEscolhaTema = () => { try { return localStorage.getItem(CHAVE_TEMA) || 'auto'; } catch { return 'auto'; } };
+  const gravarEscolhaTema = (v) => { try { localStorage.setItem(CHAVE_TEMA, v); } catch { /* sem armazenamento: vale só nesta visita */ } };
+  const resolverTema = (escolha) => (escolha === 'nenhum' ? null : escolha === 'auto' ? temaDoDia(new Date()) : TEMAS[escolha] || null);
+  let temaAtivo = null;
+
+  // Varal no alto das duas paredes do fundo.
+  function varalDoTema(t) {
+    const H = 134, cores = {
+      luzes: ['#ef4444', '#facc15', '#22c55e', '#3b82f6', '#f97316'], bandeirinhas: ['#ef4444', '#2563eb', '#facc15', '#16a34a', '#f97316', '#db2777'],
+      pastel: ['#fbcfe8', '#bfdbfe', '#fde68a', '#bbf7d0', '#ddd6fe'], brasil: ['#16a34a', '#facc15'], serpentina: ['#ec4899', '#facc15', '#22d3ee', '#a3e635', '#a855f7'],
+      baloes: ['#e7c77d', '#1e293b', '#b91c1c', '#e7c77d', '#0f172a'], estrelas: ['#e7c77d'], flores: ['#f472b6'],
+    }[t.varal] || ['#e7c77d'];
+    const trechos = [];
+    const parede = (a, b, n) => Array.from({ length: n }, (_, k) => [a(k / n), a((k + 1) / n)]).forEach(([p, q]) => trechos.push([p, q]));
+    parede((f) => up(iso(0.3 + f * (W - 0.6), 0), H), null, 14);
+    parede((f) => up(iso(0, D - 0.3 - f * (D - 0.6)), H), null, 9);
+    let k = 0, html = '';
+    for (const [p, q] of trechos) {
+      const meio = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 + 9 };
+      const ponto = (f) => ({ x: (1 - f) ** 2 * p.x + 2 * (1 - f) * f * meio.x + f ** 2 * q.x, y: (1 - f) ** 2 * p.y + 2 * (1 - f) * f * meio.y + f ** 2 * q.y });
+      html += `<path d="M ${r1(p.x)} ${r1(p.y)} Q ${r1(meio.x)} ${r1(meio.y)} ${r1(q.x)} ${r1(q.y)}" stroke="${t.varal === 'serpentina' ? cores[k % cores.length] : '#475569'}" stroke-width="${t.varal === 'serpentina' ? 2.5 : 1}" fill="none"/>`;
+      for (const f of [0.2, 0.5, 0.8]) {
+        const c = ponto(f), cor = cores[k++ % cores.length], x = r1(c.x), y = r1(c.y);
+        if (t.varal === 'luzes') html += `<circle class="pisca" style="animation-delay:${(k % 5) * 0.3}s" cx="${x}" cy="${y + 3}" r="3.2" fill="${cor}"/>`;
+        else if (['bandeirinhas', 'pastel', 'brasil'].includes(t.varal)) html += `<polygon points="${x - 5},${y} ${x + 5},${y} ${x},${y + 11}" fill="${cor}"/>`;
+        else if (t.varal === 'serpentina') html += `<path d="M ${x} ${y} q 4 6 0 12 q -4 6 0 12" stroke="${cor}" stroke-width="2" fill="none"/>`;
+        else if (t.varal === 'baloes') html += `<g><line x1="${x}" y1="${y}" x2="${x}" y2="${y + 8}" stroke="#94a3b8"/><ellipse cx="${x}" cy="${y + 15}" rx="5.5" ry="7" fill="${cor}"/></g>`;
+        else if (t.varal === 'flores') html += `<text x="${x}" y="${y + 10}" font-size="10" text-anchor="middle">${['🌸', '🌷', '🌼'][k % 3]}</text>`;
+        else html += `<text class="pisca" style="animation-delay:${(k % 4) * 0.4}s" x="${x}" y="${y + 9}" font-size="10" fill="${cor}" text-anchor="middle">✦</text>`;
+      }
+    }
+    return html;
+  }
+  // Faixa na parede da esquerda (depois da janela).
+  function faixaDoTema(t) {
+    const y0 = 4.3, y1 = 10.6, a = up(iso(0, y0), 116), b = up(iso(0, y1), 116), c = up(iso(0, y1), 90), e = up(iso(0, y0), 90);
+    const m = { x: (a.x + c.x) / 2, y: (a.y + c.y) / 2 + 4 };
+    return `<polygon points="${pts(a, b, c, e)}" fill="${t.fundoFaixa}" stroke="#fff" stroke-width="2"/>
+      <text x="${r1(m.x)}" y="${r1(m.y)}" font-size="13" font-weight="900" fill="${t.corFaixa}" text-anchor="middle" transform="rotate(${-ANG} ${r1(m.x)} ${r1(m.y - 4)})">${esc(t.faixa)}</text>`;
+  }
+  const LUGAR_ENFEITE = { x: 13.4, y: 11.2 };
+  /** Enfeite do chão (árvore, fogueira, bandeira…) e o que vai nas paredes e mesas. */
+  function enfeiteDoTema(t) {
+    const b = iso(LUGAR_ENFEITE.x, LUGAR_ENFEITE.y), x = r1(b.x), y = r1(b.y);
+    switch (t.enfeite) {
+      case 'arvore': return `<ellipse cx="${x}" cy="${y}" rx="34" ry="12" fill="rgba(15,23,42,.18)"/>
+        <rect x="${x - 5}" y="${y - 18}" width="10" height="18" fill="#78350f"/>
+        ${[[0, 46, 38], [26, 38, 31], [50, 28, 23]].map(([dy, w, h]) => `<polygon points="${x - w},${y - 14 - dy} ${x + w},${y - 14 - dy} ${x},${y - 14 - dy - h - 18}" fill="${dy ? '#16a34a' : '#15803d'}"/>`).join('')}
+        ${[[-24, -26], [18, -30], [-10, -50], [14, -60], [-4, -78], [24, -22], [-30, -20]].map(([dx, dy], k) => `<circle class="pisca" style="animation-delay:${k * 0.25}s" cx="${x + dx}" cy="${y + dy}" r="4" fill="${['#ef4444', '#facc15', '#3b82f6', '#f97316'][k % 4]}"/>`).join('')}
+        <text x="${x}" y="${y - 108}" font-size="22" text-anchor="middle">⭐</text>
+        ${caixa(LUGAR_ENFEITE.x + 0.6, LUGAR_ENFEITE.y + 0.1, 0.45, 0.45, 18, '#ef4444', '#b91c1c', '#991b1b')}${caixa(LUGAR_ENFEITE.x - 0.5, LUGAR_ENFEITE.y + 0.5, 0.4, 0.4, 14, '#3b82f6', '#1d4ed8', '#1e40af')}`;
+      case 'fogueira': return `<ellipse cx="${x}" cy="${y}" rx="30" ry="10" fill="rgba(15,23,42,.18)"/>
+        <path d="M ${x - 24} ${y - 2} L ${x + 22} ${y - 12} M ${x - 22} ${y - 12} L ${x + 24} ${y - 2}" stroke="#78350f" stroke-width="7" stroke-linecap="round"/>
+        <g class="chama"><path d="M ${x - 16} ${y - 8} Q ${x - 20} ${y - 34} ${x} ${y - 58} Q ${x + 4} ${y - 38} ${x + 12} ${y - 44} Q ${x + 22} ${y - 24} ${x + 14} ${y - 8} Z" fill="#f97316"/>
+        <path d="M ${x - 8} ${y - 8} Q ${x - 8} ${y - 26} ${x + 2} ${y - 38} Q ${x + 12} ${y - 22} ${x + 8} ${y - 8} Z" fill="#facc15"/></g>
+        <text x="${x + 36}" y="${y - 4}" font-size="18">🌽</text><text x="${x - 52}" y="${y - 2}" font-size="16">🍿</text>`;
+      case 'bandeira': return `<ellipse cx="${x}" cy="${y}" rx="14" ry="5" fill="rgba(15,23,42,.18)"/>
+        <line x1="${x}" y1="${y}" x2="${x}" y2="${y - 120}" stroke="#94a3b8" stroke-width="3"/>
+        <g class="tremula"><rect x="${x + 1}" y="${y - 120}" width="62" height="42" fill="#16a34a"/><polygon points="${x + 5},${y - 99} ${x + 32},${y - 116} ${x + 59},${y - 99} ${x + 32},${y - 82}" fill="#facc15"/><circle cx="${x + 32}" cy="${y - 99}" r="10" fill="#1d4ed8"/></g>`;
+      case 'ovos': return [[-40, 4], [-12, 14], [22, 6], [46, 16], [6, -6], [-58, 18]].map(([dx, dy], k) => `<ellipse cx="${x + dx}" cy="${y + dy - 8}" rx="7" ry="9" fill="${['#f9a8d4', '#93c5fd', '#fde68a', '#86efac', '#c4b5fd', '#fdba74'][k]}" stroke="#fff" stroke-width="1.5"/>`).join('')
+        + `<text x="${x}" y="${y - 22}" font-size="34" text-anchor="middle">🐰</text>`;
+      case 'flores': return `${caixa(LUGAR_ENFEITE.x - 0.2, LUGAR_ENFEITE.y - 0.2, 0.4, 0.4, 24, '#f9a8d4', '#ec4899', '#db2777')}<text x="${x}" y="${y - 30}" font-size="34" text-anchor="middle">💐</text>`;
+      case 'bolo': return `<text x="${x}" y="${y - 8}" font-size="38" text-anchor="middle">🎂</text><text x="${x + 40}" y="${y - 30}" font-size="22">🎈</text><text x="${x - 46}" y="${y - 22}" font-size="22">🎈</text>`;
+      case 'mascaras': return `<text x="${x}" y="${y - 6}" font-size="38" text-anchor="middle">🎭</text><text x="${x + 42}" y="${y - 2}" font-size="20">🎉</text>`;
+      case 'fogos': return `<text x="${x}" y="${y - 6}" font-size="36" text-anchor="middle">🍾</text><text x="${x + 38}" y="${y - 2}" font-size="22">🥂</text>`;
+      default: return '';
+    }
+  }
+  // Fogos de artifício na janela (Réveillon) e máscaras na parede (Carnaval).
+  function paredeExtraDoTema(t) {
+    if (t.enfeite === 'fogos') {
+      const jA = iso(0, 1.2), jB = iso(0, 3.2), m = { x: (jA.x + jB.x) / 2, y: (jA.y + jB.y) / 2 - 84 };
+      return [[-10, -10, '#facc15'], [16, 8, '#f472b6'], [-22, 16, '#38bdf8']].map(([dx, dy, cor], k) => `<g class="fogo" style="animation-delay:${k * 0.7}s;transform-origin:${r1(m.x + dx)}px ${r1(m.y + dy)}px">${Array.from({ length: 8 }, (_, i) => { const ang = i * Math.PI / 4; return `<line x1="${r1(m.x + dx)}" y1="${r1(m.y + dy)}" x2="${r1(m.x + dx + Math.cos(ang) * 12)}" y2="${r1(m.y + dy + Math.sin(ang) * 12)}" stroke="${cor}" stroke-width="2" stroke-linecap="round"/>`; }).join('')}</g>`).join('');
+    }
+    if (t.enfeite === 'mascaras') return [3.0, 8.5, 16.6].map((xx) => { const p = up(iso(xx, 0), 64); return `<text x="${r1(p.x)}" y="${r1(p.y)}" font-size="24" text-anchor="middle">🎭</text>`; }).join('');
+    return '';
+  }
+  /** Confete, neve ou pétalas caindo sobre a sala (some com "reduzir movimento"). */
+  function particulasDoTema(t, caixaVista) {
+    if (!t.particulas) return '';
+    const cores = { neve: ['#fff'], confete: ['#ec4899', '#facc15', '#22d3ee', '#a3e635', '#a855f7', '#f97316'], dourado: ['#e7c77d', '#facc15', '#fff7ed'], petalas: ['#f9a8d4', '#fbcfe8', '#f472b6'] }[t.particulas];
+    let semente = 7;
+    const rnd = () => { semente = (semente * 9301 + 49297) % 233280; return semente / 233280; };
+    return Array.from({ length: 34 }, (_, k) => {
+      const x = r1(caixaVista.x + rnd() * caixaVista.w), dur = r1(7 + rnd() * 7), atraso = r1(-rnd() * dur), cor = cores[k % cores.length];
+      const forma = t.particulas === 'neve' ? `<circle r="${r1(2.6 + rnd() * 2.4)}" fill="${cor}" stroke="#93c5fd" stroke-width="1"/>`
+        : t.particulas === 'petalas' ? `<ellipse rx="3.5" ry="2" fill="${cor}"/>` : `<rect x="-2.5" y="-1.5" width="5" height="3" fill="${cor}"/>`;
+      return `<g transform="translate(${x} ${r1(caixaVista.y)})"><g class="cai" style="animation-duration:${dur}s;animation-delay:${atraso}s;--queda:${r1(caixaVista.h)}px">${forma}</g></g>`;
+    }).join('');
+  }
+  /** Chapéu do tema por cima do cabelo (base = topo da cabeça conforme o penteado). */
+  function chapeuDoTema(tipo, penteado, cor) {
+    const b = penteado === 'blackpower' ? -90 : penteado === 'coque' ? -86 : -79;
+    switch (tipo) {
+      case 'noel': return `<g><polygon points="-12,${b + 2} 12,${b + 2} 17,${b - 18}" fill="#dc2626"/><rect x="-13.5" y="${b - 1}" width="27" height="6" rx="3" fill="#fff"/><circle cx="17" cy="${b - 18}" r="3.8" fill="#fff"/></g>`;
+      case 'festa': return `<g><polygon points="-8,${b + 2} 8,${b + 2} 0,${b - 20}" fill="#e7c77d" stroke="#b45309" stroke-width=".8"/><path d="M -5 ${b - 4} L 5 ${b - 8} M -3 ${b - 11} L 3 ${b - 13}" stroke="${cor}" stroke-width="2"/><circle cx="0" cy="${b - 21}" r="3" fill="${cor}"/></g>`;
+      case 'palha': return `<g><ellipse cx="0" cy="${b + 2}" rx="20" ry="5" fill="#eab308" stroke="#a16207" stroke-width="1"/><rect x="-10" y="${b - 9}" width="20" height="11" rx="4" fill="#facc15" stroke="#a16207" stroke-width=".8"/><rect x="-10" y="${b - 2}" width="20" height="3" fill="#dc2626"/></g>`;
+      case 'coelho': return `<g><rect x="-12" y="${b}" width="24" height="3" rx="1.5" fill="#f9a8d4"/>${[-6, 6].map((dx) => `<ellipse cx="${dx}" cy="${b - 11}" rx="4.2" ry="12" fill="#fff" stroke="#e5e7eb"/><ellipse cx="${dx}" cy="${b - 10}" rx="2" ry="8" fill="#fbcfe8"/>`).join('')}</g>`;
+      case 'mascara': return `<g><path d="M -13 -64 Q -6 -68 0 -62.5 Q 6 -68 13 -64 Q 13 -56 6 -56.5 Q 2 -57 0 -59.5 Q -2 -57 -6 -56.5 Q -13 -56 -13 -64 Z" fill="${cor}" stroke="#fde047" stroke-width="1.2"/><ellipse cx="-5" cy="-61" rx="2.4" ry="1.8" fill="#111"/><ellipse cx="5" cy="-61" rx="2.4" ry="1.8" fill="#111"/><path d="M 12 -64 Q 20 -76 16 -84" stroke="#ec4899" stroke-width="2.5" fill="none"/></g>`;
+      case 'coroa': return `<g><path d="M -9 ${b + 1} L -9 ${b - 8} L -4.5 ${b - 3} L 0 ${b - 11} L 4.5 ${b - 3} L 9 ${b - 8} L 9 ${b + 1} Z" fill="#e7c77d" stroke="#b45309" stroke-width=".8"/><circle cx="0" cy="${b - 3}" r="1.6" fill="#dc2626"/></g>`;
+      default: return '';
     }
   }
 
@@ -117,6 +291,8 @@
     analista:    { cabelo: 'coque', corCabelo: '#1c1917', feminina: true, extra: 'oculos', terno: '#450a0a' },
     calculista:  { cabelo: 'curto', corCabelo: '#a8a29e', feminina: false, extra: 'oculos', terno: '#164e63' },
     voce:        { cabelo: 'longo', corCabelo: '#5a3825', feminina: true, terno: '#1e293b' },
+    // A CEO (Dra. Letícia, advogada chefe): terno preto, lenço dourado e coroa.
+    ceo:         { cabelo: 'longo', corCabelo: '#2b1a10', feminina: true, extra: 'oculos', terno: '#0b0b0f', coroa: true },
   };
 
   function cabelo(tipo, cor, corAgente) {
@@ -164,6 +340,7 @@
         <circle cx="0" cy="-26" r="1.1" fill="rgba(255,255,255,.55)"/><circle cx="0" cy="-20" r="1.1" fill="rgba(255,255,255,.55)"/>
         <path d="M -12 -46 L 12 -46 L 12.6 -42 L -12.6 -42 Z" fill="rgba(255,255,255,.12)"/>
         ${pose === 'lendo' ? `<g><path d="M -14 -26 L 0 -22 L 14 -26 L 14 -12 L 0 -8 L -14 -12 Z" fill="#fff" stroke="#94a3b8"/><path d="M 0 -22 V -8" stroke="#94a3b8"/><path d="M -14 -26 L 0 -22 L 14 -26" stroke="${cor}" stroke-width="2" fill="none"/></g>` : ''}
+        ${pose === 'conferindo' ? `<g><path d="M -13 -27 L 11 -30 L 13 -11 L -11 -8 Z" fill="#fff" stroke="#94a3b8"/>${[0, 1, 2].map((k) => `<path d="M -8 ${-24 + k * 4.5} L 7 ${-26 + k * 4.5}" stroke="#94a3b8" stroke-width="1.2"/>`).join('')}<path d="M 3 -14 l 3 3 l 6 -8" stroke="#16a34a" stroke-width="1.8" fill="none"/></g>` : ''}
         ${pose === 'jogando' ? '<g><rect x="-10" y="-24" width="20" height="9" rx="4" fill="#111827"/><circle cx="-5" cy="-19.5" r="1.5" fill="#22c55e"/><circle cx="5" cy="-19.5" r="1.5" fill="#ef4444"/></g>' : ''}
         <rect x="-5" y="-49" width="10" height="4" fill="${peleSombra}"/>
         <g class="cabeca" ${d}>
@@ -180,6 +357,7 @@
           ${!cabecaLonga ? cabelo(v.cabelo, v.corCabelo, cor) : ''}
           ${cabecaLonga ? `<path d="M -11 -64 Q -11 -80 0 -80 Q 11 -80 11 -64 Q 4 -72 -11 -64 Z" fill="${v.corCabelo}"/>` : ''}
           ${v.extra === 'headset' ? '<g><path d="M -13 -62 Q -13 -84 0 -84 Q 13 -84 13 -62" stroke="#111827" stroke-width="2" fill="none"/><rect x="-15" y="-65" width="4" height="8" rx="2" fill="#111827"/><path d="M -13 -58 Q -10 -52 -4 -52" stroke="#111827" stroke-width="1.3" fill="none"/></g>' : ''}
+          ${chapeuDoTema((temaAtivo && temaAtivo.chapeu) || (v.coroa ? 'coroa' : null), v.cabelo, cor)}
         </g>
         ${pose === 'dormindo' ? `<g class="zzz" ${d}><text x="14" y="-80" font-size="10" font-weight="800" fill="#64748b">z</text><text x="20" y="-90" font-size="13" font-weight="800" fill="#64748b">z</text></g>` : ''}
       </g></g>`;
@@ -220,6 +398,23 @@
       <polygon points="${pts(iso(10.3, 4.2), iso(15.0, 4.2), iso(15.0, 7.4), iso(10.3, 7.4))}" fill="#c4b5fd" opacity="0.45"/>
       <text x="${r1(iso(12.7, 7.4).x)}" y="${r1(iso(12.7, 7.4).y + 14)}" font-size="11" font-weight="800" fill="#6d28d9" text-anchor="middle">🎮 CANTO DO DESCANSO</text>
       <polygon points="${pts(iso(ALA_X + 0.2, 4.6), iso(W - 0.2, 4.6), iso(W - 0.2, D - 0.2), iso(ALA_X + 0.2, D - 0.2))}" fill="#fef3c7" opacity="0.7"/>`;
+  }
+
+  // Área de cada setor no chão: cor clarinha, contorno tracejado e o nome ao lado.
+  function zonasDoChao(zonas) {
+    return zonas.map((z) => {
+      const a = iso(z.x0, z.y0), b = iso(z.x1, z.y0), c = iso(z.x1, z.y1), e = iso(z.x0, z.y1);
+      return `<polygon points="${pts(a, b, c, e)}" fill="${z.cor}" fill-opacity="0.09" stroke="${z.cor}" stroke-opacity="0.45" stroke-width="1.6" stroke-dasharray="7 5"/>`;
+    }).join('');
+  }
+  // Placa com o nome do setor, na borda esquerda da área (camada de cima, para
+  // não sumir atrás das mesas).
+  function placasDosSetores(zonas) {
+    return zonas.map((z) => {
+      const t = iso(z.x0 + 0.12, z.y1 - 0.15), texto = `${z.emoji} ${String(z.nome).toUpperCase()}`, w = texto.length * 7 + 16;
+      return `<g transform="translate(${r1(t.x)} ${r1(t.y)}) rotate(${-ANG})"><rect x="0" y="-13" width="${w}" height="18" rx="9" fill="#fff" fill-opacity=".93" stroke="${z.cor}" stroke-width="1.5"/>
+        <text x="${r1(w / 2)}" y="0" font-size="10.5" font-weight="900" fill="${z.cor}" text-anchor="middle" letter-spacing=".4">${esc(texto)}</text></g>`;
+    }).join('');
   }
 
   function moveis() {
@@ -315,6 +510,26 @@
     .ev-cartao .nums{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:12px;color:var(--text-muted);margin-top:2px}
     .ev-cartao .nums b{color:var(--text);font-size:14px;margin-right:3px}
     .ev-cartao .ult{margin-top:auto;font-size:11.5px;color:#5b7bb4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .ev-setor{margin-top:18px}
+    .ev-setor h3{display:flex;align-items:center;gap:8px;margin:0 0 2px;font-size:15px}
+    .ev-setor h3 small{font-size:12px;font-weight:600;color:var(--text-muted)}
+    .ev-setor .ev-cartoes{margin-top:8px}
+    .ev-cartao.ceo{border:2px solid #e7c77d;background:linear-gradient(135deg,rgba(231,199,125,.18),transparent 60%)}
+    .ev-barra label.ev-tema{display:inline-flex;flex-direction:row;align-items:center;gap:4px;margin:0;border:1.5px solid var(--border);border-radius:999px;padding:3px 6px 3px 12px;font-weight:700;font-size:13px;color:var(--text);background:var(--surface);white-space:nowrap}
+    .ev-barra label.ev-tema select{width:auto;min-width:0;margin:0;border:0;background:transparent;color:var(--text);font:inherit;font-weight:700;padding:4px;cursor:pointer;box-shadow:none}
+    .ch-frase{font-size:16px;font-weight:800;margin:0 0 4px;color:var(--navy)}
+    .ch-frase.urgente{color:var(--red)}
+    .ch-tit{margin:14px 0 8px;color:var(--navy);font-size:14px}
+    .ch-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}
+    .ch-item{display:flex;gap:10px;align-items:center;text-align:left;border:1px solid var(--border);border-left:4px solid #b45309;border-radius:10px;padding:10px;background:var(--surface);color:var(--text);font:inherit;cursor:pointer}
+    .ch-item:hover{border-color:#e7c77d}
+    .ch-item:focus-visible{outline:2px solid #e7c77d;outline-offset:2px}
+    .ch-item > b{font-size:22px;min-width:38px;text-align:center;color:#b45309}
+    .ch-item span{display:flex;flex-direction:column;gap:2px}
+    .ch-item strong{font-size:13.5px}
+    .ch-item small{font-size:11.5px;color:var(--text-muted)}
+    .ch-item.em-dia{border-left-color:var(--green);opacity:.75}
+    .ch-item.em-dia > b{color:var(--green)}
   `;
   const CSS_SALA = `
     .bracos-rapidos.braco-e{animation:ev-digita .38s ease-in-out infinite alternate}
@@ -360,8 +575,20 @@
     @keyframes ev-diamante{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-7px) rotate(4deg)}}
     .luz-trabalhando,.luz-erro,.aura{animation:ev-pulsa 1.4s ease-in-out infinite}
     @keyframes ev-pulsa{50%{opacity:.35}}
-    .mesa{cursor:pointer}
-    @media (prefers-reduced-motion:reduce){.fig,.fig *,.icone,.balao,.vapor,.planta,.vareta,.bolinha,.tela-game,.diamante,.zzz{animation:none!important}}
+    .ev-mesa,.chefe{cursor:pointer}
+    .chefe:focus-visible{outline:2px solid #e7c77d}
+    .pisca{animation:ev-pisca-luz 1.6s ease-in-out infinite}
+    @keyframes ev-pisca-luz{50%{opacity:.25}}
+    .cai{animation-name:ev-cai;animation-timing-function:linear;animation-iteration-count:infinite}
+    @keyframes ev-cai{from{transform:translate(0,-20px) rotate(0)}50%{transform:translate(14px,calc(var(--queda) / 2)) rotate(180deg)}to{transform:translate(0,var(--queda)) rotate(360deg)}}
+    .chama{transform-box:fill-box;transform-origin:50% 100%;animation:ev-chama .5s ease-in-out infinite alternate}
+    @keyframes ev-chama{to{transform:scale(1.06,.9)}}
+    .tremula{transform-box:fill-box;transform-origin:0 50%;animation:ev-tremula 1.8s ease-in-out infinite}
+    @keyframes ev-tremula{50%{transform:skewY(-4deg) scaleX(.96)}}
+    .fogo{animation:ev-fogo 2.1s ease-out infinite}
+    @keyframes ev-fogo{0%{transform:scale(.1);opacity:0}20%{opacity:1}70%{transform:scale(1.2);opacity:.9}100%{transform:scale(1.4);opacity:0}}
+    .selo-chefe{animation:ev-pulsa 1.4s ease-in-out infinite}
+    @media (prefers-reduced-motion:reduce){.fig,.fig *,.icone,.balao,.vapor,.planta,.vareta,.bolinha,.tela-game,.diamante,.zzz,.pisca,.chama,.tremula,.fogo,.selo-chefe{animation:none!important}.cai,.ev-voos{display:none}}
   `;
   function garantirCss() {
     if (document.getElementById('escritorio-css')) return;
@@ -400,34 +627,71 @@
       ${balao ? `<g class="balao"><rect x="-92" y="${-22 - balao.length * 14 - (['laya', 'cerebro'].includes(a.id) ? 26 : 0)}" width="184" height="${balao.length * 14 + 10}" rx="10" fill="#fff" stroke="${a.cor}" stroke-width="1.5"/>${balao.map((l, k) => `<text x="0" y="${-22 - balao.length * 14 - (['laya', 'cerebro'].includes(a.id) ? 26 : 0) + 16 + k * 14}" font-size="11" fill="#0f172a" text-anchor="middle">${esc(l)}</text>`).join('')}</g>` : ''}`;
   }
 
-  function montarSala(container, agentesIniciais, aoSelecionar) {
+  function montarSala(container, agentesIniciais, opcoes) {
+    const { setores = [], aoSelecionar, aoAbrirChefe } = opcoes;
     const svg = novo('svg', { role: 'img', 'aria-label': 'Escritório virtual com os agentes do escritório', preserveAspectRatio: 'xMidYMid meet' });
     const cantos = [iso(0, 0), iso(W, 0), iso(W, D), iso(0, D)];
     const minX = cantos[3].x - 20, maxX = cantos[1].x + 20, minY = cantos[0].y - 200, maxY = cantos[2].y + 20;
     svg.setAttribute('viewBox', `${minX} ${minY} ${maxX - minX} ${maxY - minY}`);
     const estilo = novo('style'); estilo.textContent = CSS_SALA; svg.appendChild(estilo);
     const gFundo = novo('g'); gFundo.innerHTML = fundo(); svg.appendChild(gFundo);
+    const gZonas = novo('g', { style: 'pointer-events:none' }); svg.appendChild(gZonas);
+    const gTemaParede = novo('g', { style: 'pointer-events:none' }); svg.appendChild(gTemaParede);
     const camada = novo('g'); svg.appendChild(camada);
+    // Envelopes de trabalho voando das mesas até a CEO.
+    const gVoos = novo('g', { class: 'ev-voos', style: 'pointer-events:none' }); svg.appendChild(gVoos);
     const gRotulos = novo('g', { style: 'pointer-events:none' }); svg.appendChild(gRotulos);
+    const gPlacas = novo('g', { style: 'pointer-events:none' }); svg.appendChild(gPlacas);
     const gPerto = novo('g'); svg.appendChild(gPerto);
     // Conversas entre agentes (do mural): uma fala por vez, com linha até o colega.
     const gConversa = novo('g', { style: 'pointer-events:none' }); svg.appendChild(gConversa);
     let conversas = [], assConversa = '', quadrosConversa = 0;
+    const gTemaFrente = novo('g', { style: 'pointer-events:none' }); svg.appendChild(gTemaFrente);
     container.appendChild(svg);
+    const caixaVista = { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
+
+    let plano = planejarSala(agentesIniciais, setores);
+    gZonas.innerHTML = zonasDoChao(plano.zonas); gPlacas.innerHTML = placasDosSetores(plano.zonas);
+    const mesaDoAgente = (a) => plano.mesas[a.id] || mesaNa(0, 0);
 
     // Placa do gabinete
     const pl = up(iso(19.2, 4.35), 58);
-    gRotulos.insertAdjacentHTML('beforeend', `<g><rect x="${r1(pl.x - 104)}" y="${r1(pl.y - 12)}" width="208" height="22" rx="5" fill="#0f172a"/><text x="${r1(pl.x)}" y="${r1(pl.y + 3)}" font-size="10" font-weight="800" fill="#e7c77d" text-anchor="middle">GABINETE DA DRA. LETÍCIA BARROS</text></g>`);
+    gRotulos.insertAdjacentHTML('beforeend', `<g><rect x="${r1(pl.x - 128)}" y="${r1(pl.y - 12)}" width="256" height="22" rx="5" fill="#0f172a"/><text x="${r1(pl.x)}" y="${r1(pl.y + 3)}" font-size="10" font-weight="800" fill="#e7c77d" text-anchor="middle">👑 DIRETORIA · GABINETE DA DRA. LETÍCIA BARROS</text></g>`);
 
     const nos = []; // { k, node }
     for (const m of moveis()) { const g = novo('g'); g.innerHTML = m.html; nos.push({ k: m.k, node: g }); camada.appendChild(g); }
+
+    // A CEO no gabinete: confere o que a equipe entrega. Clicar abre a Mesa da Chefe.
+    const topoChefe = iso(MESA_DRA.x + 0.9, MESA_DRA.y + 0.12);
+    const figChefe = novo('g', { class: 'chefe', tabindex: '0', role: 'button', 'aria-label': 'Dra. Letícia, CEO: abrir a Mesa da Chefe' });
+    figChefe.setAttribute('transform', `translate(${r1(topoChefe.x)} ${r1(topoChefe.y - 32)})`);
+    const abrirDaSala = (ev) => { ev.stopPropagation(); if (aoAbrirChefe) aoAbrirChefe(); };
+    figChefe.addEventListener('click', abrirDaSala);
+    figChefe.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); abrirDaSala(ev); } });
+    nos.push({ k: CADEIRA_DRA.x + CADEIRA_DRA.y - 0.15, node: figChefe }); camada.appendChild(figChefe);
+    const tagChefe = novo('g'); gRotulos.appendChild(tagChefe);
+    tagChefe.setAttribute('transform', `translate(${r1(topoChefe.x)} ${r1(topoChefe.y - 124)})`);
+    let chefe = { total: 0, urgentes: 0 }, assinaturaChefe = '';
+    const desenharChefe = () => {
+      const ass = `${temaAtivo ? temaAtivo.id : ''}|${chefe.total}|${chefe.urgentes}`;
+      if (ass === assinaturaChefe) return;
+      assinaturaChefe = ass;
+      figChefe.innerHTML = `<ellipse cx="0" cy="34" rx="34" ry="12" fill="none" stroke="#e7c77d" stroke-width="2" class="aura"/>${minifig('ceo', '#e7c77d', 'conferindo', 0)}`;
+      tagChefe.innerHTML = `<rect x="-74" y="-12" width="148" height="22" rx="11" fill="#e7c77d" stroke="#0f172a" stroke-width="1"/><text x="0" y="3" font-size="11" font-weight="800" fill="#0f172a" text-anchor="middle">👑 Dra. Letícia · CEO</text>`
+        + (chefe.total ? `<g class="selo-chefe"><circle cx="74" cy="-12" r="12" fill="${chefe.urgentes ? '#dc2626' : '#b45309'}" stroke="#fff" stroke-width="2"/><text x="74" y="-8" font-size="10.5" font-weight="900" fill="#fff" text-anchor="middle">${chefe.total > 99 ? '99+' : chefe.total}</text></g>` : '');
+    };
+    // Enfeite do tema no chão (entra na ordem de profundidade como um móvel).
+    const regEnfeite = { k: LUGAR_ENFEITE.x + LUGAR_ENFEITE.y, node: novo('g', { style: 'pointer-events:none' }) };
+    nos.push(regEnfeite); camada.appendChild(regEnfeite.node);
 
     let agentes = agentesIniciais;
     const estados = {};
     const porId = {};
     const criarAgente = (a, i) => {
-      const m = mesaDoAgente(agentes, i);
-      const mesa = novo('g', { class: 'mesa', tabindex: '0', role: 'button', 'aria-label': `Mesa de ${a.nome}` });
+      const m = mesaDoAgente(a);
+      // Classe própria: ".mesa" é a tela Mesa do caso (styles.css), cuja animação de
+      // entrada (opacidade 0) recomeçava a cada reordenação e sumia com as mesas.
+      const mesa = novo('g', { class: 'ev-mesa', tabindex: '0', role: 'button', 'aria-label': `Mesa de ${a.nome}` });
       mesa.addEventListener('click', (ev) => { ev.stopPropagation(); aoSelecionar(a.id); });
       mesa.addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); aoSelecionar(a.id); } });
       const fig = novo('g', { style: 'cursor:pointer' });
@@ -511,7 +775,7 @@
       let naSala = 0;
       const cabecas = {};
       agentes.forEach((a, i) => {
-        const m = mesaDoAgente(agentes, i), e = estados[a.id], r = porId[a.id];
+        const m = mesaDoAgente(a), e = estados[a.id], r = porId[a.id];
         if (!e || !r) return;
         const naMesa = e.atividade === 'mesa' && !e.caminho.length;
         const irPara = (atividade, destino, vaga) => {
@@ -604,10 +868,37 @@
       nos.sort((x, y) => x.k - y.k);
       const ordem = nos.map((n) => n.k.toFixed(2)).join(',');
       if (ordem !== ordemAnterior) { nos.forEach((n) => camada.appendChild(n.node)); ordemAnterior = ordem; }
+      desenharVoos(agoraMs, cabecas);
       desenharConversa(cabecas);
       desenharRelogio();
       setTimeout(() => requestAnimationFrame(quadro), 40);
     };
+    // Fluxo de trabalho até a CEO: quem trabalha manda mais envelopes; parado, menos.
+    const reduzMovimento = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    const destinoVoo = up(iso(MESA_DRA.x + 0.45, MESA_DRA.y + 0.35), 44);
+    const ICONE_SETOR = { gestao: '📋', comercial: '📝', atendimento: '💬', producao: '📄', controladoria: '📰', financeiro: '💰', qualidade: '✅' };
+    const voos = [];
+    let proximoVoo = performance.now() + 1500, chegou = 0;
+    function desenharVoos(agoraMs, cabecas) {
+      if (reduzMovimento) return;
+      if (agoraMs > proximoVoo && voos.length < 6) {
+        const sorteio = agentes.flatMap((a) => (a.status === 'trabalhando' ? [a, a, a] : a.status === 'parado' ? [a] : []));
+        const a = sorteio[Math.floor(Math.random() * sorteio.length)];
+        if (a && cabecas[a.id]) voos.push({ de: { x: cabecas[a.id].x, y: cabecas[a.id].y + 46 }, icone: ICONE_SETOR[a.setor] || '✉️', cor: a.cor, t0: agoraMs });
+        proximoVoo = agoraMs + 1400 + Math.random() * 2200;
+      }
+      const DUR = 2600;
+      for (let k = voos.length - 1; k >= 0; k--) if (agoraMs - voos[k].t0 > DUR) { voos.splice(k, 1); chegou = agoraMs; }
+      if (!voos.length && agoraMs - chegou > 900) { if (gVoos.firstChild) gVoos.innerHTML = ''; return; }
+      gVoos.innerHTML = voos.map((v) => {
+        const f = (agoraMs - v.t0) / DUR, e = f < 0.5 ? 2 * f * f : 1 - ((-2 * f + 2) ** 2) / 2;
+        const c = { x: (v.de.x + destinoVoo.x) / 2, y: Math.min(v.de.y, destinoVoo.y) - 170 };
+        const x = (1 - e) ** 2 * v.de.x + 2 * (1 - e) * e * c.x + e ** 2 * destinoVoo.x;
+        const y = (1 - e) ** 2 * v.de.y + 2 * (1 - e) * e * c.y + e ** 2 * destinoVoo.y;
+        const op = f < 0.1 ? f * 10 : f > 0.92 ? (1 - f) * 12 : 1;
+        return `<g transform="translate(${r1(x)} ${r1(y)})" opacity="${r1(op)}"><circle r="11" fill="#fff" stroke="${v.cor}" stroke-width="2"/><text y="4.5" font-size="12" text-anchor="middle">${v.icone}</text></g>`;
+      }).join('') + (agoraMs - chegou < 900 ? `<text x="${r1(destinoVoo.x + 26)}" y="${r1(destinoVoo.y - 30 - (agoraMs - chegou) / 30)}" font-size="13" font-weight="900" fill="#b45309" opacity="${r1(1 - (agoraMs - chegou) / 900)}">📥 +1</text>` : '');
+    }
     function desenharConversa(cabecas) {
       const vis = conversas.filter((c) => cabecas[c.de] && cabecas[c.para] && c.falas.length);
       if (!vis.length) { if (assConversa) { gConversa.innerHTML = ''; assConversa = ''; } return; }
@@ -631,14 +922,33 @@
         <text x="${r1(ou.x)}" y="${r1(ou.y - 30)}" font-size="14" text-anchor="middle">💭</text></g>`;
     }
     const parar = () => { vivo = false; window.removeEventListener('keydown', baixa); window.removeEventListener('keyup', sobe); };
+    function aplicarTema(t) {
+      temaAtivo = t || null;
+      gTemaParede.innerHTML = t ? varalDoTema(t) + faixaDoTema(t) + paredeExtraDoTema(t) : '';
+      regEnfeite.node.innerHTML = t ? enfeiteDoTema(t) : '';
+      gTemaFrente.innerHTML = t ? particulasDoTema(t, caixaVista) : '';
+      for (const r of Object.values(porId)) { r.assinaturaMesa = ''; r.assinaturaFig = ''; }
+      assinaturaEu = ''; assinaturaChefe = '';
+      desenharChefe();
+    }
+    aplicarTema(opcoes.tema || null);
     requestAnimationFrame(quadro);
 
     return {
       atualizar(novos) {
         const ids = new Set(agentes.map((x) => x.id));
         agentes = novos;
-        novos.forEach((a, i) => { if (!ids.has(a.id)) criarAgente(a, i); });
+        const chegaram = novos.filter((a) => !ids.has(a.id));
+        if (chegaram.length) {
+          // Agente novo: refaz a planta e manda quem mudou de mesa para a mesa nova.
+          plano = planejarSala(novos, setores);
+          gZonas.innerHTML = zonasDoChao(plano.zonas); gPlacas.innerHTML = placasDosSetores(plano.zonas);
+          novos.forEach((a) => { const e = estados[a.id], m = mesaDoAgente(a); if (e) { e.caminho = rota(e.pos, m.assento, null, m.lin); e.atividade = 'mesa'; porId[a.id].assinaturaMesa = ''; } });
+        }
+        chegaram.forEach((a) => criarAgente(a, novos.indexOf(a)));
       },
+      aplicarTema,
+      atualizarChefe(c) { if (c) chefe = c; desenharChefe(); },
       mostrarConversas(lista) { conversas = lista || []; assConversa = ''; },
       reunir(sim) {
         for (const k of Object.keys(chamados)) delete chamados[k];
@@ -918,6 +1228,31 @@
     } catch (e) { corpo.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
   }
 
+  // ── Mesa da Chefe: a CEO recebe e confere tudo o que a equipe entrega ──────
+  function abrirDestino(destino) {
+    if (destino === 'aprovar') { abrirAtendente(); return; }
+    if (destino.startsWith('agente:')) { abrirAgente(destino.slice(7)); return; }
+    if (destino.startsWith('tela:')) { closeModal(); location.hash = '#' + destino.slice(5); }
+  }
+  async function abrirChefe() {
+    const corpo = el('<div><div class="spinner"></div></div>');
+    openModal('👑 Mesa da Chefe · Dra. Letícia (CEO)', corpo, { wide: true });
+    try {
+      const m = await api('/api/escritorio/chefe');
+      const item = (i) => `<button type="button" class="ch-item${i.emDia ? ' em-dia' : ''}" data-destino="${esc(i.abrir)}">
+          <b>${i.emDia ? '✓' : i.n}</b><span><strong>${esc(i.titulo)}</strong><small>${esc(i.detalhe)} · por ${esc(i.nomeAgente)}</small></span></button>`;
+      corpo.innerHTML = `
+        <p class="ch-frase${m.urgentes ? ' urgente' : ''}">${m.urgentes ? '🚨 ' : m.total ? '📥 ' : '✅ '}${esc(m.frase)}</p>
+        <p style="font-size:12.5px;color:var(--text-muted);margin:0 0 12px">Todo o trabalho da equipe chega aqui: o que espera a sua decisão, o que os agentes avaliaram, as ideias da reunião e os recados do dia. Clique num item para abrir.</p>
+        ${m.grupos.map((g) => `<h4 class="ch-tit">${g.id === 'conferir' ? '✍️' : '⭐'} ${esc(g.titulo)}</h4><div class="ch-grade">${g.itens.map(item).join('')}</div>`).join('')}
+        <div class="pi-grade" style="margin-top:14px">
+          <div class="pi-card"><h4>💡 Ideias da última reunião</h4>${m.ideias.length ? `<ul class="ev-hist" style="max-height:260px">${m.ideias.map((i) => `<li><span><b>${esc(i.nome)}:</b> ${esc(i.ideia)}</span></li>`).join('')}</ul>` : '<p class="pi-vazio">Nenhuma ideia registrada ainda. A reunião da equipe acontece às 18h15.</p>'}</div>
+          <div class="pi-card"><h4>📨 Recados da equipe (últimas 24h)</h4>${m.recados.length ? `<ul class="ev-hist" style="max-height:260px">${m.recados.map((r) => `<li><time>${quando(r.em)}</time><span><b style="color:${r.cor}">${esc(r.nome)}:</b> ${esc(r.texto)}</span></li>`).join('')}</ul>` : '<p class="pi-vazio">Nenhum recado nas últimas 24 horas.</p>'}</div>
+        </div>`;
+      corpo.querySelectorAll('[data-destino]').forEach((b) => b.onclick = () => abrirDestino(b.dataset.destino));
+    } catch (e) { corpo.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
   async function abrirAgente(id) {
     if (id === 'cerebro') { abrirCerebro(); return; }
     if (id === 'copiloto') { abrirCopiloto(); return; }
@@ -1063,43 +1398,69 @@
       const r = await api('/api/escritorio');
       page.innerHTML = `
         <div class="page-header"><div><h2>Escritório virtual</h2>
-          <p class="sub">Ande com as setas do teclado ou clicando no chão. Chegue perto de um agente para ver o trabalho dele ou chamá-lo ao gabinete.</p></div></div>
+          <p class="sub">Cada setor tem a sua área. Todo o trabalho voa até a mesa da CEO, no gabinete: clique nela para conferir. Ande com as setas ou clicando no chão; perto de um agente, veja o trabalho dele ou chame-o ao gabinete.</p></div></div>
         <div class="ev-barra" id="ev-barra"></div>
         <div class="ev-wrap"><div class="ev-zoom"><button type="button" id="ev-menos" aria-label="Diminuir">−</button><span id="ev-zv">100%</span><button type="button" id="ev-mais" aria-label="Aumentar">+</button></div><div id="ev-sala"></div></div>
         <div class="ev-legenda">${Object.entries(ROTULO_STATUS).map(([s, t]) => `<span><i style="background:${COR_STATUS[s]}"></i>${t}</span>`).join('')}</div>
-        <div class="ev-cartoes" id="ev-cartoes"></div>`;
+        <div id="ev-cartoes"></div>`;
       let agentes = r.agentes;
-      const sala = montarSala($('#ev-sala'), agentes, abrirAgente);
+      const setores = r.setores || [];
+      let chefe = r.chefe || { total: 0, urgentes: 0, frase: '' };
+      let escolhaTema = lerEscolhaTema();
+      const sala = montarSala($('#ev-sala'), agentes, { setores, aoSelecionar: abrirAgente, aoAbrirChefe: abrirChefe, tema: resolverTema(escolhaTema) });
+      sala.atualizarChefe(chefe);
       let reunidos = false;
       const DESTAQUES = ['copiloto', 'atendente', 'negociador', 'analista', 'cerebro', 'laya', 'secretaria', 'leitor', 'produtor', 'coletor', 'prazos', 'estagiario'];
       const desenharBarra = (quandoAtualizou) => {
         const trab = agentes.filter((a) => a.status === 'trabalhando').length;
         const erros = agentes.filter((a) => a.status === 'erro').length;
         $('#ev-barra').innerHTML = `
-          <span class="ev-resumo">👥 ${agentes.length} agentes · <span style="color:var(--green)">${trab} trabalhando</span>${erros ? ` · <span style="color:var(--red)">${erros} com erro</span>` : ''}</span>
+          <span class="ev-resumo">👥 ${agentes.length} agentes em ${setores.length || '—'} setores · <span style="color:var(--green)">${trab} trabalhando</span>${erros ? ` · <span style="color:var(--red)">${erros} com erro</span>` : ''}</span>
           <small style="color:var(--text-muted)">atualizado ${quandoAtualizou}</small>
+          <button type="button" class="ev-chip cheio" id="ev-chefe" style="background:#0f172a;color:#e7c77d">👑 Mesa da Chefe${chefe.total ? ` · <span style="color:${chefe.urgentes ? '#fca5a5' : '#fff'}">${chefe.total} para conferir</span>` : ' · em dia'}</button>
+          <label class="ev-tema">🎉 Tema <select id="ev-tema" aria-label="Tema festivo da sala">
+            <option value="auto"${escolhaTema === 'auto' ? ' selected' : ''}>Automático${temaDoDia(new Date()) ? ` (${temaDoDia(new Date()).nome})` : ' (pela data)'}</option>
+            <option value="nenhum"${escolhaTema === 'nenhum' ? ' selected' : ''}>Sem tema</option>
+            ${Object.values(TEMAS).map((t) => `<option value="${t.id}"${escolhaTema === t.id ? ' selected' : ''}>${t.emoji} ${esc(t.nome)}</option>`).join('')}
+          </select></label>
           ${DESTAQUES.map((id) => agentes.find((a) => a.id === id)).filter(Boolean).map((a) => `<button type="button" class="ev-chip" data-agente="${a.id}" style="border-color:${a.cor};color:${a.cor}"><span class="bola" style="background:${COR_STATUS[a.status]}"></span>${esc(a.nome)} · ${esc(a.cargo)}</button>`).join('')}
           <button type="button" class="ev-chip cheio" id="ev-metricas" style="background:#2563eb">📊 Métricas da IA</button>
           <button type="button" class="ev-chip cheio" id="ev-aprovar" style="background:#b45309">✉️ Mensagens para aprovar</button>
           <button type="button" class="ev-chip cheio" id="ev-mural" style="background:#7c3aed">💬 Mural da equipe</button>
           <button type="button" class="ev-chip cheio" id="ev-reunir" style="background:#b45309">🤝 ${reunidos ? 'Encerrar reunião' : 'Reunir a equipe'}</button>`;
         $('#ev-barra').querySelectorAll('[data-agente]').forEach((b) => b.onclick = () => abrirAgente(b.dataset.agente));
+        $('#ev-chefe').onclick = () => abrirChefe();
+        $('#ev-tema').onchange = (ev) => { escolhaTema = ev.target.value; gravarEscolhaTema(escolhaTema); sala.aplicarTema(resolverTema(escolhaTema)); };
         $('#ev-metricas').onclick = () => abrirPainelIa();
         $('#ev-mural').onclick = () => abrirMural(agentes);
         $('#ev-aprovar').onclick = () => abrirAtendente();
         $('#ev-reunir').onclick = () => { reunidos = !reunidos; sala.reunir(reunidos); desenharBarra(quandoAtualizou); };
       };
-      const desenharCartoes = () => {
-        const caixa = $('#ev-cartoes');
-        caixa.innerHTML = agentes.map((a) => `
+      const cartao = (a) => `
           <button type="button" class="ev-cartao" data-agente="${a.id}" aria-label="${esc(a.nome)}: ${ROTULO_STATUS[a.status]}">
             <header><span class="bola" style="background:${a.cor}"></span><b>${esc(a.nome)}</b>
               <small style="color:${COR_TEXTO_STATUS[a.status]}">● ${ROTULO_STATUS[a.status]}</small></header>
             <div class="faz">${esc(a.cargo)} · ${esc(a.resumo || '')}</div>
             ${(a.metricas || []).length ? `<div class="nums">${a.metricas.map((m) => `<span><b>${m.n}</b>${esc(m.rotulo)}</span>`).join('')}</div>` : ''}
             <div class="ult" title="${esc(a.ultima?.texto || '')}">${a.ultima ? `${esc(a.ultima.texto)}${a.ultima.em ? ` · ${haQuanto(a.ultima.em)}` : ''}` : 'Aguardando a primeira tarefa'}</div>
-          </button>`).join('');
+          </button>`;
+      // Cartões por setor, com a Diretoria (a CEO) primeiro.
+      const desenharCartoes = () => {
+        const caixa = $('#ev-cartoes');
+        const conhecidos = new Set(setores.map((s) => s.id));
+        const grupos = [...setores, { id: '_outros', nome: 'Outros', emoji: '👥', cor: '#64748b' }]
+          .map((s) => ({ s, lista: agentes.filter((a) => (s.id === '_outros' ? !conhecidos.has(a.setor) : a.setor === s.id)) }))
+          .filter((g) => g.lista.length);
+        caixa.innerHTML = `
+          <section class="ev-setor"><h3>👑 Diretoria <small>quem confere tudo o que a equipe entrega</small></h3>
+            <div class="ev-cartoes"><button type="button" class="ev-cartao ceo" id="ev-cartao-ceo" aria-label="Dra. Letícia, CEO: abrir a Mesa da Chefe">
+              <header><span class="bola" style="background:#e7c77d"></span><b>Dra. Letícia Barros</b><small style="color:${chefe.urgentes ? '#dc2626' : chefe.total ? '#b45309' : '#16a34a'}">● ${chefe.total ? `${chefe.total} para conferir` : 'Em dia'}</small></header>
+              <div class="faz">CEO · Advogada chefe · recebe os fluxos, recados e avaliações de todos os agentes</div>
+              <div class="ult">${esc(chefe.frase || '')}</div></button></div></section>
+          ${grupos.map((g) => `<section class="ev-setor"><h3 style="color:${g.s.cor}">${g.s.emoji} ${esc(g.s.nome)} <small>${g.lista.length} agente${g.lista.length > 1 ? 's' : ''}</small></h3>
+            <div class="ev-cartoes">${g.lista.map(cartao).join('')}</div></section>`).join('')}`;
         caixa.querySelectorAll('[data-agente]').forEach((b) => b.onclick = () => abrirAgente(b.dataset.agente));
+        $('#ev-cartao-ceo').onclick = () => abrirChefe();
       };
       desenharBarra('agora');
       desenharCartoes();
@@ -1115,7 +1476,11 @@
       // Atualiza o status a cada 30 s enquanto a tela estiver aberta.
       const timer = setInterval(async () => {
         if (!document.body.contains(svg)) { clearInterval(timer); return; }
-        try { const n = await api('/api/escritorio'); agentes = n.agentes; sala.atualizar(agentes); desenharBarra('agora'); desenharCartoes(); } catch { /* tenta de novo na próxima */ }
+        try {
+          const n = await api('/api/escritorio');
+          agentes = n.agentes; chefe = n.chefe || chefe;
+          sala.atualizar(agentes); sala.atualizarChefe(chefe); desenharBarra('agora'); desenharCartoes();
+        } catch { /* tenta de novo na próxima */ }
       }, 30000);
     },
   });

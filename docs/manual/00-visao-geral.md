@@ -54,7 +54,7 @@ Ordem de leitura recomendada (segue a jornada real de um caso: do primeiro conta
 
 ## Escritório virtual e Métricas da IA (desde 14/10/2026)
 
-Menu **Escritório virtual**: uma sala em 3D (isométrica) com os **20 agentes** do escritório em estilo minifigura, trabalhando ao vivo:
+Menu **Escritório virtual**: uma sala em 3D (isométrica) com os **29 agentes** do escritório em estilo minifigura, trabalhando ao vivo:
 - 🟢 **trabalhando:** o agente digita na mesa e mostra num balão o que acabou de fazer;
 - 🟡 **disponível:** ele circula pela copa, biblioteca, pebolim e videogame;
 - ⚪ **desligado:** cochila na mesa (inclui os agentes ainda em construção);
@@ -68,7 +68,39 @@ Menu **Escritório virtual**: uma sala em 3D (isométrica) com os **20 agentes**
 
 **Nomes:** Dra. ou Dr. + nome (Dra. Clara, Dr. Lucas, Dr. Davi, Dra. Paula…), escolha da Jessica em 14/10/2026. A Laya (a IA) e o Enzo (estagiário) ficam sem título. **Visual:** todos de terno (desde 14/10/2026, pedido da Jessica). A cor de cada agente aparece na gravata dos homens, no lenço das mulheres e no crachá.
 
-**Quadro de cartões** (abaixo da sala), um por agente:
+**Setores (desde 13/11/2026, pedido da Jessica):** os agentes sentam agrupados por setor, cada um com a sua área pintada no chão e uma placa com o nome:
+- 🗂️ **Gestão e secretaria:** Laya, Dra. Clara, Dra. Aurora, Dra. Rita e o Cérebro (este na biblioteca);
+- 🤝 **Comercial:** Dra. Carla, Dra. Bianca, Dr. Felipe, Dra. Camila, Dr. Rafael, Dr. Otávio e Dra. Helena;
+- 💬 **Atendimento:** Dr. Wagner e Dra. Lívia;
+- ⚖️ **Produção jurídica:** Enzo, Dra. Júlia, Dr. Augusto, Dr. Lucas e Dra. Vera;
+- 📡 **Controladoria jurídica:** Dr. Davi, Dra. Tereza, Dr. Edu, Dr. Vítor, Dra. Paula e Dra. Agnes;
+- 💰 **Financeiro:** Dr. Fábio e Dra. Pietra;
+- 🛡️ **Qualidade e TI:** Dr. Bento e Dr. Tomás.
+
+Os setores ficam em `SETORES` (`src/services/escritorioVirtual.ts`) e cada agente tem o campo `setor`. Para mudar alguém de setor, troque esse campo. A planta da sala se refaz sozinha (`planejarSala` em `public/escritorio.js`), e os cartões abaixo da sala também vêm agrupados por setor.
+
+**A CEO (desde 13/11/2026):** a **Dra. Letícia, advogada chefe**, senta no gabinete (placa "Diretoria"), de terno preto, lenço dourado e coroa, conferindo papéis. Ela não é um agente: é quem recebe tudo o que a equipe entrega.
+- Envelopes voam das mesas até a mesa dela o tempo todo (mais de quem está trabalhando), com o ícone do setor de quem mandou.
+- O número em cima dela é o que espera a conferência dela (vermelho quando há mensagem urgente).
+- Clicar nela, no botão **👑 Mesa da Chefe** ou no cartão "Diretoria" abre a **Mesa da Chefe**:
+  - **Para conferir:** mensagens para aprovar, propostas para aprovar, contratos para revisar, prazos para confirmar, dados da ficha para conferir e erros do sistema;
+  - **Avaliações da equipe:** sentenças lidas, documentos com ponto grave, possíveis clientes com chance alta e avisos da carteira (7 dias);
+  - **Ideias da última reunião** e **recados da equipe** (o que cada agente fez nas últimas 24h).
+- Cada item abre a tela certa. Regras em `src/services/mesaDaChefe.ts` (testes em `tests/mesaDaChefe.test.mjs`); dados em `GET /api/escritorio/chefe`.
+
+**Temas festivos (desde 13/11/2026):** a sala se decora sozinha pela data de Brasília:
+- Réveillon (27/12 a 06/01): fogos na janela, confete dourado, chapéu de festa;
+- Natal (01/12 a 26/12): árvore com presentes, luzes no varal, neve, gorro de Papai Noel;
+- Carnaval (sexta a Quarta-feira de Cinzas): serpentina, confete, máscaras;
+- Páscoa (semana da Páscoa): ovos, coelho, orelhas de coelho;
+- Dia da Mulher (06 a 08/03) e Dia das Mães (sexta a domingo do 2º domingo de maio): flores e pétalas;
+- Festa Junina (01/06 a 10/07): bandeirinhas, fogueira, chapéu de palha;
+- Dia do Advogado (09 a 11/08): balões, bolo, confete dourado;
+- Independência (01 a 07/09): bandeirinhas verde e amarelo e a bandeira do Brasil.
+
+O seletor **🎉 Tema** na barra escolhe à mão (Automático, Sem tema ou qualquer tema). A escolha fica guardada só naquele navegador. Com "reduzir movimento" ligado no computador, confete, neve e envelopes não aparecem.
+
+**Quadro de cartões** (abaixo da sala), um por agente, agrupados por setor:
 - status: Trabalhando agora, Parado, Desligado ou Com erro;
 - o que ele faz, em uma linha;
 - os números reais do dia, por exemplo: decisões lidas hoje, prazos a confirmar, publicações novas no DJEN, minutas do estagiário, parcelas atrasadas, cópias de segurança;
@@ -247,6 +279,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 13/11/2026 | Claude | Escritório virtual: setores com área própria na sala, a CEO (Dra. Letícia) com a Mesa da Chefe, temas festivos automáticos e conserto das mesas que sumiam |
 | 21/10/2026 | Claude | Pesquisa de Leis (bloco 18) e Dra. Júlia e Dra. Vera em funcionamento |
 | 16/10/2026 | Claude | Dr. Otávio (qualificação em % e copiloto da Dra. nas conversas, comando "montar proposta N") e tabela da OAB/RJ como parâmetro das propostas |
 | 16/10/2026 | Claude | Dr. Rafael (objeções à proposta, ética da OAB, modo rascunho) e Dra. Helena (análise crítica dos documentos contra a história contada) |

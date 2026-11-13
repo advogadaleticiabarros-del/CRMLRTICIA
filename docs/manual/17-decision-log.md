@@ -16,6 +16,13 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 13/11/2026 — A CEO no Escritório virtual não é um agente; temas festivos ficam no navegador
+**Decisão:** a Dra. Letícia aparece na sala como **CEO** (advogada chefe), fora da lista `AGENTES`. A Mesa da Chefe só **soma o que já existe** (rascunhos, propostas, contratos, prazos, fichas, erros, leituras, análises, qualificação, avisos e recados) em `mesaDaChefe.ts`, sem tabela nova.
+**Motivo:** o status de agente sai de rotinas e ações (`job_runs`, `agente_acoes`), e a CEO não roda rotina: ela confere. Como agente, ela apareceria "desligada". Uma caixa de entrada nova duplicaria filas que já têm dono e tela própria (Mensagens para aprovar, Prazos, Contratos), por isso cada item da mesa só leva para essas telas.
+**Total da mesa:** conta só o que espera decisão dela ("Para conferir"). As avaliações informam, mas não somam.
+**Temas festivos:** o calendário é regra fixa no próprio `escritorio.js` (`temaDoDia`, Páscoa pelo algoritmo de Meeus). A escolha manual fica no `localStorage` do navegador, porque é enfeite e não precisa valer para a equipe toda.
+**Setores:** `depto` (texto livre) virou `setor` (id de `SETORES`), para a sala desenhar uma área por setor e os cartões agruparem sem depender da grafia.
+
 ### 31/10/2026 — Devolução em dobro de todos os descontos (Tema 929 do STJ)
 **Decisão:** a planilha e a peça devolvem em dobro todos os descontos, sem o marco de 30/03/2021 (`MARCO_DOBRO = null` em `pecaCalculos.ts`).
 **Motivo:** a Corte Especial do STJ concluiu o Tema 929 em 15/09/2026 sem modulação: a dobra não depende de má-fé e não fica restrita às cobranças posteriores a 30/03/2021 (Migalhas, "Tema 929: Como fica a repetição do indébito em dobro?"; Cálculo Jurídico, 21/09/2026). A Jessica pediu o cálculo "100% assertivo".

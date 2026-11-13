@@ -1,13 +1,15 @@
 import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
-import { AGENTES, montarEscritorio, textoDaRotina, type AcaoAgente, type MetricaAgente, type RunJob } from '../services/escritorioVirtual';
+import { AGENTES, SETORES, montarEscritorio, textoDaRotina, type AcaoAgente, type MetricaAgente, type RunJob } from '../services/escritorioVirtual';
 import { serieDiaria, resumoUsoIa } from '../services/painelIaRegras';
+import { montarMesaDaChefe } from '../services/mesaDaChefe';
 
 /**
  * Escritório virtual e Métricas da IA.
  *   GET /api/escritorio              → agentes com status e última ação (sala)
  *   GET /api/escritorio/agente/:id   → trabalho recente de um agente
  *   GET /api/escritorio/painel-ia    → métricas (?dias=7|30|90)
+ *   GET /api/escritorio/chefe        → Mesa da Chefe: o que espera a CEO conferir
  * Cada consulta é isolada: se uma falhar, o resto aparece.
  */
 const router = Router();
@@ -141,6 +143,35 @@ async function metricasDosAgentes(): Promise<Record<string, MetricaAgente[]>> {
   };
 }
 
+/** Números da Mesa da Chefe (a CEO). Cada consulta é isolada: se uma falhar, vale 0. */
+async function contagensDaChefe(): Promise<Record<string, number>> {
+  const n = (sql: string) => safe(async () => {
+    const [[r]] = await db.query(sql) as any;
+    return Number(r?.n || 0);
+  }, 0);
+  const [mensagens, mensagens_urgentes, propostas, contratos, prazos, fichas, erros, decisoes_lidas, analises_graves, leads_quentes, vigia] = await Promise.all([
+    n("SELECT COUNT(*) AS n FROM atendente_rascunhos WHERE status = 'pendente'"),
+    n("SELECT COUNT(*) AS n FROM atendente_rascunhos WHERE status = 'pendente' AND urgente = 1"),
+    n("SELECT COUNT(*) AS n FROM propostas WHERE status = 'rascunho' AND observacoes LIKE 'Produzida pelo agente%'"),
+    n("SELECT COUNT(*) AS n FROM contracts WHERE status = 'em_producao'"),
+    n("SELECT COUNT(*) AS n FROM detected_deadlines WHERE status = 'a_confirmar'"),
+    n("SELECT COUNT(*) AS n FROM ficha_pendencias WHERE status = 'pendente'"),
+    n('SELECT COUNT(*) AS n FROM erros_sistema WHERE resolvido = 0'),
+    n('SELECT COUNT(*) AS n FROM decisao_leituras WHERE created_at >= NOW() - INTERVAL 7 DAY'),
+    n('SELECT COUNT(*) AS n FROM analises_documentos WHERE graves > 0 AND created_at >= NOW() - INTERVAL 7 DAY'),
+    n("SELECT COUNT(*) AS n FROM leads WHERE fechamento_pct >= 70 AND status NOT IN ('perdida','convertido','fechada','contrato_assinado','newsletter')"),
+    n('SELECT COUNT(*) AS n FROM vigia_alertas WHERE created_at >= NOW() - INTERVAL 7 DAY'),
+  ]);
+  return { mensagens, mensagens_urgentes, propostas, contratos, prazos, fichas, erros, decisoes_lidas, analises_graves, leads_quentes, vigia };
+}
+
+router.get('/chefe', async (_req: Request, res: Response) => {
+  const contagens = await contagensDaChefe();
+  const recados = await acoesDesde(24);
+  const ideias = await safe(async () => (await (await import('../services/sociedadeServico')).mural()).reuniao?.ideias || [], [] as any[]);
+  res.json(montarMesaDaChefe({ contagens, recados, ideias: Array.isArray(ideias) ? ideias : [], agora: new Date() }));
+});
+
 router.get('/', async (_req: Request, res: Response) => {
   const runs = await safe(async () => {
     const [r] = await db.query('SELECT job, status, message, ran_at FROM job_runs WHERE ran_at >= NOW() - INTERVAL 26 HOUR ORDER BY ran_at DESC LIMIT 5000') as any;
@@ -148,7 +179,8 @@ router.get('/', async (_req: Request, res: Response) => {
   }, []);
   const acoes = await acoesDesde(26);
   const agentes = montarEscritorio(runs, acoes, new Date(), { layaOnline: await layaOnline(), metricas: await metricasDosAgentes() });
-  res.json({ agentes, atualizadoEm: new Date().toISOString() });
+  const chefe = montarMesaDaChefe({ contagens: await contagensDaChefe(), recados: [], ideias: [], agora: new Date() });
+  res.json({ agentes, setores: SETORES, chefe: { total: chefe.total, urgentes: chefe.urgentes, frase: chefe.frase }, atualizadoEm: new Date().toISOString() });
 });
 
 // ── Mural da equipe: conversas entre agentes, última reunião e memórias ─────

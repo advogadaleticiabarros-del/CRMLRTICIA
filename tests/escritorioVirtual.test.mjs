@@ -89,3 +89,22 @@ test('montarEscritorio: Laya fora do ar fica desligada e diz que falta instalar'
   const on = montarEscritorio([], [], AGORA, { layaOnline: true }).find((a) => a.id === 'laya');
   assert.notStrictEqual(on.status, 'desligado');
 });
+
+// ── Setores (13/11/2026, pedido da Jessica: "mudar setores") ──────────────
+import { SETORES } from '../dist/services/escritorioVirtual.js';
+
+test('SETORES: ids únicos, com nome, emoji e cor; todo agente está num setor que existe', () => {
+  const ids = SETORES.map((s) => s.id);
+  assert.strictEqual(new Set(ids).size, ids.length);
+  for (const s of SETORES) assert.ok(s.nome && s.emoji && /^#[0-9a-f]{6}$/i.test(s.cor), s.id);
+  for (const a of AGENTES) assert.ok(ids.includes(a.setor), `${a.id}: ${a.setor}`);
+  for (const s of SETORES) assert.ok(AGENTES.some((a) => a.setor === s.id), `setor vazio: ${s.id}`);
+});
+
+test('montarEscritorio: leva o setor e o nome do setor (depto) de cada agente', () => {
+  const lista = montarEscritorio([], [], AGORA, { layaOnline: true });
+  const prazos = lista.find((a) => a.id === 'prazos');
+  assert.strictEqual(prazos.setor, 'controladoria');
+  assert.strictEqual(prazos.depto, SETORES.find((s) => s.id === 'controladoria').nome);
+  assert.strictEqual(lista.find((a) => a.id === 'calculista').setor, 'producao');
+});
