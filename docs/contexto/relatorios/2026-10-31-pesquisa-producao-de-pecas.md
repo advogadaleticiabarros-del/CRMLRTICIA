@@ -47,3 +47,10 @@ Jessica: "Você consegue fazer uma pesquisa minuciosa sobre montagem de peças i
   - no git;
   - na memória do Claude;
   - numa cópia de leitura no Obsidian, em `Pesquisas/Produção de peças processuais (31-10-2026).md`.
+
+## Atualização (13/11/2026)
+- **Decisão da Jessica:** "manter dobro e protocolar".
+  - O Calculista continua devolvendo **tudo em dobro**, pelo Tema 929, sem o corte de 30/03/2021.
+  - As ações de RMC continuam sendo protocoladas.
+- Regras gravadas em `docs/contexto/LEIA-PRIMEIRO.md`. O código não mudou, porque o critério já era esse.
+- **Pendente:** transformar a seção 7 da pesquisa em regras da esteira (ficou para depois).
