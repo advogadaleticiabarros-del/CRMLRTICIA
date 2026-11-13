@@ -97,6 +97,10 @@ Até 21/08/2026, o sistema rodava no Railway. A migração pra VPS aconteceu dep
 
 Alguns dados sensíveis (tokens de integração) ficam cifrados no banco. Acessos à ficha completa de um cliente são registrados para auditoria (ver [Clientes e cadastro](01-clientes.md)).
 
+## Limite de envio no nginx (13/11/2026)
+
+O nginx da VPS (`/etc/nginx/sites-available/crm`) aceita envios de até **25 MB** em todo o CRM. Há uma exceção: o envio de recibo e vídeo-depoimento do fechamento de parceria (`/api/partners/cases/N/fechamento/arquivo`) aceita até **500 MB**, sem buffer no nginx (o arquivo vai em fluxo para o Drive) e com 20 min de tempo limite. O Node acompanha esse tempo (`server.requestTimeout`, em `src/index.ts`). Cópia de antes da mudança: `/root/nginx-crm.bak-20261113`. Para conferir: um POST de 30 MB nesse endereço, sem login, responde 401 (passou pelo nginx); em outra rota, responde 413.
+
 ## FAQ
 
 **Se o servidor cair, o que acontece?** O PM2 tem política de reinício automático em caso de falha do processo (não confundir com deploy de código novo, que ainda é manual). Não há um servidor de standby/failover documentado — é um servidor único.
@@ -115,6 +119,7 @@ Alguns dados sensíveis (tokens de integração) ficam cifrados no banco. Acesso
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 13/11/2026 | Claude | nginx: exceção de 500 MB (em fluxo) só para o envio do recibo e do vídeo do fechamento de parceria |
 | 26/10/2026 | Claude | O portão de vulnerabilidades barrou o deploy com 3 avisos novos: body-parser (alto) e nodemailer (moderado), resolvidos com `npm audit fix`; zod 3 → 4.6.7 (alto; sem correção na 3). O zod só valida o `.env` (`src/config/env.ts`), que funciona igual na 4 |
 | 21/10/2026 | Claude | Acervo de leis na VPS (`/home/crmapp/leis`), fora do MySQL e do backup |
 | 20/10/2026 | Claude | `uuid` 11.1.1 forçada em `overrides`: produção sem vulnerabilidades |

@@ -23,7 +23,7 @@ Jessica: "Em parceria, quando sai um RPV naturalmente e a Advogada vai sacar, ma
 - **Receita:** é o honorário inteiro, e o repasse é só a parte da parceria, o mesmo modelo do botão "Êxito". O dinheiro da cliente só passa pela conta e fica em `parceria_fechamentos`; assim não infla o faturamento nem as saídas.
 - **"Finalizado":** é `cases.status = encerrado`, com resultado e valor obtido. A etapa "Concluído" da esteira significa peça protocolada e por isso não foi usada. Nenhuma mensagem vai à cliente.
 - **Recibo e vídeo vão para o Drive, não para o banco:** o banco vai inteiro no backup diário, que já teve problema de tamanho. Se o Drive falhar, o recibo (até 15 MB) fica no CRM; para o vídeo, cola-se o link.
-- **nginx:** o limite geral é de 25 MB. Foi aberta uma exceção de 500 MB, sem buffer, só no endereço `/api/partners/cases/N/fechamento/arquivo`.
+- **nginx:** o limite geral é de 25 MB. Foi aberta uma exceção de 500 MB, sem buffer, só no endereço `/api/partners/cases/N/fechamento/arquivo`. **Aplicada na VPS em 13/11, com autorização da Jessica.** Cópia de antes: `/root/nginx-crm.bak-20261113`. Conferido: 30 MB nesse endereço passam (o CRM responde 401 sem login); em outra rota continuam barrados (413).
 
 ## Pendente
 - Jessica: testar com um caso real (valores, recibo e vídeo) e confirmar que a divisão bate com o que a parceira pagou.
