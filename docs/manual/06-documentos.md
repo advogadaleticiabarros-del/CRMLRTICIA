@@ -323,6 +323,16 @@ O que mudou em relação ao modelo genérico:
 
 Os valores saem por extenso (`reaisPorExtenso`). Testes: `tests/contratoTrabalhistaTemplate.test.mjs`.
 
+### Contratação por ato: contrato do ato + procuração (desde 13/11/2026)
+
+Pedido da Jessica: "às vezes pego demanda de clientes por Ato, que só sai contrato para o Ato + Procuração". Exemplos: uma audiência avulsa, um protocolo, uma cópia de autos.
+
+- **Quando liga sozinho:** a proposta tem **só** a modalidade "Diligência / atos isolados", sem êxito, fixo nem parcelamento (`ehContratacaoPorAto`). Vale no aceite da proposta, no "fechar lead" e no "Regenerar com modelo atual".
+- **À mão:** no contrato, "Completar informações faltantes" → **"Contratação por ato"**. Aparece o campo **"Qual é o ato"**, que entra na Cláusula Primeira (sem ele, usa a descrição da diligência da proposta; sem nenhuma, fica "[DESCRIÇÃO DO ATO]"). Desmarcar volta à minuta completa da área, mesmo que a proposta seja por ato.
+- **O que sai:** minuta curta de 8 cláusulas (`buildTemplatePorAto`): objeto só o ato, sem outros atos, fases ou acompanhamento (que exigem nova contratação); valor fixo por extenso (o valor do contrato ou o da diligência na proposta) e a forma de pagamento; honorários devidos mesmo se o ato não acontecer por fato alheio à advogada, e a nova data do mesmo ato sem cobrança a mais; atraso com 2% + 1% a.m. + IPCA; sucumbência da advogada; despesas por conta da cliente; LGPD e aviso de IA; canais oficiais e conta de pagamento; título executivo; foro de Vitória. **Sem êxito, sem declaração de hipossuficiência.**
+- **Procuração:** a mesma ad judicia et extra de sempre (editável na aba, se quiser limitar ao ato).
+- Testes: `tests/contratoPorAto.test.mjs`.
+
 ## Aviso de uso de IA nos contratos (desde 14/10/2026)
 
 Todo contrato padrão gerado a partir de 14/10/2026 informa o cliente de que o escritório usa inteligência artificial como apoio, sempre com revisão e responsabilidade da advogada. A recomendação de transparência é da Recomendação 001/2024 do CFOAB. O texto é único (`AVISO_USO_IA` em `contractTemplates.ts`) e entra:
@@ -427,6 +437,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 | 23/09/2026 | Claude | Botão "Importar do Obsidian…" em Configurações — reimporta a biblioteca de modelos de peça sem terminal/SSH (antes só dava pra atualizar rodando o script manualmente; editar um modelo no Obsidian não chegava na IA sozinho) |
 | 31/10/2026 | Claude | Juntar em uma inicial: caixinha em cada ação da tela do cliente; a Dra. junta teses diferentes (empréstimo consignado + cartão RMC/RCC) do mesmo banco; bancos diferentes nunca; a conferência por banco e a planilha contam as teses dos pedidos unidos |
 | 13/11/2026 | Claude | Toda petição inicial abre com "AO DOUTO JUÍZO" (todas as áreas); o cabeçalho trabalhista passa a "AO DOUTO JUÍZO DA ___ VARA DO TRABALHO DE (CIDADE) – (ESTADO)" (`enderecamentoPeca.ts`) |
+| 13/11/2026 | Claude | Contratação por ato: minuta curta só do ato + procuração, sem declaração; liga sozinha com proposta só de "Diligência / atos isolados" ou pela caixinha "Contratação por ato" no contrato |
 
 ---
 ◀ [Dativo](05-dativo.md) · [Visão geral](00-visao-geral.md) · Próximo: [Agenda e compromissos](07-agenda.md) ▶

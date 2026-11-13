@@ -973,7 +973,99 @@ CONTRATADA
 ${oab}`;
 }
 
-export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number; formaPagamento?: string; exitoPct?: number; honorarios?: any; tipoCausa?: string; descricao?: string; contratada?: ContratadaInfo }): string {
+/**
+ * Contratação por ato (13/11/2026, Jessica: "às vezes pego demanda de clientes
+ * por Ato, que só sai contrato para o Ato + Procuração"). A proposta com só a
+ * modalidade "Diligência / atos isolados" (sem êxito, fixo ou parcelamento) é
+ * por ato: sai a minuta curta abaixo + procuração, sem declaração de hipossuficiência.
+ */
+export function ehContratacaoPorAto(honorarios: any): boolean {
+  const m: string[] = Array.isArray(honorarios?.modalidades) ? honorarios.modalidades : [];
+  if (!m.length || m.some((x) => x !== 'diligencia')) return false;
+  return !(honorarios?.parcelamento && Number(honorarios.parcelamento.total) > 0);
+}
+
+/** Minuta do contrato para ato específico: objeto restrito ao ato, valor fixo, sem êxito. */
+export function buildTemplatePorAto(opts: { party?: PartyData; clientName?: string; ato?: string; value?: number; formaPagamento?: string; honorarios?: any; contratada?: ContratadaInfo }): string {
+  const p = f(opts.party || { name: opts.clientName });
+  const adv = opts.contratada || ADVOGADA;
+  const v = opts.honorarios?.values || {};
+  const ato = (opts.ato && opts.ato.trim()) || (v.diligencia_desc && String(v.diligencia_desc).trim()) || '[DESCRIÇÃO DO ATO]';
+  const valor = Number(opts.value) > 0 ? Number(opts.value) : (Number(v.diligencia) || 0);
+  const valorTxt = valor > 0
+    ? `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${reaisPorExtenso(valor)})`
+    : 'R$ [VALOR]';
+  const forma = (opts.formaPagamento && opts.formaPagamento.trim()) || meiosPagamentoTexto(opts.honorarios);
+
+  return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS PARA ATO ESPECÍFICO
+
+CONTRATANTE: ${qualificacao(p)}.
+
+CONTRATADA: ${contratadaBloco(adv)}.
+
+As partes acima identificadas têm entre si justo e contratado o presente Contrato de Prestação de Serviços Advocatícios para Ato Específico, que se regerá pelas cláusulas e condições seguintes:
+
+CLÁUSULA PRIMEIRA - DO OBJETO
+O presente contrato tem como objeto, exclusivamente, a prática do seguinte ato pela CONTRATADA, em favor da CONTRATANTE: ${ato.replace(/\.$/, '')}.
+
+PARÁGRAFO ÚNICO - O presente contrato não abrange quaisquer outros atos, fases, recursos, audiências, manifestações ou o acompanhamento do processo ou procedimento após a prática do ato descrito, os quais, se desejados, serão objeto de nova contratação.
+
+CLÁUSULA SEGUNDA - DOS HONORÁRIOS
+Pelo ato descrito na Cláusula Primeira, a CONTRATANTE pagará à CONTRATADA o valor de ${valorTxt}${forma ? `, ${forma}` : ''}.
+
+PARÁGRAFO PRIMEIRO - Os honorários são devidos pela prática do ato, independentemente do resultado, por se tratar de obrigação de meio. Caso o ato não se realize por fato alheio à CONTRATADA (cancelamento, redesignação, ausência da CONTRATANTE ou desistência), os honorários continuam devidos; a nova data do mesmo ato não gera cobrança adicional, salvo despesas extraordinárias de deslocamento.
+
+PARÁGRAFO SEGUNDO - O atraso no pagamento acarretará multa de 2% (dois por cento), juros de mora de 1% (um por cento) ao mês e correção monetária pelo IPCA, desde o vencimento até o efetivo pagamento.
+
+PARÁGRAFO TERCEIRO - Os honorários de sucumbência eventualmente fixados em razão do ato pertencem exclusivamente à CONTRATADA, nos termos do art. 23 da Lei nº 8.906/94.
+
+CLÁUSULA TERCEIRA - DAS DESPESAS
+Custas, emolumentos, cópias, deslocamentos fora da Grande Vitória e demais despesas necessárias à prática do ato não estão incluídas nos honorários e são de responsabilidade da CONTRATANTE.
+
+CLÁUSULA QUARTA - DAS OBRIGAÇÕES DA CONTRATANTE
+A CONTRATANTE se obriga a fornecer, com antecedência, todas as informações e documentos necessários à prática do ato e a comparecer quando sua presença for indispensável.
+
+CLÁUSULA QUINTA - DA PROTEÇÃO DE DADOS
+Em cumprimento à Lei Geral de Proteção de Dados Pessoais (LGPD), a CONTRATADA se obriga a manter em sigilo todos os dados pessoais fornecidos em função deste contrato.
+
+PARÁGRAFO ÚNICO - ${AVISO_USO_IA}
+
+CLÁUSULA SEXTA - DOS CANAIS OFICIAIS E DO PAGAMENTO
+A CONTRATADA não se responsabiliza por prejuízos decorrentes de golpes praticados por terceiros, inclusive o conhecido como "golpe do falso advogado". As comunicações oficiais ocorrerão exclusivamente pelos e-mails ${DADOS_PAGAMENTO.emails} e pelos telefones/WhatsApp ${DADOS_PAGAMENTO.telefones}. Os pagamentos serão feitos exclusivamente em conta de titularidade da CONTRATADA: Beneficiário: ${DADOS_PAGAMENTO.beneficiario}; Instituição: ${DADOS_PAGAMENTO.instituicao}; Agência: ${DADOS_PAGAMENTO.agencia}; Conta Corrente: ${DADOS_PAGAMENTO.conta}; Chaves PIX autorizadas: ${DADOS_PAGAMENTO.pix}.
+
+CLÁUSULA SÉTIMA - DO TÍTULO EXECUTIVO
+O presente contrato constitui título executivo extrajudicial, nos termos do art. 24 da Lei nº 8.906/94 (Estatuto da Advocacia e da OAB) e do art. 784 do Código de Processo Civil.
+
+CLÁUSULA OITAVA - DO FORO DE ELEIÇÃO
+Qualquer divergência decorrente deste contrato será resolvida perante o Foro de ${FORO}, com renúncia expressa a qualquer outro.
+
+E por estarem assim justos e contratados, firmam o presente em duas vias de igual teor e forma.
+
+${FORO}, [DATA].
+
+
+
+
+
+_______________________________________
+${adv.nome}
+${adv.oab.replace(' sob o nº ', ' ')}
+CONTRATADA
+
+
+
+
+
+_______________________________________
+${p.nome}
+CONTRATANTE`;
+}
+
+export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number; formaPagamento?: string; exitoPct?: number; honorarios?: any; tipoCausa?: string; descricao?: string; contratada?: ContratadaInfo; porAto?: boolean; ato?: string }): string {
+  // Contratação por ato (13/11/2026): pedida no contrato ou reconhecida na proposta.
+  if (opts.porAto ?? ehContratacaoPorAto(opts.honorarios)) {
+    return buildTemplatePorAto({ party: opts.party, clientName: opts.clientName, ato: opts.ato, value: opts.value, formaPagamento: opts.formaPagamento, honorarios: opts.honorarios, contratada: opts.contratada });
+  }
   // Área trabalhista (e gestante, também Justiça do Trabalho): minuta própria
   // de 22 cláusulas desde 07/10/2026. Ver docs/manual/06-documentos.md.
   if (opts.area === 'trabalhista' || opts.area === 'gestante') return buildTemplateTrabalhista(opts);

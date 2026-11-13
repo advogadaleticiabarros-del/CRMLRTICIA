@@ -2,7 +2,7 @@ import { Router, Request, Response } from 'express';
 import { db } from '../config/database';
 import { logActivity } from '../services/JourneyService';
 import { notificationService } from '../services/NotificationService';
-import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
+import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, ehContratacaoPorAto, PartyData } from '../services/contractTemplates';
 import { getEscritorio } from '../services/escritorio';
 import { ensurePartnerLawyersColumn } from '../services/propostaSchema';
 import { prepararParaAprovacao } from '../services/aprovacaoMensagens';
@@ -161,7 +161,7 @@ router.post('/proposta/:token/aceitar', async (req: Request, res: Response) => {
       `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'em_producao')`,
       [p.user_id, clientId, p.lead_id ?? null, area, `Contrato — ${nome || 'cliente'}`,
-       content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), valorContrato || null]
+       content, buildProcuracao(party, adv), ehContratacaoPorAto(honorarios) ? '' : buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), valorContrato || null]
     ) as any;
     contractId = c.insertId;
     // Busca na conversa os dados de todas as pessoas do contrato (ex.: o casal) e

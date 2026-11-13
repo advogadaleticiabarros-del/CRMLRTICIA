@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 import { onContractSigned } from '../services/contractFlow';
-import { buildTemplate, buildTemplateMenor, buildProcuracao, buildProcuracaoMenor, buildDeclaracao, buildDeclaracaoMenor, montarEndereco, formaPagamentoTexto, PartyData } from '../services/contractTemplates';
+import { buildTemplate, buildTemplateMenor, buildProcuracao, buildProcuracaoMenor, buildDeclaracao, buildDeclaracaoMenor, montarEndereco, formaPagamentoTexto, ehContratacaoPorAto, PartyData } from '../services/contractTemplates';
 import { getEscritorio } from '../services/escritorio';
 import { reprocessContract } from '../services/contractReprocess';
 
@@ -69,6 +69,8 @@ router.get('/:id/party', async (req: Request, res: Response) => {
   let formaPagamento = '';
   let dependentes: any[] = [];
   let tipoCausa = '';
+  let porAtoProposta = false;
+  let atoDescricao = '';
   const [props] = await db.query(
     `SELECT honorarios, dependentes, tipo_causa FROM propostas WHERE (lead_id <=> ? OR client_id <=> ?)
       ORDER BY created_at DESC LIMIT 1`,
@@ -78,6 +80,8 @@ router.get('/:id/party', async (req: Request, res: Response) => {
     try {
       const h = typeof props[0].honorarios === 'string' ? JSON.parse(props[0].honorarios) : props[0].honorarios;
       if (h?.parcelamento) formaPagamento = formaPagamentoTexto(h.parcelamento);
+      porAtoProposta = ehContratacaoPorAto(h);
+      atoDescricao = String(h?.values?.diligencia_desc || '');
     } catch {}
     try { dependentes = typeof props[0].dependentes === 'string' ? JSON.parse(props[0].dependentes) : (props[0].dependentes || []); } catch {}
     tipoCausa = props[0].tipo_causa || '';
@@ -94,6 +98,8 @@ router.get('/:id/party', async (req: Request, res: Response) => {
     dependentes: Array.isArray(dependentes) ? dependentes : [],
     tipo_causa: tipoCausa,
     forma_pagamento: formaPagamento,
+    por_ato_proposta: porAtoProposta,
+    ato_descricao: atoDescricao,
   });
 });
 
@@ -246,7 +252,7 @@ router.post('/from-lead/:leadId', async (req: Request, res: Response) => {
     `INSERT INTO contracts (user_id, client_id, lead_id, area, title, content, procuracao_content, declaracao_content, value, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'rascunho')`,
     [req.user!.id, lead.client_id ?? null, leadId, area,
-     `Contrato — ${lead.name}`, content, buildProcuracao(party, adv), buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), valorContrato ?? null]
+     `Contrato — ${lead.name}`, content, buildProcuracao(party, adv), ehContratacaoPorAto(honorarios) ? '' : buildDeclaracao(party, { trabalhista: area === 'trabalhista' }), valorContrato ?? null]
   ) as any;
 
   await db.query("UPDATE leads SET status = 'fechada', analise_since = NULL WHERE id = ?", [leadId]);

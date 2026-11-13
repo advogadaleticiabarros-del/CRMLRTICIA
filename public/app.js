@@ -9971,6 +9971,8 @@ async function contractEditor(id, onSave) {
       <strong class="cp-grp">Opções do contrato</strong>
       <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:400"><input type="checkbox" id="o_omitir_vazios" style="width:auto"> Deixar sem profissão e e-mail quando não informados (em vez de "[profissão]" e "[e-mail]")</label>
       <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:400"><input type="checkbox" id="o_sem_declaracao" style="width:auto"> Sem declaração de hipossuficiência (só contrato e procurações)</label>
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px;font-weight:400"><input type="checkbox" id="o_por_ato" style="width:auto"> Contratação por ato (contrato só deste ato + procuração, sem declaração)</label>
+      <div id="o_ato_box" style="display:none">${field('Qual é o ato (ex.: audiência de instrução no processo nº ..., em 20/11/2026)', 'o_ato')}</div>
       <strong class="cp-grp">Outros contratantes (mesmo contrato, procuração e declaração próprias)</strong>
       <div id="co-lista" style="display:flex;flex-direction:column;gap:10px"></div>
       <button type="button" class="btn-sm" id="co-add" style="align-self:flex-start">+ Adicionar contratante</button>
@@ -10086,15 +10088,25 @@ async function contractEditor(id, onSave) {
   if (dataEl && !dataEl.value) dataEl.value = new Date().toLocaleDateString('pt-BR');
 
   // Prefill com o complemento já salvo no contrato (persiste entre sessões).
-  const ovMap = { c_nome: 'nome', c_nac: 'nacionalidade', c_prof: 'profissao', c_cpf: 'cpf', c_email: 'email', c_end: 'endereco', o_forma: 'forma_pagamento' };
+  const ovMap = { c_nome: 'nome', c_nac: 'nacionalidade', c_prof: 'profissao', c_cpf: 'cpf', c_email: 'email', c_end: 'endereco', o_forma: 'forma_pagamento', o_ato: 'ato_descricao' };
   let savedOv = {};
   try { savedOv = ct.party_overrides ? (typeof ct.party_overrides === 'string' ? JSON.parse(ct.party_overrides) : ct.party_overrides) : {}; } catch {}
   Object.entries(ovMap).forEach(([fn, ok]) => { const inp = wrap.querySelector(`[name=${fn}]`); if (inp && savedOv[ok]) inp.value = savedOv[ok]; });
   // Contrato sem declaração de hipossuficiência: some com as abas e o botão da declaração.
-  if (savedOv.sem_declaracao) {
+  // Por ato (13/11/2026): marcado no contrato ou, sem marcação, o que a proposta diz.
+  const porAtoCb = wrap.querySelector('#o_por_ato');
+  const mostrarAto = () => { wrap.querySelector('#o_ato_box').style.display = porAtoCb.checked ? 'block' : 'none'; };
+  porAtoCb.checked = savedOv.por_ato === true;
+  mostrarAto();
+  if (typeof savedOv.por_ato !== 'boolean') api(`/api/contracts/${id}/party`).then((pt) => {
+    if (pt.por_ato_proposta) { porAtoCb.checked = true; mostrarAto(); esconderDeclaracao(); }
+    const a = wrap.querySelector('[name=o_ato]'); if (a && !a.value && pt.ato_descricao) a.value = pt.ato_descricao;
+  }).catch(() => {});
+  function esconderDeclaracao() {
     wrap.querySelectorAll('[data-doc=declaracao_content], [data-doc^=parte_decl_], [data-print=declaracao_content]').forEach((x) => { x.style.display = 'none'; });
     wrap.querySelector('#print-all').textContent = 'Baixar tudo (Contrato + Procurações)';
   }
+  if (savedOv.sem_declaracao || porAtoCb.checked) esconderDeclaracao();
 
   // Outros contratantes: ficam em party_overrides.co_contratantes. Entram em TODO
   // envio do complemento — o PATCH substitui o complemento inteiro, então sem isto
@@ -10132,6 +10144,7 @@ async function contractEditor(id, onSave) {
     o.co_contratantes = coContratantes.filter((p) => String(p.nome || '').trim());
     if (wrap.querySelector('#o_omitir_vazios')?.checked) o.omitir_vazios = true;
     if (wrap.querySelector('#o_sem_declaracao')?.checked) o.sem_declaracao = true;
+    o.por_ato = !!wrap.querySelector('#o_por_ato')?.checked;
     return o;
   };
   // Opções salvas no contrato (ficam marcadas ao reabrir) — mudar uma regenera os documentos.
@@ -10140,6 +10153,7 @@ async function contractEditor(id, onSave) {
     cb.checked = !!savedOv[k];
     cb.addEventListener('change', () => { clearTimeout(pushTimer); pushComplement(false).then(() => { if (k === 'sem_declaracao') { closeModal(); contractEditor(id, onSave); } }); });
   });
+  porAtoCb.addEventListener('change', () => { mostrarAto(); clearTimeout(pushTimer); pushComplement(false).then(() => { closeModal(); contractEditor(id, onSave); }); });
 
   // Salva o complemento no servidor e regenera os 3 documentos (não se perde ao sair).
   let pushTimer = null;

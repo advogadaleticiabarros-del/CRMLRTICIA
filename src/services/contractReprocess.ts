@@ -1,5 +1,5 @@
 import { db } from '../config/database';
-import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, qualificacaoDaParte, PartyData } from './contractTemplates';
+import { buildTemplate, buildProcuracao, buildDeclaracao, montarEndereco, formaPagamentoTexto, qualificacaoDaParte, ehContratacaoPorAto, PartyData } from './contractTemplates';
 import { aplicarCoContratantes, paraParte } from './partesContrato';
 import { getEscritorio } from './escritorio';
 
@@ -53,7 +53,6 @@ export async function reprocessContract(contractId: number, userId?: number, ove
   // Opções do contrato (19/10/2026): profissão/e-mail não informados saem do texto;
   // sem declaração de hipossuficiência (só contrato e procurações).
   const omitirVazios = !!ov?.omitir_vazios;
-  const semDeclaracao = !!ov?.sem_declaracao;
   party.omitirVazios = omitirVazios;
   const area = AREAS.includes(ct.area) ? ct.area : (AREAS.includes(prop?.legal_area) ? prop.legal_area : (AREAS.includes(lead?.legal_area) ? lead.legal_area : 'outro'));
 
@@ -65,7 +64,11 @@ export async function reprocessContract(contractId: number, userId?: number, ove
 
   const adv = await getEscritorio();
   const formaPag = (ov && ov.forma_pagamento) ? ov.forma_pagamento : formaPagamentoTexto(parcelamento);
-  let content = buildTemplate({ party, area, value: valor, formaPagamento: formaPag, honorarios, tipoCausa: prop?.tipo_causa, descricao: prop?.description || lead?.case_summary, contratada: adv });
+  // Contratação por ato (13/11/2026): marcada no contrato ou, se não marcada, a da
+  // proposta (só "diligência / ato isolado"). Sai contrato do ato + procuração, sem declaração.
+  const porAto = typeof ov?.por_ato === 'boolean' ? ov.por_ato : ehContratacaoPorAto(honorarios);
+  const semDeclaracao = !!ov?.sem_declaracao || porAto;
+  let content = buildTemplate({ party, area, value: valor, formaPagamento: formaPag, honorarios, tipoCausa: prop?.tipo_causa, descricao: prop?.description || lead?.case_summary, contratada: adv, porAto, ato: ov?.ato_descricao });
 
   // Outros contratantes no mesmo contrato (ex.: o casal), cada um com a própria
   // procuração e declaração (19/10/2026). Ficam em party_overrides.co_contratantes.
