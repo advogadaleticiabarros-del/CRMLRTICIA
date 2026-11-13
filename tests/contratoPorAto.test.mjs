@@ -27,7 +27,7 @@ test('contrato por ato: objeto restrito ao ato, valor fixo, sem êxito', () => {
   assert.match(t, /audiência de instrução no processo nº 0000000-00\.2026\.5\.17\.0001/);
   assert.match(t, /R\$ 600,00 \(seiscentos reais\)/);
   assert.match(t, /à vista, por Pix/);
-  assert.match(t, /não abrange/);
+  assert.match(t, /Não estão incluídos nos honorários previstos neste contrato outros atos/);
   assert.doesNotMatch(t, /êxito/i);
   assert.doesNotMatch(t, /hipossufici/i);
   assert.ok(t.includes(AVISO_USO_IA));
@@ -64,4 +64,23 @@ test('porAto: false força a minuta completa mesmo com proposta por ato', () => 
     honorarios: { modalidades: ['diligencia'], values: { diligencia: 450 } },
   });
   assert.doesNotMatch(t, /PARA ATO ESPECÍFICO/);
+});
+
+test('contrato por ato usa as cláusulas do contrato geral com o mesmo texto, menos a de acordos (êxito)', () => {
+  const geral = buildTemplate({ party: { name: 'Fulana Teste' }, area: 'civel', value: 600 });
+  const ato = buildTemplatePorAto({ party: { name: 'Fulana Teste' }, ato: 'audiência', value: 600 });
+  const corpo = (txt, titulo) => {
+    const i = txt.indexOf(titulo); assert.ok(i >= 0, titulo);
+    const resto = txt.slice(i + titulo.length);
+    const fim = resto.search(/\n\nCLÁUSULA /);
+    return resto.slice(0, fim < 0 ? undefined : fim);
+  };
+  for (const t of ['DO INADIMPLEMENTO', 'DAS DESPESAS JUDICIAIS E ADMINISTRATIVAS', 'DAS OBRIGAÇÕES DA CONTRATANTE',
+    'DAS ALTERAÇÕES E DA RESCISÃO', 'DA CESSÃO E TRANSFERÊNCIA', 'DA EXTENSÃO DAS OBRIGAÇÕES',
+    'DA POLÍTICA DE PRIVACIDADE E PROTEÇÃO DE DADOS', 'DO TÍTULO EXECUTIVO', 'DA NÃO RESPONSABILIZAÇÃO E DOS CANAIS OFICIAIS',
+    'DA NATUREZA DA OBRIGAÇÃO', 'DO COMPARECIMENTO A ATOS PROCESSUAIS', 'DO FORO DE ELEIÇÃO']) {
+    assert.equal(corpo(ato, t), corpo(geral, t), t);
+  }
+  assert.match(geral, /VEDAÇÃO A ACORDOS DESASSISTIDOS/);
+  assert.doesNotMatch(ato, /VEDAÇÃO A ACORDOS/);
 });

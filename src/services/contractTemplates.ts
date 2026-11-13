@@ -985,61 +985,40 @@ export function ehContratacaoPorAto(honorarios: any): boolean {
   return !(honorarios?.parcelamento && Number(honorarios.parcelamento.total) > 0);
 }
 
-/** Minuta do contrato para ato específico: objeto restrito ao ato, valor fixo, sem êxito. */
-export function buildTemplatePorAto(opts: { party?: PartyData; clientName?: string; ato?: string; value?: number; formaPagamento?: string; honorarios?: any; contratada?: ContratadaInfo }): string {
-  const p = f(opts.party || { name: opts.clientName });
-  const adv = opts.contratada || ADVOGADA;
-  const v = opts.honorarios?.values || {};
-  const ato = (opts.ato && opts.ato.trim()) || (v.diligencia_desc && String(v.diligencia_desc).trim()) || '[DESCRIÇÃO DO ATO]';
-  const valor = Number(opts.value) > 0 ? Number(opts.value) : (Number(v.diligencia) || 0);
-  const valorTxt = valor > 0
-    ? `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${reaisPorExtenso(valor)})`
-    : 'R$ [VALOR]';
-  const forma = (opts.formaPagamento && opts.formaPagamento.trim()) || meiosPagamentoTexto(opts.honorarios);
+// Cláusulas do contrato geral do escritório, usadas sem mudar uma vírgula pelo
+// contrato geral (buildTemplate) e pelo contrato por ato (buildTemplatePorAto).
+const CL_INADIMPLEMENTO = `O atraso ou a falta de pagamento de qualquer parcela dos honorários advocatícios na data de seu vencimento acarretará, independentemente de aviso, notificação ou interpelação judicial ou extrajudicial, a incidência de multa moratória de 2% (dois por cento) sobre o valor da parcela em atraso, juros de mora de 1% (um por cento) ao mês, calculados pro rata die, e correção monetária pelo IPCA, ou outro índice oficial que venha a substituí-lo, desde a data do vencimento até o efetivo pagamento.
 
-  return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS PARA ATO ESPECÍFICO
+PARÁGRAFO PRIMEIRO - O inadimplemento de qualquer parcela por período superior a 30 (trinta) dias autoriza a CONTRATADA a suspender a prestação dos serviços não urgentes até a regularização do débito, sem prejuízo da adoção das medidas necessárias para evitar dano irreparável aos interesses da CONTRATANTE.
 
-CONTRATANTE: ${qualificacao(p)}.
+PARÁGRAFO SEGUNDO - Permanecendo o inadimplemento por período superior a 60 (sessenta) dias, considerar-se-ão antecipadamente vencidas todas as parcelas vincendas, tornando-se imediatamente exigível o saldo remanescente dos honorários contratuais, facultando-se à CONTRATADA promover a cobrança judicial ou extrajudicial do débito.
 
-CONTRATADA: ${contratadaBloco(adv)}.
+PARÁGRAFO TERCEIRO - Os encargos previstos nesta cláusula incidirão cumulativamente, sem prejuízo da cobrança das custas, despesas processuais e demais encargos legais decorrentes da execução deste contrato, o qual constitui título executivo extrajudicial, nos termos da legislação vigente.`;
+const CL_DESPESAS = `Todas as despesas necessárias para a execução dos serviços, como custas processuais, perícias, diligências, depósitos, fotocópias e autenticações, não estão incluídas nos honorários e são de responsabilidade da CONTRATANTE.`;
+const CL_OBRIGACOES = `A CONTRATANTE se obriga a fornecer à CONTRATADA todas as informações e documentos necessários à efetivação dos serviços, sob pena de paralisação dos trabalhos e eventual rescisão contratual.`;
+const CL_RESCISAO = `O presente contrato poderá ser alterado por mútuo acordo e rescindido por qualquer das partes mediante comunicado escrito. A rescisão imotivada pela CONTRATANTE implicará o pagamento de multa contratual e honorários proporcionais ao trabalho realizado.`;
+const CL_CESSAO = `Nenhuma das partes poderá ceder ou transferir os direitos e obrigações deste contrato sem a prévia anuência da outra, salvo o substabelecimento do mandato pela CONTRATADA.`;
+const CL_EXTENSAO = `As partes se obrigam por si, seus herdeiros e sucessores a cumprir o presente contrato nos seus expressos termos.`;
+const CL_LGPD = `Em cumprimento à Lei Geral de Proteção de Dados Pessoais (LGPD), a CONTRATADA se obriga a respeitar a privacidade da CONTRATANTE, mantendo em sigilo todos os dados pessoais fornecidos em função deste contrato.
 
-As partes acima identificadas têm entre si justo e contratado o presente Contrato de Prestação de Serviços Advocatícios para Ato Específico, que se regerá pelas cláusulas e condições seguintes:
+PARÁGRAFO ÚNICO - ${AVISO_USO_IA}`;
+const CL_TITULO = `O presente contrato constitui título executivo extrajudicial, nos termos do artigo 24 da Lei nº 8.906/94 (Estatuto da Advocacia e da OAB) e do art. 784 do Código de Processo Civil.`;
+const CL_CANAIS = `A CONTRATADA não se responsabiliza, em hipótese alguma, por prejuízos decorrentes de golpes praticados por terceiros, inclusive aqueles conhecidos como "golpe do falso advogado".
 
-CLÁUSULA PRIMEIRA - DO OBJETO
-O presente contrato tem como objeto, exclusivamente, a prática do seguinte ato pela CONTRATADA, em favor da CONTRATANTE: ${ato.replace(/\.$/, '')}.
+PARÁGRAFO PRIMEIRO - A CONTRATANTE declara estar ciente e de acordo que todas as comunicações oficiais, bem como solicitações financeiras relacionadas a este contrato, ocorrerão exclusivamente por meio dos seguintes canais: E-mails autorizados: ${DADOS_PAGAMENTO.emails}. Telefones/WhatsApp autorizados: ${DADOS_PAGAMENTO.telefones}.
 
-PARÁGRAFO ÚNICO - O presente contrato não abrange quaisquer outros atos, fases, recursos, audiências, manifestações ou o acompanhamento do processo ou procedimento após a prática do ato descrito, os quais, se desejados, serão objeto de nova contratação.
+PARÁGRAFO SEGUNDO - Fica estabelecido que os pagamentos de honorários serão devidos exclusivamente em conta de titularidade da CONTRATADA, cujos dados são: Beneficiário: ${DADOS_PAGAMENTO.beneficiario}; Instituição: ${DADOS_PAGAMENTO.instituicao}; Agência: ${DADOS_PAGAMENTO.agencia}; Conta Corrente: ${DADOS_PAGAMENTO.conta}; Chaves PIX autorizadas: ${DADOS_PAGAMENTO.pix}.
 
-CLÁUSULA SEGUNDA - DOS HONORÁRIOS
-Pelo ato descrito na Cláusula Primeira, a CONTRATANTE pagará à CONTRATADA o valor de ${valorTxt}${forma ? `, ${forma}` : ''}.
+PARÁGRAFO TERCEIRO - A CONTRATANTE compromete-se a conferir o nome do favorecido ("${DADOS_PAGAMENTO.beneficiario}") antes de confirmar qualquer transação financeira, não se responsabilizando a CONTRATADA por pagamentos efetuados a beneficiários divergentes.`;
+const CL_NATUREZA = `O presente contrato configura obrigação de meio, não garantindo resultado específico, inexistindo responsabilidade da CONTRATADA por decisões judiciais desfavoráveis ou fatores alheios à sua atuação técnica.`;
+const CL_COMPARECIMENTO = `A CONTRATANTE se compromete a comparecer a todas as audiências e atos processuais para os quais sua presença seja indispensável, mediante prévia comunicação da CONTRATADA.
 
-PARÁGRAFO PRIMEIRO - Os honorários são devidos pela prática do ato, independentemente do resultado, por se tratar de obrigação de meio. Caso o ato não se realize por fato alheio à CONTRATADA (cancelamento, redesignação, ausência da CONTRATANTE ou desistência), os honorários continuam devidos; a nova data do mesmo ato não gera cobrança adicional, salvo despesas extraordinárias de deslocamento.
+PARÁGRAFO PRIMEIRO - Na hipótese de impossibilidade de comparecimento, a CONTRATANTE deverá notificar a CONTRATADA, de forma justificada e por escrito, com antecedência mínima de 48 (quarenta e oito) horas do ato.
 
-PARÁGRAFO SEGUNDO - O atraso no pagamento acarretará multa de 2% (dois por cento), juros de mora de 1% (um por cento) ao mês e correção monetária pelo IPCA, desde o vencimento até o efetivo pagamento.
+PARÁGRAFO SEGUNDO - O não comparecimento injustificado a uma audiência, ou a falta da notificação no prazo estabelecido no parágrafo anterior, resultará na aplicação cumulativa das seguintes penalidades: a) pagamento imediato do valor de R$ 100,00 (cem reais), a título de ressarcimento pelas despesas e tempo de deslocamento da advogada; b) incidência de multa não compensatória no valor de 20% (vinte por cento) sobre o valor atualizado da causa.
 
-PARÁGRAFO TERCEIRO - Os honorários de sucumbência eventualmente fixados em razão do ato pertencem exclusivamente à CONTRATADA, nos termos do art. 23 da Lei nº 8.906/94.
-
-CLÁUSULA TERCEIRA - DAS DESPESAS
-Custas, emolumentos, cópias, deslocamentos fora da Grande Vitória e demais despesas necessárias à prática do ato não estão incluídas nos honorários e são de responsabilidade da CONTRATANTE.
-
-CLÁUSULA QUARTA - DAS OBRIGAÇÕES DA CONTRATANTE
-A CONTRATANTE se obriga a fornecer, com antecedência, todas as informações e documentos necessários à prática do ato e a comparecer quando sua presença for indispensável.
-
-CLÁUSULA QUINTA - DA PROTEÇÃO DE DADOS
-Em cumprimento à Lei Geral de Proteção de Dados Pessoais (LGPD), a CONTRATADA se obriga a manter em sigilo todos os dados pessoais fornecidos em função deste contrato.
-
-PARÁGRAFO ÚNICO - ${AVISO_USO_IA}
-
-CLÁUSULA SEXTA - DOS CANAIS OFICIAIS E DO PAGAMENTO
-A CONTRATADA não se responsabiliza por prejuízos decorrentes de golpes praticados por terceiros, inclusive o conhecido como "golpe do falso advogado". As comunicações oficiais ocorrerão exclusivamente pelos e-mails ${DADOS_PAGAMENTO.emails} e pelos telefones/WhatsApp ${DADOS_PAGAMENTO.telefones}. Os pagamentos serão feitos exclusivamente em conta de titularidade da CONTRATADA: Beneficiário: ${DADOS_PAGAMENTO.beneficiario}; Instituição: ${DADOS_PAGAMENTO.instituicao}; Agência: ${DADOS_PAGAMENTO.agencia}; Conta Corrente: ${DADOS_PAGAMENTO.conta}; Chaves PIX autorizadas: ${DADOS_PAGAMENTO.pix}.
-
-CLÁUSULA SÉTIMA - DO TÍTULO EXECUTIVO
-O presente contrato constitui título executivo extrajudicial, nos termos do art. 24 da Lei nº 8.906/94 (Estatuto da Advocacia e da OAB) e do art. 784 do Código de Processo Civil.
-
-CLÁUSULA OITAVA - DO FORO DE ELEIÇÃO
-Qualquer divergência decorrente deste contrato será resolvida perante o Foro de ${FORO}, com renúncia expressa a qualquer outro.
-
-E por estarem assim justos e contratados, firmam o presente em duas vias de igual teor e forma.
+PARÁGRAFO TERCEIRO - A reincidência no não comparecimento ou a ocorrência de prejuízo processual grave por culpa exclusiva da CONTRATANTE dará à CONTRATADA o direito de rescindir o presente contrato por justa causa, sem prejuízo da cobrança da multa prevista.`;
+const FECHO = (adv: ContratadaInfo, nome: string) => `E por estarem assim justos e contratados, firmam o presente em duas vias de igual teor e forma.
 
 ${FORO}, [DATA].
 
@@ -1057,8 +1036,83 @@ CONTRATADA
 
 
 _______________________________________
-${p.nome}
+${nome}
 CONTRATANTE`;
+
+/**
+ * Contrato por ato, montado só com as cláusulas do contrato geral do escritório
+ * (pedido da Jessica, 13/11/2026: "faça baseado no meu contrato geral, as
+ * cláusulas que der para usar"). Mudam só o objeto (o ato) e o preço (valor do
+ * ato). Fica de fora a cláusula de vedação a acordos, que existe por causa do êxito.
+ */
+export function buildTemplatePorAto(opts: { party?: PartyData; clientName?: string; ato?: string; value?: number; formaPagamento?: string; honorarios?: any; contratada?: ContratadaInfo }): string {
+  const p = f(opts.party || { name: opts.clientName });
+  const adv = opts.contratada || ADVOGADA;
+  const h = opts.honorarios || {};
+  const m: string[] = Array.isArray(h.modalidades) ? h.modalidades : [];
+  const v = h.values || {};
+  const ato = ((opts.ato && opts.ato.trim()) || (v.diligencia_desc && String(v.diligencia_desc).trim()) || '[DESCRIÇÃO DO ATO]').replace(/\.$/, '');
+  const valor = Number(opts.value) > 0 ? Number(opts.value) : (Number(v.diligencia) || 0);
+  const valorTxt = valor > 0
+    ? `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} (${reaisPorExtenso(valor)})`
+    : 'R$ [VALOR]';
+  const forma = (opts.formaPagamento && opts.formaPagamento.trim()) || meiosPagamentoTexto(h);
+  let preco = `Pelos serviços advocatícios descritos na Cláusula Primeira, a CONTRATANTE pagará à CONTRATADA o valor de ${valorTxt}, a título de honorários contratuais${forma ? `, ${forma}` : ''}.`;
+  if (m.includes('sucumbencia')) preco += ' Os honorários de sucumbência, quando houver, pertencem exclusivamente à CONTRATADA, nos termos do art. 23 da Lei nº 8.906/94.';
+
+  return `CONTRATO DE PRESTAÇÃO DE SERVIÇOS ADVOCATÍCIOS PARA ATO ESPECÍFICO
+
+CONTRATANTE: ${qualificacao(p)}.
+
+CONTRATADA: ${contratadaBloco(adv)}.
+
+As partes acima identificadas têm entre si justo e contratado o presente Contrato de Prestação de Serviços Advocatícios, que se regerá pelas cláusulas e condições seguintes:
+
+CLÁUSULA PRIMEIRA - DO OBJETO DO CONTRATO
+O presente contrato tem como objeto a prestação de serviços advocatícios para a prática do seguinte ato em favor do(a) CONTRATANTE: ${ato}.
+
+PARÁGRAFO ÚNICO - Não estão incluídos nos honorários previstos neste contrato outros atos, recursos, novas ações ou procedimentos que não integrem o objeto originalmente contratado, os quais poderão ser objeto de nova contratação.
+
+CLÁUSULA SEGUNDA - DO PREÇO E FORMA DE PAGAMENTO
+${preco}
+
+CLÁUSULA SEGUNDA-A - DO INADIMPLEMENTO
+${CL_INADIMPLEMENTO}
+
+CLÁUSULA TERCEIRA - DAS DESPESAS JUDICIAIS E ADMINISTRATIVAS
+${CL_DESPESAS}
+
+CLÁUSULA QUARTA - DAS OBRIGAÇÕES DA CONTRATANTE
+${CL_OBRIGACOES}
+
+CLÁUSULA QUINTA - DAS ALTERAÇÕES E DA RESCISÃO
+${CL_RESCISAO}
+
+CLÁUSULA SEXTA - DA CESSÃO E TRANSFERÊNCIA
+${CL_CESSAO}
+
+CLÁUSULA SÉTIMA - DA EXTENSÃO DAS OBRIGAÇÕES
+${CL_EXTENSAO}
+
+CLÁUSULA OITAVA - DA POLÍTICA DE PRIVACIDADE E PROTEÇÃO DE DADOS
+${CL_LGPD}
+
+CLÁUSULA NONA - DO TÍTULO EXECUTIVO
+${CL_TITULO}
+
+CLÁUSULA DÉCIMA - DA NÃO RESPONSABILIZAÇÃO E DOS CANAIS OFICIAIS
+${CL_CANAIS}
+
+CLÁUSULA DÉCIMA PRIMEIRA - DA NATUREZA DA OBRIGAÇÃO
+${CL_NATUREZA}
+
+CLÁUSULA DÉCIMA SEGUNDA - DO COMPARECIMENTO A ATOS PROCESSUAIS
+${CL_COMPARECIMENTO}
+
+CLÁUSULA DÉCIMA TERCEIRA - DO FORO DE ELEIÇÃO
+Qualquer divergência e/ou litígio decorrente da interpretação e/ou execução do presente contrato deverá ser resolvido perante o Foro de ${FORO}, com renúncia expressa a qualquer outro.
+
+${FECHO(adv, p.nome)}`;
 }
 
 export function buildTemplate(opts: { clientName?: string; party?: PartyData; area: string; value?: number; formaPagamento?: string; exitoPct?: number; honorarios?: any; tipoCausa?: string; descricao?: string; contratada?: ContratadaInfo; porAto?: boolean; ato?: string }): string {
@@ -1101,45 +1155,31 @@ CLÁUSULA SEGUNDA - DO PREÇO E FORMA DE PAGAMENTO
 ${clausulaSegunda}
 
 CLÁUSULA SEGUNDA-A - DO INADIMPLEMENTO
-O atraso ou a falta de pagamento de qualquer parcela dos honorários advocatícios na data de seu vencimento acarretará, independentemente de aviso, notificação ou interpelação judicial ou extrajudicial, a incidência de multa moratória de 2% (dois por cento) sobre o valor da parcela em atraso, juros de mora de 1% (um por cento) ao mês, calculados pro rata die, e correção monetária pelo IPCA, ou outro índice oficial que venha a substituí-lo, desde a data do vencimento até o efetivo pagamento.
-
-PARÁGRAFO PRIMEIRO - O inadimplemento de qualquer parcela por período superior a 30 (trinta) dias autoriza a CONTRATADA a suspender a prestação dos serviços não urgentes até a regularização do débito, sem prejuízo da adoção das medidas necessárias para evitar dano irreparável aos interesses da CONTRATANTE.
-
-PARÁGRAFO SEGUNDO - Permanecendo o inadimplemento por período superior a 60 (sessenta) dias, considerar-se-ão antecipadamente vencidas todas as parcelas vincendas, tornando-se imediatamente exigível o saldo remanescente dos honorários contratuais, facultando-se à CONTRATADA promover a cobrança judicial ou extrajudicial do débito.
-
-PARÁGRAFO TERCEIRO - Os encargos previstos nesta cláusula incidirão cumulativamente, sem prejuízo da cobrança das custas, despesas processuais e demais encargos legais decorrentes da execução deste contrato, o qual constitui título executivo extrajudicial, nos termos da legislação vigente.
+${CL_INADIMPLEMENTO}
 
 CLÁUSULA TERCEIRA - DAS DESPESAS JUDICIAIS E ADMINISTRATIVAS
-Todas as despesas necessárias para a execução dos serviços, como custas processuais, perícias, diligências, depósitos, fotocópias e autenticações, não estão incluídas nos honorários e são de responsabilidade da CONTRATANTE.
+${CL_DESPESAS}
 
 CLÁUSULA QUARTA - DAS OBRIGAÇÕES DA CONTRATANTE
-A CONTRATANTE se obriga a fornecer à CONTRATADA todas as informações e documentos necessários à efetivação dos serviços, sob pena de paralisação dos trabalhos e eventual rescisão contratual.
+${CL_OBRIGACOES}
 
 CLÁUSULA QUINTA - DAS ALTERAÇÕES E DA RESCISÃO
-O presente contrato poderá ser alterado por mútuo acordo e rescindido por qualquer das partes mediante comunicado escrito. A rescisão imotivada pela CONTRATANTE implicará o pagamento de multa contratual e honorários proporcionais ao trabalho realizado.
+${CL_RESCISAO}
 
 CLÁUSULA SEXTA - DA CESSÃO E TRANSFERÊNCIA
-Nenhuma das partes poderá ceder ou transferir os direitos e obrigações deste contrato sem a prévia anuência da outra, salvo o substabelecimento do mandato pela CONTRATADA.
+${CL_CESSAO}
 
 CLÁUSULA SÉTIMA - DA EXTENSÃO DAS OBRIGAÇÕES
-As partes se obrigam por si, seus herdeiros e sucessores a cumprir o presente contrato nos seus expressos termos.
+${CL_EXTENSAO}
 
 CLÁUSULA OITAVA - DA POLÍTICA DE PRIVACIDADE E PROTEÇÃO DE DADOS
-Em cumprimento à Lei Geral de Proteção de Dados Pessoais (LGPD), a CONTRATADA se obriga a respeitar a privacidade da CONTRATANTE, mantendo em sigilo todos os dados pessoais fornecidos em função deste contrato.
-
-PARÁGRAFO ÚNICO - ${AVISO_USO_IA}
+${CL_LGPD}
 
 CLÁUSULA NONA - DO TÍTULO EXECUTIVO
-O presente contrato constitui título executivo extrajudicial, nos termos do artigo 24 da Lei nº 8.906/94 (Estatuto da Advocacia e da OAB) e do art. 784 do Código de Processo Civil.
+${CL_TITULO}
 
 CLÁUSULA DÉCIMA - DA NÃO RESPONSABILIZAÇÃO E DOS CANAIS OFICIAIS
-A CONTRATADA não se responsabiliza, em hipótese alguma, por prejuízos decorrentes de golpes praticados por terceiros, inclusive aqueles conhecidos como "golpe do falso advogado".
-
-PARÁGRAFO PRIMEIRO - A CONTRATANTE declara estar ciente e de acordo que todas as comunicações oficiais, bem como solicitações financeiras relacionadas a este contrato, ocorrerão exclusivamente por meio dos seguintes canais: E-mails autorizados: ${DADOS_PAGAMENTO.emails}. Telefones/WhatsApp autorizados: ${DADOS_PAGAMENTO.telefones}.
-
-PARÁGRAFO SEGUNDO - Fica estabelecido que os pagamentos de honorários serão devidos exclusivamente em conta de titularidade da CONTRATADA, cujos dados são: Beneficiário: ${DADOS_PAGAMENTO.beneficiario}; Instituição: ${DADOS_PAGAMENTO.instituicao}; Agência: ${DADOS_PAGAMENTO.agencia}; Conta Corrente: ${DADOS_PAGAMENTO.conta}; Chaves PIX autorizadas: ${DADOS_PAGAMENTO.pix}.
-
-PARÁGRAFO TERCEIRO - A CONTRATANTE compromete-se a conferir o nome do favorecido ("${DADOS_PAGAMENTO.beneficiario}") antes de confirmar qualquer transação financeira, não se responsabilizando a CONTRATADA por pagamentos efetuados a beneficiários divergentes.
+${CL_CANAIS}
 
 CLÁUSULA DÉCIMA PRIMEIRA - DA VEDAÇÃO A ACORDOS DESASSISTIDOS
 Fica expressamente vedado à CONTRATANTE negociar, transigir, firmar ou receber valores a título de acordo, seja judicial ou extrajudicial, diretamente da parte contrária ou de seus procuradores, sem a anuência prévia e por escrito da CONTRATADA.
@@ -1149,38 +1189,13 @@ PARÁGRAFO PRIMEIRO - A violação desta cláusula caracteriza quebra de confian
 PARÁGRAFO SEGUNDO - Em caso de descumprimento, a base de cálculo dos honorários será o valor atualizado da causa ou o valor total do acordo realizado à revelia da CONTRATADA, o que for maior. O montante apurado será considerado dívida líquida, certa e exigível, passível de execução imediata com base neste contrato.
 
 CLÁUSULA DÉCIMA SEGUNDA - DA NATUREZA DA OBRIGAÇÃO
-O presente contrato configura obrigação de meio, não garantindo resultado específico, inexistindo responsabilidade da CONTRATADA por decisões judiciais desfavoráveis ou fatores alheios à sua atuação técnica.
+${CL_NATUREZA}
 
 CLÁUSULA DÉCIMA TERCEIRA - DO COMPARECIMENTO A ATOS PROCESSUAIS
-A CONTRATANTE se compromete a comparecer a todas as audiências e atos processuais para os quais sua presença seja indispensável, mediante prévia comunicação da CONTRATADA.
-
-PARÁGRAFO PRIMEIRO - Na hipótese de impossibilidade de comparecimento, a CONTRATANTE deverá notificar a CONTRATADA, de forma justificada e por escrito, com antecedência mínima de 48 (quarenta e oito) horas do ato.
-
-PARÁGRAFO SEGUNDO - O não comparecimento injustificado a uma audiência, ou a falta da notificação no prazo estabelecido no parágrafo anterior, resultará na aplicação cumulativa das seguintes penalidades: a) pagamento imediato do valor de R$ 100,00 (cem reais), a título de ressarcimento pelas despesas e tempo de deslocamento da advogada; b) incidência de multa não compensatória no valor de 20% (vinte por cento) sobre o valor atualizado da causa.
-
-PARÁGRAFO TERCEIRO - A reincidência no não comparecimento ou a ocorrência de prejuízo processual grave por culpa exclusiva da CONTRATANTE dará à CONTRATADA o direito de rescindir o presente contrato por justa causa, sem prejuízo da cobrança da multa prevista.
+${CL_COMPARECIMENTO}
 
 CLÁUSULA DÉCIMA QUARTA - DO FORO DE ELEIÇÃO
 Qualquer divergência e/ou litígio decorrente da interpretação e/ou execução do presente contrato deverá ser resolvido perante o Foro de ${FORO}, com renúncia expressa a qualquer outro.
 
-E por estarem assim justos e contratados, firmam o presente em duas vias de igual teor e forma.
-
-${FORO}, [DATA].
-
-
-
-
-
-_______________________________________
-${adv.nome}
-${adv.oab.replace(' sob o nº ', ' ')}
-CONTRATADA
-
-
-
-
-
-_______________________________________
-${p.nome}
-CONTRATANTE`;
+${FECHO(adv, p.nome)}`;
 }

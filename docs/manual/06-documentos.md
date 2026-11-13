@@ -329,7 +329,12 @@ Pedido da Jessica: "às vezes pego demanda de clientes por Ato, que só sai cont
 
 - **Quando liga sozinho:** a proposta tem **só** a modalidade "Diligência / atos isolados", sem êxito, fixo nem parcelamento (`ehContratacaoPorAto`). Vale no aceite da proposta, no "fechar lead" e no "Regenerar com modelo atual".
 - **À mão:** no contrato, "Completar informações faltantes" → **"Contratação por ato"**. Aparece o campo **"Qual é o ato"**, que entra na Cláusula Primeira (sem ele, usa a descrição da diligência da proposta; sem nenhuma, fica "[DESCRIÇÃO DO ATO]"). Desmarcar volta à minuta completa da área, mesmo que a proposta seja por ato.
-- **O que sai:** minuta curta de 8 cláusulas (`buildTemplatePorAto`): objeto só o ato, sem outros atos, fases ou acompanhamento (que exigem nova contratação); valor fixo por extenso (o valor do contrato ou o da diligência na proposta) e a forma de pagamento; honorários devidos mesmo se o ato não acontecer por fato alheio à advogada, e a nova data do mesmo ato sem cobrança a mais; atraso com 2% + 1% a.m. + IPCA; sucumbência da advogada; despesas por conta da cliente; LGPD e aviso de IA; canais oficiais e conta de pagamento; título executivo; foro de Vitória. **Sem êxito, sem declaração de hipossuficiência.**
+- **O que sai (desde 13/11/2026, 2ª versão, pedido da Jessica: "faça baseado no meu contrato geral, as cláusulas que der para usar"):** o **contrato geral do escritório** com o mesmo texto, mudando só duas cláusulas:
+  - **1ª, objeto:** "a prática do seguinte ato" + o ato. O parágrafo único é o do contrato de pensão, adaptado: outros atos, recursos ou ações ficam para nova contratação.
+  - **2ª, preço:** o valor do ato por extenso e a forma de pagamento. Se a proposta marcar sucumbência, entra a mesma frase do contrato geral.
+  - **Iguais ao contrato geral, palavra por palavra:** inadimplemento, despesas, obrigações da contratante, alterações e rescisão, cessão, extensão das obrigações, LGPD com aviso de IA, título executivo, canais oficiais e conta de pagamento, natureza da obrigação, comparecimento a atos e foro. O texto fica num lugar só (`CL_*` em `contractTemplates.ts`): mudar uma cláusula do geral muda no contrato por ato também.
+  - **Sai:** a cláusula de vedação a acordos desassistidos, porque ela cobra o êxito, que não existe aqui. **Sem declaração de hipossuficiência.**
+  - Total: 13 cláusulas e a 2ª-A.
 - **Procuração:** a mesma ad judicia et extra de sempre (editável na aba, se quiser limitar ao ato).
 - Testes: `tests/contratoPorAto.test.mjs`.
 
@@ -438,6 +443,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 | 31/10/2026 | Claude | Juntar em uma inicial: caixinha em cada ação da tela do cliente; a Dra. junta teses diferentes (empréstimo consignado + cartão RMC/RCC) do mesmo banco; bancos diferentes nunca; a conferência por banco e a planilha contam as teses dos pedidos unidos |
 | 13/11/2026 | Claude | Toda petição inicial abre com "AO DOUTO JUÍZO" (todas as áreas); o cabeçalho trabalhista passa a "AO DOUTO JUÍZO DA ___ VARA DO TRABALHO DE (CIDADE) – (ESTADO)" (`enderecamentoPeca.ts`) |
 | 13/11/2026 | Claude | Contratação por ato: minuta curta só do ato + procuração, sem declaração; liga sozinha com proposta só de "Diligência / atos isolados" ou pela caixinha "Contratação por ato" no contrato |
+| 13/11/2026 | Claude | Contrato por ato refeito com as cláusulas do contrato geral, com o mesmo texto (só objeto e preço mudam; sai a vedação a acordos, ligada ao êxito). As cláusulas comuns ficam num lugar só (`CL_*`) |
 
 ---
 ◀ [Dativo](05-dativo.md) · [Visão geral](00-visao-geral.md) · Próximo: [Agenda e compromissos](07-agenda.md) ▶
