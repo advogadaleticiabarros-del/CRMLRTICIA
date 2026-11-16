@@ -9684,7 +9684,43 @@ async function datDemandas(c) {
       <input type="text" id="dcase-nome" placeholder="Buscar por assistido ou número do processo…" title="Nome do assistido ou número do processo, com ou sem pontuação" style="max-width:300px">
       <input type="text" id="dcase-comarca" placeholder="Filtrar por comarca…" style="max-width:200px">
       <input type="search" id="dcase-protocolo" placeholder="Buscar por protocolo…" title="Protocolo do e-Flow (ex.: 2026-C35XPH), inteiro ou só um pedaço" aria-label="Buscar por protocolo" autocomplete="off" spellcheck="false" style="max-width:200px">
+      <div class="dcase-vistas" role="group" aria-label="Forma de ver as demandas">
+        <button type="button" data-dcase-vista="lista" aria-pressed="false">Lista</button>
+        <button type="button" data-dcase-vista="kanban" aria-pressed="false">Kanban por fase</button>
+      </div>
     </div><div class="card"><div id="dcase-table"></div></div>`;
+  // Lista (como sempre foi) ou kanban com uma coluna por fase. Mesmos filtros e
+  // mesma consulta; a escolha fica lembrada neste navegador.
+  let vista = 'lista';
+  try { if (localStorage.getItem('dcase_vista') === 'kanban') vista = 'kanban'; } catch (_) { /* sem storage: fica a lista */ }
+  const marcaVista = () => c.querySelectorAll('[data-dcase-vista]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.dcaseVista === vista)));
+  c.querySelectorAll('[data-dcase-vista]').forEach((b) => b.onclick = () => {
+    vista = b.dataset.dcaseVista;
+    try { localStorage.setItem('dcase_vista', vista); } catch (_) { /* ignora */ }
+    marcaVista(); load();
+  });
+  marcaVista();
+  const renderKanban = (rows) => {
+    const fases = [...DATIVE_STATUS, ['recusada', 'Recusada']];
+    const conhecidas = new Set(fases.map(([v]) => v));
+    const porFase = (v) => rows.filter((d) => d.status === v);
+    const semFase = rows.filter((d) => !conhecidas.has(d.status));
+    const colunas = fases
+      // Indeferida e Recusada só aparecem quando têm demanda; as 8 fases do caminho, sempre.
+      .filter(([v]) => (v !== 'indeferida' && v !== 'recusada') || porFase(v).length)
+      .map(([v, t]) => [v, t, porFase(v)]);
+    if (semFase.length) colunas.push(['', 'Sem fase', semFase]);
+    return `<div class="dat-quadro dcase-kanban">${colunas.map(([v, t, lista]) => `
+      <section class="dat-quadro-col${v === 'indeferida' || v === 'recusada' ? ' negado' : ''}" aria-label="${esc(t)}">
+        <div class="dat-quadro-cab"><strong>${esc(t)}</strong><small>${lista.length} · ${money(lista.reduce((s, d) => s + Number(d.estimated_value || 0), 0))}</small></div>
+        ${lista.map((d) => `<button type="button" class="dat-quadro-caso" data-dcase="${d.id}">
+          <strong>${esc(d.assisted_name || d.process_number || 's/ nome')}</strong>
+          <small>${esc(d.comarca || '')}${d.assunto ? ' · ' + esc(d.assunto) : ''}</small>
+          ${d.process_number && d.assisted_name ? `<small>${esc(d.process_number)}</small>` : ''}
+          <small>${d.eflow_protocolo ? 'Prot. ' + esc(d.eflow_protocolo) + ' · ' : ''}${money(d.estimated_value)}</small>
+        </button>`).join('') || '<small class="dat-quadro-vazio">Nenhuma</small>'}
+      </section>`).join('')}</div>`;
+  };
   let periodo = { de: '', ate: '' };
   let statusFiltro = '';
   let nomeFiltro = '';
@@ -9709,7 +9745,7 @@ async function datDemandas(c) {
     if (protocoloFiltro.trim()) params.set('protocolo', protocoloFiltro.trim());
     const qs = params.toString();
     const rows = filtraPeriodo(await api('/api/dative/cases' + (qs ? '?' + qs : '')), 'nomeacao_date');
-    $('#dcase-table').innerHTML = rows.length ? `
+    $('#dcase-table').innerHTML = vista === 'kanban' ? renderKanban(rows) : rows.length ? `
       <table><thead><tr><th>Comarca</th><th>Assistido</th><th>Assunto</th><th>Área</th><th>Nomeação</th><th>Estimado</th><th>Status</th><th></th></tr></thead>
       <tbody>${rows.map((d) => `<tr>
         <td><strong>${d.comarca}</strong>${d.origem === 'auto_djen' ? '<span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy);margin-left:6px;font-size:10px">Auto</span>' : ''}<br><small style="color:var(--text-muted)">${d.process_number || ''}</small></td>

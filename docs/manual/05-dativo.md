@@ -71,6 +71,10 @@ Pagamentos previstos e recebidos ficam vinculados à demanda. A tela de resumo m
 
 Uma demanda dativa pode ser movida pra esteira de produção (gera um caso normal, usando o mesmo cliente já vinculado) quando chega a hora de redigir uma peça — não duplica o cliente.
 
+## Lista ou kanban por fase
+
+Desde 16/11/2026 a aba **Demandas** tem, no fim da barra de filtros, o seletor **Lista | Kanban por fase**. A lista continua igual. O kanban mostra uma coluna por fase (as 8 do caminho do pagamento; Indeferida e Recusada só aparecem quando têm demanda), com a quantidade e a soma do estimado no topo. Cada card traz assistido, comarca, assunto, número do processo, protocolo e valor, e abre a ficha no clique. Os filtros (etapa, busca, comarca, protocolo, período) valem nas duas vistas. A escolha fica lembrada no navegador. No kanban, "Exportar CSV/PDF" não acha tabela: volte para a lista para exportar.
+
 ## Buscar e filtrar demandas
 
 Desde 16/11/2026 a lista tem também o campo **Buscar por protocolo**: acha pelo protocolo do e-Flow, inteiro ou só um pedaço, em maiúscula ou minúscula, com ou sem hífen ("2026-c35xph", "C35XPH"). A regra fica em `filtroProtocoloDativo` (`src/services/buscaDativo.ts`), parâmetro `protocolo` em `GET /api/dative/cases`.
@@ -96,6 +100,7 @@ Desde 16/11/2026 o mesmo campo ("Buscar por assistido ou número do processo…"
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/11/2026 | Claude | Aba Demandas: seletor Lista ou Kanban por fase (uma coluna por fase, mesmos filtros; a lista não mudou) |
 | 16/11/2026 | Claude | Campo "Buscar por protocolo" na lista de demandas (protocolo do e-Flow, sem diferenciar maiúscula nem hífen) |
 | 16/11/2026 | Claude | Busca das demandas acha também pelo número do processo, com ou sem pontuação (parâmetro `busca` em `GET /api/dative/cases`) |
 | 16/11/2026 | Claude | No Financeiro, o dativo só aparece depois de sair na lista da Sefaz, como "disponível para recebimento", sem data e acumulado até a baixa |
