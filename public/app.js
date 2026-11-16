@@ -9683,11 +9683,13 @@ async function datDemandas(c) {
       <select id="dcase-status" title="Filtrar por etapa"><option value="">Todas as etapas</option>${DATIVE_STATUS.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}<option value="recusada">Recusada</option></select>
       <input type="text" id="dcase-nome" placeholder="Buscar por assistido ou número do processo…" title="Nome do assistido ou número do processo, com ou sem pontuação" style="max-width:300px">
       <input type="text" id="dcase-comarca" placeholder="Filtrar por comarca…" style="max-width:200px">
+      <input type="search" id="dcase-protocolo" placeholder="Buscar por protocolo…" title="Protocolo do e-Flow (ex.: 2026-C35XPH), inteiro ou só um pedaço" aria-label="Buscar por protocolo" autocomplete="off" spellcheck="false" style="max-width:200px">
     </div><div class="card"><div id="dcase-table"></div></div>`;
   let periodo = { de: '', ate: '' };
   let statusFiltro = '';
   let nomeFiltro = '';
   let comarcaFiltro = '';
+  let protocoloFiltro = '';
   let debounceTimer = null;
   tableTools(c.querySelector('.card'), {
     onPeriod: (de, ate) => { periodo = { de, ate }; load(); },
@@ -9704,6 +9706,7 @@ async function datDemandas(c) {
     if (statusFiltro) params.set('status', statusFiltro);
     if (nomeFiltro.trim()) params.set('busca', nomeFiltro.trim());
     if (comarcaFiltro.trim()) params.set('comarca', comarcaFiltro.trim());
+    if (protocoloFiltro.trim()) params.set('protocolo', protocoloFiltro.trim());
     const qs = params.toString();
     const rows = filtraPeriodo(await api('/api/dative/cases' + (qs ? '?' + qs : '')), 'nomeacao_date');
     $('#dcase-table').innerHTML = rows.length ? `
@@ -9724,11 +9727,12 @@ async function datDemandas(c) {
   const buscaComDebounce = () => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(() => {
-      nomeFiltro = $('#dcase-nome').value; comarcaFiltro = $('#dcase-comarca').value; load();
+      nomeFiltro = $('#dcase-nome').value; comarcaFiltro = $('#dcase-comarca').value; protocoloFiltro = $('#dcase-protocolo').value; load();
     }, 350);
   };
   $('#dcase-nome').oninput = buscaComDebounce;
   $('#dcase-comarca').oninput = buscaComDebounce;
+  $('#dcase-protocolo').oninput = buscaComDebounce;
   await load();
 }
 

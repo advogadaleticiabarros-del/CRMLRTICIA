@@ -22,3 +22,15 @@ export function filtroBuscaDativo(termo: unknown): { sql: string; params: string
   }
   return { sql: `(${condicoes.join(' OR ')})`, params };
 }
+
+// Protocolo do e-Flow (ex.: 2026-C35XPH), pedido da Jessica (16/11/2026). O
+// código pode ter sido gravado em minúscula ou com espaço; compara só letras
+// e números, em maiúsculas. Qualquer outro caractere digitado (inclusive % e _,
+// curingas do LIKE) é descartado.
+const PROTOCOLO_NORMALIZADO = "UPPER(REPLACE(REPLACE(eflow_protocolo, '-', ''), ' ', ''))";
+
+export function filtroProtocoloDativo(termo: unknown): { sql: string; params: string[] } | null {
+  const codigo = typeof termo === 'string' ? termo.toUpperCase().replace(/[^0-9A-Z]/g, '') : '';
+  if (!codigo) return null;
+  return { sql: `${PROTOCOLO_NORMALIZADO} LIKE ?`, params: [`%${codigo}%`] };
+}
