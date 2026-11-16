@@ -69,24 +69,29 @@ export async function montarAReceber(filtro: { clientId?: number } = {}): Promis
   const [dat] = await db.query(`
     SELECT dp.id, dp.reference, dp.value, dp.expected_date, dp.received_date, dp.status, dc.process_number
       FROM dative_payments dp LEFT JOIN dative_cases dc ON dc.id = dp.dative_case_id
-     WHERE 1=1${so('dc.client_id')}
+     WHERE (dp.status = 'recebido' OR dc.id IS NULL OR dc.status = 'a_receber')${so('dc.client_id')}
      ORDER BY COALESCE(dp.expected_date, dp.received_date) DESC LIMIT 300`) as any;
   for (const r of dat) rows.push({
     fonte: 'dativo', id: r.id, descricao: r.reference || `Dativo${r.process_number ? ' — proc. ' + r.process_number : ''}`,
     cliente: 'Estado (dativo)', processo: r.process_number || null, valor: N(r.value), vencimento: r.expected_date, recebido: r.status === 'recebido', pago_em: r.received_date,
   });
 
-  // Nomeações dativas sem recebimento lançado — o estimado é o "a receber".
+  // Dativo só entra no financeiro quando sai na lista de pagamento da Sefaz
+  // (pedido da Dra., 16/11/2026): aí está disponível para saque. Fica sem data
+  // e acumulado (aparece em qualquer mês) até a baixa, que marca a demanda como
+  // paga. Antes disso (certidão, protocolo, deferimento) não é caixa.
   const [datCasos] = await db.query(`
-    SELECT dc.id, dc.assisted_name, dc.comarca, dc.process_number, dc.estimated_value
+    SELECT dc.id, dc.assisted_name, dc.comarca, dc.process_number, dc.sefaz_lista_date, dc.sefaz_lista_ref,
+           COALESCE(dc.arbitrated_value, dc.estimated_value) AS valor
       FROM dative_cases dc
-     WHERE dc.status NOT IN ('paga','recusada','indeferida') AND dc.estimated_value > 0${so('dc.client_id')}
+     WHERE dc.status = 'a_receber' AND COALESCE(dc.arbitrated_value, dc.estimated_value) > 0${so('dc.client_id')}
        AND NOT EXISTS (SELECT 1 FROM dative_payments dp WHERE dp.dative_case_id = dc.id)
      ORDER BY dc.nomeacao_date DESC LIMIT 300`) as any;
   for (const r of datCasos) rows.push({
     fonte: 'dativo_caso', id: r.id,
-    descricao: `Nomeação — ${r.assisted_name || 'assistido'} (${r.comarca}${r.process_number ? ' · ' + r.process_number : ''})`,
-    cliente: 'Estado (dativo)', processo: r.process_number || null, valor: N(r.estimated_value), vencimento: null, recebido: false, pago_em: null,
+    descricao: `Dativo na lista da Sefaz${r.sefaz_lista_ref ? ' (' + r.sefaz_lista_ref + ')' : ''} — ${r.assisted_name || 'assistido'} (${r.comarca}${r.process_number ? ' · ' + r.process_number : ''})`,
+    cliente: 'Estado (dativo)', processo: r.process_number || null, valor: N(r.valor), vencimento: null, recebido: false, pago_em: null,
+    disponivel: true, na_lista_em: r.sefaz_lista_date || null,
   });
 
   const [corr] = await db.query(`

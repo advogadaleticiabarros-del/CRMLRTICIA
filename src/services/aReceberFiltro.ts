@@ -13,6 +13,8 @@
 export interface ItemAReceber {
   fonte: string; cliente?: string | null; descricao?: string | null; valor: number;
   vencimento?: unknown; pago_em?: unknown; recebido: boolean; vencido: boolean;
+  /** Disponível para saque, sem data (dativo na lista da Sefaz). */
+  disponivel?: boolean;
   [k: string]: unknown;
 }
 export interface FiltroAReceber { status?: string; fonte?: string; busca?: string; de?: string; ate?: string }
@@ -46,7 +48,9 @@ export function filtrarAReceber<T extends ItemAReceber>(rows: T[], f: FiltroARec
     if (f.status === 'vencido' && !x.vencido) return false;
     if (f.fonte && x.fonte !== f.fonte) return false;
     if (busca && !`${x.cliente || ''} ${x.descricao || ''}`.toLowerCase().includes(busca)) return false;
-    if (de || ate) {
+    // Dativo na lista da Sefaz (16/11/2026): disponível para saque, sem data.
+    // Fica acumulado em qualquer período até ser retirado e dado como recebido.
+    if ((de || ate) && !(x.disponivel && !x.recebido)) {
       const d = dataReferencia(x);
       if (!d || (de && d < de) || (ate && d > ate)) return false;
     }
@@ -63,6 +67,8 @@ export function kpisAReceber(rows: ItemAReceber[]) {
     recebido: soma(recebidos),
     a_receber: soma(abertos),
     vencido: soma(vencidos),
+    // dativo já na lista da Sefaz, ainda não retirado (acumulado, sem data)
+    disponivel: soma(abertos.filter((r) => r.disponivel)),
     // o que é SEU (já descontada a parte da parceira) e o que vai para a parceira
     seu_programado: soma(rows, 'seu'),
     seu_recebido: soma(recebidos, 'seu'),

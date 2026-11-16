@@ -62,19 +62,22 @@ export async function getFinanceSummary() {
       COALESCE(SUM(CASE WHEN status IN ('aberto','atrasado','parcial') AND data_vencimento < CURDATE() THEN valor_final END),0) AS venc
     FROM parcelas`).catch(() => ({ prev: 0, realz: 0, venc: 0 }));
 
-  // Dativo: recebimentos lançados + o ESTIMADO das nomeações ainda sem
-  // recebimento vinculado (o Estado paga meses depois; o estimado é o
-  // "a receber" real da advogada dativa).
+  // Dativo: recebimentos lançados + as nomeações que já saíram na lista de
+  // pagamento da Sefaz (16/11/2026: só aí entra no financeiro; valor
+  // arbitrado, senão o estimado). Previsto ligado a demanda que ainda não
+  // está na lista não conta.
   const dativo = await one(`
     SELECT
       COALESCE(SUM(CASE WHEN status='previsto' THEN value END),0) AS prev,
       COALESCE(SUM(CASE WHEN status='recebido' THEN value END),0) AS realz,
       COALESCE(SUM(CASE WHEN status='previsto' AND expected_date < CURDATE() THEN value END),0) AS venc
-    FROM dative_payments`);
+    FROM dative_payments dp
+   WHERE dp.status = 'recebido' OR dp.dative_case_id IS NULL
+      OR EXISTS (SELECT 1 FROM dative_cases dc WHERE dc.id = dp.dative_case_id AND dc.status = 'a_receber')`);
   const dativoCasos = await one(`
-    SELECT COALESCE(SUM(estimated_value),0) AS prev
+    SELECT COALESCE(SUM(COALESCE(dc.arbitrated_value, dc.estimated_value)),0) AS prev
       FROM dative_cases dc
-     WHERE dc.status NOT IN ('paga','recusada','indeferida')
+     WHERE dc.status = 'a_receber'
        AND NOT EXISTS (SELECT 1 FROM dative_payments dp WHERE dp.dative_case_id = dc.id)`);
   dativo.prev = N(dativo.prev) + N(dativoCasos.prev);
 

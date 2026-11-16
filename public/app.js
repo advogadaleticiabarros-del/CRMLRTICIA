@@ -5983,7 +5983,7 @@ async function acordoRapido(d, onSave) {
 // A RECEBER — unificado: lançamentos, parcelas (propostas e contratos),
 // dativas e correspondente numa lista só, com baixa direto na linha.
 async function finReceitas(c) {
-  const FONTE_PT = { lancamento: 'Lançamento', parcela: 'Parcela (proposta)', contrato: 'Parcela (contrato)', dativo: 'Dativo', dativo_caso: 'Dativo (nomeação)', correspondente: 'Correspondente', exito: 'Êxito (RPV/alvará)' };
+  const FONTE_PT = { lancamento: 'Lançamento', parcela: 'Parcela (proposta)', contrato: 'Parcela (contrato)', dativo: 'Dativo', dativo_caso: 'Dativo (lista da Sefaz)', correspondente: 'Correspondente', exito: 'Êxito (RPV/alvará)' };
   c.innerHTML = `
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px">
       <div><h3 style="color:var(--navy);margin:0">${svgIcon('banknote','ic-title')}A Receber — todas as frentes</h3></div>
@@ -6018,7 +6018,7 @@ async function finReceitas(c) {
         <label>De<input type="date" id="rec-f-de" /></label>
         <label>Até<input type="date" id="rec-f-ate" /></label>
       </div>
-      <p class="sub" style="margin:8px 0 0">No período, o que já foi <strong>recebido</strong> conta pela data em que o dinheiro entrou; o que está <strong>a receber</strong>, pelo vencimento. Os totais acima seguem o período, a origem e a busca. "Seu" já desconta a parte da parceira nos casos em parceria (ex.: Infinity Law, metade dos 30%).</p>
+      <p class="sub" style="margin:8px 0 0">No período, o que já foi <strong>recebido</strong> conta pela data em que o dinheiro entrou; o que está <strong>a receber</strong>, pelo vencimento. O dativo só entra quando sai na lista da Sefaz: fica <strong>disponível para recebimento</strong>, sem data, e aparece em todo mês até a baixa. Os totais acima seguem o período, a origem e a busca. "Seu" já desconta a parte da parceira nos casos em parceria (ex.: Infinity Law, metade dos 30%).</p>
     </div>
     <div class="card"><div id="rec-lista"><div class="spinner"></div></div></div>`;
   tableTools(c.querySelector('.card:last-child'), { findTable: () => c.querySelector('#rec-lista table'), filename: 'a-receber', title: 'A Receber' });
@@ -6056,8 +6056,8 @@ async function finReceitas(c) {
         <td>${esc(x.cliente || '—')}</td>
         <td style="white-space:nowrap;font-size:12.5px">${x.processo ? esc(x.processo) : '<small style="color:var(--text-muted)">—</small>'}</td>
         <td><strong>${money(Number(x.parceiro) > 0 ? x.seu : x.valor)}</strong>${Number(x.parceiro) > 0 ? `<br><small style="color:var(--text-muted);white-space:nowrap">só a sua parte · total ${money(x.valor)} (${esc(x.parceiroNome || 'parceira')} ${money(x.parceiro)})</small>` : ''}</td>
-        <td>${fmtDate(x.vencimento)}</td>
-        <td>${x.recebido ? `<span class="badge pago">recebido${x.pago_em ? ' ' + fmtDate(x.pago_em) : ''}</span>` : x.vencido ? '<span class="badge vencido">vencido</span>' : '<span class="badge">a receber</span>'}</td>
+        <td>${x.disponivel && !x.recebido ? `<small style="color:var(--text-muted)">sem data${x.na_lista_em ? ' · na lista desde ' + fmtDate(x.na_lista_em) : ''}</small>` : fmtDate(x.vencimento)}</td>
+        <td>${x.recebido ? `<span class="badge pago">recebido${x.pago_em ? ' ' + fmtDate(x.pago_em) : ''}</span>` : x.disponivel ? '<span class="badge realizada" style="text-transform:none">disponível para recebimento</span>' : x.vencido ? '<span class="badge vencido">vencido</span>' : '<span class="badge">a receber</span>'}</td>
         <td style="white-space:nowrap">${x.recebido
           ? `<button class="btn-sm" data-recibo="${x.fonte}:${x.id}" title="Emitir recibo em PDF">Recibo</button>`
           : `<button class="btn-sm btn-gold" data-rec="${x.fonte}:${x.id}">Receber</button>`}</td></tr>`).join('')}</tbody></table>`
@@ -6071,7 +6071,7 @@ async function finReceitas(c) {
         else if (fonte2 === 'contrato') await api(`/api/parcelas/${id}/pagar`, { method: 'POST', body: '{}' });
         else if (fonte2 === 'dativo') await api(`/api/dative/payments/${id}/receive`, { method: 'PATCH' });
         else if (fonte2 === 'dativo_caso') {
-          const v = await uiPrompt('Valor recebido do Estado (deixe vazio para usar o estimado):');
+          const v = await uiPrompt('Valor sacado no banco (deixe vazio para usar o arbitrado ou o estimado):');
           if (v === null) { b.disabled = false; b.textContent = 'Receber'; return; }
           await api(`/api/dative/cases/${id}/receber`, { method: 'PATCH', body: JSON.stringify(v && v.trim() ? { valor: v.trim().replace(',', '.') } : {}) });
         }
@@ -6155,7 +6155,9 @@ async function finReceitas(c) {
       kpi('Já recebido — seu' + per, money(k.seu_recebido) + sub(k.recebido, k.parceiro_recebido), 'money') +
       kpi('A receber — seu' + per, money(k.seu_a_receber) + sub(k.a_receber, k.parceiro_a_receber), 'money') +
       kpi('Vencido — seu' + per, money(k.seu_vencido) + sub(k.vencido, k.vencido - k.seu_vencido), 'money') +
-      kpi('Da parceira (a repassar)' + per, money(k.parceiro_a_receber), 'money');
+      kpi('Da parceira (a repassar)' + per, money(k.parceiro_a_receber), 'money') +
+      // Dativo na lista da Sefaz: acumulado, sem data, até a retirada no banco.
+      (Number(k.disponivel) > 0 ? kpi('Disponível para recebimento (dativo)', money(k.disponivel), 'money') : '');
     render();
     loadConfirmar();
   };

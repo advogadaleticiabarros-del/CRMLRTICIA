@@ -84,7 +84,9 @@ Em **Financeiro › A Receber — todas as frentes** há o campo **Mês** (os ú
 **Qual data conta no período:**
 - o que já foi **recebido** conta pela **data em que o dinheiro entrou**. Ex.: alvará que vencia em setembro e caiu em 02/10 entra em outubro;
 - o que está **a receber** conta pelo **vencimento**;
-- item sem data (ex.: dativo sem previsão) só aparece em "Todo o período".
+- item sem data só aparece em "Todo o período", **menos o dativo disponível para recebimento** (abaixo), que aparece em qualquer mês até a baixa.
+
+**Dativo no A Receber (desde 16/11/2026):** a nomeação dativa só entra no financeiro quando **sai na lista de pagamento da Sefaz** (etapa "Na lista da Sefaz — disponível para saque", ver [Dativo](05-dativo.md)). Antes disso (certidão, protocolo, deferimento) não é caixa. Na lista ela aparece como **"disponível para recebimento"**, **sem data** e nunca vencida, com o valor arbitrado (ou o estimado), e fica **acumulada**: aparece em todo mês escolhido até alguém sacar no banco e clicar em **Receber** (a demanda vira "Recebida" e o recebimento passa a contar pela data da baixa). O card **"Disponível para recebimento (dativo)"** soma o que está esperando saque. Recebimento previsto lançado à mão numa demanda que ainda não está na lista também fica de fora. O fluxo de caixa mensal não mostra esses valores, porque não têm data.
 
 **Os quatro cards do topo** (Total programado, Já recebido, A receber, Vencido) passam a seguir o **período, a origem e a busca** e mostram o período no título. A **situação** (A receber / Recebidos / Vencidos) filtra só a lista, porque os próprios cards já separam essas situações. Antes, os cards eram sempre de todos os tempos.
 
@@ -154,6 +156,7 @@ Parcelas já repassadas têm o botão **Prestação de contas**, para gerar o te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/11/2026 | Claude | Dativo só entra no A Receber quando sai na lista de pagamento da Sefaz: "disponível para recebimento", sem data, acumulado em qualquer mês até a baixa; card "Disponível para recebimento (dativo)"; valor arbitrado, senão o estimado. Antes entrava toda nomeação não paga, com o estimado |
 | 14/10/2026 | Claude | Prestação de contas padrão do acordo: "Recebi e repassei" abre o texto para copiar e o botão de envio pelo WhatsApp |
 | 09/10/2026 | Claude | Aviso diário (8h) de parcelas de acordo que vencem hoje, amanhã e em 2 dias, e das vencidas sem baixa |
 | 08/10/2026 | Claude | A Receber e "Recebi um pagamento" viraram serviços compartilhados (tela + assistente) |

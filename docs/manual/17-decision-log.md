@@ -331,6 +331,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/11/2026 | Claude | Dativo no A Receber só a partir da lista da Sefaz e sem data: antes disso o Estado ainda pode negar e não há previsão de caixa. Sem data, o item seria escondido pelo filtro do mês; por isso "disponível" fura o filtro de período enquanto estiver em aberto (acumulado), em vez de inventar um vencimento |
 | 13/11/2026 | Claude | Pagamento do dativo como etapas do próprio status (não uma tabela à parte): uma demanda tem um único pedido de pagamento, então o status já é o lugar certo. Os campos de cada passo (certidão, protocolo, decisão, lista) avançam a etapa sozinhos e nunca voltam; os nomes antigos do banco (`aguardando_liberacao_requerimento`, `a_receber`) foram mantidos, só ganharam rótulos novos, para não migrar dados |
 | 31/10/2026 | Claude | "Sobre o caso" pelo que foi lido, nunca pela descrição de uma ação |
 | 31/10/2026 | Claude | Documentos repetidos marcados, não apagados; introdução do card do cliente pelas regras |

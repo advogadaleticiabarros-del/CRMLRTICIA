@@ -29,7 +29,7 @@ Desde 13/11/2026 o status segue o caminho real do pagamento do Estado do ES:
 
 **Na tela:** os três sites ficam no topo da Advocacia Dativa. A ficha mostra a faixa com as 8 etapas, o próximo passo, há quantos dias está parada e o botão do site certo; na etapa 5 tem "Copiar protocolo" (para colar na busca do e-Docs) e na 7, "Recebi no banco — dar baixa" (valor arbitrado, senão o estimado). A aba Projeção tem o quadro **Caminho do pagamento**, com as demandas de cada etapa da certidão em diante (`GET /api/dative/fluxo-pagamento`).
 
-**Dinheiro:** `protocolada` e `deferida` contam no "Realizado (a faturar)"; `indeferida` sai do estimado, das demandas ativas e do A Receber do financeiro até ser revertida.
+**Dinheiro:** `protocolada` e `deferida` contam no "Realizado (a faturar)" desta tela; `indeferida` sai do estimado e das demandas ativas até ser revertida. **No Financeiro (A Receber), desde 16/11/2026, só entra a demanda em `a_receber` (na lista da Sefaz)**: "disponível para recebimento", sem data, acumulada até a baixa (ver [Cobrança](08-cobranca.md)).
 
 **Demandas antigas:** `a_receber` antes significava "procedimento aberto, dinheiro não caiu"; agora é "saiu na lista". As demandas que já estavam em `a_receber` ou em `aguardando_liberacao_requerimento` continuam onde estavam e precisam ser conferidas à mão (registrar o protocolo leva para a etapa certa).
 
@@ -92,6 +92,7 @@ Desde 25/09/2026, a listagem de demandas dativas tem busca por **nome do assisti
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/11/2026 | Claude | No Financeiro, o dativo só aparece depois de sair na lista da Sefaz, como "disponível para recebimento", sem data e acumulado até a baixa |
 | 13/11/2026 | Claude | Caminho do pagamento: etapas `protocolada`, `deferida`, `indeferida` e campos de aceite, certidão, protocolo do e-Flow, decisão do e-Docs e lista da Sefaz (migration 179); avanço automático da etapa; links do e-Flow, e-Docs e Sefaz no topo; faixa de etapas e baixa na ficha; quadro na Projeção. A ficha não mostra mais o seletor de etapa em demanda recusada (salvar podia trocá-la para "Nomeada") |
 | 13/11/2026 | Claude | Ficha da demanda: botões "+ Incluir relato" e "+ Incluir audiência" nas próprias seções; a audiência já vem ligada à demanda aberta |
 | 26/10/2026 | Claude | Menor em segredo de justiça vem como "REPRESENTANTE e B. F. S. C." (iniciais de um ou mais assistidos): a ficha é do representante, as iniciais ficam só no assistido da demanda e entra na linha do tempo a nota "Segredo de justiça". Só iniciais, sem representante: aviso pedindo o nome dele. Antes dava erro 500 (ver runbook) |
