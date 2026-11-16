@@ -9681,7 +9681,7 @@ async function datDemandas(c) {
   c.innerHTML = `<div class="toolbar">
       <button class="btn-gold" id="new-dcase">+ Nova demanda</button>
       <select id="dcase-status" title="Filtrar por etapa"><option value="">Todas as etapas</option>${DATIVE_STATUS.map(([v, t]) => `<option value="${v}">${t}</option>`).join('')}<option value="recusada">Recusada</option></select>
-      <input type="text" id="dcase-nome" placeholder="Buscar por assistido…" style="max-width:220px">
+      <input type="text" id="dcase-nome" placeholder="Buscar por assistido ou número do processo…" title="Nome do assistido ou número do processo, com ou sem pontuação" style="max-width:300px">
       <input type="text" id="dcase-comarca" placeholder="Filtrar por comarca…" style="max-width:200px">
     </div><div class="card"><div id="dcase-table"></div></div>`;
   let periodo = { de: '', ate: '' };
@@ -9702,7 +9702,7 @@ async function datDemandas(c) {
   const load = async () => {
     const params = new URLSearchParams();
     if (statusFiltro) params.set('status', statusFiltro);
-    if (nomeFiltro.trim()) params.set('assisted_name', nomeFiltro.trim());
+    if (nomeFiltro.trim()) params.set('busca', nomeFiltro.trim());
     if (comarcaFiltro.trim()) params.set('comarca', comarcaFiltro.trim());
     const qs = params.toString();
     const rows = filtraPeriodo(await api('/api/dative/cases' + (qs ? '?' + qs : '')), 'nomeacao_date');

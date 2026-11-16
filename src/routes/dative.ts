@@ -3,6 +3,7 @@ import { db } from '../config/database';
 import { extrairNomeacaoDativa, aiExtractFromFile } from '../services/aiAssistant';
 import { stripDataUrlPrefix } from '../utils/dataUrl';
 import { hojeBrasilia } from '../services/analistaDocumentos';
+import { filtroBuscaDativo } from '../services/buscaDativo';
 import {
   ETAPAS_DATIVO, ETAPA_INDEFERIDA, LINKS_DATIVO, statusAposRegistro, resumoFluxo, validarCamposFluxo,
 } from '../services/fluxoPagamentoDativo';
@@ -153,6 +154,9 @@ router.get('/cases', async (req: Request, res: Response) => {
   const where: string[] = ['user_id = ?'];
   const params: any[] = [req.user!.id];
   if (status && CASE_STATUS.includes(status)) { where.push('status = ?'); params.push(status); }
+  // 16/11/2026: "busca" acha por assistido ou nº do processo (com/sem pontuação).
+  const busca = filtroBuscaDativo(req.query.busca);
+  if (busca) { where.push(busca.sql); params.push(...busca.params); }
   if (assistedName && assistedName.trim()) { where.push('assisted_name LIKE ?'); params.push(`%${assistedName.trim()}%`); }
   if (comarca && comarca.trim()) { where.push('comarca LIKE ?'); params.push(`%${comarca.trim()}%`); }
 

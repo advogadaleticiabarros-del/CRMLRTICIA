@@ -75,6 +75,8 @@ Uma demanda dativa pode ser movida pra esteira de produção (gera um caso norma
 
 Desde 25/09/2026, a listagem de demandas dativas tem busca por **nome do assistido (representado)** e filtro por **comarca**, além do filtro por status já existente — antes só dava pra filtrar por status, e achar uma demanda específica exigia rolar a lista inteira ou usar Ctrl+F no navegador.
 
+Desde 16/11/2026 o mesmo campo ("Buscar por assistido ou número do processo…") também acha pelo **número do processo**, digitado com ou sem pontuação (`5001234-56.2025.8.08.0024` ou `50012345620258080024`), inteiro ou só um trecho a partir de 4 dígitos. A comparação usa só os dígitos, dos dois lados (regra em `src/services/buscaDativo.ts`).
+
 ## FAQ
 
 **Uma demanda dativa duplicada pode acontecer?** Já aconteceu (bug corrigido em 03/09/2026) — a comparação de número de processo antes era exata, e um cadastro manual formatado (`0000000-00.0000.8.08.0000`) não batia com o número sem formatação que o DJEN manda. Hoje a comparação ignora pontuação.
@@ -92,6 +94,7 @@ Desde 25/09/2026, a listagem de demandas dativas tem busca por **nome do assisti
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/11/2026 | Claude | Busca das demandas acha também pelo número do processo, com ou sem pontuação (parâmetro `busca` em `GET /api/dative/cases`) |
 | 16/11/2026 | Claude | No Financeiro, o dativo só aparece depois de sair na lista da Sefaz, como "disponível para recebimento", sem data e acumulado até a baixa |
 | 13/11/2026 | Claude | Caminho do pagamento: etapas `protocolada`, `deferida`, `indeferida` e campos de aceite, certidão, protocolo do e-Flow, decisão do e-Docs e lista da Sefaz (migration 179); avanço automático da etapa; links do e-Flow, e-Docs e Sefaz no topo; faixa de etapas e baixa na ficha; quadro na Projeção. A ficha não mostra mais o seletor de etapa em demanda recusada (salvar podia trocá-la para "Nomeada") |
 | 13/11/2026 | Claude | Ficha da demanda: botões "+ Incluir relato" e "+ Incluir audiência" nas próprias seções; a audiência já vem ligada à demanda aberta |
