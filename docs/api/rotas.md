@@ -4,7 +4,7 @@
 > Acesso: **público** (sem login), **logado** (qualquer usuário), **equipe** (admin, advogada, staff), **admin**.
 > Dentro de cada rota pode haver checagem extra (ex.: dono do registro, papel parceiro).
 
-**506 rotas em 81 grupos.**
+**507 rotas em 81 grupos.**
 
 ## `/api/access-logs` · admin · `src/routes/accessLogs.ts`
 
@@ -384,6 +384,7 @@
 | POST | `/api/dative/cases/:id/mover-esteira` |
 | POST | `/api/dative/cases` |
 | PUT | `/api/dative/cases/:id` |
+| PATCH | `/api/dative/cases/:id/etapa` |
 | POST | `/api/dative/cases/:id/reject` |
 | POST | `/api/dative/cases/:id/reject/revert` |
 | DELETE | `/api/dative/cases/:id` |

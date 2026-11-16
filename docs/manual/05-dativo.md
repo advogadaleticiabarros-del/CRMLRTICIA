@@ -73,7 +73,16 @@ Uma demanda dativa pode ser movida pra esteira de produção (gera um caso norma
 
 ## Lista ou kanban por fase
 
-Desde 16/11/2026 a aba **Demandas** tem, no fim da barra de filtros, o seletor **Lista | Kanban por fase**. A lista continua igual. O kanban mostra uma coluna por fase (as 8 do caminho do pagamento; Indeferida e Recusada só aparecem quando têm demanda), com a quantidade e a soma do estimado no topo. Cada card traz assistido, comarca, assunto, número do processo, protocolo e valor, e abre a ficha no clique. Os filtros (etapa, busca, comarca, protocolo, período) valem nas duas vistas. A escolha fica lembrada no navegador. No kanban, "Exportar CSV/PDF" não acha tabela: volte para a lista para exportar.
+Desde 16/11/2026 a aba **Demandas** tem, no fim da barra de filtros, o seletor **Lista | Kanban por fase**. A lista continua igual. O kanban mostra uma coluna por fase (as 8 do caminho do pagamento e a Indeferida, sempre; Recusada só quando tem demanda), com a quantidade e a soma do estimado no topo. Cada card traz assistido, comarca, assunto, número do processo, protocolo e valor, e abre a ficha no clique. Os filtros (etapa, busca, comarca, protocolo, período) valem nas duas vistas. A escolha fica lembrada no navegador. No kanban, "Exportar CSV/PDF" não acha tabela: volte para a lista para exportar.
+
+### Mover o card de etapa (arrastar)
+
+Desde 16/11/2026, no **Kanban por fase** (aba Demandas) e no quadro **Caminho do pagamento** (aba Projeção), dá para **arrastar o card para outra coluna** e a demanda muda de etapa na hora. Vale para frente e para trás (serve para corrigir), e os dados da ficha (protocolo, datas, decisão) continuam guardados.
+
+- **Não dá para arrastar para "Recebida"**: use "Recebi no banco — dar baixa" na ficha, que registra o pagamento.
+- **Não dá para arrastar para "Recusada"**: use "Recusar" na ficha, que pede o motivo. Cards já recebidos ou recusados não se arrastam.
+- **Cuidado ao voltar uma etapa:** se a ficha tiver, por exemplo, o protocolo preenchido e você arrastar o card para antes de "Protocolada", na próxima vez que **salvar a ficha** ela volta sozinha para "Protocolada" (regra do "só avança" ao preencher). Para voltar de vez, apague o campo na ficha.
+- Rota: `PATCH /api/dative/cases/:id/etapa` (`{ status }`); regra em `validarMovimentoNoQuadro` (`src/services/fluxoPagamentoDativo.ts`). Arrastar funciona com mouse; no celular, mude a etapa pela ficha (Editar).
 
 ## Buscar e filtrar demandas
 
@@ -100,6 +109,7 @@ Desde 16/11/2026 o mesmo campo ("Buscar por assistido ou número do processo…"
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 16/11/2026 | Claude | Arrastar o card para mudar a etapa, no Kanban por fase e no Caminho do pagamento (`PATCH /api/dative/cases/:id/etapa`); coluna Indeferida sempre visível nos dois quadros |
 | 16/11/2026 | Claude | Aba Demandas: seletor Lista ou Kanban por fase (uma coluna por fase, mesmos filtros; a lista não mudou) |
 | 16/11/2026 | Claude | Campo "Buscar por protocolo" na lista de demandas (protocolo do e-Flow, sem diferenciar maiúscula nem hífen) |
 | 16/11/2026 | Claude | Busca das demandas acha também pelo número do processo, com ou sem pontuação (parâmetro `busca` em `GET /api/dative/cases`) |

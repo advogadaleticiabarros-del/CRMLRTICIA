@@ -2891,6 +2891,9 @@ details.lote-relato p { margin: 0; white-space: pre-line; }
 .dat-quadro-caso { text-align: left; background: var(--surface); border: 1px solid var(--border-soft); border-radius: 8px; padding: 8px 10px; cursor: pointer;
   display: flex; flex-direction: column; gap: 2px; font: inherit; color: var(--text); min-height: 44px; }
 .dat-quadro-caso:hover, .dat-quadro-caso:focus-visible { border-color: var(--gold); }
+.dat-quadro-caso[draggable="true"] { cursor: grab; }
+.dat-quadro-caso.arrastando { opacity: .45; }
+.dat-quadro-col.alvo { outline: 2px dashed var(--gold); outline-offset: -2px; }
 .dat-quadro-caso small { color: var(--text-muted); font-size: 11.5px; }
 /* Demandas dativas: seletor Lista | Kanban por fase (16/11/2026) */
 .dcase-vistas { display: inline-flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-left: auto; }

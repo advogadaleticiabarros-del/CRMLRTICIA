@@ -41,7 +41,31 @@ export const ETAPA_INDEFERIDA: Etapa = {
   status: 'indeferida', rotulo: 'Indeferida', acao: 'Ver o motivo no e-Docs e decidir se recorre ou corrige', link: LINKS_DATIVO.edocs,
 };
 
-const ORDEM: Record<string, number> = Object.fromEntries(ETAPAS_DATIVO.map((e, i) => [e.status, i + 1]));
+/** Colunas do quadro "Caminho do pagamento" (da atuação concluída em diante). */
+export const ETAPAS_DO_QUADRO = [
+  'concluida', 'aguardando_liberacao_requerimento', 'protocolada', 'deferida', 'a_receber', 'indeferida',
+] as const;
+
+/**
+ * Arrastar o card para outra etapa (pedido de 16/11/2026), em qualquer quadro:
+ * a etapa escolhida vale como está, para frente ou para trás (serve para
+ * corrigir). Não mexe em demanda já recebida ou recusada, e não leva a
+ * "recebida" (isso é a baixa, que registra o pagamento) nem a "recusada"
+ * (exige motivo).
+ */
+export function validarMovimentoNoQuadro(atual: string, destino: string):
+  { ok: true; status: string } | { ok: false; erro: string } {
+  if (atual === 'paga') return { ok: false, erro: 'Esta demanda já está recebida; para mudar, edite a ficha' };
+  if (atual === 'recusada') return { ok: false, erro: 'Esta demanda está recusada; desfaça a recusa na ficha' };
+  if (destino === 'paga') return { ok: false, erro: 'Para marcar como recebida, use "Recebi no banco — dar baixa" na ficha' };
+  if (destino === 'recusada') return { ok: false, erro: 'Para recusar, use "Recusar" na ficha (precisa do motivo)' };
+  if (!ETAPAS_DATIVO.some((e) => e.status === destino) && destino !== ETAPA_INDEFERIDA.status) {
+    return { ok: false, erro: 'Etapa inválida' };
+  }
+  return { ok: true, status: destino };
+}
+
+const ORDEM: Record<string, number> =Object.fromEntries(ETAPAS_DATIVO.map((e, i) => [e.status, i + 1]));
 ORDEM.indeferida = ORDEM.deferida; // mesma altura do deferimento
 
 export interface CamposFluxo {

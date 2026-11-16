@@ -9637,11 +9637,11 @@ async function datProjecao(c) {
     api('/api/dative/a-receber-90d').catch(() => ({ total_casos: 0, total_valor: 0, casos: [] })),
     api('/api/dative/fluxo-pagamento').catch(() => ({ etapas: [] })),
   ]);
-  const colunas = (fluxo.etapas || []).filter((e) => e.status !== 'indeferida' || e.quantidade).map((e) => `
-    <div class="dat-quadro-col${e.status === 'indeferida' ? ' negado' : ''}">
+  const colunas = (fluxo.etapas || []).map((e) => `
+    <div class="dat-quadro-col${e.status === 'indeferida' ? ' negado' : ''}" data-etapa-col="${e.status}">
       <div class="dat-quadro-cab"><strong>${esc(e.rotulo)}</strong><small>${e.quantidade} · ${money(e.valor)}</small>
         ${e.link ? `<a href="${e.link}" target="_blank" rel="noopener" class="dat-quadro-link">Abrir ${datNomeDoLink(e.link)} ↗</a>` : `<small>${esc(e.acao || '')}</small>`}</div>
-      ${e.casos.map((k) => `<button type="button" class="dat-quadro-caso" data-fluxo-caso="${k.id}">
+      ${e.casos.map((k) => `<button type="button" class="dat-quadro-caso" draggable="true" data-fluxo-caso="${k.id}" data-arrasta-caso="${k.id}" data-etapa="${e.status}" title="Clique para abrir · arraste para outra coluna para mudar a etapa">
         <strong>${esc(k.assisted_name || k.process_number || 's/ nome')}</strong>
         <small>${esc(k.comarca || '')}${k.eflow_protocolo ? ' · Prot. ' + esc(k.eflow_protocolo) : ''}${k.dias_na_etapa != null ? ' · ' + k.dias_na_etapa + ' dia(s)' : ''}</small>
       </button>`).join('') || '<small class="dat-quadro-vazio">Nenhuma</small>'}
@@ -9664,7 +9664,7 @@ async function datProjecao(c) {
       ${kpi('Estimado total', money(s.estimado_total), 'money')}
     </div>
     <div class="dash-section">
-      <h3>Caminho do pagamento <small style="color:var(--text-muted);font-weight:400">· da certidão até o saque</small></h3>
+      <h3>Caminho do pagamento <small style="color:var(--text-muted);font-weight:400">· da certidão até o saque · arraste o card para mudar a etapa</small></h3>
       <div class="dat-quadro">${colunas || '<small>Nenhuma demanda depois da atuação</small>'}</div>
     </div>
     <div class="dash-section">
@@ -9675,6 +9675,32 @@ async function datProjecao(c) {
     ${miniList('Por mês (nomeação / a faturar)', (s.por_mes || []).map((m) => `<div class="mini-row"><span>${m.mes}</span><strong style="color:var(--green)">${money(m.realizado)}</strong></div>`))}`;
   c.querySelectorAll('[data-ar90]').forEach((b) => b.onclick = () => dativeCaseDetail(b.dataset.ar90, () => datProjecao(c)));
   c.querySelectorAll('[data-fluxo-caso]').forEach((b) => b.onclick = () => dativeCaseDetail(b.dataset.fluxoCaso, () => datProjecao(c)));
+  datLigarArrastoDeEtapa(c, () => datProjecao(c));
+}
+
+// Arrastar o card do dativo para outra coluna muda a etapa (16/11/2026). Serve aos
+// dois quadros (Caminho do pagamento e Kanban por fase): card com
+// data-arrasta-caso + data-etapa, coluna com data-etapa-col. A regra fica na rota.
+function datLigarArrastoDeEtapa(raiz, recarregar) {
+  raiz.querySelectorAll('[data-arrasta-caso]').forEach((b) => {
+    b.addEventListener('dragstart', (ev) => { ev.dataTransfer.setData('text/plain', JSON.stringify({ id: b.dataset.arrastaCaso, de: b.dataset.etapa })); b.classList.add('arrastando'); });
+    b.addEventListener('dragend', () => b.classList.remove('arrastando'));
+  });
+  raiz.querySelectorAll('[data-etapa-col]').forEach((col) => {
+    col.addEventListener('dragover', (ev) => { ev.preventDefault(); col.classList.add('alvo'); });
+    col.addEventListener('dragleave', (ev) => { if (!col.contains(ev.relatedTarget)) col.classList.remove('alvo'); });
+    col.addEventListener('drop', async (ev) => {
+      ev.preventDefault(); col.classList.remove('alvo');
+      let d = {}; try { d = JSON.parse(ev.dataTransfer.getData('text/plain')); } catch { /* arrasto de fora */ }
+      const para = col.dataset.etapaCol;
+      if (!d.id || d.de === para) return;
+      try {
+        await api(`/api/dative/cases/${d.id}/etapa`, { method: 'PATCH', body: JSON.stringify({ status: para }) });
+        toast('Etapa alterada');
+      } catch (e) { toast(e.message, 'error'); }
+      recarregar();
+    });
+  });
 }
 
 async function datDemandas(c) {
@@ -9706,14 +9732,15 @@ async function datDemandas(c) {
     const porFase = (v) => rows.filter((d) => d.status === v);
     const semFase = rows.filter((d) => !conhecidas.has(d.status));
     const colunas = fases
-      // Indeferida e Recusada só aparecem quando têm demanda; as 8 fases do caminho, sempre.
-      .filter(([v]) => (v !== 'indeferida' && v !== 'recusada') || porFase(v).length)
+      // Recusada só aparece quando tem demanda (não recebe card arrastado: exige motivo);
+      // as 8 fases do caminho e a Indeferida, sempre (recebem card arrastado).
+      .filter(([v]) => v !== 'recusada' || porFase(v).length)
       .map(([v, t]) => [v, t, porFase(v)]);
     if (semFase.length) colunas.push(['', 'Sem fase', semFase]);
     return `<div class="dat-quadro dcase-kanban">${colunas.map(([v, t, lista]) => `
-      <section class="dat-quadro-col${v === 'indeferida' || v === 'recusada' ? ' negado' : ''}" aria-label="${esc(t)}">
+      <section class="dat-quadro-col${v === 'indeferida' || v === 'recusada' ? ' negado' : ''}" aria-label="${esc(t)}"${v && v !== 'paga' && v !== 'recusada' ? ` data-etapa-col="${v}"` : ''}>
         <div class="dat-quadro-cab"><strong>${esc(t)}</strong><small>${lista.length} · ${money(lista.reduce((s, d) => s + Number(d.estimated_value || 0), 0))}</small></div>
-        ${lista.map((d) => `<button type="button" class="dat-quadro-caso" data-dcase="${d.id}">
+        ${lista.map((d) => `<button type="button" class="dat-quadro-caso" data-dcase="${d.id}"${d.status !== 'paga' && d.status !== 'recusada' ? ` draggable="true" data-arrasta-caso="${d.id}" data-etapa="${esc(d.status)}" title="Clique para abrir · arraste para outra coluna para mudar a fase"` : ''}>
           <strong>${esc(d.assisted_name || d.process_number || 's/ nome')}</strong>
           <small>${esc(d.comarca || '')}${d.assunto ? ' · ' + esc(d.assunto) : ''}</small>
           ${d.process_number && d.assisted_name ? `<small>${esc(d.process_number)}</small>` : ''}
@@ -9757,6 +9784,7 @@ async function datDemandas(c) {
       : '<div class="empty">Nenhuma demanda dativa</div>';
     document.querySelectorAll('[data-dcase]').forEach((b) => b.onclick = () => dativeCaseDetail(b.dataset.dcase, load));
     document.querySelectorAll('[data-edit-dcase]').forEach((b) => b.onclick = async () => dativeCaseEditForm(load, await api('/api/dative/cases/' + b.dataset.editDcase)));
+    if (vista === 'kanban') datLigarArrastoDeEtapa($('#dcase-table'), load);
   };
   $('#new-dcase').onclick = () => dativeCaseForm(load);
   $('#dcase-status').onchange = () => { statusFiltro = $('#dcase-status').value; load(); };

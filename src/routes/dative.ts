@@ -5,7 +5,8 @@ import { stripDataUrlPrefix } from '../utils/dataUrl';
 import { hojeBrasilia } from '../services/analistaDocumentos';
 import { filtroBuscaDativo, filtroProtocoloDativo } from '../services/buscaDativo';
 import {
-  ETAPAS_DATIVO, ETAPA_INDEFERIDA, LINKS_DATIVO, statusAposRegistro, resumoFluxo, validarCamposFluxo,
+  ETAPAS_DATIVO, ETAPA_INDEFERIDA, ETAPAS_DO_QUADRO, LINKS_DATIVO, statusAposRegistro, resumoFluxo, validarCamposFluxo,
+  validarMovimentoNoQuadro,
 } from '../services/fluxoPagamentoDativo';
 
 const router = Router();
@@ -131,7 +132,7 @@ router.get('/fluxo-pagamento', async (req: Request, res: Response) => {
     [req.user!.id]
   ) as any;
   const hoje = hojeBrasilia();
-  const etapas = [...ETAPAS_DATIVO.filter((e) => ['concluida', 'aguardando_liberacao_requerimento', 'protocolada', 'deferida', 'a_receber'].includes(e.status)), ETAPA_INDEFERIDA]
+  const etapas = [...ETAPAS_DATIVO.filter((e) => (ETAPAS_DO_QUADRO as readonly string[]).includes(e.status)), ETAPA_INDEFERIDA]
     .map((e) => {
       const casos = rows.filter((r: any) => r.status === e.status).map((r: any) => ({
         id: r.id, comarca: r.comarca, assisted_name: r.assisted_name, process_number: r.process_number,
@@ -405,6 +406,20 @@ router.put('/cases/:id', async (req: Request, res: Response) => {
   await db.query(`UPDATE dative_cases SET ${fields.join(', ')} WHERE id = ?`, params);
   const [rows] = await db.query('SELECT * FROM dative_cases WHERE id = ?', [id]) as any;
   res.json(rows[0]);
+});
+
+// ── PATCH /api/dative/cases/:id/etapa — arrastar o card no quadro Caminho do
+// pagamento (16/11/2026). Grava a etapa escolhida como está (frente ou trás),
+// sem o "só avança" do PUT; os campos da ficha (protocolo, datas) ficam.
+router.patch('/cases/:id/etapa', async (req: Request, res: Response) => {
+  const [rows] = await db.query('SELECT id, status FROM dative_cases WHERE id = ? AND user_id = ?', [req.params.id, req.user!.id]) as any;
+  if (!rows.length) { res.status(404).json({ error: 'Demanda não encontrada' }); return; }
+  const mov = validarMovimentoNoQuadro(rows[0].status, String(req.body?.status ?? ''));
+  if (!mov.ok) { res.status(400).json({ error: mov.erro }); return; }
+  if (mov.status !== rows[0].status) {
+    await db.query('UPDATE dative_cases SET status = ? WHERE id = ? AND user_id = ?', [mov.status, req.params.id, req.user!.id]);
+  }
+  res.json({ success: true, status: mov.status });
 });
 
 // ── POST /api/dative/cases/:id/reject — recusa a nomeação dativa (motivo
