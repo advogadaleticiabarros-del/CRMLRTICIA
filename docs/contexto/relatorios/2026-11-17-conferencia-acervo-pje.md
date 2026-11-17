@@ -10,14 +10,14 @@
   - dativo nº 43: 5000043-16.2026.8.08.0041 (Itapemirim, 2º JEC), ficha existente (cliente 22); nascimento completado na ficha.
   - `legal_processes` 177: 0014344-76.2019.8.08.0048 (Serra, 1ª Vara de Família, arquivado → fase encerrado), cliente 154.
   - `legal_processes` 178: 5043510-33.2025.8.08.0024 (Vitória, 2ª Vara de Família), cliente 133.
-  - Os dois com monitoramento ligado (o sync preenche movimentos).
+  - Depois, com autorização: caso 36 (Edivaldo) recebeu o nº 5031136-15.2026.8.08.0035 e o processo 179 ligado a ele; processo 180 (Rosana, 5049528-37.2025, extinto → fase encerrado) ligado ao caso 55.
+  - Todos com monitoramento ligado (o sync preenche movimentos).
 
 ## Verificado
 - SELECT após cada INSERT confirmou as linhas e a ficha ligada. Inserts com `WHERE NOT EXISTS` (sem duplicar).
 
 ## Pendente (decisão da equipe)
 - Dativo 32 (Alto Rio Novo) está com área "criminal"; o certo é cível (carta precatória cível). A alteração foi bloqueada pela permissão da sessão.
-- Gravar 5031136-15.2026 no caso 36 (Edivaldo) e ligar 5049528-37.2025 ao caso 55 (Rosana): aguardando autorização.
 - Achados de qualidade: ~10 processos de família/criminal ligados à ficha genérica "EM SEGREDO DE JUSTIÇA" (cliente 15) ou "E. S. D. J."; 3 sem cliente (5029969-66.2025, 5021178-11.2025, 5035441-12.2025); 5000902-56.2025 ligado à ré Matricon como cliente (o certo é o Wilton, cliente 129).
 - Data de nomeação do dativo 43 em branco.
 
