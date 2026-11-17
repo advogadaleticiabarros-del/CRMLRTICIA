@@ -18,6 +18,8 @@ Consulte antes de mexer em qualquer integração externa, pra saber o que depend
 | **MEGA** | Armazenamento de documentos e backup do banco | Upload/visualização de documento; backup diário (continua rodando local, só não sobe a cópia externa) |
 | **DJEN (Comunica CNJ)** | Descoberta de processo por OAB, movimentações, prazos | Descoberta automática de processo, nomeação dativa, alertas de marco processual |
 | **DataJud (CNJ)** | Consulta de processo já cadastrado manualmente | Sincronização de processos cadastrados manualmente |
+| **MNI dos tribunais** (ligação oficial do CNJ, gratuita, com o login da Dra.): PJe do TJES 1º grau (`pje.tjes.jus.br/pje/intercomunicacao`), 2º grau (`/pje2g/intercomunicacao`) e eproc da JFES (`eproc-ws.jfes.jus.br`) | Intimações pendentes (sem abrir) e movimentações direto do tribunal. Login em Configurações → Ligação com os tribunais, guardado criptografado em `mni_credenciais` | Só essa fonte: DJEN, DataJud e e-mail continuam. Login recusado desliga o sistema e avisa no sino (ver [Monitoramento](10-monitoramento.md)) |
+| **SGT do CNJ** (`sgt.cloud.cnj.jus.br/api/v1/soap`, reserva `www.cnj.jus.br/sgt/sgt_ws.php`, público, sem chave) | Nome por extenso dos códigos de movimento que o PJe manda (guardado em `tpu_movimentos`) | A movimentação entra como "Movimento (código N)" |
 | **APIs públicas de tribunal** (TJES, TRT17, TRF2, TJPR, TRT9, TRF4, STJ, TST) | Alternativa ao DataJud pra tribunais específicos | Sincronização dos processos daquele tribunal |
 | **Google (OAuth/Calendar/Gmail)** | Agenda sincronizada; leitura de e-mail de monitoramento judicial | Sincronização de agenda; descoberta de movimentação por e-mail |
 | **Asaas** | Cobrança Pix/cartão, baixa automática de parcela | Emissão de cobrança nova; baixa automática (baixa manual continua funcionando) |
@@ -92,6 +94,7 @@ Nunca no código-fonte nem no Git — só em variáveis de ambiente na VPS (`.en
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 17/11/2026 | Claude | MNI dos tribunais (PJe TJES e eproc JFES) e SGT do CNJ |
 | 17/11/2026 | Claude | API SGS do Banco Central: o IPCA passa a corrigir também parcela vencida, pela cláusula do contrato |
 | 28/10/2026 | Claude | API SGS do Banco Central (índices da planilha de cálculos) |
 | 21/10/2026 | Claude | Acervo de leis (github.com/ctresb/leis) como fonte da Pesquisa de Leis |

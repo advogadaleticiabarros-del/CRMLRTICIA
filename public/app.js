@@ -1983,6 +1983,11 @@ const ROUTES = {
         <button class="btn-gold btn-sm" id="os-save" style="margin-top:12px">Salvar</button>
       </div>
       <div class="card" style="padding:20px;margin-bottom:20px">
+        <h3 style="color:var(--navy);margin-bottom:2px">⚖️ Ligação com os tribunais</h3>
+        <p class="sub" style="margin:0 0 12px">O CRM consulta direto no sistema do tribunal, com o seu login, as <strong>intimações pendentes</strong> e as <strong>movimentações</strong> dos processos (4x por dia). Só lê: <strong>nunca abre a intimação</strong>, então não dá ciência nem começa prazo. O login é testado uma vez antes de salvar e fica guardado criptografado. Se o tribunal recusar a senha, o CRM para de tentar e avisa (alguns sistemas bloqueiam a senha depois de erros).</p>
+        <div id="mni-panel"><div class="spinner"></div></div>
+      </div>
+      <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:2px">📧 Monitoramento processual por e-mail (plano B)</h3>
         <p class="sub" style="margin:0 0 12px">Além do monitoramento normal (DJEN, de hora em hora), o CRM pode conferir 2x por dia se alguma movimentação chegou por e-mail de tribunal/PJe — útil quando o DJEN não pega. <strong>Experimental:</strong> os critérios de "isso parece e-mail de tribunal" são uma heurística e vão precisar de ajuste com o tempo. Conecte a conta de e-mail que RECEBE notificação de tribunal (a sua ou uma dedicada — a escolha é sua).</p>
         <div id="court-email-panel"><div class="spinner"></div></div>
@@ -2414,6 +2419,7 @@ const ROUTES = {
     await load();
     await loadAutomations();
     await loadBackups();
+    await loadMniPanel();
     await loadCourtEmailPanel();
     await asaasConfigSection(page);
   },
@@ -4468,6 +4474,107 @@ ${st.expirada ? `<div style="margin-top:8px;padding:8px 10px;border-radius:6px;b
     if (!await uiConfirm('Desconectar o Gmail da parceria?')) return;
     try { await api('/api/email-intake/integration/disconnect', { method: 'POST', body: '{}' }); toast('Desconectado'); onChange(); }
     catch (e) { toast(e.message, 'error'); }
+  };
+}
+
+// Ligação oficial com os tribunais (MNI). CPF e senha só vão para o servidor
+// (que testa o login uma vez e guarda criptografado); nada disso volta para a tela.
+async function loadMniPanel() {
+  const box = $('#mni-panel');
+  if (!box) return;
+  const [sistemas, avisos] = await Promise.all([
+    api('/api/mni/sistemas').catch(() => []),
+    api('/api/mni/avisos').catch(() => []),
+  ]);
+  const dt = (v) => (v ? new Date(v).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+  const dia = (v) => (v ? String(v).slice(0, 10).split('-').reverse().join('/') : '—');
+  const hoje = new Date().toISOString().slice(0, 10);
+  const tipos = { INT: 'Intimação', CIT: 'Citação', NOT: 'Notificação', VIS: 'Vista', URG: 'Urgente' };
+  const situacao = (s) => {
+    if (!s.cadastrado) return '<span class="sub">Sem login cadastrado</span>';
+    if (!s.ativo) return `<span style="color:var(--red);font-weight:600">Parado: ${esc(s.ultimo_erro || 'login recusado')}</span>`;
+    const erro = s.ultimo_erro ? ` · <span style="color:var(--red)">última tentativa falhou: ${esc(s.ultimo_erro)}</span>` : '';
+    return `<span style="color:var(--green, #1f7a4d);font-weight:600">Ligado</span> · última consulta ok: ${dt(s.ultimo_ok_em)} · ${s.avisos_pendentes} intimação(ões) pendente(s)${erro}`;
+  };
+  box.innerHTML = `
+    ${sistemas.map((s) => `
+      <div class="mni-sis" data-id="${esc(s.id)}" style="border:1px solid var(--border, #e3e3e3);border-radius:8px;padding:12px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <div><strong>${esc(s.nome)}</strong><div style="font-size:12.5px;margin-top:2px">${situacao(s)}</div></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <button class="btn-sm mni-editar" type="button">${s.cadastrado ? 'Trocar login' : 'Cadastrar login'}</button>
+            ${s.cadastrado ? '<button class="btn-sm mni-remover" type="button">Remover</button>' : ''}
+          </div>
+        </div>
+        <form class="mni-form" style="display:none;margin-top:10px" autocomplete="off">
+          <div class="form-row">
+            <label>CPF<input name="cpf" inputmode="numeric" autocomplete="off" placeholder="só números" maxlength="14" required /></label>
+            <label>Senha deste sistema<input name="senha" type="password" autocomplete="new-password" required /></label>
+          </div>
+          <p class="sub" style="font-size:12px;margin:6px 0">Cada sistema tem a sua senha (a do 1º grau pode não servir no 2º grau). Confira antes: o teste conta como uma tentativa de login.</p>
+          <button class="btn-gold btn-sm" type="submit">Testar e salvar</button>
+          <button class="btn-sm mni-cancelar" type="button">Cancelar</button>
+        </form>
+      </div>`).join('')}
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin:14px 0 6px">
+      <h4 style="margin:0;color:var(--navy)">Intimações pendentes no tribunal (${avisos.length})</h4>
+      ${sistemas.some((s) => s.ativo) ? `<button class="btn-gold btn-sm" id="mni-rodar" type="button">${svgIcon('refresh')} Consultar agora</button>` : ''}
+    </div>
+    ${avisos.length ? `<div class="table-wrap"><table class="table"><thead><tr><th>Ciência automática em</th><th>Processo</th><th>Cliente</th><th>Tipo</th><th>Órgão</th><th>Sistema</th></tr></thead><tbody>
+      ${avisos.map((a) => {
+        const d = a.ciencia_automatica_em ? String(a.ciencia_automatica_em).slice(0, 10) : null;
+        const dias = d ? Math.round((new Date(d + 'T12:00:00') - new Date(hoje + 'T12:00:00')) / 86400000) : null;
+        const cor = dias != null && dias <= 2 ? 'color:var(--red);font-weight:700' : '';
+        const quando = dias == null ? '' : ` <span class="sub">(${dias < 0 ? 'já passou' : dias === 0 ? 'hoje' : `em ${dias} dia(s)`})</span>`;
+        return `<tr>
+          <td style="${cor}">${dia(d)}${quando}</td>
+          <td>${a.process_id ? `<a href="#" class="mni-proc" data-proc="${Number(a.process_id)}">${esc(a.numero_processo || '')}</a>` : esc(a.numero_processo || '—')}</td>
+          <td>${esc(a.client_name || '—')}</td>
+          <td>${esc(tipos[String(a.tipo_comunicacao || '').toUpperCase()] || a.tipo_comunicacao || '—')}</td>
+          <td>${esc(a.orgao_julgador || '—')}</td>
+          <td>${esc(a.sistema_nome)}</td>
+        </tr>`;
+      }).join('')}
+    </tbody></table></div>
+    <p class="sub" style="font-size:12px;margin-top:6px">Some daqui quando a intimação for aberta no sistema do tribunal. Se ninguém abrir, a ciência vira automática na data indicada e o prazo começa a contar.</p>`
+    : '<p class="sub" style="margin:0">Nenhuma intimação pendente nos sistemas ligados.</p>'}`;
+
+  box.querySelectorAll('.mni-sis').forEach((el) => {
+    const id = el.dataset.id;
+    const form = el.querySelector('.mni-form');
+    el.querySelector('.mni-editar').onclick = () => { form.style.display = ''; form.cpf.focus(); };
+    el.querySelector('.mni-cancelar').onclick = () => { form.reset(); form.style.display = 'none'; };
+    const rem = el.querySelector('.mni-remover');
+    if (rem) rem.onclick = async () => {
+      if (!await uiConfirm('Remover o login deste sistema? O CRM para de consultar este tribunal.')) return;
+      try { await api(`/api/mni/sistemas/${id}`, { method: 'DELETE' }); toast('Login removido'); loadMniPanel(); }
+      catch (e) { toast(e.message, 'error'); }
+    };
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const b = form.querySelector('button[type=submit]');
+      b.disabled = true; b.textContent = 'Testando no tribunal...';
+      try {
+        const r = await api(`/api/mni/sistemas/${id}`, { method: 'PUT', body: JSON.stringify({ cpf: form.cpf.value, senha: form.senha.value }) });
+        form.reset();
+        toast(r.mensagem || 'Login salvo');
+        loadMniPanel();
+      } catch (e) {
+        form.senha.value = '';
+        toast(e.message, 'error');
+        b.disabled = false; b.textContent = 'Testar e salvar';
+      }
+    };
+  });
+  box.querySelectorAll('.mni-proc').forEach((l) => l.onclick = (ev) => { ev.preventDefault(); processDetail(l.dataset.proc, loadMniPanel); });
+  const rodar = $('#mni-rodar');
+  if (rodar) rodar.onclick = async () => {
+    rodar.disabled = true; rodar.textContent = 'Consultando os tribunais...';
+    try {
+      const r = await api('/api/mni/rodar', { method: 'POST', body: '{}' });
+      toast(`Consulta concluída · ${r.avisos_pendentes} intimação(ões) pendente(s) · ${r.movimentacoes_novas} movimentação(ões) nova(s)${r.falhas ? ' · atenção: ' + r.falhas : ''}`, r.falhas ? 'error' : undefined);
+      loadMniPanel();
+    } catch (e) { toast(e.message, 'error'); rodar.disabled = false; rodar.textContent = 'Consultar agora'; }
   };
 }
 

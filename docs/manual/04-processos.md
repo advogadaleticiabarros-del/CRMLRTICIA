@@ -13,6 +13,7 @@ Consulte pra entender de onde vem um processo que apareceu sozinho no sistema, p
 ## Duas formas de entrar um processo no radar
 
 - **Cadastro manual** — você mesma cadastra um processo específico pra acompanhar. Nesse caso ele é consultado no **DataJud** (base pública do CNJ) ou na API pública do tribunal específico (TJES, TRT17, TRF2, TJPR, TRT9, TRF4, STJ, TST — o provedor certo é escolhido pelo número do processo).
+- **Ligação oficial com o tribunal (desde 17/11/2026)** — com o login da Dra. cadastrado em Configurações → Ligação com os tribunais, o CRM busca direto no PJe do TJES e no eproc da JFES as intimações pendentes (com a data da ciência automática) e as movimentações. Processo de intimação que não existia no CRM é cadastrado sozinho. Ver [Monitoramento](10-monitoramento.md#ligação-oficial-com-os-tribunais-mni-desde-17112026).
 - **Descoberta automática por OAB** — o sistema varre o **DJEN** (Diário de Justiça Eletrônico Nacional) periodicamente atrás de qualquer publicação endereçada ao seu número de OAB, mesmo em processos que você nunca cadastrou. Quando acha um processo novo, cadastra sozinho.
 
 ## Vínculo automático com cliente
@@ -189,6 +190,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 17/11/2026 | Claude | Terceira forma de um processo entrar no radar: ligação oficial com o tribunal (MNI), com intimações pendentes e movimentações direto do PJe/eproc |
 | 13/11/2026 | Claude | Relatório de intimações: quando o e-mail não sai, o motivo aparece no resumo da rotina, no log e no WhatsApp do relatório |
 | 13/11/2026 | Claude | Prazo certo de cada intimação do DJEN (tipo de justiça, contagem da publicação, data limite e protocolar até, revisão humana) e relatório diário de intimações (e-mail com PDF, CSV e recorte + WhatsApp da equipe) |
 | 14/10/2026 | Claude | Leitor aplicado também às decisões dos últimos 15 dias (`leitor:decisoes-recentes`, no boot e às 7h50); a Dra. ainda não tinha recebido nenhuma leitura |

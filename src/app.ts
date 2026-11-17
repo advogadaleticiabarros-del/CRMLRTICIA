@@ -91,6 +91,7 @@ import whatsappWebhookRoutes from './routes/whatsapp-webhook';
 import asaasWebhookRoutes from './routes/asaas-webhook';
 import whatsappInstanceRoutes, { mediaHandler } from './routes/whatsapp-instance';
 import courtEmailMonitorRoutes from './routes/courtEmailMonitor';
+import mniRoutes from './routes/mni';
 import { googleOAuthCallback } from './routes/google-callback';
 
 export function createApp() {
@@ -201,6 +202,7 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.use('/api/partners',              authenticate, requireStaff, partnerRoutes);
   app.use('/api/email-intake',          authenticate, requireStaff, emailIntakeRoutes);
   app.use('/api/court-email-monitor',   authenticate, requireStaff, courtEmailMonitorRoutes);
+  app.use('/api/mni',                   authenticate, requireAdmin, mniRoutes);
   app.use('/api/tasks',                 authenticate, requireStaff, taskRoutes);
   app.use('/api/financial',             authenticate, requireStaff, financialRoutes);
   app.use('/api/whatsapp-queue',        authenticate, requireStaff, requireWhatsappAccess, whatsappQueueRoutes);

@@ -16,6 +16,7 @@ Consulte quando precisar saber COM QUE FREQUÊNCIA algo roda sozinho, o que faze
 |---|---|---|
 | `monitoramento:descoberta-oab` | 7h, 13h, 19h | Varre o DJEN atrás de publicações endereçadas à OAB cadastrada |
 | `intimacoes:relatorio-diario` | 7h25 | **Novo (13/11/2026).** Relatório das publicações novas do DJEN: e-mail (PDF, CSV, recorte) e WhatsApp da equipe, com prazo, data limite e protocolar até. Ver [Processos](04-processos.md#relatório-diário-de-intimações-desde-13112026) |
+| `monitoramento:tribunais-mni` | 7h10, 11h10, 15h10 e 19h10 | **Novo (17/11/2026).** Ligação oficial com os tribunais (MNI): intimações pendentes e movimentações direto do PJe do TJES e do eproc da JFES, com o login da Dra. Ver [abaixo](#ligação-oficial-com-os-tribunais-mni-desde-17112026) |
 | `monitoramento:processos` | de hora em hora, 7h–20h | Sincroniza cada processo já cadastrado com sua fonte (DataJud/API do tribunal) |
 | `monitoramento:processos-email` | 8h, 19h | Varre a caixa de e-mail conectada atrás de movimentação de tribunal fora do DJEN |
 | `monitoramento:processos-pre-briefing` | 6h | Sincronização extra antes do briefing matinal, pra ele sair com dado fresco |
@@ -27,6 +28,33 @@ Consulte quando precisar saber COM QUE FREQUÊNCIA algo roda sozinho, o que faze
 | `processos:fase-divergente` | 7h40 | **Novo (28/09/2026).** Avisa quando a fase sugerida pelas movimentações fica à frente da fase cadastrada por 3+ dias (repete a cada 14) |
 | `backup:diario` | 2h, 9h, 19h | Backup criptografado do banco (local + MEGA) |
 | `leitor:decisoes-recentes` | no boot e 7h50 | **Novo (14/10/2026).** Lê sentenças/acórdãos dos últimos 15 dias ainda não lidos e manda a leitura à Dra. no WhatsApp (até 12 por rodada). Ver [Processos](04-processos.md#leitor-de-sentença-e-secretária-particular-desde-14102026) |
+
+## Ligação oficial com os tribunais (MNI, desde 17/11/2026)
+
+Pedido da Dra.: "melhorar o monitoramento, sem custo". O DataJud e o DJEN chegam com atraso; os sistemas pagos leem direto do tribunal. O CNJ obriga os tribunais a oferecer um canal oficial para sistemas externos, o **MNI** (Modelo Nacional de Interoperabilidade), gratuito, com o login da própria advogada. O CRM agora usa esse canal.
+
+**O que faz (4x por dia, rotina `monitoramento:tribunais-mni`):**
+- **Intimações pendentes:** lista o que ainda não foi aberto no tribunal e mostra a **data da ciência automática** (10 dias corridos depois de disponibilizada, Lei 11.419/2006, art. 5º, § 3º). Intimação nova avisa os admins no sino. Fica em Configurações → Ligação com os tribunais, em vermelho quando faltam 2 dias ou menos. Some da lista quando é aberta no tribunal.
+- **Movimentações:** consulta cada processo monitorado no sistema certo (pelo número CNJ) e grava as novas junto das outras fontes, com `source = mni_<sistema>`. O PJe manda só o código do movimento; o nome por extenso vem do serviço público SGT do CNJ e fica guardado em `tpu_movimentos`.
+- Processo de intimação que não existia no CRM é cadastrado (`source = 'mni'`).
+
+**Só leitura, por construção:** o módulo (`src/services/mni/`) só conhece `consultarAvisosPendentes` e `consultarProcesso` (sem documentos). Não tem `consultarTeorComunicacao` nem `confirmarRecebimento` (abrir a intimação pelo sistema pode dar ciência e começar o prazo) nem `entregarManifestacaoProcessual` (protocolo). O teste `tests/mniTribunais.test.mjs` trava isso.
+
+**Senha:** CPF e senha de cada sistema ficam criptografados em `mni_credenciais` (cada sistema tem a sua senha: a do 1º grau do TJES não serve no 2º grau). O login é testado **uma vez** antes de salvar. Se o tribunal recusar o login numa rodada, o CRM **desliga aquele sistema na hora** e avisa os admins, sem insistir (o TRE-ES, por exemplo, bloqueia a senha depois de erros). O CPF que o tribunal repete nas mensagens de erro é mascarado antes de ir para banco, sino ou log.
+
+**Sem duplicar:** movimentação do MNI é tratada como a do DataJud (só o nome do andamento): gera **alerta**, nunca prazo presumido. Na primeira consulta de um processo, só entra o que for mais novo que a última movimentação já registrada (o histórico já veio pelo DataJud/DJEN). Mesmo dia + mesmo nome de andamento já registrado não entra de novo, nos dois sentidos (MNI depois do DataJud e DataJud depois do MNI).
+
+**Sistemas (teste de 17/11/2026):**
+
+| Sistema | Situação |
+|---|---|
+| TJES — PJe 1º grau | Login ok |
+| Justiça Federal ES — eproc | Login ok |
+| TJES — PJe 2º grau e Turmas Recursais | Endereço ok; falta a senha certa (a do 1º grau foi recusada) |
+| TRT17 (1º e 2º grau) | Fora: o tribunal recusa a conexão (HTTP 403) antes do login; exige credenciamento (`/primeirograu/servicosweb/mni222/intercomunicacao`) |
+| TRE-ES, TSE 1º grau, SEEU | Ainda não ligados (TRE-ES responde; TSE recusou daqui; SEEU sem endereço achado) |
+
+Para incluir outro sistema: acrescente em `SISTEMAS_MNI` (`src/services/mni/sistemas.ts`) com o endereço e a regra do número CNJ.
 
 ## Limpeza de texto na entrada
 
@@ -79,6 +107,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 17/11/2026 | Claude | Ligação oficial com os tribunais (MNI): rotina `monitoramento:tribunais-mni` (4x/dia), intimações pendentes com data da ciência automática e movimentações direto do PJe do TJES e do eproc da JFES |
 | 13/11/2026 | Claude | Nova rotina `intimacoes:relatorio-diario` (7h25); prazo das publicações do DJEN pela regra de `prazoIntimacao.ts` |
 | 26/10/2026 | Claude | Captura do DJEN: parte "REPRESENTANTE e B. F. S. C." (menor em segredo de justiça) cria a ficha do representante; nome só com iniciais não vira ficha nem é juntado a outra ficha com as mesmas iniciais (ver runbook) |
 | 03/09/2026 | Claude | Criação do documento; registrada a limpeza de HTML/entidades na entrada |

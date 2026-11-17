@@ -522,6 +522,18 @@ export function startCronJobs() {
     runJob('monitoramento:processos', () => runMonitoringJob(), { critica: true });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── LIGAÇÃO OFICIAL COM OS TRIBUNAIS (MNI): 7h10, 11h10, 15h10 e 19h10 ────
+  // Intimações pendentes (sem abrir: não dá ciência) e movimentações direto do
+  // PJe do TJES e do eproc da JFES, com o login da Dra. cadastrado em
+  // Configurações. Sem login cadastrado, não faz nada. Login recusado desliga
+  // a credencial na hora (não insiste, para não bloquear a senha).
+  cron.schedule('10 7,11,15,19 * * *', () => {
+    runJob('monitoramento:tribunais-mni', async () => {
+      const { rodarMonitoramentoMniAgora } = await import('../services/mni');
+      return await rodarMonitoramentoMniAgora();
+    });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── diário 07:20 (Brasília): prazo confirmado em processo SEM caso vinculado
   // fica fora dos avisos 30/15/7/3/1 — este alerta escala até vincularem ── CRÍTICO
   cron.schedule('20 7 * * *', () => {

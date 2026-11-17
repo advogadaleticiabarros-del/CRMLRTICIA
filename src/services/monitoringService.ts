@@ -41,7 +41,10 @@ export async function buscarNomeCliente(clientId: number | null): Promise<string
 }
 
 function isDatajudSource(source: string): boolean {
-  return ['datajud', 'api_publica_tjes', 'api_publica_trt17', 'api_publica_trf2', 'api_publica_tjpr', 'api_publica_trt9', 'api_publica_trf4', 'api_publica_stj', 'api_publica_tst'].includes(source) || source.startsWith('api_publica_');
+  // Ligação oficial com o tribunal (MNI, `mni_*`): como o DataJud, traz só o
+  // nome do andamento, sem o teor — então gera ALERTA, nunca prazo presumido.
+  return ['datajud', 'api_publica_tjes', 'api_publica_trt17', 'api_publica_trf2', 'api_publica_tjpr', 'api_publica_trt9', 'api_publica_trf4', 'api_publica_stj', 'api_publica_tst'].includes(source)
+    || source.startsWith('api_publica_') || source.startsWith('mni_');
 }
 
 /**
@@ -530,6 +533,9 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
   let novas = 0;
   let latest: string | null = proc.last_movement_at;
   for (const m of result.movements) {
+    // Já chegou antes pela ligação oficial com o tribunal (MNI)? Mesmo dia e
+    // mesmo nome de andamento = mesmo evento: não duplica.
+    if (await jaVeioPeloTribunal(processId, m.movement_date, m.title)) continue;
     const hash = hashMovement(proc.process_number, m.movement_date, m.description);
     try {
       const [ins] = await db.query(
@@ -871,6 +877,66 @@ export async function registrarMovimentacaoDeEmail(
     await logMonitor(processId, null, 'nova_movimentacao', 'email_monitoramento', 'Movimentação encontrada por e-mail (fora do DJEN)');
   }
   return { novo: novas > 0, jaCapturadoPeloDjen: false };
+}
+
+async function jaVeioPeloTribunal(processId: number, data: string | null, titulo: string | null | undefined): Promise<boolean> {
+  const d = toDate(data);
+  if (!d || !titulo) return false;
+  const [r] = await db.query(
+    `SELECT id FROM process_movements
+      WHERE process_id = ? AND source LIKE 'mni\\_%' AND DATE(movement_date) = DATE(?) AND LOWER(title) = LOWER(?) LIMIT 1`,
+    [processId, d, String(titulo).slice(0, 500)]
+  ) as any;
+  return r.length > 0;
+}
+
+/**
+ * Movimentações vindas da ligação oficial com o tribunal (MNI, ver
+ * services/mni/). Entram no mesmo lugar das outras fontes, com dois cuidados:
+ *  - primeira vez deste sistema no processo: só entra o que for MAIS NOVO que a
+ *    última movimentação já registrada (o histórico antigo já veio pelo
+ *    DataJud/DJEN com outra redação e duplicaria a linha do tempo);
+ *  - mesmo dia e mesmo nome de andamento já registrado por outra fonte: não duplica.
+ * Retorna quantas entraram.
+ */
+export async function registrarMovimentacoesMni(
+  processId: number, processNumber: string,
+  movs: Array<{ movement_date: string | null; title: string; description: string }>, source: string,
+): Promise<number> {
+  const [[proc]] = await db.query('SELECT client_id FROM legal_processes WHERE id = ?', [processId]) as any;
+  if (!proc) return 0;
+  const [[prev]] = await db.query(
+    `SELECT (SELECT COUNT(*) FROM process_movements WHERE process_id = ? AND source = ?) AS desta_fonte,
+            (SELECT MAX(movement_date) FROM process_movements WHERE process_id = ?) AS ultima`,
+    [processId, source, processId]
+  ) as any;
+  const primeiraVez = Number(prev?.desta_fonte || 0) === 0;
+  const ultima = prev?.ultima ? new Date(prev.ultima) : null;
+
+  const filtrados = [];
+  for (const m of movs) {
+    const d = toDate(m.movement_date);
+    if (primeiraVez && ultima && d && d <= ultima) continue;
+    const [dup] = await db.query(
+      `SELECT id FROM process_movements
+        WHERE process_id = ? AND movement_date IS NOT NULL AND DATE(movement_date) = DATE(?) AND LOWER(title) = LOWER(?) LIMIT 1`,
+      [processId, d, m.title.slice(0, 500)]
+    ) as any;
+    if (dup.length) continue;
+    filtrados.push({ ...m, movement_type: 'movimento' });
+  }
+  if (!filtrados.length) return 0;
+
+  const novas = await saveMovements(processId, processNumber, filtrados, source, proc.client_id ?? null);
+  if (novas > 0) {
+    await db.query(
+      'UPDATE legal_processes SET last_sync_at = NOW(), last_movement_at = (SELECT MAX(movement_date) FROM process_movements WHERE process_id = ?) WHERE id = ?',
+      [processId, processId]
+    );
+    await recomputeSuggestedPhase(processId);
+    await logMonitor(processId, null, 'nova_movimentacao', source, `${novas} nova(s) pela ligação oficial com o tribunal`);
+  }
+  return novas;
 }
 
 /** Roda o monitoramento de todos os processos ativos com monitoring_enabled. */
