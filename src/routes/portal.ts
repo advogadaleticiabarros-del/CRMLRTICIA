@@ -98,25 +98,15 @@ router.get('/cases/:id', async (req: Request, res: Response) => {
   res.json({ ...rows[0], movements, documents });
 });
 
-// Multa/juros configurados pelo escritório (Configurações). Vencida:
-// valor + multa% + juros% ao mês pro-rata (dias de atraso / 30).
-async function encargos(): Promise<{ multa: number; juros: number }> {
-  const [cfg] = await db.query(
-    "SELECT setting_key, setting_value FROM office_settings WHERE setting_key IN ('multa_percent','juros_mes_percent')") as any;
-  const map: Record<string, string> = {};
-  for (const r of cfg) map[r.setting_key] = r.setting_value || '';
-  return { multa: Number(map.multa_percent) || 0, juros: Number(map.juros_mes_percent) || 0 };
-}
-function valorAtualizado(valor: number, diasAtraso: number, e: { multa: number; juros: number }): number {
-  if (diasAtraso <= 0 || (!e.multa && !e.juros)) return valor;
-  const total = valor * (1 + e.multa / 100) + valor * (e.juros / 100) * (diasAtraso / 30);
-  return Math.round(total * 100) / 100;
-}
+// Valor atualizado da parcela vencida = cláusula de atraso do CONTRATO do
+// cliente (multa, juros pro rata e IPCA), não mais a configuração geral do
+// escritório. Pedido de 17/11/2026: "sempre calcule de acordo com cada contrato
+// do cliente". Contrato sem cláusula = sem encargos. Ver encargosContrato.ts.
 
 // ── GET /api/portal/financial — meus valores a pagar ────────────────────────
 router.get('/financial', async (req: Request, res: Response) => {
   const [rows] = await db.query(
-    `SELECT i.id, i.numero, i.valor, i.due_date, i.status, p.title AS proposta,
+    `SELECT i.id, i.numero, i.valor, i.due_date, DATE_FORMAT(i.due_date, '%Y-%m-%d') AS venc, i.status, p.title AS proposta,
             CASE WHEN i.status = 'pendente' AND i.due_date < CURDATE() THEN 1 ELSE 0 END AS vencida,
             GREATEST(DATEDIFF(CURDATE(), i.due_date), 0) AS dias_atraso
      FROM installments i
@@ -124,10 +114,16 @@ router.get('/financial', async (req: Request, res: Response) => {
      WHERE i.client_id = ? ORDER BY i.due_date ASC`,
     [(req as any).clientId]
   ) as any;
-  const e = await encargos();
-  for (const r of rows) {
-    if (Number(r.vencida) && r.status === 'pendente') {
-      r.valor_atualizado = valorAtualizado(Number(r.valor), Number(r.dias_atraso), e);
+  if (rows.some((r: any) => Number(r.vencida) && r.status === 'pendente')) {
+    const { regraDoCliente, serieIpca, calcularEncargos } = await import('../services/encargosContrato');
+    const { regra } = await regraDoCliente((req as any).clientId);
+    const ipca = regra?.ipca ? await serieIpca() : null;
+    const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+    for (const r of rows) {
+      if (Number(r.vencida) && r.status === 'pendente') {
+        r.valor_atualizado = calcularEncargos(Number(r.valor), r.venc, hoje, regra, ipca).total;
+      }
+      delete r.venc;
     }
   }
   res.json(rows);
@@ -239,7 +235,7 @@ router.get('/contact', async (_req: Request, res: Response) => {
 router.get('/pix/:installmentId', async (req: Request, res: Response) => {
   const clientId = (req as any).clientId;
   const [[inst]] = await db.query(
-    `SELECT id, valor, numero, GREATEST(DATEDIFF(CURDATE(), due_date), 0) AS dias_atraso
+    `SELECT id, valor, numero, DATE_FORMAT(due_date, '%Y-%m-%d') AS venc, GREATEST(DATEDIFF(CURDATE(), due_date), 0) AS dias_atraso
        FROM installments WHERE id = ? AND client_id = ? AND status IN ('pendente','vencido')`,
     [req.params.installmentId, clientId]) as any;
   if (!inst) { res.status(404).json({ error: 'Parcela não encontrada ou já paga' }); return; }
@@ -247,9 +243,12 @@ router.get('/pix/:installmentId', async (req: Request, res: Response) => {
   const map: Record<string, string> = {};
   for (const r of cfg) map[r.setting_key] = r.setting_value || '';
   if (!map.pix_key) { res.status(400).json({ error: 'O escritório ainda não configurou a chave Pix' }); return; }
-  // Vencida cobra o VALOR ATUALIZADO (multa + juros configurados)
-  const e = await encargos();
-  const valorCobrar = valorAtualizado(Number(inst.valor), Number(inst.dias_atraso), e);
+  // Vencida cobra o VALOR ATUALIZADO pela cláusula de atraso do contrato do cliente.
+  const { regraDoCliente, serieIpca, calcularEncargos } = await import('../services/encargosContrato');
+  const { regra } = await regraDoCliente(clientId);
+  const ipca = regra?.ipca && Number(inst.dias_atraso) > 0 ? await serieIpca() : null;
+  const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+  const valorCobrar = calcularEncargos(Number(inst.valor), inst.venc, hoje, regra, ipca).total;
   const payload = buildPixPayload({
     key: map.pix_key, name: map.pix_nome || 'ADVOCACIA', city: map.pix_cidade || 'BRASIL',
     amount: valorCobrar, txid: `PARC${inst.id}`,

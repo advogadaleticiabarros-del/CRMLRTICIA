@@ -5,6 +5,7 @@
 2. No meio da tarefa: "Não envie cobranças automáticas, quero receber lembretes de vencimentos no WhatsApp, não estamos recebendo, e só pode enviar para o cliente se eu autorizar o envio da cobrança e sempre, sempre calcular os juros atualizados."
 
 ## Feito
+- **Depois ("sempre calcule de acordo com cada contrato do cliente"):** `src/services/encargosContrato.ts` lê a cláusula de atraso do contrato de cada cliente e calcula multa, juros e IPCA (série 433 do BCB) pro rata die; usado em `vencimentosEscritorio.ts` e no portal (`src/routes/portal.ts`: valor atualizado e Pix). Campos de multa/juros saíram de Configurações (`public/app.js`). Testes: `tests/encargosContrato.test.mjs`.
 - `src/services/vencimentosEscritorio.ts` (novo):
   - `calcularEncargos` aplica multa de 2% e juros de 1% ao mês pro rata die (cláusula de inadimplemento dos modelos em `contractTemplates.ts`).
   - `montarAvisoVencimentos` monta o WhatsApp ao escritório com as vencidas (já atualizadas), as de hoje e as dos próximos 3 dias.
@@ -25,14 +26,16 @@
 - Rascunho da Sandra criado em produção (`atendente_rascunhos.id = 166`) e, com a autorização da usuária ("pode enviar apenas essa cobrança"), enviado pelo fluxo da equipe (`enviarRascunho`): status `enviada` às 12h01 (Brasília) de 17/11. Só esse foi enviado.
 
 ## Decisões e porquês
+- Sem cláusula de atraso no contrato = sem encargos (com alerta), em vez de um padrão que o contrato não prevê. Levantamento de 17/11: 13 contratos, 12 com multa 2% + juros 1% a.m. + IPCA, o nº 1 sem cláusula.
+- IPCA: mês sem índice publicado usa o último; deflação não reduz o valor; multa e juros incidem sobre o valor corrigido.
 - Os encargos seguem o **contrato** (2% + 1% a.m.), não as Configurações do escritório (`multa_percent=5`, `juros_mes_percent=2`), que o portal usa. A cobrança cita o contrato e, em relação de consumo, a multa é limitada a 2% (CDC, art. 52, §1º).
 - Cobrança ao cliente usa a fila de aprovação já existente (`prepararParaAprovacao`), não a `whatsapp_queue`, que se envia sozinha.
 - O rascunho é recalculado todo dia, e não na hora do envio, para não mexer no fluxo de envio aprovado, que tem trava de teste.
 - Descartou o rascunho? Ele não volta, porque o marco fica em `sent_reminders` (`cobr_rascunho_<fonte>_<id>`).
 
 ## Pendente
-- Correção pelo IPCA (prevista no contrato) fora do cálculo. A Dra. ou a Jessica decidem se entra.
-- O portal do cliente mostra o valor atualizado com 5% + 2% a.m. A Dra. decide se alinha ao contrato.
+- A cobrança da Sandra já enviada saiu com R$ 578,18 (sem IPCA); pelo contrato completo, hoje seriam R$ 578,21 (3 centavos de IPCA).
+- O portal só lista parcelas de proposta (`installments`), não as de contrato (`parcelas`).
 - A tela A Receber mostrou a parcela como 15/11, mas no banco ela vence em 16/11. Suspeita: o fuso ao formatar a data. Não investigado.
 - Parcela `parcial` é cobrada pelo `valor_final` inteiro, não pelo saldo.
 - Itens antigos de cobrança que ficaram pendentes na `whatsapp_queue` não saem mais. Ficam na fila até alguém descartar.
