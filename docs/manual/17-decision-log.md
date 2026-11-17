@@ -16,20 +16,6 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
-### 17/11/2026 — Design system 3.0: manter as cores, ajustar só o tom do texto
-**Decisão:** a revisão visual manteve a paleta da marca (pedido da Jessica: "vamos manter, contanto que não atrapalhe; ajuste o que precisa").
-- **Texto escurecido.** O texto que reprovava no contraste ficou um tom mais escuro da mesma cor: apoio `#6b6352`, dourado-texto `#8a6a24`, etiquetas `#23704d`, `#8f6514` e `#a8372e`.
-- **Botão dourado.** Passou a ter texto azul-marinho (`--on-gold`).
-- **Fonte única.** A interface usa só Inter; Spectral fica só no nome do escritório.
-
-**Por quê:**
-- A auditoria de 17/11 (37 telas, 3 larguras, tema escuro) contou 525 textos abaixo do mínimo de leitura no notebook. O mais repetido era o branco no dourado (2,63:1).
-- Escurecer só o texto resolve sem mudar a identidade. O fundo da etiqueta e o dourado do botão continuam iguais.
-- As cinco fontes carregadas (EB Garamond, Playfair, Cormorant, Spectral e Inter) deixavam o sistema mais lento e sem voz própria.
-- O `confirm()` do navegador mostrava o domínio, botões fora do padrão e ignorava o tema. Foi trocado por `confirmar()`.
-- **Escritório virtual.** Ficou fora desta rodada: outra sessão estava mexendo nele.
-- **Onde está.** Os detalhes estão em `DESIGN.md`, e o teste `tests/designSystem.test.mjs` impede a volta de letra pequena, `transition: all`, maiúsculas, fontes extras, `confirm()` e emoji.
-
 ### 13/11/2026 — Prazo da intimação por regra fixa, com duas datas e "revisão humana"
 **Decisão:** o prazo de cada intimação do DJEN sai de regra fixa (`prazoIntimacao.ts`), nunca da IA. A IA só resume o "do que se trata". A contagem parte da **publicação** (1º dia útil após a disponibilização; Lei 11.419/2006, art. 4º, §§3º e 4º; CPC, art. 224, §§2º e 3º). O resultado mostra **duas datas**: a data limite legal e o "protocolar até", um dia útil antes. Quando o texto não permite saber o prazo, aparece "revisão humana", com o motivo, e não uma data padrão.
 **Por quê:**
@@ -382,6 +368,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | 13/11/2026 | Claude | Fechamento de parceria com RPV: a receita do escritório é o honorário inteiro e o repasse é só a parte da parceria (mesmo modelo do botão "Êxito"); o dinheiro da cliente, que só passa pela conta da Dra. a caminho da parceira, fica registrado em `parceria_fechamentos` e não vira receita nem repasse, para não inflar o faturamento nem as saídas. Recibo e vídeo vão para o Drive do caso (o vídeo em fluxo, até 500 MB, com exceção só nesse endereço no nginx) e não para o banco, porque o banco vai inteiro no backup diário. "Finalizado" = `cases.status = encerrado`, não a etapa "Concluído" da esteira (que significa peça protocolada) |
 | 17/11/2026 | Claude | Cobrança ao cliente nunca automática: o escritório recebe os vencimentos no WhatsApp e a cobrança vira rascunho em "Mensagens para aprovar" (mesma fila dos agentes), recalculado todo dia enquanto pendente, para sair com os juros do dia da aprovação. Encargos pela cláusula dos contratos (multa 2% + juros 1% a.m. pro rata die), não pela configuração do portal (5% + 2%), porque a cobrança cita o contrato; IPCA fica para depois |
 | 17/11/2026 | Claude | Encargos lidos do contrato de CADA cliente ("sempre calcule de acordo com cada contrato do cliente"), não de uma regra fixa nem de Configurações: texto da cláusula de atraso → multa, juros e IPCA. Sem cláusula = sem encargo (com alerta), em vez de aplicar um padrão que o contrato não prevê. IPCA pro rata die pela série 433 do BCB, lido da mesma tabela `indices_economicos` do Calculista (uma fonte só); mês sem índice usa o último publicado; deflação não reduz o valor; multa e juros sobre o valor corrigido |
+| 17/11/2026 | Claude | Design system 3.0 desfeito por inteiro a pedido da Jessica: limitou a largura das telas e mudou as divisões, deixando o sistema inconsistente ("estava melhor antes, estava tudo mais organizado"). Voltou ao visual de 9a1b801 por git revert, sem manter partes. Ela aceitaria um ajuste leve que não mude o uso; mudança visual ampla só com prévia de cada tela real e aprovação antes de publicar |
 
 ---
 ◀ [Ferramentas e acessos](16-ferramentas-acessos.md) · [Visão geral](00-visao-geral.md) · Próximo: [Pesquisa de Leis](18-pesquisa-de-leis.md) ▶

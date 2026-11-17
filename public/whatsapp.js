@@ -178,10 +178,10 @@ async function abrirAuditoriaModal() {
         <div class="kpi"><div class="label">Falhas de envio (7 dias)</div><div class="value ${s.falhas.envio_7d ? 'money' : ''}">${s.falhas.envio_7d}</div></div>
         <div class="kpi"><div class="label">Falhas de transcrição (7 dias)</div><div class="value ${s.falhas.transcricao_7d ? 'money' : ''}">${s.falhas.transcricao_7d}</div></div>
         <div class="kpi"><div class="label">Quedas de conexão (7 dias)</div><div class="value ${s.falhas.conexao_7d ? 'money' : ''}">${s.falhas.conexao_7d}</div></div>
-        <div class="kpi"><div class="label">Risco de bloqueio do número (7 dias)</div><div class="value" style="${s.falhas.risco_bloqueio_7d ? 'color:var(--red);font-weight:700' : ''}">${s.falhas.risco_bloqueio_7d}</div></div>
+        <div class="kpi"><div class="label">🚨 Risco de bloqueio do número (7 dias)</div><div class="value" style="${s.falhas.risco_bloqueio_7d ? 'color:var(--red);font-weight:700' : ''}">${s.falhas.risco_bloqueio_7d}</div></div>
       </div>
       ${s.falhas.risco_bloqueio_7d ? `<div class="card" style="padding:14px 16px;border-left:3px solid var(--red);margin-bottom:16px">
-          <strong style="color:var(--red)">${svgIcon('alert', 'ic-inline')}A Uazapi sinalizou risco de bloqueio do número nos últimos 7 dias.</strong>
+          <strong style="color:var(--red)">🚨 A Uazapi sinalizou risco de bloqueio do número nos últimos 7 dias.</strong>
           Reduza o envio automático até confirmar que a situação normalizou — ver "Avisos recentes" abaixo.
         </div>` : ''}
       ${!s.connected ? `<div class="card" style="padding:14px 16px;border-left:3px solid var(--red);margin-bottom:16px">
@@ -516,10 +516,10 @@ Object.assign(ROUTES, {
           <span class="spacer"></span>
           <small id="wa-toolbar-label" style="color:var(--text-muted);display:${toolbarColapsada ? 'inline' : 'none'}">Busca e filtros minimizados</small>
           <span class="wa-toolbar-fields" id="wa-toolbar-fields-2" style="${toolbarColapsada ? 'display:none' : 'display:contents'}">
-            <button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica" aria-label="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button>
-            <button type="button" class="btn-icon btn-icon-sm" id="wa-auditoria-btn" title="Auditoria de mensagens apagadas" aria-label="Auditoria de mensagens apagadas">${svgIcon('info', 'ic-xs')}</button>
+            <button type="button" class="btn-icon btn-icon-sm" id="wa-agenda-btn" title="Agenda telefônica">${svgIcon('users', 'ic-xs')}</button>
+            <button type="button" class="btn-icon btn-icon-sm" id="wa-auditoria-btn" title="Auditoria de mensagens apagadas">${svgIcon('info', 'ic-xs')}</button>
           </span>
-          <button type="button" class="btn-icon btn-icon-sm" id="wa-toolbar-toggle" aria-label="Mostrar ou minimizar busca e filtros" aria-expanded="${toolbarColapsada ? 'false' : 'true'}" title="${toolbarColapsada ? 'Mostrar busca e filtros' : 'Minimizar busca e filtros'}">${svgIcon(toolbarColapsada ? 'chevronDown' : 'chevronUp', 'ic-xs')}</button>
+          <button type="button" class="btn-icon btn-icon-sm" id="wa-toolbar-toggle" aria-expanded="${toolbarColapsada ? 'false' : 'true'}" title="${toolbarColapsada ? 'Mostrar busca e filtros' : 'Minimizar busca e filtros'}">${svgIcon(toolbarColapsada ? 'chevronDown' : 'chevronUp', 'ic-xs')}</button>
         </div>
         <div class="wa-shell" id="wa-shell">
         <div class="wa-side">
@@ -751,18 +751,18 @@ Object.assign(ROUTES, {
               anexo = `<br><a href="${url}" target="_blank" rel="noopener" class="wa-anexo-link">${svgIcon('paperclip', 'ic-inline')}Abrir anexo</a>`;
             }
             if (!Number(m.from_me) && (mimeAnexo.startsWith('image/') || mimeAnexo === 'application/pdf')) {
-              anexo += ` <button type="button" class="btn-sm" data-comprovante="${m.media_id}" style="font-size:12px;padding:2px 8px;margin-left:6px" title="Lança no financeiro e guarda o comprovante">É comprovante? Registrar</button>`;
+              anexo += ` <button type="button" class="btn-sm" data-comprovante="${m.media_id}" style="font-size:11px;padding:2px 8px;margin-left:6px" title="Lança no financeiro e guarda o comprovante">💸 É comprovante? Registrar</button>`;
             }
             if (ehAudio && !String(m.body).includes('📝 Transcrição:')) {
-              anexo += ` <button type="button" class="btn-sm" data-transcrever="${m.media_id}" style="font-size:12px;padding:2px 8px;margin-left:6px">Transcrever áudio</button>`;
+              anexo += ` <button type="button" class="btn-sm" data-transcrever="${m.media_id}" style="font-size:11px;padding:2px 8px;margin-left:6px">Transcrever áudio</button>`;
             }
           } else if (!m.media_id && /falhou ao baixar/.test(String(m.body))) {
             // Achado real (25/09/2026): rajada de mídia falhou ao baixar da
             // Uazapi. O messageId continua salvo — dá pra tentar de novo sem
             // precisar pedir reenvio (ver POST /messages/:id/reprocessar-midia).
-            anexo = `<br><button type="button" class="btn-sm" data-reprocessar-midia="${m.id}" style="font-size:12px;padding:2px 8px">Tentar baixar de novo</button>`;
+            anexo = `<br><button type="button" class="btn-sm" data-reprocessar-midia="${m.id}" style="font-size:11px;padding:2px 8px">Tentar baixar de novo</button>`;
           }
-          const autor = Number(m.from_me) && m.sent_by ? `<div style="font-size:12px;color:rgba(0,0,0,.45);margin-bottom:2px">${esc(m.sent_by)}</div>` : '';
+          const autor = Number(m.from_me) && m.sent_by ? `<div style="font-size:9.5px;color:rgba(0,0,0,.45);margin-bottom:2px">${esc(m.sent_by)}</div>` : '';
           let corpo = esc(m.body);
           if (termoEsc) {
             corpo = corpo.replace(new RegExp(termoEsc, 'gi'), (match) => {
@@ -796,7 +796,7 @@ Object.assign(ROUTES, {
         ]);
         if (!cx) { box.innerHTML = '<div class="wa-empty">Não foi possível carregar os dados deste contato.</div>'; return; }
         const STG = { separacao_documentos: 'Separação de docs', criacao_inicial: 'Criação inicial', revisao_inicial: 'Revisão inicial', aguardando_protocolo: 'Aguard. protocolo', protocolado: 'Protocolado', concluido: 'Concluído' };
-        const bloco = (t, inner) => `<div style="padding:8px 14px;border-bottom:1px solid var(--border-soft)"><div style="font-size:12px;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px">${t}</div>${inner}</div>`;
+        const bloco = (t, inner) => `<div style="padding:8px 14px;border-bottom:1px solid var(--border-soft)"><div style="font-size:11px;text-transform:uppercase;letter-spacing:.5px;color:var(--text-muted);margin-bottom:4px">${t}</div>${inner}</div>`;
         let html = '';
         // Linha do card padrão de dados ("rótulo: valor"), usada nos cards
         // PROCESSO e FINANCEIRO abaixo — mesmo formato nos dois, só muda a cor
@@ -931,7 +931,7 @@ Object.assign(ROUTES, {
             slot.innerHTML = bloco('Linha do tempo', itens.length ? `
               <div style="display:flex;flex-direction:column;gap:10px">
                 ${itens.map((e) => `<div style="display:flex;gap:8px;align-items:flex-start">
-                  <span style="flex:0 0 auto;margin-top:1px;color: var(--gold-text)">${svgIcon(TL_ICONE[e.event_type] || 'dot', 'ic-xs')}</span>
+                  <span style="flex:0 0 auto;margin-top:1px;color:var(--gold)">${svgIcon(TL_ICONE[e.event_type] || 'dot', 'ic-xs')}</span>
                   <div style="min-width:0"><div style="font-size:12px;line-height:1.4">${esc(String(e.description || '').slice(0, 140))}</div>
                     <small style="color:var(--text-muted)">${fmtDateTime(e.created_at)}${e.case_number ? ' · nº ' + esc(e.case_number) : ''}</small></div>
                 </div>`).join('')}
@@ -1259,7 +1259,7 @@ Object.assign(ROUTES, {
             <button class="btn-icon" id="wa-buscar-chat" title="Buscar nesta conversa">${svgIcon('search')}</button>
             <button class="btn-icon ${Number(c.pinned) || Number(c.archived) || c.assigned_user_id ? 'on' : ''}" id="wa-mais" title="Mais ações">${svgIcon('more')}</button>
             <button class="btn-icon ${focoConversa ? 'on' : ''}" id="wa-foco-conversa" title="${focoConversa ? 'Mostrar a lista de conversas' : 'Minimizar lista — ver só esta conversa'}">${svgIcon(focoConversa ? 'minimize' : 'expand', 'ic-xs')}</button>
-            <button class="btn-ghost btn-sm wa-ficha-btn ${ctxAberta ? 'on' : ''}" id="wa-info" title="Mostrar/ocultar a ficha do contato">${svgIcon('user')}Ficha</button>
+            <button class="btn-ghost btn-sm wa-ficha-btn ${ctxAberta ? 'on' : ''}" id="wa-info" title="Mostrar/ocultar a ficha do contato">👤 Ficha</button>
           </div>
           <div class="wa-digitando" id="wa-digitando" style="display:none">digitando…</div>
           <div class="wa-digitando" id="wa-staff-typing" style="display:none"></div>
@@ -1284,8 +1284,8 @@ Object.assign(ROUTES, {
             <button type="button" class="btn-icon btn-icon-sm" id="wa-reply-cancel" title="Cancelar resposta">${svgIcon('x', 'ic-xs')}</button>
           </div>
           <form class="wa-input" id="wa-reply">
-            <button type="button" class="btn-icon" id="wa-modelos" title="Respostas prontas" aria-label="Respostas prontas">${svgIcon('clipboard')}</button>
-            <button type="button" class="btn-icon" id="wa-sugerir-horario" title="Sugerir próximos horários livres da agenda" aria-label="Sugerir horários livres da agenda">${svgIcon('calendar')}</button>
+            <button type="button" class="btn-icon" id="wa-modelos" title="Respostas prontas">⚡</button>
+            <button type="button" class="btn-icon" id="wa-sugerir-horario" title="Sugerir próximos horários livres da agenda">📅</button>
             <button type="button" class="btn-icon" id="wa-anexar" title="Enviar documento ou imagem">${svgIcon('paperclip')}</button>
             <textarea name="text" placeholder="Digite uma mensagem" autocomplete="off" rows="1">${esc(textoAtual)}</textarea>
             <button type="button" class="btn-icon" id="wa-gravar" title="Gravar áudio">${svgIcon('mic')}</button>
@@ -1483,18 +1483,18 @@ Object.assign(ROUTES, {
           let dia = '';
           const linhas = msgs.map((m) => {
             const d = fmtDia(m.msg_time);
-            const sep = d !== dia ? `<div style="text-align:center;margin:14px 0 6px"><span style="font-size:12px;border:1px solid #ccc;border-radius:10px;padding:2px 10px;color:#555">${d}</span></div>` : '';
+            const sep = d !== dia ? `<div style="text-align:center;margin:14px 0 6px"><span style="font-size:11px;border:1px solid #ccc;border-radius:10px;padding:2px 10px;color:#555">${d}</span></div>` : '';
             dia = d;
             return `${sep}<div style="margin:6px 0;padding:8px 12px;border-radius:8px;max-width:75%;font-size:12.5px;line-height:1.5;border:1px solid #ddd;${Number(m.from_me) ? 'margin-left:auto;background:#eef7ea' : 'background:#fff'}">
-              <div style="font-size:12px;color:#888;margin-bottom:3px">${Number(m.from_me) ? 'Escritório' : esc(ativo.name)} · ${fmtHora(m.msg_time)}</div>
+              <div style="font-size:10px;color:#888;margin-bottom:3px">${Number(m.from_me) ? 'Escritório' : esc(ativo.name)} · ${fmtHora(m.msg_time)}</div>
               <div style="white-space:pre-wrap;word-break:break-word">${esc(m.body)}</div>
-              ${m.media_id ? '<div style="font-size:12px;color:#888;margin-top:3px">[anexo recebido — arquivado nos Documentos do cliente]</div>' : ''}
+              ${m.media_id ? '<div style="font-size:10.5px;color:#888;margin-top:3px">[anexo recebido — arquivado nos Documentos do cliente]</div>' : ''}
             </div>`;
           }).join('');
           printBranded(
             `Registro de conversa de WhatsApp — ${ativo.name}`,
             `Contato +${ativo.phone} · ${msgs.length} mensagem(ns) · extraído do CRM em ${new Date().toLocaleString('pt-BR')}`,
-            linhas + '<p style="color:#777;font-size:12px;margin-top:16px">Registro gerado pelo sistema de gestão do escritório para fins de documentação e prova. Use "Imprimir → Salvar como PDF".</p>');
+            linhas + '<p style="color:#777;font-size:11px;margin-top:16px">Registro gerado pelo sistema de gestão do escritório para fins de documentação e prova. Use "Imprimir → Salvar como PDF".</p>');
         };
         // Rótulos do menu "⋯ Mais ações" que mudam de estado (fixar/arquivar) —
         // atualiza o texto sem precisar reabrir o menu inteiro.
@@ -1805,7 +1805,7 @@ Object.assign(ROUTES, {
           const form = el(`<form class="form-grid">
             <p class="sub">Marque as etiquetas desta conversa (ou crie uma nova):</p>
             <div style="display:flex;flex-direction:column;gap:6px">
-              ${existentes.map((t) => `<label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" name="et" value="${esc(t)}" ${ativo.labels.includes(t) ? 'checked' : ''}> <span class="wa-tag" style="background:${cor(t)};font-size:12px">${esc(t)}</span></label>`).join('') || '<small style="color:var(--text-muted)">Nenhuma etiqueta criada ainda</small>'}
+              ${existentes.map((t) => `<label style="display:flex;gap:8px;align-items:center;font-size:14px"><input type="checkbox" name="et" value="${esc(t)}" ${ativo.labels.includes(t) ? 'checked' : ''}> <span class="wa-tag" style="background:${cor(t)};font-size:11px">${esc(t)}</span></label>`).join('') || '<small style="color:var(--text-muted)">Nenhuma etiqueta criada ainda</small>'}
             </div>
             ${field('Nova etiqueta (opcional)', 'nova')}
             <button type="submit" class="btn-primary">Salvar etiquetas</button>
@@ -2254,7 +2254,7 @@ function conferirDadosExtraidos(r, phone) {
     const valorInput = c === 'data_nascimento' ? `type="date"` : 'type="text"';
     return `<tr style="${incerto ? 'background:var(--amber-bg)' : ''}">
       <td><input type="checkbox" data-usar="${c}" ${marcar ? 'checked' : ''} aria-label="Usar ${ROT[c]}"></td>
-      <td><strong>${ROT[c]}</strong>${incerto ? `<br><small style="color:var(--amber)">${svgIcon('alert', 'ic-inline')}${esc(sg.aviso || 'Leitura incerta')}</small>` : ''}</td>
+      <td><strong>${ROT[c]}</strong>${incerto ? `<br><small style="color:var(--amber)">⚠ ${esc(sg.aviso || 'Leitura incerta')}</small>` : ''}</td>
       <td><small style="color:var(--text-muted)">${esc(atual) || '—'}</small></td>
       <td><input ${valorInput} data-valor="${c}" value="${esc(sg.valor)}" style="width:100%">
         ${sg.alternativas.length ? `<small style="color:var(--text-muted)">outro doc: ${sg.alternativas.map((a) => esc(a.valor)).join(', ')}</small>` : ''}</td>
@@ -2323,7 +2323,7 @@ async function organizarSemCadastro() {
         <small style="color:var(--text-muted)">“${esc(r.ultima_msg || '')}”</small>
         ${r.triagem_motivo ? `<br><small>IA: ${esc(r.triagem_motivo)}</small>` : ''}</span>
       <select data-sc="${i}" aria-label="Categoria">${CAT.map(([v, t]) => `<option value="${v}" ${(r.triagem_categoria || 'outro') === v ? 'selected' : ''}>${t}</option>`).join('')}</select>
-    </div>`).join('') : '<div class="empty">Nenhum número sem cadastro.</div>';
+    </div>`).join('') : '<div class="empty">Nenhum número sem cadastro 🎉</div>';
   };
   const carregar = async () => { lista = await api('/api/whatsapp-instance/sem-cadastro').catch(() => []); render(); };
   wrap.querySelector('#sc-sugerir').onclick = async (e) => {

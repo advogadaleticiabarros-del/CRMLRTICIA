@@ -10,17 +10,6 @@ Antes de iniciar qualquer tarefa, analise quais skills instaladas são realmente
 
 ### Design e interface
 
-- **Diretriz permanente de interface (desde 17/11/2026, aprovada pela Jessica):** toda tela segue o **`DESIGN.md`** (design system 3.0). Regras que não mudam sem autorização:
-  - **Cores.** Só as da marca (azul-marinho, dourado, creme), cada uma com função. O dourado é detalhe, não botão. Texto sempre com contraste ≥ 4,5:1, no tema claro e no escuro. Nunca use `#fff` fixo como fundo; use `var(--surface)`.
-  - **Fontes.** Inter na interface e Spectral só no nome do escritório. Nada abaixo de 12px e nada de maiúsculas espaçadas.
-  - **Ícones.** Só `svgIcon()` (traço Lucide), nunca emoji em interface.
-  - **Forma.** Raios de 8, 12 e 6px e espaçamento em múltiplos de 4px. Sem degradê, faixa lateral colorida, brilho ou cartão dentro de cartão.
-  - **Confirmação.** `await confirmar({...})`, nunca `confirm()` do navegador. Toda lista tem os estados carregando, vazio e erro.
-  - **Celular.** Alvo de toque de 44px e nada passa da largura da tela.
-  - **Movimento.** Só no clique (`scale(.97)`), em janelas e em avisos; nunca em troca de tela.
-  - **Consistência.** Reaproveite os componentes que existem antes de criar outro. Cada tela deve parecer parte de um único produto.
-  - **Teste.** O teste `tests/designSystem.test.mjs` trava essas regras no CI.
-
 - Use `frontend-design` ao criar ou redesenhar telas, dashboards, kanbans, formulários, tabelas, menus, páginas e componentes visuais. A interface deve ter identidade própria, aparência empresarial e não parecer um template genérico produzido por IA.
 
 - Use `web-design-guidelines` ao criar, revisar ou finalizar qualquer interface. Verifique acessibilidade, contraste, responsividade, hierarquia, espaçamento, formulários, estados de erro, carregamento e interação.

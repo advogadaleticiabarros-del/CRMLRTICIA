@@ -2,19 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 17/11/2026. Último commit: design system 3.0 (revisão visual aprovada pela Jessica).
+**Última atualização:** 17/11/2026. Último commit: reversão do design system 3.0 (telas voltaram ao visual anterior).
 
 ## Últimas entregas (mais recentes primeiro)
-- **17/11 (3):** **Design system 3.0, revisão visual de todo o CRM** (Jessica: "aplique tudo", depois de aprovar a prévia antes/depois). Regras em `DESIGN.md`, travadas por `tests/designSystem.test.mjs`.
-  - **Mantido:** as mesmas cores da marca.
-  - **Contraste:** texto escurecido onde reprovava; botão dourado com texto azul-marinho.
-  - **Fontes:** Inter e Spectral; nada abaixo de 12px e nada em maiúsculas.
-  - **Ícones:** no lugar dos emojis.
-  - **Telas:** Hoje em grupos; busca no topo; indicadores em faixa (inclusive o painel do Financeiro); cartões na largura toda; confirmação própria no lugar do `confirm()`.
-  - **Celular:** alvo de 44px; WhatsApp compacto; Mesa do caso compacta.
-  - **Defeitos corrigidos:** modo escuro ilegível na lista do celular, sombra da gaveta vazando, data "Terça-Feira, 17 De Novembro".
-  - **Auditoria antes e depois** (133 medições): contraste ruim no notebook caiu de 525 para 155 (o resto é do Escritório virtual e do Monitoramento), letra pequena de 832 para 221, `transition: all` de 425 para 0, degradês de 61 para 1, fontes de 6 para 2.
-  - **Pendente:** Escritório virtual (emojis e 12 cores; outra sessão estava no arquivo); visão semanal da Agenda; reagrupar as abas do Financeiro. Ver `docs/contexto/relatorios/2026-11-17-design-system-3.md`.
+- **17/11 (4):** **Design system 3.0 desfeito** (Jessica: "não ficou bom, existem telas com limites, as divisões não ficaram boas, estava melhor antes [...] quero que volte como estava, exatamente como estava"). `git revert` do commit 505c4dc: telas, CSS, ícones, `DESIGN.md` e a diretriz de interface do `CLAUDE.md` voltaram ao que eram no commit 9a1b801. **Não refazer** a revisão visual sem pedido novo e prévia aprovada tela por tela. Ver `docs/contexto/relatorios/2026-11-17-reversao-design-system-3.md`.
 - **17/11:** **Vencimentos no WhatsApp e cobrança só com autorização** ("Não envie cobranças automáticas, quero receber lembretes de vencimentos no WhatsApp, não estamos recebendo, e só pode enviar para o cliente se eu autorizar [...] e sempre calcular os juros atualizados").
   - **Causa de não chegar:** o aviso interno só olhava `financial_records` e só mandava por Telegram; parcelas de contrato e de proposta ficavam de fora.
   - **Agora:** `vencimentosEscritorio.ts`, às 8h (nova tentativa 12h), manda ao WhatsApp de `destinoWhatsappPessoal` as vencidas (com multa 2% + juros 1% a.m. do dia), as de hoje e as dos próximos 3 dias. Cobrança de vencida vira rascunho em Mensagens para aprovar (agente "Cobrança"), recalculado todo dia.

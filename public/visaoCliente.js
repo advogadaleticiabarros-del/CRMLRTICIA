@@ -36,7 +36,7 @@
     if (!container) return;
     container.innerHTML = `
       <div class="card" style="padding:14px 16px;margin-bottom:14px">
-        <label for="vc-busca" style="display:block;font-weight:700;color:var(--navy);margin-bottom:6px">${svgIcon('search', 'ic-inline')}Pesquisar cliente</label>
+        <label for="vc-busca" style="display:block;font-weight:700;color:var(--navy);margin-bottom:6px">🔎 Pesquisar cliente</label>
         <div style="position:relative">
           <input id="vc-busca" type="search" autocomplete="off" placeholder="Nome, CPF, telefone ou número do processo"
             style="width:100%;font-size:15px;padding:11px 12px" aria-describedby="vc-busca-ajuda">
@@ -150,7 +150,7 @@
         : vazio('Nenhum documento.') },
 
       linha: { rotulo: 'Linha do tempo', html: () => v.linhaDoTempo.length
-        ? `<ul class="ev-hist" style="max-height:none">${v.linhaDoTempo.map((e) => `<li><time>${dataBr(e.data)}</time><span>${{ movimentacao: '', prazo: '', audiencia: '', pagamento: '', registro: '' }[e.tipo] || '•'} ${e.ref ? `<small style="color:var(--text-muted)">${esc(e.ref)}</small> ` : ''}${esc(e.texto)}</span></li>`).join('')}</ul>`
+        ? `<ul class="ev-hist" style="max-height:none">${v.linhaDoTempo.map((e) => `<li><time>${dataBr(e.data)}</time><span>${{ movimentacao: '⚖️', prazo: '⏰', audiencia: '🏛️', pagamento: '💰', registro: '📝' }[e.tipo] || '•'} ${e.ref ? `<small style="color:var(--text-muted)">${esc(e.ref)}</small> ` : ''}${esc(e.texto)}</span></li>`).join('')}</ul>`
         : vazio('Nada registrado ainda.') },
 
       cadastro: { rotulo: 'Cadastro', html: () => {
@@ -176,7 +176,7 @@
           <button type="button" class="btn-sm" id="vc-ficha">Abrir ficha</button>
         </span>
       </div>
-      ${v.alertas.length ? `<div class="card" style="padding:10px 12px;margin-bottom:10px;border-left:4px solid var(--red)">${v.alertas.map((a) => `<div style="font-size:13.5px;${a.nivel === 'urgente' ? 'color:var(--red);font-weight:700' : ''}">${a.nivel === 'urgente' ? '' : ''} ${esc(a.texto)}</div>`).join('')}</div>` : ''}
+      ${v.alertas.length ? `<div class="card" style="padding:10px 12px;margin-bottom:10px;border-left:4px solid var(--red)">${v.alertas.map((a) => `<div style="font-size:13.5px;${a.nivel === 'urgente' ? 'color:var(--red);font-weight:700' : ''}">${a.nivel === 'urgente' ? '🚨' : '⚠️'} ${esc(a.texto)}</div>`).join('')}</div>` : ''}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">${kpis}</div>
       <div class="tabs" id="vc-abas" style="flex-wrap:wrap">${Object.entries(abas).map(([k, a], i) => `<button type="button" class="tab${i === 0 ? ' active' : ''}" data-aba="${k}">${a.rotulo}</button>`).join('')}</div>
       <div id="vc-conteudo" style="max-height:52vh;overflow:auto;padding-top:8px"></div>`;

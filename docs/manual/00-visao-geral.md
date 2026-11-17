@@ -267,31 +267,6 @@ Nada de cor, fonte ou raio novo foi inventado — tudo reaproveita as variáveis
 
 Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Investigação (29/09/2026):** "arrastar pra revelar" (padrão comum em apps de lista) entraria em conflito com o cartão mobile que já existe — a coluna de ações já vira botões largos e sempre visíveis no rodapé do cartão, não fica escondida competindo espaço. Implementado, em vez disso, o equivalente correto do iOS: quando uma lista tem **3 ou mais** botões de ação (Editar/Abrir/Excluir etc.), eles somem e viram um único botão **"Ações ⋯"**, que abre uma folha (o mesmo modal-sheet) listando cada ação. Automático — qualquer tabela nova do sistema já ganha isso sozinha, sem precisar mexer na tela que a criou. Com 1 ou 2 botões, nada muda (não precisa condensar). Só no celular; no computador os botões continuam lado a lado, como sempre.
 
-## Aparência: design system 3.0 (17/11/2026)
-
-A Jessica aprovou a revisão visual para tirar a "cara de sistema feito por IA". As regras completas estão em `DESIGN.md`, na raiz do repositório. O resumo:
-
-- **Cores.** São as mesmas da marca (azul-marinho, dourado, creme), e cada uma tem uma função.
-  - O texto de apoio, o dourado usado como texto e os textos das etiquetas ficaram um tom mais escuro, para passar no mínimo de leitura (4,5:1) nos temas claro e escuro.
-  - Botão dourado agora tem texto azul-marinho (antes era branco, com contraste de 2,63).
-- **Fontes.** Inter em toda a interface; Spectral só no nome do escritório. Saíram EB Garamond, Playfair e Cormorant da tela principal. Nenhuma letra abaixo de 12px e nenhum rótulo em maiúsculas.
-- **Ícones.** Os emojis da interface viraram ícones de traço (`svgIcon`). Na tela Hoje, `hojeRegras.ts` manda o nome do ícone, não o emoji.
-- **Tela Hoje.** As pendências ficam em grupos com nome ("Agora", "Esta semana", "Quando der"), com contagem, e há um só botão principal (o do item mais urgente). A saúde das rotinas virou uma linha; o detalhe abre num clique.
-- **Topo.**
-  - Campo de busca global (Ctrl K).
-  - Data escrita "Terça, 17 de novembro" (antes "Terça-Feira, 17 De Novembro").
-  - O título da tela não se repete no computador.
-- **Indicadores.** Uma faixa só, com linha dourada sólida no topo. O painel escuro do Financeiro virou a mesma faixa.
-- **Cartões.** Ocupam a largura toda; antes ficavam presos a 85% no notebook e a 90% no tablet.
-- **Confirmações.** Janela própria (`confirmar()`), no lugar da caixa cinza do navegador, nas exclusões de proposta e de parte e na regra de categoria.
-- **Celular.**
-  - Tudo o que se toca tem 44px.
-  - A gaveta do menu só tem sombra quando está aberta.
-  - No WhatsApp, a busca e os filtros ficam em duas linhas e as conversas aparecem logo.
-  - Na Mesa do caso, só a etapa atual mostra o nome.
-- **Movimento.** Saiu a animação de entrada em toda troca de tela. Ficaram o retorno no clique, a janela que abre do centro e o aviso que entra por baixo.
-- **Acessibilidade.** Filtros sem rótulo ganham nome automático (`rotularCampos`), e os botões só de ícone ganharam `aria-label`.
-
 ## FAQ
 
 **Essa documentação é gerada automaticamente ou alguém escreveu?** Foi escrita lendo o código-fonte real do sistema (rotas, regras de negócio, banco de dados) — não é um chute nem um template genérico preenchido. Cada afirmação aqui corresponde a um comportamento que existe de fato no CRM em 03/09/2026.
@@ -304,7 +279,6 @@ A Jessica aprovou a revisão visual para tirar a "cara de sistema feito por IA".
 
 | Data | Autor | Mudança |
 |---|---|---|
-| 17/11/2026 | Claude | Design system 3.0: mesmas cores com contraste ≥ 4,5:1, Inter + Spectral, ícones no lugar de emojis, tela Hoje em grupos, busca no topo, indicadores em faixa, confirmação própria e ajustes de celular (`DESIGN.md`) |
 | 13/11/2026 | Claude | Escritório virtual: cada setor numa sala separada (divisórias, porta e corredores) e a CEO negra de cabelo black |
 | 13/11/2026 | Claude | Escritório virtual: setores com área própria na sala, a CEO (Dra. Letícia) com a Mesa da Chefe, temas festivos automáticos e conserto das mesas que sumiam |
 | 21/10/2026 | Claude | Pesquisa de Leis (bloco 18) e Dra. Júlia e Dra. Vera em funcionamento |
