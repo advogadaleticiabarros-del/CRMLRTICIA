@@ -919,6 +919,15 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 - **Quarta causa (mesmo teste):** com os extratos inteiros, a IA tinha de devolver na ficha todos os descontos de 6 anos (centenas de linhas) e parou em 2021: o Itaú ficou só com 05 a 12/2021 e os outros bancos zeraram. Agora os descontos do histórico de créditos são lidos **em código** da transcrição (`src/services/hiscre.ts`: linha da competência + tabela de rubricas 216/217/268; crédito não pago não conta; competência repetida em dois históricos conta uma vez) e substituem os que a IA listou do histórico. Teste: `tests/hiscre.test.mjs`.
 - **Como reconhecer de novo:** contrato no demonstrativo sem "Inclusão" e com 0 meses; ou, em Documentos, o texto de um extrato começando com "[Extraído por IA de" e em tópicos. Resolve com "Ler os contratos" no caso (relê os extratos) e depois "gerar nova versão".
 
+## Incidente: no modo escuro, nomes da lista de clientes ilegíveis no celular (17/11/2026)
+
+- **Sintoma.** Com o tema "Escuro", no celular, os cartões das listas de Clientes e Processos ficavam brancos e o texto claro: o nome do cliente quase sumia (contraste de 1,2:1). Achado na auditoria visual de 17/11.
+- **Causa raiz.** No celular, cada linha de tabela vira cartão pela regra `.page tbody tr`, que tinha `background: #fff` fixo. O tema escuro troca as variáveis de cor, mas não um branco escrito direto.
+- **Correção.** O fundo passou a ser `var(--surface)`, que segue o tema. No mesmo pacote:
+  - a sombra da gaveta do menu, que vazava na borda esquerda de todas as telas do celular, agora só aparece com a gaveta aberta;
+  - a data do topo ("Terça-Feira, 17 De Novembro", por um `text-transform: capitalize`) passou a ser montada por `dataCurta()`.
+- **Como reconhecer de novo.** Uma cor que não muda com o tema é cor fixa no CSS ou no `style` do JS. Procure `#fff`, `#ffffff` ou `white` como fundo e troque pelo token (`--surface`, `--surface-2`). A regra está no `DESIGN.md`.
+
 ## Incidente: Dra. Helena acusava "data de emissão futura" em datas já passadas (31/10/2026)
 
 - **Sintoma:** na Mesa → "Análise dos documentos", pontos graves "possível alteração" como "Data de emissão futura (20/10/2026)" na procuração e "Data de emissão (16/04/2025) é futura" no RG, numa análise feita em 31/10/2026.
@@ -949,6 +958,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 17/11/2026 | Claude | Modo escuro com nomes ilegíveis na lista do celular (`#fff` fixo), sombra da gaveta vazando e data com maiúsculas erradas |
 | 31/10/2026 | Claude | Demonstrativo do Itaú ainda com R$ 0,00: o Drive era lido com resumo, sem as colunas do HISCON; agora tudo é transcrito na íntegra e os resumos antigos de extrato são relidos. Banco com código na frente ("341 - BANCO ITAU SA") volta a bater com o réu. Extratos não vão mais cortados para a leitura. Descontos do histórico de créditos lidos em código (hiscre.ts) |
 | 31/10/2026 | Claude | Peça do Itaú com R$ 0,00: descontos do HISCRE sem banco eram descartados; Calculista liga cada desconto ao contrato. Revisão em toda versão nova |
 | 30/10/2026 | Claude | Extrato de empréstimos nunca lido: leitura dos anexos do Drive passou a usar a reserva (Gemini → OpenAI) |

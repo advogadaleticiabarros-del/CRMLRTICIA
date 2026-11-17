@@ -16,7 +16,7 @@
   <link rel="stylesheet" href="/styles.css" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Spectral:wght@500;600;700&family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&family=Cormorant+Garamond:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400..700&family=Spectral:wght@500;600&display=swap" rel="stylesheet" />
 </head>
 <body>
   <!-- LOGIN -->
@@ -55,7 +55,7 @@
           </label>
           <button type="submit" class="btn-primary">Entrar</button>
           <p id="login-error" class="error-msg"></p>
-          <button type="button" id="forgot-link" class="btn-link" style="background:none;border:none;color:var(--gold,#b08d57);cursor:pointer;font-size:13px;margin-top:6px;text-decoration:underline">Esqueci minha senha</button>
+          <button type="button" id="forgot-link" class="btn-link" style="background:none;border:none;color:#5a5346;cursor:pointer;font-size:13px;margin-top:6px;text-decoration:underline">Esqueci minha senha</button>
         </form>
       </div>
     </div>
@@ -85,13 +85,14 @@
 
     <main class="content">
       <header class="topbar">
-        <button id="nav-toggle" class="nav-toggle" title="Menu" aria-label="Menu">☰</button>
+        <button id="nav-toggle" class="nav-toggle" title="Menu" aria-label="Menu"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
         <button id="sidebar-collapse" class="nav-toggle only-desktop" title="Recolher menu" aria-label="Recolher menu"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></svg></button>
         <div class="topbar-greeting" id="topbar-greeting"></div>
         <div class="topbar-compact-title" id="topbar-compact-title"></div>
+        <button type="button" id="busca-topo" class="busca-topo only-desktop" aria-label="Buscar cliente, processo ou CPF (Ctrl K)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><span>Buscar cliente, processo ou CPF</span><kbd>Ctrl K</kbd></button>
         <div class="topbar-actions">
-          <button id="novo-btn" class="btn-gold btn-sm novo-btn hidden" title="Registrar algo novo" aria-label="Registrar algo novo"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Registrar</button>
-          <button id="discover-btn" class="btn-gold btn-sm" title="Buscar processos novos por OAB (DJEN)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg> Descobrir processos</button>
+          <button id="novo-btn" class="btn-sm novo-btn hidden" title="Registrar algo novo" aria-label="Registrar algo novo"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Registrar</button>
+          <button id="discover-btn" class="btn-sm" title="Buscar processos novos por OAB (DJEN)"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg> Descobrir processos</button>
           <button id="whatsapp-btn" class="bell-icon" title="WhatsApp"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.5 8.5 0 0 1-8.5 8.5c-1.5 0-2.9-.36-4.1-1L3 20l1.05-5.2A8.5 8.5 0 1 1 21 11.5z"/><path d="M8.5 10.5h7M8.5 13.5h4.5"/></svg></button>
           <button id="fullscreen-btn" class="bell-icon" title="Tela cheia"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M8 20H5a1 1 0 0 1-1-1v-3M16 20h3a1 1 0 0 0 1-1v-3"/></svg></button>
           <button id="bell-btn" class="bell-icon" title="Notificações" aria-label="Notificações"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><span id="bell-count" class="bell-count hidden">0</span></button>

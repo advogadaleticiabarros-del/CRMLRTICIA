@@ -16,6 +16,20 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 17/11/2026 — Design system 3.0: manter as cores, ajustar só o tom do texto
+**Decisão:** a revisão visual manteve a paleta da marca (pedido da Jessica: "vamos manter, contanto que não atrapalhe; ajuste o que precisa").
+- **Texto escurecido.** O texto que reprovava no contraste ficou um tom mais escuro da mesma cor: apoio `#6b6352`, dourado-texto `#8a6a24`, etiquetas `#23704d`, `#8f6514` e `#a8372e`.
+- **Botão dourado.** Passou a ter texto azul-marinho (`--on-gold`).
+- **Fonte única.** A interface usa só Inter; Spectral fica só no nome do escritório.
+
+**Por quê:**
+- A auditoria de 17/11 (37 telas, 3 larguras, tema escuro) contou 525 textos abaixo do mínimo de leitura no notebook. O mais repetido era o branco no dourado (2,63:1).
+- Escurecer só o texto resolve sem mudar a identidade. O fundo da etiqueta e o dourado do botão continuam iguais.
+- As cinco fontes carregadas (EB Garamond, Playfair, Cormorant, Spectral e Inter) deixavam o sistema mais lento e sem voz própria.
+- O `confirm()` do navegador mostrava o domínio, botões fora do padrão e ignorava o tema. Foi trocado por `confirmar()`.
+- **Escritório virtual.** Ficou fora desta rodada: outra sessão estava mexendo nele.
+- **Onde está.** Os detalhes estão em `DESIGN.md`, e o teste `tests/designSystem.test.mjs` impede a volta de letra pequena, `transition: all`, maiúsculas, fontes extras, `confirm()` e emoji.
+
 ### 13/11/2026 — Prazo da intimação por regra fixa, com duas datas e "revisão humana"
 **Decisão:** o prazo de cada intimação do DJEN sai de regra fixa (`prazoIntimacao.ts`), nunca da IA. A IA só resume o "do que se trata". A contagem parte da **publicação** (1º dia útil após a disponibilização; Lei 11.419/2006, art. 4º, §§3º e 4º; CPC, art. 224, §§2º e 3º). O resultado mostra **duas datas**: a data limite legal e o "protocolar até", um dia útil antes. Quando o texto não permite saber o prazo, aparece "revisão humana", com o motivo, e não uma data padrão.
 **Por quê:**

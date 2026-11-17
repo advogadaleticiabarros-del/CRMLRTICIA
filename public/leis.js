@@ -26,7 +26,7 @@
   .lx-trecho { margin: 6px 0 8px; color: var(--text); font-size: 14px; line-height: 1.6; max-width: 80ch; }
   .lx-trecho mark, .lx-texto mark { background: none; color: inherit; box-shadow: inset 0 -0.45em 0 rgba(224,192,116,.45); }
   .lx-acoes { display: flex; gap: 6px; flex-wrap: wrap; }
-  .lx-tag { font-size: 11.5px; border-radius: 10px; padding: 1px 8px; background: #eef2f8; color: var(--navy); }
+  .lx-tag { font-size:12px; border-radius: 10px; padding: 1px 8px; background: #eef2f8; color: var(--navy); }
   .lx-tag.rev { background: var(--red-bg); color: var(--red); }
   .lx-tag.exato { background: var(--amber-bg); color: var(--amber); }
   .lx-vazio { padding: 28px 18px; color: var(--text-muted); }
@@ -42,7 +42,7 @@
   .lx-sum button:hover { background: var(--surface-2); }
   .lx-sum button[aria-current="true"] { background: var(--navy-deep); color: #fff; }
   .lx-sum button.rev { color: var(--text-muted); text-decoration: line-through; }
-  .lx-sum .lx-parte { font-size: 11.5px; color: var(--text-muted); padding: 10px 8px 2px; }
+  .lx-sum .lx-parte { font-size:12px; color: var(--text-muted); padding: 10px 8px 2px; }
   .lx-pagina { min-width: 0; }
   .lx-texto { font-family: 'Spectral', Georgia, serif; font-size: 17px; line-height: 1.75; color: var(--text); white-space: pre-line; max-width: 68ch; margin: 0 0 16px; }
   .lx-texto p { margin: 0 0 .6em; }
@@ -273,7 +273,7 @@
             const [cls, sim, rot] = SITUACAO[x.situacao] || SITUACAO.fora_do_acervo;
             const sentido = x.sustenta === 'nao' ? 'o texto oficial não sustenta o que a peça afirma' : x.sustenta === 'parcial' ? 'o texto oficial sustenta só em parte' : '';
             return `<article class="lx-item">
-              <div class="lx-item-topo"><span class="lx-sim ${sentido ? 'duvida' : cls}" aria-hidden="true">${sentido ? '⚠' : sim}</span>
+              <div class="lx-item-topo"><span class="lx-sim ${sentido ? 'duvida' : cls}" aria-hidden="true">${sentido ? '' : sim}</span>
                 <span class="lx-rotulo">${esc(x.trecho)}</span><span class="lx-norma">${esc(rot)}</span></div>
               ${x.citacao && x.citacao !== x.trecho ? `<div class="lx-norma">${esc(x.citacao)}</div>` : ''}
               ${sentido ? `<div class="lx-obs">${esc(sentido)}${x.observacao ? ': ' + esc(x.observacao) : ''}</div>` : ''}

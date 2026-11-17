@@ -15,7 +15,8 @@ const js = fs.readFileSync(path.resolve('public/app.js'), 'utf8');
 test('abas viram "segmented control" (padrão iOS) só no celular, reaproveitando cores do sistema', () => {
   const i = css.indexOf('/* Abas em "segmented control"');
   const bloco = css.slice(i, css.indexOf('/* Campo de busca/filtro', i));
-  assert.match(bloco, /\.tabs \{[^}]*border-radius: 11px/s);
+  // Design system 3.0 (17/11/2026): raios padronizados — 8px em controles, 12px em caixas.
+  assert.match(bloco, /\.tabs \{[^}]*border-radius: 8px/s);
   assert.match(bloco, /\.tab\.active \{[^}]*background: var\(--surface/s);
   // nenhuma cor nova inventada — reaproveita as variáveis já existentes
   assert.doesNotMatch(bloco, /#[0-9a-fA-F]{3,6}/);
@@ -24,7 +25,7 @@ test('abas viram "segmented control" (padrão iOS) só no celular, reaproveitand
 test('campo de busca/filtro do toolbar ganha estilo de barra de busca do iOS no celular', () => {
   const i = css.indexOf('/* Campo de busca/filtro no estilo');
   const bloco = css.slice(i, css.indexOf('/* Modais viram', i));
-  assert.match(bloco, /\.toolbar input\[type="text"\][^{]*\{[^}]*border-radius: 10px/s);
+  assert.match(bloco, /\.toolbar input\[type="text"\][^{]*\{[^}]*border-radius: 8px/s);
   assert.match(bloco, /background: var\(--bg\)/);
 });
 

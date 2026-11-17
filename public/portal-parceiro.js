@@ -31,10 +31,10 @@ Object.assign(ROUTES, {
         </div>
         ${stepperHtml(c)}
         <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:12px;font-size:13px">
-          <span>SLA: <strong style="color:${atras ? 'var(--red)' : 'var(--text)'}">${['protocolado', 'concluido'].includes(c.production_stage) ? 'concluído' : (c.sla_days ?? 0) + '/10 dias'}</strong>${!['protocolado', 'concluido'].includes(c.production_stage) && Number(c.pendencias) ? ' <span style="color:var(--blue,#2f6fb0);font-weight:600" title="SLA pausado — pendência aberta">⏸ Pausado</span>' : ''}</span>
+          <span>SLA: <strong style="color:${atras ? 'var(--red)' : 'var(--text)'}">${['protocolado', 'concluido'].includes(c.production_stage) ? 'concluído' : (c.sla_days ?? 0) + '/10 dias'}</strong>${!['protocolado', 'concluido'].includes(c.production_stage) && Number(c.pendencias) ? ' <span style="color:var(--blue,#2f6fb0);font-weight:600" title="SLA pausado — pendência aberta">Pausado</span>' : ''}</span>
           ${c.valor_causa ? `<span>Valor da causa: <strong style="color:var(--navy-deep)">${money(c.valor_causa)}</strong></span>` : ''}
           <span>Valor do processo: <strong>${money(c.valor_processo)}</strong></span>
-          <span>Seu repasse: <strong style="color:var(--gold)">${money(c.repasse_parceiro)}</strong></span>
+          <span>Seu repasse: <strong style="color: var(--gold-text)">${money(c.repasse_parceiro)}</strong></span>
         </div>
         <div style="margin-top:12px"><button class="btn-sm" data-ppcase="${c.id}">Ver detalhes</button></div>
       </div>`;
@@ -229,9 +229,9 @@ async function partnerCaseDetail(id) {
   const parc = (c.installments || []).map((i) =>
     `<div class="mini-row"><span>${i.numero ? i.numero + 'ª' : 'Parcela'} · venc. ${fmtDate(i.due_date)}</span><span><strong>${money(i.valor)}</strong> ${badge(i.status)}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem parcelas</small>';
   const rep = (c.repasses || []).map((r) =>
-    `<div class="mini-row"><span>${esc(r.tipo || 'repasse')} · venc. ${fmtDate(r.data_vencimento)}</span><span><strong style="color:var(--gold)">${money(r.valor)}</strong> ${r.status === 'repassado' ? '<span class="badge pago">recebido</span>' : r.status === 'cancelado' ? '<span class="badge cancelado">cancelado</span>' : '<span class="badge pendente">a receber</span>'}${r.comprovante_url ? ` <a class="btn-sm" style="text-decoration:none" href="${esc(r.comprovante_url)}" target="_blank" rel="noopener">Comprovante</a>` : ''}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem repasses ainda</small>';
+    `<div class="mini-row"><span>${esc(r.tipo || 'repasse')} · venc. ${fmtDate(r.data_vencimento)}</span><span><strong style="color: var(--gold-text)">${money(r.valor)}</strong> ${r.status === 'repassado' ? '<span class="badge pago">recebido</span>' : r.status === 'cancelado' ? '<span class="badge cancelado">cancelado</span>' : '<span class="badge pendente">a receber</span>'}${r.comprovante_url ? ` <a class="btn-sm" style="text-decoration:none" href="${esc(r.comprovante_url)}" target="_blank" rel="noopener">Comprovante</a>` : ''}</span></div>`).join('') || '<small style="color:var(--text-muted)">Sem repasses ainda</small>';
   const pend = (c.pendencias || []).map((p) =>
-    `<div style="padding:7px 10px;border-left:3px solid var(--red);background:var(--surface);border-radius:6px;margin-top:6px;font-size:13px">⚠ ${esc(p.text)}<br><small style="color:var(--text-muted)">${fmtDate(p.created_at)}</small></div>`).join('');
+    `<div style="padding:7px 10px;border-left:3px solid var(--red);background:var(--surface);border-radius:6px;margin-top:6px;font-size:13px">${svgIcon('alert', 'ic-inline')}${esc(p.text)}<br><small style="color:var(--text-muted)">${fmtDate(p.created_at)}</small></div>`).join('');
   const wrap = el(`<div>
     <div><strong style="font-size:18px;color:var(--navy-deep)">${esc(c.client_name || 'Cliente')}</strong>${c.title ? ` <span style="color:var(--text-muted);font-size:14px">· ${esc(c.title)}</span>` : ''}<br>
       <small style="color:var(--text-muted)">${esc(c.legal_area || '')}${c.case_number ? ' · Processo ' + esc(c.case_number) : ' · Em preparação'}${c.valor_causa ? ' · Valor da causa: ' + money(c.valor_causa) : ''}</small></div>

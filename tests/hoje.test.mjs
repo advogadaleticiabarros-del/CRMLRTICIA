@@ -57,3 +57,15 @@ test('saúde: vermelho quando cai, com o que fazer', () => {
   assert.equal(m.tudoOk(s), false);
   assert.equal(m.tudoOk(m.montarSaude({ whatsapp: true, googleAgenda: true, gmailParceria: true, gmailTribunal: true, backupOk: true, tribunaisOk: true })), true);
 });
+
+// Design system 3.0 (17/11/2026): a tela Hoje usa ícones SVG da mesma família, nunca emoji.
+test('ícones dos itens são nomes do conjunto SVG, sem emoji', () => {
+  const cheio = { ...vazio, prazosHoje: ['P1'], audienciasHoje: ['Ana'], prazosUrgentes: 1, prazosAConfirmar: 3,
+    whatsappAguardando: [{ nome: 'João', horas: 30 }], leadsSemResposta: 2, parcelasAtrasadas: { qtd: 1, total: 100 },
+    repassesCliente: { qtd: 1, total: 50 }, propostasAbertas: 1, tarefasVencidas: 1, clientesAConferir: 1, processosDuplicados: 1, acordosARegistrar: 1 };
+  const itens = m.montarItens(cheio);
+  assert.ok(itens.length >= 10);
+  for (const i of itens) {
+    assert.match(i.icone, /^[a-z]+$/, `ícone "${i.icone}" de ${i.id} deveria ser um nome do conjunto SVG`);
+  }
+});
