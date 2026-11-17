@@ -340,7 +340,8 @@ function scheduleAutoSend(): void {
           // então um lembrete de audiência de amanhã podia esperar atrás de
           // várias cobranças do dia dentro do teto diário de 30 envios.
           const [rows] = await db.query(
-            `SELECT id, phone, message FROM whatsapp_queue WHERE status = 'pendente'
+            // Cobrança nunca sai sozinha (17/11/2026): só com autorização da equipe.
+            `SELECT id, phone, message FROM whatsapp_queue WHERE status = 'pendente' AND context <> 'cobranca'
              ORDER BY CASE context WHEN 'audiencia' THEN 0 WHEN 'avulsa' THEN 1 ELSE 2 END, created_at ASC
              LIMIT 1`) as any;
           if (rows.length) {

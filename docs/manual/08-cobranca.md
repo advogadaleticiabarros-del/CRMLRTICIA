@@ -139,6 +139,20 @@ Em **Acordo → Repasses ao cliente**, o botão de cada parcela pendente agora s
 
 Parcelas já repassadas têm o botão **Prestação de contas**, para gerar o texto de novo. Texto em `src/services/prestacaoContas.ts` (testes em `tests/prestacaoContas.test.mjs`); API `GET /api/acordos/repasses/:id/prestacao` e `POST …/prestacao/enviar`.
 
+## Vencimentos no WhatsApp do escritório e cobrança só com autorização (desde 17/11/2026)
+
+Pedido: "Não envie cobranças automáticas, quero receber lembretes de vencimentos no WhatsApp, não estamos recebendo, e só pode enviar para o cliente se eu autorizar o envio da cobrança e sempre, sempre calcular os juros atualizados."
+
+- **Aviso ao escritório:** todo dia às **8h** (nova tentativa às 12h, se o WhatsApp estiver desconectado) chega no número de `destinoWhatsappPessoal` (hoje o da Jessica; troca em `office_settings.whatsapp_pessoal_destino`) a mensagem "💰 Vencimentos", com:
+  - **Vencidas**, já com o valor de hoje: parcela + multa de 2% + juros de 1% ao mês pro rata die (cláusula de inadimplemento dos contratos), e o total atualizado;
+  - **Vencem hoje**;
+  - **Próximos 3 dias**.
+  Entram lançamentos de receita, parcelas de proposta e parcelas de contrato.
+- **Cobrança ao cliente:** para cada vencida de cliente com telefone, o sistema prepara uma mensagem em **Escritório virtual → Mensagens para aprovar** (agente "Cobrança"), com o valor original, a multa, os juros e o total do dia. Enquanto estiver pendente, o texto é **recalculado todo dia**. Só sai quando alguém da equipe envia; se for descartada, não volta.
+- **Desligado:** a régua automática de cobrança por e-mail (D-3, D0, D+3, D+7) e a cobrança automática pela fila de WhatsApp. A fila automática ignora qualquer item de contexto `cobranca`.
+- Código: `src/services/vencimentosEscritorio.ts` (`calcularEncargos`, `montarAvisoVencimentos`, `textoCobrancaCliente`, `avisarVencimentosEscritorio`); job `financeiro:vencimentos-escritorio`; testes em `tests/vencimentosEscritorio.test.mjs`.
+- **Ainda não entra no cálculo:** correção monetária pelo IPCA prevista no contrato (para poucos dias de atraso, centavos). O portal do cliente usa outra conta (Configurações: multa 5% e juros 2% a.m.), diferente da do contrato.
+
 ## FAQ
 
 **A despesa pessoal da família aparece no resultado do escritório?** Não deveria — o sistema guarda despesa pessoal/familiar separada por escopo, e o DRE do escritório filtra só `escopo='empresa'`.
@@ -156,6 +170,7 @@ Parcelas já repassadas têm o botão **Prestação de contas**, para gerar o te
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 17/11/2026 | Claude | Vencimentos diários no WhatsApp do escritório (vencidas com multa 2% + juros 1% a.m. do dia); cobrança ao cliente só como rascunho para aprovar, recalculado todo dia; régua automática de e-mail e WhatsApp ao cliente desligada |
 | 16/11/2026 | Claude | Dativo só entra no A Receber quando sai na lista de pagamento da Sefaz: "disponível para recebimento", sem data, acumulado em qualquer mês até a baixa; card "Disponível para recebimento (dativo)"; valor arbitrado, senão o estimado. Antes entrava toda nomeação não paga, com o estimado |
 | 14/10/2026 | Claude | Prestação de contas padrão do acordo: "Recebi e repassei" abre o texto para copiar e o botão de envio pelo WhatsApp |
 | 09/10/2026 | Claude | Aviso diário (8h) de parcelas de acordo que vencem hoje, amanhã e em 2 dias, e das vencidas sem baixa |

@@ -18,6 +18,8 @@ export const NOME_AGENTE: Record<string, string> = {
   atendente: 'Dra. Lívia', negociador: 'Dr. Rafael', coletor: 'Dra. Camila', fechador: 'Dr. Felipe', produtor: 'Dra. Bianca', analista: 'Dra. Helena',
   // Automações antigas (acompanhamento de proposta, recusa, aceite, newsletter, e-book), desde 20/10/2026.
   automacao: 'Automação do CRM',
+  // Cobrança de parcela vencida, com multa e juros do dia (17/11/2026).
+  cobranca: 'Cobrança',
 };
 
 export async function prepararParaAprovacao(d: {

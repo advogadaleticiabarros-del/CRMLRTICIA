@@ -23,7 +23,8 @@ async function claim(refKey: string, channel = 'email'): Promise<boolean> {
   } catch { return false; }
 }
 
-// ── Régua de cobrança por e-mail (D-3, D0, D+3, D+7) ────────────────────────
+// ── Régua de cobrança por e-mail (D-3, D0, D+3, D+7) — SEM AGENDAMENTO desde 17/11/2026 ──
+// Não roda mais sozinha: cobrança ao cliente só com autorização (vencimentosEscritorio.ts).
 export async function sendBillingReminders(): Promise<number> {
   const [parcelas] = await db.query(`
     SELECT i.id, i.numero, i.valor, i.due_date, DATEDIFF(CURDATE(), i.due_date) AS atraso,

@@ -338,13 +338,19 @@ export function startCronJobs() {
     }, { critica: true });
   });
 
-  // ── diário 08:30: régua de cobrança por e-mail (D-3, D0, D+3, D+7) ── CRÍTICO
-  cron.schedule('30 8 * * *', () => {
-    runJob('financeiro:regua-cobranca', async () => {
-      const { sendBillingReminders } = await import('../services/financeReminders');
-      return await sendBillingReminders();
-    }, { critica: true });
-  }, { timezone: 'America/Sao_Paulo' });
+  // ── diário 08:00 (nova tentativa 12:00): vencimentos no WhatsApp do ESCRITÓRIO ── CRÍTICO
+  // A régua automática de cobrança AO CLIENTE (e-mail D-3/D0/D+3/D+7) foi
+  // desligada em 17/11/2026: "Não envie cobranças automáticas [...] só pode
+  // enviar para o cliente se eu autorizar". Agora a equipe recebe o aviso com
+  // multa e juros do dia, e a cobrança vira rascunho para aprovar.
+  for (const quando of ['0 8 * * *', '0 12 * * *']) {
+    cron.schedule(quando, () => {
+      runJob('financeiro:vencimentos-escritorio', async () => {
+        const { avisarVencimentosEscritorio } = await import('../services/vencimentosEscritorio');
+        return await avisarVencimentosEscritorio();
+      }, { critica: true });
+    }, { timezone: 'America/Sao_Paulo' });
+  }
 
   // ── diário 00:40: gera despesas/receitas RECORRENTES do dia ── CRÍTICO ────
   cron.schedule('40 0 * * *', () => {

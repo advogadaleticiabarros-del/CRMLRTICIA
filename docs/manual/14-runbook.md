@@ -926,6 +926,13 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 - **Correção:** o pedido virou `promptLeituraCritica()`, que leva "HOJE É dd/mm/aaaa (horário de Brasília)". Em `cruzar`, um indício que fala em "futura" só vira ponto grave se alguma data dele for posterior a hoje (sem data no texto, vale a data de emissão lida). Isso limpa também as leituras já guardadas, sem precisar ler de novo. "Hoje" passou a ser o dia de Brasília (`hojeBrasilia`). Testes em `tests/negociadorAnalista.test.mjs` (os 3 de data falhavam no código antigo).
 - **Como reconhecer de novo:** a IA comparando datas com uma data errada de "hoje". Todo pedido à IA que julga se uma data é passada, futura ou recente precisa trazer a data de hoje no texto.
 
+## Incidente: lembretes de vencimento não chegavam no WhatsApp, e cobrança saía ao cliente sem autorização (17/11/2026)
+
+- **Sintoma:** a equipe não recebia aviso de parcela vencendo ou vencida (ex.: parcela 2/4 de contrato vencida em 16/11 apareceu só na tela A Receber). Ao mesmo tempo, existiam réguas que mandavam cobrança direto ao cliente, sem juros e sem aprovação.
+- **Causa raiz:** o único aviso interno (`financeiro:vencidos`, 7h) olhava só `financial_records` e mandava só por **Telegram**; parcelas de contrato (`parcelas`) e de proposta (`installments`) nunca entravam, e nada ia para o WhatsApp. As cobranças ao cliente vinham de `sendBillingReminders` (e-mail, 8h30) e de `generateWhatsappQueue` (fila que se envia sozinha).
+- **Correção:** novo job `financeiro:vencimentos-escritorio` (8h e 12h) em `src/services/vencimentosEscritorio.ts`, que manda o resumo ao WhatsApp do escritório com multa e juros do dia e prepara a cobrança como rascunho para aprovação. Régua de e-mail removida do cron, bloco de cobrança removido da fila de WhatsApp e o envio automático da fila passou a ignorar `context = 'cobranca'`.
+- **Como reconhecer de novo:** se o aviso não chegar, veja em `job_runs` (ou no painel de jobs) o `financeiro:vencimentos-escritorio`. O marco do dia fica em `sent_reminders` (`vencimentos_escritorio_AAAA-MM-DD`) e é liberado sozinho quando o envio falha. Confira também se a instância do WhatsApp está conectada.
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
