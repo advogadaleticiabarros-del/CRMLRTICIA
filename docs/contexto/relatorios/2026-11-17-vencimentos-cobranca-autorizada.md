@@ -23,6 +23,8 @@
 - `npm run build` e `npm run lint` sem erros. `npm test`: 1.455 passaram, 0 falharam (os testes com banco rodam no CI).
 - Consulta só de leitura em produção: a parcela da Sandra é `parcelas.id = 17`, vence em 16/11/2026, está `atrasado` e custa R$ 566,66. Em 17/11 são 1 dia de atraso, multa R$ 11,33, juros R$ 0,19, total **R$ 578,18**.
 - Deploy `6a353f1` publicado (workflow com sucesso).
+- Deploy `f39d8d5` (encargos por contrato) publicado. Conferido em produção, só leitura: os 13 contratos lidos certo (12 com multa 2% + juros 1% a.m. + IPCA; o nº 1 sem cláusula = sem encargos); IPCA disponível até 10/2026 (0,14%); Sandra pelo contrato nº 12 em 17/11 = R$ 578,21 (IPCA R$ 0,03 estimado pelo último índice).
+- Atenção: durante a tarefa outra sessão trocou a pasta para o branch `design-system-3`; o commit `f39d8d5` foi feito nele (logo acima da `main`) e publicado na `main` por fast-forward, sem mexer no trabalho dela.
 - Rascunho da Sandra criado em produção (`atendente_rascunhos.id = 166`) e, com a autorização da usuária ("pode enviar apenas essa cobrança"), enviado pelo fluxo da equipe (`enviarRascunho`): status `enviada` às 12h01 (Brasília) de 17/11. Só esse foi enviado.
 
 ## Decisões e porquês
