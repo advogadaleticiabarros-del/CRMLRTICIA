@@ -21,7 +21,8 @@
 ## Verificado
 - `npm run build` e `npm run lint` sem erros. `npm test`: 1.455 passaram, 0 falharam (os testes com banco rodam no CI).
 - Consulta só de leitura em produção: a parcela da Sandra é `parcelas.id = 17`, vence em 16/11/2026, está `atrasado` e custa R$ 566,66. Em 17/11 são 1 dia de atraso, multa R$ 11,33, juros R$ 0,19, total **R$ 578,18**.
-- Deploy e rascunho da Sandra em produção: ver o commit e a resposta da sessão.
+- Deploy `6a353f1` publicado (workflow com sucesso).
+- Rascunho da Sandra criado em produção (`atendente_rascunhos.id = 166`) e, com a autorização da usuária ("pode enviar apenas essa cobrança"), enviado pelo fluxo da equipe (`enviarRascunho`): status `enviada` às 12h01 (Brasília) de 17/11. Só esse foi enviado.
 
 ## Decisões e porquês
 - Os encargos seguem o **contrato** (2% + 1% a.m.), não as Configurações do escritório (`multa_percent=5`, `juros_mes_percent=2`), que o portal usa. A cobrança cita o contrato e, em relação de consumo, a multa é limitada a 2% (CDC, art. 52, §1º).
