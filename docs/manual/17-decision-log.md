@@ -16,6 +16,14 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 18/11/2026 — Temperatura do processo por regra sobre o nome das decisões; partes do tribunal em tabela própria
+**Decisão:** a temperatura (quente/morno/frio) sai de regra fixa sobre o nome oficial das movimentações (TPU), em `classificacaoProcesso.ts`, não da IA. As partes vindas do tribunal ficam em `process_parties`; só as contrárias que faltam são copiadas para `case_partes`. O DataJud é consultado no máximo 30 vezes por rodada.
+**Por quê:**
+- A regra é reproduzível, testável e de graça; a IA leria o mesmo título curto. O que é ambíguo (recurso sem sentença conhecida, tutela sem dizer se foi concedida) fica morno ou "conferir", em vez de chute. Testada em produção antes de ligar: 41 quentes, 24 frios e 100 mornos.
+- `process_parties` é o retrato do que o tribunal diz, atualizado a cada rodada; `case_partes` continua sendo o bloco que a equipe edita e que as peças usam. Copiar só o que falta evita duas versões da mesma parte.
+- A primeira rodada com os 165 processos levou cerca de 45 s por processo e recebeu HTTP 429 do DataJud. Classe e assuntos mudam pouco; a temperatura, que só lê o banco, roda para todos.
+**Ver:** manual 04, seções "Classificação e temperatura do processo" e "Partes vindas do tribunal".
+
 ### 13/11/2026 — Prazo da intimação por regra fixa, com duas datas e "revisão humana"
 **Decisão:** o prazo de cada intimação do DJEN sai de regra fixa (`prazoIntimacao.ts`), nunca da IA. A IA só resume o "do que se trata". A contagem parte da **publicação** (1º dia útil após a disponibilização; Lei 11.419/2006, art. 4º, §§3º e 4º; CPC, art. 224, §§2º e 3º). O resultado mostra **duas datas**: a data limite legal e o "protocolar até", um dia útil antes. Quando o texto não permite saber o prazo, aparece "revisão humana", com o motivo, e não uma data padrão.
 **Por quê:**
@@ -361,6 +369,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | Temperatura por regra sobre as decisões; partes do tribunal em tabela própria; DataJud com cota por rodada |
 | 18/11/2026 | Claude | TRT17 pelo Push por e-mail, sem forçar o MNI |
 | 18/11/2026 | Claude | TJES pelo computador do escritório (ponte), sem drible do bloqueio |
 | 18/11/2026 | Claude | Agente de prazos: IA interpreta, código conta, cumprido só com prova |
@@ -405,6 +414,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | 17/11/2026 | Claude | Cobrança ao cliente nunca automática: o escritório recebe os vencimentos no WhatsApp e a cobrança vira rascunho em "Mensagens para aprovar" (mesma fila dos agentes), recalculado todo dia enquanto pendente, para sair com os juros do dia da aprovação. Encargos pela cláusula dos contratos (multa 2% + juros 1% a.m. pro rata die), não pela configuração do portal (5% + 2%), porque a cobrança cita o contrato; IPCA fica para depois |
 | 17/11/2026 | Claude | Encargos lidos do contrato de CADA cliente ("sempre calcule de acordo com cada contrato do cliente"), não de uma regra fixa nem de Configurações: texto da cláusula de atraso → multa, juros e IPCA. Sem cláusula = sem encargo (com alerta), em vez de aplicar um padrão que o contrato não prevê. IPCA pro rata die pela série 433 do BCB, lido da mesma tabela `indices_economicos` do Calculista (uma fonte só); mês sem índice usa o último publicado; deflação não reduz o valor; multa e juros sobre o valor corrigido |
 | 17/11/2026 | Claude | Design system 3.0 desfeito por inteiro a pedido da Jessica: limitou a largura das telas e mudou as divisões, deixando o sistema inconsistente ("estava melhor antes, estava tudo mais organizado"). Voltou ao visual de 9a1b801 por git revert, sem manter partes. Ela aceitaria um ajuste leve que não mude o uso; mudança visual ampla só com prévia de cada tela real e aprovação antes de publicar |
+
 
 ---
 ◀ [Ferramentas e acessos](16-ferramentas-acessos.md) · [Visão geral](00-visao-geral.md) · Próximo: [Pesquisa de Leis](18-pesquisa-de-leis.md) ▶

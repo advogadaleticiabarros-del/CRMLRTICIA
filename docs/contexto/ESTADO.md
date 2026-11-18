@@ -2,9 +2,14 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 18/11/2026. Último commit: TRT17 pelo aviso Push por e-mail.
+**Última atualização:** 18/11/2026. Último commit: classificação e temperatura dos processos.
 
 ## Últimas entregas (mais recentes primeiro)
+- **18/11 (7):** **Classificação, temperatura e partes dos processos** (Jessica: "faça os cadastros [...] inclua dados das partes contrárias"; "classificação de tipo de caso, tipo de justiça, em que fase está"; "temperatura de cada processo, se está a nosso favor").
+  - Rotina `processos:classificar` (5h20 e 14h20): justiça para os 165; temperatura pelas decisões (ativos: 19 quentes, 79 mornos, 12 frios); área preenchida em 9 (90 ainda sem área, esperando classe e assuntos do DataJud).
+  - DataJud deu HTTP 429: instância, classe e assuntos entram aos poucos, até 30 processos por rodada.
+  - Pelo TJES (MNI via ponte do escritório): partes de cada processo em `process_parties`; cliente ligado ou cadastrado pela OAB da Dra.; contrárias no bloco do caso; ficha com RG, mãe, pai, sexo, naturalidade e nacionalidade. **Ainda não rodou de verdade:** a rodada manual fora do app não alcança a ponte; a primeira deve ser às 15h10.
+  - Commits 57bfce6 e fe4ad38. **Pendente:** conferir às 15h10 (`process_parties`, clientes novos, `polo_cliente`) e, nos dias seguintes, quantos processos já têm `instancia`.
 - **18/11 (6):** **TRT17 pelo aviso Push por e-mail** (Jessica: "conectar o TRT 17 [...] sem precisar pedir autorização"; "tudo que for possível por essa segunda via").
   - O Push já chegava na caixa (220 e-mails), mas a leitura estava **parada desde 06/11**: o Google cancelou a autorização das 3 conexões (`invalid_grant` desde 29/10) e só o sino avisava.
   - Agora cada linha do e-mail Push vira um andamento (data e texto do tribunal, sem IA); processos vindos por e-mail fora do CRM (13 hoje, de TJES/TJMG/eproc) aparecem em Ações novas de clientes para cadastrar; leitura 4x/dia; queda da conexão Google avisa no WhatsApp 1x/dia.

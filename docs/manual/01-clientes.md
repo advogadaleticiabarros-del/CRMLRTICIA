@@ -174,10 +174,15 @@ Na tela Parcerias, a tabela "Importados do e-mail — aguardando revisão" tem a
 - [Dativo](05-dativo.md) — quando uma demanda dativa cria cliente automaticamente
 - [Cobrança e parcelas](08-cobranca.md) — financeiro do cliente
 
+## Qualificação vinda do tribunal (desde 18/11/2026)
+
+A ficha tem também **RG, sexo, nome da mãe, nome do pai, naturalidade e nacionalidade** (migration 184; aparecem ao editar uma ficha existente). Com o login do PJe salvo, a rodada do MNI preenche esses campos, além de CPF, nascimento e endereço, **só quando estão vazios** e só quando o nome da ficha é idêntico ao da parte (regras em `src/services/mni/fichaPeloTribunal.ts`). Fichas criadas automaticamente a partir do tribunal trazem a observação "Cadastrado automaticamente com os dados do tribunal".
+
 ## Changelog
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | Ficha com RG, sexo, mãe, pai, naturalidade e nacionalidade, preenchidos pelo tribunal (MNI) só se vazios; fichas novas cadastradas a partir das partes que a Dra. representa |
 | 23/10/2026 | Claude | Fila de e-mails da parceria mostra a data em que o e-mail chegou (coluna "Chegou em") |
 | 18/10/2026 | Claude | Visão completa do cliente: busca na página inicial e tudo dele num lugar só (dativo/parceria/próprio, processos, financeiro, acordos, movimentações, prazos, documentos) |
 | 07/10/2026 | Claude | Uma pessoa = uma ficha: todas as rotinas automáticas reaproveitam a ficha existente (CPF, nome sem acento, telefone, e-mail) |

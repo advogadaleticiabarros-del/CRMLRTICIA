@@ -153,6 +153,26 @@ O sistema tenta manter uma sugestão de fase processual (inicial, instrução, s
 
 
 **Aviso de divergência (desde 28/09/2026):** se a fase sugerida pelas movimentações ficar À FRENTE da fase cadastrada por 3 dias ou mais, os admins recebem um aviso no sino ("Fase do processo pode estar desatualizada"), repetido a cada 14 dias enquanto persistir — antes só aparecia um selo na tela de Processos, que ninguém via sem abri-la. A fase nunca é alterada sozinha. Regras de sugestão em `src/utils/faseProcesso.ts`, com teste. Desde 07/10/2026, frases que só mencionam um ato futuro (ex.: "venham conclusos para sentença", "recurso apropriado do e-Proc", "eventual sentença") são ignoradas na sugestão.
+## Classificação e temperatura do processo (desde 18/11/2026)
+
+Rotina `processos:classificar` (5h20 e 14h20; regras em `src/services/classificacaoProcesso.ts`, banco em `classificacaoProcessoMysql.ts`, migrations 184 e 185). Grava em `legal_processes`:
+
+- **Justiça** pelo número CNJ (estadual, federal, trabalho...).
+- **Instância** (juizado, 1º grau, turma recursal, 2º grau, superior), **classe**, **assuntos**, **órgão julgador** e data de ajuizamento pelo **DataJud**. O DataJud limita consultas (HTTP 429): no máximo 30 processos por rodada, primeiro os nunca consultados (`datajud_classificado_em`), depois os com mais de 7 dias; se o DataJud recusar, a rodada para de consultar e segue só com o banco.
+- **Área** (`judicial_area`) pela justiça + classe + assuntos, **só quando estiver vazia** (nunca troca o que a equipe escolheu).
+- **Temperatura pelas decisões**: quente (a nosso favor), frio (contra), morno (sem decisão de mérito). Lê o nome oficial das movimentações (TPU): procedência total ou parcial, acordo homologado e cumprimento de sentença iniciado = favor; improcedência, inicial indeferida e extinção sem mérito = contra. Recurso: quem recorre costuma ser quem perdeu, então "não provido" mantém e "provido" inverte (confiança média, aparece "conferir"). Se a cliente é ré (`polo_cliente = passivo`), inverte. "Antecipação de tutela" e "Liminar" não contam (o nome é o mesmo para concedida e negada). Polo desconhecido = considera autora, confiança média.
+- Primeiro teste em produção (18/11): 41 quentes, 24 frios e 100 mornos, de 165 processos.
+
+Onde aparece: janela do processo (quadro com temperatura, justiça, instância, classe, assuntos, valor da causa e partes) e Andamentos → Termômetro (quadro "Como estão as decisões", coluna Decisões, filtro por área).
+
+## Partes vindas do tribunal (desde 18/11/2026)
+
+Com o login do PJe salvo, a rodada do MNI grava **todas** as partes do processo em `process_parties` (polo, nome, CPF/CNPJ válido, RG, nascimento, endereço, nome da mãe), marcando `nossa_parte` quando um advogado da parte tem a OAB de uma advogada do escritório (`lawyers.oab_number`). Com isso:
+
+- `legal_processes.polo_cliente` (e `cases.polo_cliente`, se vazio) recebe o lado da cliente;
+- processo **sem cliente** é ligado à ficha da parte representada: pelo CPF/CNPJ; senão pelo nome idêntico (sem CPF diferente); se houver mais de uma ficha possível, não liga; se não houver nenhuma, **cadastra** a ficha com os dados do tribunal e a observação "Cadastrado automaticamente... Confira telefone e e-mail";
+- as **partes contrárias** entram também no bloco "Partes do processo" do caso (`case_partes`, papel contrária), sem repetir quem já está lá e nunca a própria cliente. Sem saber o lado da cliente, nada é copiado.
+
 ## Prescrição do caso (desde 30/09/2026)
 
 Na ficha do caso, **Prescrição → informar**: data do fato gerador, botão *Sugerir data-limite pela área* e a data-limite. A sugestão é só ponto de partida (o sistema nunca decide prescrição):
@@ -205,6 +225,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | Classificação (justiça, instância, classe, assuntos, área se vazia) e temperatura pelas decisões (quente/morno/frio); partes do tribunal em `process_parties`, cliente vinculado ou cadastrado pela OAB e partes contrárias no caso |
 | 18/11/2026 | Claude | Agente de prazos (Dra. Paula): 3 rodadas ao dia definem o prazo das intimações (data pela regra; a IA só interpreta), marcam cumprido só com prova e avisam a Dra. e a Jessica no WhatsApp |
 | 17/11/2026 | Claude | Processo também entra pela confirmação de "Ação nova de cliente" (source `acao_nova`); ver [Monitoramento](10-monitoramento.md#ação-nova-envolvendo-cliente-desde-17112026) |
 | 17/11/2026 | Claude | Terceira forma de um processo entrar no radar: ligação oficial com o tribunal (MNI), com intimações pendentes e movimentações direto do PJe/eproc |
