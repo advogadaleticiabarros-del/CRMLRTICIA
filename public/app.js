@@ -11275,6 +11275,23 @@ async function movDetail(m, procId, onSave) {
   openModal('Movimentação', wrap);
 }
 
+// Valor da causa e partes que o tribunal devolveu (ligação oficial / MNI). Sem login, não aparece.
+function processoDadosTribunal(p) {
+  let partes = [];
+  try { partes = typeof p.partes_json === 'string' ? JSON.parse(p.partes_json) : (p.partes_json || []); } catch { partes = []; }
+  if (!Number(p.valor_causa) && !partes.length) return '';
+  const POLO = { ativo: 'Polo ativo', passivo: 'Polo passivo', terceiro: 'Terceiros', outro: 'Outros' };
+  const grupos = ['ativo', 'passivo', 'terceiro', 'outro']
+    .map((k) => ({ k, nomes: partes.filter((x) => x.polo === k).map((x) => esc(x.nome)) }))
+    .filter((g) => g.nomes.length)
+    .map((g) => `<div style="font-size:12.5px"><span style="color:var(--text-muted)">${POLO[g.k]}:</span> ${g.nomes.join(', ')}</div>`).join('');
+  return `<div style="background:var(--surface-2,#f6f4ef);border-radius:8px;padding:10px 12px">
+    ${Number(p.valor_causa) ? `<div style="font-size:13px">Valor da causa: <strong>${money(p.valor_causa)}</strong></div>` : ''}
+    ${grupos}
+    <small style="color:var(--text-muted)">Dados do tribunal${p.dados_tribunal_em ? ', lidos em ' + fmtDate(p.dados_tribunal_em) : ''}</small>
+  </div>`;
+}
+
 async function processDetail(id, onSave) {
   const p = await api('/api/processes/' + id);
   const clamp = (s) => { s = (s || '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); return s.length > 150 ? s.slice(0, 150) + '…' : s; };
@@ -11286,6 +11303,7 @@ async function processDetail(id, onSave) {
     <div><strong style="font-size:17px">${esc(p.process_number)}</strong>${p.dative_case_id ? ' <span class="badge dativo" title="Advocacia dativa (nomeação)">DATIVO</span>' : ''}${p.partner_name ? ` <span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)" title="Processo em parceria">PARCERIA ${esc(p.partner_name)}</span>` : ''} <button type="button" class="btn-copy" data-copy="${esc(p.process_number)}" title="Copiar número" style="background:none;border:1px solid var(--border);border-radius:6px;cursor:pointer;padding:3px 6px;line-height:0">${svgIcon('clipboard')}</button><br>
       <small style="color:var(--text-muted)">${p.court || ''} · ${p.client_name || ''}</small></div>
     <div>${badge(p.status)} ${p.judicial_area ? badge(p.judicial_area) : ''} · última sync ${p.last_sync_at ? fmtDate(p.last_sync_at) : 'nunca'}</div>
+    ${processoDadosTribunal(p)}
     <button class="btn-primary" id="sync-now">Sincronizar agora</button>
     <hr style="border:none;border-top:1px solid var(--border)">
     <strong style="font-size:13px">Movimentações (${(p.movements||[]).length}) — clique para ver na íntegra</strong>

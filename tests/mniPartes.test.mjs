@@ -77,3 +77,29 @@ test('rodada do MNI entrega as partes de cada processo para completar a ficha', 
   assert.deepEqual(chamadas, [[7, 2]]);
   assert.equal(r.sistemas[0].camposDeFichaCompletados, 3);
 });
+
+test('resumo das partes para a tela: sem CPF, endereço nem nascimento; agrupa por polo e não repete', async () => {
+  const { resumoDasPartes } = await import('../dist/services/mni/fichaPeloTribunal.js');
+  const r = resumoDasPartes([...partes, partes[0]]);
+  assert.equal(r.length, 2);
+  for (const p of r) assert.deepEqual(Object.keys(p).sort(), ['nome', 'polo', 'tipo']);
+  assert.equal(r[0].polo, 'ativo');
+  assert.equal(r[1].polo, 'passivo');
+});
+
+test('rodada do MNI guarda valor da causa e partes do processo', async () => {
+  const { rodarMonitoramentoMni } = await import('../dist/services/mni/monitorMni.js');
+  const guardados = [];
+  await rodarMonitoramentoMni({
+    credenciaisAtivas: async () => [{ sistema: 'tjes_pje1g', cpf: '52998224725', senha: 'x' }],
+    cliente: () => ({ avisosPendentes: async () => [], consultarProcesso: async () => lerProcesso(XML) }),
+    nomeMovimento: async () => 'Distribuído',
+    processosMonitorados: async () => [{ id: 7, process_number: '5000001-11.2026.8.08.0024' }],
+    garantirProcesso: async () => ({ id: 7, criado: false }),
+    gravarMovimentos: async () => 0,
+    registrarAvisos: async () => ({ novos: 0, resolvidos: 0, listaNovos: [] }),
+    marcarOk: async () => {}, marcarErro: async () => {}, avisarEquipe: async () => {},
+    guardarDadosDoProcesso: async (id, d) => { guardados.push([id, d.valorCausa, d.partes.length]); },
+  });
+  assert.deepEqual(guardados, [[7, 12345.67, 2]]);
+});

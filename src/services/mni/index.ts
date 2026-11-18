@@ -124,6 +124,23 @@ function depsDeProducao(): DepsMonitorMni {
       }
       return n;
     },
+    async guardarDadosDoProcesso(processId, { valorCausa, partes }) {
+      const { resumoDasPartes } = await import('./fichaPeloTribunal');
+      const lista = resumoDasPartes(partes);
+      await db.query(
+        `UPDATE legal_processes SET valor_causa = COALESCE(?, valor_causa),
+           partes_json = COALESCE(?, partes_json), dados_tribunal_em = NOW() WHERE id = ?`,
+        [valorCausa, lista.length ? JSON.stringify(lista) : null, processId]
+      );
+      // O caso ligado só recebe o valor da causa se ainda estiver vazio (nunca sobrescreve o que a equipe digitou).
+      if (valorCausa != null) {
+        await db.query(
+          `UPDATE cases c JOIN legal_processes lp ON lp.case_id = c.id SET c.valor_causa = ?
+            WHERE lp.id = ? AND (c.valor_causa IS NULL OR c.valor_causa = 0)`,
+          [valorCausa, processId]
+        );
+      }
+    },
     pausa: (ms) => new Promise((r) => setTimeout(r, ms)),
   };
 }

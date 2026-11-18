@@ -61,3 +61,29 @@ export function dadosParaCompletar(ficha: FichaAtual, partes: ParteMni[]): Compl
   }
   return out;
 }
+
+export interface ParteResumida { polo: 'ativo' | 'passivo' | 'terceiro' | 'outro'; nome: string; tipo: 'fisica' | 'juridica' | null }
+
+const POLOS: Record<string, ParteResumida['polo']> = { AT: 'ativo', PA: 'passivo', TC: 'terceiro' };
+const ORDEM_POLO = ['ativo', 'passivo', 'terceiro', 'outro'];
+
+/**
+ * Lista das partes para mostrar no processo: só polo, nome e tipo de pessoa.
+ * CPF, nascimento e endereço ficam de fora (vão só para a ficha do cliente,
+ * pela regra de `dadosParaCompletar`).
+ */
+export function resumoDasPartes(partes: ParteMni[]): ParteResumida[] {
+  const vistos = new Set<string>();
+  const out: ParteResumida[] = [];
+  for (const p of partes) {
+    const nome = String(p.nome || '').trim();
+    if (!nome) continue;
+    const polo = POLOS[String(p.polo || '').toUpperCase()] || 'outro';
+    const chave = `${polo}|${normalizarNomeParte(nome)}`;
+    if (vistos.has(chave)) continue;
+    vistos.add(chave);
+    const t = String(p.tipoPessoa || '').toLowerCase();
+    out.push({ polo, nome: nome.slice(0, 200), tipo: t.startsWith('fis') ? 'fisica' : t.startsWith('jur') ? 'juridica' : null });
+  }
+  return out.sort((a, b) => ORDEM_POLO.indexOf(a.polo) - ORDEM_POLO.indexOf(b.polo));
+}

@@ -33,6 +33,8 @@ export interface DepsMonitorMni {
   avisarEquipe(titulo: string, mensagem: string): Promise<void>;
   /** Completa a ficha do cliente do processo com as partes vindas do tribunal (só campos vazios). Devolve quantos campos gravou. */
   completarFicha?(processId: number, partes: ParteMni[]): Promise<number>;
+  /** Guarda no processo o valor da causa e a lista de partes que o tribunal devolveu. */
+  guardarDadosDoProcesso?(processId: number, dados: { valorCausa: number | null; partes: ParteMni[] }): Promise<void>;
   pausa?(ms: number): Promise<void>;
 }
 
@@ -120,6 +122,9 @@ async function rodarSistema(sistema: SistemaMni, cred: CredencialMni, processos:
       if (movs.length) resumo.movimentacoesNovas += await deps.gravarMovimentos(p.id, p.process_number, movs, fonteMni(sistema.id));
       if (deps.completarFicha && proc.partes?.length) {
         resumo.camposDeFichaCompletados += await deps.completarFicha(p.id, proc.partes).catch(() => 0);
+      }
+      if (deps.guardarDadosDoProcesso && (proc.valorCausa != null || proc.partes?.length)) {
+        await deps.guardarDadosDoProcesso(p.id, { valorCausa: proc.valorCausa, partes: proc.partes || [] }).catch(() => {});
       }
       await pausa(800);
     }

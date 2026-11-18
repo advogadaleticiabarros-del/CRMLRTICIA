@@ -82,6 +82,8 @@ No topo ficam a **temperatura** (% dos ativos que andaram nos últimos 60 dias),
 
 Com o login ligado, a rodada do MNI (`consultarProcesso`, com cabeçalho) também lê as **partes** do processo: polo, nome, CPF/CNPJ, nascimento e endereço, sem os advogados (`lerPartes`, `src/services/mni/cliente.ts`). A ficha do cliente ligado ao processo é completada só nos campos **vazios** e só quando o nome da ficha é igual ao de uma parte (sem acento, maiúsculas ou pontuação). Não completa quando: o nome só é parecido; o mesmo nome aparece com documentos diferentes (homônimo); o CPF/CNPJ não confere; ou o CPF já está em outra ficha. Pessoa jurídica recebe só o CNPJ. Regras em `src/services/mni/fichaPeloTribunal.ts`. O resumo da rotina mostra `campos_de_ficha_completados`.
 
+**Valor da causa e partes no processo (desde 18/11/2026):** a mesma rodada guarda em `legal_processes` o `valor_causa`, a lista `partes_json` (só polo, nome e tipo de pessoa; CPF, nascimento e endereço não entram) e `dados_tribunal_em` (migration 183, `resumoDasPartes`). O caso ligado (`cases.valor_causa`) recebe o valor só se estiver vazio. A janela do processo (Andamentos nos tribunais → clicar no processo) mostra esse quadro quando há dado do tribunal.
+
 ## Ação nova envolvendo cliente (desde 17/11/2026)
 
 Uma vez por dia, quando alguém da equipe abre o CRM, o **navegador** procura no DJEN (últimos 7 dias) o nome de cada cliente com caso ou processo ativo (o DJEN bloqueia o IP do servidor, igual à busca por OAB). Só entra publicação em que um destinatário tem **exatamente** o nome do cliente e cujo processo ainda não está no CRM (nem no Dativo). Aparece em "Ações novas de clientes" dizendo se o cliente está no polo passivo (**contra o cliente**) ou ativo; avisa no sino. A equipe confirma (cadastra o processo ligado ao cliente, com monitoramento) ou descarta como homônimo (não volta). Nome com uma palavra só, "segredo de justiça" ou iniciais não é pesquisado. Se o DJEN limitar (429/403), a busca para e tenta no dia seguinte. Tabelas `acoes_novas_clientes` e `acoes_novas_buscas`; regras em `src/services/acoesNovasClientes.ts`.
@@ -141,6 +143,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | Valor da causa e lista das partes guardados no processo pela rodada do MNI e mostrados na janela do processo; caso recebe o valor só se vazio |
 | 18/11/2026 | Claude | Termômetro dos casos (dias parados, faixa, fase a conferir, login que falta por sistema) e ficha do cliente completada com as partes vindas do tribunal (MNI), só campos vazios e nome exato |
 | 17/11/2026 | Claude | Central de andamentos (caixa de entrada com lida/tratada), ação nova envolvendo cliente (nome no DJEN, pelo navegador) e audiência lançada sozinha na agenda |
 | 17/11/2026 | Claude | Ligação oficial com os tribunais (MNI): rotina `monitoramento:tribunais-mni` (4x/dia), intimações pendentes com data da ciência automática e movimentações direto do PJe do TJES e do eproc da JFES |

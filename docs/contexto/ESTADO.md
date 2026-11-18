@@ -2,9 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 18/11/2026. Último commit: agente de prazos (Dra. Paula).
+**Última atualização:** 18/11/2026. Último commit: valor da causa e partes vindos do tribunal.
 
 ## Últimas entregas (mais recentes primeiro)
+- **18/11 (3):** **Valor da causa e partes do tribunal** guardados no processo pela rodada do MNI (migration 183) e mostrados na janela do processo; o caso só recebe o valor se estiver vazio. Liga quando o login for salvo. Passo a passo entregue à Jessica: salvar logins (Configurações → Ligação com os tribunais), fases a conferir (Fases dos processos → Aplicar ✓) e telefone da ficha nº 6 (é a ficha da própria Dra. Letícia; dois números diferentes). **Pendente:** os três passos dependem delas.
 - **18/11 (2):** **Agente de prazos — Dra. Paula** (Jessica: "ler as intimações, avisar a advogada, definir os prazos [...] 3 vezes ao dia"; "coloca o prazo como cumprido").
   - Rotina `prazos:agente` às 7h40, 13h40 e 19h40. Prazo pela regra vira prazo sozinho; o resto, a IA interpreta (lista fechada) e o código conta a data.
   - "Cumprido" só com prova. WhatsApp à Dra. e à Jessica só com novidade. Migration 182.
