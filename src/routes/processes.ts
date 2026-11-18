@@ -91,7 +91,13 @@ router.get('/:id', async (req: Request, res: Response) => {
     'SELECT movement_date, title, description, source FROM process_movements WHERE process_id = ? ORDER BY COALESCE(movement_date, created_at) DESC LIMIT 100',
     [req.params.id]
   ) as any;
-  res.json({ ...rows[0], movements: movs });
+  // Partes vindas do tribunal (inclusive as contrárias), com o que o escritório representa marcado.
+  const [partes] = await db.query(
+    `SELECT polo, nome, tipo, documento, rg, data_nascimento, endereco, nome_mae, nossa_parte, client_id
+       FROM process_parties WHERE process_id = ? ORDER BY FIELD(polo,'ativo','passivo','terceiro','outro'), nome`,
+    [req.params.id]
+  ).catch(() => [[]]) as any;
+  res.json({ ...rows[0], movements: movs, partes });
 });
 
 // ── POST /api/processes — cadastrar processo monitorado ─────────────────────

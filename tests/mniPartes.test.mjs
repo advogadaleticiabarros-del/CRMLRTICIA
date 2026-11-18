@@ -10,11 +10,11 @@ const XML = `<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope
 <sucesso>true</sucesso><mensagem>ok</mensagem>
 <processo><dadosBasicos numero="50000011120268080024" classeProcessual="436" valorCausa="12345.67">
   <polo polo="AT"><parte assistenciaJudiciaria="true">
-    <pessoa nome="MARIA EXEMPLO DA SILVA" sexo="F" numeroDocumentoPrincipal="52998224725" tipoPessoa="fisica" dataNascimento="19800215">
+    <pessoa nome="MARIA EXEMPLO DA SILVA" sexo="F" numeroDocumentoPrincipal="52998224725" tipoPessoa="fisica" dataNascimento="19800215" nomeGenitora="JOANA EXEMPLO" cidadeNatural="Vitória" estadoNatural="ES" nacionalidade="BR">
       <documento codigoDocumento="1234567" emissorDocumento="SSP" tipoDocumento="CI"/>
       <endereco cep="29000000"><logradouro>Rua das Flores</logradouro><numero>10</numero><complemento>apto 2</complemento><bairro>Centro</bairro><cidade>Vitória</cidade><estado>ES</estado><pais>BR</pais></endereco>
     </pessoa>
-    <advogado nome="ADVOGADA EXEMPLO" inscricao="ES00000" numeroDocumentoPrincipal="11144477735" intimacao="true" tipoRepresentante="A">
+    <advogado nome="ADVOGADA EXEMPLO" inscricao="ES12345" numeroDocumentoPrincipal="11144477735" intimacao="true" tipoRepresentante="A">
       <endereco cep="29111111"><logradouro>Av. do Escritório</logradouro><numero>1</numero><cidade>Vitória</cidade><estado>ES</estado></endereco>
     </advogado>
   </parte></polo>
@@ -29,7 +29,13 @@ test('lerProcesso: partes com polo, CPF, nascimento e endereço (sem pegar o do 
   assert.equal(p.movimentos.length, 1);
   assert.equal(p.partes.length, 2);
   const [autora, reu] = p.partes;
-  assert.deepEqual(autora, {
+  assert.equal(autora.rg, '1234567 SSP');
+  assert.equal(autora.sexo, 'F');
+  assert.equal(autora.nomeMae, 'JOANA EXEMPLO');
+  assert.equal(autora.naturalidade, 'Vitória/ES');
+  assert.deepEqual(autora.advogados, ['ES12345']);
+  const { rg, sexo, nomeMae, nomePai, naturalidade, nacionalidade, advogados, ...basico } = autora;
+  assert.deepEqual(basico, {
     polo: 'AT', nome: 'MARIA EXEMPLO DA SILVA', documento: '52998224725', tipoPessoa: 'fisica',
     dataNascimento: '1980-02-15', endereco: 'Rua das Flores, 10, apto 2 - Centro - Vitória/ES - CEP 29000-000',
   });
@@ -102,4 +108,21 @@ test('rodada do MNI guarda valor da causa e partes do processo', async () => {
     guardarDadosDoProcesso: async (id, d) => { guardados.push([id, d.valorCausa, d.partes.length]); },
   });
   assert.deepEqual(guardados, [[7, 12345.67, 2]]);
+});
+
+test('ficha com campos extras: RG, mãe, naturalidade só quando vazios', () => {
+  const ficha = { name: 'Maria Exemplo da Silva', cpf_cnpj: '1', birth_date: '1980-02-15', address: 'x', rg: null, sexo: '', nome_mae: 'JÁ PREENCHIDO', nome_pai: null, naturalidade: null, nacionalidade: null };
+  assert.deepEqual(dadosParaCompletar(ficha, partes), { rg: '1234567 SSP', sexo: 'F', naturalidade: 'Vitória/ES', nacionalidade: 'BR' });
+});
+
+test('partes para gravar: marca a parte do escritório pela OAB e guarda dados da parte contrária', async () => {
+  const { partesParaGravar } = await import('../dist/services/mni/fichaPeloTribunal.js');
+  const r = partesParaGravar(partes, ['12345']);
+  assert.equal(r.length, 2);
+  assert.equal(r[0].nossa_parte, true);
+  assert.equal(r[0].polo, 'ativo');
+  assert.equal(r[1].nossa_parte, false);
+  assert.equal(r[1].documento, '11.222.333/0001-81');
+  assert.equal(r[1].rg, null);
+  assert.equal(partesParaGravar(partes, ['99999'])[0].nossa_parte, false);
 });

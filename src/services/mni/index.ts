@@ -111,7 +111,8 @@ function depsDeProducao(): DepsMonitorMni {
     async completarFicha(processId, partes) {
       const { dadosParaCompletar } = await import('./fichaPeloTribunal');
       const [[c]] = await db.query(
-        `SELECT c.id, c.name, c.cpf_cnpj, c.birth_date, c.address FROM legal_processes lp JOIN clients c ON c.id = lp.client_id WHERE lp.id = ?`,
+        `SELECT c.id, c.name, c.cpf_cnpj, c.birth_date, c.address, c.rg, c.sexo, c.nome_mae, c.nome_pai, c.naturalidade, c.nacionalidade
+           FROM legal_processes lp JOIN clients c ON c.id = lp.client_id WHERE lp.id = ?`,
         [processId]
       ) as any;
       if (!c) return 0;
@@ -130,7 +131,7 @@ function depsDeProducao(): DepsMonitorMni {
       return n;
     },
     async guardarDadosDoProcesso(processId, { valorCausa, partes }) {
-      const { resumoDasPartes } = await import('./fichaPeloTribunal');
+      const { resumoDasPartes, partesParaGravar } = await import('./fichaPeloTribunal');
       const lista = resumoDasPartes(partes);
       await db.query(
         `UPDATE legal_processes SET valor_causa = COALESCE(?, valor_causa),
@@ -145,9 +146,67 @@ function depsDeProducao(): DepsMonitorMni {
           [valorCausa, processId]
         );
       }
+      await gravarPartesEVincular(processId, partesParaGravar(partes, await oabsDoEscritorio()));
     },
     pausa: (ms) => new Promise((r) => setTimeout(r, ms)),
   };
+}
+
+async function oabsDoEscritorio(): Promise<string[]> {
+  const [rows] = await db.query('SELECT oab_number FROM lawyers WHERE oab_number IS NOT NULL') as any;
+  return rows.map((r: any) => String(r.oab_number));
+}
+
+/**
+ * Grava as partes do processo (inclusive as contrárias) e, se o processo ainda
+ * não tem cliente, liga à parte que o escritório representa (pela OAB):
+ * acha a ficha pelo CPF/CNPJ ou pelo nome idêntico; se não houver, cadastra.
+ */
+async function gravarPartesEVincular(processId: number, partes: import('./fichaPeloTribunal').ParteParaGravar[]) {
+  if (!partes.length) return;
+  for (const p of partes) {
+    await db.query(
+      `INSERT INTO process_parties (process_id, polo, nome, nome_norm, tipo, documento, rg, data_nascimento, endereco, nome_mae, nossa_parte, fonte)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'mni')
+       ON DUPLICATE KEY UPDATE nome = VALUES(nome), tipo = VALUES(tipo), documento = COALESCE(VALUES(documento), documento),
+         rg = COALESCE(VALUES(rg), rg), data_nascimento = COALESCE(VALUES(data_nascimento), data_nascimento),
+         endereco = COALESCE(VALUES(endereco), endereco), nome_mae = COALESCE(VALUES(nome_mae), nome_mae), nossa_parte = VALUES(nossa_parte)`,
+      [processId, p.polo, p.nome, p.nome_norm, p.tipo, p.documento, p.rg, p.data_nascimento, p.endereco, p.nome_mae, p.nossa_parte ? 1 : 0]
+    );
+  }
+  const nossas = partes.filter((p) => p.nossa_parte);
+  if (!nossas.length) return;
+  const polo = nossas[0].polo === 'ativo' || nossas[0].polo === 'passivo' ? nossas[0].polo : null;
+  if (polo) await db.query('UPDATE legal_processes SET polo_cliente = ? WHERE id = ?', [polo, processId]);
+
+  const { normalizarNomeParte } = await import('./fichaPeloTribunal');
+  for (const p of nossas) {
+    let clientId: number | null = null;
+    const dig = (p.documento || '').replace(/\D/g, '');
+    if (dig) {
+      const [r] = await db.query("SELECT id FROM clients WHERE REGEXP_REPLACE(COALESCE(cpf_cnpj,''), '[^0-9]', '') = ? ORDER BY id LIMIT 2", [dig]) as any;
+      if (r.length === 1) clientId = r[0].id;
+    }
+    if (!clientId) {
+      const [cands] = await db.query('SELECT id, name, cpf_cnpj FROM clients WHERE name LIKE ?', [`%${p.nome.split(' ')[0]}%`]) as any;
+      const iguais = cands.filter((c: any) => normalizarNomeParte(c.name) === p.nome_norm);
+      // Nome igual mas CPF diferente na ficha = outra pessoa: não liga.
+      const compat = iguais.filter((c: any) => !dig || !c.cpf_cnpj || String(c.cpf_cnpj).replace(/\D/g, '') === dig);
+      if (compat.length === 1) clientId = compat[0].id;
+      else if (compat.length > 1) continue; // ambíguo: deixa para a equipe
+    }
+    if (!clientId) {
+      const [ins] = await db.query(
+        `INSERT INTO clients (name, tipo, cpf_cnpj, address, birth_date, rg, nome_mae, status, notes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'ativo', ?)`,
+        [p.nome, p.tipo === 'juridica' ? 'PJ' : 'PF', p.documento, p.endereco, p.data_nascimento, p.rg, p.nome_mae,
+          `Cadastrado automaticamente com os dados do tribunal (PJe), em ${new Date().toLocaleDateString('pt-BR')}. Confira telefone e e-mail.`]
+      ) as any;
+      clientId = ins.insertId;
+    }
+    await db.query('UPDATE process_parties SET client_id = ? WHERE process_id = ? AND polo = ? AND nome_norm = ?', [clientId, processId, p.polo, p.nome_norm]);
+    await db.query('UPDATE legal_processes SET client_id = ? WHERE id = ? AND client_id IS NULL', [clientId, processId]);
+  }
 }
 
 export async function rodarMonitoramentoMniAgora() {

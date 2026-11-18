@@ -69,6 +69,8 @@ export interface ProcessoTermometro {
   id: number; process_number: string | null; client_id: number | null; client_name: string | null; case_id: number | null;
   court: string | null; phase: string | null; suggested_phase: string | null; status: string | null;
   ultimo_movimento_em: string | Date | null; ultimo_titulo: string | null;
+  temperatura_decisao_tipo?: string | null; judicial_area?: string | null; justica?: string | null; instancia?: string | null;
+  valor_causa?: number | string | null;
 }
 
 const ENCERRADO = (p: ProcessoTermometro) => p.status === 'arquivado' || p.phase === 'encerrado';
@@ -93,6 +95,7 @@ export function montarTermometro(processos: ProcessoTermometro[], sistemasLigado
 
   const por_faixa: Record<Faixa, number> = { em_dia: 0, atencao: 0, alerta: 0, parado: 0, sem_movimento: 0 };
   const por_fase: Record<string, number> = {};
+  const por_decisao: Record<string, number> = { quente: 0, morno: 0, frio: 0 };
   const sistemas = new Map<string, { id: string; nome: string; situacao: SituacaoLogin; motivo: string; processos: number; parados: number }>();
   for (const id of Object.keys(NOMES_LIGAVEIS)) {
     const s = { id, nome: NOMES_LIGAVEIS[id], ligavel: true };
@@ -103,6 +106,7 @@ export function montarTermometro(processos: ProcessoTermometro[], sistemasLigado
     por_faixa[l.faixa]++;
     const f = l.phase || 'sem_fase';
     por_fase[f] = (por_fase[f] || 0) + 1;
+    por_decisao[l.temperatura_decisao_tipo || 'morno'] = (por_decisao[l.temperatura_decisao_tipo || 'morno'] || 0) + 1;
     const s = sistemas.get(l.sistema.id) || { id: l.sistema.id, nome: l.sistema.nome, situacao: l.sistema.situacao, motivo: MOTIVO[l.sistema.situacao], processos: 0, parados: 0 };
     s.processos++;
     if (l.faixa === 'parado' || l.faixa === 'sem_movimento') s.parados++;
@@ -118,6 +122,8 @@ export function montarTermometro(processos: ProcessoTermometro[], sistemasLigado
     fases_a_conferir: linhas.filter((l) => l.fase_a_conferir).length,
     por_faixa,
     por_fase,
+    por_decisao,
+    valor_em_causa: linhas.reduce((a, l) => a + (Number(l.valor_causa) || 0), 0),
     logins: [...sistemas.values()].sort((a, b) => b.processos - a.processos),
     processos: linhas,
   };
@@ -127,10 +133,13 @@ export async function termometroDoBanco() {
   const { db } = await import('../config/database');
   const [rows] = await db.query(
     `SELECT lp.id, lp.process_number, lp.client_id, c.name AS client_name, lp.case_id, lp.court, lp.phase, lp.suggested_phase, lp.status,
+            lp.temperatura AS temperatura_decisao_tipo, lp.temperatura_decisao, lp.temperatura_confianca,
+            lp.judicial_area, lp.justica, lp.instancia, COALESCE(NULLIF(lp.valor_causa, 0), cs.valor_causa) AS valor_causa,
             GREATEST(COALESCE(mv.ult, '1000-01-01'), COALESCE(lp.last_movement_at, '1000-01-01')) AS ultimo_raw,
             (SELECT pm.title FROM process_movements pm WHERE pm.process_id = lp.id ORDER BY pm.movement_date DESC, pm.id DESC LIMIT 1) AS ultimo_titulo
        FROM legal_processes lp
        LEFT JOIN clients c ON c.id = lp.client_id
+       LEFT JOIN cases cs ON cs.id = lp.case_id
        LEFT JOIN (SELECT process_id, MAX(movement_date) AS ult FROM process_movements GROUP BY process_id) mv ON mv.process_id = lp.id`
   ) as any;
   const [creds] = await db.query('SELECT sistema FROM mni_credenciais WHERE ativo = 1') as any;

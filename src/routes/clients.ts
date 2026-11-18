@@ -409,6 +409,12 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('notes', notes);
   setIf('status', status, STATUSES.includes(status));
   setIf('birth_date', birth_date || null);
+  // Qualificação (18/11/2026): também vem do tribunal (MNI); vazio grava NULL.
+  for (const [col, max] of [['rg', 30], ['nome_mae', 200], ['nome_pai', 200], ['naturalidade', 120], ['nacionalidade', 60]] as const) {
+    const v = req.body[col];
+    if (v !== undefined) setIf(col, String(v ?? '').trim().slice(0, max) || null);
+  }
+  if (req.body.sexo !== undefined) setIf('sexo', ['M', 'F'].includes(String(req.body.sexo).toUpperCase()) ? String(req.body.sexo).toUpperCase() : null);
   // Marcar o consentimento nunca sobrescreve uma data já registrada
   // (COALESCE — a data de verdade é sempre a 1ª vez que foi dado);
   // desmarcar registra a revogação (NULL), direito do titular.

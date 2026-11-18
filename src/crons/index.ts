@@ -524,6 +524,16 @@ export function startCronJobs() {
     }, { critica: true, janelaIdempotenciaMin: 30 });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // Classificação dos processos (18/11/2026): justiça, instância, classe e
+  // assuntos pelo DataJud, área (só se vazia) e temperatura pelas decisões
+  // (quente, morno, frio). Ver classificacaoProcesso.ts.
+  cron.schedule('20 5 * * *', () => {
+    runJob('processos:classificar', async () => {
+      const { classificarProcessos } = await import('../services/classificacaoProcessoMysql');
+      return classificarProcessos();
+    }, { janelaIdempotenciaMin: 60 });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── monitoramento processual (DataJud, por processo): de hora em hora, 07h–20h ── CRÍTICO
   // Antes rodava só 08h/16h (+ um extra às 06h, ver linha ~36) — publicação
   // judicial não costuma sair de madrugada, então concentra a frequência

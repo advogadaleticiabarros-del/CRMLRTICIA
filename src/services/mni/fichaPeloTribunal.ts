@@ -11,8 +11,15 @@
  */
 import type { ParteMni } from './cliente';
 
-export interface FichaAtual { name: string; cpf_cnpj: string | null; birth_date: string | Date | null; address: string | null }
-export interface Complemento { cpf_cnpj?: string; birth_date?: string; address?: string }
+export interface FichaAtual {
+  name: string; cpf_cnpj: string | null; birth_date: string | Date | null; address: string | null;
+  rg?: string | null; sexo?: string | null; nome_mae?: string | null; nome_pai?: string | null;
+  naturalidade?: string | null; nacionalidade?: string | null;
+}
+export interface Complemento {
+  cpf_cnpj?: string; birth_date?: string; address?: string;
+  rg?: string; sexo?: string; nome_mae?: string; nome_pai?: string; naturalidade?: string; nacionalidade?: string;
+}
 
 export const normalizarNomeParte = (s: string) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
   .toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
@@ -58,6 +65,55 @@ export function dadosParaCompletar(ficha: FichaAtual, partes: ParteMni[]): Compl
   if (p.tipoPessoa !== 'juridica') {
     if (vazio(ficha.birth_date) && p.dataNascimento && /^\d{4}-\d{2}-\d{2}$/.test(p.dataNascimento) && p.dataNascimento > '1900') out.birth_date = p.dataNascimento;
     if (vazio(ficha.address) && p.endereco) out.address = p.endereco.slice(0, 255);
+    // Campos extras: só quando a ficha já sabe que tem esses campos (chave presente) e estão vazios.
+    const extras: Array<[keyof FichaAtual & keyof Complemento, string | null | undefined]> = [
+      ['rg', p.rg], ['sexo', p.sexo], ['nome_mae', p.nomeMae], ['nome_pai', p.nomePai],
+      ['naturalidade', p.naturalidade], ['nacionalidade', p.nacionalidade],
+    ];
+    for (const [campo, valor] of extras) {
+      if (campo in ficha && vazio(ficha[campo]) && valor) (out as any)[campo] = valor;
+    }
+  }
+  return out;
+}
+
+const digitosOab = (s: string) => String(s || '').replace(/\D/g, '').replace(/^0+/, '');
+
+/** A parte é representada por uma advogada do escritório (pela inscrição na OAB)? */
+export function representadaPeloEscritorio(p: ParteMni, oabs: string[]): boolean {
+  const nossas = oabs.map(digitosOab).filter((x) => x.length >= 3);
+  return (p.advogados || []).some((ins) => nossas.includes(digitosOab(ins)));
+}
+
+export interface ParteParaGravar {
+  polo: 'ativo' | 'passivo' | 'terceiro' | 'outro'; nome: string; nome_norm: string; tipo: 'fisica' | 'juridica' | null;
+  documento: string | null; rg: string | null; data_nascimento: string | null; endereco: string | null;
+  nome_mae: string | null; nossa_parte: boolean;
+}
+
+/** Todas as partes do processo, com os dados que o tribunal mandou, marcando as que o escritório representa. */
+export function partesParaGravar(partes: ParteMni[], oabs: string[]): ParteParaGravar[] {
+  const vistos = new Set<string>();
+  const out: ParteParaGravar[] = [];
+  for (const p of partes) {
+    const nome = String(p.nome || '').trim();
+    if (!nome) continue;
+    const polo = POLOS[String(p.polo || '').toUpperCase()] || 'outro';
+    const nome_norm = normalizarNomeParte(nome).slice(0, 200);
+    if (vistos.has(polo + '|' + nome_norm)) continue;
+    vistos.add(polo + '|' + nome_norm);
+    const t = String(p.tipoPessoa || '').toLowerCase();
+    const tipo = t.startsWith('fis') ? 'fisica' : t.startsWith('jur') ? 'juridica' : null;
+    const doc = p.documento || '';
+    out.push({
+      polo, nome: nome.slice(0, 200), nome_norm, tipo,
+      documento: cpfValido(doc) || cnpjValido(doc) ? formatarDoc(doc) : null,
+      rg: tipo === 'juridica' ? null : p.rg || null,
+      data_nascimento: tipo !== 'juridica' && p.dataNascimento && /^\d{4}-\d{2}-\d{2}$/.test(p.dataNascimento) && p.dataNascimento > '1900' ? p.dataNascimento : null,
+      endereco: p.endereco ? p.endereco.slice(0, 255) : null,
+      nome_mae: tipo === 'juridica' ? null : p.nomeMae || null,
+      nossa_parte: representadaPeloEscritorio(p, oabs),
+    });
   }
   return out;
 }

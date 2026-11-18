@@ -174,11 +174,25 @@ export async function consultarProcessoDataJud(
     }
 
     const primeiro = hits[0]?._source ?? {};
+    // O registro atualizado por último é onde o processo está agora (ex.: subiu para a turma recursal).
+    const fontes = hits.map((h) => h?._source).filter(Boolean);
+    const recente = [...fontes].sort((a, b) => String(b.dataHoraUltimaAtualizacao || '').localeCompare(String(a.dataHoraUltimaAtualizacao || '')))[0] ?? primeiro;
+    const assuntos: string[] = [];
+    for (const f of fontes) for (const a of (Array.isArray(f.assuntos) ? f.assuntos.flat() : [])) {
+      if (a?.nome && !assuntos.includes(a.nome)) assuntos.push(a.nome);
+    }
+    const datasAjuiz = fontes.map((f) => f.dataAjuizamento).filter(Boolean).sort();
     return {
       found: true,
       metadata: {
         classe: primeiro.classe?.nome, orgao: primeiro.orgaoJulgador?.nome,
         grau: primeiro.grau, distribuicao: primeiro.dataAjuizamento,
+        classeAtual: recente.classe?.nome ?? null,
+        orgaoAtual: recente.orgaoJulgador?.nome ?? null,
+        graus: fontes.map((f) => f.grau).filter(Boolean),
+        assuntos,
+        primeiroAjuizamento: datasAjuiz[0] ?? null,
+        sigilo: Math.max(0, ...fontes.map((f) => Number(f.nivelSigilo ?? 0) || 0)),
       },
       movements,
     };

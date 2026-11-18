@@ -46,6 +46,15 @@ export interface ParteMni {
   /** AAAA-MM-DD */
   dataNascimento: string | null;
   endereco: string | null;
+  /** Campos extras do padrão MNI 2.2.2 (quando o tribunal manda). */
+  rg?: string | null;
+  sexo?: string | null;
+  nomeMae?: string | null;
+  nomePai?: string | null;
+  naturalidade?: string | null;
+  nacionalidade?: string | null;
+  /** Inscrições OAB dos advogados que representam esta parte (ex.: "ES39948"). */
+  advogados?: string[];
 }
 
 export interface ProcessoMni {
@@ -196,6 +205,25 @@ function lerEndereco(xml: string): string | null {
   return rua ? txt : null;
 }
 
+const limpo = (v: string | undefined, max = 200) => {
+  const t = decodificarEntidades(String(v || '')).replace(/\s+/g, ' ').trim();
+  return t ? t.slice(0, max) : null;
+};
+
+function extrasDaPessoa(a: Record<string, string>, conteudo: string) {
+  const ci = blocos(conteudo, 'documento').map((d) => atributos(d.abertura)).find((d) => String(d.tipoDocumento || '').toUpperCase() === 'CI');
+  const rg = ci?.codigoDocumento ? [ci.codigoDocumento, ci.emissorDocumento].filter(Boolean).join(' ') : null;
+  const sexo = String(a.sexo || '').toUpperCase();
+  return {
+    rg: limpo(rg || undefined, 30),
+    sexo: sexo === 'M' || sexo === 'F' ? sexo : null,
+    nomeMae: limpo(a.nomeGenitora),
+    nomePai: limpo(a.nomeGenitor),
+    naturalidade: limpo([a.cidadeNatural, a.estadoNatural].filter(Boolean).join('/') || undefined, 120),
+    nacionalidade: limpo(a.nacionalidade, 60),
+  };
+}
+
 export function lerPartes(dadosBasicos: string): ParteMni[] {
   const out: ParteMni[] = [];
   for (const polo of blocos(dadosBasicos, 'polo')) {
@@ -213,6 +241,8 @@ export function lerPartes(dadosBasicos: string): ParteMni[] {
         tipoPessoa: a.tipoPessoa || null,
         dataNascimento: nasc ? nasc.slice(0, 10) : null,
         endereco: lerEndereco(pessoa.conteudo),
+        ...extrasDaPessoa(a, pessoa.conteudo),
+        advogados: blocos(parte.conteudo, 'advogado').map((b) => String(atributos(b.abertura).inscricao || '').trim()).filter(Boolean),
       });
     }
   }

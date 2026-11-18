@@ -67,3 +67,15 @@ test('termômetro: dias, faixas, encerrados fora, fase a conferir e login que fa
   assert.equal(logins.trt17.situacao, 'credenciamento');
   assert.equal(t.processos.find((p) => p.id === 2).sistema.situacao, 'falta_login');
 });
+
+test('termômetro conta as decisões (quente/morno/frio) e soma o valor em causa dos ativos', async () => {
+  const { montarTermometro } = await import('../dist/services/termometroCasos.js');
+  const base = { client_id: 1, client_name: 'X', case_id: null, court: null, phase: 'inicial', suggested_phase: null, status: 'ativo', ultimo_movimento_em: '2026-11-01', ultimo_titulo: null };
+  const t = montarTermometro([
+    { ...base, id: 1, process_number: '5000001-11.2026.8.08.0024', temperatura_decisao_tipo: 'quente', valor_causa: '1000.50' },
+    { ...base, id: 2, process_number: '5000002-11.2026.8.08.0024', temperatura_decisao_tipo: null, valor_causa: null },
+    { ...base, id: 3, process_number: '5000003-11.2026.8.08.0024', temperatura_decisao_tipo: 'frio', valor_causa: 500, status: 'arquivado' },
+  ], [], new Date('2026-11-18'));
+  assert.deepEqual(t.por_decisao, { quente: 1, morno: 1, frio: 0 });
+  assert.equal(t.valor_em_causa, 1000.5);
+});

@@ -120,11 +120,11 @@ async function rodarSistema(sistema: SistemaMni, cred: CredencialMni, processos:
       const movs = [];
       for (const m of proc.movimentos) movs.push(await converterMovimento(m, deps.nomeMovimento));
       if (movs.length) resumo.movimentacoesNovas += await deps.gravarMovimentos(p.id, p.process_number, movs, fonteMni(sistema.id));
-      if (deps.completarFicha && proc.partes?.length) {
-        resumo.camposDeFichaCompletados += await deps.completarFicha(p.id, proc.partes).catch(() => 0);
-      }
       if (deps.guardarDadosDoProcesso && (proc.valorCausa != null || proc.partes?.length)) {
         await deps.guardarDadosDoProcesso(p.id, { valorCausa: proc.valorCausa, partes: proc.partes || [] }).catch(() => {});
+      }
+      if (deps.completarFicha && proc.partes?.length) {
+        resumo.camposDeFichaCompletados += await deps.completarFicha(p.id, proc.partes).catch(() => 0);
       }
       await pausa(800);
     }

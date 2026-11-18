@@ -4632,7 +4632,9 @@ async function andamentosTermometro(box) {
   const pill = ([txt, cor, fundo]) => `<span class="badge" style="background:${fundo};color:${cor};text-transform:none">${esc(txt)}</span>`;
   const dataBr = (iso) => (iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '—');
   const cor = t.temperatura >= 70 ? '#1f6b3a' : t.temperatura >= 45 ? '#9a5b00' : 'var(--red)';
-  let filtro = { faixa: '', sistema: '', conferir: false, q: '' };
+  let filtro = { faixa: '', sistema: '', conferir: false, q: '', decisao: '', area: '' };
+  const AREA_PT = { trabalhista: 'Trabalhista', familia: 'Família', civel: 'Cível', previdenciario: 'Previdenciário', consumidor: 'Consumidor', outro: 'Outro' };
+  const pd = t.por_decisao || { quente: 0, morno: 0, frio: 0 };
 
   box.innerHTML = `
     <div class="card" style="padding:18px 20px;margin-bottom:14px">
@@ -4653,6 +4655,13 @@ async function andamentosTermometro(box) {
         · ${t.encerrados} encerrados/arquivados fora da conta · <strong>${t.fases_a_conferir}</strong> com fase a conferir.</div>
     </div>
     <div class="card" style="padding:16px 20px;margin-bottom:14px">
+      <h4 style="margin:0 0 4px">Como estão as decisões</h4>
+      <p class="sub" style="font-size:12px;margin:0 0 10px">Pela última decisão de mérito de cada processo ativo: quente = a nosso favor, frio = contra, morno = ainda sem decisão. "Conferir" quando depende de recurso ou do polo da cliente.${t.valor_em_causa ? ` Valor em causa nos ativos: <strong>${money(t.valor_em_causa)}</strong>.` : ''}</p>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="term-decisoes">
+        ${['quente', 'morno', 'frio'].map((k) => `<button type="button" class="btn-sm" data-decisao="${k}" style="background:${TEMP_PROC[k][1]};color:${TEMP_PROC[k][2]}">${TEMP_PROC[k][0]} · <strong>${pd[k] || 0}</strong></button>`).join('')}
+      </div>
+    </div>
+    <div class="card" style="padding:16px 20px;margin-bottom:14px">
       <h4 style="margin:0 0 8px">Login nos tribunais</h4>
       <div class="table-scroll"><table><thead><tr><th>Sistema</th><th>Processos ativos</th><th>Parados/sem movimento</th><th>Situação</th><th>O que falta</th></tr></thead><tbody>
         ${t.logins.map((l) => `<tr><td>${esc(l.nome)}</td><td>${l.processos}</td><td>${l.parados}</td><td>${pill(LOGIN[l.situacao])}</td><td style="font-size:13px">${esc(l.motivo)}</td></tr>`).join('')}
@@ -4661,6 +4670,7 @@ async function andamentosTermometro(box) {
     <div class="toolbar">
       <input type="search" id="term-q" placeholder="Cliente ou nº do processo" aria-label="Buscar cliente ou número" style="max-width:260px">
       <select id="term-sis" aria-label="Sistema"><option value="">Todos os sistemas</option>${t.logins.map((l) => `<option value="${esc(l.id)}">${esc(l.nome)}</option>`).join('')}</select>
+      <select id="term-area" aria-label="Área"><option value="">Todas as áreas</option>${Object.entries(AREA_PT).map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select>
       <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="term-conf"> Só fase a conferir</label>
       <span class="spacer"></span><span class="sub" id="term-cont" style="font-size:13px"></span>
     </div>
@@ -4671,16 +4681,19 @@ async function andamentosTermometro(box) {
     const q = filtro.q.toLowerCase(); const qd = filtro.q.replace(/\D/g, '');
     const lista = t.processos.filter((p) => (!filtro.faixa || p.faixa === filtro.faixa) && (!filtro.sistema || p.sistema.id === filtro.sistema)
       && (!filtro.conferir || p.fase_a_conferir)
+      && (!filtro.decisao || (p.temperatura_decisao_tipo || 'morno') === filtro.decisao)
+      && (!filtro.area || p.judicial_area === filtro.area)
       && (!q || String(p.client_name || '').toLowerCase().includes(q) || (qd.length >= 4 && String(p.process_number || '').replace(/\D/g, '').includes(qd))));
     $('#term-cont').textContent = `${lista.length} de ${t.total_ativos}`;
-    $('#term-tab').innerHTML = lista.length ? `<table><thead><tr><th>Dias parado</th><th>Cliente</th><th>Processo</th><th>Fase</th><th>Última movimentação</th><th>Sistema</th></tr></thead><tbody>
+    $('#term-tab').innerHTML = lista.length ? `<table><thead><tr><th>Dias parado</th><th>Decisões</th><th>Cliente</th><th>Processo</th><th>Fase</th><th>Última movimentação</th><th>Sistema</th></tr></thead><tbody>
       ${lista.map((p) => `<tr>
         <td>${pill([p.dias_parado == null ? 'sem movimento' : `${p.dias_parado} dias`, FAIXAS[p.faixa][1], FAIXAS[p.faixa][2]])}</td>
-        <td>${esc(p.client_name || '—')}</td>
+        <td>${(() => { const k = p.temperatura_decisao_tipo || 'morno'; return `<span class="badge" style="background:${TEMP_PROC[k][1]};color:${TEMP_PROC[k][2]};text-transform:none">${k}</span>${p.temperatura_confianca === 'media' ? '<br><small style="color:#9a5b00">conferir</small>' : ''}${p.temperatura_decisao ? `<br><small class="sub">${esc(String(p.temperatura_decisao).slice(0, 40))}</small>` : ''}`; })()}</td>
+        <td>${esc(p.client_name || '—')}${Number(p.valor_causa) ? `<br><small class="sub">${money(p.valor_causa)}</small>` : ''}</td>
         <td><a href="#" data-term-proc="${Number(p.id)}">${esc(p.process_number || '—')}</a></td>
         <td>${esc(FASE[p.phase] || p.phase || '—')}${p.fase_a_conferir ? `<br><small style="color:#9a5b00">conferir: parece ${esc(FASE[p.suggested_phase] || p.suggested_phase)}</small>` : ''}</td>
         <td style="font-size:13px">${dataBr(p.ultimo_movimento_em)}${p.ultimo_titulo ? `<br><small class="sub">${esc(String(p.ultimo_titulo).slice(0, 80))}</small>` : ''}</td>
-        <td style="font-size:13px">${esc(p.sistema.nome)}<br>${pill(LOGIN[p.sistema.situacao])}</td></tr>`).join('')}
+        <td style="font-size:13px">${esc(p.sistema.nome)}<br>${pill(LOGIN[p.sistema.situacao])}${p.judicial_area || p.instancia ? `<br><small class="sub">${[AREA_PT[p.judicial_area], INSTANCIA_PT[p.instancia]].filter(Boolean).map(esc).join(' · ')}</small>` : ''}</td></tr>`).join('')}
       </tbody></table>` : '<div class="empty">Nenhum processo com esse filtro.</div>';
     $('#term-tab').querySelectorAll('[data-term-proc]').forEach((l) => l.onclick = (e) => { e.preventDefault(); processDetail(l.dataset.termProc, () => {}); });
     box.querySelectorAll('[data-faixa]').forEach((b) => {
@@ -4693,6 +4706,12 @@ async function andamentosTermometro(box) {
   $('#term-q').oninput = (e) => { filtro.q = e.target.value.trim(); desenhar(); };
   $('#term-sis').onchange = (e) => { filtro.sistema = e.target.value; desenhar(); };
   $('#term-conf').onchange = (e) => { filtro.conferir = e.target.checked; desenhar(); };
+  $('#term-area').onchange = (e) => { filtro.area = e.target.value; desenhar(); };
+  box.querySelectorAll('[data-decisao]').forEach((b) => b.onclick = () => {
+    filtro.decisao = filtro.decisao === b.dataset.decisao ? '' : b.dataset.decisao;
+    box.querySelectorAll('[data-decisao]').forEach((x) => { const on = x.dataset.decisao === filtro.decisao; x.setAttribute('aria-pressed', on ? 'true' : 'false'); x.style.boxShadow = on ? 'inset 0 0 0 2px var(--navy)' : ''; });
+    desenhar();
+  });
   desenhar();
 }
 
@@ -8072,6 +8091,9 @@ async function clientForm(id, onSave) {
     </div>
     <div class="form-row">${field('E-mail', 'email', { value: c.email, type: 'email' })}${field('Telefone', 'phone', { value: c.phone })}</div>
     ${field('Data de nascimento', 'birth_date', { type: 'date', value: datDateInputValue(c.birth_date) })}
+    ${id ? `<div class="form-row">${field('RG', 'rg', { value: c.rg || '' })}${field('Sexo', 'sexo', { value: c.sexo || '', options: [{v:'',t:'—'},{v:'F',t:'Feminino'},{v:'M',t:'Masculino'}] })}</div>
+    <div class="form-row">${field('Nome da mãe', 'nome_mae', { value: c.nome_mae || '' })}${field('Nome do pai', 'nome_pai', { value: c.nome_pai || '' })}</div>
+    <div class="form-row">${field('Naturalidade', 'naturalidade', { value: c.naturalidade || '' })}${field('Nacionalidade', 'nacionalidade', { value: c.nacionalidade || '' })}</div>` : ''}
     ${field('CEP', 'cep', { value: '' })}
     ${field('Endereço', 'address', { value: c.address })}
     ${field('Status', 'status', { value: c.status, options: [{v:'ativo',t:'Ativo'},{v:'inativo',t:'Inativo'},{v:'prospecto',t:'Prospecto'}] })}
@@ -11333,20 +11355,39 @@ async function movDetail(m, procId, onSave) {
   openModal('Movimentação', wrap);
 }
 
-// Valor da causa e partes que o tribunal devolveu (ligação oficial / MNI). Sem login, não aparece.
+// Classificação, temperatura, valor da causa e partes (tribunal / DataJud).
+const TEMP_PROC = { quente: ['Quente — a nosso favor', '#fde2dc', '#9b2c1c'], morno: ['Morno — sem decisão', '#fff3d6', '#8a5a00'], frio: ['Frio — contra nós', '#dcebfa', '#1d4f86'] };
+const JUSTICA_PT = { estadual: 'Justiça Estadual', federal: 'Justiça Federal', trabalho: 'Justiça do Trabalho', eleitoral: 'Justiça Eleitoral', militar: 'Justiça Militar', superior: 'Tribunal Superior', outra: 'Outra' };
+const INSTANCIA_PT = { juizado: 'Juizado (1º grau)', '1grau': '1º grau', turma_recursal: 'Turma Recursal', '2grau': '2º grau', superior: 'Tribunal Superior' };
 function processoDadosTribunal(p) {
-  let partes = [];
-  try { partes = typeof p.partes_json === 'string' ? JSON.parse(p.partes_json) : (p.partes_json || []); } catch { partes = []; }
-  if (!Number(p.valor_causa) && !partes.length) return '';
+  const linhas = [];
+  if (p.temperatura && TEMP_PROC[p.temperatura]) {
+    const [txt, bg, fg] = TEMP_PROC[p.temperatura];
+    linhas.push(`<div style="font-size:13px"><span style="background:${bg};color:${fg};border-radius:999px;padding:2px 10px;font-weight:600">${txt}</span>
+      ${p.temperatura_decisao ? ` <small>${esc(p.temperatura_decisao)}${p.temperatura_decisao_em ? ' em ' + fmtDate(p.temperatura_decisao_em) : ''}${p.temperatura_confianca === 'media' ? ' · <span style="color:#9a5b00">conferir</span>' : ''}</small>` : ''}
+      ${p.temperatura_motivo ? `<br><small style="color:var(--text-muted)">${esc(p.temperatura_motivo)}</small>` : ''}</div>`);
+  }
+  const classif = [JUSTICA_PT[p.justica], INSTANCIA_PT[p.instancia], p.classe, p.polo_cliente ? (p.polo_cliente === 'ativo' ? 'cliente é autora' : 'cliente é ré') : null].filter(Boolean).map(esc).join(' · ');
+  if (classif) linhas.push(`<div style="font-size:12.5px">${classif}</div>`);
+  if (p.orgao_julgador) linhas.push(`<div style="font-size:12.5px;color:var(--text-muted)">${esc(p.orgao_julgador)}</div>`);
+  if (p.assuntos) linhas.push(`<div style="font-size:12.5px"><span style="color:var(--text-muted)">Assuntos:</span> ${esc(p.assuntos)}</div>`);
+  if (Number(p.valor_causa)) linhas.push(`<div style="font-size:13px">Valor da causa: <strong>${money(p.valor_causa)}</strong></div>`);
   const POLO = { ativo: 'Polo ativo', passivo: 'Polo passivo', terceiro: 'Terceiros', outro: 'Outros' };
-  const grupos = ['ativo', 'passivo', 'terceiro', 'outro']
-    .map((k) => ({ k, nomes: partes.filter((x) => x.polo === k).map((x) => esc(x.nome)) }))
-    .filter((g) => g.nomes.length)
-    .map((g) => `<div style="font-size:12.5px"><span style="color:var(--text-muted)">${POLO[g.k]}:</span> ${g.nomes.join(', ')}</div>`).join('');
-  return `<div style="background:var(--surface-2,#f6f4ef);border-radius:8px;padding:10px 12px">
-    ${Number(p.valor_causa) ? `<div style="font-size:13px">Valor da causa: <strong>${money(p.valor_causa)}</strong></div>` : ''}
-    ${grupos}
-    <small style="color:var(--text-muted)">Dados do tribunal${p.dados_tribunal_em ? ', lidos em ' + fmtDate(p.dados_tribunal_em) : ''}</small>
+  const partes = Array.isArray(p.partes) ? p.partes : [];
+  if (partes.length) {
+    linhas.push(`<div style="font-size:12.5px;margin-top:4px"><strong>Partes</strong>${partes.map((x) => `<div style="padding:4px 0;border-top:1px solid var(--border-soft)">
+      <span style="color:var(--text-muted)">${POLO[x.polo] || x.polo}:</span> <strong>${esc(x.nome)}</strong>${x.nossa_parte ? ' <span class="badge" style="background:#e3f1e5;color:#24683a">nosso cliente</span>' : ' <span class="badge">parte contrária</span>'}
+      ${x.documento ? `<br><small>${x.tipo === 'juridica' ? 'CNPJ' : 'CPF'} ${esc(x.documento)}${x.rg ? ' · RG ' + esc(x.rg) : ''}${x.data_nascimento ? ' · nasc. ' + fmtDate(x.data_nascimento) : ''}</small>` : ''}
+      ${x.endereco ? `<br><small style="color:var(--text-muted)">${esc(x.endereco)}</small>` : ''}</div>`).join('')}</div>`);
+  } else {
+    let resumo = [];
+    try { resumo = typeof p.partes_json === 'string' ? JSON.parse(p.partes_json) : (p.partes_json || []); } catch { resumo = []; }
+    if (resumo.length) linhas.push(`<div style="font-size:12.5px">${resumo.map((x) => `<span style="color:var(--text-muted)">${POLO[x.polo] || ''}:</span> ${esc(x.nome)}`).join('<br>')}</div>`);
+  }
+  if (!linhas.length) return '';
+  return `<div style="background:var(--surface-2,#f6f4ef);border-radius:8px;padding:10px 12px;display:grid;gap:4px">
+    ${linhas.join('')}
+    <small style="color:var(--text-muted)">Dados do tribunal e do DataJud${p.classificado_em ? ', classificados em ' + fmtDate(p.classificado_em) : ''}</small>
   </div>`;
 }
 
