@@ -18,19 +18,28 @@ export function dataDataJud(v: unknown): string | null {
 
 export interface ResumoClassificacao {
   processos: number; consultadosDataJud: number; areasPreenchidas: number;
-  quente: number; morno: number; frio: number;
+  quente: number; morno: number; frio: number; dataJudLimitou: boolean;
 }
 
-export async function classificarProcessos(opts: { datajud?: boolean; pausaMs?: number } = {}): Promise<ResumoClassificacao> {
-  const usarDataJud = opts.datajud !== false;
-  const pausa = opts.pausaMs ?? 400;
+/**
+ * Temperatura e área: todos os processos, toda rodada (só banco).
+ * DataJud: no máximo `limiteDataJud` por rodada (o CNJ devolve 429 com muitas
+ * consultas seguidas), primeiro os nunca consultados e depois os consultados
+ * há mais de 7 dias. Se o DataJud recusar, para de consultar nesta rodada.
+ */
+export async function classificarProcessos(opts: { datajud?: boolean; pausaMs?: number; limiteDataJud?: number } = {}): Promise<ResumoClassificacao> {
+  let usarDataJud = opts.datajud !== false;
+  const pausa = opts.pausaMs ?? 1500;
+  let cotaDataJud = opts.limiteDataJud ?? 30;
   const [ps] = await db.query(
     `SELECT lp.id, lp.process_number, lp.court_alias, lp.judicial_area, lp.distribution_date, lp.polo_cliente,
-            lp.classe, lp.assuntos, c.polo_cliente AS polo_caso
+            lp.classe, lp.assuntos, c.polo_cliente AS polo_caso,
+            (lp.datajud_classificado_em IS NULL OR lp.datajud_classificado_em < NOW() - INTERVAL 7 DAY) AS precisa_datajud
        FROM legal_processes lp LEFT JOIN cases c ON c.id = lp.case_id
-      WHERE lp.process_number IS NOT NULL`
+      WHERE lp.process_number IS NOT NULL
+      ORDER BY lp.datajud_classificado_em IS NOT NULL, lp.datajud_classificado_em, lp.id`
   ) as any;
-  const resumo: ResumoClassificacao = { processos: ps.length, consultadosDataJud: 0, areasPreenchidas: 0, quente: 0, morno: 0, frio: 0 };
+  const resumo: ResumoClassificacao = { processos: ps.length, consultadosDataJud: 0, areasPreenchidas: 0, quente: 0, morno: 0, frio: 0, dataJudLimitou: false };
 
   for (const p of ps) {
     const justica = justicaPeloNumero(p.process_number);
@@ -42,8 +51,12 @@ export async function classificarProcessos(opts: { datajud?: boolean; pausaMs?: 
     let ajuizamento: string | null = null;
     let sigilo = 0;
 
-    if (usarDataJud) {
+    let consultou = false;
+    if (usarDataJud && cotaDataJud > 0 && Number(p.precisa_datajud)) {
+      cotaDataJud--;
       const r = await consultarProcessoDataJud(p.process_number, p.court_alias).catch(() => null);
+      if (r?.error && /429|Timeout/i.test(r.error)) { usarDataJud = false; resumo.dataJudLimitou = true; }
+      consultou = !!r && (r.found || r.error === 'Processo não encontrado');
       if (r?.found && r.metadata) {
         resumo.consultadosDataJud++;
         const m = r.metadata;
@@ -73,11 +86,11 @@ export async function classificarProcessos(opts: { datajud?: boolean; pausaMs?: 
          distribution_date = COALESCE(distribution_date, ?),
          confidential = IF(? > 0, 1, confidential),
          temperatura = ?, temperatura_confianca = ?, temperatura_decisao = ?, temperatura_decisao_em = ?, temperatura_motivo = ?,
-         classificado_em = NOW()
+         classificado_em = NOW(), datajud_classificado_em = IF(?, NOW(), datajud_classificado_em)
        WHERE id = ?`,
       [justica, instancia, classe?.slice(0, 200) ?? null, assuntos.length ? assuntos.join(' | ').slice(0, 600) : null,
         orgao?.slice(0, 255) ?? null, area, ajuizamento, sigilo,
-        t.temperatura, t.confianca, t.decisao?.slice(0, 255) ?? null, t.decisao_em, t.motivo.slice(0, 255), p.id]
+        t.temperatura, t.confianca, t.decisao?.slice(0, 255) ?? null, t.decisao_em, t.motivo.slice(0, 255), consultou ? 1 : 0, p.id]
     );
   }
   return resumo;

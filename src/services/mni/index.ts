@@ -175,9 +175,13 @@ async function gravarPartesEVincular(processId: number, partes: import('./fichaP
     );
   }
   const nossas = partes.filter((p) => p.nossa_parte);
+  const polo = nossas[0] && (nossas[0].polo === 'ativo' || nossas[0].polo === 'passivo') ? nossas[0].polo : null;
+  if (polo) {
+    await db.query('UPDATE legal_processes SET polo_cliente = ? WHERE id = ?', [polo, processId]);
+    await db.query('UPDATE cases c JOIN legal_processes lp ON lp.case_id = c.id SET c.polo_cliente = ? WHERE lp.id = ? AND c.polo_cliente IS NULL', [polo, processId]);
+  }
+  await copiarContrariasParaOCaso(processId, partes, polo);
   if (!nossas.length) return;
-  const polo = nossas[0].polo === 'ativo' || nossas[0].polo === 'passivo' ? nossas[0].polo : null;
-  if (polo) await db.query('UPDATE legal_processes SET polo_cliente = ? WHERE id = ?', [polo, processId]);
 
   const { normalizarNomeParte } = await import('./fichaPeloTribunal');
   for (const p of nossas) {
@@ -206,6 +210,35 @@ async function gravarPartesEVincular(processId: number, partes: import('./fichaP
     }
     await db.query('UPDATE process_parties SET client_id = ? WHERE process_id = ? AND polo = ? AND nome_norm = ?', [clientId, processId, p.polo, p.nome_norm]);
     await db.query('UPDATE legal_processes SET client_id = ? WHERE id = ? AND client_id IS NULL', [clientId, processId]);
+  }
+}
+
+/**
+ * Partes contrárias vindas do tribunal entram no bloco "Partes do processo" do
+ * caso (`case_partes`, o mesmo que a equipe preenche e que as peças usam), sem
+ * repetir quem já está lá (mesmo CPF/CNPJ ou mesmo nome) e nunca a própria cliente.
+ */
+async function copiarContrariasParaOCaso(processId: number, partes: import('./fichaPeloTribunal').ParteParaGravar[], poloNosso: string | null) {
+  const [[lp]] = await db.query(
+    `SELECT lp.case_id, COALESCE(?, c.polo_cliente) AS polo, cl.name AS cliente_nome, cl.cpf_cnpj AS cliente_doc
+       FROM legal_processes lp JOIN cases c ON c.id = lp.case_id LEFT JOIN clients cl ON cl.id = c.client_id WHERE lp.id = ?`,
+    [poloNosso, processId]
+  ) as any;
+  if (!lp?.case_id || (lp.polo !== 'ativo' && lp.polo !== 'passivo')) return; // sem saber o nosso lado, não dá para dizer quem é contrário
+  const { normalizarNomeParte } = await import('./fichaPeloTribunal');
+  const { ehParteDoCliente } = await import('../partesProcesso');
+  const [ja] = await db.query('SELECT nome, cpf_cnpj FROM case_partes WHERE case_id = ?', [lp.case_id]) as any;
+  const dig = (v: any) => String(v || '').replace(/\D/g, '');
+  for (const p of partes) {
+    if (p.nossa_parte || p.polo === lp.polo || (p.polo !== 'ativo' && p.polo !== 'passivo')) continue;
+    if (ehParteDoCliente({ cpf_cnpj: p.documento, nome: p.nome }, { cpf_cnpj: lp.cliente_doc, name: lp.cliente_nome })) continue;
+    const repetida = ja.some((x: any) => (p.documento && dig(x.cpf_cnpj) === dig(p.documento)) || normalizarNomeParte(x.nome) === p.nome_norm);
+    if (repetida) continue;
+    await db.query(
+      "INSERT INTO case_partes (case_id, papel, nome, cpf_cnpj, endereco) VALUES (?, 'contraria', ?, ?, ?)",
+      [lp.case_id, p.nome, p.documento, p.endereco]
+    );
+    ja.push({ nome: p.nome, cpf_cnpj: p.documento });
   }
 }
 

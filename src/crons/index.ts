@@ -526,8 +526,8 @@ export function startCronJobs() {
 
   // Classificação dos processos (18/11/2026): justiça, instância, classe e
   // assuntos pelo DataJud, área (só se vazia) e temperatura pelas decisões
-  // (quente, morno, frio). Ver classificacaoProcesso.ts.
-  cron.schedule('20 5 * * *', () => {
+  // (quente, morno, frio). 2x/dia; DataJud até 30 processos por rodada. Ver classificacaoProcesso.ts.
+  cron.schedule('20 5,14 * * *', () => {
     runJob('processos:classificar', async () => {
       const { classificarProcessos } = await import('../services/classificacaoProcessoMysql');
       return classificarProcessos();
