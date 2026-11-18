@@ -14,6 +14,12 @@ export interface SistemaMni {
   id: string;
   nome: string;
   url: string;
+  /**
+   * A consulta sai pelo computador do escritório (ponteEscritorio.ts), e não
+   * direto da VPS. Desde 18/11/2026 o TJES bloqueia o IP da VPS (403 do
+   * CloudFront) e aceita a rede do escritório.
+   */
+  viaEscritorio?: boolean;
   /** Este sistema é onde o processo tramita? (pelo número CNJ) */
   atende(numeroCnj: string): boolean;
 }
@@ -30,8 +36,8 @@ const ehTjes = (n: string) => { const p = partesCnj(n); return !!p && p.j === '8
 const ehJfes = (n: string) => { const p = partesCnj(n); return !!p && p.j === '4' && p.tr === '02' && p.origem.startsWith('50'); };
 
 export const SISTEMAS_MNI: SistemaMni[] = [
-  { id: 'tjes_pje1g', nome: 'TJES — PJe 1º grau', url: 'https://pje.tjes.jus.br/pje/intercomunicacao', atende: ehTjes },
-  { id: 'tjes_pje2g', nome: 'TJES — PJe 2º grau e Turmas Recursais', url: 'https://pje.tjes.jus.br/pje2g/intercomunicacao', atende: ehTjes },
+  { id: 'tjes_pje1g', nome: 'TJES — PJe 1º grau', url: 'https://pje.tjes.jus.br/pje/intercomunicacao', atende: ehTjes, viaEscritorio: true },
+  { id: 'tjes_pje2g', nome: 'TJES — PJe 2º grau e Turmas Recursais', url: 'https://pje.tjes.jus.br/pje2g/intercomunicacao', atende: ehTjes, viaEscritorio: true },
   { id: 'eproc_jfes', nome: 'Justiça Federal ES — eproc', url: 'https://eproc-ws.jfes.jus.br/eproc/ws/controlador_ws.php?srv=intercomunicacao2.2', atende: ehJfes },
 ];
 

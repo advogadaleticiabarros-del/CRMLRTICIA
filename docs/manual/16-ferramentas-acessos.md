@@ -19,6 +19,7 @@ Consulte antes de mexer em qualquer integração externa, pra saber o que depend
 | **DJEN (Comunica CNJ)** | Descoberta de processo por OAB, movimentações, prazos; desde 17/11/2026 também a busca diária pelo **nome** de cada cliente ativo (`nomeParte`, pelo navegador) para achar ação nova | Descoberta automática de processo, nomeação dativa, alertas de marco processual |
 | **DataJud (CNJ)** | Consulta de processo já cadastrado manualmente | Sincronização de processos cadastrados manualmente |
 | **MNI dos tribunais** (ligação oficial do CNJ, gratuita, com o login da Dra.): PJe do TJES 1º grau (`pje.tjes.jus.br/pje/intercomunicacao`), 2º grau (`/pje2g/intercomunicacao`) e eproc da JFES (`eproc-ws.jfes.jus.br`) | Intimações pendentes (sem abrir) e movimentações direto do tribunal. Login em Configurações → Ligação com os tribunais, guardado criptografado em `mni_credenciais` | Só essa fonte: DJEN, DataJud e e-mail continuam. Login recusado desliga o sistema e avisa no sino (ver [Monitoramento](10-monitoramento.md)) |
+| **Ponte do escritório → TJES** (desde 18/11/2026): tarefa do Windows "CRM - ponte do TJES" no computador do escritório (`scripts/ponte-escritorio/ponte.mjs`, copiado para `%LOCALAPPDATA%\crm-ponte-escritorio`) | O TJES bloqueia o IP da VPS; a consulta MNI ao TJES sai pela rede do escritório. Chave `MNI_PONTE_TOKEN` no `.env` da VPS = `%USERPROFILE%\.crm-ponte-escritorio.json` | Só com o computador ligado e a sessão aberta. Reinstalar com `scripts\ponte-escritorio\instalar.ps1` |
 | **SGT do CNJ** (`sgt.cloud.cnj.jus.br/api/v1/soap`, reserva `www.cnj.jus.br/sgt/sgt_ws.php`, público, sem chave) | Nome por extenso dos códigos de movimento que o PJe manda (guardado em `tpu_movimentos`) | A movimentação entra como "Movimento (código N)" |
 | **APIs públicas de tribunal** (TJES, TRT17, TRF2, TJPR, TRT9, TRF4, STJ, TST) | Alternativa ao DataJud pra tribunais específicos | Sincronização dos processos daquele tribunal |
 | **Google (OAuth/Calendar/Gmail)** | Agenda sincronizada; leitura de e-mail de monitoramento judicial | Sincronização de agenda; descoberta de movimentação por e-mail |
@@ -94,6 +95,7 @@ Nunca no código-fonte nem no Git — só em variáveis de ambiente na VPS (`.en
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | Ponte do escritório para o TJES (tarefa do Windows + chave `MNI_PONTE_TOKEN`) |
 | 17/11/2026 | Claude | DJEN também pesquisado pelo nome do cliente (ação nova) |
 | 17/11/2026 | Claude | MNI dos tribunais (PJe TJES e eproc JFES) e SGT do CNJ |
 | 17/11/2026 | Claude | API SGS do Banco Central: o IPCA passa a corrigir também parcela vencida, pela cláusula do contrato |

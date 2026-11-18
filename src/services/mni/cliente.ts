@@ -67,7 +67,7 @@ export class ErroRespostaMni extends Error {
   constructor(mensagem: string) { super(mensagem); this.name = 'ErroRespostaMni'; }
 }
 
-type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) =>
+export type Fetch = (url: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) =>
   Promise<{ status: number; text(): Promise<string> }>;
 
 // ── XML ─────────────────────────────────────────────────────────────────────

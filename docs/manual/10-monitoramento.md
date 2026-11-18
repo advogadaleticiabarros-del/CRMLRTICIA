@@ -48,11 +48,27 @@ Pedido da Dra.: "melhorar o monitoramento, sem custo". O DataJud e o DJEN chegam
 
 | Sistema | Situação |
 |---|---|
-| TJES — PJe 1º grau | Login ok |
+| TJES — PJe 1º grau | Login ok; **consulta pelo computador do escritório** (ver abaixo) |
 | Justiça Federal ES — eproc | Login ok |
 | TJES — PJe 2º grau e Turmas Recursais | Endereço ok; falta a senha certa (a do 1º grau foi recusada) |
 | TRT17 (1º e 2º grau) | Fora: o tribunal recusa a conexão (HTTP 403) antes do login; exige credenciamento (`/primeirograu/servicosweb/mni222/intercomunicacao`) |
 | TRE-ES, TSE 1º grau, SEEU | Ainda não ligados (TRE-ES responde; TSE recusou daqui; SEEU sem endereço achado) |
+
+### Ponte do escritório para o TJES (desde 18/11/2026)
+
+O TJES fica atrás de um firewall da Amazon (CloudFront) que **bloqueia o servidor do CRM** (VPS) com "403 Request blocked", antes mesmo do login. Da rede do escritório ele responde normalmente. O eproc da JFES não bloqueia.
+
+Por isso o TJES (1º e 2º grau, `viaEscritorio: true` em `sistemas.ts`) é consultado **pelo computador do escritório**:
+
+1. a rodada (ou o "Testar e salvar") põe a consulta numa fila **em memória** no servidor (`src/services/mni/ponteEscritorio.ts`), sem gravar nada;
+2. o programa `scripts/ponte-escritorio/ponte.mjs`, rodando no computador do escritório, busca a fila em `/api/mni-ponte/pedidos` (espera de até 25 s), envia ao TJES e devolve a resposta em `/api/mni-ponte/respostas/:id`;
+3. o resto da rodada segue igual (avisos, movimentações, ficha).
+
+- **Só funciona com o computador do escritório ligado** e com a sessão do Windows aberta. Desligado: a consulta ao TJES falha na hora com "O computador do escritório não está conectado", sem afetar o eproc. Em Configurações → Ligação com os tribunais aparece "Consulta pelo computador do escritório: conectado/desligado".
+- **Chave:** `MNI_PONTE_TOKEN` no `.env` do servidor, igual à de `%USERPROFILE%\.crm-ponte-escritorio.json` no computador. Sem a chave no servidor, a ponte fica desligada (503).
+- **Segurança:** o programa do escritório só encaminha para os dois endereços oficiais do TJES (lista fixa, testada) e só repassa os cabeçalhos `Content-Type` e `SOAPAction`; não grava o conteúdo em log.
+- **Instalação/reinstalação:** `powershell -ExecutionPolicy Bypass -File scripts\ponte-escritorio\instalar.ps1 [-Token <chave>]`. Cria a tarefa do Windows "CRM - ponte do TJES" (inicia ao fazer logon, sem janela, reinicia se parar). Log em `%LOCALAPPDATA%\crm-ponte-escritorio\ponte.log`.
+- **Quando o TJES liberar o servidor:** tirar `viaEscritorio` dos dois sistemas TJES; a ponte deixa de ser usada.
 
 Para incluir outro sistema: acrescente em `SISTEMAS_MNI` (`src/services/mni/sistemas.ts`) com o endereço e a regra do número CNJ.
 
@@ -143,6 +159,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | Ponte do escritório: o TJES bloqueia a VPS (403 do CloudFront), então a consulta ao TJES sai pelo computador do escritório (`ponteEscritorio.ts` + `scripts/ponte-escritorio/`) |
 | 18/11/2026 | Claude | Valor da causa e lista das partes guardados no processo pela rodada do MNI e mostrados na janela do processo; caso recebe o valor só se vazio |
 | 18/11/2026 | Claude | Termômetro dos casos (dias parados, faixa, fase a conferir, login que falta por sistema) e ficha do cliente completada com as partes vindas do tribunal (MNI), só campos vazios e nome exato |
 | 17/11/2026 | Claude | Central de andamentos (caixa de entrada com lida/tratada), ação nova envolvendo cliente (nome no DJEN, pelo navegador) e audiência lançada sozinha na agenda |

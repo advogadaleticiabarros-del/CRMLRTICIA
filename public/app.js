@@ -4872,11 +4872,19 @@ async function loadMniPanel() {
     const erro = s.ultimo_erro ? ` · <span style="color:var(--red)">última tentativa falhou: ${esc(s.ultimo_erro)}</span>` : '';
     return `<span style="color:var(--green, #1f7a4d);font-weight:600">Ligado</span> · última consulta ok: ${dt(s.ultimo_ok_em)} · ${s.avisos_pendentes} intimação(ões) pendente(s)${erro}`;
   };
+  // TJES bloqueia o servidor do CRM: a consulta sai pelo computador do escritório.
+  const ponte = (s) => {
+    if (!s.via_escritorio) return '';
+    const estado = s.ponte_conectada
+      ? '<span style="color:var(--green, #1f7a4d);font-weight:600">conectado</span>'
+      : `<span style="color:var(--red);font-weight:600">desligado</span>${s.ponte_ultimo_contato ? ` (último contato ${dt(s.ponte_ultimo_contato)})` : ''} — ligue o computador do escritório para consultar este sistema`;
+    return `<div class="sub" style="font-size:12px;margin-top:2px">Consulta pelo computador do escritório: ${estado}</div>`;
+  };
   box.innerHTML = `
     ${sistemas.map((s) => `
       <div class="mni-sis" data-id="${esc(s.id)}" style="border:1px solid var(--border, #e3e3e3);border-radius:8px;padding:12px;margin-bottom:10px">
         <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
-          <div><strong>${esc(s.nome)}</strong><div style="font-size:12.5px;margin-top:2px">${situacao(s)}</div></div>
+          <div><strong>${esc(s.nome)}</strong><div style="font-size:12.5px;margin-top:2px">${situacao(s)}</div>${ponte(s)}</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap">
             <button class="btn-sm mni-editar" type="button">${s.cadastrado ? 'Trocar login' : 'Cadastrar login'}</button>
             ${s.cadastrado ? '<button class="btn-sm mni-remover" type="button">Remover</button>' : ''}

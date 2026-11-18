@@ -13,7 +13,12 @@ import { notificationService } from '../NotificationService';
 import { criarClienteMni } from './cliente';
 import { criarNomesMovimento } from './nomesMovimento';
 import { DepsMonitorMni, rodarMonitoramentoMni, testarLogin } from './monitorMni';
-import { SISTEMAS_MNI, sistemaPorId } from './sistemas';
+import { SISTEMAS_MNI, SistemaMni, sistemaPorId } from './sistemas';
+import { ponteEscritorio } from './ponteEscritorio';
+
+/** Cliente do tribunal: direto da VPS ou pelo computador do escritório (TJES). */
+const clienteDo = (s: SistemaMni, timeoutMs?: number) =>
+  criarClienteMni({ url: s.url, timeoutMs, fetch: s.viaEscritorio ? ponteEscritorio.fetch : undefined });
 
 const paraDataSql = (iso: string | null) => (iso ? iso.replace('T', ' ').slice(0, 19) : null);
 
@@ -35,7 +40,7 @@ function depsDeProducao(): DepsMonitorMni {
         .map((r: any) => ({ sistema: r.sistema, cpf: decrypt(r.cpf_enc) || '', senha: decrypt(r.senha_enc) || '' }))
         .filter((c: any) => c.cpf && c.senha);
     },
-    cliente: (s) => criarClienteMni({ url: s.url }),
+    cliente: (s) => clienteDo(s),
     nomeMovimento: criarNomesMovimento({
       async lerCache(codigo) {
         const [r] = await db.query('SELECT nome FROM tpu_movimentos WHERE codigo = ?', [codigo]) as any;
@@ -164,10 +169,14 @@ export async function statusDosSistemas() {
     'SELECT sistema, ativo, ultimo_ok_em, ultimo_erro, ultimo_erro_em, avisos_pendentes, atualizado_em FROM mni_credenciais'
   ) as any;
   const porId = new Map<string, any>(rows.map((r: any) => [r.sistema, r]));
+  const ponte = ponteEscritorio.situacao();
   return SISTEMAS_MNI.map((s) => {
     const r = porId.get(s.id);
     return {
       id: s.id, nome: s.nome,
+      via_escritorio: !!s.viaEscritorio,
+      ponte_conectada: s.viaEscritorio ? ponte.conectada : null,
+      ponte_ultimo_contato: s.viaEscritorio ? ponte.ultimoContato : null,
       cadastrado: !!r, ativo: !!r?.ativo,
       ultimo_ok_em: r?.ultimo_ok_em ?? null, ultimo_erro: r?.ultimo_erro ?? null, ultimo_erro_em: r?.ultimo_erro_em ?? null,
       avisos_pendentes: r?.avisos_pendentes ?? 0, atualizado_em: r?.atualizado_em ?? null,
@@ -182,7 +191,7 @@ export async function salvarCredencial(sistemaId: string, cpf: string, senha: st
   const cpfDig = String(cpf || '').replace(/\D/g, '');
   if (cpfDig.length !== 11) return { ok: false, mensagem: 'CPF deve ter 11 números.' };
   if (!senha) return { ok: false, mensagem: 'Informe a senha.' };
-  const t = await testarLogin(criarClienteMni({ url: s.url, timeoutMs: 60_000 }), { cpf: cpfDig, senha });
+  const t = await testarLogin(clienteDo(s, 60_000), { cpf: cpfDig, senha });
   if (!t.ok) {
     return {
       ok: false,

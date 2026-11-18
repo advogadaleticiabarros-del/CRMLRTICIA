@@ -933,6 +933,16 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 - **Correção:** novo job `financeiro:vencimentos-escritorio` (8h e 12h) em `src/services/vencimentosEscritorio.ts`, que manda o resumo ao WhatsApp do escritório com multa e juros do dia e prepara a cobrança como rascunho para aprovação. Régua de e-mail removida do cron, bloco de cobrança removido da fila de WhatsApp e o envio automático da fila passou a ignorar `context = 'cobranca'`.
 - **Como reconhecer de novo:** se o aviso não chegar, veja em `job_runs` (ou no painel de jobs) o `financeiro:vencimentos-escritorio`. O marco do dia fica em `sent_reminders` (`vencimentos_escritorio_AAAA-MM-DD`) e é liberado sozinho quando o envio falha. Confira também se a instância do WhatsApp está conectada.
 
+## Incidente: "O tribunal recusou a conexão (HTTP 403)" ao salvar o login do TJES (18/11/2026)
+
+**Sintoma:** em Configurações → Ligação com os tribunais, "Testar e salvar" no TJES — PJe 1º grau dava "Não foi possível falar com o tribunal agora: O tribunal recusou a conexão (HTTP 403) — o serviço pode exigir credenciamento. Nada foi salvo." O mesmo login tinha funcionado no teste de 17/11.
+
+**Causa raiz:** o teste de 17/11 foi feito do computador do escritório. Da VPS, o TJES (CloudFront da Amazon) responde "403 ERROR — Request blocked" para qualquer endereço, até para o WSDL, antes do login. Ou seja, bloqueio do IP do servidor, não senha nem credenciamento. O eproc da JFES responde 200 da VPS.
+
+**Correção:** ponte do escritório (ver [Monitoramento](10-monitoramento.md#ponte-do-escritório-para-o-tjes-desde-18112026)). A consulta ao TJES sai pelo computador do escritório (tarefa do Windows "CRM - ponte do TJES"). A tela mostra se esse computador está conectado.
+
+**Como reconhecer de novo:** `curl -s -o /dev/null -w "%{http_code}" "https://pje.tjes.jus.br/pje/intercomunicacao?wsdl"` na VPS dá 403 e no computador do escritório dá 200. Se a tela disser "computador do escritório não está conectado": ligar o computador, abrir a sessão do Windows e conferir a tarefa (`Get-ScheduledTask 'CRM - ponte do TJES'`) e o log `%LOCALAPPDATA%\crm-ponte-escritorio\ponte.log`. "Servidor recusou a ponte (HTTP 401/503)" no log = chave diferente ou ausente em `MNI_PONTE_TOKEN`.
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -949,6 +959,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | +1 incidente: TJES recusava o login com HTTP 403 (bloqueio do IP da VPS pelo CloudFront); consulta passa pelo computador do escritório |
 | 31/10/2026 | Claude | Demonstrativo do Itaú ainda com R$ 0,00: o Drive era lido com resumo, sem as colunas do HISCON; agora tudo é transcrito na íntegra e os resumos antigos de extrato são relidos. Banco com código na frente ("341 - BANCO ITAU SA") volta a bater com o réu. Extratos não vão mais cortados para a leitura. Descontos do histórico de créditos lidos em código (hiscre.ts) |
 | 31/10/2026 | Claude | Peça do Itaú com R$ 0,00: descontos do HISCRE sem banco eram descartados; Calculista liga cada desconto ao contrato. Revisão em toda versão nova |
 | 30/10/2026 | Claude | Extrato de empréstimos nunca lido: leitura dos anexos do Drive passou a usar a reserva (Gemini → OpenAI) |

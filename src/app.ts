@@ -92,6 +92,7 @@ import asaasWebhookRoutes from './routes/asaas-webhook';
 import whatsappInstanceRoutes, { mediaHandler } from './routes/whatsapp-instance';
 import courtEmailMonitorRoutes from './routes/courtEmailMonitor';
 import mniRoutes from './routes/mni';
+import mniPonteRoutes from './routes/mniPonte';
 import andamentosRoutes from './routes/andamentos';
 import { googleOAuthCallback } from './routes/google-callback';
 
@@ -167,6 +168,9 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.get('/api/calendar/google/callback', googleOAuthCallback);
 
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
+  // Ponte do escritório → TJES — chave própria (MNI_PONTE_TOKEN), sem login de usuário
+  app.use('/api/mni-ponte', mniPonteRoutes);
+
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
   app.use('/api/public', leadPublicRoutes);     // formulário do site/blog → lead no funil

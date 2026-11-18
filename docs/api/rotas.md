@@ -4,7 +4,7 @@
 > Acesso: **público** (sem login), **logado** (qualquer usuário), **equipe** (admin, advogada, staff), **admin**.
 > Dentro de cada rota pode haver checagem extra (ex.: dono do registro, papel parceiro).
 
-**523 rotas em 83 grupos.**
+**525 rotas em 84 grupos.**
 
 ## `/api/access-logs` · admin · `src/routes/accessLogs.ts`
 
@@ -649,6 +649,13 @@
 | DELETE | `/api/mni/sistemas/:id` |
 | GET | `/api/mni/avisos` |
 | POST | `/api/mni/rodar` |
+
+## `/api/mni-ponte` · público · `src/routes/mniPonte.ts`
+
+| Método | Caminho |
+|---|---|
+| GET | `/api/mni-ponte/pedidos` |
+| POST | `/api/mni-ponte/respostas/:id` |
 
 ## `/api/notifications` · logado · `src/routes/notifications.ts`
 
