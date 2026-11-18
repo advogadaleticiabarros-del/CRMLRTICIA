@@ -127,5 +127,11 @@ export async function runJob(
     if (e?.stack) console.error(e.stack);
     await registrar(job, 'erro', msg, ms);
     await avisarAdmins(job, msg, !!opts.critica);
+    // Conexão Google caída: o sino passou 12 dias sem ninguém ver (29/10–18/11).
+    // Avisa também no WhatsApp do escritório, 1x por dia.
+    try {
+      const { ehQuedaDeAutorizacaoGoogle, avisarQuedaConexaoGoogleReal } = await import('../services/avisoConexaoGoogle');
+      if (ehQuedaDeAutorizacaoGoogle(msg)) await avisarQuedaConexaoGoogleReal(job);
+    } catch { /* aviso é best-effort */ }
   }
 }

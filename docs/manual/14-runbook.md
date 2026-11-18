@@ -16,6 +16,18 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: conexões Google caídas sem ninguém ver, e-mails do TRT17 parados (29/10 a 18/11/2026)
+
+**Sintoma (achado 18/11/2026, ao ligar o TRT17 pelo Push):** a última leitura da caixa dos tribunais foi em 06/11. `job_runs` mostrava `invalid_grant` desde 29/10 em `monitoramento:processos-email`, `agenda:sync-incremental`, `agenda:sync-completa` e `parceria:sync-gmail`. Os e-mails Push do TRT17 desse período não entraram no CRM.
+
+**Causa raiz:** o Google cancelou a autorização das três conexões (mesma causa do incidente de 02/10, abaixo). O CRM só avisava no sino (a cada 6 h) e no banner de Configurações, e ninguém viu por 12 dias. Por que o Google cancela de novo: não verificado. A suspeita principal é a tela de consentimento do app no Google Cloud estar em modo **Teste** (nesse modo o Google derruba a autorização a cada 7 dias); troca de senha da conta também derruba.
+
+**Correção:** `src/services/avisoConexaoGoogle.ts`, chamado pelo `runJob`: falha de autorização Google manda aviso ao WhatsApp pessoal do escritório e ao sino, 1x a cada 24 h, dizendo o que parou e onde reconectar. Testes: `tests/avisoConexaoGoogle.test.mjs`.
+
+**Para resolver quando acontecer:** reconectar as três (Configurações → Monitoramento por e-mail → Reconectar; Agenda → Reconectar Google; Parcerias → Reconectar), com a conta do escritório. Depois, em Configurações → Monitoramento por e-mail, "Verificar agora". Os e-mails do período parado são lidos na volta (60 por rodada, do mais novo para o mais antigo, sem repetir os já lidos). **Para não voltar:** no Google Cloud Console → Tela de consentimento OAuth, conferir se o app está "Em produção" e não "Teste".
+
+**Como reconhecer:** `SELECT job, MIN(ran_at) FROM job_runs WHERE status='erro' AND message LIKE '%invalid_grant%' GROUP BY job`; `court_email_integration.last_check_at` parado.
+
 ## Incidente: prazo das intimações do DJEN com dias errados e sem data final (corrigido em 13/11/2026)
 
 **Sintoma:** comparando com o relatório do Égide de 13/11/2026, a sentença de improcedência do Juizado Federal saiu no CRM como "Recurso (apelação), 15 dias", com termo calculado em 07/12. O certo era recurso inominado, 10 dias úteis, com termo em 01/12. A homologação de cálculos (TRT17) e a ata de julgamento (TRF2) viraram "prazo de 15 dias". A data só aparecia depois que alguém confirmava.

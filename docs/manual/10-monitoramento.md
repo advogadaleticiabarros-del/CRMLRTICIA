@@ -18,7 +18,7 @@ Consulte quando precisar saber COM QUE FREQUÊNCIA algo roda sozinho, o que faze
 | `intimacoes:relatorio-diario` | 7h25 | **Novo (13/11/2026).** Relatório das publicações novas do DJEN: e-mail (PDF, CSV, recorte) e WhatsApp da equipe, com prazo, data limite e protocolar até. Ver [Processos](04-processos.md#relatório-diário-de-intimações-desde-13112026) |
 | `monitoramento:tribunais-mni` | 7h10, 11h10, 15h10 e 19h10 | **Novo (17/11/2026).** Ligação oficial com os tribunais (MNI): intimações pendentes e movimentações direto do PJe do TJES e do eproc da JFES, com o login da Dra. Ver [abaixo](#ligação-oficial-com-os-tribunais-mni-desde-17112026) |
 | `monitoramento:processos` | de hora em hora, 7h–20h | Sincroniza cada processo já cadastrado com sua fonte (DataJud/API do tribunal) |
-| `monitoramento:processos-email` | 8h, 19h | Varre a caixa de e-mail conectada atrás de movimentação de tribunal fora do DJEN |
+| `monitoramento:processos-email` | 8h, 12h, 16h, 19h | Varre a caixa de e-mail conectada atrás de movimentação de tribunal fora do DJEN, inclusive o **Push do TRT17** (desde 18/11/2026; antes 8h e 19h) |
 | `monitoramento:processos-pre-briefing` | 6h | Sincronização extra antes do briefing matinal, pra ele sair com dado fresco |
 | `whatsapp:reconectar` | uma vez, na subida do servidor | Rearma o auto-envio se a sessão da Uazapi já estiver conectada — só isso, não vigia a conexão depois |
 | `whatsapp:verificar-conexao` | a cada 20 minutos | **Novo (22/09/2026).** Checa se a instância continua conectada; se caiu, avisa no sino (throttle de 6h) em vez de depender de alguém abrir o Painel de Saúde ou tentar mandar mensagem pra notar. Não reconecta sozinho — quando a sessão é invalidada do lado do WhatsApp (ex.: "logged out from another device"), só escanear o QR de novo resolve |
@@ -106,6 +106,20 @@ Uma vez por dia, quando alguém da equipe abre o CRM, o **navegador** procura no
 
 **Leitura organizada (desde 18/11/2026):** a aba agrupa por cliente (cliente com processo **contra ele** vem primeiro; dentro do grupo, a publicação mais recente), ou lista tudo por data. Em cima, os totais por polo funcionam como filtro (clique de novo para tirar); há busca por cliente ou nº do processo e filtro por tribunal. Cada processo mostra tribunal, classe e órgão em campos separados; o texto da publicação fica recolhido em "Ler a publicação" (o DJEN guarda até 600 caracteres). Os filtros ficam quando se confirma ou descarta um item.
 
+## TRT17 pelo aviso Push por e-mail (desde 18/11/2026)
+
+O TRT17 recusa a ligação direta (MNI) sem credenciamento (HTTP 403). Sem pedir nada ao tribunal, o CRM cobre o TRT17 por três vias: **DJEN** (publicações pela OAB), **DataJud** (andamentos, com atraso) e o **Push do PJe**: o tribunal manda um e-mail a cada atualização dos processos em que a Dra. atua ("[TRT17] [PUSH] Atualizações de Informações Processuais do Processo …", de `notificacoes@trt17.jus.br`). O Push já estava ligado na conta dela.
+
+- **Leitura:** `src/services/pushTribunal.ts` reconhece o e-mail Push (de qualquer tribunal `.jus.br`) e lê a tabela do e-mail: cada linha (data + texto) vira um movimento separado, com a data do tribunal e o texto original, sem resumo de IA. O número do processo sai do assunto. Se o formato não for reconhecido, o e-mail segue o caminho antigo (um movimento resumido por e-mail).
+- **Gravação:** `registrarMovimentoDoPush` (monitoringService) confere cada movimento contra as outras fontes pelo **dia e pelo texto** (o caminho antigo descartava tudo que tivesse outra movimentação em ±3 dias). Fonte `email_monitoramento`, com `movement_metadata.push = 'TRT17'`; prazo, audiência e acordo são detectados como nas outras fontes. WhatsApp da equipe: um aviso por e-mail com até 5 movimentos.
+- **Processo que não está no CRM:** antes era descartado no log. Agora aparece em Andamentos → **Ações novas de clientes**, no quadro "Processos que chegam por e-mail do tribunal e não estão no CRM", com "Cadastrar processo" (abre o formulário com o número e a área trabalhista). Rota `GET /api/court-email-monitor/processos-sem-cadastro`. Sai da lista quando o processo é cadastrado.
+- **Depende da conexão do Gmail** em Configurações → Monitoramento por e-mail. Se o Google cancelar a autorização (`invalid_grant`), nada entra: desde 18/11/2026 isso avisa no WhatsApp (ver abaixo).
+- **Termômetro:** o TRT17 aparece como acompanhado pelo Push, DJEN e DataJud; a ligação direta continua dependendo do credenciamento.
+
+### Aviso de queda da conexão Google (desde 18/11/2026)
+
+Quando uma rotina que usa o Google (e-mail dos tribunais, Agenda, Gmail da parceria) falha por autorização cancelada, `src/services/avisoConexaoGoogle.ts` (chamado pelo `runJob`) manda ao WhatsApp pessoal do escritório e ao sino o que parou e onde reconectar, **no máximo 1 vez a cada 24 horas** (marca: notificação `conexao_google_caiu`). Antes o aviso ia só para o sino e passou 12 dias sem ser visto.
+
 ## Audiência na agenda sozinha (desde 17/11/2026)
 
 Toda movimentação nova passa por `src/services/audienciaDetectada.ts`. Se o texto marca audiência com **data e hora no futuro** ("designo audiência de conciliação para 10/12/2026, às 14h00"), o CRM lança na agenda da Dra. (tipo audiência, 1 hora, com o processo, o local ou o link da sala virtual e o trecho) e no Google Agenda se estiver conectado, e avisa no sino. Sem hora, com data passada, "realizada" ou "cancelada" (sem redesignação) não lança. Não duplica: a mesma movimentação só uma vez (`audiencias_detectadas`), o mesmo processo e horário vindos de outra fonte reaproveitam o evento, e audiência já na agenda (mesmo cliente/caso e horário) não ganha cópia. Na Caixa de entrada, a movimentação mostra "Na agenda: dd/mm às hh".
@@ -161,6 +175,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | TRT17 pelo Push por e-mail: cada movimento do e-mail vira um andamento (data e texto do tribunal), processos do Push fora do CRM listados para cadastrar, leitura 4x/dia e aviso no WhatsApp quando a conexão Google cai |
 | 18/11/2026 | Claude | Ações novas de clientes: agrupadas por cliente, totais por polo como filtro, busca, filtro por tribunal e texto da publicação recolhido |
 | 18/11/2026 | Claude | Ponte do escritório: o TJES bloqueia a VPS (403 do CloudFront), então a consulta ao TJES sai pelo computador do escritório (`ponteEscritorio.ts` + `scripts/ponte-escritorio/`) |
 | 18/11/2026 | Claude | Valor da causa e lista das partes guardados no processo pela rodada do MNI e mostrados na janela do processo; caso recebe o valor só se vazio |

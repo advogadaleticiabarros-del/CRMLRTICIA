@@ -1,7 +1,7 @@
 import { Router, Request, Response } from 'express';
 import jwt from 'jsonwebtoken';
 import { env } from '../config/env';
-import { getCourtEmailAuthUrl, getCourtEmailStatus, disconnectCourtEmail, runCourtEmailScan } from '../services/courtEmailMonitorService';
+import { getCourtEmailAuthUrl, getCourtEmailStatus, disconnectCourtEmail, runCourtEmailScan, processosSemCadastroPorEmail } from '../services/courtEmailMonitorService';
 
 /**
  * Rotas do monitoramento de movimentação processual por e-mail (item 7 —
@@ -14,6 +14,11 @@ const router = Router();
 
 router.get('/', async (_req: Request, res: Response) => {
   res.json(await getCourtEmailStatus());
+});
+
+/** Processos que chegam por e-mail (Push do TRT17 etc.) e não estão no CRM. */
+router.get('/processos-sem-cadastro', async (_req: Request, res: Response) => {
+  res.json({ processos: await processosSemCadastroPorEmail() });
 });
 
 router.get('/auth-url', (req: Request, res: Response) => {

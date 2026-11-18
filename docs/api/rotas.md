@@ -4,7 +4,7 @@
 > Acesso: **público** (sem login), **logado** (qualquer usuário), **equipe** (admin, advogada, staff), **admin**.
 > Dentro de cada rota pode haver checagem extra (ex.: dono do registro, papel parceiro).
 
-**525 rotas em 84 grupos.**
+**526 rotas em 84 grupos.**
 
 ## `/api/access-logs` · admin · `src/routes/accessLogs.ts`
 
@@ -309,6 +309,7 @@
 | Método | Caminho |
 |---|---|
 | GET | `/api/court-email-monitor` |
+| GET | `/api/court-email-monitor/processos-sem-cadastro` |
 | GET | `/api/court-email-monitor/auth-url` |
 | POST | `/api/court-email-monitor/disconnect` |
 | POST | `/api/court-email-monitor/scan-now` |

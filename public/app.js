@@ -4745,6 +4745,27 @@ const POLO_ACAO = {
 };
 const poloAcao = (p) => { const k = String(p || '').toUpperCase(); return k === 'P' || k === 'A' ? k : '-'; };
 
+// Processos que chegam pelos e-mails dos tribunais (Push do TRT17 etc.) e não
+// estão no CRM — o Push só manda processo em que a Dra. atua (18/11/2026).
+async function andamentosPushSemCadastro(alvo, aoMudar) {
+  if (!alvo) return;
+  const r = await api('/api/court-email-monitor/processos-sem-cadastro').catch(() => null);
+  const lista = (r && r.processos) || [];
+  if (!lista.length) { alvo.innerHTML = ''; return; }
+  alvo.innerHTML = `<div class="card" style="padding:14px 20px;margin-bottom:12px">
+    <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap"><strong style="color:var(--navy-deep)">Processos que chegam por e-mail do tribunal e não estão no CRM · ${lista.length}</strong>
+      <span class="sub" style="font-size:12.5px">O aviso Push do PJe (TRT17) só manda processo em que a Dra. atua. Cadastre para os andamentos entrarem sozinhos.</span></div>
+    ${lista.map((p) => `<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--border-soft)">
+      <strong style="color:var(--gold);font-size:14px">${esc(p.process_number)}</strong>
+      <span class="sub" style="font-size:12.5px">${esc(p.tribunal)} · ${p.emails} e-mail(s) · último em ${fmtDate(p.ultimo_em)}${p.via_push ? ' · Push' : ''}</span>
+      <span class="spacer" style="flex:1"></span>
+      <button type="button" class="btn-gold btn-sm" data-push-num="${esc(p.process_number)}">Cadastrar processo</button>
+    </div>`).join('')}</div>`;
+  alvo.querySelectorAll('[data-push-num]').forEach((b) => {
+    b.onclick = () => processForm(() => { andamentosPushSemCadastro(alvo, aoMudar); if (aoMudar) aoMudar(); }, b.dataset.pushNum);
+  });
+}
+
 async function andamentosAcoesNovas(box, aoMudar) {
   const [itens, info] = await Promise.all([
     api('/api/andamentos/acoes-novas').catch(() => []),
@@ -4766,8 +4787,10 @@ async function andamentosAcoesNovas(box, aoMudar) {
       <select id="acoes-agrupar" aria-label="Organizar"><option value="cliente">Agrupar por cliente</option><option value="data"${filtroAcoes.agrupar === 'data' ? ' selected' : ''}>Mais recentes primeiro</option></select>
       <span class="spacer"></span><span class="sub" id="acoes-cont" style="font-size:13px"></span>
     </div>` : ''}
+    <div id="acoes-push"></div>
     <div id="acoes-lista">${itens.length ? '' : '<div class="card"><div class="empty">Nenhum processo novo com nome de cliente.</div></div>'}</div>
     <p class="sub" style="font-size:12px;margin-top:8px">Todo dia o CRM procura no DJEN (últimos 7 dias) o nome de cada cliente com caso ou processo ativo. Processo com o nome do cliente que ainda não está no CRM aparece aqui, dizendo se o cliente está no polo ativo ou no passivo. A busca roda pelo navegador de quem abre o CRM, porque o DJEN bloqueia o servidor. Pode ser homônimo: confira antes de cadastrar.</p>`;
+  andamentosPushSemCadastro(box.querySelector('#acoes-push'), aoMudar);
   const badgePolo = (p) => { const [txt, bg, cor] = POLO_ACAO[poloAcao(p)]; return `<span class="badge" style="background:${bg};color:${cor};text-transform:none;white-space:nowrap">${txt}</span>`; };
   const campo = (rot, val) => (val ? `<div><span class="sub" style="font-size:11.5px;display:block">${rot}</span><span style="font-size:13px">${esc(val)}</span></div>` : '');
   const linha = (a, comNome) => `<div data-acao-id="${a.id}" style="padding:12px 0;border-top:1px solid var(--border-soft);display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
@@ -11295,7 +11318,7 @@ function showClientCredentials(cred, processNumber) {
   openModal('Acesso do cliente gerado', wrap);
 }
 
-async function processForm(onSave) {
+async function processForm(onSave, numeroInicial) {
   const [clients, lawyers, tri] = await Promise.all([
     api('/api/clients?limit=2000'), api('/api/lawyers'), api('/api/processes/tribunais'),
   ]);
@@ -11316,6 +11339,11 @@ async function processForm(onSave) {
     try { await api('/api/processes', { method: 'POST', body: JSON.stringify(body) });
       closeModal(); toast('Processo cadastrado'); onSave(); } catch (err) { toast(err.message, 'error'); }
   };
+  if (numeroInicial) {
+    form.querySelector('[name=process_number]').value = numeroInicial;
+    // Justiça do Trabalho (segmento 5 do número CNJ) → área trabalhista.
+    if (String(numeroInicial).replace(/\D/g, '').charAt(13) === '5') form.querySelector('[name=judicial_area]').value = 'trabalhista';
+  }
   openModal('Monitorar processo', form);
 }
 

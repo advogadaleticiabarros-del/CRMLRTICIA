@@ -5,6 +5,7 @@ import { encrypt, decryptFields } from '../utils/crypto';
 import { sendText, avisarFalhaEnvioWhatsapp } from './uazapiInstance';
 import { aiComplete } from './aiAssistant';
 import { limparTextoJudicial } from './textCleanup';
+import { ehEmailPush, lerMovimentosDoPush } from './pushTribunal';
 
 /**
  * Item 7 do plano — "Plano B" do monitoramento processual: se uma
@@ -171,6 +172,30 @@ ${teor}`;
 
 export interface CandidateEmail {
   gmailMessageId: string; fromEmail: string; subject: string; body: string; date: string | null;
+  /** Corpo HTML original (o Push do PJe traz a tabela de movimentos aqui). */
+  html?: string;
+}
+
+/** Corpo HTML bruto da mensagem (sem tirar as tags), se houver. */
+function extractHtml(payload: any): string {
+  if (!payload) return '';
+  if (payload.mimeType === 'text/html' && payload.body?.data) return decodeB64(payload.body.data);
+  for (const p of payload.parts || []) {
+    const t = extractHtml(p);
+    if (t) return t;
+  }
+  return '';
+}
+
+/** Corpo em texto puro original (com as quebras de linha), se houver. */
+function extractPlain(payload: any): string {
+  if (!payload) return '';
+  if (payload.mimeType === 'text/plain' && payload.body?.data) return decodeB64(payload.body.data);
+  for (const p of payload.parts || []) {
+    const t = extractPlain(p);
+    if (t) return t;
+  }
+  return '';
 }
 
 /**
@@ -219,7 +244,8 @@ export async function fetchCourtEmailCandidates(opts?: {
         const subject = headers.find((h) => h.name?.toLowerCase() === 'subject')?.value || '';
         const date = headers.find((h) => h.name?.toLowerCase() === 'date')?.value || null;
         const body = extractBody(full.data.payload) || full.data.snippet || '';
-        out.push({ gmailMessageId: m.id, fromEmail: from, subject, body, date });
+        const html = extractHtml(full.data.payload) || extractPlain(full.data.payload) || undefined;
+        out.push({ gmailMessageId: m.id, fromEmail: from, subject, body, date, html });
       } catch { /* um e-mail com erro não trava a varredura dos demais */ }
       if (out.length >= cap) break;
     }
@@ -229,7 +255,9 @@ export async function fetchCourtEmailCandidates(opts?: {
   return out;
 }
 
-async function fetchCandidateEmails(maxResults = 30): Promise<CandidateEmail[]> {
+// 60 por rodada (eram 30): o Push do TRT17 manda um e-mail por processo
+// atualizado, e o Push não passa pela IA (é rápido).
+async function fetchCandidateEmails(maxResults = 60): Promise<CandidateEmail[]> {
   return fetchCourtEmailCandidates({
     maxResults,
     // já varrido nesta ou em rodada anterior — idempotência do scan recorrente
@@ -281,7 +309,9 @@ export async function runCourtEmailScan(): Promise<ScanResult> {
     // pro texto que vai pro resumo/WhatsApp abaixo.
     const corpoLimpo = limparTextoJudicial(msg.body);
     const texto = `${msg.subject}\n${corpoLimpo}`;
-    const processNumber = extractProcessNumberFromText(texto);
+    const push = ehEmailPush(msg.fromEmail, msg.subject);
+    // No Push o número certo está no assunto (o corpo pode citar outros).
+    const processNumber = (push && extractProcessNumberFromText(msg.subject)) || extractProcessNumberFromText(texto);
     if (!processNumber) {
       semProcesso++;
       await logScan(msg, 'sem_processo_identificado', 'Regex CNJ não encontrou número de processo no e-mail', null, null);
@@ -294,8 +324,47 @@ export async function runCourtEmailScan(): Promise<ScanResult> {
     if (!proc) {
       // Processo mencionado no e-mail não está cadastrado no CRM — não dá
       // pra registrar movimentação sem um legal_processes.id (FK). Só loga.
-      await logScan(msg, 'sem_processo_identificado', `Processo ${processNumber} não está cadastrado no CRM`, processNumber, null);
+      // O Push só chega de processo em que a Dra. atua: esses ficam listados em
+      // "Processos que chegam por e-mail e não estão no CRM" (processosSemCadastro).
+      await logScan(msg, 'sem_processo_identificado', `Processo ${processNumber} não está cadastrado no CRM${push ? ` (Push ${push.tribunal})` : ''}`, processNumber, null);
       semProcesso++;
+      continue;
+    }
+
+    // Push do PJe (TRT17 e outros): cada linha da tabela vira um movimento,
+    // com a data e o texto do tribunal, sem resumo de IA. Formato não
+    // reconhecido → segue o caminho antigo abaixo.
+    const movsPush = push ? lerMovimentosDoPush(msg.html || msg.body) : [];
+    if (push && movsPush.length) {
+      const { registrarMovimentoDoPush, buscarNomeCliente } = await import('./monitoringService');
+      const entraram: string[] = [];
+      let repetidos = 0;
+      for (const mv of movsPush) {
+        const r = await registrarMovimentoDoPush(proc.id, proc.process_number, proc.client_id ?? null, { ...mv, tribunal: push.tribunal });
+        if (r.novo) entraram.push(mv.texto);
+        else repetidos++;
+      }
+      if (!entraram.length) {
+        jaCapturados++;
+        await logScan(msg, 'ja_capturado_djen', `Push ${push.tribunal}: ${movsPush.length} movimento(s), todos já no CRM`, processNumber, proc.id);
+        continue;
+      }
+      novos++;
+      await logScan(msg, 'movimentacao_registrada', `Push ${push.tribunal}: ${entraram.length} novo(s), ${repetidos} já no CRM`, processNumber, proc.id);
+      const clienteNome = await buscarNomeCliente(proc.client_id ?? null);
+      const linhas = entraram.slice(0, 5).map((t) => `• ${t.replace(/\s+/g, ' ').slice(0, 160)}`);
+      if (entraram.length > 5) linhas.push(`• … e mais ${entraram.length - 5}`);
+      const aviso = [
+        `📧 ${push.tribunal} — andamento novo (aviso Push por e-mail)`,
+        '',
+        `Processo: ${proc.process_number}`,
+        clienteNome ? `Cliente: ${clienteNome}` : 'Processo ainda não vinculado a um cliente no CRM — confira em Processos.',
+        ...linhas,
+      ].join('\n');
+      for (const num of ESCRITORIO_WHATSAPP_NUMEROS) {
+        const ok = await sendText(num, aviso).catch(() => false);
+        if (!ok) await avisarFalhaEnvioWhatsapp('email_judicial', num);
+      }
       continue;
     }
 
@@ -358,4 +427,37 @@ export async function runCourtEmailScan(): Promise<ScanResult> {
   );
 
   return { verificados: emails.length, novos, jaCapturadosPeloDjen: jaCapturados, semProcessoIdentificado: semProcesso };
+}
+
+export interface ProcessoSemCadastro {
+  process_number: string; tribunal: string; emails: number; ultimo_em: string | Date; via_push: boolean;
+}
+
+/**
+ * Processos que chegam pelos e-mails dos tribunais (sobretudo o Push do
+ * TRT17, que só manda processo em que a Dra. atua) e ainda não estão no CRM.
+ * Antes eram só descartados no log. Some da lista quando o processo é
+ * cadastrado (a conferência é pelos dígitos do número).
+ */
+export async function processosSemCadastroPorEmail(): Promise<ProcessoSemCadastro[]> {
+  const { sistemaDoProcesso } = await import('./termometroCasos');
+  const [rows] = await db.query(
+    `SELECT m.process_number, COUNT(*) AS emails, MAX(m.created_at) AS ultimo_em,
+            MAX(m.detail LIKE '%(Push %') AS via_push
+       FROM court_email_messages m
+      WHERE m.status = 'sem_processo_identificado' AND m.process_number IS NOT NULL
+        AND m.detail LIKE '%não está cadastrado%'
+        AND NOT EXISTS (SELECT 1 FROM legal_processes lp
+                         WHERE REGEXP_REPLACE(lp.process_number, '[^0-9]', '') = REGEXP_REPLACE(m.process_number, '[^0-9]', ''))
+      GROUP BY m.process_number
+      ORDER BY ultimo_em DESC
+      LIMIT 200`
+  ) as any;
+  return (rows as any[]).map((r) => ({
+    process_number: r.process_number,
+    tribunal: sistemaDoProcesso(r.process_number).nome,
+    emails: Number(r.emails),
+    ultimo_em: r.ultimo_em,
+    via_push: !!Number(r.via_push) || /\.5\.17\./.test(String(r.process_number)),
+  }));
 }

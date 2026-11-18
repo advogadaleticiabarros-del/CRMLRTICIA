@@ -61,7 +61,7 @@ function situacaoLogin(s: SistemaProcesso, ligados: Set<string>): SituacaoLogin 
 const MOTIVO: Record<SituacaoLogin, string> = {
   ligado: 'Login salvo e funcionando no CRM.',
   falta_login: 'Falta salvar o login em Configurações → Ligação com os tribunais.',
-  credenciamento: 'O TRT17 só libera depois de pedido de credenciamento ao tribunal.',
+  credenciamento: 'TRT17: acompanhado pelo aviso Push por e-mail, pelo DJEN e pelo DataJud. A ligação direta (MNI) depende do credenciamento pedido ao tribunal.',
   sem_ligacao: 'Sem ligação direta: o CRM acompanha pelo DJEN e pelo DataJud.',
 };
 

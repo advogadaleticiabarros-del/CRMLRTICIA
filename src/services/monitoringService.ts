@@ -885,6 +885,44 @@ export async function registrarMovimentacaoDeEmail(
   return { novo: novas > 0, jaCapturadoPeloDjen: false };
 }
 
+/**
+ * Um movimento lido do e-mail Push do PJe (pushTribunal.ts), já com data e
+ * texto do próprio tribunal. Diferente de registrarMovimentacaoDeEmail, a
+ * conferência com as outras fontes é pelo DIA e pelo texto (um e-mail Push
+ * traz vários movimentos; a janela de ±3 dias descartaria movimentos novos
+ * só porque o DataJud trouxe outro na mesma semana).
+ */
+export async function registrarMovimentoDoPush(
+  processId: number, processNumber: string, clientId: number | null,
+  m: { data: string | null; texto: string; tribunal: string }
+): Promise<{ novo: boolean; jaCapturado: boolean }> {
+  const dia = toDate(m.data);
+  const texto = m.texto.slice(0, 500);
+  if (dia) {
+    const [r] = await db.query(
+      `SELECT id FROM process_movements
+        WHERE process_id = ? AND source != 'email_monitoramento' AND DATE(movement_date) = DATE(?)
+          AND (LOWER(title) = LOWER(?) OR LOWER(description) LIKE CONCAT('%', LOWER(?), '%'))
+        LIMIT 1`,
+      [processId, dia, texto, texto.slice(0, 80)]
+    ) as any;
+    if (r.length) return { novo: false, jaCapturado: true };
+  }
+  const novas = await saveMovements(processId, processNumber, [{
+    movement_date: m.data, title: texto, description: m.texto,
+    movement_type: 'movimentacao', metadata: { push: m.tribunal },
+  }], 'email_monitoramento', clientId);
+  if (novas > 0) {
+    await db.query(
+      'UPDATE legal_processes SET last_movement_at = (SELECT MAX(movement_date) FROM process_movements WHERE process_id = ?) WHERE id = ?',
+      [processId, processId]
+    );
+    await recomputeSuggestedPhase(processId);
+    await logMonitor(processId, null, 'nova_movimentacao', 'email_monitoramento', `Movimento do Push do ${m.tribunal} (e-mail)`);
+  }
+  return { novo: novas > 0, jaCapturado: false };
+}
+
 async function jaVeioPeloTribunal(processId: number, data: string | null, titulo: string | null | undefined): Promise<boolean> {
   const d = toDate(data);
   if (!d || !titulo) return false;

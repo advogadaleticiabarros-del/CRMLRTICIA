@@ -340,6 +340,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Motivo:** havia 104 prazos detectados parados em "a confirmar" e só 1 prazo registrado: o gargalo era a confirmação manual. Data errada vinda da IA ou baixa errada de um prazo fazem perder o prazo; prazo a mais só custa um clique.
 **Alternativa considerada:** deixar a IA calcular a data (rejeitada: ela erra feriado, rito e contagem) e dar baixa sempre que houver "Juntada de petição" depois da intimação (rejeitada: pode ser da outra parte).
 
+### 18/11/2026 — TRT17 pelo Push por e-mail, sem forçar o MNI
+**Decisão:** sem o credenciamento, o TRT17 entra pelo Push do PJe (e-mail que o tribunal manda à advogada), lido em código linha a linha da tabela, mais DJEN e DataJud. O 403 do MNI não é contornado. Processo do Push que não está no CRM vai para uma lista de cadastro e não é cadastrado sozinho.
+**Motivo:** é a via que o próprio tribunal oferece sem pedido. Contornar o bloqueio do MNI (outro IP, raspagem do PJe com captcha) violaria a regra do tribunal e quebraria sem aviso. Cadastrar sozinho criaria processo sem cliente e sem conferência.
+**Alternativa considerada:** robô no PJe-JT com o login da Dra. pelo computador do escritório (rejeitado por agora: o login gov.br/PDPJ pede código no celular e a tela muda sem aviso); resumir o e-mail pela IA (era o caminho antigo, que perdia os movimentos de um mesmo e-mail).
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.
@@ -356,6 +361,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | TRT17 pelo Push por e-mail, sem forçar o MNI |
 | 18/11/2026 | Claude | TJES pelo computador do escritório (ponte), sem drible do bloqueio |
 | 18/11/2026 | Claude | Agente de prazos: IA interpreta, código conta, cumprido só com prova |
 | 18/11/2026 | Claude | Termômetro sem troca automática de fase; ficha pelo tribunal só com nome exato; fusão de processos repetidos |
