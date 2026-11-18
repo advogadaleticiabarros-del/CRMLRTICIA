@@ -14,7 +14,11 @@
  * eproc da JFES, a partir de um esqueleto sem dados pessoais.
  */
 
-export interface CredencialMni { cpf: string; senha: string }
+export interface CredencialMni {
+  cpf: string; senha: string;
+  /** Chave do autenticador (TOTP), só no login do site do PJe-JT (TRT17). */
+  totp?: string | null;
+}
 
 export interface AvisoMni {
   idAviso: string;

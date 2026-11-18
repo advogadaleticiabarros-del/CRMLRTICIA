@@ -358,6 +358,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Motivo:** a Dra. pediu "o login direto exatamente igual fizemos TJES" depois de ouvir os riscos. O MNI do TRT17 responde 403 a qualquer rede (não é bloqueio de IP como no TJES), então o único login direto sem credenciamento é o do site. Ler por JSON (as mesmas chamadas que a tela do site faz) é mais estável que copiar HTML e não precisa de navegador no escritório.
 **Alternativa considerada:** só o Push por e-mail (decisão anterior do mesmo dia, mantida como fonte extra); navegador automatizado (Playwright) no escritório (rejeitado: mais pesado e frágil, e o login nacional é um formulário simples); credenciamento no MNI (continua recomendado; quando sair, troca-se o sistema `trt17_*` por MNI).
 
+### 18/11/2026 — CRM gera o código do autenticador do TRT17 (guarda a chave do 2º fator)
+**Decisão:** o login nacional do PJe da Dra. pede o código do autenticador. A pedido dela, o CRM guarda a chave do autenticador (criptografada, como a senha) e gera o código sozinho a cada login (TOTP, RFC 6238).
+**Motivo:** o robô precisa entrar sozinho 4 vezes por dia; pedir o código a uma pessoa a cada sessão vencida deixaria o TRT17 parado sempre que ninguém respondesse.
+**Alternativa considerada:** digitar o código na hora e manter a sessão aberta (oferecida como mais segura: o CRM nunca guardaria o segundo fator). A Dra. escolheu a automática sabendo que, com a chave e a senha juntas no CRM, quem invadir o CRM entra no PJe dela.
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.
@@ -375,6 +380,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | Data | Autor | Mudança |
 |---|---|---|
 | 18/11/2026 | Claude | Temperatura por regra sobre as decisões; partes do tribunal em tabela própria; DataJud com cota por rodada |
+| 18/11/2026 | Claude | CRM gera o código do autenticador do TRT17 |
 | 18/11/2026 | Claude | TRT17 pelo site do PJe-JT com o login da Dra. (robô) |
 | 18/11/2026 | Claude | TRT17 pelo Push por e-mail, sem forçar o MNI |
 | 18/11/2026 | Claude | TJES pelo computador do escritório (ponte), sem drible do bloqueio |

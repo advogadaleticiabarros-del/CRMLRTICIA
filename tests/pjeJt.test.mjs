@@ -7,6 +7,10 @@ import assert from 'node:assert/strict';
 import { criarClientePjeJt, dataPjeParaIso } from '../dist/services/pjeJt/clientePjeJt.js';
 import { criarNavegador } from '../dist/services/pjeJt/navegador.js';
 import { ErroLoginMni, ErroRespostaMni } from '../dist/services/mni/cliente.js';
+import { codigoTotp } from '../dist/services/pjeJt/totp.js';
+
+const CHAVE_TOTP = 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ';
+const AGORA = 1_234_567_890_000;
 
 const CRED = { cpf: '00000000191', senha: 'senha-certa' };
 const NUM = '0000004-44.2026.5.17.0001';
@@ -37,11 +41,23 @@ function siteFalso(opts = {}) {
     if (u.host === 'sso.cloud.pje.jus.br' && u.pathname.endsWith('/openid-connect/auth')) {
       return { status: 200, corpo: formLogin(), cabecalhos: { 'set-cookie': ['AUTH_SESSION_ID=abc; Path=/auth/realms/pje/; Secure; HttpOnly'] } };
     }
+    if (u.host === 'sso.cloud.pje.jus.br' && u.pathname.endsWith('/login-actions/authenticate') && u.searchParams.get('execution') === 'otp') {
+      const f = new URLSearchParams(p.corpo);
+      log.otp = f.get('otp'); log.dispositivo = f.get('selectedCredentialId');
+      if (f.get('otp') !== codigoTotp(CHAVE_TOTP, AGORA)) {
+        return { status: 200, corpo: '<span id="input-error">Código inválido.</span><form id="kc-otp-login-form" action="x"><input name="otp"></form>', cabecalhos: {} };
+      }
+      return { status: 302, corpo: '', cabecalhos: { location: `${PJE}/${grau}/authenticateSSO.seam?state=s1&code=c1` } };
+    }
     if (u.host === 'sso.cloud.pje.jus.br' && u.pathname.endsWith('/login-actions/authenticate')) {
       assert.equal(p.metodo, 'POST');
       assert.match(ck, /AUTH_SESSION_ID=abc/, 'a sessão do login nacional volta no envio');
       const f = new URLSearchParams(p.corpo);
-      if (opts.pedeOtp) return { status: 200, corpo: '<form id="kc-otp-login-form"><input id="otp" name="otp"></form>', cabecalhos: {} };
+      if (opts.pedeOtp) {
+        return { status: 200, corpo: `<form id="kc-otp-login-form" action="${KC}/login-actions/authenticate?session_code=sc2&amp;execution=otp" method="post">
+          <input type="radio" name="selectedCredentialId" value="cel" checked><input type="radio" name="selectedCredentialId" value="outro">
+          <input id="otp" name="otp" autocomplete="off" type="text"><input name="login" type="submit" value="Entrar"></form>`, cabecalhos: {} };
+      }
       if (f.get('username') !== CRED.cpf || f.get('password') !== CRED.senha) {
         return { status: 200, corpo: formLogin('<span id="input-error" class="kc-feedback-text">Usuário ou senha inválidos.</span>'), cabecalhos: {} };
       }
@@ -128,10 +144,26 @@ test('senha errada vira login recusado (o CRM para de tentar)', async () => {
   assert.equal(posts(log), 1, 'uma tentativa só');
 });
 
-test('pedido de código de verificação (2 fatores) também para o robô, com explicação', async () => {
+test('pedido de código (2 fatores) sem a chave do autenticador: para e explica onde cadastrar', async () => {
   const { http } = siteFalso({ pedeOtp: true });
   const cli = criarClientePjeJt({ grau: 'primeirograu', http });
-  await assert.rejects(cli.avisosPendentes(CRED), (e) => e instanceof ErroLoginMni && /código/i.test(e.message));
+  await assert.rejects(cli.avisosPendentes(CRED), (e) => e instanceof ErroLoginMni && /chave do autenticador/i.test(e.message));
+});
+
+test('com a chave do autenticador, o robô gera o código e entra (dispositivo marcado na tela)', async () => {
+  const { http, log } = siteFalso({ pedeOtp: true });
+  const cli = criarClientePjeJt({ grau: 'primeirograu', http, agora: () => AGORA });
+  const avisos = await cli.avisosPendentes({ ...CRED, totp: CHAVE_TOTP });
+  assert.equal(avisos.length, 1);
+  assert.equal(log.otp, '005924');
+  assert.equal(log.dispositivo, 'cel');
+});
+
+test('código recusado vira login recusado (não fica tentando)', async () => {
+  const { http, log } = siteFalso({ pedeOtp: true });
+  const cli = criarClientePjeJt({ grau: 'primeirograu', http, agora: () => AGORA + 3_600_000 });
+  await assert.rejects(cli.avisosPendentes({ ...CRED, totp: CHAVE_TOTP }), (e) => e instanceof ErroLoginMni && /código/i.test(e.message));
+  assert.equal(posts(log), 2, 'senha + um código, nada mais');
 });
 
 test('login aceito mas sem a chave de acesso do site → erro claro (formato do site mudou)', async () => {

@@ -156,7 +156,7 @@ export async function rodarMonitoramentoMni(deps: DepsMonitorMni): Promise<{ sis
   for (const c of creds) {
     const sistema = SISTEMAS_MNI.find((s) => s.id === c.sistema);
     if (!sistema) continue;
-    sistemas.push(await rodarSistema(sistema, { cpf: c.cpf, senha: c.senha }, processos, deps));
+    sistemas.push(await rodarSistema(sistema, { cpf: c.cpf, senha: c.senha, totp: c.totp ?? null }, processos, deps));
   }
   return { sistemas };
 }

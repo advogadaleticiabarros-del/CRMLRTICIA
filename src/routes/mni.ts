@@ -4,7 +4,7 @@ import { sistemaPorId } from '../services/mni/sistemas';
 
 /**
  * Ligação oficial com os tribunais (MNI). Só administrador (ver app.ts).
- * CPF e senha entram por aqui e NUNCA saem: as respostas não trazem nenhum dos dois.
+ * CPF, senha e chave do autenticador entram por aqui e NUNCA saem: as respostas não trazem nenhum deles.
  */
 const router = Router();
 
@@ -14,8 +14,8 @@ router.get('/sistemas', async (_req: Request, res: Response) => {
 
 router.put('/sistemas/:id', async (req: Request, res: Response) => {
   if (!sistemaPorId(req.params.id)) { res.status(404).json({ error: 'Sistema desconhecido' }); return; }
-  const { cpf, senha } = req.body || {};
-  const r = await salvarCredencial(req.params.id, String(cpf || ''), String(senha || ''), req.user?.id ?? null);
+  const { cpf, senha, chave_autenticador } = req.body || {};
+  const r = await salvarCredencial(req.params.id, String(cpf || ''), String(senha || ''), req.user?.id ?? null, chave_autenticador ? String(chave_autenticador) : undefined);
   res.status(r.ok ? 200 : 400).json(r.ok ? r : { ...r, error: r.mensagem });
 });
 

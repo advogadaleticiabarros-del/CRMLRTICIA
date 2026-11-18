@@ -36,3 +36,8 @@ Jessica: "não quero monitorar pelo email - quero fazer o login direto exatament
 
 ## Próxima sessão
 Depois que a Dra. salvar o login: ver `mni_credenciais` (ultimo_ok_em/ultimo_erro de `trt17_pje1g`) e o resumo do `monitoramento:tribunais-mni`; se falhar por formato, rodar o cliente com `diagnostico()` (só nomes de campos) e ajustar `clientePjeJt.ts`.
+
+## Atualização (mesmo dia): código do autenticador
+- 1ª tentativa da equipe: "Usuário ou senha inválido" (o robô enviou o formulário igual ao navegador; conferido que a página não transforma os campos). 2ª tentativa: senha aceita e o TRT17 pediu o **código do autenticador** (a conta tem 2 fatores). O robô parou, como previsto.
+- Jessica escolheu que o **CRM gere o código sozinho** (alternativa mais segura, digitar o código na hora, foi oferecida). Feito: `src/services/pjeJt/totp.ts` (RFC 6238, testado com os vetores oficiais), campo "Chave do autenticador" na tela do TRT17, `mni_credenciais.totp_enc` criptografado (migration 186), passo do código no login (`kc-otp-login-form`; código recusado = login recusado, sem repetir).
+- **Pendente (Dra.):** configurar o autenticador de novo na conta PDPJ, ler o QR com o celular e colar a chave em texto no CRM, junto com CPF e senha, e "Testar e salvar" com o computador do escritório ligado.

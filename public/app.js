@@ -4987,6 +4987,8 @@ async function loadMniPanel() {
             <label>CPF<input name="cpf" inputmode="numeric" autocomplete="off" placeholder="só números" maxlength="14" required /></label>
             <label>Senha deste sistema<input name="senha" type="password" autocomplete="new-password" required /></label>
           </div>
+          ${s.pelo_site ? `<label style="display:block;margin-top:8px">Chave do autenticador (2 fatores)<input name="chave" type="password" autocomplete="off" spellcheck="false" placeholder="texto longo que aparece junto do QR code" /></label>
+          <p class="sub" style="font-size:12px;margin:4px 0">Não é o código de 6 dígitos: é a chave do QR code. Para obter, na conta do PJe (PDPJ) configure o autenticador de novo e, na tela do QR code, peça para ver a chave em texto. Leia o QR com o celular <strong>e</strong> cole a chave aqui: os dois geram o mesmo código. Fica guardada criptografada; com ela o CRM entra sozinho.</p>` : ''}
           ${s.pelo_site
             ? '<p class="sub" style="font-size:12px;margin:6px 0">Mesmo CPF e senha do site do PJe do TRT17 (login da plataforma nacional, PDPJ). O robô entra no site como a Dra. e só lê: não abre intimação, não assina e não envia nada. Se o site pedir código no celular, ele para e avisa. Confira antes: o teste conta como uma tentativa de login.</p>'
             : '<p class="sub" style="font-size:12px;margin:6px 0">Cada sistema tem a sua senha (a do 1º grau pode não servir no 2º grau). Confira antes: o teste conta como uma tentativa de login.</p>'}
@@ -5033,12 +5035,13 @@ async function loadMniPanel() {
       const b = form.querySelector('button[type=submit]');
       b.disabled = true; b.textContent = 'Testando no tribunal...';
       try {
-        const r = await api(`/api/mni/sistemas/${id}`, { method: 'PUT', body: JSON.stringify({ cpf: form.cpf.value, senha: form.senha.value }) });
+        const r = await api(`/api/mni/sistemas/${id}`, { method: 'PUT', body: JSON.stringify({ cpf: form.cpf.value, senha: form.senha.value, chave_autenticador: form.chave ? form.chave.value : undefined }) });
         form.reset();
         toast(r.mensagem || 'Login salvo');
         loadMniPanel();
       } catch (e) {
         form.senha.value = '';
+        if (form.chave) form.chave.value = '';
         toast(e.message, 'error');
         b.disabled = false; b.textContent = 'Testar e salvar';
       }

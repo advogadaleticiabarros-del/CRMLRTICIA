@@ -22,6 +22,7 @@
  */
 import { AvisoMni, ClienteMni, CredencialMni, ErroLoginMni, ErroRespostaMni, MovimentoMni, ProcessoMni } from '../mni/cliente';
 import { Http, Navegador, criarNavegador } from './navegador';
+import { codigoTotp } from './totp';
 
 export const BASE_TRT17 = 'https://pje.trt17.jus.br';
 const API = `${BASE_TRT17}/pje-comum-api/api`;
@@ -54,8 +55,8 @@ function textoDoErro(html: string): string | null {
   return m ? m[1].replace(/\s+/g, ' ').trim() : null;
 }
 
-function lerFormulario(html: string): { acao: string; campos: Record<string, string> } | null {
-  const f = html.match(/<form[^>]*id="kc-form-login"[^>]*>[\s\S]*?<\/form>/i);
+function lerFormulario(html: string, id = 'kc-form-login'): { acao: string; campos: Record<string, string> } | null {
+  const f = html.match(new RegExp(`<form[^>]*id="${id}"[^>]*>[\\s\\S]*?</form>`, 'i'));
   if (!f) return null;
   const acao = f[0].match(/action="([^"]+)"/i);
   if (!acao) return null;
@@ -63,6 +64,8 @@ function lerFormulario(html: string): { acao: string; campos: Record<string, str
   for (const inp of f[0].match(/<input[^>]*>/gi) || []) {
     const nome = inp.match(/name="([^"]+)"/i)?.[1];
     if (!nome || /type="submit"/i.test(inp)) continue;
+    // Botão de opção (ex.: qual autenticador): só o marcado na tela.
+    if (/type="radio"/i.test(inp)) { if (/\schecked/i.test(inp)) campos[nome] = inp.match(/value="([^"]*)"/i)?.[1] ?? ''; else if (!(nome in campos)) campos[nome] = inp.match(/value="([^"]*)"/i)?.[1] ?? ''; continue; }
     campos[nome] = inp.match(/value="([^"]*)"/i)?.[1] ?? '';
   }
   return { acao: acao[1].replace(/&amp;/g, '&'), campos };
@@ -80,7 +83,10 @@ function idDoUsuario(jwt: string): number | null {
 
 const linhas = (r: any): any[] => (Array.isArray(r) ? r : Array.isArray(r?.resultado) ? r.resultado : []);
 
-export function criarClientePjeJt(opts: { grau: 'primeirograu' | 'segundograu'; http: Http }): ClientePjeJt {
+const pedeCodigo = (html: string) => /kc-otp-login-form|name="(otp|totp)"/i.test(html);
+
+export function criarClientePjeJt(opts: { grau: 'primeirograu' | 'segundograu'; http: Http; agora?: () => number }): ClientePjeJt {
+  const agora = opts.agora ?? (() => Date.now());
   let nav: Navegador | null = null;
   let usuario: number | null = null;
   let logado: string | null = null; // CPF da sessão aberta
@@ -95,13 +101,27 @@ export function criarClientePjeJt(opts: { grau: 'primeirograu' | 'segundograu'; 
     const form = lerFormulario(inicio.corpo);
     if (!form) throw new ErroRespostaMni(`O site do TRT17 não mostrou a tela de login esperada (HTTP ${inicio.status}). O site pode ter mudado.`);
     const campos = { ...form.campos, username: cred.cpf, password: cred.senha };
-    const fim = await nav.ir(form.acao, {
+    const depoisDaSenha = await nav.ir(form.acao, {
       metodo: 'POST',
       corpo: new URLSearchParams(campos).toString(),
       cabecalhos: { 'Content-Type': 'application/x-www-form-urlencoded' },
     });
-    if (/name="(otp|totp)"|kc-otp-login-form/i.test(fim.corpo)) {
-      throw new ErroLoginMni('o login do TRT17 pediu um código de verificação (2 fatores). O robô não consegue digitar esse código; o CRM parou de tentar.');
+    let fim = depoisDaSenha;
+    if (pedeCodigo(fim.corpo)) {
+      if (!cred.totp) {
+        throw new ErroLoginMni('o login do TRT17 pediu o código do autenticador (2 fatores). Cadastre também a "chave do autenticador" nesta tela para o CRM gerar o código; o CRM parou de tentar.');
+      }
+      const formOtp = lerFormulario(fim.corpo, 'kc-otp-login-form');
+      if (!formOtp) throw new ErroRespostaMni('O TRT17 pediu o código, mas a tela do código não veio no formato esperado. O site pode ter mudado.');
+      fim = await nav.ir(formOtp.acao, {
+        metodo: 'POST',
+        corpo: new URLSearchParams({ ...formOtp.campos, otp: codigoTotp(cred.totp, agora()) }).toString(),
+        cabecalhos: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      });
+      if (pedeCodigo(fim.corpo)) {
+        const erro = textoDoErro(fim.corpo);
+        throw new ErroLoginMni(`o TRT17 recusou o código do autenticador${erro ? ` (${erro})` : ''}. Confira a chave cadastrada; o CRM parou de tentar.`);
+      }
     }
     if (new URL(fim.url).hostname !== new URL(BASE_TRT17).hostname) {
       const erro = textoDoErro(fim.corpo);

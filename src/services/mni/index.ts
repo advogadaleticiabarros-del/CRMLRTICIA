@@ -12,6 +12,7 @@ import { encrypt, decrypt } from '../../utils/crypto';
 import { notificationService } from '../NotificationService';
 import { ClienteMni, criarClienteMni } from './cliente';
 import { criarClientePjeJt } from '../pjeJt/clientePjeJt';
+import { chaveTotpValida, normalizarChaveTotp } from '../pjeJt/totp';
 import { criarNomesMovimento } from './nomesMovimento';
 import { DepsMonitorMni, rodarMonitoramentoMni, testarLogin } from './monitorMni';
 import { SISTEMAS_MNI, SistemaMni, sistemaPorId } from './sistemas';
@@ -41,9 +42,9 @@ async function avisarAdmins(titulo: string, mensagem: string): Promise<void> {
 function depsDeProducao(): DepsMonitorMni {
   return {
     async credenciaisAtivas() {
-      const [rows] = await db.query('SELECT sistema, cpf_enc, senha_enc FROM mni_credenciais WHERE ativo = 1') as any;
+      const [rows] = await db.query('SELECT sistema, cpf_enc, senha_enc, totp_enc FROM mni_credenciais WHERE ativo = 1') as any;
       return rows
-        .map((r: any) => ({ sistema: r.sistema, cpf: decrypt(r.cpf_enc) || '', senha: decrypt(r.senha_enc) || '' }))
+        .map((r: any) => ({ sistema: r.sistema, cpf: decrypt(r.cpf_enc) || '', senha: decrypt(r.senha_enc) || '', totp: r.totp_enc ? decrypt(r.totp_enc) : null }))
         .filter((c: any) => c.cpf && c.senha);
     },
     cliente: (s) => clienteDo(s),
@@ -284,13 +285,21 @@ export async function statusDosSistemas() {
 }
 
 /** Testa o login (uma tentativa) e só guarda se o tribunal aceitar. */
-export async function salvarCredencial(sistemaId: string, cpf: string, senha: string, userId: number | null) {
+export async function salvarCredencial(sistemaId: string, cpf: string, senha: string, userId: number | null, chaveAutenticador?: string) {
   const s = sistemaPorId(sistemaId);
   if (!s) return { ok: false, mensagem: 'Sistema desconhecido.' };
   const cpfDig = String(cpf || '').replace(/\D/g, '');
   if (cpfDig.length !== 11) return { ok: false, mensagem: 'CPF deve ter 11 números.' };
   if (!senha) return { ok: false, mensagem: 'Informe a senha.' };
-  const t = await testarLogin(clienteDo(s, 60_000), { cpf: cpfDig, senha });
+  let totp: string | null = null;
+  if (chaveAutenticador && chaveAutenticador.trim()) {
+    if (!s.pjeJt) return { ok: false, mensagem: 'Este sistema não usa chave do autenticador.' };
+    if (!chaveTotpValida(chaveAutenticador)) {
+      return { ok: false, mensagem: 'A chave do autenticador não parece certa: é o texto longo de letras e números que aparece junto do QR code (não o código de 6 dígitos). Nada foi salvo.' };
+    }
+    totp = normalizarChaveTotp(chaveAutenticador);
+  }
+  const t = await testarLogin(clienteDo(s, 60_000), { cpf: cpfDig, senha, totp });
   if (!t.ok) {
     return {
       ok: false,
@@ -300,11 +309,11 @@ export async function salvarCredencial(sistemaId: string, cpf: string, senha: st
     };
   }
   await db.query(
-    `INSERT INTO mni_credenciais (sistema, cpf_enc, senha_enc, ativo, ultimo_ok_em, ultimo_erro, avisos_pendentes, atualizado_por)
-     VALUES (?, ?, ?, 1, NOW(), NULL, ?, ?)
-     ON DUPLICATE KEY UPDATE cpf_enc = VALUES(cpf_enc), senha_enc = VALUES(senha_enc), ativo = 1, ultimo_ok_em = NOW(),
+    `INSERT INTO mni_credenciais (sistema, cpf_enc, senha_enc, totp_enc, ativo, ultimo_ok_em, ultimo_erro, avisos_pendentes, atualizado_por)
+     VALUES (?, ?, ?, ?, 1, NOW(), NULL, ?, ?)
+     ON DUPLICATE KEY UPDATE cpf_enc = VALUES(cpf_enc), senha_enc = VALUES(senha_enc), totp_enc = VALUES(totp_enc), ativo = 1, ultimo_ok_em = NOW(),
        ultimo_erro = NULL, ultimo_erro_em = NULL, avisos_pendentes = VALUES(avisos_pendentes), atualizado_por = VALUES(atualizado_por)`,
-    [s.id, encrypt(cpfDig), encrypt(senha), t.avisos ?? 0, userId]
+    [s.id, encrypt(cpfDig), encrypt(senha), totp ? encrypt(totp) : null, t.avisos ?? 0, userId]
   );
   return { ok: true, avisos: t.avisos ?? 0, mensagem: `Login aceito. ${t.avisos ?? 0} intimação(ões) pendente(s) agora.` };
 }
