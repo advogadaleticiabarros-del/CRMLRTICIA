@@ -320,6 +320,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Motivo:** a Dra. pediu melhora "sem custo". As APIs de captura (JUDIT, Escavador, Codilo) cobram por processo. Abrir a intimação pelo sistema pode registrar a ciência e começar o prazo sem ela decidir; insistir com senha errada pode bloquear a conta no tribunal (o TRE-ES avisa isso).
 **Alternativa considerada:** contratar API de captura (custo mensal, decisão dela) ou raspar a consulta pública (captcha, frágil). Ficam como opção para tribunais sem MNI liberado (TRT17 exige credenciamento).
 
+### 17/11/2026 — Central de andamentos com situação da equipe; ação nova pelo navegador; audiência só com hora
+**Decisão:** (1) "lida" e "tratada" são da equipe, gravadas na própria movimentação (não por usuário): a pergunta do escritório é "alguém já cuidou disso?". (2) A busca de ação nova pelo nome do cliente roda no navegador, uma vez por dia, como a busca por OAB, e só guarda nome EXATO em processo desconhecido; a equipe confirma ou descarta. (3) Audiência só vai para a agenda com data e hora no texto e no futuro.
+**Motivo:** (1) evita trabalho em dobro entre a Dra. e a Jessica. (2) O DJEN bloqueia o IP do servidor; nome parecido gera homônimo demais, e cadastro automático de processo errado polui a carteira. (3) Hora inventada na agenda é pior que nenhuma.
+**Alternativa considerada:** leitura por usuário (cada um com a sua caixa) e busca por CPF (só em API paga). Ficam para depois se a equipe pedir.
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.
@@ -336,6 +341,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 17/11/2026 | Claude | Central de andamentos, ação nova pelo navegador e audiência só com hora |
 | 17/11/2026 | Claude | MNI direto do tribunal, gratuito e só leitura |
 | 16/11/2026 | Claude | Dativo no A Receber só a partir da lista da Sefaz e sem data: antes disso o Estado ainda pode negar e não há previsão de caixa. Sem data, o item seria escondido pelo filtro do mês; por isso "disponível" fura o filtro de período enquanto estiver em aberto (acumulado), em vez de inventar um vencimento |
 | 13/11/2026 | Claude | Pagamento do dativo como etapas do próprio status (não uma tabela à parte): uma demanda tem um único pedido de pagamento, então o status já é o lugar certo. Os campos de cada passo (certidão, protocolo, decisão, lista) avançam a etapa sozinhos e nunca voltam; os nomes antigos do banco (`aguardando_liberacao_requerimento`, `a_receber`) foram mantidos, só ganharam rótulos novos, para não migrar dados |

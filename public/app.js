@@ -807,6 +807,7 @@ function showApp() {
   if (bellTimer) clearInterval(bellTimer);
   bellTimer = setInterval(refreshBell, 60000); // atualiza o sino a cada 60s
   setTimeout(autoDiscoverDaily, 3500); // busca diária de processos/prazos (1x/dia, em 2º plano)
+  setTimeout(autoBuscaAcoesNovasDiaria, 20000); // ações novas envolvendo clientes, pelo nome no DJEN (1x/dia)
   const dbn = $('#discover-btn'); if (dbn) dbn.style.display = ['admin', 'advogado', 'staff'].includes(USER?.role) ? '' : 'none';
   resetIdle(); // arma o logout por inatividade
   if ('serviceWorker' in navigator) {
@@ -3241,36 +3242,61 @@ const ROUTES = {
 
   // Módulo WhatsApp → public/whatsapp.js (Object.assign em ROUTES)
 
+  // Central de andamentos (17/11/2026): caixa de entrada da equipe, intimações
+  // pendentes no tribunal, ações novas de clientes e — sem mudar nada — a
+  // tabela de processos monitorados de antes, na última aba.
   async monitor(page) {
     page.innerHTML = `
-      <div class="page-header"><div><h2>Monitoramento Processual</h2><p class="sub">Acompanhamento via DataJud/CNJ</p></div>
+      <div class="page-header"><div><h2>Andamentos nos tribunais</h2><p class="sub">Tudo o que chega dos tribunais num lugar só: DJEN, PJe, eproc, DataJud e e-mail.</p></div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn-sm" id="to-esteira">Trazer p/ a esteira</button>
           <button class="btn-gold" id="new-proc">+ Monitorar processo</button>
         </div></div>
-      <div id="proc-revisar-clientes"></div>
-      <div id="proc-duplicados"></div>
-      <div class="toolbar">
-        <select id="proc-filter"><option value="">Todos</option><option value="stale">Parados +30 dias</option></select>
+      <div class="kpi-grid" id="and-kpis" style="margin-bottom:18px"></div>
+      <div class="tabs" id="and-tabs" role="tablist">
+        <button class="tab active" data-tab="caixa">Caixa de entrada</button>
+        <button class="tab" data-tab="intimacoes">Intimações pendentes</button>
+        <button class="tab" data-tab="acoes">Ações novas de clientes</button>
+        <button class="tab" data-tab="processos">Processos monitorados</button>
       </div>
-      <div class="card"><div id="proc-table"></div></div>`;
-    revisarClientesProcessos();
-    processosDuplicados();
-    const load = async () => {
-      const q = $('#proc-filter').value === 'stale' ? '?stale=30' : '';
-      const rows = await api('/api/processes' + q);
-      $('#proc-table').innerHTML = rows.length ? `
-        <div class="table-scroll"><table><thead><tr><th>Processo</th><th>Cliente</th><th>Tribunal</th><th>Última movimentação</th><th>Data</th><th></th></tr></thead>
-        <tbody>${rows.map((p) => { const mv = (p.last_movement_text || p.last_movement_title || '').replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch])); return `<tr>
-          <td>${procNumHtml(p.process_number)}${p.dative_case_id ? ' <span class="badge dativo" title="Advocacia dativa (nomeação)">DATIVO</span>' : ''}${p.partner_name ? ` <span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)" title="Processo em parceria">PARCERIA ${esc(p.partner_name)}</span>` : ''}<br><small style="color:var(--text-muted)">${p.judicial_area || ''}</small></td>
-          <td>${p.client_name || '—'}</td><td>${p.court || '—'}</td>
-          <td style="max-width:340px"><span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${mv}">${mv || '—'}</span></td>
-          <td style="white-space:nowrap">${p.last_movement_at ? fmtDate(p.last_movement_at) : '—'}</td>
-          <td><button class="btn-sm" data-proc="${p.id}">Abrir</button></td></tr>`; }).join('')}</tbody></table></div>`
-        : '<div class="empty">Nenhum processo monitorado</div>';
-      document.querySelectorAll('[data-proc]').forEach((b) => b.onclick = () => processDetail(b.dataset.proc, load));
+      <div id="and-content" style="margin-top:14px"></div>`;
+
+    const content = $('#and-content');
+    let abaAtual = 'caixa';
+    const resumo = async () => {
+      const r = await api('/api/andamentos/resumo').catch(() => null);
+      if (!r) return;
+      const card = (aba, label, valor, sub, cor) => `<button type="button" class="kpi" data-ir="${aba}" style="text-align:left;cursor:pointer;font-family:inherit;width:100%">
+        <div class="label">${label}</div><div class="value">${valor}</div>
+        <div style="font-size:12px;margin-top:2px;color:${cor || 'var(--text-muted)'};font-weight:${cor ? 600 : 400}">${sub}</div></button>`;
+      const prox = r.ciencia_mais_proxima ? String(r.ciencia_mais_proxima).slice(0, 10).split('-').reverse().join('/') : null;
+      $('#and-kpis').innerHTML =
+        card('caixa', 'Não lidas', r.nao_lidas, 'movimentações novas para ver') +
+        card('intimacoes', 'Intimações pendentes', r.intimacoes_pendentes, prox ? `ciência automática mais próxima: ${prox}` : 'nenhuma no tribunal', prox ? 'var(--red)' : null) +
+        card('acoes', 'Ações novas de clientes', r.acoes_novas, 'processo que ainda não está no CRM') +
+        card('agenda', 'Audiências em 30 dias', r.audiencias_30d, 'na agenda');
+      $('#and-kpis').querySelectorAll('[data-ir]').forEach((b) => b.onclick = () => {
+        if (b.dataset.ir === 'agenda') { location.hash = '#agenda'; return; }
+        mostrar(b.dataset.ir);
+      });
+      const rot = { caixa: `Caixa de entrada (${r.nao_lidas})`, intimacoes: `Intimações pendentes (${r.intimacoes_pendentes})`, acoes: `Ações novas de clientes (${r.acoes_novas})`, processos: 'Processos monitorados' };
+      document.querySelectorAll('#and-tabs .tab').forEach((t) => { t.textContent = rot[t.dataset.tab]; });
     };
-    $('#new-proc').onclick = () => processForm(load);
+
+    const mostrar = async (aba) => {
+      abaAtual = aba;
+      document.querySelectorAll('#and-tabs .tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === aba));
+      content.innerHTML = '<div class="spinner"></div>';
+      try {
+        if (aba === 'caixa') await andamentosCaixa(content, resumo);
+        else if (aba === 'intimacoes') await andamentosIntimacoes(content);
+        else if (aba === 'acoes') await andamentosAcoesNovas(content, resumo);
+        else await andamentosProcessos(content);
+      } catch (e) { content.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    };
+    document.querySelectorAll('#and-tabs .tab').forEach((t) => t.onclick = () => mostrar(t.dataset.tab));
+
+    $('#new-proc').onclick = () => processForm(() => { if (abaAtual === 'processos') mostrar('processos'); });
     $('#to-esteira').onclick = async () => {
       if (!await uiConfirm('Trazer para a esteira (Processos) os processos monitorados que já têm cliente vinculado? Cria um caso em andamento para cada um, sem duplicar.')) return;
       const btn = $('#to-esteira'); btn.disabled = true; btn.textContent = 'Trazendo…';
@@ -3281,8 +3307,8 @@ const ROUTES = {
       } catch (e) { toast(e.message, 'error'); }
       finally { btn.disabled = false; btn.textContent = 'Trazer p/ a esteira'; }
     };
-    $('#proc-filter').onchange = load;
-    await load();
+    resumo();
+    await mostrar('caixa');
   },
 
   async advogados(page) {
@@ -4475,6 +4501,275 @@ ${st.expirada ? `<div style="margin-top:8px;padding:8px 10px;border-radius:6px;b
     try { await api('/api/email-intake/integration/disconnect', { method: 'POST', body: '{}' }); toast('Desconectado'); onChange(); }
     catch (e) { toast(e.message, 'error'); }
   };
+}
+
+// ── Central de andamentos (17/11/2026) ──────────────────────────────────────
+const AND_TIPO_COR = {
+  'Sentença': 'background:var(--red-bg);color:var(--red)', 'Acórdão': 'background:var(--red-bg);color:var(--red)',
+  'Trânsito em julgado': 'background:var(--red-bg);color:var(--red)',
+  'Decisão': 'background:var(--amber-bg);color:var(--amber)', 'Citação': 'background:var(--amber-bg);color:var(--amber)',
+  'Audiência': 'background:var(--green-bg);color:var(--green)',
+  'Intimação': 'background:#eef2f8;color:var(--navy)', 'Despacho': 'background:#eef2f8;color:var(--navy)',
+};
+const AND_TIPOS = ['Sentença', 'Acórdão', 'Decisão', 'Despacho', 'Intimação', 'Citação', 'Audiência', 'Trânsito em julgado', 'Juntada', 'Andamento'];
+
+async function andamentosCaixa(box, aoMudar) {
+  const st = { situacao: 'nao_lidas', q: '', tipo: '' };
+  box.innerHTML = `
+    <div class="toolbar">
+      <div id="and-sit" style="display:flex;gap:6px;flex-wrap:wrap" role="group" aria-label="Situação">
+        ${[['nao_lidas', 'Não lidas'], ['lidas', 'Lidas'], ['tratadas', 'Tratadas'], ['todas', 'Todas']].map(([v, t]) => `<button type="button" class="btn-sm" data-sit="${v}">${t}</button>`).join('')}
+      </div>
+      <input type="search" id="and-q" placeholder="Buscar cliente ou processo…" aria-label="Buscar cliente ou processo" style="flex:1 1 220px" />
+      <select id="and-tipo" aria-label="Tipo"><option value="">Todos os tipos</option>${AND_TIPOS.map((t) => `<option>${t}</option>`).join('')}</select>
+      <button type="button" class="btn-sm" id="and-ler-todas">Marcar todas como lidas</button>
+    </div>
+    <div class="card" id="and-lista"><div class="spinner"></div></div>
+    <p class="sub" style="font-size:12px;margin-top:8px">Cada pessoa da equipe vê quem leu e quem tratou. "Criar prazo" abre o prazo com o processo e a data da publicação preenchidos. Andamento que só traz o nome (DataJud, PJe) gera alerta, não prazo automático.</p>`;
+
+  const pintarFiltro = () => box.querySelectorAll('[data-sit]').forEach((b) => {
+    const ativo = b.dataset.sit === st.situacao;
+    b.style.background = ativo ? 'var(--navy)' : '';
+    b.style.color = ativo ? '#fff' : '';
+    b.style.borderColor = ativo ? 'var(--navy)' : '';
+    b.setAttribute('aria-pressed', ativo ? 'true' : 'false');
+  });
+
+  const carregar = async () => {
+    pintarFiltro();
+    const lista = $('#and-lista');
+    const qs = new URLSearchParams({ situacao: st.situacao });
+    if (st.q) qs.set('q', st.q);
+    if (st.tipo) qs.set('tipo', st.tipo);
+    const rows = await api('/api/andamentos?' + qs.toString()).catch((e) => { toast(e.message, 'error'); return []; });
+    if (!rows.length) {
+      lista.innerHTML = `<div class="empty">${st.situacao === 'nao_lidas' ? 'Nada novo. Tudo lido.' : 'Nenhum andamento com esse filtro.'}</div>`;
+      return;
+    }
+    lista.innerHTML = rows.map((r, i) => {
+      const naoLida = r.situacao === 'nao_lida';
+      const data = r.movement_date || r.created_at;
+      const texto = (r.ai_resumo || r.description || '').replace(/\s+/g, ' ').trim();
+      const aud = r.audiencia_inicio ? new Date(String(r.audiencia_inicio).replace(' ', 'T')) : null;
+      const audTxt = aud && !isNaN(aud) ? `${String(aud.getDate()).padStart(2, '0')}/${String(aud.getMonth() + 1).padStart(2, '0')} às ${String(aud.getHours()).padStart(2, '0')}h${String(aud.getMinutes()).padStart(2, '0')}` : '';
+      return `<div data-mov="${r.id}" style="padding:14px 20px;${i < rows.length - 1 ? 'border-bottom:1px solid var(--border-soft);' : ''}${naoLida ? 'background:#fffdf8;' : ''}">
+        <div style="display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap">
+          <span aria-hidden="true" style="width:9px;height:9px;border-radius:50%;margin-top:6px;flex:none;border:1px solid ${naoLida ? 'var(--gold)' : 'var(--border)'};background:${naoLida ? 'var(--gold)' : 'transparent'}"></span>
+          <div style="flex:1 1 420px;min-width:0;display:flex;flex-direction:column;gap:4px">
+            <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap">
+              <strong style="font-size:14.5px;color:var(--navy-deep);font-weight:${naoLida ? 700 : 600}">${esc(r.title || 'Movimentação')}</strong>
+              <span class="badge" style="${AND_TIPO_COR[r.tipo] || 'background:var(--border-soft);color:var(--text-soft)'};text-transform:none">${esc(r.tipo)}</span>
+              ${audTxt ? `<span class="badge" style="background:var(--green-bg);color:var(--green);text-transform:none">Na agenda: ${audTxt}</span>` : ''}
+            </div>
+            ${texto && texto !== r.title ? `<div style="font-size:13px;color:var(--text-soft);line-height:1.45;max-height:3.9em;overflow:hidden">${esc(texto.slice(0, 400))}</div>` : ''}
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--text-muted)">
+              <span style="font-weight:700;color:var(--gold);letter-spacing:.3px">${esc(r.process_number || 's/ número')}</span>
+              <span>·</span><span style="color:var(--text);font-weight:600">${esc(r.client_name || 'sem cliente')}</span>
+              <span>·</span><span>${data ? fmtDate(data) : '—'}</span>
+              <span style="padding:1px 8px;border-radius:6px;border:1px solid var(--border);font-size:11.5px;color:var(--text-soft)">${esc(r.fonte)}</span>
+              ${r.situacao === 'tratada' ? `<span style="color:var(--green);font-weight:600">Tratada por ${esc(r.tratada_por_nome || '—')}, ${fmtDate(r.tratada_em)}</span>` : ''}
+              ${r.situacao === 'lida' && r.lida_por_nome ? `<span>Lida por ${esc(r.lida_por_nome)}</span>` : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            ${naoLida ? '<button type="button" class="btn-sm" data-acao="ler">Marcar como lida</button>' : ''}
+            ${r.situacao !== 'tratada' ? '<button type="button" class="btn-sm" data-acao="prazo">Criar prazo</button><button type="button" class="btn-sm" data-acao="tratar" style="border-color:var(--gold);color:var(--gold);font-weight:600">Tratada</button>' : '<button type="button" class="btn-sm" data-acao="reabrir">Reabrir</button>'}
+            <button type="button" class="btn-sm" data-acao="abrir">Abrir processo</button>
+          </div>
+        </div></div>`;
+    }).join('');
+
+    const porId = new Map(rows.map((r) => [String(r.id), r]));
+    lista.querySelectorAll('[data-mov]').forEach((linha) => {
+      const r = porId.get(linha.dataset.mov);
+      linha.querySelectorAll('[data-acao]').forEach((b) => b.onclick = async () => {
+        const acao = b.dataset.acao;
+        try {
+          if (acao === 'ler') await api('/api/andamentos/lidas', { method: 'POST', body: JSON.stringify({ ids: [r.id] }) });
+          if (acao === 'tratar') await api(`/api/andamentos/${r.id}/tratada`, { method: 'POST', body: '{}' });
+          if (acao === 'reabrir') await api(`/api/andamentos/${r.id}/tratada`, { method: 'POST', body: JSON.stringify({ desfazer: true }) });
+          if (acao === 'abrir') { processDetail(r.process_id, carregar); return; }
+          if (acao === 'prazo') {
+            if (!r.case_id) { toast('Este processo ainda não está ligado a um caso. Ligue o caso no processo para criar o prazo.', 'error'); processDetail(r.process_id, carregar); return; }
+            await deadlineForm(async () => {
+              await api(`/api/andamentos/${r.id}/tratada`, { method: 'POST', body: '{}' }).catch(() => {});
+              carregar(); if (aoMudar) aoMudar();
+            }, { case_id: r.case_id, inicio: String(r.movement_date || r.created_at || '').slice(0, 10), description: `${r.tipo}: ${r.title || ''}`.slice(0, 200) });
+            return;
+          }
+          await carregar(); if (aoMudar) aoMudar();
+        } catch (e) { toast(e.message, 'error'); }
+      });
+    });
+  };
+
+  box.querySelectorAll('[data-sit]').forEach((b) => b.onclick = () => { st.situacao = b.dataset.sit; carregar(); });
+  let t = null;
+  $('#and-q').oninput = (e) => { clearTimeout(t); t = setTimeout(() => { st.q = e.target.value.trim(); carregar(); }, 350); };
+  $('#and-tipo').onchange = (e) => { st.tipo = e.target.value; carregar(); };
+  $('#and-ler-todas').onclick = async () => {
+    if (!await uiConfirm('Marcar todas as movimentações não lidas como lidas?')) return;
+    try { const r = await api('/api/andamentos/lidas', { method: 'POST', body: JSON.stringify({ todas: true }) }); toast(`${r.marcadas} marcada(s) como lida(s)`); carregar(); if (aoMudar) aoMudar(); }
+    catch (e) { toast(e.message, 'error'); }
+  };
+  await carregar();
+}
+
+async function andamentosIntimacoes(box) {
+  const avisos = await api('/api/andamentos/intimacoes').catch(() => []);
+  const hoje = new Date().toISOString().slice(0, 10);
+  const tipos = { INT: 'Intimação', CIT: 'Citação', NOT: 'Notificação', VIS: 'Vista', URG: 'Urgente' };
+  box.innerHTML = avisos.length ? `<div class="card"><div class="table-scroll"><table><thead><tr><th>Ciência automática em</th><th>Processo</th><th>Cliente</th><th>Tipo</th><th>Órgão</th><th>Sistema</th></tr></thead><tbody>
+    ${avisos.map((a) => {
+      const d = a.ciencia_automatica_em ? String(a.ciencia_automatica_em).slice(0, 10) : null;
+      const dias = d ? Math.round((new Date(d + 'T12:00:00') - new Date(hoje + 'T12:00:00')) / 86400000) : null;
+      const quando = dias == null ? '' : ` <span style="font-weight:400;color:var(--text-muted)">(${dias < 0 ? 'já passou' : dias === 0 ? 'hoje' : `em ${dias} dia(s)`})</span>`;
+      return `<tr>
+        <td style="${dias != null && dias <= 2 ? 'color:var(--red);font-weight:700' : ''}">${d ? d.split('-').reverse().join('/') : '—'}${quando}</td>
+        <td>${a.process_id ? `<a href="#" data-proc-int="${Number(a.process_id)}">${esc(a.numero_processo || '')}</a>` : esc(a.numero_processo || '—')}</td>
+        <td>${esc(a.client_name || '—')}</td>
+        <td>${esc(tipos[String(a.tipo_comunicacao || '').toUpperCase()] || a.tipo_comunicacao || '—')}</td>
+        <td>${esc(a.orgao_julgador || '—')}</td><td>${esc(a.sistema_nome)}</td></tr>`;
+    }).join('')}</tbody></table></div></div>`
+    : '<div class="card"><div class="empty">Nenhuma intimação pendente nos sistemas ligados. Os logins ficam em Configurações → Ligação com os tribunais.</div></div>';
+  box.insertAdjacentHTML('beforeend', '<p class="sub" style="font-size:12px;margin-top:8px">O CRM não abre a intimação, então não dá ciência. Some daqui quando alguém abrir no tribunal. Se ninguém abrir, a ciência vira automática na data indicada e o prazo começa a contar.</p>');
+  box.querySelectorAll('[data-proc-int]').forEach((l) => l.onclick = (e) => { e.preventDefault(); processDetail(l.dataset.procInt, () => {}); });
+}
+
+async function andamentosAcoesNovas(box, aoMudar) {
+  const [itens, info] = await Promise.all([
+    api('/api/andamentos/acoes-novas').catch(() => []),
+    api('/api/andamentos/acoes-novas/clientes').catch(() => ({ ultima_busca: null, clientes: [] })),
+  ]);
+  const ultima = info.ultima_busca ? new Date(info.ultima_busca).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'ainda não feita';
+  box.innerHTML = `
+    <div class="toolbar">
+      <span class="sub" style="font-size:13px">Última busca: <strong>${ultima}</strong> · ${info.clientes.length} cliente(s) ativos com nome pesquisável</span>
+      <span class="spacer"></span>
+      <button type="button" class="btn-gold btn-sm" id="acoes-buscar">Buscar agora</button>
+    </div>
+    <div id="acoes-lista">${itens.length ? '' : '<div class="card"><div class="empty">Nenhum processo novo com nome de cliente.</div></div>'}</div>
+    <p class="sub" style="font-size:12px;margin-top:8px">Todo dia o CRM procura no DJEN (últimos 7 dias) o nome de cada cliente com caso ou processo ativo. Processo com o nome do cliente que ainda não está no CRM aparece aqui, dizendo se o cliente está no polo ativo ou no passivo. A busca roda pelo navegador de quem abre o CRM, porque o DJEN bloqueia o servidor. Pode ser homônimo: confira antes de cadastrar.</p>`;
+  const polo = (p) => (String(p || '').toUpperCase() === 'P'
+    ? '<span class="badge" style="background:var(--red-bg);color:var(--red);text-transform:none">Contra o cliente (polo passivo)</span>'
+    : String(p || '').toUpperCase() === 'A' ? '<span class="badge" style="background:#eef2f8;color:var(--navy);text-transform:none">Cliente no polo ativo</span>'
+      : '<span class="badge" style="background:var(--border-soft);color:var(--text-soft);text-transform:none">Polo não informado</span>');
+  if (itens.length) {
+    $('#acoes-lista').innerHTML = itens.map((a) => `<div class="card" data-acao-id="${a.id}" style="padding:16px 20px;margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;overflow:visible">
+      <div style="flex:1 1 420px;min-width:0;display:flex;flex-direction:column;gap:6px">
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${polo(a.polo)}<span class="sub" style="font-size:12.5px">${a.data_publicacao ? `Publicada no DJEN em ${fmtDate(a.data_publicacao)}` : ''}</span></div>
+        <strong style="font-size:15px;color:var(--navy-deep)">${esc(a.client_name)} aparece como parte em um processo que não está no CRM</strong>
+        <div style="font-size:13px;color:var(--text-soft)">Processo <strong style="color:var(--gold)">${esc(a.numero_formatado)}</strong>${a.tribunal ? ` · ${esc(a.tribunal)}` : ''}${a.classe ? ` · ${esc(a.classe)}` : ''}${a.orgao ? ` · ${esc(a.orgao)}` : ''}${a.tipo_comunicacao ? ` · ${esc(a.tipo_comunicacao)}` : ''}</div>
+        ${a.trecho ? `<div style="font-size:12.5px;color:var(--text-muted);max-height:3.9em;overflow:hidden">${esc(a.trecho)}</div>` : ''}
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button type="button" class="btn-gold btn-sm" data-r="confirmar">É o cliente: cadastrar processo</button>
+        <button type="button" class="btn-sm" data-r="descartar">Não é (homônimo)</button>
+      </div></div>`).join('');
+    $('#acoes-lista').querySelectorAll('[data-acao-id]').forEach((c) => c.querySelectorAll('[data-r]').forEach((b) => b.onclick = async () => {
+      try {
+        if (b.dataset.r === 'confirmar') {
+          const r = await api(`/api/andamentos/acoes-novas/${c.dataset.acaoId}/confirmar`, { method: 'POST', body: '{}' });
+          toast('Processo cadastrado e ligado ao cliente. Ele entra no monitoramento.');
+          if (r.process_id) processDetail(r.process_id, () => {});
+        } else {
+          await api(`/api/andamentos/acoes-novas/${c.dataset.acaoId}/descartar`, { method: 'POST', body: '{}' });
+          toast('Descartado. Esse processo não aparece de novo para este cliente.');
+        }
+        await andamentosAcoesNovas(box, aoMudar); if (aoMudar) aoMudar();
+      } catch (e) { toast(e.message, 'error'); }
+    }));
+  }
+  $('#acoes-buscar').onclick = async () => {
+    const b = $('#acoes-buscar'); b.disabled = true;
+    const r = await buscarAcoesNovasNoDjen((feito, total) => { b.textContent = `Buscando… ${feito}/${total}`; });
+    toast(r.bloqueado ? `O DJEN limitou a busca depois de ${r.feitos} cliente(s). Tente de novo mais tarde.` : `Busca concluída: ${r.novos} processo(s) novo(s) com nome de cliente.`, r.bloqueado ? 'error' : undefined);
+    await andamentosAcoesNovas(box, aoMudar); if (aoMudar) aoMudar();
+  };
+}
+
+// Busca no DJEN, pelo NAVEGADOR (o DJEN bloqueia o servidor), o nome de cada
+// cliente ativo nos últimos 7 dias; manda ao CRM em lotes, que filtra e guarda.
+let buscaAcoesEmAndamento = false;
+async function buscarAcoesNovasNoDjen(onProgresso) {
+  if (buscaAcoesEmAndamento) return { novos: 0, feitos: 0, bloqueado: false };
+  buscaAcoesEmAndamento = true;
+  try {
+    const { clientes } = await api('/api/andamentos/acoes-novas/clientes');
+    const desde = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    let lote = [], novos = 0, feitos = 0, bloqueado = false;
+    const enviar = async (finalizar) => {
+      const r = await api('/api/andamentos/acoes-novas/busca', { method: 'POST', body: JSON.stringify({ resultados: lote, finalizar, bloqueado, clientes: feitos, achados: novos }) }).catch(() => ({ novos: 0 }));
+      novos += r.novos || 0; lote = [];
+    };
+    for (const c of clientes) {
+      const url = `https://comunicaapi.pje.jus.br/api/v1/comunicacao?pagina=1&itensPorPagina=100&nomeParte=${encodeURIComponent(c.nome)}&dataDisponibilizacaoInicio=${desde}`;
+      try {
+        const r = await fetch(url, { headers: { Accept: 'application/json' } });
+        if (r.status === 429 || r.status === 403) { bloqueado = true; break; }
+        if (r.ok) {
+          const data = await r.json();
+          const itens = (data.items || []).map((it) => ({
+            numero_processo: it.numero_processo, siglaTribunal: it.siglaTribunal, nomeOrgao: it.nomeOrgao, nomeClasse: it.nomeClasse,
+            tipoComunicacao: it.tipoComunicacao, data_disponibilizacao: it.data_disponibilizacao,
+            texto: (it.texto || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 600),
+            destinatarios: (it.destinatarios || []).map((d) => ({ nome: d.nome, polo: d.polo })),
+          }));
+          if (itens.length) lote.push({ client_id: c.id, itens });
+        }
+      } catch { /* rede: segue para o próximo */ }
+      feitos++;
+      if (onProgresso) onProgresso(feitos, clientes.length);
+      if (lote.length >= 20) await enviar(false);
+      await new Promise((ok) => setTimeout(ok, 1200));
+    }
+    await enviar(true);
+    return { novos, feitos, bloqueado };
+  } finally { buscaAcoesEmAndamento = false; }
+}
+
+// Uma vez por dia, em segundo plano, quando a equipe abre o CRM.
+async function autoBuscaAcoesNovasDiaria() {
+  try {
+    if (!['admin', 'advogado', 'staff'].includes(USER?.role)) return;
+    const hoje = new Date().toISOString().slice(0, 10);
+    if (localStorage.getItem('autoAcoesNovas') === hoje) return;
+    const info = await api('/api/andamentos/acoes-novas/clientes').catch(() => null);
+    if (!info) return;
+    if (info.ultima_busca && new Date(info.ultima_busca).toISOString().slice(0, 10) === hoje) { localStorage.setItem('autoAcoesNovas', hoje); return; }
+    localStorage.setItem('autoAcoesNovas', hoje);
+    const r = await buscarAcoesNovasNoDjen();
+    if (r.novos > 0) { toast(`${r.novos} possível(is) ação(ões) nova(s) envolvendo clientes. Veja em Andamentos nos tribunais.`); refreshBell(); }
+  } catch {}
+}
+
+// Aba "Processos monitorados": a tabela de antes, sem mudança de uso.
+async function andamentosProcessos(box) {
+  box.innerHTML = `
+    <div id="proc-revisar-clientes"></div>
+    <div id="proc-duplicados"></div>
+    <div class="toolbar">
+      <select id="proc-filter"><option value="">Todos</option><option value="stale">Parados +30 dias</option></select>
+    </div>
+    <div class="card"><div id="proc-table"></div></div>`;
+  revisarClientesProcessos();
+  processosDuplicados();
+  const load = async () => {
+    const q = $('#proc-filter').value === 'stale' ? '?stale=30' : '';
+    const rows = await api('/api/processes' + q);
+    $('#proc-table').innerHTML = rows.length ? `
+      <div class="table-scroll"><table><thead><tr><th>Processo</th><th>Cliente</th><th>Tribunal</th><th>Última movimentação</th><th>Data</th><th></th></tr></thead>
+      <tbody>${rows.map((p) => { const mv = (p.last_movement_text || p.last_movement_title || '').replace(/[&<>]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[ch])); return `<tr>
+        <td>${procNumHtml(p.process_number)}${p.dative_case_id ? ' <span class="badge dativo" title="Advocacia dativa (nomeação)">DATIVO</span>' : ''}${p.partner_name ? ` <span class="badge" style="background:var(--gold-soft,#efe3c8);color:var(--navy)" title="Processo em parceria">PARCERIA ${esc(p.partner_name)}</span>` : ''}<br><small style="color:var(--text-muted)">${p.judicial_area || ''}</small></td>
+        <td>${p.client_name || '—'}</td><td>${p.court || '—'}</td>
+        <td style="max-width:340px"><span style="display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${mv}">${mv || '—'}</span></td>
+        <td style="white-space:nowrap">${p.last_movement_at ? fmtDate(p.last_movement_at) : '—'}</td>
+        <td><button class="btn-sm" data-proc="${p.id}">Abrir</button></td></tr>`; }).join('')}</tbody></table></div>`
+      : '<div class="empty">Nenhum processo monitorado</div>';
+    document.querySelectorAll('[data-proc]').forEach((b) => b.onclick = () => processDetail(b.dataset.proc, load));
+  };
+  $('#proc-filter').onchange = load;
+  await load();
 }
 
 // Ligação oficial com os tribunais (MNI). CPF e senha só vão para o servidor
@@ -9000,7 +9295,7 @@ async function caseDetail(id, onSave) {
 
 const PRIORITIES = [['media','Média'],['alta','Alta'],['critica','Crítica'],['baixa','Baixa']].map(([v,t])=>({v,t}));
 
-async function deadlineForm(onSave) {
+async function deadlineForm(onSave, preset = {}) {
   const cases = await api('/api/cases?limit=100');
   if (!cases.data.length) { toast('Cadastre um processo antes de criar um prazo', 'error'); return; }
   const form = el(`<form class="form-grid">
@@ -9035,6 +9330,14 @@ async function deadlineForm(onSave) {
     } catch (e) { form.querySelector('#calc-out').textContent = e.message; }
   };
   ['#calc-inicio', '#calc-dias', '#calc-uteis', '#calc-susp'].forEach((s) => { form.querySelector(s).onchange = calc; });
+  // Vindo da Central de andamentos: processo, descrição e data da publicação já preenchidos.
+  if (preset.case_id) {
+    const sel = form.querySelector('[name=case_id]');
+    if (![...sel.options].some((o) => o.value === String(preset.case_id))) sel.insertAdjacentHTML('afterbegin', `<option value="${Number(preset.case_id)}">Caso nº ${Number(preset.case_id)}</option>`);
+    sel.value = String(preset.case_id);
+  }
+  if (preset.description) form.querySelector('[name=description]').value = preset.description;
+  if (preset.inicio) { form.querySelector('#calc-inicio').value = preset.inicio; calc(); }
   form.onsubmit = async (e) => {
     e.preventDefault();
     try {

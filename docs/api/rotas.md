@@ -4,7 +4,7 @@
 > Acesso: **público** (sem login), **logado** (qualquer usuário), **equipe** (admin, advogada, staff), **admin**.
 > Dentro de cada rota pode haver checagem extra (ex.: dono do registro, papel parceiro).
 
-**512 rotas em 82 grupos.**
+**522 rotas em 83 grupos.**
 
 ## `/api/access-logs` · admin · `src/routes/accessLogs.ts`
 
@@ -50,6 +50,21 @@
 | POST | `/api/ai/:id/result` |
 | POST | `/api/ai/:id/save-document` |
 | DELETE | `/api/ai/:id` |
+
+## `/api/andamentos` · equipe · `src/routes/andamentos.ts`
+
+| Método | Caminho |
+|---|---|
+| GET | `/api/andamentos` |
+| GET | `/api/andamentos/resumo` |
+| POST | `/api/andamentos/lidas` |
+| POST | `/api/andamentos/:id/tratada` |
+| GET | `/api/andamentos/acoes-novas` |
+| GET | `/api/andamentos/acoes-novas/clientes` |
+| POST | `/api/andamentos/acoes-novas/busca` |
+| GET | `/api/andamentos/intimacoes` |
+| POST | `/api/andamentos/acoes-novas/:id/confirmar` |
+| POST | `/api/andamentos/acoes-novas/:id/descartar` |
 
 ## `/api/atendente` · equipe · `src/routes/atendente.ts`
 

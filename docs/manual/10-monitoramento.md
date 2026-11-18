@@ -56,6 +56,25 @@ Pedido da Dra.: "melhorar o monitoramento, sem custo". O DataJud e o DJEN chegam
 
 Para incluir outro sistema: acrescente em `SISTEMAS_MNI` (`src/services/mni/sistemas.ts`) com o endereço e a regra do número CNJ.
 
+## Central de andamentos (desde 17/11/2026)
+
+A tela **Andamentos nos tribunais** virou a caixa de entrada da equipe, com quatro abas:
+
+- **Caixa de entrada:** toda movimentação de qualquer fonte (DJEN, PJe/eproc, DataJud, e-mail), da mais nova para a mais antiga, com etiqueta de tipo (sentença, acórdão, decisão, despacho, intimação, citação, audiência...) e de fonte. Situação da **equipe**: não lida → lida → tratada, com quem e quando (`process_movements.lida_em/lida_por/tratada_em/tratada_por`, migration 181). Filtros por situação, cliente/processo e tipo. "Criar prazo" abre o formulário de prazo já com o caso, a descrição e a data da publicação, e marca o andamento como tratado. Na migration, o que tinha mais de 7 dias entrou como lido.
+- **Intimações pendentes:** as do tribunal (MNI), com a data da ciência automática. Leitura para a equipe; o login continua só com admin.
+- **Ações novas de clientes:** ver abaixo.
+- **Processos monitorados:** a tabela de antes, sem mudança de uso.
+
+No topo, quatro números: não lidas, intimações pendentes (com a ciência automática mais próxima), ações novas e audiências nos próximos 30 dias. Regras em `src/services/centralAndamentos.ts`; rotas `/api/andamentos` (equipe).
+
+## Ação nova envolvendo cliente (desde 17/11/2026)
+
+Uma vez por dia, quando alguém da equipe abre o CRM, o **navegador** procura no DJEN (últimos 7 dias) o nome de cada cliente com caso ou processo ativo (o DJEN bloqueia o IP do servidor, igual à busca por OAB). Só entra publicação em que um destinatário tem **exatamente** o nome do cliente e cujo processo ainda não está no CRM (nem no Dativo). Aparece em "Ações novas de clientes" dizendo se o cliente está no polo passivo (**contra o cliente**) ou ativo; avisa no sino. A equipe confirma (cadastra o processo ligado ao cliente, com monitoramento) ou descarta como homônimo (não volta). Nome com uma palavra só, "segredo de justiça" ou iniciais não é pesquisado. Se o DJEN limitar (429/403), a busca para e tenta no dia seguinte. Tabelas `acoes_novas_clientes` e `acoes_novas_buscas`; regras em `src/services/acoesNovasClientes.ts`.
+
+## Audiência na agenda sozinha (desde 17/11/2026)
+
+Toda movimentação nova passa por `src/services/audienciaDetectada.ts`. Se o texto marca audiência com **data e hora no futuro** ("designo audiência de conciliação para 10/12/2026, às 14h00"), o CRM lança na agenda da Dra. (tipo audiência, 1 hora, com o processo, o local ou o link da sala virtual e o trecho) e no Google Agenda se estiver conectado, e avisa no sino. Sem hora, com data passada, "realizada" ou "cancelada" (sem redesignação) não lança. Não duplica: a mesma movimentação só uma vez (`audiencias_detectadas`), o mesmo processo e horário vindos de outra fonte reaproveitam o evento, e audiência já na agenda (mesmo cliente/caso e horário) não ganha cópia. Na Caixa de entrada, a movimentação mostra "Na agenda: dd/mm às hh".
+
 ## Limpeza de texto na entrada
 
 Publicações do DJEN e e-mails de monitoramento às vezes chegam como HTML bruto — tags inteiras e entidades não decodificadas (`&aacute;`, `&ordm;`). Desde 03/09/2026, todo texto passa por uma limpeza automática (decodifica entidades, remove tags) antes de ser salvo — sem isso, o texto aparecia bagunçado na tela, no resumo da IA e no WhatsApp.
@@ -107,6 +126,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 17/11/2026 | Claude | Central de andamentos (caixa de entrada com lida/tratada), ação nova envolvendo cliente (nome no DJEN, pelo navegador) e audiência lançada sozinha na agenda |
 | 17/11/2026 | Claude | Ligação oficial com os tribunais (MNI): rotina `monitoramento:tribunais-mni` (4x/dia), intimações pendentes com data da ciência automática e movimentações direto do PJe do TJES e do eproc da JFES |
 | 13/11/2026 | Claude | Nova rotina `intimacoes:relatorio-diario` (7h25); prazo das publicações do DJEN pela regra de `prazoIntimacao.ts` |
 | 26/10/2026 | Claude | Captura do DJEN: parte "REPRESENTANTE e B. F. S. C." (menor em segredo de justiça) cria a ficha do representante; nome só com iniciais não vira ficha nem é juntado a outra ficha com as mesmas iniciais (ver runbook) |

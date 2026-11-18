@@ -553,6 +553,9 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
         // Interpretação para o briefing matinal — best-effort, nunca trava a sincronização.
         await interpretarMovimentacao(ins.insertId, `${m.title || ''}\n${m.description || ''}`.trim())
           .catch((e) => console.error(`[movimentação ${ins.insertId}] falha ao interpretar:`, e?.message || e));
+        // Audiência com data e hora no texto → agenda da Dra. (best-effort).
+        await import('./audienciaDetectada').then((x) => x.registrarAudienciaSeHouver(ins.insertId, processId, `${m.title || ''}\n${m.description || ''}`))
+          .catch((e) => console.error('[audiencia-detectada]', e?.message || e));
       }
     } catch (e: any) {
       // duplicada (unique_hash) — ignora
@@ -634,6 +637,9 @@ async function saveMovements(processId: number, processNumber: string, movements
         if (isTrigger) {
           await resolveMatchingAlerts(processId, toDate(m.movement_date), desc);
         }
+        // Audiência com data e hora no texto → agenda da Dra. (best-effort).
+        await import('./audienciaDetectada').then((x) => x.registrarAudienciaSeHouver(ins.insertId, processId, `${m.title || ''}\n${desc}`))
+          .catch((e) => console.error('[audiencia-detectada]', e?.message || e));
       }
     } catch (e: any) {
       if (e.code !== 'ER_DUP_ENTRY') throw e;

@@ -35,6 +35,10 @@ O status de um evento (agendado, realizado, cancelado) decide a cor mostrada no 
 
 Audiências do Dativo e de processos de correspondente **não são cadastradas duas vezes** — quando você marca uma audiência nesses módulos, o evento de agenda é criado/atualizado sozinho, sempre com o mesmo vínculo (mudar o status lá muda a cor aqui).
 
+## Audiência lançada pelo monitoramento (desde 17/11/2026)
+
+Movimentação nova que marca audiência com data e hora no futuro vira evento de audiência na agenda da Dra. (e no Google Agenda, se conectado), com aviso no sino e a observação "Lançada automaticamente pelo CRM... confira data e hora no processo". Não lança sem hora, data passada, audiência realizada ou cancelada, e não duplica. Detalhes em [Monitoramento](10-monitoramento.md#audiência-na-agenda-sozinha-desde-17112026).
+
 ## FAQ
 
 **Se eu editar o evento direto no Google, volta pro CRM?** A sincronização documentada é CRM → Google (o CRM marca "pendente" e um processo periódico envia). Trate o CRM como a fonte de verdade pra evitar divergência.
@@ -76,6 +80,7 @@ A criação de evento, com Google Agenda, lembrete no sino e aviso de reunião, 
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 17/11/2026 | Claude | Audiência detectada nas movimentações entra sozinha na agenda |
 | 08/10/2026 | Claude | Criação de evento movida para `agendaEventos.ts` (tela + assistente do WhatsApp) |
 | 07/10/2026 | Claude | Briefing automático da véspera da audiência trabalhista (WhatsApp, 9h) e botão no caso |
 | 07/10/2026 | Claude | Lembretes e avisos de audiência agrupam as cópias da mesma audiência (agenda de mais de um usuário) — cliente e parceiro recebem uma vez só |

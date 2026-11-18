@@ -190,6 +190,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 17/11/2026 | Claude | Processo também entra pela confirmação de "Ação nova de cliente" (source `acao_nova`); ver [Monitoramento](10-monitoramento.md#ação-nova-envolvendo-cliente-desde-17112026) |
 | 17/11/2026 | Claude | Terceira forma de um processo entrar no radar: ligação oficial com o tribunal (MNI), com intimações pendentes e movimentações direto do PJe/eproc |
 | 13/11/2026 | Claude | Relatório de intimações: quando o e-mail não sai, o motivo aparece no resumo da rotina, no log e no WhatsApp do relatório |
 | 13/11/2026 | Claude | Prazo certo de cada intimação do DJEN (tipo de justiça, contagem da publicação, data limite e protocolar até, revisão humana) e relatório diário de intimações (e-mail com PDF, CSV e recorte + WhatsApp da equipe) |

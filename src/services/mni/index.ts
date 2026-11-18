@@ -64,7 +64,7 @@ function depsDeProducao(): DepsMonitorMni {
       const [ins] = await db.query(
         `INSERT INTO legal_processes (lawyer_id, process_number, court, court_alias, status, source, confidential, last_sync_at)
          VALUES (?, ?, ?, ?, 'ativo', 'mni', 0, NOW())`,
-        [adv?.id ?? null, formatarNumeroCnj(digitos), orgao?.slice(0, 255) ?? null, aliasFromProcessNumber(digitos)]
+        [adv?.id ?? null, formatarNumeroCnj(digitos), orgao?.slice(0, 120) ?? null, aliasFromProcessNumber(digitos)]
       ) as any;
       return { id: ins.insertId, criado: true };
     },
