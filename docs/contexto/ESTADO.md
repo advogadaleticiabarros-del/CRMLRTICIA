@@ -2,9 +2,14 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 18/11/2026. Último commit: termômetro dos casos e ficha completada pelo tribunal.
+**Última atualização:** 18/11/2026. Último commit: agente de prazos (Dra. Paula).
 
 ## Últimas entregas (mais recentes primeiro)
+- **18/11 (2):** **Agente de prazos — Dra. Paula** (Jessica: "ler as intimações, avisar a advogada, definir os prazos [...] 3 vezes ao dia"; "coloca o prazo como cumprido").
+  - Rotina `prazos:agente` às 7h40, 13h40 e 19h40. Prazo pela regra vira prazo sozinho; o resto, a IA interpreta (lista fechada) e o código conta a data.
+  - "Cumprido" só com prova. WhatsApp à Dra. e à Jessica só com novidade. Migration 182.
+  - Simulado em produção sem gravar: 17 definidos, 13 para ler, 6 vencidos sem registro.
+  - **Pendente:** conferir a 1ª rodada real (7h40). Ver `docs/contexto/relatorios/2026-11-18-agente-de-prazos.md`.
 - **18/11:** **Termômetro dos casos + fichas + duplicados** ("completar todos os cadastros... quais estão parados há mais de 100 dias... qual login ainda falta").
   - **Nenhum login de tribunal está salvo** (`mni_credenciais` vazia).
   - Aba **Termômetro** em Andamentos: dias parados, faixa, fase a conferir e login por sistema. Hoje: 111 ativos, 30 parados há mais de 100 dias, 52 fases a conferir.
