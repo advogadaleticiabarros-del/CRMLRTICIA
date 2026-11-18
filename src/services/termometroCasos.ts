@@ -21,6 +21,7 @@ const NOMES_LIGAVEIS: Record<string, string> = {
   tjes_pje1g: 'TJES — PJe 1º grau',
   tjes_pje2g: 'TJES — PJe 2º grau e Turmas Recursais',
   eproc_jfes: 'Justiça Federal ES — eproc',
+  trt17_pje1g: 'TRT17 — PJe-JT 1º grau (site)',
 };
 
 /** Em qual sistema o processo tramita, pelo número CNJ. */
@@ -34,7 +35,8 @@ export function sistemaDoProcesso(numero: string | null): SistemaProcesso {
   }
   if (p.j === '4' && p.tr === '02' && p.origem.startsWith('50')) return { id: 'eproc_jfes', nome: NOMES_LIGAVEIS.eproc_jfes, ligavel: true };
   if (p.j === '4') return { id: `trf${tr}`, nome: `Justiça Federal da ${tr}ª Região (fora do ES)`, ligavel: false };
-  if (p.j === '5' && p.tr === '17') return { id: 'trt17', nome: 'TRT17 — PJe-JT', ligavel: false };
+  // No TRT o número não muda no 2º grau; o login do 1º grau já mostra o processo (desde 18/11/2026, pelo site).
+  if (p.j === '5' && p.tr === '17') return { id: 'trt17_pje1g', nome: NOMES_LIGAVEIS.trt17_pje1g, ligavel: true };
   if (p.j === '5') return { id: `trt${tr}`, nome: `TRT da ${tr}ª Região`, ligavel: false };
   if (p.j === '6') return { id: 'tre', nome: 'Justiça Eleitoral', ligavel: false };
   if (p.j === '8') return { id: `tj${p.tr}`, nome: `Tribunal de Justiça (fora do ES, código ${p.tr})`, ligavel: false };

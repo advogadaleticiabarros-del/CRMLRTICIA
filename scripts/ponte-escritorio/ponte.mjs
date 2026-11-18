@@ -1,12 +1,15 @@
 #!/usr/bin/env node
 /**
- * Ponte do escritório → TJES (18/11/2026).
+ * Ponte do escritório → TJES e TRT17 (18/11/2026).
  *
  * Roda no computador do escritório (tarefa do Windows "CRM - ponte do TJES",
- * ao fazer logon). O TJES bloqueia o servidor do CRM, mas aceita a rede do
- * escritório; então este programa:
+ * ao fazer logon). O TJES e o TRT17 bloqueiam o servidor do CRM, mas aceitam a
+ * rede do escritório; então este programa:
  *   1. pergunta ao CRM se há consulta ao TJES esperando (espera longa, 25 s);
- *   2. envia cada consulta ao TJES, SÓ para os endereços oficiais abaixo;
+ *   2. envia cada consulta ao tribunal, SÓ para os endereços oficiais abaixo
+ *      (TJES: serviço MNI; TRT17: o site do PJe-JT e o login nacional, que o
+ *      robô do CRM usa com o login da Dra. — leitura, só GET, exceto o envio
+ *      do formulário de login);
  *   3. devolve a resposta ao CRM.
  * Não guarda nada e não registra o conteúdo (que leva o login da Dra.) em log.
  *
@@ -36,8 +39,63 @@ export function urlPermitida(url) {
   }
 }
 
+/**
+ * Site do TRT17 (robô do PJe-JT): só estes começos de endereço. POST só no
+ * envio do formulário de login da plataforma nacional.
+ */
+const SITE_GET = [
+  'https://pje.trt17.jus.br/primeirograu/',
+  'https://pje.trt17.jus.br/segundograu/',
+  'https://pje.trt17.jus.br/pjekz/',
+  'https://pje.trt17.jus.br/pje-comum-api/api/',
+  'https://pje.trt17.jus.br/pje-seguranca/api/',
+  'https://sso.cloud.pje.jus.br/auth/realms/pje/',
+];
+const SITE_POST = ['https://sso.cloud.pje.jus.br/auth/realms/pje/login-actions/'];
+
+export function urlPermitidaWeb(url, metodo) {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' || u.username || u.password || u.port) return false;
+    const base = `${u.protocol}//${u.host}${u.pathname}`;
+    if (base.includes('/../') || base.includes('/./')) return false;
+    const lista = metodo === 'POST' ? SITE_POST : metodo === 'GET' ? SITE_GET : [];
+    return lista.some((p) => base.startsWith(p));
+  } catch {
+    return false;
+  }
+}
+
+const CABECALHOS_WEB = /^(content-type|cookie|accept|x-xsrf-token)$/i;
+const MAX_CORPO = 8_000_000;
+
+async function atenderPedidoWeb(pedido, f, timeoutMs) {
+  const metodo = pedido.metodo === 'POST' ? 'POST' : 'GET';
+  if (!urlPermitidaWeb(pedido.url, metodo)) return { erro: 'endereço não permitido pela ponte do escritório' };
+  const headers = {};
+  for (const [k, v] of Object.entries(pedido.cabecalhos || {})) if (CABECALHOS_WEB.test(k)) headers[k] = String(v);
+  try {
+    const r = await f(pedido.url, {
+      method: metodo, headers, redirect: 'manual',
+      body: metodo === 'POST' ? String(pedido.corpo ?? '') : undefined,
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    const corpo = await r.text();
+    const h = r.headers;
+    const cab = {};
+    const loc = h?.get?.('location'); if (loc) cab.location = loc;
+    const tipo = h?.get?.('content-type'); if (tipo) cab['content-type'] = tipo;
+    const cookies = typeof h?.getSetCookie === 'function' ? h.getSetCookie() : [];
+    if (cookies.length) cab['set-cookie'] = cookies;
+    return { status: r.status, corpo: corpo.length > MAX_CORPO ? corpo.slice(0, MAX_CORPO) : corpo, cabecalhos: cab };
+  } catch (e) {
+    return { erro: String(e?.cause?.code || e?.message || e).slice(0, 200) };
+  }
+}
+
 /** Envia um pedido ao tribunal. Nunca lança: devolve {status, corpo} ou {erro}. */
 export async function atenderPedido(pedido, f = fetch, timeoutMs = 85_000) {
+  if (pedido.web) return atenderPedidoWeb(pedido, f, timeoutMs);
   if (!urlPermitida(pedido.url)) return { erro: 'endereço não permitido pela ponte do escritório' };
   const headers = {};
   for (const [k, v] of Object.entries(pedido.cabecalhos || {})) {

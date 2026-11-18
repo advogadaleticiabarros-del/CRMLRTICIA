@@ -4964,7 +4964,7 @@ async function loadMniPanel() {
     const erro = s.ultimo_erro ? ` · <span style="color:var(--red)">última tentativa falhou: ${esc(s.ultimo_erro)}</span>` : '';
     return `<span style="color:var(--green, #1f7a4d);font-weight:600">Ligado</span> · última consulta ok: ${dt(s.ultimo_ok_em)} · ${s.avisos_pendentes} intimação(ões) pendente(s)${erro}`;
   };
-  // TJES bloqueia o servidor do CRM: a consulta sai pelo computador do escritório.
+  // TJES e TRT17 bloqueiam o servidor do CRM: a consulta sai pelo computador do escritório.
   const ponte = (s) => {
     if (!s.via_escritorio) return '';
     const estado = s.ponte_conectada
@@ -4987,7 +4987,9 @@ async function loadMniPanel() {
             <label>CPF<input name="cpf" inputmode="numeric" autocomplete="off" placeholder="só números" maxlength="14" required /></label>
             <label>Senha deste sistema<input name="senha" type="password" autocomplete="new-password" required /></label>
           </div>
-          <p class="sub" style="font-size:12px;margin:6px 0">Cada sistema tem a sua senha (a do 1º grau pode não servir no 2º grau). Confira antes: o teste conta como uma tentativa de login.</p>
+          ${s.pelo_site
+            ? '<p class="sub" style="font-size:12px;margin:6px 0">Mesmo CPF e senha do site do PJe do TRT17 (login da plataforma nacional, PDPJ). O robô entra no site como a Dra. e só lê: não abre intimação, não assina e não envia nada. Se o site pedir código no celular, ele para e avisa. Confira antes: o teste conta como uma tentativa de login.</p>'
+            : '<p class="sub" style="font-size:12px;margin:6px 0">Cada sistema tem a sua senha (a do 1º grau pode não servir no 2º grau). Confira antes: o teste conta como uma tentativa de login.</p>'}
           <button class="btn-gold btn-sm" type="submit">Testar e salvar</button>
           <button class="btn-sm mni-cancelar" type="button">Cancelar</button>
         </form>

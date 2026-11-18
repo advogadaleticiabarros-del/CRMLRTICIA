@@ -51,7 +51,7 @@ Pedido da Dra.: "melhorar o monitoramento, sem custo". O DataJud e o DJEN chegam
 | TJES — PJe 1º grau | Login ok; **consulta pelo computador do escritório** (ver abaixo) |
 | Justiça Federal ES — eproc | Login ok |
 | TJES — PJe 2º grau e Turmas Recursais | Endereço ok; falta a senha certa (a do 1º grau foi recusada) |
-| TRT17 (1º e 2º grau) | Fora: o tribunal recusa a conexão (HTTP 403) antes do login; exige credenciamento (`/primeirograu/servicosweb/mni222/intercomunicacao`) |
+| TRT17 (1º e 2º grau) | MNI recusado (HTTP 403 "administrative rules", de qualquer rede; exige credenciamento). **Desde 18/11/2026 entra pelo site do PJe-JT com o login da Dra.** (robô, ver abaixo) |
 | TRE-ES, TSE 1º grau, SEEU | Ainda não ligados (TRE-ES responde; TSE recusou daqui; SEEU sem endereço achado) |
 
 ### Ponte do escritório para o TJES (desde 18/11/2026)
@@ -72,6 +72,18 @@ Por isso o TJES (1º e 2º grau, `viaEscritorio: true` em `sistemas.ts`) é cons
 
 Para incluir outro sistema: acrescente em `SISTEMAS_MNI` (`src/services/mni/sistemas.ts`) com o endereço e a regra do número CNJ.
 
+### TRT17 pelo site do PJe-JT, com o login da Dra. (desde 18/11/2026)
+
+O MNI do TRT17 só atende credenciados. A pedido da Dra. ("quero fazer o login direto exatamente igual fizemos TJES"), o CRM entra no **site** do PJe-JT com o CPF e a senha dela, como ela entraria, e lê o que ela veria. Aparece na mesma tela (Configurações → Ligação com os tribunais) como **TRT17 — PJe-JT 1º grau (site)** e **2º grau (site)**; a rodada, os avisos de intimação, a gravação dos andamentos e o desligamento por login recusado são os mesmos do TJES.
+
+- **Caminho:** pelo computador do escritório (o site do TRT17 também bloqueia o servidor do CRM). A ponte (`scripts/ponte-escritorio/ponte.mjs`) só abre o site do TRT17 (`/primeirograu/`, `/segundograu/`, `/pjekz/`, `/pje-comum-api/api/`, `/pje-seguranca/api/`) e o login nacional (`sso.cloud.pje.jus.br/auth/realms/pje/`), **só por GET**; POST só no envio do formulário de login. Não segue redirecionamento sozinha: devolve os cabeçalhos e quem segue é o CRM.
+- **Login:** `/{grau}/authenticateSSO.seam` → plataforma nacional (Keycloak) com CPF e senha → volta ao PJe com os cookies `access_token` (JWT com o id do usuário) e `Xsrf-Token`. Uma vez por rodada. Senha errada, pedido de código (2 fatores) ou ação pendente no site (trocar senha, aceitar termo) → login recusado: desliga o sistema e avisa (não tenta de novo).
+- **Intimações:** painel do advogado "Meus Expedientes" (`/pje-comum-api/api/paineladvogado/{id}/processos?tipoPainelAdvogado=2`); o detalhe (tipo, data) vem de `/processos/id/{id}/expedientes`. Só entram as ainda sem ciência. **Só leitura:** nada é aberto (não dá ciência), assinado ou enviado.
+- **Andamentos:** a lista de processos da Dra. vem do "Acervo geral" do painel (`tipoPainelAdvogado=1`); os andamentos, de `/processos/id/{id}/timeline?buscarMovimentos=true&buscarDocumentos=false`. Fonte `mni_trt17_pje1g`/`mni_trt17_pje2g`.
+- **Código:** `src/services/pjeJt/navegador.ts` (cookies e redirecionamentos) e `clientePjeJt.ts` (mesma interface do cliente MNI); `ponteEscritorio.requisitar`. Testes: `tests/pjeJt.test.mjs` (site falso) e `tests/mniPonteEscritorio.test.mjs`.
+- **Endereços descobertos no código público do site** (`pje.trt17.jus.br/pjekz`), não em documentação. Se o site mudar, a rodada falha com mensagem clara e o resto do CRM segue. `diagnostico()` do cliente lista só os **nomes** dos campos e cookies recebidos (sem dados) para conferir o formato.
+- **Riscos aceitos pela Dra.:** o site pode mudar sem aviso; o robô não contorna código no celular nem "não sou um robô"; automatizar o site fica numa zona cinzenta das regras de uso do tribunal (o MNI oficial continua sendo o caminho quando houver credenciamento).
+
 ## Central de andamentos (desde 17/11/2026)
 
 A tela **Andamentos nos tribunais** virou a caixa de entrada da equipe, com quatro abas:
@@ -90,7 +102,7 @@ Aba **Termômetro** em Andamentos nos tribunais. Para cada processo ativo (fora 
 - **Dias parado:** contados da última movimentação de qualquer fonte (`process_movements` ou `legal_processes.last_movement_at`, a mais recente).
 - **Faixa:** até 30 dias, 31 a 60, 61 a 100, **parado (mais de 100)** ou sem movimento.
 - **Fase**, com "conferir: parece X" quando a fase sugerida pelos andamentos (`suggested_phase`) é outra. O CRM **não troca a fase sozinho**.
-- **Sistema do tribunal**, pelo número CNJ: TJES 1º grau, TJES 2º grau (origem 0000), eproc JFES, TRT17 e os de fora do ES. Para cada um, a situação do login: ligado, falta o login, precisa de credenciamento (TRT17) ou sem ligação direta.
+- **Sistema do tribunal**, pelo número CNJ: TJES 1º grau, TJES 2º grau (origem 0000), eproc JFES, TRT17 (pelo site, login do 1º grau) e os de fora do ES. Para cada um, a situação do login: ligado, falta o login ou sem ligação direta.
 
 No topo ficam a **temperatura** (% dos ativos que andaram nos últimos 60 dias), a barra por faixa (clicar filtra) e as fases. Embaixo, a tabela de logins por sistema e a lista com busca, filtro por sistema e "só fase a conferir". Regras em `src/services/termometroCasos.ts`; rota `GET /api/andamentos/termometro` (equipe).
 
@@ -114,7 +126,7 @@ O TRT17 recusa a ligação direta (MNI) sem credenciamento (HTTP 403). Sem pedir
 - **Gravação:** `registrarMovimentoDoPush` (monitoringService) confere cada movimento contra as outras fontes pelo **dia e pelo texto** (o caminho antigo descartava tudo que tivesse outra movimentação em ±3 dias). Fonte `email_monitoramento`, com `movement_metadata.push = 'TRT17'`; prazo, audiência e acordo são detectados como nas outras fontes. WhatsApp da equipe: um aviso por e-mail com até 5 movimentos.
 - **Processo que não está no CRM:** antes era descartado no log. Agora aparece em Andamentos → **Ações novas de clientes**, no quadro "Processos que chegam por e-mail do tribunal e não estão no CRM", com "Cadastrar processo" (abre o formulário com o número e a área trabalhista). Rota `GET /api/court-email-monitor/processos-sem-cadastro`. Sai da lista quando o processo é cadastrado.
 - **Depende da conexão do Gmail** em Configurações → Monitoramento por e-mail. Se o Google cancelar a autorização (`invalid_grant`), nada entra: desde 18/11/2026 isso avisa no WhatsApp (ver abaixo).
-- **Termômetro:** o TRT17 aparece como acompanhado pelo Push, DJEN e DataJud; a ligação direta continua dependendo do credenciamento.
+- **Termômetro:** desde a ligação pelo site (abaixo, mesmo dia), o TRT17 aparece como sistema com login ("TRT17 — PJe-JT 1º grau (site)"); o Push continua como fonte extra.
 
 ### Aviso de queda da conexão Google (desde 18/11/2026)
 
@@ -175,6 +187,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | TRT17 pelo site do PJe-JT com o login da Dra. (robô pela ponte do escritório): intimações de "Meus Expedientes" e andamentos do acervo, só leitura |
 | 18/11/2026 | Claude | TRT17 pelo Push por e-mail: cada movimento do e-mail vira um andamento (data e texto do tribunal), processos do Push fora do CRM listados para cadastrar, leitura 4x/dia e aviso no WhatsApp quando a conexão Google cai |
 | 18/11/2026 | Claude | Ações novas de clientes: agrupadas por cliente, totais por polo como filtro, busca, filtro por tribunal e texto da publicação recolhido |
 | 18/11/2026 | Claude | Ponte do escritório: o TJES bloqueia a VPS (403 do CloudFront), então a consulta ao TJES sai pelo computador do escritório (`ponteEscritorio.ts` + `scripts/ponte-escritorio/`) |

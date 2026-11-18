@@ -15,8 +15,8 @@ test('sistema pelo número: TJES 1º e 2º grau, eproc, TRT17 e de fora', () => 
   assert.deepEqual(sistemaDoProcesso(TJES), { id: 'tjes_pje1g', nome: 'TJES — PJe 1º grau', ligavel: true });
   assert.equal(sistemaDoProcesso(TJES_2G).id, 'tjes_pje2g');
   assert.equal(sistemaDoProcesso(JFES).id, 'eproc_jfes');
-  assert.equal(sistemaDoProcesso(TRT17).id, 'trt17');
-  assert.equal(sistemaDoProcesso(TRT17).ligavel, false);
+  assert.equal(sistemaDoProcesso(TRT17).id, 'trt17_pje1g'); // pelo site, desde 18/11/2026
+  assert.equal(sistemaDoProcesso(TRT17).ligavel, true);
   assert.equal(sistemaDoProcesso(TRT9).nome, 'TRT da 9ª Região');
   assert.equal(sistemaDoProcesso(TJMG).nome, 'Tribunal de Justiça (fora do ES, código 13)');
   assert.equal(sistemaDoProcesso('123').id, 'sem_numero');
@@ -64,7 +64,7 @@ test('termômetro: dias, faixas, encerrados fora, fase a conferir e login que fa
   assert.equal(logins.tjes_pje2g.situacao, 'falta_login');
   assert.equal(logins.eproc_jfes.situacao, 'falta_login');
   assert.equal(logins.eproc_jfes.processos, 1);
-  assert.equal(logins.trt17.situacao, 'credenciamento');
+  assert.equal(logins.trt17_pje1g.situacao, 'falta_login');
   assert.equal(t.processos.find((p) => p.id === 2).sistema.situacao, 'falta_login');
 });
 

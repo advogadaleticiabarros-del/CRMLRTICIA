@@ -110,9 +110,9 @@ test('cliente MNI funciona pela ponte (login recusado continua sendo login recus
   await assert.rejects(r, (e) => e instanceof cli.ErroLoginMni);
 });
 
-test('TJES passa pelo escritório; eproc continua direto da VPS', () => {
+test('TJES e TRT17 passam pelo escritório; eproc continua direto da VPS', () => {
   const via = Object.fromEntries(sis.SISTEMAS_MNI.map((s) => [s.id, !!s.viaEscritorio]));
-  assert.deepEqual(via, { tjes_pje1g: true, tjes_pje2g: true, eproc_jfes: false });
+  assert.deepEqual(via, { tjes_pje1g: true, tjes_pje2g: true, trt17_pje1g: true, trt17_pje2g: true, eproc_jfes: false });
 });
 
 // ── Programa do computador do escritório ───────────────────────────────────
@@ -147,4 +147,58 @@ test('escritório recusa endereço fora da lista sem chamar a rede', async () =>
 test('escritório transforma falha de rede em erro (sem derrubar o programa)', async () => {
   const r = await local.atenderPedido({ id: 'a3', url: URL_TJES, corpo: '', cabecalhos: {} }, async () => { throw new Error('ECONNRESET'); });
   assert.match(r.erro, /ECONNRESET/);
+});
+
+// ── Robô do site do PJe-JT (TRT17), desde 18/11/2026 ────────────────────────
+
+test('ponte leva pedido ao site com método, cookies e devolve os cabeçalhos (sem mudar o MNI)', async () => {
+  const p = criarPonte();
+  const espera = p.aguardarPedidos(5_000);
+  const resp = p.requisitar({ url: 'https://pje.trt17.jus.br/primeirograu/authenticateSSO.seam', metodo: 'GET', cabecalhos: { Cookie: 'a=1' } });
+  const [pedido] = await espera;
+  assert.equal(pedido.web, true);
+  assert.equal(pedido.metodo, 'GET');
+  assert.equal(pedido.cabecalhos.Cookie, 'a=1');
+  p.responder(pedido.id, { status: 302, corpo: '', cabecalhos: { location: 'https://sso.cloud.pje.jus.br/auth/realms/pje/x', 'set-cookie': ['s=1'] } });
+  const r = await resp;
+  assert.equal(r.status, 302);
+  assert.equal(r.cabecalhos.location, 'https://sso.cloud.pje.jus.br/auth/realms/pje/x');
+  assert.deepEqual(r.cabecalhos['set-cookie'], ['s=1']);
+});
+
+test('escritório só abre o site do TRT17 e o login nacional; POST só no envio do login', () => {
+  const ok = (u, m = 'GET') => local.urlPermitidaWeb(u, m);
+  assert.equal(ok('https://pje.trt17.jus.br/primeirograu/authenticateSSO.seam?code=x'), true);
+  assert.equal(ok('https://pje.trt17.jus.br/pje-comum-api/api/paineladvogado/1/processos?pagina=1'), true);
+  assert.equal(ok('https://sso.cloud.pje.jus.br/auth/realms/pje/protocol/openid-connect/auth?x=1'), true);
+  assert.equal(ok('https://sso.cloud.pje.jus.br/auth/realms/pje/login-actions/authenticate?s=1', 'POST'), true);
+  assert.equal(ok('https://pje.trt17.jus.br/pje-comum-api/api/processos/id/1/documentos', 'POST'), false, 'nada de enviar no tribunal');
+  assert.equal(ok('https://pje.trt17.jus.br/primeirograu/servicosweb/x', 'DELETE'), false);
+  assert.equal(ok('http://pje.trt17.jus.br/primeirograu/x'), false);
+  assert.equal(ok('https://pje.trt17.jus.br.evil.com/primeirograu/x'), false);
+  assert.equal(ok('https://pje.trt3.jus.br/primeirograu/x'), false);
+  assert.equal(ok('https://sso.cloud.pje.jus.br/auth/realms/outro/x'), false);
+  assert.equal(ok('https://pje.trt17.jus.br/primeirograu/../outra/x'), false);
+});
+
+test('escritório atende pedido do site: sem seguir redirecionamento, repassa cookie e devolve cabeçalhos', async () => {
+  const chamadas = [];
+  const headers = new Headers({ location: '/primeirograu/x', 'content-type': 'text/html' });
+  headers.append('set-cookie', 'a=1; Path=/');
+  headers.append('set-cookie', 'b=2; Path=/');
+  const fakeFetch = async (u, i) => { chamadas.push({ u, i }); return { status: 302, text: async () => '', headers }; };
+  const r = await local.atenderPedido({ id: 'w1', web: true, metodo: 'GET', url: 'https://pje.trt17.jus.br/primeirograu/authenticateSSO.seam', corpo: '', cabecalhos: { Cookie: 'c=3', Authorization: 'x' } }, fakeFetch);
+  assert.equal(chamadas[0].i.redirect, 'manual');
+  assert.equal(chamadas[0].i.method, 'GET');
+  assert.equal(chamadas[0].i.body, undefined);
+  assert.equal(chamadas[0].i.headers.Cookie, 'c=3');
+  assert.equal(chamadas[0].i.headers.Authorization, undefined, 'só cabeçalhos do navegador');
+  assert.deepEqual(r, { status: 302, corpo: '', cabecalhos: { location: '/primeirograu/x', 'content-type': 'text/html', 'set-cookie': ['a=1; Path=/', 'b=2; Path=/'] } });
+});
+
+test('escritório recusa POST do robô fora do login sem chamar a rede', async () => {
+  let chamou = false;
+  const r = await local.atenderPedido({ id: 'w2', web: true, metodo: 'POST', url: 'https://pje.trt17.jus.br/pje-comum-api/api/x', corpo: '{}', cabecalhos: {} }, async () => { chamou = true; });
+  assert.equal(chamou, false);
+  assert.match(r.erro, /não permitido/i);
 });

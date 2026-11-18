@@ -29,9 +29,15 @@ router.get('/pedidos', async (req: Request, res: Response) => {
 
 router.post('/respostas/:id', (req: Request, res: Response) => {
   const b = req.body || {};
+  // Cabeçalhos só do robô do site (PJe-JT): redirecionamento, cookies e tipo.
+  const cabecalhos: Record<string, string | string[]> = {};
+  const c = b.cabecalhos && typeof b.cabecalhos === 'object' ? b.cabecalhos : {};
+  if (typeof c.location === 'string') cabecalhos.location = c.location.slice(0, 4000);
+  if (typeof c['content-type'] === 'string') cabecalhos['content-type'] = c['content-type'].slice(0, 200);
+  if (Array.isArray(c['set-cookie'])) cabecalhos['set-cookie'] = c['set-cookie'].filter((x: unknown) => typeof x === 'string').slice(0, 50).map((x: string) => x.slice(0, 8000));
   const r = typeof b.erro === 'string'
     ? { erro: b.erro.slice(0, 300) }
-    : { status: Number(b.status) || 0, corpo: typeof b.corpo === 'string' ? b.corpo : '' };
+    : { status: Number(b.status) || 0, corpo: typeof b.corpo === 'string' ? b.corpo : '', cabecalhos };
   const ok = ponteEscritorio.responder(String(req.params.id), r);
   res.status(ok ? 200 : 404).json({ ok });
 });

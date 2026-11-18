@@ -353,6 +353,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Motivo:** é a via que o próprio tribunal oferece sem pedido. Contornar o bloqueio do MNI (outro IP, raspagem do PJe com captcha) violaria a regra do tribunal e quebraria sem aviso. Cadastrar sozinho criaria processo sem cliente e sem conferência.
 **Alternativa considerada:** robô no PJe-JT com o login da Dra. pelo computador do escritório (rejeitado por agora: o login gov.br/PDPJ pede código no celular e a tela muda sem aviso); resumir o e-mail pela IA (era o caminho antigo, que perdia os movimentos de um mesmo e-mail).
 
+### 18/11/2026 — TRT17 pelo site do PJe-JT com o login da Dra. (robô), por escolha dela
+**Decisão:** além do Push, o TRT17 entra pelo site do PJe-JT com o CPF e a senha da Dra., pela ponte do escritório, na mesma tela e na mesma rodada do TJES. Só leitura; para (sem contornar) com código no celular, captcha ou site mudado. Os endereços foram tirados do código público do site.
+**Motivo:** a Dra. pediu "o login direto exatamente igual fizemos TJES" depois de ouvir os riscos. O MNI do TRT17 responde 403 a qualquer rede (não é bloqueio de IP como no TJES), então o único login direto sem credenciamento é o do site. Ler por JSON (as mesmas chamadas que a tela do site faz) é mais estável que copiar HTML e não precisa de navegador no escritório.
+**Alternativa considerada:** só o Push por e-mail (decisão anterior do mesmo dia, mantida como fonte extra); navegador automatizado (Playwright) no escritório (rejeitado: mais pesado e frágil, e o login nacional é um formulário simples); credenciamento no MNI (continua recomendado; quando sair, troca-se o sistema `trt17_*` por MNI).
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.
@@ -370,6 +375,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | Data | Autor | Mudança |
 |---|---|---|
 | 18/11/2026 | Claude | Temperatura por regra sobre as decisões; partes do tribunal em tabela própria; DataJud com cota por rodada |
+| 18/11/2026 | Claude | TRT17 pelo site do PJe-JT com o login da Dra. (robô) |
 | 18/11/2026 | Claude | TRT17 pelo Push por e-mail, sem forçar o MNI |
 | 18/11/2026 | Claude | TJES pelo computador do escritório (ponte), sem drible do bloqueio |
 | 18/11/2026 | Claude | Agente de prazos: IA interpreta, código conta, cumprido só com prova |

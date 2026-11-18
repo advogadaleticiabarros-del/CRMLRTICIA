@@ -10,15 +10,21 @@
 import { db } from '../../config/database';
 import { encrypt, decrypt } from '../../utils/crypto';
 import { notificationService } from '../NotificationService';
-import { criarClienteMni } from './cliente';
+import { ClienteMni, criarClienteMni } from './cliente';
+import { criarClientePjeJt } from '../pjeJt/clientePjeJt';
 import { criarNomesMovimento } from './nomesMovimento';
 import { DepsMonitorMni, rodarMonitoramentoMni, testarLogin } from './monitorMni';
 import { SISTEMAS_MNI, SistemaMni, sistemaPorId } from './sistemas';
 import { ponteEscritorio } from './ponteEscritorio';
 
-/** Cliente do tribunal: direto da VPS ou pelo computador do escritório (TJES). */
-const clienteDo = (s: SistemaMni, timeoutMs?: number) =>
-  criarClienteMni({ url: s.url, timeoutMs, fetch: s.viaEscritorio ? ponteEscritorio.fetch : undefined });
+/**
+ * Cliente do tribunal: MNI direto da VPS, MNI pelo computador do escritório
+ * (TJES) ou o robô do site do PJe-JT pelo computador do escritório (TRT17).
+ */
+const clienteDo = (s: SistemaMni, timeoutMs?: number): ClienteMni =>
+  s.pjeJt
+    ? criarClientePjeJt({ grau: s.pjeJt, http: (p) => ponteEscritorio.requisitar(p) })
+    : criarClienteMni({ url: s.url, timeoutMs, fetch: s.viaEscritorio ? ponteEscritorio.fetch : undefined });
 
 const paraDataSql = (iso: string | null) => (iso ? iso.replace('T', ' ').slice(0, 19) : null);
 
@@ -267,6 +273,7 @@ export async function statusDosSistemas() {
     return {
       id: s.id, nome: s.nome,
       via_escritorio: !!s.viaEscritorio,
+      pelo_site: !!s.pjeJt,
       ponte_conectada: s.viaEscritorio ? ponte.conectada : null,
       ponte_ultimo_contato: s.viaEscritorio ? ponte.ultimoContato : null,
       cadastrado: !!r, ativo: !!r?.ativo,
