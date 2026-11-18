@@ -128,6 +128,21 @@ Quando chega a **íntegra** de uma sentença ou acórdão (DJEN), o **Leitor** l
 
 Regras em `src/services/leitorDecisao.ts` e `src/services/secretariaParticular.ts`, com testes em `tests/leitorDecisao.test.mjs`.
 
+## Agente de prazos — Dra. Paula (desde 18/11/2026)
+
+Pedido da Jessica: "um agente que lê, avisa a advogada, define os prazos e coloca o prazo como cumprido, interpretando direito o que está sendo lido", pelo menos 3 vezes ao dia. Rotina `prazos:agente` às **7h40, 13h40 e 19h40**, depois das buscas no DJEN e do e-mail do tribunal. Ela aparece no Escritório virtual como Dra. Paula (Controle de prazos).
+
+1. **Intimações "a confirmar"** (Prazos detectados), até 40 por rodada, as mais novas primeiro:
+   - prazo identificado pela regra do tipo de justiça (`prazoIntimacao.ts`) → **vira prazo** sozinho, com a data limite e o "protocolar até" da regra. A movimentação fica como tratada na Central de andamentos;
+   - sem prazo seguro ("revisão humana") → a **IA lê** o texto e diz o que é (sentença, acórdão, contrarrazões, réplica, laudo, prazo escrito, citação, sem prazo, incerto) e para quem é a ordem. A **data continua saindo do código**: o tipo escolhido passa pela mesma regra. O prazo definido assim vai marcado "lido pela IA: conferir";
+   - ordem para a outra parte, citação, incerto → vai para a Dra. ler (nada é descartado);
+   - prazo que já venceu sem registro → não vira prazo; vai para a Dra. conferir se foi cumprido.
+   O exame fica gravado (`detected_deadlines.agente_em/agente_nota`) e não se repete.
+2. **Prazos pendentes:** a IA lê as movimentações do processo depois da intimação e diz se a nossa parte já cumpriu. Só marca **cumprido** com prova: a movimentação existe, é posterior, a IA diz que foi a nossa parte **e** o texto cita a Dra., a OAB ou o cliente (`deadlines.cumprido_em/cumprido_evidencia`). Sem isso, pergunta à Dra. ("parece cumprido, confirme"). A IA só é chamada quando há movimentação nova (`deadlines.agente_ultimo_mov`).
+3. **WhatsApp à Dra. e à Jessica** só quando há novidade: prazos definidos, cumpridos, os que parecem cumpridos, os para ler e os vencidos sem registro. Na rodada da manhã, também os que vencem em até 2 dias.
+
+Regras puras em `src/services/agentePrazos.ts` (testes em `tests/agentePrazos.test.mjs`); banco, IA (GPT Luna, Groq de reserva) e WhatsApp em `agentePrazosMysql.ts`. Migration 182. Para conferir sem gravar nem enviar: `rodarAgentePrazosAgora({ simular: console.log })`.
+
 ## Estagiário IA
 
 Quando um prazo é detectado via DJEN, o sistema pode acionar um "estagiário IA" — análise automática da intimação com sugestão do que fazer, seguindo os mesmos playbooks configurados pra cada tipo de prazo.
@@ -190,6 +205,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | Agente de prazos (Dra. Paula): 3 rodadas ao dia definem o prazo das intimações (data pela regra; a IA só interpreta), marcam cumprido só com prova e avisam a Dra. e a Jessica no WhatsApp |
 | 17/11/2026 | Claude | Processo também entra pela confirmação de "Ação nova de cliente" (source `acao_nova`); ver [Monitoramento](10-monitoramento.md#ação-nova-envolvendo-cliente-desde-17112026) |
 | 17/11/2026 | Claude | Terceira forma de um processo entrar no radar: ligação oficial com o tribunal (MNI), com intimações pendentes e movimentações direto do PJe/eproc |
 | 13/11/2026 | Claude | Relatório de intimações: quando o e-mail não sai, o motivo aparece no resumo da rotina, no log e no WhatsApp do relatório |

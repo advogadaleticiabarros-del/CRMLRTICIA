@@ -330,6 +330,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Motivo:** (1) a sugestão erra em casos comuns: no eproc da JFES, "Baixa definitiva" costuma ser só a volta do recurso ao juizado, e o processo segue para o pagamento. Fechar o processo por engano tira ele do monitoramento. (2) A regra "uma pessoa, uma ficha": nome parecido junta pessoas diferentes; e o que a equipe gravou vale mais que o cadastro do tribunal. (3) Um número de processo é uma ação só; a regra "uma peça por banco" já junta RMC e RCC do mesmo banco.
 **Alternativa considerada:** aplicar a fase sugerida automaticamente; buscar dados por nome aproximado. Rejeitadas pelo risco de erro silencioso.
 
+### 18/11/2026 — Agente de prazos: IA interpreta, código conta, "cumprido" só com prova
+**Decisão:** a Dra. Paula define o prazo sozinha quando a regra identifica o ato. Quando não identifica, a IA escolhe o tipo do ato numa lista fechada e o código conta a data. Ela só marca "cumprido" com uma movimentação posterior que a IA atribui à nossa parte e cujo texto cita a Dra., a OAB ou o cliente. Nunca descarta intimação.
+**Motivo:** havia 104 prazos detectados parados em "a confirmar" e só 1 prazo registrado: o gargalo era a confirmação manual. Data errada vinda da IA ou baixa errada de um prazo fazem perder o prazo; prazo a mais só custa um clique.
+**Alternativa considerada:** deixar a IA calcular a data (rejeitada: ela erra feriado, rito e contagem) e dar baixa sempre que houver "Juntada de petição" depois da intimação (rejeitada: pode ser da outra parte).
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.
@@ -346,6 +351,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | Agente de prazos: IA interpreta, código conta, cumprido só com prova |
 | 18/11/2026 | Claude | Termômetro sem troca automática de fase; ficha pelo tribunal só com nome exato; fusão de processos repetidos |
 | 17/11/2026 | Claude | Central de andamentos, ação nova pelo navegador e audiência só com hora |
 | 17/11/2026 | Claude | MNI direto do tribunal, gratuito e só leitura |

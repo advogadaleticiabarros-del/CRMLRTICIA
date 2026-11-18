@@ -62,9 +62,9 @@ router.get('/count', async (_req: Request, res: Response) => {
  * Confirma um prazo detectado (calcula o vencimento CPC, cria o prazo no caso,
  * roda os playbooks). Usado pela confirmação individual e pelo mutirão em lote.
  */
-async function confirmarPrazoDetectado(
+export async function confirmarPrazoDetectado(
   id: number | string, user: { id: number },
-  opts: { deadline_type?: string; days?: any; start_date?: string } = {}
+  opts: { deadline_type?: string; days?: any; start_date?: string; due_date?: string; descricao?: string; agente_origem?: string } = {}
 ): Promise<{ success: true; due_date: string; deadline_id: number | null; linked_to_case: boolean } | null> {
   const { deadline_type, days, start_date } = opts;
   const [[dd]] = await db.query('SELECT * FROM detected_deadlines WHERE id = ?', [id]) as any;
@@ -75,7 +75,9 @@ async function confirmarPrazoDetectado(
   // Mesmo cálculo da calculadora manual (CPC 219/220/224): pula feriado
   // nacional/forense e a suspensão de 20/12–20/01. O addBusinessDays antigo só
   // pulava fim de semana e podia dar data MENOR que a real perto de feriado.
-  const due = contarPrazo(start, n).vencimento;
+  // O agente de prazos manda a data limite já contada pela regra do tipo de
+  // justiça (prazoIntimacao.ts), que também trata dias corridos.
+  const due = opts.due_date && /^\d{4}-\d{2}-\d{2}$/.test(opts.due_date) ? opts.due_date : contarPrazo(start, n).vencimento;
   const type = deadline_type || dd.suggested_type || 'Prazo';
 
   await db.query(
@@ -111,9 +113,9 @@ async function confirmarPrazoDetectado(
       const movementText = mov?.description || dd.movement_text || null;
       const movementId = mov?.id || dd.movement_id || null;
       const [r] = await db.query(
-        `INSERT INTO deadlines (user_id, client_id, case_id, description, movement_text, movement_id, deadline_date, priority, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'alta', 'pendente')`,
-        [user.id, lp.client_id ?? dd.client_id ?? null, lp.case_id, `${type} (auto do monitoramento)`, movementText, movementId, due]
+        `INSERT INTO deadlines (user_id, client_id, case_id, description, movement_text, movement_id, deadline_date, priority, status, agente_origem)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'alta', 'pendente', ?)`,
+        [user.id, lp.client_id ?? dd.client_id ?? null, lp.case_id, (opts.descricao || `${type} (auto do monitoramento)`).slice(0, 500), movementText, movementId, due, opts.agente_origem ?? null]
       ) as any;
       deadlineId = r.insertId;
     }

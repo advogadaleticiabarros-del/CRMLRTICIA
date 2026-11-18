@@ -512,6 +512,18 @@ export function startCronJobs() {
     }, { janelaIdempotenciaMin: 60 });
   }, { timezone: 'America/Sao_Paulo' });
 
+  // ── AGENTE DE PRAZOS — Dra. Paula (18/11/2026): 7h40, 13h40 e 19h40, depois
+  // das buscas no DJEN (7h, 13h, 19h) e do e-mail do tribunal. Lê as
+  // intimações a confirmar, define o prazo (data pela regra; a IA só lê o
+  // texto), confere se os prazos pendentes já foram cumpridos e avisa a Dra.
+  // e a Jessica no WhatsApp quando há novidade. Ver agentePrazos.ts.
+  cron.schedule('40 7,13,19 * * *', () => {
+    runJob('prazos:agente', async () => {
+      const { rodarAgentePrazosAgora } = await import('../services/agentePrazosMysql');
+      return rodarAgentePrazosAgora();
+    }, { critica: true, janelaIdempotenciaMin: 30 });
+  }, { timezone: 'America/Sao_Paulo' });
+
   // ── monitoramento processual (DataJud, por processo): de hora em hora, 07h–20h ── CRÍTICO
   // Antes rodava só 08h/16h (+ um extra às 06h, ver linha ~36) — publicação
   // judicial não costuma sair de madrugada, então concentra a frequência
