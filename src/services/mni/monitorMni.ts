@@ -13,7 +13,7 @@
  *
  * Todas as dependências (banco, tribunal, CNJ, avisos) entram por `deps`.
  */
-import { AvisoMni, ClienteMni, CredencialMni, ErroLoginMni, MovimentoMni } from './cliente';
+import { AvisoMni, ClienteMni, CredencialMni, ErroLoginMni, MovimentoMni, ParteMni } from './cliente';
 import { SISTEMAS_MNI, SistemaMni, cienciaAutomaticaEm, fonteMni } from './sistemas';
 
 export interface MovimentacaoParaGravar { movement_date: string | null; title: string; description: string }
@@ -31,6 +31,8 @@ export interface DepsMonitorMni {
   marcarOk(sistema: string, avisosPendentes: number): Promise<void>;
   marcarErro(sistema: string, mensagem: string, desligar: boolean): Promise<void>;
   avisarEquipe(titulo: string, mensagem: string): Promise<void>;
+  /** Completa a ficha do cliente do processo com as partes vindas do tribunal (só campos vazios). Devolve quantos campos gravou. */
+  completarFicha?(processId: number, partes: ParteMni[]): Promise<number>;
   pausa?(ms: number): Promise<void>;
 }
 
@@ -42,6 +44,7 @@ export interface ResumoSistema {
   processosConsultados: number;
   movimentacoesNovas: number;
   processosNovos: number;
+  camposDeFichaCompletados: number;
   mensagem?: string;
 }
 
@@ -68,7 +71,7 @@ export async function converterMovimento(m: MovimentoMni, nome: (c: number | nul
 }
 
 async function rodarSistema(sistema: SistemaMni, cred: CredencialMni, processos: Array<{ id: number; process_number: string }>, deps: DepsMonitorMni): Promise<ResumoSistema> {
-  const resumo: ResumoSistema = { sistema: sistema.id, status: 'ok', avisosPendentes: 0, avisosNovos: 0, processosConsultados: 0, movimentacoesNovas: 0, processosNovos: 0 };
+  const resumo: ResumoSistema = { sistema: sistema.id, status: 'ok', avisosPendentes: 0, avisosNovos: 0, processosConsultados: 0, movimentacoesNovas: 0, processosNovos: 0, camposDeFichaCompletados: 0 };
   const cli = deps.cliente(sistema);
   const pausa = deps.pausa ?? (() => Promise.resolve());
 
@@ -115,6 +118,9 @@ async function rodarSistema(sistema: SistemaMni, cred: CredencialMni, processos:
       const movs = [];
       for (const m of proc.movimentos) movs.push(await converterMovimento(m, deps.nomeMovimento));
       if (movs.length) resumo.movimentacoesNovas += await deps.gravarMovimentos(p.id, p.process_number, movs, fonteMni(sistema.id));
+      if (deps.completarFicha && proc.partes?.length) {
+        resumo.camposDeFichaCompletados += await deps.completarFicha(p.id, proc.partes).catch(() => 0);
+      }
       await pausa(800);
     }
 

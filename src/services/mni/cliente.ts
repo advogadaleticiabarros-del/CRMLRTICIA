@@ -36,10 +36,25 @@ export interface MovimentoMni {
   complementos: string[];
 }
 
+export interface ParteMni {
+  /** AT (ativo), PA (passivo), TC (terceiro), FL (fiscal da lei)... */
+  polo: string | null;
+  nome: string;
+  /** CPF/CNPJ só com dígitos. */
+  documento: string | null;
+  tipoPessoa: string | null;
+  /** AAAA-MM-DD */
+  dataNascimento: string | null;
+  endereco: string | null;
+}
+
 export interface ProcessoMni {
   numero: string | null;
   orgaoJulgador: string | null;
   movimentos: MovimentoMni[];
+  /** Partes (dos dados básicos, com incluirCabecalho). Sem os advogados. */
+  partes: ParteMni[];
+  valorCausa: number | null;
 }
 
 /** Login recusado pelo tribunal. Quem chama deve PARAR de tentar (risco de bloquear a senha). */
@@ -170,9 +185,43 @@ export function lerAvisos(xml: string): AvisoMni[] {
   }).filter((a) => a.idAviso);
 }
 
+function lerEndereco(xml: string): string | null {
+  const e = blocos(xml, 'endereco')[0];
+  if (!e) return null;
+  const cep = (atributos(e.abertura).cep || '').replace(/\D/g, '');
+  const t = (n: string) => textoDe(e.conteudo, n);
+  const rua = [t('logradouro'), t('numero'), t('complemento')].filter(Boolean).join(', ');
+  const cidade = [t('cidade'), t('estado')].filter(Boolean).join('/');
+  const txt = [rua, t('bairro'), cidade, cep.length === 8 ? `CEP ${cep.slice(0, 5)}-${cep.slice(5)}` : null].filter(Boolean).join(' - ');
+  return rua ? txt : null;
+}
+
+export function lerPartes(dadosBasicos: string): ParteMni[] {
+  const out: ParteMni[] = [];
+  for (const polo of blocos(dadosBasicos, 'polo')) {
+    const siglaPolo = atributos(polo.abertura).polo || null;
+    for (const parte of blocos(polo.conteudo, 'parte')) {
+      const pessoa = blocos(parte.conteudo, 'pessoa')[0];
+      if (!pessoa) continue;
+      const a = atributos(pessoa.abertura);
+      if (!a.nome) continue;
+      const nasc = dataMni(a.dataNascimento);
+      out.push({
+        polo: siglaPolo,
+        nome: a.nome.replace(/\s+/g, ' ').trim(),
+        documento: (a.numeroDocumentoPrincipal || '').replace(/\D/g, '') || null,
+        tipoPessoa: a.tipoPessoa || null,
+        dataNascimento: nasc ? nasc.slice(0, 10) : null,
+        endereco: lerEndereco(pessoa.conteudo),
+      });
+    }
+  }
+  return out;
+}
+
 export function lerProcesso(xml: string): ProcessoMni {
   const proc = blocos(xml, 'processo')[0];
-  if (!proc) return { numero: null, orgaoJulgador: null, movimentos: [] };
+  if (!proc) return { numero: null, orgaoJulgador: null, movimentos: [], partes: [], valorCausa: null };
   const db = blocos(proc.conteudo, 'dadosBasicos')[0];
   const dba = db ? atributos(db.abertura) : {};
   const orgao = db ? blocos(db.conteudo, 'orgaoJulgador')[0] : undefined;
@@ -194,10 +243,13 @@ export function lerProcesso(xml: string): ProcessoMni {
       complementos,
     };
   });
+  const valor = Number(dba.valorCausa);
   return {
     numero: (dba.numero || '').replace(/\D/g, '') || null,
     orgaoJulgador: orgao ? (atributos(orgao.abertura).nomeOrgao || null) : null,
     movimentos,
+    partes: db ? lerPartes(db.conteudo) : [],
+    valorCausa: dba.valorCausa && Number.isFinite(valor) ? valor : null,
   };
 }
 

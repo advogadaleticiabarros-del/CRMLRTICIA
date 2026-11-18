@@ -2,9 +2,16 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 17/11/2026. Último commit: central de andamentos, ação nova de cliente e audiência na agenda.
+**Última atualização:** 18/11/2026. Último commit: termômetro dos casos e ficha completada pelo tribunal.
 
 ## Últimas entregas (mais recentes primeiro)
+- **18/11:** **Termômetro dos casos + fichas + duplicados** ("completar todos os cadastros... quais estão parados há mais de 100 dias... qual login ainda falta").
+  - **Nenhum login de tribunal está salvo** (`mni_credenciais` vazia).
+  - Aba **Termômetro** em Andamentos: dias parados, faixa, fase a conferir e login por sistema. Hoje: 111 ativos, 30 parados há mais de 100 dias, 52 fases a conferir.
+  - Fichas: 12 campos completados em 9 fichas.
+  - Duplicados fundidos: Aracelia (proc. 114→113, caso 12→11) e Ilma (135/136→133, caso 35→34). Backups em `/root/backups/`.
+  - O MNI agora lê as partes e completa a ficha sozinho (só campos vazios, nome exato) quando houver login.
+  - **Pendente (Dra.):** salvar os logins do TJES 1º grau e do eproc. Ver `docs/contexto/relatorios/2026-11-18-termometro-e-fichas.md`.
 - **17/11 (7):** **Central de andamentos + ação nova de cliente + audiência na agenda.** Tela Andamentos nos tribunais com Caixa de entrada (lida/tratada pela equipe, criar prazo preenchido), Intimações pendentes, Ações novas de clientes (nome exato no DJEN, pelo navegador, 1x/dia; confirmar ou descartar) e a tabela antiga de processos. Audiência com data e hora vira evento na agenda sozinha. Migration 181. **Pendente:** conferir com a Dra. em produção. Ver `docs/contexto/relatorios/2026-11-17-central-andamentos.md`.
 - **17/11 (6):** **Ligação oficial com os tribunais (MNI)** ("melhorar os monitoramentos... sem custo"). O CRM lê direto do PJe do TJES e do eproc da JFES, com o login da Dra., as intimações pendentes (com a data da ciência automática, sem abrir) e as movimentações. Configurações → "⚖️ Ligação com os tribunais"; rotina `monitoramento:tribunais-mni` 4x/dia; migration 180; `src/services/mni/`. Login testado pela Dra.: TJES 1º grau ok, eproc ok; TJES 2º grau senha recusada; TRT17 exige credenciamento (403). **Pendente:** ela cadastrar o login na tela; senha do 2º grau; pedido ao TRT17; TRE/TSE/SEEU; depois Central de andamentos (com prévia), ação nova contra cliente e audiência na agenda. Ver `docs/contexto/relatorios/2026-11-17-ligacao-tribunais-mni.md`.
 - **17/11 (5):** **Acervo do PJe x CRM** ("analise se todos os processos estão cadastrados"). 107 do acervo: 97 em processos, 5 só como dativo, 2 citados em casos sem número (Edivaldo caso 36, Rosana caso 55). Cadastrados: dativo 43 (Marina, 5000043-16.2026) e processos 177 (Christiane, 0014344-76.2019), 178 (Neiriele, 5043510-33.2025), 179 (Edivaldo, no caso 36) e 180 (Rosana, extinto, no caso 55). **Pendente:** área do dativo 32 (criminal → cível), processos na ficha genérica "EM SEGREDO DE JUSTIÇA", 3 sem cliente e o 5000902-56 ligado à ré Matricon. Ver `docs/contexto/relatorios/2026-11-17-conferencia-acervo-pje.md`.

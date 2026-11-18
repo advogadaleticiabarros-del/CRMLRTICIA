@@ -103,6 +103,27 @@ function depsDeProducao(): DepsMonitorMni {
       );
     },
     avisarEquipe: avisarAdmins,
+    async completarFicha(processId, partes) {
+      const { dadosParaCompletar } = await import('./fichaPeloTribunal');
+      const [[c]] = await db.query(
+        `SELECT c.id, c.name, c.cpf_cnpj, c.birth_date, c.address FROM legal_processes lp JOIN clients c ON c.id = lp.client_id WHERE lp.id = ?`,
+        [processId]
+      ) as any;
+      if (!c) return 0;
+      const patch = dadosParaCompletar(c, partes) as Record<string, string>;
+      let n = 0;
+      for (const [campo, valor] of Object.entries(patch)) {
+        if (campo === 'cpf_cnpj') {
+          // Uma pessoa, uma ficha: CPF que já está em outra ficha não é gravado aqui.
+          const [dup] = await db.query("SELECT id FROM clients WHERE id <> ? AND REGEXP_REPLACE(cpf_cnpj, '[^0-9]', '') = ? LIMIT 1", [c.id, valor.replace(/\D/g, '')]) as any;
+          if (dup.length) continue;
+        }
+        const vazio = campo === 'birth_date' ? `${campo} IS NULL` : `(${campo} IS NULL OR ${campo} = '')`;
+        const [r] = await db.query(`UPDATE clients SET ${campo} = ? WHERE id = ? AND ${vazio}`, [valor, c.id]) as any;
+        n += r.affectedRows || 0;
+      }
+      return n;
+    },
     pausa: (ms) => new Promise((r) => setTimeout(r, ms)),
   };
 }
@@ -116,6 +137,7 @@ export async function rodarMonitoramentoMniAgora() {
     avisos_pendentes: r.sistemas.reduce((a, s) => a + s.avisosPendentes, 0),
     avisos_novos: r.sistemas.reduce((a, s) => a + s.avisosNovos, 0),
     movimentacoes_novas: r.sistemas.reduce((a, s) => a + s.movimentacoesNovas, 0),
+    campos_de_ficha_completados: r.sistemas.reduce((a, s) => a + s.camposDeFichaCompletados, 0),
     falhas: falhas.map((s) => `${s.sistema}: ${s.mensagem || s.status}`).join(' | ') || null,
   };
 }

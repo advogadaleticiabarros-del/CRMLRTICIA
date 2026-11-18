@@ -3257,6 +3257,7 @@ const ROUTES = {
         <button class="tab active" data-tab="caixa">Caixa de entrada</button>
         <button class="tab" data-tab="intimacoes">Intimações pendentes</button>
         <button class="tab" data-tab="acoes">Ações novas de clientes</button>
+        <button class="tab" data-tab="termometro">Termômetro</button>
         <button class="tab" data-tab="processos">Processos monitorados</button>
       </div>
       <div id="and-content" style="margin-top:14px"></div>`;
@@ -3279,7 +3280,7 @@ const ROUTES = {
         if (b.dataset.ir === 'agenda') { location.hash = '#agenda'; return; }
         mostrar(b.dataset.ir);
       });
-      const rot = { caixa: `Caixa de entrada (${r.nao_lidas})`, intimacoes: `Intimações pendentes (${r.intimacoes_pendentes})`, acoes: `Ações novas de clientes (${r.acoes_novas})`, processos: 'Processos monitorados' };
+      const rot = { caixa: `Caixa de entrada (${r.nao_lidas})`, intimacoes: `Intimações pendentes (${r.intimacoes_pendentes})`, acoes: `Ações novas de clientes (${r.acoes_novas})`, termometro: 'Termômetro', processos: 'Processos monitorados' };
       document.querySelectorAll('#and-tabs .tab').forEach((t) => { t.textContent = rot[t.dataset.tab]; });
     };
 
@@ -3291,6 +3292,7 @@ const ROUTES = {
         if (aba === 'caixa') await andamentosCaixa(content, resumo);
         else if (aba === 'intimacoes') await andamentosIntimacoes(content);
         else if (aba === 'acoes') await andamentosAcoesNovas(content, resumo);
+        else if (aba === 'termometro') await andamentosTermometro(content);
         else await andamentosProcessos(content);
       } catch (e) { content.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
     };
@@ -4613,6 +4615,85 @@ async function andamentosCaixa(box, aoMudar) {
     catch (e) { toast(e.message, 'error'); }
   };
   await carregar();
+}
+
+// Termômetro dos casos (18/11/2026): dias parados, fase e login do tribunal que falta.
+async function andamentosTermometro(box) {
+  const t = await api('/api/andamentos/termometro');
+  const FAIXAS = {
+    sem_movimento: ['Sem movimento registrado', 'var(--text-muted)', 'var(--border-soft)'],
+    parado: ['Parado há mais de 100 dias', 'var(--red)', 'var(--red-bg)'],
+    alerta: ['61 a 100 dias', '#9a5b00', '#fdf1dc'],
+    atencao: ['31 a 60 dias', 'var(--navy)', '#eef2f8'],
+    em_dia: ['Até 30 dias', '#1f6b3a', '#e6f4ea'],
+  };
+  const FASE = Object.fromEntries(PHASES.map((p) => [p.v, p.t]));
+  const LOGIN = { ligado: ['Ligado', '#1f6b3a', '#e6f4ea'], falta_login: ['Falta o login', 'var(--red)', 'var(--red-bg)'], credenciamento: ['Precisa de credenciamento', '#9a5b00', '#fdf1dc'], sem_ligacao: ['Sem ligação direta', 'var(--text-soft)', 'var(--border-soft)'] };
+  const pill = ([txt, cor, fundo]) => `<span class="badge" style="background:${fundo};color:${cor};text-transform:none">${esc(txt)}</span>`;
+  const dataBr = (iso) => (iso ? String(iso).slice(0, 10).split('-').reverse().join('/') : '—');
+  const cor = t.temperatura >= 70 ? '#1f6b3a' : t.temperatura >= 45 ? '#9a5b00' : 'var(--red)';
+  let filtro = { faixa: '', sistema: '', conferir: false, q: '' };
+
+  box.innerHTML = `
+    <div class="card" style="padding:18px 20px;margin-bottom:14px">
+      <div style="display:flex;gap:18px;align-items:center;flex-wrap:wrap">
+        <div style="min-width:150px"><div class="sub" style="font-size:12px">Temperatura da carteira</div>
+          <div style="font-size:34px;font-weight:700;color:${cor}">${t.temperatura}%</div>
+          <div class="sub" style="font-size:12px">dos ${t.total_ativos} processos ativos andaram nos últimos 60 dias</div></div>
+        <div style="flex:1;min-width:240px">
+          <div role="img" aria-label="Distribuição por dias parados" style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:var(--border-soft)">
+            ${['em_dia', 'atencao', 'alerta', 'parado', 'sem_movimento'].map((f) => t.por_faixa[f] ? `<div title="${FAIXAS[f][0]}: ${t.por_faixa[f]}" style="width:${(t.por_faixa[f] / Math.max(t.total_ativos, 1)) * 100}%;background:${FAIXAS[f][1]}"></div>` : '').join('')}
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px" id="term-faixas">
+            ${['parado', 'sem_movimento', 'alerta', 'atencao', 'em_dia'].map((f) => `<button type="button" class="btn-sm" data-faixa="${f}">${FAIXAS[f][0]} · <strong>${t.por_faixa[f]}</strong></button>`).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="sub" style="font-size:12px;margin-top:10px">Fases dos ativos: ${Object.entries(t.por_fase).map(([f, n]) => `${esc(FASE[f] || f)} ${n}`).join(' · ')}
+        · ${t.encerrados} encerrados/arquivados fora da conta · <strong>${t.fases_a_conferir}</strong> com fase a conferir.</div>
+    </div>
+    <div class="card" style="padding:16px 20px;margin-bottom:14px">
+      <h4 style="margin:0 0 8px">Login nos tribunais</h4>
+      <div class="table-scroll"><table><thead><tr><th>Sistema</th><th>Processos ativos</th><th>Parados/sem movimento</th><th>Situação</th><th>O que falta</th></tr></thead><tbody>
+        ${t.logins.map((l) => `<tr><td>${esc(l.nome)}</td><td>${l.processos}</td><td>${l.parados}</td><td>${pill(LOGIN[l.situacao])}</td><td style="font-size:13px">${esc(l.motivo)}</td></tr>`).join('')}
+      </tbody></table></div>
+    </div>
+    <div class="toolbar">
+      <input type="search" id="term-q" placeholder="Cliente ou nº do processo" aria-label="Buscar cliente ou número" style="max-width:260px">
+      <select id="term-sis" aria-label="Sistema"><option value="">Todos os sistemas</option>${t.logins.map((l) => `<option value="${esc(l.id)}">${esc(l.nome)}</option>`).join('')}</select>
+      <label style="display:flex;gap:6px;align-items:center;font-size:13px"><input type="checkbox" id="term-conf"> Só fase a conferir</label>
+      <span class="spacer"></span><span class="sub" id="term-cont" style="font-size:13px"></span>
+    </div>
+    <div class="card"><div class="table-scroll" id="term-tab"></div></div>
+    <p class="sub" style="font-size:12px;margin-top:8px">Dias parados contam da última movimentação vinda de qualquer fonte (DJEN, DataJud, e-mail, tribunal). "Fase a conferir": o andamento sugere outra fase; o CRM não muda sozinho porque, por exemplo, "baixa definitiva" no juizado federal pode ser só a volta do recurso.</p>`;
+
+  const desenhar = () => {
+    const q = filtro.q.toLowerCase(); const qd = filtro.q.replace(/\D/g, '');
+    const lista = t.processos.filter((p) => (!filtro.faixa || p.faixa === filtro.faixa) && (!filtro.sistema || p.sistema.id === filtro.sistema)
+      && (!filtro.conferir || p.fase_a_conferir)
+      && (!q || String(p.client_name || '').toLowerCase().includes(q) || (qd.length >= 4 && String(p.process_number || '').replace(/\D/g, '').includes(qd))));
+    $('#term-cont').textContent = `${lista.length} de ${t.total_ativos}`;
+    $('#term-tab').innerHTML = lista.length ? `<table><thead><tr><th>Dias parado</th><th>Cliente</th><th>Processo</th><th>Fase</th><th>Última movimentação</th><th>Sistema</th></tr></thead><tbody>
+      ${lista.map((p) => `<tr>
+        <td>${pill([p.dias_parado == null ? 'sem movimento' : `${p.dias_parado} dias`, FAIXAS[p.faixa][1], FAIXAS[p.faixa][2]])}</td>
+        <td>${esc(p.client_name || '—')}</td>
+        <td><a href="#" data-term-proc="${Number(p.id)}">${esc(p.process_number || '—')}</a></td>
+        <td>${esc(FASE[p.phase] || p.phase || '—')}${p.fase_a_conferir ? `<br><small style="color:#9a5b00">conferir: parece ${esc(FASE[p.suggested_phase] || p.suggested_phase)}</small>` : ''}</td>
+        <td style="font-size:13px">${dataBr(p.ultimo_movimento_em)}${p.ultimo_titulo ? `<br><small class="sub">${esc(String(p.ultimo_titulo).slice(0, 80))}</small>` : ''}</td>
+        <td style="font-size:13px">${esc(p.sistema.nome)}<br>${pill(LOGIN[p.sistema.situacao])}</td></tr>`).join('')}
+      </tbody></table>` : '<div class="empty">Nenhum processo com esse filtro.</div>';
+    $('#term-tab').querySelectorAll('[data-term-proc]').forEach((l) => l.onclick = (e) => { e.preventDefault(); processDetail(l.dataset.termProc, () => {}); });
+    box.querySelectorAll('[data-faixa]').forEach((b) => {
+      const on = b.dataset.faixa === filtro.faixa;
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.style.boxShadow = on ? 'inset 0 0 0 2px var(--navy)' : '';
+    });
+  };
+  box.querySelectorAll('[data-faixa]').forEach((b) => b.onclick = () => { filtro.faixa = filtro.faixa === b.dataset.faixa ? '' : b.dataset.faixa; desenhar(); });
+  $('#term-q').oninput = (e) => { filtro.q = e.target.value.trim(); desenhar(); };
+  $('#term-sis').onchange = (e) => { filtro.sistema = e.target.value; desenhar(); };
+  $('#term-conf').onchange = (e) => { filtro.conferir = e.target.checked; desenhar(); };
+  desenhar();
 }
 
 async function andamentosIntimacoes(box) {

@@ -325,6 +325,11 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Motivo:** (1) evita trabalho em dobro entre a Dra. e a Jessica. (2) O DJEN bloqueia o IP do servidor; nome parecido gera homônimo demais, e cadastro automático de processo errado polui a carteira. (3) Hora inventada na agenda é pior que nenhuma.
 **Alternativa considerada:** leitura por usuário (cada um com a sua caixa) e busca por CPF (só em API paga). Ficam para depois se a equipe pedir.
 
+### 18/11/2026 — Termômetro não muda a fase sozinho; ficha pelo tribunal só com nome exato
+**Decisão:** (1) O termômetro mostra a fase sugerida pelos andamentos como "conferir", sem gravar. (2) Os dados das partes vindos do tribunal (MNI) só preenchem campo vazio da ficha, e só quando o nome é idêntico ao de uma única pessoa no processo. (3) Processos duplicados com o mesmo número foram fundidos num só, e os pedidos do mesmo número (RMC + RCC do mesmo banco) foram unidos pelo `unido_ao_caso` que já existia.
+**Motivo:** (1) a sugestão erra em casos comuns: no eproc da JFES, "Baixa definitiva" costuma ser só a volta do recurso ao juizado, e o processo segue para o pagamento. Fechar o processo por engano tira ele do monitoramento. (2) A regra "uma pessoa, uma ficha": nome parecido junta pessoas diferentes; e o que a equipe gravou vale mais que o cadastro do tribunal. (3) Um número de processo é uma ação só; a regra "uma peça por banco" já junta RMC e RCC do mesmo banco.
+**Alternativa considerada:** aplicar a fase sugerida automaticamente; buscar dados por nome aproximado. Rejeitadas pelo risco de erro silencioso.
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.
@@ -341,6 +346,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | Termômetro sem troca automática de fase; ficha pelo tribunal só com nome exato; fusão de processos repetidos |
 | 17/11/2026 | Claude | Central de andamentos, ação nova pelo navegador e audiência só com hora |
 | 17/11/2026 | Claude | MNI direto do tribunal, gratuito e só leitura |
 | 16/11/2026 | Claude | Dativo no A Receber só a partir da lista da Sefaz e sem data: antes disso o Estado ainda pode negar e não há previsão de caixa. Sem data, o item seria escondido pelo filtro do mês; por isso "disponível" fura o filtro de período enquanto estiver em aberto (acumulado), em vez de inventar um vencimento |

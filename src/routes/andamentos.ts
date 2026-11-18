@@ -18,7 +18,13 @@ router.get('/resumo', async (_req: Request, res: Response) => {
   res.json(await resumoAndamentos());
 });
 
-router.post('/lidas', async (req: Request, res: Response) => {
+// Termômetro dos casos: dias parados, fase e login do tribunal que falta.
+router.get('/termometro', async (_req: Request, res: Response) => {
+  const { termometroDoBanco } = await import('../services/termometroCasos');
+  res.json(await termometroDoBanco());
+});
+
+router.post('/lidas',async (req: Request, res: Response) => {
   const ids = req.body?.todas ? 'todas' : (Array.isArray(req.body?.ids) ? req.body.ids : []);
   res.json({ marcadas: await marcarLidas(req.user!.id, ids) });
 });
