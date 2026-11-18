@@ -32,7 +32,7 @@
 ## Pendente
 - **Dra./Jessica:** reconectar as três conexões Google (Configurações → Monitoramento por e-mail; Agenda; Parcerias) e clicar "Verificar agora".
 - **Jessica:** no Google Cloud Console, conferir se a tela de consentimento OAuth está "Em produção" (em "Teste" a autorização cai a cada 7 dias).
-- **Dra.:** cadastrar os 14 processos do TRT17 listados em Ações novas de clientes.
+- Os 14 processos do TRT17 fora do CRM já foram cadastrados depois (conferido em produção após o deploy). A lista nova mostra hoje 13 processos de **outros** tribunais vindos por e-mail (10 TJES, 2 TJMG, 1 eproc): **Dra.** conferir e cadastrar em Ações novas de clientes.
 - **Dra.:** enviar o pedido de credenciamento do MNI ao TRT17 (texto entregue na conversa); o TRT17 provavelmente libera pelo IP do servidor.
 - Conferir o formato do Push depois da reconexão (acima).
 
