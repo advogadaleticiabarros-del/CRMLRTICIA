@@ -104,6 +104,8 @@ Com o login ligado, a rodada do MNI (`consultarProcesso`, com cabeçalho) també
 
 Uma vez por dia, quando alguém da equipe abre o CRM, o **navegador** procura no DJEN (últimos 7 dias) o nome de cada cliente com caso ou processo ativo (o DJEN bloqueia o IP do servidor, igual à busca por OAB). Só entra publicação em que um destinatário tem **exatamente** o nome do cliente e cujo processo ainda não está no CRM (nem no Dativo). Aparece em "Ações novas de clientes" dizendo se o cliente está no polo passivo (**contra o cliente**) ou ativo; avisa no sino. A equipe confirma (cadastra o processo ligado ao cliente, com monitoramento) ou descarta como homônimo (não volta). Nome com uma palavra só, "segredo de justiça" ou iniciais não é pesquisado. Se o DJEN limitar (429/403), a busca para e tenta no dia seguinte. Tabelas `acoes_novas_clientes` e `acoes_novas_buscas`; regras em `src/services/acoesNovasClientes.ts`.
 
+**Leitura organizada (desde 18/11/2026):** a aba agrupa por cliente (cliente com processo **contra ele** vem primeiro; dentro do grupo, a publicação mais recente), ou lista tudo por data. Em cima, os totais por polo funcionam como filtro (clique de novo para tirar); há busca por cliente ou nº do processo e filtro por tribunal. Cada processo mostra tribunal, classe e órgão em campos separados; o texto da publicação fica recolhido em "Ler a publicação" (o DJEN guarda até 600 caracteres). Os filtros ficam quando se confirma ou descarta um item.
+
 ## Audiência na agenda sozinha (desde 17/11/2026)
 
 Toda movimentação nova passa por `src/services/audienciaDetectada.ts`. Se o texto marca audiência com **data e hora no futuro** ("designo audiência de conciliação para 10/12/2026, às 14h00"), o CRM lança na agenda da Dra. (tipo audiência, 1 hora, com o processo, o local ou o link da sala virtual e o trecho) e no Google Agenda se estiver conectado, e avisa no sino. Sem hora, com data passada, "realizada" ou "cancelada" (sem redesignação) não lança. Não duplica: a mesma movimentação só uma vez (`audiencias_detectadas`), o mesmo processo e horário vindos de outra fonte reaproveitam o evento, e audiência já na agenda (mesmo cliente/caso e horário) não ganha cópia. Na Caixa de entrada, a movimentação mostra "Na agenda: dd/mm às hh".
@@ -159,6 +161,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 18/11/2026 | Claude | Ações novas de clientes: agrupadas por cliente, totais por polo como filtro, busca, filtro por tribunal e texto da publicação recolhido |
 | 18/11/2026 | Claude | Ponte do escritório: o TJES bloqueia a VPS (403 do CloudFront), então a consulta ao TJES sai pelo computador do escritório (`ponteEscritorio.ts` + `scripts/ponte-escritorio/`) |
 | 18/11/2026 | Claude | Valor da causa e lista das partes guardados no processo pela rodada do MNI e mostrados na janela do processo; caso recebe o valor só se vazio |
 | 18/11/2026 | Claude | Termômetro dos casos (dias parados, faixa, fase a conferir, login que falta por sistema) e ficha do cliente completada com as partes vindas do tribunal (MNI), só campos vazios e nome exato |

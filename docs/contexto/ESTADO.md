@@ -2,9 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 18/11/2026. Último commit: ponte do escritório para o TJES.
+**Última atualização:** 18/11/2026. Último commit: leitura organizada das ações novas de clientes.
 
 ## Últimas entregas (mais recentes primeiro)
+- **18/11 (5):** **Ações novas de clientes organizadas** (Jessica, com print da aba de 125 itens: "quero poder ler de forma organizada aqui"). Agrupadas por cliente (contra o cliente primeiro), totais por polo clicáveis como filtro, busca por cliente/nº, filtro por tribunal, opção "mais recentes primeiro", tribunal/classe/órgão em campos e texto recolhido em "Ler a publicação". Só `public/app.js`. Ver `docs/contexto/relatorios/2026-11-18-acoes-novas-organizadas.md`.
 - **18/11 (4):** **Ponte do escritório para o TJES** ("O tribunal recusou a conexão (HTTP 403)" ao salvar o login). O TJES (CloudFront) bloqueia o IP da VPS; daqui responde normal. Agora a consulta ao TJES sai por este computador (tarefa do Windows "CRM - ponte do TJES", chave `MNI_PONTE_TOKEN`); o eproc segue direto. **Pendente:** cadastrar o login do TJES 1º grau com este computador ligado (ida e volta real ainda não verificada); pedir ao TJES a liberação do IP do servidor. Ver `docs/contexto/relatorios/2026-11-18-ponte-escritorio-tjes.md`.
 - **18/11 (3):** **Valor da causa e partes do tribunal** guardados no processo pela rodada do MNI (migration 183) e mostrados na janela do processo; o caso só recebe o valor se estiver vazio. Liga quando o login for salvo. Passo a passo entregue à Jessica: salvar logins (Configurações → Ligação com os tribunais), fases a conferir (Fases dos processos → Aplicar ✓) e telefone da ficha nº 6 (é a ficha da própria Dra. Letícia; dois números diferentes). **Pendente:** os três passos dependem delas.
 - **18/11 (2):** **Agente de prazos — Dra. Paula** (Jessica: "ler as intimações, avisar a advogada, definir os prazos [...] 3 vezes ao dia"; "coloca o prazo como cumprido").

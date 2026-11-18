@@ -4717,6 +4717,15 @@ async function andamentosIntimacoes(box) {
   box.querySelectorAll('[data-proc-int]').forEach((l) => l.onclick = (e) => { e.preventDefault(); processDetail(l.dataset.procInt, () => {}); });
 }
 
+// Filtros da aba "Ações novas de clientes": ficam entre recargas (confirmar/descartar redesenha a aba).
+const filtroAcoes = { polo: '', q: '', tribunal: '', agrupar: 'cliente' };
+const POLO_ACAO = {
+  P: ['Contra o cliente (polo passivo)', 'var(--red-bg)', 'var(--red)'],
+  A: ['Cliente no polo ativo', '#eef2f8', 'var(--navy)'],
+  '-': ['Polo não informado', 'var(--border-soft)', 'var(--text-soft)'],
+};
+const poloAcao = (p) => { const k = String(p || '').toUpperCase(); return k === 'P' || k === 'A' ? k : '-'; };
+
 async function andamentosAcoesNovas(box, aoMudar) {
   const [itens, info] = await Promise.all([
     api('/api/andamentos/acoes-novas').catch(() => []),
@@ -4729,24 +4738,58 @@ async function andamentosAcoesNovas(box, aoMudar) {
       <span class="spacer"></span>
       <button type="button" class="btn-gold btn-sm" id="acoes-buscar">Buscar agora</button>
     </div>
+    ${itens.length ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="acoes-polos">
+      ${['P', 'A', '-'].map((k) => `<button type="button" class="btn-sm" data-polo="${k}">${POLO_ACAO[k][0]} · <strong>${itens.filter((a) => poloAcao(a.polo) === k).length}</strong></button>`).join('')}
+    </div>
+    <div class="toolbar">
+      <input type="search" id="acoes-q" placeholder="Cliente ou nº do processo" aria-label="Buscar cliente ou número" style="min-width:230px;max-width:280px" value="${esc(filtroAcoes.q)}">
+      <select id="acoes-trib" aria-label="Tribunal"><option value="">Todos os tribunais</option>${[...new Set(itens.map((a) => a.tribunal).filter(Boolean))].sort().map((t) => `<option value="${esc(t)}"${t === filtroAcoes.tribunal ? ' selected' : ''}>${esc(t)}</option>`).join('')}</select>
+      <select id="acoes-agrupar" aria-label="Organizar"><option value="cliente">Agrupar por cliente</option><option value="data"${filtroAcoes.agrupar === 'data' ? ' selected' : ''}>Mais recentes primeiro</option></select>
+      <span class="spacer"></span><span class="sub" id="acoes-cont" style="font-size:13px"></span>
+    </div>` : ''}
     <div id="acoes-lista">${itens.length ? '' : '<div class="card"><div class="empty">Nenhum processo novo com nome de cliente.</div></div>'}</div>
     <p class="sub" style="font-size:12px;margin-top:8px">Todo dia o CRM procura no DJEN (últimos 7 dias) o nome de cada cliente com caso ou processo ativo. Processo com o nome do cliente que ainda não está no CRM aparece aqui, dizendo se o cliente está no polo ativo ou no passivo. A busca roda pelo navegador de quem abre o CRM, porque o DJEN bloqueia o servidor. Pode ser homônimo: confira antes de cadastrar.</p>`;
-  const polo = (p) => (String(p || '').toUpperCase() === 'P'
-    ? '<span class="badge" style="background:var(--red-bg);color:var(--red);text-transform:none">Contra o cliente (polo passivo)</span>'
-    : String(p || '').toUpperCase() === 'A' ? '<span class="badge" style="background:#eef2f8;color:var(--navy);text-transform:none">Cliente no polo ativo</span>'
-      : '<span class="badge" style="background:var(--border-soft);color:var(--text-soft);text-transform:none">Polo não informado</span>');
-  if (itens.length) {
-    $('#acoes-lista').innerHTML = itens.map((a) => `<div class="card" data-acao-id="${a.id}" style="padding:16px 20px;margin-bottom:10px;display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start;overflow:visible">
+  const badgePolo = (p) => { const [txt, bg, cor] = POLO_ACAO[poloAcao(p)]; return `<span class="badge" style="background:${bg};color:${cor};text-transform:none;white-space:nowrap">${txt}</span>`; };
+  const campo = (rot, val) => (val ? `<div><span class="sub" style="font-size:11.5px;display:block">${rot}</span><span style="font-size:13px">${esc(val)}</span></div>` : '');
+  const linha = (a, comNome) => `<div data-acao-id="${a.id}" style="padding:12px 0;border-top:1px solid var(--border-soft);display:flex;gap:16px;flex-wrap:wrap;align-items:flex-start">
       <div style="flex:1 1 420px;min-width:0;display:flex;flex-direction:column;gap:6px">
-        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${polo(a.polo)}<span class="sub" style="font-size:12.5px">${a.data_publicacao ? `Publicada no DJEN em ${fmtDate(a.data_publicacao)}` : ''}</span></div>
-        <strong style="font-size:15px;color:var(--navy-deep)">${esc(a.client_name)} aparece como parte em um processo que não está no CRM</strong>
-        <div style="font-size:13px;color:var(--text-soft)">Processo <strong style="color:var(--gold)">${esc(a.numero_formatado)}</strong>${a.tribunal ? ` · ${esc(a.tribunal)}` : ''}${a.classe ? ` · ${esc(a.classe)}` : ''}${a.orgao ? ` · ${esc(a.orgao)}` : ''}${a.tipo_comunicacao ? ` · ${esc(a.tipo_comunicacao)}` : ''}</div>
-        ${a.trecho ? `<div style="font-size:12.5px;color:var(--text-muted);max-height:3.9em;overflow:hidden">${esc(a.trecho)}</div>` : ''}
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${badgePolo(a.polo)}
+          <strong style="color:var(--gold);font-size:14px">${esc(a.numero_formatado)}</strong>
+          ${comNome ? `<span style="font-size:13.5px;color:var(--navy-deep);font-weight:600">· ${esc(a.client_name)}</span>` : ''}
+          <span class="sub" style="font-size:12.5px">${a.data_publicacao ? `· publicada em ${fmtDate(a.data_publicacao)}` : ''}${a.tipo_comunicacao ? ` · ${esc(a.tipo_comunicacao)}` : ''}</span></div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:4px 16px">${campo('Tribunal', a.tribunal)}${campo('Classe', a.classe)}${campo('Órgão', a.orgao)}</div>
+        ${a.trecho ? `<details><summary style="cursor:pointer;font-size:12.5px;color:var(--navy)">Ler a publicação</summary><p style="font-size:13px;line-height:1.5;color:var(--text-soft);margin:6px 0 0;white-space:pre-line">${esc(a.trecho)}${a.trecho.length >= 600 ? '…' : ''}</p></details>` : ''}
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button type="button" class="btn-gold btn-sm" data-r="confirmar">É o cliente: cadastrar processo</button>
         <button type="button" class="btn-sm" data-r="descartar">Não é (homônimo)</button>
-      </div></div>`).join('');
+      </div></div>`;
+  const desenhar = () => {
+    const q = filtroAcoes.q.toLowerCase(); const qd = filtroAcoes.q.replace(/\D/g, '');
+    const lista = itens.filter((a) => (!filtroAcoes.polo || poloAcao(a.polo) === filtroAcoes.polo) && (!filtroAcoes.tribunal || a.tribunal === filtroAcoes.tribunal)
+      && (!q || String(a.client_name || '').toLowerCase().includes(q) || (qd.length >= 4 && String(a.numero_processo || '').includes(qd))));
+    $('#acoes-cont').textContent = `${lista.length} de ${itens.length}`;
+    box.querySelectorAll('[data-polo]').forEach((b) => {
+      const on = b.dataset.polo === filtroAcoes.polo;
+      b.setAttribute('aria-pressed', on ? 'true' : 'false');
+      b.style.boxShadow = on ? 'inset 0 0 0 2px var(--navy)' : '';
+    });
+    if (!lista.length) { $('#acoes-lista').innerHTML = '<div class="card"><div class="empty">Nenhum item com esse filtro.</div></div>'; return; }
+    // "Contra o cliente" vem antes; dentro disso, a publicação mais recente.
+    const ordem = (a, b) => (poloAcao(a.polo) === 'P' ? 0 : 1) - (poloAcao(b.polo) === 'P' ? 0 : 1) || String(b.data_publicacao || '').localeCompare(String(a.data_publicacao || ''));
+    if (filtroAcoes.agrupar === 'data') {
+      $('#acoes-lista').innerHTML = `<div class="card" style="padding:4px 20px">${[...lista].sort((a, b) => String(b.data_publicacao || '').localeCompare(String(a.data_publicacao || ''))).map((a) => linha(a, true)).join('')}</div>`;
+    } else {
+      const grupos = new Map();
+      for (const a of lista) { if (!grupos.has(a.client_id)) grupos.set(a.client_id, []); grupos.get(a.client_id).push(a); }
+      $('#acoes-lista').innerHTML = [...grupos.values()].map((g) => g.sort(ordem))
+        .sort((x, y) => ordem(x[0], y[0]) || String(x[0].client_name).localeCompare(String(y[0].client_name), 'pt-BR'))
+        .map((g) => `<div class="card" style="padding:14px 20px 4px;margin-bottom:10px;overflow:visible">
+          <div style="display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;padding-bottom:10px">
+            <strong style="font-size:15px;color:var(--navy-deep)">${esc(g[0].client_name)}</strong>
+            <span class="sub" style="font-size:12.5px">${g.length} processo(s) com este nome que não estão no CRM</span></div>
+          ${g.map((a) => linha(a, false)).join('')}</div>`).join('');
+    }
     $('#acoes-lista').querySelectorAll('[data-acao-id]').forEach((c) => c.querySelectorAll('[data-r]').forEach((b) => b.onclick = async () => {
       try {
         if (b.dataset.r === 'confirmar') {
@@ -4760,6 +4803,13 @@ async function andamentosAcoesNovas(box, aoMudar) {
         await andamentosAcoesNovas(box, aoMudar); if (aoMudar) aoMudar();
       } catch (e) { toast(e.message, 'error'); }
     }));
+  };
+  if (itens.length) {
+    box.querySelectorAll('[data-polo]').forEach((b) => b.onclick = () => { filtroAcoes.polo = filtroAcoes.polo === b.dataset.polo ? '' : b.dataset.polo; desenhar(); });
+    $('#acoes-q').oninput = (e) => { filtroAcoes.q = e.target.value.trim(); desenhar(); };
+    $('#acoes-trib').onchange = (e) => { filtroAcoes.tribunal = e.target.value; desenhar(); };
+    $('#acoes-agrupar').onchange = (e) => { filtroAcoes.agrupar = e.target.value; desenhar(); };
+    desenhar();
   }
   $('#acoes-buscar').onclick = async () => {
     const b = $('#acoes-buscar'); b.disabled = true;
