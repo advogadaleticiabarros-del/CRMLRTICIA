@@ -528,10 +528,33 @@
     return null;
   }
 
+  // Botão Voltar do controle: no navegador da Samsung (e de outras TVs) ele volta
+  // o histórico e SAI do painel, às vezes sem passar pelo keydown (19/11/2026:
+  // "quando eu clico em MENU ele sai"). Uma entrada extra no histórico segura a
+  // saída: o navegador "volta" para ela, o painel percebe (popstate), repõe a
+  // entrada e abre/fecha o menu.
+  var ultimoVoltarPorTecla = 0;
+  function acaoVoltar() {
+    est.ultimoToque = Date.now();
+    est.pausaAte = Date.now() + PAUSA_AO_USAR_MS;
+    if ($('entrada').className.indexOf('aberta') > -1) return;
+    if (est.camada) fecharCamadas(); else abrirMenu();
+    desenharEstado();
+  }
+  function segurarVoltar() {
+    try { history.pushState({ tv: Date.now() }, '', location.href); } catch (e) { /* navegador sem histórico */ }
+  }
+  segurarVoltar();
+  window.addEventListener('popstate', function () {
+    segurarVoltar();
+    if (Date.now() - ultimoVoltarPorTecla > 600) acaoVoltar(); // a tecla já tratou
+  });
+
   document.addEventListener('keydown', function (e) {
     var t = teclaDe(e);
     if (!t) return;
     e.preventDefault();
+    if (t === 'voltar') { ultimoVoltarPorTecla = Date.now(); if (est.liberado) { acaoVoltar(); return; } }
     est.ultimoToque = Date.now();
     if ($('entrada').className.indexOf('aberta') > -1) { if (t === 'ok') ativar(focoAtual()); return; }
     if (!est.liberado) { comecar(); return; }

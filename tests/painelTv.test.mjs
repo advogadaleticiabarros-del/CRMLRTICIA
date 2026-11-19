@@ -190,3 +190,9 @@ test('páginas da TV saem com o script versionado (TV não roda tv.js velho do c
   const lib = fs.readFileSync(path.resolve('public/tv-liberar.html'), 'utf8');
   assert.match(versionarIndexHtml(lib, '123'), /src="\/tv-liberar\.js\?v=123"/);
 });
+
+test('Voltar do controle não sai do painel (histórico preso + popstate abre o menu)', () => {
+  assert.match(tvJs, /history\.pushState/);
+  assert.match(tvJs, /addEventListener\('popstate'/);
+  assert.match(tvJs, /function acaoVoltar\(\)[\s\S]*abrirMenu\(\)/);
+});

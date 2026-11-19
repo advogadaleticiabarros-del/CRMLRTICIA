@@ -965,6 +965,16 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 **Como reconhecer de novo:** `grep "/tv" /var/log/nginx/access.log | grep Tizen` mostra `GET /tv` sem `GET /tv.js?v=` logo depois, ou sem `POST /api/public/tv/parear`. Se a página já sai versionada e ainda assim falhar: na TV, fechar o navegador e abrir de novo, ou apagar os dados de navegação nas configurações do navegador da TV.
 
+## Incidente: o botão Voltar/Menu do controle tirava a TV do painel (19/11/2026)
+
+**Sintoma:** na TV Samsung, ao apertar o botão para abrir o menu, o navegador saía do painel ("quando eu clico em MENU ele sai"). O painel seguia vivo no servidor (leituras de `/api/tv/*` continuavam), só a página tinha sido deixada.
+
+**Causa raiz:** no navegador da TV, o botão Voltar do controle volta o histórico do navegador antes de o painel tratar a tecla (o `preventDefault` no keydown não basta). O botão MENU físico de controles antigos é da própria TV (abre as configurações dela) e nenhuma página consegue capturá-lo.
+
+**Correção:** `public/tv.js` põe uma entrada extra no histórico ao abrir (`history.pushState`); quando o navegador "volta", o evento `popstate` repõe a entrada e abre ou fecha o menu (`acaoVoltar`). Para abrir o menu, use Voltar ou o número 0, não o MENU da TV.
+
+**Como reconhecer de novo:** no Playwright, `page.goBack()` na página `/tv` deve continuar em `/tv` com o menu aberto. Se a TV ainda sair, ver se o controle manda outra tecla (mostrar `e.keyCode` na tela) e incluir em `teclaDe`.
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -1030,6 +1040,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 | 30/09/2026 | Claude | +1 incidente: fechamento do dia ignorava o retrato da manhã |
 | 22/09/2026 | Claude | Resto da auditoria do Dashboard resolvido: Inadimplência unificada, Movimentações a verificar fecham de vez, Processual/Agenda exibem dado que já era calculado, consulta duplicada de "peças pendentes" compartilhada |
 | 19/11/2026 | Claude | +1 incidente: TV Samsung usava o tv.js antigo do cache e não pedia o código; páginas da TV agora com script versionado |
+| 19/11/2026 | Claude | +1 incidente: Voltar do controle saía do painel da TV; histórico preso com popstate |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
