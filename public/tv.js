@@ -400,7 +400,7 @@
     if (item !== null) { detalheItemHoje(Number(item)); return; }
     if (acao === 'menu') abrirMenu();
     else if (acao === 'fechar') fecharCamadas();
-    else if (acao === 'login') location.href = '/';
+    else if (acao === 'login') { gravar('tv_voltar', '1'); location.href = '/'; }
     else if (acao === 'rotacao') { est.rotacao = !est.rotacao; gravar('tv_rotacao', est.rotacao ? '1' : '0'); est.decorrido = 0; abrirMenu(); est.chaveFoco = 'm-rotacao'; restaurarFoco(); desenharEstado(); }
     else if (acao === 'discreto') { alternarDiscreto(); if (est.camada === 'menu') { abrirMenu(); est.chaveFoco = 'm-discreto'; restaurarFoco(); } }
     else if (acao === 'atualizar') { carregarTudo(); fecharCamadas(); }

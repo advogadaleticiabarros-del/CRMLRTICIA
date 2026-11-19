@@ -775,6 +775,8 @@ const ROLE_PT = { admin: 'Administrador', advogado: 'Advogado(a)', estagiario: '
 let bellTimer = null;
 let quickSearchInited = false;
 function showApp() {
+  // Veio do painel da TV (/tv) para entrar: volta direto para ele (19/11/2026).
+  try { if (localStorage.getItem('tv_voltar') === '1') { localStorage.removeItem('tv_voltar'); location.href = '/tv'; return; } } catch { /* sem armazenamento */ }
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
   if (typeof window.acompanharTarefas === 'function') window.acompanharTarefas(); // painel de tarefas (30/10/2026)

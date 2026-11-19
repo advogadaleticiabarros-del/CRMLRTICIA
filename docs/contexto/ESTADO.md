@@ -9,7 +9,8 @@
   - Endereço `/tv`, página à parte (`public/tv.html`, `public/tv.js`). 4 painéis: geral, escritório virtual (sala com os 29 agentes e ficha de cada um), WhatsApp e hoje. Setas, OK, Voltar/0 (menu), 1–4 e botões coloridos; rotação automática opcional a cada 30s.
   - WhatsApp em **modo discreto** por padrão (primeiro nome + inicial, sem texto; telefone nunca sai do servidor); OK mostra tudo por 2 min. Rota nova `GET /api/tv/whatsapp`, regras em `painelTv.ts`, 9 testes.
   - Verificado em navegador (Playwright, 1920×1080 e 1280×720, dados fictícios): navegação, menu, ficha do agente, modo discreto. **Não verificado numa TV de verdade nem com dados de produção.**
-  - **Pendente:** abrir na TV do escritório (entrar no CRM pelo navegador da TV, depois `/tv`) e dizer se as teclas do controle respondem. Ver `docs/contexto/relatorios/2026-11-19-painel-tv.md`.
+  - Link curto **is.gd/tvleticia** (pedido: "me dê um link menor"); depois de entrar no CRM pela TV, volta sozinho para o painel.
+  - **Pendente:** abrir na TV do escritório (digitar is.gd/tvleticia e entrar) e dizer se as teclas do controle respondem. Ver `docs/contexto/relatorios/2026-11-19-painel-tv.md`.
 - **18/11 (7):** **Classificação, temperatura e partes dos processos** (Jessica: "faça os cadastros [...] inclua dados das partes contrárias"; "classificação de tipo de caso, tipo de justiça, em que fase está"; "temperatura de cada processo, se está a nosso favor").
   - Rotina `processos:classificar` (5h20 e 14h20): justiça para os 165; temperatura pelas decisões (ativos: 19 quentes, 79 mornos, 12 frios); área preenchida em 9 (90 ainda sem área, esperando classe e assuntos do DataJud).
   - DataJud deu HTTP 429: instância, classe e assuntos entram aos poucos, até 30 processos por rodada.

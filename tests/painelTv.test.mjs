@@ -86,6 +86,13 @@ test('controle remoto: setas, OK, voltar (TVs LG/Samsung), números e menu', () 
   assert.match(tvJs, /\/api\/tv\/whatsapp/);
 });
 
+test('entrar pela TV: o login do CRM volta sozinho para /tv', () => {
+  const app = fs.readFileSync(path.resolve('public/app.js'), 'utf8');
+  assert.match(tvJs, /gravar\('tv_voltar', '1'\)/);
+  const showApp = app.slice(app.indexOf('function showApp()'), app.indexOf('function showApp()') + 400);
+  assert.match(showApp, /tv_voltar[\s\S]*removeItem\('tv_voltar'\)[\s\S]*location\.href = '\/tv'/);
+});
+
 test('tv.html carrega tv.js e usa o token do CRM', () => {
   assert.match(tvHtml, /<script src="\/tv\.js/);
   assert.match(tvJs, /crm_token/);

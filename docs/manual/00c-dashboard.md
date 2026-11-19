@@ -69,7 +69,9 @@ Fonte: `GET /api/dashboards/resultados` → regra pura `src/services/resultadoPr
 
 Endereço: **crm.advogadaleticiabarros.com.br/tv**. Página à parte do CRM, feita para ficar aberta numa TV do escritório e ser usada só com o controle remoto. Só mostra; não muda nada no sistema.
 
-**Como ligar na TV:** abra o navegador da TV, entre no CRM uma vez com e-mail e senha (o mesmo login de sempre) e depois abra o endereço `/tv`. A TV fica conectada e a sessão se renova sozinha enquanto o painel está aberto. Precisa de um usuário com acesso ao WhatsApp para o painel do WhatsApp aparecer.
+**Link curto para digitar na TV:** **is.gd/tvleticia** (leva a `/tv`; criado no encurtador is.gd em 19/11/2026, sem conta, não dá para editar nem apagar; a página continua pedindo o login do CRM).
+
+**Como ligar na TV:** abra o navegador da TV e digite o link curto. Na primeira vez, aperte OK em "Ir para a tela de entrada" e entre com e-mail e senha (o mesmo login de sempre); depois de entrar, o CRM volta sozinho para o painel. A TV fica conectada e a sessão se renova sozinha enquanto o painel está aberto. Precisa de um usuário com acesso ao WhatsApp para o painel do WhatsApp aparecer.
 
 **Os 4 painéis** (teclas 1 a 4, ou botões coloridos vermelho/verde/amarelo/azul):
 
@@ -110,6 +112,7 @@ Endereço: **crm.advogadaleticiabarros.com.br/tv**. Página à parte do CRM, fei
 | 22/09/2026 | Claude | Resolvidos 5 dos 7 achados: Inadimplência unificada (3 das 4 contas), Movimentações a verificar fecham de vez, Processual/Agenda ganham as listas que já eram calculadas, "Total a protocolar"/"Peças pendentes" compartilham a mesma consulta |
 | 07/10/2026 | Claude | Novo painel **Resultados** ("Resultado por processo"): taxa de sucesso, % obtido, honorários por caso e provisão |
 | 19/11/2026 | Claude | Novo **Painel da TV** (`/tv`): painel geral, escritório virtual, WhatsApp (modo discreto) e hoje, usado pelo controle remoto, com menu e rotação automática |
+| 19/11/2026 | Claude | Link curto **is.gd/tvleticia** e volta automática para o painel depois de entrar no CRM pela TV |
 
 ---
 ◀ [Fluxograma do sistema](00b-fluxograma.md) · [Visão geral](00-visao-geral.md) · Próximo: [Clientes e cadastro](01-clientes.md) ▶
