@@ -65,6 +65,31 @@ Fonte: `GET /api/dashboards/resultados` → regra pura `src/services/resultadoPr
 - **Honorários recebidos / a receber** = soma das receitas (`financial_records`, tipo receita, pago × pendente) ligadas ao caso, direto (`case_id`) ou pelo acordo do caso (`agreement_id`). Inclui entradas de parceria.
 - **Provisão** (só casos em andamento) = valor da causa × taxa de sucesso × média obtida × honorário do caso. O honorário do caso é 30% se o caso é próprio; em parceria é a parte do escritório (`success_fee_percent` × (100 − `partner_split_percent`)%, ex.: Infinity Law = 15%). Ficam fora: **dativo** (o valor vem do arbitramento) e **defesa** (o ganho é economia). Caso sem valor da causa também fica fora, e o painel avisa quantos são.
 
+## Painel da TV do escritório (desde 19/11/2026)
+
+Endereço: **crm.advogadaleticiabarros.com.br/tv**. Página à parte do CRM, feita para ficar aberta numa TV do escritório e ser usada só com o controle remoto. Só mostra; não muda nada no sistema.
+
+**Como ligar na TV:** abra o navegador da TV, entre no CRM uma vez com e-mail e senha (o mesmo login de sempre) e depois abra o endereço `/tv`. A TV fica conectada e a sessão se renova sozinha enquanto o painel está aberto. Precisa de um usuário com acesso ao WhatsApp para o painel do WhatsApp aparecer.
+
+**Os 4 painéis** (teclas 1 a 4, ou botões coloridos vermelho/verde/amarelo/azul):
+
+| Painel | O que mostra |
+|---|---|
+| **1 · Painel geral** | Três colunas: agentes trabalhando agora (e quem está com erro), conversas do WhatsApp esperando resposta e o que precisa de atenção hoje, com a saúde do sistema. OK numa coluna abre o painel dela. |
+| **2 · Escritório virtual** | A sala com todos os agentes, a cor do setor na borda e o status (verde pulsando = trabalhando agora; amarelo = em pausa; vermelho = com erro; cinza = desligado), o que cada um fez por último e há quanto tempo. No alto, a mesa da Dra. (itens esperando conferência). OK num agente abre a ficha com a descrição, os números e o histórico. |
+| **3 · WhatsApp** | Conexão, recebidas e enviadas hoje, conversas esperando resposta (a mais antiga primeiro, com o tempo de espera em verde/amarelo/vermelho), maior espera, mensagens para aprovar e o movimento recente. Alerta se o WhatsApp cair ou se não chegar mensagem há mais de 6h em horário comercial. |
+| **4 · Hoje** | A mesma lista do "Hoje" do CRM (prazos, audiências, conversas, parcelas…) e a saúde do sistema, com o "como resolver" do que estiver com problema. OK num item mostra o detalhe. |
+
+**Controle remoto:** setas navegam; OK abre; Voltar (ou 0) abre e fecha o menu; canal +/− passa de painel; play/pausa liga ou desliga a rotação. O menu ("O que você quer ver?") escolhe o painel e tem os ajustes: rotação automática, modo discreto, atualizar agora e tela cheia. Funciona com as teclas de TVs LG (webOS) e Samsung (Tizen), com o mouse do controle e com teclado.
+
+**Rotação automática:** se ligada, troca de painel a cada 30 segundos. Ao mexer no controle, a rotação espera 3 minutos. Janela aberta sem uso fecha sozinha em 4 minutos.
+
+**Modo discreto do WhatsApp (padrão):** a TV fica à vista de clientes, então o painel mostra só o primeiro nome e a inicial do sobrenome, sem o texto das mensagens. OK no botão do painel mostra nomes completos e o começo da mensagem por 2 minutos e volta ao discreto sozinho. O telefone nunca vai para a TV.
+
+**Atualização:** agentes e WhatsApp a cada 30 segundos; "Hoje" a cada 2 minutos; a página recarrega sozinha a cada 6 horas (pega a versão nova do CRM). Sem internet, aparece o aviso "Sem conexão com o CRM" e os últimos dados continuam na tela.
+
+**Código:** `public/tv.html` e `public/tv.js` (JavaScript sem recursos novos, para navegador de TV antigo); dados de `GET /api/escritorio`, `GET /api/escritorio/agente/:id`, `GET /api/hoje` e `GET /api/tv/whatsapp` (`src/routes/tv.ts`, regras em `src/services/painelTv.ts`, testes em `tests/painelTv.test.mjs`).
+
 ## FAQ
 
 **Por que o valor da aba Inadimplência é menor que o KPI "Inadimplência" do Cockpit?** Por design, não por bug: o KPI soma tudo que o escritório tem a receber e está vencido (6 fontes); a aba é só a fila de cobrança acionável de parcelas de cliente (a única fonte onde dá pra renegociar/escalar cobrança). Ver [Cobrança e parcelas](08-cobranca.md#inadimplência-e-renegociação).
@@ -84,6 +109,7 @@ Fonte: `GET /api/dashboards/resultados` → regra pura `src/services/resultadoPr
 | 22/09/2026 | Claude | Criação do documento — auditoria completa dos 8 painéis a pedido da Dra. Letícia, depois do bug do KPI de Inadimplência |
 | 22/09/2026 | Claude | Resolvidos 5 dos 7 achados: Inadimplência unificada (3 das 4 contas), Movimentações a verificar fecham de vez, Processual/Agenda ganham as listas que já eram calculadas, "Total a protocolar"/"Peças pendentes" compartilham a mesma consulta |
 | 07/10/2026 | Claude | Novo painel **Resultados** ("Resultado por processo"): taxa de sucesso, % obtido, honorários por caso e provisão |
+| 19/11/2026 | Claude | Novo **Painel da TV** (`/tv`): painel geral, escritório virtual, WhatsApp (modo discreto) e hoje, usado pelo controle remoto, com menu e rotação automática |
 
 ---
 ◀ [Fluxograma do sistema](00b-fluxograma.md) · [Visão geral](00-visao-geral.md) · Próximo: [Clientes e cadastro](01-clientes.md) ▶

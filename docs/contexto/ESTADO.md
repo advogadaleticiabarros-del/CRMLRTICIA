@@ -2,9 +2,14 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 18/11/2026. Último commit: TRT17 com login direto pelo site do PJe-JT.
+**Última atualização:** 19/11/2026. Último commit: Painel da TV do escritório.
 
 ## Últimas entregas (mais recentes primeiro)
+- **19/11:** **Painel da TV do escritório** (Jessica: "uma tela para monitorar tudo através de uma TV no escritório, principalmente o escritório virtual [...] interativo através do controle remoto"; "monitoramento de mensagens do WhatsApp também"; "escolher com o controle o que eu quero ver").
+  - Endereço `/tv`, página à parte (`public/tv.html`, `public/tv.js`). 4 painéis: geral, escritório virtual (sala com os 29 agentes e ficha de cada um), WhatsApp e hoje. Setas, OK, Voltar/0 (menu), 1–4 e botões coloridos; rotação automática opcional a cada 30s.
+  - WhatsApp em **modo discreto** por padrão (primeiro nome + inicial, sem texto; telefone nunca sai do servidor); OK mostra tudo por 2 min. Rota nova `GET /api/tv/whatsapp`, regras em `painelTv.ts`, 9 testes.
+  - Verificado em navegador (Playwright, 1920×1080 e 1280×720, dados fictícios): navegação, menu, ficha do agente, modo discreto. **Não verificado numa TV de verdade nem com dados de produção.**
+  - **Pendente:** abrir na TV do escritório (entrar no CRM pelo navegador da TV, depois `/tv`) e dizer se as teclas do controle respondem. Ver `docs/contexto/relatorios/2026-11-19-painel-tv.md`.
 - **18/11 (7):** **Classificação, temperatura e partes dos processos** (Jessica: "faça os cadastros [...] inclua dados das partes contrárias"; "classificação de tipo de caso, tipo de justiça, em que fase está"; "temperatura de cada processo, se está a nosso favor").
   - Rotina `processos:classificar` (5h20 e 14h20): justiça para os 165; temperatura pelas decisões (ativos: 19 quentes, 79 mornos, 12 frios); área preenchida em 9 (90 ainda sem área, esperando classe e assuntos do DataJud).
   - DataJud deu HTTP 429: instância, classe e assuntos entram aos poucos, até 30 processos por rodada.

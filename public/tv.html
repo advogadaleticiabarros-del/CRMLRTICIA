@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>Painel da TV — Escritório</title>
+  <link rel="icon" href="/logo-sem-fundo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Spectral:wght@500;600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    /* Tela pensada para TV: tudo em rem, com a base presa à largura da tela
+       (20px numa TV Full HD). Só flexbox, sem grid nem gap, para funcionar no
+       navegador de TVs mais antigas. Visual do CRM: espresso + dourado. */
+    :root {
+      --ink: #15110c; --ink-2: #211a12; --ink-3: #2d2418; --line: rgba(224,192,116,.16);
+      --gold: #c19a4e; --gold-bright: #ecc869; --text: #f4efe4; --soft: #c9bfa9; --muted: #9a8f78;
+      --green: #4cc38a; --amber: #e8b04a; --red: #ef6b5e; --gray: #6f6758; --blue: #7aa7e8;
+    }
+    * { box-sizing: border-box; }
+    html { font-size: 20px; font-size: calc(100vw / 96); }
+    html, body { margin: 0; height: 100%; background: var(--ink); color: var(--text); overflow: hidden; }
+    body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; cursor: none; }
+    .serif { font-family: 'Spectral', Georgia, serif; }
+    #app { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: flex; flex-direction: column; padding: 1.4rem 2.2rem 1rem; }
+
+    /* ── Barra de cima ── */
+    .topo { display: flex; align-items: center; padding-bottom: 1rem; border-bottom: 1px solid var(--line); }
+    .marca { display: flex; align-items: center; margin-right: 2rem; }
+    .marca img { height: 2.6rem; margin-right: .8rem; }
+    .marca b { font-family: 'Spectral', Georgia, serif; font-weight: 600; font-size: 1.35rem; color: var(--gold-bright); display: block; line-height: 1.1; }
+    .marca span { font-size: .75rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
+    .abas { display: flex; flex: 1; }
+    .aba { font: inherit; font-size: 1rem; font-weight: 600; color: var(--soft); background: transparent; border: 2px solid transparent; border-radius: .6rem; padding: .55rem 1.1rem; margin-right: .5rem; }
+    .aba .num { display: inline-block; min-width: 1.3rem; height: 1.3rem; line-height: 1.3rem; border-radius: .35rem; background: var(--ink-3); color: var(--gold-bright); font-size: .75rem; text-align: center; margin-right: .45rem; }
+    .aba.ativa { color: var(--ink); background: var(--gold-bright); }
+    .aba.ativa .num { background: rgba(0,0,0,.15); color: var(--ink); }
+    .relogio { text-align: right; margin-left: 1rem; }
+    .relogio b { display: block; font-size: 2rem; font-weight: 600; letter-spacing: -.02em; line-height: 1; font-variant-numeric: tabular-nums; }
+    .relogio span { font-size: .8rem; color: var(--muted); }
+
+    /* ── Conteúdo ── */
+    .palco { flex: 1; position: relative; overflow: hidden; margin-top: 1rem; }
+    .vista { position: absolute; top: 0; right: 0; bottom: 0; left: 0; overflow: hidden; display: none; padding: .35rem; }
+    .vista.ativa { display: block; animation: entra .35s ease-out; }
+    @keyframes entra { from { opacity: 0; transform: translateY(.6rem); } to { opacity: 1; transform: none; } }
+    .rolagem { height: 100%; overflow: hidden; }
+    h2 { font-family: 'Spectral', Georgia, serif; font-weight: 600; font-size: 1.5rem; margin: 0 0 .8rem; color: var(--gold-bright); }
+    h3 { font-size: .8rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 .6rem; }
+
+    /* Foco do controle remoto: precisa ser visto do sofá. */
+    .focavel { outline: none; transition: transform .15s ease, box-shadow .15s ease; }
+    .focavel.foco { box-shadow: 0 0 0 .22rem var(--gold-bright), 0 .6rem 1.6rem rgba(0,0,0,.5); transform: scale(1.03); position: relative; z-index: 2; }
+    .aba.focavel.foco, .coluna.focavel.foco, .conversa.focavel.foco, .item.focavel.foco { transform: none; }
+    .rolagem { padding: .3rem; margin: -.3rem; }
+
+    /* ── Faixa de números ── */
+    .numeros { display: flex; margin-bottom: 1rem; }
+    .numero { flex: 1; background: var(--ink-2); border: 1px solid var(--line); border-radius: .8rem; padding: .8rem 1rem; margin-right: .8rem; }
+    .numero:last-child { margin-right: 0; }
+    .numero b { display: block; font-size: 2.3rem; font-weight: 700; letter-spacing: -.03em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+    .numero span { font-size: .85rem; color: var(--soft); }
+    .numero.bom b { color: var(--green); } .numero.atencao b { color: var(--amber); } .numero.ruim b { color: var(--red); }
+
+    /* ── Painel geral ── */
+    .colunas { display: flex; height: 100%; }
+    .coluna { flex: 1; background: var(--ink-2); border: 1px solid var(--line); border-radius: 1rem; padding: 1.2rem 1.3rem; margin-right: 1rem; overflow: hidden; display: flex; flex-direction: column; }
+    .coluna:last-child { margin-right: 0; }
+    .coluna .rodape-col { margin-top: auto; padding-top: .6rem; font-size: .8rem; color: var(--muted); }
+    .grande { font-size: 3.4rem; font-weight: 700; letter-spacing: -.03em; line-height: 1; margin: .2rem 0 .3rem; font-variant-numeric: tabular-nums; }
+    .linha { display: flex; align-items: baseline; padding: .5rem 0; border-bottom: 1px solid var(--line); font-size: 1rem; }
+    .linha:last-child { border-bottom: 0; }
+    .linha .q { margin-left: auto; padding-left: .8rem; color: var(--soft); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .linha .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .linha .t small { display: block; color: var(--muted); font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* ── Escritório virtual ── */
+    .chefe { display: flex; align-items: center; background: linear-gradient(90deg, rgba(193,154,78,.18), rgba(193,154,78,.04)); border: 1px solid var(--line); border-radius: .9rem; padding: .8rem 1.2rem; margin-bottom: 1rem; }
+    .chefe .avatar { width: 3rem; height: 3rem; border-radius: 50%; background: var(--gold); color: var(--ink); font-weight: 700; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; margin-right: 1rem; }
+    .chefe b { font-size: 1.05rem; } .chefe p { margin: .15rem 0 0; color: var(--soft); font-size: .95rem; }
+    .chefe .contagem { margin-left: auto; display: flex; }
+    .chefe .contagem div { text-align: center; margin-left: 1.6rem; }
+    .chefe .contagem b { display: block; font-size: 1.8rem; }
+    .chefe .contagem span { font-size: .75rem; color: var(--muted); }
+    .sala { display: flex; flex-wrap: wrap; margin-right: -.8rem; }
+    .agente { width: calc(12.5% - .8rem); margin: 0 .8rem .8rem 0; background: var(--ink-2); border: 1px solid var(--line); border-left: .3rem solid var(--setor, var(--gold)); border-radius: .8rem; padding: .7rem .8rem; min-height: 7rem; display: flex; flex-direction: column; }
+    .agente .cab { display: flex; align-items: center; }
+    .agente .ini { width: 2.2rem; height: 2.2rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; color: #fff; margin-right: .6rem; flex: none; position: relative; }
+    .agente .ini i { position: absolute; right: -.1rem; bottom: -.1rem; width: .75rem; height: .75rem; border-radius: 50%; border: .15rem solid var(--ink-2); background: var(--gray); }
+    .agente.trabalhando .ini i { background: var(--green); animation: pulso 1.6s ease-in-out infinite; }
+    .agente.parado .ini i { background: var(--amber); }
+    .agente.erro .ini i { background: var(--red); }
+    .agente.desligado { opacity: .55; }
+    @keyframes pulso { 0%,100% { box-shadow: 0 0 0 0 rgba(76,195,138,.7); } 50% { box-shadow: 0 0 0 .4rem rgba(76,195,138,0); } }
+    .agente .nome { font-weight: 600; font-size: .95rem; line-height: 1.15; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .agente .cargo { font-size: .72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .agente .faz { font-size: .8rem; color: var(--soft); margin-top: .45rem; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+    .agente .quando { margin-top: auto; padding-top: .35rem; font-size: .72rem; color: var(--muted); display: flex; }
+    .agente .quando em { font-style: normal; margin-left: auto; color: var(--gold); }
+    .agente.trabalhando .quando span { color: var(--green); font-weight: 600; }
+    .agente.erro .quando span { color: var(--red); font-weight: 600; }
+    .legenda { display: flex; font-size: .8rem; color: var(--muted); margin-bottom: .8rem; }
+    .legenda span { margin-right: 1.4rem; display: flex; align-items: center; }
+    .legenda i { width: .7rem; height: .7rem; border-radius: 50%; margin-right: .4rem; display: inline-block; }
+
+    /* ── WhatsApp ── */
+    .lista { list-style: none; margin: 0; padding: 0; }
+    .conversa { display: flex; align-items: center; padding: .65rem .8rem; border-radius: .6rem; margin-bottom: .35rem; background: var(--ink-3); }
+    .conversa .bola { width: 2.2rem; height: 2.2rem; border-radius: 50%; background: #2f5d46; color: #d8f5e6; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: .85rem; margin-right: .8rem; flex: none; }
+    .conversa .meio { flex: 1; min-width: 0; }
+    .conversa .meio b { display: block; font-size: 1rem; }
+    .conversa .meio small { display: block; color: var(--muted); font-size: .8rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .conversa .espera { font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: .6rem; }
+    .espera.ok { color: var(--soft); } .espera.atencao { color: var(--amber); } .espera.ruim { color: var(--red); }
+    .naolidas { background: var(--green); color: #082015; font-weight: 700; font-size: .75rem; border-radius: 1rem; padding: .1rem .5rem; margin-left: .6rem; }
+    .seta { width: 1.6rem; text-align: center; margin-right: .5rem; font-weight: 700; }
+    .seta.in { color: var(--green); } .seta.out { color: var(--blue); }
+    .botao { font: inherit; font-size: .95rem; font-weight: 600; color: var(--text); background: var(--ink-3); border: 1px solid var(--line); border-radius: .6rem; padding: .55rem 1rem; }
+    .alerta { background: rgba(239,107,94,.15); border: 1px solid rgba(239,107,94,.5); color: #ffd3cd; border-radius: .7rem; padding: .7rem 1rem; margin-bottom: 1rem; font-weight: 600; }
+    .vazio { color: var(--muted); padding: 1rem 0; font-size: 1rem; }
+
+    /* ── Hoje ── */
+    .item { display: flex; align-items: flex-start; padding: .75rem .9rem; border-radius: .7rem; background: var(--ink-3); margin-bottom: .5rem; border-left: .3rem solid var(--gray); }
+    .item.critico { border-left-color: var(--red); } .item.atencao { border-left-color: var(--amber); } .item.rotina { border-left-color: var(--blue); }
+    .item .ic { font-size: 1.3rem; margin-right: .8rem; line-height: 1.2; }
+    .item b { display: block; font-size: 1.02rem; } .item small { color: var(--soft); font-size: .85rem; }
+    .saude { display: flex; flex-wrap: wrap; }
+    .saude div { width: calc(50% - .5rem); margin: 0 .5rem .5rem 0; background: var(--ink-3); border-radius: .6rem; padding: .6rem .8rem; font-size: .92rem; display: flex; align-items: center; }
+    .saude i { width: .8rem; height: .8rem; border-radius: 50%; margin-right: .6rem; flex: none; }
+
+    /* ── Rodapé com as teclas ── */
+    .rodape { display: flex; align-items: center; padding-top: .7rem; border-top: 1px solid var(--line); font-size: .8rem; color: var(--muted); margin-top: .8rem; }
+    .rodape span { margin-right: 1.6rem; }
+    .rodape kbd { font-family: inherit; background: var(--ink-3); color: var(--soft); border: 1px solid var(--line); border-radius: .3rem; padding: .05rem .4rem; margin-right: .3rem; }
+    .rodape .estado { margin-left: auto; margin-right: 0; color: var(--soft); }
+    .barra-rot { height: .2rem; background: var(--ink-3); border-radius: .2rem; overflow: hidden; width: 8rem; display: inline-block; vertical-align: middle; margin-left: .6rem; }
+    .barra-rot i { display: block; height: 100%; background: var(--gold); width: 0; }
+
+    /* ── Menu e janela de detalhe ── */
+    .camada { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: rgba(10,8,5,.78); display: none; align-items: center; justify-content: center; z-index: 10; }
+    .camada.aberta { display: flex; }
+    .janela { background: var(--ink-2); border: 1px solid var(--line); border-radius: 1.2rem; padding: 1.6rem 1.8rem; width: 46rem; max-height: 86%; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 2rem 4rem rgba(0,0,0,.6); }
+    .janela.menu { width: 30rem; }
+    .opcao { display: flex; align-items: center; width: 100%; text-align: left; font: inherit; font-size: 1.1rem; color: var(--text); background: var(--ink-3); border: 0; border-radius: .7rem; padding: .8rem 1rem; margin-bottom: .5rem; }
+    .opcao .num { width: 1.8rem; height: 1.8rem; line-height: 1.8rem; text-align: center; border-radius: .4rem; background: var(--ink); color: var(--gold-bright); font-weight: 700; margin-right: .9rem; font-size: .9rem; }
+    .opcao em { margin-left: auto; font-style: normal; color: var(--muted); font-size: .9rem; }
+    .historico { overflow: hidden; margin-top: .6rem; }
+    .historico .linha .t { white-space: normal; }
+    .historico .erro { color: var(--red); }
+    .sub { color: var(--soft); font-size: .95rem; margin: 0 0 .8rem; line-height: 1.45; }
+
+    /* ── Entrada (sem login) ── */
+    .entrada { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: none; align-items: center; justify-content: center; text-align: center; z-index: 20; background: var(--ink); }
+    .entrada.aberta { display: flex; }
+    .entrada .caixa { max-width: 40rem; }
+    .entrada img { height: 6rem; margin-bottom: 1rem; }
+    .entrada p { color: var(--soft); font-size: 1.15rem; line-height: 1.5; }
+    .entrada .botao { font-size: 1.2rem; padding: .8rem 1.6rem; margin-top: 1rem; }
+    .aviso-rede { position: absolute; right: 2.2rem; bottom: 3.2rem; background: var(--red); color: #fff; padding: .4rem .8rem; border-radius: .5rem; font-size: .85rem; display: none; z-index: 5; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header class="topo">
+      <div class="marca"><img src="/logo-sem-fundo.png" alt="" /><div><b>Painel do escritório</b><span>Dra. Letícia Barros · Advocacia</span></div></div>
+      <nav class="abas" id="abas"></nav>
+      <div class="relogio"><b id="hora">--:--</b><span id="data"></span></div>
+    </header>
+    <main class="palco" id="palco">
+      <section class="vista" id="v-geral"></section>
+      <section class="vista" id="v-escritorio"></section>
+      <section class="vista" id="v-whatsapp"></section>
+      <section class="vista" id="v-hoje"></section>
+    </main>
+    <footer class="rodape">
+      <span><kbd>◀ ▶ ▲ ▼</kbd>navegar</span>
+      <span><kbd>OK</kbd>abrir</span>
+      <span><kbd>1</kbd>–<kbd>4</kbd>painéis</span>
+      <span><kbd>0</kbd>ou<kbd>Voltar</kbd>menu</span>
+      <span class="estado" id="estado"></span>
+    </footer>
+    <div class="aviso-rede" id="avisoRede">Sem conexão com o CRM — tentando de novo</div>
+  </div>
+
+  <div class="camada" id="camadaMenu"><div class="janela menu" id="menu"></div></div>
+  <div class="camada" id="camadaDetalhe"><div class="janela" id="detalhe"></div></div>
+
+  <div class="entrada" id="entrada">
+    <div class="caixa">
+      <img src="/logo-sem-fundo.png" alt="" />
+      <h2>Painel da TV</h2>
+      <p>Para mostrar o painel, entre no CRM uma vez neste navegador da TV (com o seu e-mail e senha). Depois abra de novo o endereço <b>/tv</b>. A TV fica conectada e o acesso se renova sozinho.</p>
+      <button class="botao focavel" data-acao="login">Ir para a tela de entrada</button>
+    </div>
+  </div>
+
+  <script src="/tv.js"></script>
+</body>
+</html>
