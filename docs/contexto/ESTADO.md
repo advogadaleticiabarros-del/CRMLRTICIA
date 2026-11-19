@@ -2,9 +2,13 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 19/11/2026. Último commit: Painel da TV do escritório.
+**Última atualização:** 19/11/2026. Último commit: Dr. Vítor com raio-x diário da carteira.
 
 ## Últimas entregas (mais recentes primeiro)
+- **19/11:** **Dr. Vítor (vigia da carteira) completo e conversando com a equipe** (Jessica: "melhore como o Dr Vitor trabalha e entrega os dados [...] com quem ele deve ter contato [...] escritório multi agêntico [...] interações humanizadas").
+  - Rotina nova `carteira:raio-x` às 6h45: confere todo processo e caso ativo em 10 tipos de pendência, com gravidade, o que fazer e o colega que cuida (Tereza, Paula, Lucas, Enzo, Fábio, Clara). Detalhes em `docs/manual/10-monitoramento.md`.
+  - O repasse vira conversa no mural (frases variadas); o resumo do dia vai à Dra. Clara; linha no briefing; sino só com grave nova e resumo às segundas; pauta com filtros na ficha do Vítor. Migration 188 (`carteira_raio_x`).
+  - Verificado: 1.627 testes, 0 falhas, numa cópia limpa só com estas mudanças. **Não verificado com dados de produção** (sem acesso ao banco nesta sessão): o primeiro raio-x real sai amanhã, 20/11, às 6h45.
 - **19/11:** **Painel da TV do escritório** (Jessica: "uma tela para monitorar tudo através de uma TV no escritório, principalmente o escritório virtual [...] interativo através do controle remoto"; "monitoramento de mensagens do WhatsApp também"; "escolher com o controle o que eu quero ver").
   - Endereço `/tv`, página à parte (`public/tv.html`, `public/tv.js`). 4 painéis: geral, escritório virtual (sala com os 29 agentes e ficha de cada um), WhatsApp e hoje. Setas, OK, Voltar/0 (menu), 1–4 e botões coloridos; rotação automática opcional a cada 30s.
   - WhatsApp em **modo discreto** por padrão (primeiro nome + inicial, sem texto; telefone nunca sai do servidor); OK mostra tudo por 2 min. Rota nova `GET /api/tv/whatsapp`, regras em `painelTv.ts`, 9 testes.

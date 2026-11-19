@@ -12,6 +12,8 @@ export interface BriefingExtras {
   repassesCliente: { qtd: number; total: number };
   leadsSemResposta24h: string[];
   saude: { rotinasComErro: string[]; backupOk: boolean };
+  /** Raio-x da carteira (Dr. Vítor). Opcional: sem foto recente, não aparece. */
+  carteira?: { saude: number; graves: number; principais: string[] } | null;
 }
 
 const brl = (n: number) => `R$ ${(Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -27,6 +29,7 @@ function linhas(e: BriefingExtras): { icone: string; titulo: string; texto: stri
   if (e.repassesCliente.qtd) out.push({ icone: '🤝', titulo: 'Repasse ao cliente pendente', texto: `${e.repassesCliente.qtd} repasse(s) de acordo — ${brl(e.repassesCliente.total)}` });
   if (e.docsRecebidos) out.push({ icone: '📎', titulo: 'Documentos recebidos no WhatsApp (24h)', texto: `${e.docsRecebidos} arquivo(s) — confira em Documentos` });
   if (e.naoAnalisadas.length) out.push({ icone: '🔎', titulo: 'Publicações não analisadas pela IA', texto: `processos ${lista(e.naoAnalisadas)} — leia manualmente` });
+  if (e.carteira?.graves) out.push({ icone: '📋', titulo: `Carteira (Dr. Vítor) — saúde ${e.carteira.saude}%`, texto: `${e.carteira.graves} ponto(s) grave(s): ${e.carteira.principais.join('; ')}${e.carteira.graves > e.carteira.principais.length ? ` +${e.carteira.graves - e.carteira.principais.length}` : ''} — lista completa na ficha do Dr. Vítor` });
   if (e.falhasConsulta.length) out.push({ icone: '⚠️', titulo: 'Consultas ao tribunal que falharam (24h)', texto: `processos ${lista(e.falhasConsulta)} — conferir manualmente` });
   const saude: string[] = [];
   if (!e.saude.backupOk) saude.push('backup das últimas 24h não confirmado');

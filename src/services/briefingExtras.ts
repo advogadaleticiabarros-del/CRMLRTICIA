@@ -87,5 +87,14 @@ export async function getBriefingExtras(): Promise<BriefingExtras> {
     return { rotinasComErro: erros.map((r: any) => r.job), backupOk: Number(bk.n) > 0 };
   }, { rotinasComErro: [], backupOk: true });
 
-  return { whatsappAguardando, docsRecebidos, naoAnalisadas, falhasConsulta, parcelasAtrasadas, repassesCliente, leadsSemResposta24h, saude };
+  // Raio-x da carteira do Dr. Vítor (06h45): só a foto de hoje ou de ontem.
+  const carteira = await safe(async () => {
+    const { ultimoRaioX } = await import('./carteiraRaioXJob');
+    const { resumoParaBriefing } = await import('./carteiraRaioX');
+    const r = await ultimoRaioX();
+    if (!r || Date.now() - Date.parse(r.dia) > 2 * 86_400_000) return null;
+    return resumoParaBriefing(r);
+  }, null);
+
+  return { whatsappAguardando, docsRecebidos, naoAnalisadas, falhasConsulta, parcelasAtrasadas, repassesCliente, leadsSemResposta24h, saude, carteira };
 }

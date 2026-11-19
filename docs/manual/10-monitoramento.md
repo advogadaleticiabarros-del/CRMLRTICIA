@@ -158,6 +158,30 @@ Rotina `carteira:vigia`, todo dia às 7h30. Avisa no sino, sem ninguém pergunta
 
 Controle de "já avisei": tabela `vigia_alertas` (ref + marco únicos). Regras puras em `src/services/carteiraVigia.ts`.
 
+### Raio-x da carteira do Dr. Vítor (desde 19/11/2026)
+
+Pedido da Jessica: o Dr. Vítor só mostrava números ("divergentes: 54 · avisos: 5") e não falava com ninguém. Agora a rotina `carteira:raio-x` roda todo dia às **6h45** (antes do briefing das 7h) e confere **cada processo ativo e cada caso ativo**:
+
+| Pendência | Gravidade | Quem cuida |
+|---|---|---|
+| Prescrição (caso sem processo, data-limite em até 90 dias) | crítica até 15 dias ou vencida; alta até 30; média até 90 | Dra. Paula (prazos) |
+| Ação não proposta (caso de área judicial, sem processo nem protocolo há 30+ dias) | média; alta com 60+ | Enzo (produção) |
+| Consulta ao tribunal atrasada (3+ dias sem consulta, ou nunca) | média; alta com 7+ | Dra. Tereza (tribunais) |
+| Processo parado (30+ dias sem movimentação) | baixa; média com 60+; alta com 90+ | Dra. Paula; Enzo se 60+ e sem prazo em aberto (petição de andamento) |
+| Fase desatualizada (a sugerida pelas movimentações está à frente) | média para sentença/execução/encerrado | Dr. Lucas (sentença/recurso), Dr. Fábio (execução), Dra. Clara (encerrado) |
+| Fase "Encerrado" com processo ainda ativo | média | Dra. Clara |
+| Processo sem cliente | média | Dra. Clara |
+| Sem caso, sem valor da causa, fora do monitoramento | baixa (ajuste de cadastro) | Dra. Clara / Dra. Tereza |
+
+- Consulta atrasada **substitui** o "parado" do mesmo processo: sem dado novo do tribunal, não dá para dizer que parou.
+- **Saúde da carteira** = % de processos sem pendência média ou maior (ajustes leves de cadastro não derrubam).
+- **Repasse aos colegas:** o Vítor registra uma ação por colega ("passou 6 pendência(s) à Dra. Tereza: …") e a sociedade transforma em conversa no mural, com frases que variam. Repassa só o que é novo ou piorou; na primeira vez e às segundas, repassa tudo. Quando algo se resolve, ele agradece à Dra. Tereza. O resumo do dia vai à Dra. Clara.
+- **Entrega à Dra.:** linha "📋 Carteira (Dr. Vítor)" no briefing (e-mail das 7h e WhatsApp das 8h) quando há ponto grave; aviso no sino **só** quando surge ou piora algo grave, e o resumo completo às segundas; pauta completa com filtros por gravidade e por colega na ficha do Dr. Vítor (Escritório virtual → Dr. Vítor).
+- **Nada é alterado sozinho** e nada vai para cliente: é só leitura e aviso. Só o primeiro nome do cliente aparece (a sala também passa na TV).
+- Foto de cada dia em `carteira_raio_x` (migration 188), para comparar com a anterior. Rodar de novo no mesmo dia atualiza a foto sem repetir conversa nem aviso.
+- Regras puras: `src/services/carteiraRaioX.ts` (testes em `tests/carteiraRaioX.test.mjs`); banco e avisos: `carteiraRaioXJob.ts`; tela: `GET /api/escritorio/carteira`.
+- As rotinas antigas continuam (`carteira:vigia` 7h30 e `processos:fase-divergente` 7h40), agora com resultado legível no "Trabalho recente" ("avisos de processo parado: 2 · avisos de prescrição: 0").
+
 ## Análise da movimentação pela IA em formato fixo (desde 30/09/2026)
 
 Cada movimentação nova é analisada pela IA (Groq, com Gemini de reserva) em **modo JSON**: resumo, ação, prazo interno, prioridade, **tipo** (sentença, acórdão, decisão, despacho, intimação, citação, audiência, recurso, trânsito em julgado, juntada, outro) e **grau** (1º, 2º, tribunal superior). Cada campo é validado em `src/services/movimentacaoIa.ts`. Antes o sistema "recortava" texto solto e, se a IA escrevesse diferente, falhava em silêncio; agora resposta fora do formato não é gravada e a movimentação fica como *não analisada* (aparece assim no briefing).
@@ -188,6 +212,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 19/11/2026 | Claude | Raio-x da carteira do Dr. Vítor (`carteira:raio-x`, 6h45): 10 tipos de pendência com gravidade e colega responsável, repasse que vira conversa, briefing, sino só para grave nova e pauta na ficha |
 | 18/11/2026 | Claude | TRT17 pelo site: o CRM gera o código do autenticador (2 fatores) pela chave cadastrada, criptografada (migration 186) |
 | 18/11/2026 | Claude | TRT17 pelo site do PJe-JT com o login da Dra. (robô pela ponte do escritório): intimações de "Meus Expedientes" e andamentos do acervo, só leitura |
 | 18/11/2026 | Claude | TRT17 pelo Push por e-mail: cada movimento do e-mail vira um andamento (data e texto do tribunal), processos do Push fora do CRM listados para cadastrar, leitura 4x/dia e aviso no WhatsApp quando a conexão Google cai |

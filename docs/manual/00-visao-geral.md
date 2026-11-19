@@ -186,7 +186,8 @@ Regras em `esteiraComercial.ts`; banco e envio em `esteiraComercialServico.ts`. 
 - **Conversas entre colegas:** a cada 10 minutos, as ações reais viram conversa. Exemplos:
   - o Dr. Lucas avisa a Dra. Paula do prazo da sentença que leu;
   - a Dra. Camila avisa o Enzo que os documentos estão completos;
-  - a Dra. Bianca passa a proposta ao Dr. Felipe.
+  - a Dra. Bianca passa a proposta ao Dr. Felipe;
+  - o Dr. Vítor passa cada pendência da carteira ao colega que cuida dela (Tereza, Paula, Lucas, Enzo, Fábio, Clara) e entrega o raio-x do dia à Dra. Clara (ver [Monitoramento](10-monitoramento.md#raio-x-da-carteira-do-dr-vítor-desde-19112026)).
 
   Os textos usam só os fatos da ação, sem inventar nada (`sociedadeAgentes.ts`). Aparecem em balões na sala, com uma linha até o colega, e no Mural.
 - **Reunião da equipe:** todo dia às 18h15, ou pelo botão "Fazer a reunião agora" no Mural. A Dra. Clara conduz:
@@ -279,6 +280,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 19/11/2026 | Claude | Dr. Vítor com raio-x diário da carteira e repasse aos colegas, que vira conversa no mural |
 | 13/11/2026 | Claude | Escritório virtual: cada setor numa sala separada (divisórias, porta e corredores) e a CEO negra de cabelo black |
 | 13/11/2026 | Claude | Escritório virtual: setores com área própria na sala, a CEO (Dra. Letícia) com a Mesa da Chefe, temas festivos automáticos e conserto das mesas que sumiam |
 | 21/10/2026 | Claude | Pesquisa de Leis (bloco 18) e Dra. Júlia e Dra. Vera em funcionamento |

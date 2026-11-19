@@ -1346,7 +1346,35 @@
           : `<p class="pi-vazio">${a.emConstrucao ? 'Este agente ainda está em construção.' : 'Nada registrado nos últimos dias.'}</p>`}`;
       if (id === 'guardiao') corpo.appendChild(await secaoErros());
       if (id === 'coletor') corpo.prepend(await secaoFicha());
+      if (id === 'carteira') corpo.prepend(await secaoCarteira());
     } catch (e) { corpo.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  }
+
+  // ── Dr. Vítor: raio-x da carteira (pauta do dia, por gravidade e por colega) ──
+  const GRAV_CARTEIRA = { critica: ['🚨', 'Crítica'], alta: ['🔴', 'Alta'], media: ['🟠', 'Média'], baixa: ['⚪', 'Ajuste'] };
+  async function secaoCarteira() {
+    const box = el('<div class="pi-card" style="margin-bottom:12px"></div>');
+    let r;
+    try { r = await api('/api/escritorio/carteira'); } catch (e) { box.innerHTML = `<p class="pi-vazio">${esc(e.message)}</p>`; return box; }
+    if (!r) { box.innerHTML = '<h4 style="margin:0 0 4px">📋 Raio-x da carteira</h4><p class="pi-vazio">O primeiro raio-x sai amanhã às 6h45.</p>'; return box; }
+    let filtro = { grav: '', colega: '' };
+    const colegas = [...new Map(r.pendencias.map((p) => [p.colega, p.nomeColega])).entries()];
+    const desenhar = () => {
+      const lista = r.pendencias.filter((p) => (!filtro.grav || p.gravidade === filtro.grav) && (!filtro.colega || p.colega === filtro.colega));
+      const chip = (k, v, rot, n) => `<button type="button" class="${filtro[k] === v ? 'btn-sm' : 'btn-ghost'}" data-f="${k}" data-v="${esc(v)}" aria-pressed="${filtro[k] === v}">${rot}${n !== undefined ? ` (${n})` : ''}</button>`;
+      box.innerHTML = `
+        <h4 style="margin:0 0 4px">📋 Raio-x da carteira · ${esc(r.dia.split('-').reverse().join('/'))}</h4>
+        <p style="font-size:13px;margin:0 0 6px"><b>Saúde ${r.saude}%</b> · ${r.emDia} de ${r.conferidos.processos} processos em dia · ${r.conferidos.casos} casos conferidos${r.novas || r.resolvidas ? ` · desde a foto anterior: ${r.novas} nova(s), ${r.resolvidas} resolvida(s)` : ''}</p>
+        <p style="font-size:12px;color:var(--text-muted);margin:0 0 8px">O Dr. Vítor confere tudo às 6h45 e repassa cada pendência ao colega que cuida dela. Nada aqui é alterado sozinho: a decisão é sempre da Dra.</p>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:6px">${chip('grav', '', 'Todas', r.pendencias.length)}${Object.entries(GRAV_CARTEIRA).filter(([g]) => r.contagem[g]).map(([g, [ic, rot]]) => chip('grav', g, `${ic} ${rot}`, r.contagem[g])).join('')}</div>
+        ${colegas.length > 1 ? `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${chip('colega', '', 'Todos os colegas')}${colegas.map(([id, nome]) => chip('colega', id, esc(nome), r.pendencias.filter((p) => p.colega === id).length)).join('')}</div>` : ''}
+        ${lista.length ? `<div class="table-wrap" style="max-height:380px;overflow:auto"><table><thead><tr><th></th><th>Processo / caso</th><th>O que está acontecendo</th><th>O que fazer</th><th>Quem cuida</th></tr></thead><tbody>
+          ${lista.map((p) => `<tr><td title="${GRAV_CARTEIRA[p.gravidade][1]}">${GRAV_CARTEIRA[p.gravidade][0]}</td><td>${esc(p.titulo)}</td><td><small>${esc(p.motivo)}</small></td><td><small>${esc(p.oQueFazer)}</small></td><td style="white-space:nowrap">${esc(p.nomeColega)}</td></tr>`).join('')}
+          </tbody></table></div>` : `<p class="pi-vazio">${r.pendencias.length ? 'Nada com este filtro.' : 'Carteira em dia. 👍'}</p>`}`;
+      box.querySelectorAll('[data-f]').forEach((b) => b.onclick = () => { filtro = { ...filtro, [b.dataset.f]: b.dataset.v }; desenhar(); });
+    };
+    desenhar();
+    return box;
   }
 
   // ── Dra. Camila: ficha automática (o que não foi gravado sozinho) ──────────

@@ -251,6 +251,17 @@ router.get('/agente/:id', async (req: Request, res: Response) => {
   res.json({ agente, rotinas: a.jobs, historico });
 });
 
+/**
+ * Raio-x da carteira do Dr. Vítor: a foto mais recente, com o nome de quem
+ * cuida de cada pendência. Só leitura. Regras em services/carteiraRaioX.ts.
+ */
+router.get('/carteira', async (_req: Request, res: Response) => {
+  const { ultimoRaioX } = await import('../services/carteiraRaioXJob');
+  const r = await safe(() => ultimoRaioX(), null);
+  const nome = new Map(AGENTES.map((a) => [a.id, a.nome]));
+  res.json(r ? { ...r, pendencias: r.pendencias.map((p) => ({ ...p, nomeColega: nome.get(p.colega) || p.colega })) } : null);
+});
+
 /** Dono de cada rotina, para contar o trabalho por agente. */
 const DONO_DA_ROTINA = new Map(AGENTES.flatMap((a) => a.jobs.map((j) => [j, a] as const)));
 

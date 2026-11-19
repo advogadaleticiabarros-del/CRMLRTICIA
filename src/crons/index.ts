@@ -232,8 +232,19 @@ export function startCronJobs() {
   cron.schedule('30 7 * * *', () => {
     runJob('carteira:vigia', async () => {
       const m = await import('../services/carteiraVigiaJob');
-      return m.runVigiaCarteira();
+      const r = await m.runVigiaCarteira();
+      return { 'avisos de processo parado': r.parados, 'avisos de prescrição': r.prescricao };
     }, { critica: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
+  // ── 06:45: raio-x da carteira (Dr. Vítor) — antes do briefing das 7h. Confere
+  // cada processo e caso ativo, repassa cada pendência ao colega certo (vira
+  // conversa no mural) e avisa a Dra. só quando surge algo grave ou às segundas.
+  cron.schedule('45 6 * * *', () => {
+    runJob('carteira:raio-x', async () => {
+      const m = await import('../services/carteiraRaioXJob');
+      return m.runRaioXCarteira();
+    });
   }, { timezone: 'America/Sao_Paulo' });
 
   // ── 8h: acordos que vencem hoje, amanhã e em 2 dias (e os vencidos sem baixa) ──
@@ -569,7 +580,8 @@ export function startCronJobs() {
   cron.schedule('40 7 * * *', () => {
     runJob('processos:fase-divergente', async () => {
       const { alertarFaseDivergente } = await import('../services/faseDivergenteService');
-      return await alertarFaseDivergente();
+      const r = await alertarFaseDivergente();
+      return { 'processos com fase desatualizada': r.divergentes, 'avisos enviados hoje': r.avisos };
     }, { silencioso: true });
   }, { timezone: 'America/Sao_Paulo' });
 

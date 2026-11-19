@@ -5,6 +5,7 @@
  * de fato inventado. Regras puras — tests/atendenteSociedade.test.mjs.
  */
 import { AGENTES } from './escritorioVirtual';
+import { RE_RAIO_X, RE_REPASSE, RE_RESOLVIDAS, agentePeloNome, falasDoRaioX, falasDoRepasse, falasDasResolvidas } from './carteiraRaioX';
 
 export const AGENTES_DA_SOCIEDADE = AGENTES.map((a) => a.id);
 const NOME: Record<string, string> = Object.fromEntries(AGENTES.map((a) => [a.id, a.nome.replace(/^Dra?\.\s*/, '')]));
@@ -12,7 +13,9 @@ const NOME: Record<string, string> = Object.fromEntries(AGENTES.map((a) => [a.id
 export interface Fala { quem: string; texto: string }
 export interface ConversaAgentes { de: string; para: string; tema: string; falas: Fala[]; ref: number }
 
-type Regra = { agente: string; re: RegExp; para: string; tema: string; falas: (m: RegExpMatchArray, n: (id: string) => string) => Array<[string, string]> };
+/** `para` pode depender do texto (ex.: o Vítor repassa a colegas diferentes); null = sem conversa. `ref` varia as frases. */
+type Regra = { agente: string; re: RegExp; para: string | ((m: RegExpMatchArray) => string | null); tema: string | ((m: RegExpMatchArray) => string);
+  falas: (m: RegExpMatchArray, n: (id: string) => string, ref: number) => Array<[string, string]> };
 
 const REGRAS: Regra[] = [
   { agente: 'leitor', re: /leu (a sentença|o acórdão) do proc\. (\S+)/, para: 'prazos', tema: 'prazo de recurso',
@@ -57,6 +60,13 @@ const REGRAS: Regra[] = [
   { agente: 'secretaria', re: /entregou à Dra\. a leitura da decisão do proc\. (\S+)/, para: 'leitor', tema: 'decisão entregue',
     falas: (m, n) => [['secretaria', `${n('leitor')}, entreguei à Dra. a sua leitura do proc. ${m[1]}.`],
       ['leitor', `Obrigado, ${n('secretaria')}!`]] },
+  // Dr. Vítor (vigia da carteira): raio-x do dia, repasse a cada colega e o que se resolveu (carteiraRaioX.ts).
+  { agente: 'carteira', re: RE_RAIO_X, para: 'secretaria', tema: 'raio-x da carteira',
+    falas: (m, _n, ref) => falasDoRaioX(m, ref) },
+  { agente: 'carteira', re: RE_REPASSE, para: (m) => agentePeloNome(m[2]), tema: (m) => m[3].replace(/ \(\+\d+\)$/, ''),
+    falas: (m, _n, ref) => falasDoRepasse(agentePeloNome(m[2]) || '', Number(m[1]), m[3], m[4] || '', ref) },
+  { agente: 'carteira', re: RE_RESOLVIDAS, para: 'tribunais', tema: 'pendências resolvidas',
+    falas: (m, _n, ref) => falasDasResolvidas(m, ref) },
 ];
 
 /** O trabalho real vira conversa entre colegas (null = ação sem conversa). */
@@ -66,7 +76,10 @@ export function conversaDeAcao(a: { id: number; agente: string; texto: string })
     if (r.agente !== a.agente) continue;
     const m = String(a.texto || '').match(r.re);
     if (!m) continue;
-    return { de: r.agente, para: r.para, tema: r.tema, falas: r.falas(m, n).map(([quem, texto]) => ({ quem, texto })), ref: a.id };
+    const para = typeof r.para === 'function' ? r.para(m) : r.para;
+    if (!para) continue;
+    const tema = typeof r.tema === 'function' ? r.tema(m) : r.tema;
+    return { de: r.agente, para, tema, falas: r.falas(m, n, a.id).map(([quem, texto]) => ({ quem, texto })), ref: a.id };
   }
   return null;
 }
