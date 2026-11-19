@@ -975,7 +975,9 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 **Como reconhecer de novo:** no Playwright, `page.goBack()` na página `/tv` deve continuar em `/tv` com o menu aberto.
 
-**Recaída no mesmo dia ("eu clico e ele fecha, nem consegui atualizar"):** a página não saía mais (o log mostrava `/api/tv/*` contínuo desde 15:23), mas o menu abria e fechava na hora. A Samsung entrega o mesmo aperto duas vezes (keydown 10009 e `popstate`), em qualquer ordem; a trava de 600 ms só cobria tecla-depois-popstate. Correção: `acaoVoltar` ignora qualquer Voltar até 1,2 s depois do anterior (`VOLTAR_MESMO_APERTO_MS`). Junto: "Atualizar agora" passou a recarregar a página (antes só os dados) e a TV confere a cada 5 min se saiu versão nova (`verificarVersao`, compara o `?v=` do `tv.js`) e recarrega sozinha. Teste no Playwright: `Escape` + `goBack()` e `goBack()` + `Escape` devem deixar o menu ABERTO. Se a TV ainda sair, ver se o controle manda outra tecla (mostrar `e.keyCode` na tela) e incluir em `teclaDe`.
+**Recaída no mesmo dia ("eu clico e ele fecha, nem consegui atualizar"):** a página não saía mais (o log mostrava `/api/tv/*` contínuo desde 15:23), mas o menu abria e fechava na hora. A Samsung entrega o mesmo aperto duas vezes (keydown 10009 e `popstate`), em qualquer ordem; a trava de 600 ms só cobria tecla-depois-popstate. Correção: `acaoVoltar` ignora qualquer Voltar até 1,2 s depois do anterior (`VOLTAR_MESMO_APERTO_MS`). Junto: "Atualizar agora" passou a recarregar a página (antes só os dados) e a TV confere a cada 5 min se saiu versão nova (`verificarVersao`, compara o `?v=` do `tv.js`) e recarrega sozinha. Teste no Playwright: `Escape` + `goBack()` e `goBack()` + `Escape` devem deixar o menu ABERTO.
+
+**Segunda recaída ("não consigo mexer no menu, ele sai"):** o log mostrou a TV ainda na versão das 16:46 (sem a correção, que não se atualiza sozinha). Reforço: menu recém-aberto (menos de 1,5 s) não fecha com Voltar, para um aperto repetido atrasado. Diagnóstico: a TV manda as teclas que recebeu para `GET /api/tv/diagnostico` a cada 10 s e elas aparecem no log do servidor (`pm2 logs crm-juridico | grep tv-teclas`), com a versão do painel; o rodapé da TV mostra "versão HH:MM". Para ver qual versão a TV carregou: `grep Tizen /var/log/nginx/access.log | grep tv.js`. Se a TV ainda sair, ver se o controle manda outra tecla (mostrar `e.keyCode` na tela) e incluir em `teclaDe`.
 
 ## FAQ
 
@@ -1044,6 +1046,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 | 19/11/2026 | Claude | +1 incidente: TV Samsung usava o tv.js antigo do cache e não pedia o código; páginas da TV agora com script versionado |
 | 19/11/2026 | Claude | +1 incidente: Voltar do controle saía do painel da TV; histórico preso com popstate |
 | 19/11/2026 | Claude | Recaída do Voltar da TV (menu abria e fechava): trava de 1,2 s; Atualizar recarrega a página; TV se atualiza sozinha com versão nova |
+| 19/11/2026 | Claude | Menu da TV: Voltar não fecha menu recém-aberto; diagnóstico de teclas no log; versão no rodapé |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶

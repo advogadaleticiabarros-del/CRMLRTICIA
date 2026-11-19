@@ -488,7 +488,8 @@
     if (!est.rotacao) txt = 'Rotação desligada';
     else if (Date.now() < est.pausaAte) txt = 'Rotação pausada enquanto você usa o controle';
     else txt = 'Próximo painel em ' + Math.max(0, ROTACAO_SEG - est.decorrido) + 's<span class="barra-rot"><i style="width:' + Math.min(100, est.decorrido / ROTACAO_SEG * 100) + '%"></i></span>';
-    $('estado').innerHTML = (est.atualizadoEm ? 'Atualizado às ' + hora(est.atualizadoEm) + ' · ' : '') + txt;
+    var v = versaoTv();
+    $('estado').innerHTML = (est.atualizadoEm ? 'Atualizado às ' + hora(est.atualizadoEm) + ' · ' : '') + txt + (v ? ' · versão ' + hora(new Date(Number(v)).toISOString()) : '');
   }
 
   // ── Foco e navegação pelo controle ──
@@ -572,6 +573,7 @@
       op('atualizar', '↻', 'Atualizar agora', '', 'data-acao="atualizar"') +
       op('tela', '⛶', 'Tela cheia', '', 'data-acao="telacheia"') +
       op('fechar', '✕', 'Fechar o menu', 'Voltar', 'data-acao="fechar"');
+    if ($('camadaMenu').className.indexOf('aberta') < 0) est.menuAbertoEm = Date.now();
     $('camadaMenu').className = 'camada aberta';
     est.chaveFoco = 'm-' + est.vista;
     restaurarFoco();
@@ -682,10 +684,25 @@
   // A Samsung manda o MESMO aperto duas vezes (tecla e popstate, em qualquer
   // ordem): o menu abria e fechava na hora ("eu clico e ele fecha"). Por isso
   // qualquer Voltar até 1,2 s depois do anterior é o mesmo aperto e é ignorado.
+  // Diagnóstico (19/11/2026): as teclas que a TV manda vão para o log do servidor
+  // (só códigos de tecla, nada de dado), para entender controles diferentes.
+  var teclasVistas = [];
+  function registrarTecla(txt) { teclasVistas.push(Math.round((Date.now() % 100000) / 100) / 10 + 's ' + txt); if (teclasVistas.length > 40) teclasVistas.shift(); }
+  setInterval(function () {
+    if (!teclasVistas.length || !CHAVE_TV && !TOKEN) return;
+    var lote = teclasVistas.splice(0, teclasVistas.length).join(' | ');
+    api('/api/tv/diagnostico?v=' + encodeURIComponent(versaoTv()) + '&t=' + encodeURIComponent(lote.slice(0, 1500))).catch(function () {});
+  }, 10000);
+  function versaoTv() { var s = document.querySelector('script[src*="/tv.js"]'), m = s && String(s.getAttribute('src')).match(/v=(d+)/); return m ? m[1] : ''; }
+
   var ultimoVoltar = 0;
   var VOLTAR_MESMO_APERTO_MS = 1200;
-  function acaoVoltar() {
+  function acaoVoltar(origem) {
+    registrarTecla('voltar-' + (origem || '?'));
     if (Date.now() - ultimoVoltar < VOLTAR_MESMO_APERTO_MS) return;
+    // Menu recém-aberto não fecha com Voltar: o aperto repetido da TV pode chegar
+    // mais de 1 s depois (navegador lento) e fecharia o que acabou de abrir.
+    if (est.camada === 'menu' && Date.now() - (est.menuAbertoEm || 0) < 1500) return;
     ultimoVoltar = Date.now();
     est.ultimoToque = Date.now();
     est.pausaAte = Date.now() + PAUSA_AO_USAR_MS;
@@ -699,14 +716,15 @@
   segurarVoltar();
   window.addEventListener('popstate', function () {
     segurarVoltar();
-    acaoVoltar();
+    acaoVoltar('historico');
   });
 
   document.addEventListener('keydown', function (e) {
     var t = teclaDe(e);
+    registrarTecla((t || 'desconhecida') + ':' + e.keyCode + ':' + (e.key || ''));
     if (!t) return;
     e.preventDefault();
-    if (t === 'voltar' && est.liberado) { acaoVoltar(); return; }
+    if (t === 'voltar' && est.liberado) { acaoVoltar('tecla'); return; }
     est.ultimoToque = Date.now();
     if ($('entrada').className.indexOf('aberta') > -1) { if (t === 'ok') ativar(focoAtual()); return; }
     if (!est.liberado) { comecar(); return; }

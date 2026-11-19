@@ -24,6 +24,14 @@ router.get('/escritorio', repassar(escritorioRoutes, () => '/'));
 router.get('/agente/:id', repassar(escritorioRoutes, (req) => `/agente/${encodeURIComponent(String(req.params.id))}`));
 router.get('/hoje', repassar(hojeRoutes, () => '/'));
 
+// Diagnóstico do controle remoto: a TV manda as teclas que recebeu (só códigos
+// de tecla e a versão do painel) e elas vão para o log do servidor (pm2 logs).
+router.get('/diagnostico', (req: Request, res: Response) => {
+  const limpo = (v: unknown, n: number) => String(v || '').replace(/[^\w\s:.|\-?]/g, '').slice(0, n);
+  console.log(`[tv-teclas] versao=${limpo(req.query.v, 20)} ${limpo(req.query.t, 1500)}`);
+  res.json({ ok: true });
+});
+
 async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }
 }

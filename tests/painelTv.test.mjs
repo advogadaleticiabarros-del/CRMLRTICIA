@@ -194,7 +194,7 @@ test('páginas da TV saem com o script versionado (TV não roda tv.js velho do c
 test('Voltar do controle não sai do painel (histórico preso + popstate abre o menu)', () => {
   assert.match(tvJs, /history\.pushState/);
   assert.match(tvJs, /addEventListener\('popstate'/);
-  assert.match(tvJs, /function acaoVoltar\(\)[\s\S]*abrirMenu\(\)/);
+  assert.match(tvJs, /function acaoVoltar\(origem\)[\s\S]*abrirMenu\(\)/);
 });
 
 test('sala dos agentes: painel 2, com espaço na página e motor de animação', () => {
@@ -207,7 +207,14 @@ test('sala dos agentes: painel 2, com espaço na página e motor de animação',
 
 test('Voltar repetido (tecla + popstate da Samsung) conta como um aperto só; Atualizar recarrega; versão nova recarrega sozinha', () => {
   assert.match(tvJs, /VOLTAR_MESMO_APERTO_MS = 1200/);
-  assert.match(tvJs, /function acaoVoltar\(\) \{\s*if \(Date\.now\(\) - ultimoVoltar < VOLTAR_MESMO_APERTO_MS\) return;/);
+  assert.match(tvJs, /function acaoVoltar\(origem\) \{[\s\S]{0,80}if \(Date\.now\(\) - ultimoVoltar < VOLTAR_MESMO_APERTO_MS\) return;/);
   assert.match(tvJs, /acao === 'atualizar'\) \{ location\.reload\(\)/);
   assert.match(tvJs, /setInterval\(verificarVersao, 5 \* 60000\)/);
+});
+
+test('menu recém-aberto não fecha com Voltar atrasado; teclas vão para o diagnóstico; versão no rodapé', () => {
+  assert.match(tvJs, /est\.camada === 'menu' && Date\.now\(\) - \(est\.menuAbertoEm \|\| 0\) < 1500\) return;/);
+  assert.match(tvJs, /\/api\/tv\/diagnostico\?v=/);
+  assert.match(tvJs, /registrarTecla\(\(t \|\| 'desconhecida'\)/);
+  assert.match(tvJs, /' · versão ' \+ hora/);
 });
