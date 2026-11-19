@@ -83,7 +83,7 @@ Endereço: **crm.advogadaleticiabarros.com.br/tv**. Página à parte do CRM, fei
 | **4 · WhatsApp** | Conexão, recebidas e enviadas hoje, conversas esperando resposta (a mais antiga primeiro, com o tempo de espera em verde/amarelo/vermelho), maior espera, mensagens para aprovar e o movimento recente. Alerta se o WhatsApp cair ou se não chegar mensagem há mais de 6h em horário comercial. |
 | **5 · Hoje** | A mesma lista do "Hoje" do CRM (prazos, audiências, conversas, parcelas…) e a saúde do sistema, com o "como resolver" do que estiver com problema. OK num item mostra o detalhe. |
 
-**Controle remoto:** setas navegam; OK abre; Voltar (ou 0) abre e fecha o menu; canal +/− passa de painel; play/pausa liga ou desliga a rotação. O menu ("O que você quer ver?") escolhe o painel e tem os ajustes: rotação automática, modo discreto, atualizar agora e tela cheia. Funciona com as teclas de TVs LG (webOS) e Samsung (Tizen), com o mouse do controle e com teclado.
+**Controle remoto:** setas navegam; OK abre; Voltar (ou 0) abre e fecha o menu; canal +/− passa de painel; play/pausa liga ou desliga a rotação. O menu ("O que você quer ver?") escolhe o painel e tem os ajustes: rotação automática, modo discreto, atualizar agora (recarrega a página inteira) e tela cheia. Funciona com as teclas de TVs LG (webOS) e Samsung (Tizen), com o mouse do controle e com teclado.
 
 **Tela cheia e sons (desde 19/11/2026):** ao ligar, a TV mostra "Aperte OK para começar"; esse primeiro toque liga a tela cheia e os sons (o navegador só permite os dois depois de uma tecla). Depois da recarga das 4h, é preciso apertar OK de novo.
 
@@ -106,7 +106,7 @@ Se a TV ficou desligada, ela só olha os últimos 10 minutos, para não tocar tu
 
 **Modo discreto do WhatsApp (padrão):** a TV fica à vista de clientes, então o painel mostra só o primeiro nome e a inicial do sobrenome, sem o texto das mensagens. OK no botão do painel mostra nomes completos e o começo da mensagem por 2 minutos e volta ao discreto sozinho. O telefone nunca vai para a TV.
 
-**Atualização:** agentes e WhatsApp a cada 30 segundos; "Hoje" a cada 2 minutos; a página recarrega sozinha uma vez por dia, às 4h (pega a versão nova do CRM; recarregar sai da tela cheia, por isso não durante o dia). Sem internet, aparece o aviso "Sem conexão com o CRM" e os últimos dados continuam na tela.
+**Atualização:** agentes e WhatsApp a cada 30 segundos; "Hoje" a cada 2 minutos; a TV confere a cada 5 minutos se saiu versão nova do painel e recarrega sozinha (sem menu aberto); além disso recarrega uma vez por dia, às 4h (pega a versão nova do CRM; recarregar sai da tela cheia, por isso não durante o dia). Sem internet, aparece o aviso "Sem conexão com o CRM" e os últimos dados continuam na tela.
 
 **Código:** `public/tv.html` e `public/tv.js` (JavaScript sem recursos novos, para navegador de TV antigo); dados de `GET /api/escritorio`, `GET /api/escritorio/agente/:id`, `GET /api/hoje` e `GET /api/tv/whatsapp` (`src/routes/tv.ts`, regras em `src/services/painelTv.ts`, testes em `tests/painelTv.test.mjs`). Liberação por código: `src/services/tvAparelhos.ts` (regras, testes em `tests/tvAparelhos.test.mjs`), `src/services/tvAparelhosMysql.ts`, `src/routes/tvAparelhos.ts` (`POST /api/public/tv/parear` e `/situacao`, públicas; `/api/tv-aparelhos` para a equipe; chave da TV no cabeçalho `X-TV-Chave`, só GET em `/api/tv`), páginas `public/tv-liberar.html`/`.js`.
 

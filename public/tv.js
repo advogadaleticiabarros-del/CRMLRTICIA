@@ -646,7 +646,7 @@
       liberarSom();
       ['festa', 'chamado', 'ping', 'alerta'].forEach(function (s, i) { setTimeout(function () { tocar(s, true); }, i * 2200); });
     }
-    else if (acao === 'atualizar') { carregarTudo(); fecharCamadas(); }
+    else if (acao === 'atualizar') { location.reload(); } // recarrega a página: traz também a versão nova do painel
     else if (acao === 'telacheia') { telaCheia(); fecharCamadas(); }
   }
 
@@ -679,8 +679,14 @@
   // "quando eu clico em MENU ele sai"). Uma entrada extra no histórico segura a
   // saída: o navegador "volta" para ela, o painel percebe (popstate), repõe a
   // entrada e abre/fecha o menu.
-  var ultimoVoltarPorTecla = 0;
+  // A Samsung manda o MESMO aperto duas vezes (tecla e popstate, em qualquer
+  // ordem): o menu abria e fechava na hora ("eu clico e ele fecha"). Por isso
+  // qualquer Voltar até 1,2 s depois do anterior é o mesmo aperto e é ignorado.
+  var ultimoVoltar = 0;
+  var VOLTAR_MESMO_APERTO_MS = 1200;
   function acaoVoltar() {
+    if (Date.now() - ultimoVoltar < VOLTAR_MESMO_APERTO_MS) return;
+    ultimoVoltar = Date.now();
     est.ultimoToque = Date.now();
     est.pausaAte = Date.now() + PAUSA_AO_USAR_MS;
     if ($('entrada').className.indexOf('aberta') > -1) return;
@@ -693,14 +699,14 @@
   segurarVoltar();
   window.addEventListener('popstate', function () {
     segurarVoltar();
-    if (Date.now() - ultimoVoltarPorTecla > 600) acaoVoltar(); // a tecla já tratou
+    acaoVoltar();
   });
 
   document.addEventListener('keydown', function (e) {
     var t = teclaDe(e);
     if (!t) return;
     e.preventDefault();
-    if (t === 'voltar') { ultimoVoltarPorTecla = Date.now(); if (est.liberado) { acaoVoltar(); return; } }
+    if (t === 'voltar' && est.liberado) { acaoVoltar(); return; }
     est.ultimoToque = Date.now();
     if ($('entrada').className.indexOf('aberta') > -1) { if (t === 'ok') ativar(focoAtual()); return; }
     if (!est.liberado) { comecar(); return; }
@@ -803,6 +809,18 @@
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { manterAcesa(); carregarTudo(); } });
 
   relogio();
+  var versaoAtual = (function () {
+    var s = document.querySelector('script[src*="/tv.js"]'), m = s && String(s.getAttribute('src')).match(/v=(\d+)/);
+    return m ? m[1] : null;
+  })();
+  function verificarVersao() {
+    if (!versaoAtual || est.camada) return;
+    fetch('/tv', { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (html) {
+      var m = html.match(/\/tv\.js\?v=(\d+)/);
+      if (m && m[1] !== versaoAtual && !est.camada) location.reload();
+    }).catch(function () { /* sem rede: tenta depois */ });
+  }
+
   var iniciada = false;
   function iniciar() {
     desenhar();
@@ -819,6 +837,9 @@
   function rotinas() {
   setInterval(tique, 1000);
   setInterval(animarSala, 1000);
+  // Versão nova do painel publicada? A TV percebe sozinha (a cada 5 min) e
+  // recarrega, sem esperar as 4h. Não recarrega com menu ou janela aberta.
+  setInterval(verificarVersao, 5 * 60000);
   setInterval(carregarEscritorio, 30000);
   setInterval(carregarWhatsapp, 30000);
   setInterval(carregarAvisos, 30000);

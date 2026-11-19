@@ -204,3 +204,10 @@ test('sala dos agentes: painel 2, com espaço na página e motor de animação',
   assert.match(tvJs, /function montarOuAtualizarSala/);
   assert.match(tvJs, /setInterval\(animarSala, 1000\)/);
 });
+
+test('Voltar repetido (tecla + popstate da Samsung) conta como um aperto só; Atualizar recarrega; versão nova recarrega sozinha', () => {
+  assert.match(tvJs, /VOLTAR_MESMO_APERTO_MS = 1200/);
+  assert.match(tvJs, /function acaoVoltar\(\) \{\s*if \(Date\.now\(\) - ultimoVoltar < VOLTAR_MESMO_APERTO_MS\) return;/);
+  assert.match(tvJs, /acao === 'atualizar'\) \{ location\.reload\(\)/);
+  assert.match(tvJs, /setInterval\(verificarVersao, 5 \* 60000\)/);
+});

@@ -973,7 +973,9 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 **Correção:** `public/tv.js` põe uma entrada extra no histórico ao abrir (`history.pushState`); quando o navegador "volta", o evento `popstate` repõe a entrada e abre ou fecha o menu (`acaoVoltar`). Para abrir o menu, use Voltar ou o número 0, não o MENU da TV.
 
-**Como reconhecer de novo:** no Playwright, `page.goBack()` na página `/tv` deve continuar em `/tv` com o menu aberto. Se a TV ainda sair, ver se o controle manda outra tecla (mostrar `e.keyCode` na tela) e incluir em `teclaDe`.
+**Como reconhecer de novo:** no Playwright, `page.goBack()` na página `/tv` deve continuar em `/tv` com o menu aberto.
+
+**Recaída no mesmo dia ("eu clico e ele fecha, nem consegui atualizar"):** a página não saía mais (o log mostrava `/api/tv/*` contínuo desde 15:23), mas o menu abria e fechava na hora. A Samsung entrega o mesmo aperto duas vezes (keydown 10009 e `popstate`), em qualquer ordem; a trava de 600 ms só cobria tecla-depois-popstate. Correção: `acaoVoltar` ignora qualquer Voltar até 1,2 s depois do anterior (`VOLTAR_MESMO_APERTO_MS`). Junto: "Atualizar agora" passou a recarregar a página (antes só os dados) e a TV confere a cada 5 min se saiu versão nova (`verificarVersao`, compara o `?v=` do `tv.js`) e recarrega sozinha. Teste no Playwright: `Escape` + `goBack()` e `goBack()` + `Escape` devem deixar o menu ABERTO. Se a TV ainda sair, ver se o controle manda outra tecla (mostrar `e.keyCode` na tela) e incluir em `teclaDe`.
 
 ## FAQ
 
@@ -1041,6 +1043,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 | 22/09/2026 | Claude | Resto da auditoria do Dashboard resolvido: Inadimplência unificada, Movimentações a verificar fecham de vez, Processual/Agenda exibem dado que já era calculado, consulta duplicada de "peças pendentes" compartilhada |
 | 19/11/2026 | Claude | +1 incidente: TV Samsung usava o tv.js antigo do cache e não pedia o código; páginas da TV agora com script versionado |
 | 19/11/2026 | Claude | +1 incidente: Voltar do controle saía do painel da TV; histórico preso com popstate |
+| 19/11/2026 | Claude | Recaída do Voltar da TV (menu abria e fechava): trava de 1,2 s; Atualizar recarrega a página; TV se atualiza sozinha com versão nova |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶
