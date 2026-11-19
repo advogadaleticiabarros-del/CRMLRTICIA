@@ -73,14 +73,15 @@ Endereço: **crm.advogadaleticiabarros.com.br/tv**. Página à parte do CRM, fei
 
 **Como ligar na TV (sem login na TV, desde 19/11/2026):** abra o navegador da TV e digite o link curto. A TV mostra **"Liberar esta TV"** com um código de 6 números e um código QR. No celular já logado no CRM, aponte a câmera para o QR (ou abra `/tv/liberar` e digite o código), confira o nome da TV e toque em **Liberar a TV**. Em segundos a TV abre o painel e não pede mais nada. O código vale 10 minutos (depois a TV mostra outro). Na mesma tela do celular ficam as **TVs liberadas**, com o botão **Desligar** (a TV volta a pedir código). A TV vê o painel como a pessoa que liberou: se essa pessoa for desativada ou perder o acesso ao WhatsApp, a TV para de funcionar e é preciso liberar de novo. A TV só consegue ler o painel (nenhuma ação). O banco guarda só o hash da chave da TV (tabela `tv_aparelhos`, migration 187).
 
-**Os 4 painéis** (teclas 1 a 4, ou botões coloridos vermelho/verde/amarelo/azul):
+**Os 5 painéis** (teclas 1 a 5; botões coloridos vermelho/verde/amarelo/azul = 1 a 4):
 
 | Painel | O que mostra |
 |---|---|
 | **1 · Painel geral** | Três colunas: agentes trabalhando agora (e quem está com erro), conversas do WhatsApp esperando resposta e o que precisa de atenção hoje, com a saúde do sistema. OK numa coluna abre o painel dela. |
-| **2 · Escritório virtual** | A sala com todos os agentes, a cor do setor na borda e o status (verde pulsando = trabalhando agora; amarelo = em pausa; vermelho = com erro; cinza = desligado), o que cada um fez por último e há quanto tempo. No alto, a mesa da Dra. (itens esperando conferência). OK num agente abre a ficha com a descrição, os números e o histórico. |
-| **3 · WhatsApp** | Conexão, recebidas e enviadas hoje, conversas esperando resposta (a mais antiga primeiro, com o tempo de espera em verde/amarelo/vermelho), maior espera, mensagens para aprovar e o movimento recente. Alerta se o WhatsApp cair ou se não chegar mensagem há mais de 6h em horário comercial. |
-| **4 · Hoje** | A mesma lista do "Hoje" do CRM (prazos, audiências, conversas, parcelas…) e a saúde do sistema, com o "como resolver" do que estiver com problema. OK num item mostra o detalhe. |
+| **2 · Sala dos agentes** (desde 19/11/2026) | O "playground": uma sala por setor e o gabinete da Dra., com cada agente como bonequinho na mesa dele. Trabalhando = digita com a tela acesa e mostra num balão o que fez; em pausa = passeia pela sala e vai ao café; com erro = "!" vermelho e tela vermelha; desligado = cochila ("z z"). Envelopes voam das mesas até a Dra., e o número da mesa dela é o que está esperando a conferência. OK num agente abre a ficha. Versão própria da TV (a sala do CRM usa JavaScript novo demais para o navegador da TV). |
+| **3 · Escritório virtual** | A sala com todos os agentes, a cor do setor na borda e o status (verde pulsando = trabalhando agora; amarelo = em pausa; vermelho = com erro; cinza = desligado), o que cada um fez por último e há quanto tempo. No alto, a mesa da Dra. (itens esperando conferência). OK num agente abre a ficha com a descrição, os números e o histórico. |
+| **4 · WhatsApp** | Conexão, recebidas e enviadas hoje, conversas esperando resposta (a mais antiga primeiro, com o tempo de espera em verde/amarelo/vermelho), maior espera, mensagens para aprovar e o movimento recente. Alerta se o WhatsApp cair ou se não chegar mensagem há mais de 6h em horário comercial. |
+| **5 · Hoje** | A mesma lista do "Hoje" do CRM (prazos, audiências, conversas, parcelas…) e a saúde do sistema, com o "como resolver" do que estiver com problema. OK num item mostra o detalhe. |
 
 **Controle remoto:** setas navegam; OK abre; Voltar (ou 0) abre e fecha o menu; canal +/− passa de painel; play/pausa liga ou desliga a rotação. O menu ("O que você quer ver?") escolhe o painel e tem os ajustes: rotação automática, modo discreto, atualizar agora e tela cheia. Funciona com as teclas de TVs LG (webOS) e Samsung (Tizen), com o mouse do controle e com teclado.
 
@@ -132,6 +133,7 @@ Se a TV ficou desligada, ela só olha os últimos 10 minutos, para não tocar tu
 | 19/11/2026 | Claude | Link curto **is.gd/tvleticia** e volta automática para o painel depois de entrar no CRM pela TV |
 | 19/11/2026 | Claude | Tela cheia no primeiro toque e **avisos com som** (protocolado, aprovação, urgente, prazo, conversa esperando, erro de agente, audiência, WhatsApp caiu); recarga diária às 4h |
 | 19/11/2026 | Claude | **TV sem login**: liberada por código de 6 números/QR pelo celular logado (`/tv/liberar`), com lista e botão Desligar |
+| 19/11/2026 | Claude | Painel **2 · Sala dos agentes** (playground animado); os outros passaram a 3, 4 e 5; Voltar do controle não sai mais do painel |
 
 ---
 ◀ [Fluxograma do sistema](00b-fluxograma.md) · [Visão geral](00-visao-geral.md) · Próximo: [Clientes e cadastro](01-clientes.md) ▶

@@ -32,7 +32,7 @@
     .marca b { font-family: 'Spectral', Georgia, serif; font-weight: 600; font-size: 1.35rem; color: var(--gold-bright); display: block; line-height: 1.1; }
     .marca span { font-size: .75rem; color: var(--muted); letter-spacing: .08em; text-transform: uppercase; }
     .abas { display: flex; flex: 1; }
-    .aba { font: inherit; font-size: 1rem; font-weight: 600; color: var(--soft); background: transparent; border: 2px solid transparent; border-radius: .6rem; padding: .55rem 1.1rem; margin-right: .5rem; }
+    .aba { font: inherit; font-size: .95rem; font-weight: 600; color: var(--soft); background: transparent; border: 2px solid transparent; border-radius: .6rem; padding: .5rem .8rem; margin-right: .3rem; white-space: nowrap; }
     .aba .num { display: inline-block; min-width: 1.3rem; height: 1.3rem; line-height: 1.3rem; border-radius: .35rem; background: var(--ink-3); color: var(--gold-bright); font-size: .75rem; text-align: center; margin-right: .45rem; }
     .aba.ativa { color: var(--ink); background: var(--gold-bright); }
     .aba.ativa .num { background: rgba(0,0,0,.15); color: var(--ink); }
@@ -165,6 +165,45 @@
     .entrada img { height: 6rem; margin-bottom: 1rem; }
     .entrada p { color: var(--soft); font-size: 1.15rem; line-height: 1.5; }
     .entrada .botao { font-size: 1.2rem; padding: .8rem 1.6rem; margin-top: 1rem; }
+    /* ── Sala dos agentes (playground) ── */
+    .sala { position: relative; height: 100%; }
+    .comodo { position: absolute; background-color: #1f1810; background-image: linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px); background-size: 1.6rem 1.6rem; border: 1px solid var(--line); border-top: .35rem solid var(--cor); border-radius: .8rem; }
+    .comodo .placa { position: absolute; left: .7rem; top: .45rem; font-size: .85rem; font-weight: 600; color: var(--soft); white-space: nowrap; }
+    .comodo .placa b { color: var(--cor); margin-left: .3rem; }
+    .comodo .cafe-canto { position: absolute; right: .7rem; bottom: .5rem; font-size: 1.3rem; opacity: .75; }
+    .comodo.ceo { background-color: #2a2014; }
+    .ceo-info { position: absolute; left: 0; right: 0; bottom: .8rem; text-align: center; }
+    .ceo-info b { display: block; font-size: 2.2rem; color: var(--gold-bright); line-height: 1; font-variant-numeric: tabular-nums; }
+    .ceo-info span { font-size: .8rem; color: var(--soft); }
+    .ceo-info.pulso b { animation: pulsoCeo .6s ease-out; }
+    @keyframes pulsoCeo { 40% { transform: scale(1.35); color: #fff; } }
+    .mesa { position: absolute; width: 4.4rem; height: 2rem; margin: -1rem 0 0 -2.2rem; background: #6b5236; border-radius: .3rem; box-shadow: 0 .3rem 0 #3f3020; z-index: 1; }
+    .mesa i { position: absolute; left: 1.3rem; top: -1.25rem; width: 1.8rem; height: 1.25rem; background: #2d2d33; border: .15rem solid #0d0d10; border-radius: .15rem; }
+    .mesa.ligada i { background: #7fd3ff; box-shadow: 0 0 .9rem rgba(127,211,255,.8); animation: tela 1.4s steps(2) infinite; }
+    .mesa.erro i { background: var(--red); box-shadow: 0 0 .9rem rgba(239,107,94,.8); }
+    .mesa.grande { width: 7rem; margin-left: -3.5rem; background: #7a5a2e; }
+    @keyframes tela { 50% { background: #b6ecff; } }
+    .boneco { position: absolute; width: 2.6rem; height: 3.4rem; margin: -3.6rem 0 0 -1.3rem; transition: left 3.5s linear, top 3.5s linear; z-index: 3; border-radius: .6rem; }
+    .boneco .cabeca { position: absolute; left: .55rem; top: 0; width: 1.5rem; height: 1.5rem; border-radius: 50%; background: #f0c58e; box-shadow: inset 0 .45rem 0 var(--cabelo, #3b2a1a); }
+    .boneco .corpo { position: absolute; left: .3rem; top: 1.35rem; width: 2rem; height: 1.7rem; border-radius: .7rem .7rem .3rem .3rem; }
+    .boneco .nomeb { position: absolute; top: 3.15rem; left: 50%; transform: translateX(-50%); white-space: nowrap; font-size: .66rem; font-weight: 600; color: var(--text); background: rgba(0,0,0,.6); padding: 0 .35rem; border-radius: .3rem; }
+    .boneco .extra { position: absolute; left: 1.9rem; top: -1rem; font-size: .9rem; font-weight: 700; }
+    .boneco.st-trabalhando .corpo { animation: digita .32s ease-in-out infinite alternate; }
+    .boneco.andando .cabeca, .boneco.andando .corpo { animation: passo .38s ease-in-out infinite alternate; }
+    .boneco.st-desligado { opacity: .5; }
+    .boneco.st-desligado .extra::after { content: 'z z'; color: var(--soft); display: block; animation: zzz 2.4s ease-in-out infinite; }
+    .boneco.st-erro .extra::after { content: '!'; display: block; width: 1.1rem; height: 1.1rem; line-height: 1.1rem; text-align: center; border-radius: 50%; background: var(--red); color: #fff; animation: pula .7s ease-in-out infinite alternate; }
+    .boneco.no-cafe .extra::after { content: '☕'; display: block; }
+    @keyframes digita { to { transform: translateY(.14rem); } }
+    @keyframes passo { to { transform: translateY(-.28rem); } }
+    @keyframes zzz { 0% { opacity: 0; transform: translate(0, .3rem); } 50% { opacity: 1; } 100% { opacity: 0; transform: translate(.5rem, -.8rem); } }
+    @keyframes pula { to { transform: translateY(-.35rem); } }
+    .bolha { position: absolute; max-width: 17rem; background: #f4efe4; color: #15110c; border-radius: .8rem; padding: .45rem .75rem; font-size: .8rem; line-height: 1.3; font-weight: 500; transform: translate(-50%, -100%); margin-top: -4rem; opacity: 0; transition: opacity .4s; z-index: 6; pointer-events: none; box-shadow: 0 .4rem 1rem rgba(0,0,0,.4); }
+    .bolha b { display: block; font-size: .72rem; color: #6b5a3c; }
+    .bolha.vis { opacity: 1; }
+    .bolha.erro { background: #ffd8d2; }
+    .envelope { position: absolute; font-size: 1.3rem; margin: -2.5rem 0 0 -.6rem; transition: left 2.2s ease-in-out, top 2.2s ease-in-out; z-index: 7; pointer-events: none; }
+
     /* ── Avisos com som (canto direito) ── */
     .avisos { position: absolute; top: 6.6rem; right: 2.2rem; width: 34rem; z-index: 8; }
     .aviso { display: flex; align-items: center; background: #2b2216; border: 1px solid var(--line); border-left: .45rem solid var(--gold); border-radius: .9rem; padding: 1rem 1.2rem; margin-bottom: .7rem; box-shadow: 0 1.2rem 3rem rgba(0,0,0,.6); animation: avisoEntra .45s cubic-bezier(.2,.9,.3,1.2); }
@@ -193,6 +232,7 @@
     </header>
     <main class="palco" id="palco">
       <section class="vista" id="v-geral"></section>
+      <section class="vista" id="v-sala"></section>
       <section class="vista" id="v-escritorio"></section>
       <section class="vista" id="v-whatsapp"></section>
       <section class="vista" id="v-hoje"></section>
@@ -200,7 +240,7 @@
     <footer class="rodape">
       <span><kbd>◀ ▶ ▲ ▼</kbd>navegar</span>
       <span><kbd>OK</kbd>abrir</span>
-      <span><kbd>1</kbd>–<kbd>4</kbd>painéis</span>
+      <span><kbd>1</kbd>–<kbd>5</kbd>painéis</span>
       <span><kbd>0</kbd>ou<kbd>Voltar</kbd>menu</span>
       <span class="estado" id="estado"></span>
     </footer>

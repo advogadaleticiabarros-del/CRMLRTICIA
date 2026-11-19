@@ -15,6 +15,7 @@
 
   var VISTAS = [
     { id: 'geral', nome: 'Painel geral' },
+    { id: 'sala', nome: 'Sala dos agentes' },
     { id: 'escritorio', nome: 'Escritório virtual' },
     { id: 'whatsapp', nome: 'WhatsApp' },
     { id: 'hoje', nome: 'Hoje' },
@@ -248,7 +249,7 @@
     }
 
     return '<div class="colunas">' +
-      '<div class="coluna focavel" data-chave="g-esc" data-ir="escritorio"><h3>Escritório virtual</h3>' + col1 + '<div class="rodape-col">OK para ver a sala inteira</div></div>' +
+      '<div class="coluna focavel" data-chave="g-esc" data-ir="sala"><h3>Escritório virtual</h3>' + col1 + '<div class="rodape-col">OK para ver a sala inteira</div></div>' +
       '<div class="coluna focavel" data-chave="g-wa" data-ir="whatsapp"><h3>WhatsApp</h3>' + col2 + '<div class="rodape-col">OK para ver as conversas</div></div>' +
       '<div class="coluna focavel" data-chave="g-hoje" data-ir="hoje"><h3>Hoje</h3>' + col3 + '<div class="rodape-col">OK para ver tudo de hoje</div></div>' +
       '</div>';
@@ -325,13 +326,158 @@
       }).join('') : '<p class="vazio">Nenhum aviso desde que a TV ligou.</p>') + '</div></div>';
   }
 
-  var DESENHO = { geral: vistaGeral, escritorio: vistaEscritorio, whatsapp: vistaWhatsapp, hoje: vistaHoje };
+  // ── Sala dos agentes (playground) — 19/11/2026: "quero ver o playground dos
+  // agentes trabalhando". A sala do CRM (escritorio.js) usa JavaScript novo
+  // demais para o navegador da TV, então esta é uma versão própria, leve:
+  // uma sala por setor + o gabinete da CEO, em grade 4 × 2. Quem trabalha
+  // digita na mesa (tela acesa); em pausa passeia e vai ao café; com erro
+  // mostra "!"; desligado cochila. Balões mostram o que cada um fez e
+  // envelopes voam até a mesa da Dra. Os nós são criados uma vez e só
+  // atualizados, para as animações não reiniciarem.
+  var sala = { montada: false, assinatura: '', el: null, bonecos: {}, comodos: {}, ceo: null, prox: {}, bolhaVez: 0 };
+  var CABELOS = ['#3b2a1a', '#1d1d1d', '#6b4423', '#a0522d', '#d4a017', '#4a3728', '#2b1d14'];
+  function comodoEm(i) { var c = i % 4, r = Math.floor(i / 4); return { x: c * 25, y: r * 50, w: 25, h: 50 }; }
+  function naSala(p, x, y) { return { x: p.x + p.w * x / 100, y: p.y + p.h * y / 100 }; }
+  function lugaresDoComodo(n) {
+    var cols = n <= 1 ? 1 : n <= 4 ? 2 : n <= 6 ? 3 : 4, linhas = Math.max(1, Math.ceil(n / cols)), r = [], larg = cols === 4 ? 88 : 80, ini = cols === 4 ? 6 : 8;
+    for (var i = 0; i < n; i++) {
+      var c = i % cols, l = Math.floor(i / cols);
+      r.push({ x: ini + (larg / cols) * (c + 0.5), y: 36 + (50 / linhas) * (l + 0.5) });
+    }
+    return r;
+  }
+  function montarOuAtualizarSala(el) {
+    var d = est.dados.escritorio;
+    if (!d) { el.innerHTML = carregando('Abrindo a sala…'); sala.montada = false; return; }
+    var ag = d.agentes || [], setores = (d.setores || []).slice(0, 7);
+    var assinatura = ag.map(function (a) { return a.id + ':' + a.setor; }).join(',') + '|' + setores.map(function (s) { return s.id; }).join(',');
+    if (!sala.montada || sala.assinatura !== assinatura || !el.querySelector('.sala')) montarSala(el, ag, setores, assinatura);
+    atualizarSala(d);
+  }
+  function montarSala(el, ag, setores, assinatura) {
+    sala.bonecos = {}; sala.comodos = {}; sala.prox = {};
+    var lugares = [{ id: 'ceo', nome: 'Gabinete da Dra. Letícia', emoji: '⚖️', cor: '#c19a4e' }].concat(setores);
+    var porSetor = {};
+    ag.forEach(function (a) { var s = setores.some(function (x) { return x.id === a.setor; }) ? a.setor : (setores[0] && setores[0].id); (porSetor[s] = porSetor[s] || []).push(a); });
+    var html = '<div class="sala">', bonecos = '';
+    lugares.forEach(function (s, i) {
+      var p = comodoEm(i), lista = porSetor[s.id] || [];
+      sala.comodos[s.id] = p;
+      html += '<div class="comodo' + (s.id === 'ceo' ? ' ceo' : '') + '" style="left:calc(' + p.x + '% + .3rem);top:calc(' + p.y + '% + .3rem);width:calc(' + p.w + '% - .6rem);height:calc(' + p.h + '% - .6rem);--cor:' + esc(s.cor) + '">' +
+        '<div class="placa">' + esc(s.emoji || '') + ' ' + esc(s.nome) + (s.id === 'ceo' ? '' : '<b>' + lista.length + '</b>') + '</div>';
+      if (s.id === 'ceo') {
+        html += '<div class="mesa grande" style="left:50%;top:48%"><i class="ligada" style="left:2.6rem"></i></div>' +
+          '<div class="ceo-info" id="ceoInfo"><b id="ceoTotal">0</b><span>para a Dra. conferir</span></div>';
+      } else {
+        var pos = lugaresDoComodo(lista.length);
+        lista.forEach(function (a, k) {
+          html += '<div class="mesa" data-mesa="' + esc(a.id) + '" style="left:' + pos[k].x + '%;top:' + pos[k].y + '%"><i></i></div>';
+          var casa = naSala(p, pos[k].x, pos[k].y - 4);
+          sala.bonecos[a.id] = { casa: casa, comodo: p, el: null, mesa: null, x: casa.x, y: casa.y, status: '' };
+          bonecos += '<div class="boneco focavel" data-agente="' + esc(a.id) + '" data-chave="sala-' + esc(a.id) + '" style="left:' + casa.x + '%;top:' + casa.y + '%;--cabelo:' + CABELOS[k % CABELOS.length] + '">' +
+            '<div class="cabeca"></div><div class="corpo" style="background:' + esc(a.cor) + '"></div><div class="extra"></div><div class="nomeb">' + esc(a.nome) + '</div></div>';
+        });
+        html += '<span class="cafe-canto">☕</span>';
+      }
+      html += '</div>';
+    });
+    // A CEO no gabinete
+    var c = naSala(comodoEm(0), 50, 44);
+    sala.ceo = c;
+    bonecos += '<div class="boneco" style="left:' + c.x + '%;top:' + c.y + '%;--cabelo:#2b1d14"><div class="cabeca"></div><div class="corpo" style="background:var(--gold)"></div><div class="nomeb">Dra. Letícia</div></div>';
+    el.innerHTML = html + bonecos + '<div class="bolha" id="bolha"></div></div>';
+    Object.keys(sala.bonecos).forEach(function (id) {
+      var b = sala.bonecos[id];
+      b.el = el.querySelector('.boneco[data-agente="' + id + '"]');
+      b.mesa = el.querySelector('.mesa[data-mesa="' + id + '"]');
+    });
+    sala.el = el; sala.montada = true; sala.assinatura = assinatura;
+  }
+  function moverBoneco(b, x, y, andando) {
+    b.x = x; b.y = y;
+    b.el.style.left = x + '%'; b.el.style.top = y + '%';
+    b.el.style.zIndex = String(3 + Math.round(y));
+    if (andando) {
+      b.el.className = b.el.className.replace(' andando', '') + ' andando';
+      setTimeout(function () { if (b.el) b.el.className = b.el.className.replace(' andando', ''); }, 3500);
+    }
+  }
+  function atualizarSala(d) {
+    (d.agentes || []).forEach(function (a) {
+      var b = sala.bonecos[a.id];
+      if (!b || !b.el) return;
+      b.ultima = a.ultima || null; b.nome = a.nome;
+      if (b.status !== a.status) {
+        b.status = a.status;
+        var foco = b.el.className.indexOf(' foco') > -1 ? ' foco' : '';
+        b.el.className = 'boneco focavel st-' + a.status + foco;
+        b.mesa.className = 'mesa' + (a.status === 'trabalhando' ? ' ligada' : a.status === 'erro' ? ' erro' : '');
+        if (a.status !== 'parado') moverBoneco(b, b.casa.x, b.casa.y, Math.abs(b.x - b.casa.x) + Math.abs(b.y - b.casa.y) > 0.5);
+      }
+    });
+    var t = $('ceoTotal');
+    if (t) t.textContent = String((d.chefe && d.chefe.total) || 0);
+  }
+  function animarSala() {
+    if (est.vista !== 'sala' || !sala.montada || !sala.el || !sala.el.querySelector('.sala')) return;
+    var agora = Date.now();
+    Object.keys(sala.bonecos).forEach(function (id) {
+      var b = sala.bonecos[id];
+      if (b.status !== 'parado' || !b.el) return;
+      if (sala.prox[id] && agora < sala.prox[id]) return;
+      sala.prox[id] = agora + 5000 + Math.random() * 7000;
+      var cafe = Math.random() < 0.3, p = b.comodo, alvo;
+      if (cafe) alvo = naSala(p, 84, 84);
+      else if (Math.random() < 0.3) alvo = b.casa;
+      else alvo = naSala(p, 10 + Math.random() * 75, 38 + Math.random() * 50);
+      moverBoneco(b, alvo.x, alvo.y, true);
+      var cls = b.el.className.replace(' no-cafe', '');
+      b.el.className = cafe ? cls + ' no-cafe' : cls;
+    });
+    // Balão: a cada 4 s, um agente que trabalha (ou com erro) conta o que fez.
+    if (Math.floor(agora / 1000) % 4 === 0) {
+      var falantes = Object.keys(sala.bonecos).filter(function (id) { var b = sala.bonecos[id]; return (b.status === 'trabalhando' || b.status === 'erro') && b.ultima && b.ultima.texto; });
+      var bolha = $('bolha');
+      if (bolha && falantes.length) {
+        var b = sala.bonecos[falantes[sala.bolhaVez++ % falantes.length]];
+        var texto = String(b.ultima.texto);
+        bolha.className = 'bolha' + (b.status === 'erro' ? ' erro' : '');
+        bolha.innerHTML = '<b>' + esc(b.nome) + '</b>' + esc(texto.length > 90 ? texto.slice(0, 90) + '…' : texto);
+        bolha.style.left = Math.min(90, Math.max(10, b.x)) + '%';
+        bolha.style.top = b.y + '%';
+        setTimeout(function () { bolha.className += ' vis'; }, 30);
+        setTimeout(function () { bolha.className = bolha.className.replace(' vis', ''); }, 3500);
+      } else if (bolha) bolha.className = 'bolha';
+    }
+    // Envelope: a cada 6 s, alguém que trabalha manda o trabalho para a Dra.
+    if (Math.floor(agora / 1000) % 6 === 3) {
+      var quem = Object.keys(sala.bonecos).filter(function (id) { return sala.bonecos[id].status === 'trabalhando'; });
+      if (quem.length && sala.ceo) {
+        var o = sala.bonecos[quem[Math.floor(Math.random() * quem.length)]], env = document.createElement('div');
+        env.className = 'envelope'; env.textContent = '✉️';
+        env.style.left = o.x + '%'; env.style.top = o.y + '%';
+        sala.el.querySelector('.sala').appendChild(env);
+        setTimeout(function () { env.style.left = sala.ceo.x + '%'; env.style.top = (sala.ceo.y - 2) + '%'; }, 50);
+        setTimeout(function () {
+          if (env.parentNode) env.parentNode.removeChild(env);
+          var info = $('ceoInfo');
+          if (info) { info.className = 'ceo-info'; setTimeout(function () { info.className = 'ceo-info pulso'; }, 20); }
+        }, 2300);
+      }
+    }
+  }
+
+  var DESENHO = { geral: vistaGeral, sala: null, escritorio: vistaEscritorio, whatsapp: vistaWhatsapp, hoje: vistaHoje };
 
   function desenhar() {
     desenharAbas();
     VISTAS.forEach(function (v) {
       var el = $('v-' + v.id);
-      if (v.id === est.vista) { el.innerHTML = DESENHO[v.id](); el.className = 'vista ativa'; } else { el.className = 'vista'; el.innerHTML = ''; }
+      if (v.id === est.vista) {
+        // A sala não é redesenhada a cada atualização: os bonecos andam e as animações não podem reiniciar.
+        if (v.id === 'sala') montarOuAtualizarSala(el); else el.innerHTML = DESENHO[v.id]();
+        el.className = 'vista ativa';
+      } else { el.className = 'vista'; el.innerHTML = ''; if (v.id === 'sala') sala.montada = false; }
     });
     restaurarFoco();
     desenharEstado();
@@ -399,7 +545,7 @@
   }
 
   function irPara(id) {
-    if (!DESENHO[id]) return;
+    if (!Object.prototype.hasOwnProperty.call(DESENHO, id)) return;
     est.vista = id; est.decorrido = 0; est.chaveFoco = null; gravar('tv_vista', id);
     desenhar();
   }
@@ -672,6 +818,7 @@
 
   function rotinas() {
   setInterval(tique, 1000);
+  setInterval(animarSala, 1000);
   setInterval(carregarEscritorio, 30000);
   setInterval(carregarWhatsapp, 30000);
   setInterval(carregarAvisos, 30000);

@@ -196,3 +196,11 @@ test('Voltar do controle não sai do painel (histórico preso + popstate abre o 
   assert.match(tvJs, /addEventListener\('popstate'/);
   assert.match(tvJs, /function acaoVoltar\(\)[\s\S]*abrirMenu\(\)/);
 });
+
+test('sala dos agentes: painel 2, com espaço na página e motor de animação', () => {
+  assert.match(tvJs, /\{ id: 'sala', nome: 'Sala dos agentes' \}/);
+  assert.match(tvHtml, /id="v-sala"/);
+  for (const id of ['geral', 'sala', 'escritorio', 'whatsapp', 'hoje']) assert.match(tvHtml, new RegExp(`id="v-${id}"`), id);
+  assert.match(tvJs, /function montarOuAtualizarSala/);
+  assert.match(tvJs, /setInterval\(animarSala, 1000\)/);
+});
