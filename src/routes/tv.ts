@@ -1,15 +1,28 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { db } from '../config/database';
 import { resumirWhatsapp, montarAvisos, type ConversaBruta } from '../services/painelTv';
 import { AGENTES } from '../services/escritorioVirtual';
+import escritorioRoutes from './escritorio';
+import hojeRoutes from './hoje';
 
 /**
  * GET /api/tv/whatsapp?discreto=1 — resumo do WhatsApp para a tela da TV
  * (public/tv.html). Discreto por padrão: a TV fica à vista de clientes.
- * Montada com authenticate + requireStaff + requireWhatsappAccess (app.ts).
+ * Montada com autenticarTvOuEquipe (app.ts): chave da TV liberada (só GET)
+ * ou login da equipe com acesso ao WhatsApp.
  * Só leitura. Cada consulta é isolada: se uma falhar, o resto aparece.
  */
 const router = Router();
+
+// Leituras do painel que já existem em outras rotas, repassadas só no GET e só
+// nestes caminhos: a chave da TV nunca alcança as ações (POST) do escritório.
+const repassar = (alvo: Router, caminho: (req: Request) => string) => (req: Request, res: Response, next: NextFunction) => {
+  req.url = caminho(req);
+  alvo(req, res, next);
+};
+router.get('/escritorio', repassar(escritorioRoutes, () => '/'));
+router.get('/agente/:id', repassar(escritorioRoutes, (req) => `/agente/${encodeURIComponent(String(req.params.id))}`));
+router.get('/hoje', repassar(hojeRoutes, () => '/'));
 
 async function safe<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try { return await fn(); } catch { return fallback; }

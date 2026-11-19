@@ -28,6 +28,7 @@ import buscaRoutes from './routes/busca';
 import hojeRoutes from './routes/hoje';
 import escritorioRoutes from './routes/escritorio';
 import tvRoutes from './routes/tv';
+import { tvPublicoRoutes, tvAparelhosRoutes, autenticarTvOuEquipe } from './routes/tvAparelhos';
 import errosRoutes from './routes/erros';
 import cerebroRoutes from './routes/cerebro';
 import leisRoutes from './routes/leis';
@@ -172,6 +173,7 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   // Ponte do escritório → TJES — chave própria (MNI_PONTE_TOKEN), sem login de usuário
   app.use('/api/mni-ponte', mniPonteRoutes);
 
+  app.use('/api/public/tv', tvPublicoRoutes);   // TV pede o código para ser liberada
   app.use('/api/public', signPublicRoutes);
   app.use('/api/public', propostaPublicRoutes); // proposta pública (link p/ cliente)
   app.use('/api/public', leadPublicRoutes);     // formulário do site/blog → lead no funil
@@ -194,7 +196,8 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.use('/api/busca',                 authenticate, requireStaff, buscaRoutes);
   app.use('/api/hoje',                  authenticate, requireStaff, hojeRoutes);
   app.use('/api/escritorio',            authenticate, requireStaff, escritorioRoutes);
-  app.use('/api/tv',                    authenticate, requireStaff, requireWhatsappAccess, tvRoutes);
+  app.use('/api/tv',                    autenticarTvOuEquipe, tvRoutes); // chave da TV (só GET) ou equipe
+  app.use('/api/tv-aparelhos',          authenticate, requireStaff, requireWhatsappAccess, tvAparelhosRoutes);
   app.use('/api/erros',                 authenticate, errosRoutes);
   app.use('/api/cerebro',               authenticate, requireStaff, cerebroRoutes);
   app.use('/api/leis',                  authenticate, requireStaff, leisRoutes);
@@ -302,6 +305,12 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
   app.get('/', (_req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-store');
     res.type('html').send(indexHtmlVersionado());
+  });
+
+  // Liberar a TV pelo celular (public/tv-liberar.html)
+  app.get('/tv/liberar', (_req: Request, res: Response) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.sendFile(path.join(publicDir, 'tv-liberar.html'));
   });
 
   // Tela da TV do escritório (public/tv.html): endereço curto /tv

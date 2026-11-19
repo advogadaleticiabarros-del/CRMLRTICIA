@@ -81,22 +81,31 @@ test('tv.js é JavaScript válido e sem sintaxe nova demais para navegador de TV
 test('controle remoto: setas, OK, voltar (TVs LG/Samsung), números e menu', () => {
   for (const tecla of ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Enter', '461', '10009', 'Escape']) assert.ok(tvJs.includes(tecla), tecla);
   assert.match(tvJs, /abrirMenu/);
-  assert.match(tvJs, /\/api\/escritorio/);
-  assert.match(tvJs, /\/api\/hoje/);
+  assert.match(tvJs, /\/api\/tv\/escritorio/);
+  assert.match(tvJs, /\/api\/tv\/hoje/);
+  assert.match(tvJs, /\/api\/tv\/agente\//);
   assert.match(tvJs, /\/api\/tv\/whatsapp/);
 });
 
-test('entrar pela TV: o login do CRM volta sozinho para /tv', () => {
+test('entrar no CRM pelo celular para liberar a TV: volta sozinho para /tv/liberar', () => {
   const app = fs.readFileSync(path.resolve('public/app.js'), 'utf8');
-  assert.match(tvJs, /gravar\('tv_voltar', '1'\)/);
-  const showApp = app.slice(app.indexOf('function showApp()'), app.indexOf('function showApp()') + 400);
-  assert.match(showApp, /tv_voltar[\s\S]*removeItem\('tv_voltar'\)[\s\S]*location\.href = '\/tv'/);
+  const lib = fs.readFileSync(path.resolve('public/tv-liberar.js'), 'utf8');
+  assert.match(lib, /'tv_voltar', '\/tv\/liberar'/);
+  const showApp = app.slice(app.indexOf('function showApp()'), app.indexOf('function showApp()') + 700);
+  assert.match(showApp, /tv_voltar[\s\S]*removeItem\('tv_voltar'\)[\s\S]*location\.href = destino/);
+  // só volta para /tv ou /tv/liberar (nunca para outro site)
+  const re = new RegExp(showApp.match(/if \(\/(\^.*\$)\/\.test\(destino\)\)/)[1]);
+  for (const ok of ['/tv', '/tv/liberar', '/tv/liberar?codigo=123456']) assert.ok(re.test(ok), ok);
+  for (const ruim of ['https://exemplo.com', '//exemplo.com', '/tv/../admin', '/tvx', '/tv/liberar?codigo=1&x=//a']) assert.ok(!re.test(ruim), ruim);
 });
 
-test('tv.html carrega tv.js e usa o token do CRM', () => {
+test('tv.html carrega tv.js; a TV entra pela chave dela (código), sem login', () => {
   assert.match(tvHtml, /<script src="\/tv\.js/);
-  assert.match(tvJs, /crm_token/);
-  assert.match(tvJs, /X-Renew-Token/);
+  assert.match(tvJs, /X-TV-Chave/);
+  assert.match(tvJs, /\/api\/public\/tv\/parear/);
+  assert.match(tvJs, /\/api\/public\/tv\/situacao/);
+  assert.match(tvJs, /gravar\('tv_chave'/);
+  assert.ok(!/data-acao="login"/.test(tvHtml + tvJs), 'sem botão de login na TV');
 });
 
 // ── Avisos com som (19/11/2026: "efeitos sonoros para coisas de atenção") ──

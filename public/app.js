@@ -775,8 +775,16 @@ const ROLE_PT = { admin: 'Administrador', advogado: 'Advogado(a)', estagiario: '
 let bellTimer = null;
 let quickSearchInited = false;
 function showApp() {
-  // Veio do painel da TV (/tv) para entrar: volta direto para ele (19/11/2026).
-  try { if (localStorage.getItem('tv_voltar') === '1') { localStorage.removeItem('tv_voltar'); location.href = '/tv'; return; } } catch { /* sem armazenamento */ }
+  // Veio do painel da TV (/tv) ou de "Liberar a TV" (/tv/liberar) para entrar: volta
+  // direto para lá (19/11/2026). Só caminhos /tv, nunca outro site.
+  try {
+    const volta = localStorage.getItem('tv_voltar');
+    if (volta) {
+      localStorage.removeItem('tv_voltar');
+      const destino = volta === '1' ? '/tv' : volta;
+      if (/^\/tv(\/liberar(\?codigo=\d{6})?)?$/.test(destino)) { location.href = destino; return; }
+    }
+  } catch { /* sem armazenamento */ }
   $('#login-view').classList.add('hidden');
   $('#app-view').classList.remove('hidden');
   if (typeof window.acompanharTarefas === 'function') window.acompanharTarefas(); // painel de tarefas (30/10/2026)

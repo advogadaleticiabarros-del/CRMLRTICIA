@@ -69,9 +69,9 @@ Fonte: `GET /api/dashboards/resultados` → regra pura `src/services/resultadoPr
 
 Endereço: **crm.advogadaleticiabarros.com.br/tv**. Página à parte do CRM, feita para ficar aberta numa TV do escritório e ser usada só com o controle remoto. Só mostra; não muda nada no sistema.
 
-**Link curto para digitar na TV:** **is.gd/tvleticia** (leva a `/tv`; criado no encurtador is.gd em 19/11/2026, sem conta, não dá para editar nem apagar; a página continua pedindo o login do CRM).
+**Link curto para digitar na TV:** **is.gd/tvleticia** (leva a `/tv`; criado no encurtador is.gd em 19/11/2026, sem conta, não dá para editar nem apagar). Sozinho, o link não mostra nada: a TV precisa estar liberada.
 
-**Como ligar na TV:** abra o navegador da TV e digite o link curto. Na primeira vez, aperte OK em "Ir para a tela de entrada" e entre com e-mail e senha (o mesmo login de sempre); depois de entrar, o CRM volta sozinho para o painel. A TV fica conectada e a sessão se renova sozinha enquanto o painel está aberto. Precisa de um usuário com acesso ao WhatsApp para o painel do WhatsApp aparecer.
+**Como ligar na TV (sem login na TV, desde 19/11/2026):** abra o navegador da TV e digite o link curto. A TV mostra **"Liberar esta TV"** com um código de 6 números e um código QR. No celular já logado no CRM, aponte a câmera para o QR (ou abra `/tv/liberar` e digite o código), confira o nome da TV e toque em **Liberar a TV**. Em segundos a TV abre o painel e não pede mais nada. O código vale 10 minutos (depois a TV mostra outro). Na mesma tela do celular ficam as **TVs liberadas**, com o botão **Desligar** (a TV volta a pedir código). A TV vê o painel como a pessoa que liberou: se essa pessoa for desativada ou perder o acesso ao WhatsApp, a TV para de funcionar e é preciso liberar de novo. A TV só consegue ler o painel (nenhuma ação). O banco guarda só o hash da chave da TV (tabela `tv_aparelhos`, migration 187).
 
 **Os 4 painéis** (teclas 1 a 4, ou botões coloridos vermelho/verde/amarelo/azul):
 
@@ -107,7 +107,7 @@ Se a TV ficou desligada, ela só olha os últimos 10 minutos, para não tocar tu
 
 **Atualização:** agentes e WhatsApp a cada 30 segundos; "Hoje" a cada 2 minutos; a página recarrega sozinha uma vez por dia, às 4h (pega a versão nova do CRM; recarregar sai da tela cheia, por isso não durante o dia). Sem internet, aparece o aviso "Sem conexão com o CRM" e os últimos dados continuam na tela.
 
-**Código:** `public/tv.html` e `public/tv.js` (JavaScript sem recursos novos, para navegador de TV antigo); dados de `GET /api/escritorio`, `GET /api/escritorio/agente/:id`, `GET /api/hoje` e `GET /api/tv/whatsapp` (`src/routes/tv.ts`, regras em `src/services/painelTv.ts`, testes em `tests/painelTv.test.mjs`).
+**Código:** `public/tv.html` e `public/tv.js` (JavaScript sem recursos novos, para navegador de TV antigo); dados de `GET /api/escritorio`, `GET /api/escritorio/agente/:id`, `GET /api/hoje` e `GET /api/tv/whatsapp` (`src/routes/tv.ts`, regras em `src/services/painelTv.ts`, testes em `tests/painelTv.test.mjs`). Liberação por código: `src/services/tvAparelhos.ts` (regras, testes em `tests/tvAparelhos.test.mjs`), `src/services/tvAparelhosMysql.ts`, `src/routes/tvAparelhos.ts` (`POST /api/public/tv/parear` e `/situacao`, públicas; `/api/tv-aparelhos` para a equipe; chave da TV no cabeçalho `X-TV-Chave`, só GET em `/api/tv`), páginas `public/tv-liberar.html`/`.js`.
 
 ## FAQ
 
@@ -131,6 +131,7 @@ Se a TV ficou desligada, ela só olha os últimos 10 minutos, para não tocar tu
 | 19/11/2026 | Claude | Novo **Painel da TV** (`/tv`): painel geral, escritório virtual, WhatsApp (modo discreto) e hoje, usado pelo controle remoto, com menu e rotação automática |
 | 19/11/2026 | Claude | Link curto **is.gd/tvleticia** e volta automática para o painel depois de entrar no CRM pela TV |
 | 19/11/2026 | Claude | Tela cheia no primeiro toque e **avisos com som** (protocolado, aprovação, urgente, prazo, conversa esperando, erro de agente, audiência, WhatsApp caiu); recarga diária às 4h |
+| 19/11/2026 | Claude | **TV sem login**: liberada por código de 6 números/QR pelo celular logado (`/tv/liberar`), com lista e botão Desligar |
 
 ---
 ◀ [Fluxograma do sistema](00b-fluxograma.md) · [Visão geral](00-visao-geral.md) · Próximo: [Clientes e cadastro](01-clientes.md) ▶

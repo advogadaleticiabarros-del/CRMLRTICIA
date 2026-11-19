@@ -154,6 +154,14 @@
     .entrada { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: none; align-items: center; justify-content: center; text-align: center; z-index: 20; background: var(--ink); }
     .entrada.aberta { display: flex; }
     .entrada .caixa { max-width: 40rem; }
+    .entrada .pareamento { max-width: 70rem; display: flex; align-items: center; text-align: left; }
+    .pareamento .qr { background: #fff; border-radius: 1.2rem; padding: 1rem; margin-right: 3rem; flex: none; }
+    .pareamento .qr img { display: block; width: 17rem; height: 17rem; margin: 0; }
+    .pareamento h2 { font-size: 2rem; margin-bottom: .4rem; }
+    .pareamento .codigo { font-size: 5.5rem; font-weight: 700; letter-spacing: .5rem; color: var(--gold-bright); line-height: 1.1; font-variant-numeric: tabular-nums; margin: .4rem 0 1rem; }
+    .pareamento ol { color: var(--soft); font-size: 1.2rem; line-height: 1.6; padding-left: 1.4rem; margin: 0; }
+    .pareamento ol b { color: var(--text); }
+    .pareamento .vale { color: var(--muted); font-size: .95rem; margin-top: 1rem; }
     .entrada img { height: 6rem; margin-bottom: 1rem; }
     .entrada p { color: var(--soft); font-size: 1.15rem; line-height: 1.5; }
     .entrada .botao { font-size: 1.2rem; padding: .8rem 1.6rem; margin-top: 1rem; }
@@ -206,12 +214,7 @@
   <div class="camada" id="camadaDetalhe"><div class="janela" id="detalhe"></div></div>
 
   <div class="entrada" id="entrada">
-    <div class="caixa">
-      <img src="/logo-sem-fundo.png" alt="" />
-      <h2>Painel da TV</h2>
-      <p>Para mostrar o painel, entre no CRM uma vez neste navegador da TV (com o seu e-mail e senha). Depois de entrar, o painel volta sozinho. A TV fica conectada e o acesso se renova sozinho.</p>
-      <button class="botao focavel" data-acao="login">Ir para a tela de entrada</button>
-    </div>
+    <div class="caixa pareamento" id="pareamento"><p>Preparando…</p></div>
   </div>
 
   <script src="/tv.js"></script>

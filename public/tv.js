@@ -34,6 +34,12 @@
   function ler(chave, padrao) { try { var v = localStorage.getItem(chave); return v === null ? padrao : v; } catch (e) { return padrao; } }
   function gravar(chave, v) { try { localStorage.setItem(chave, v); } catch (e) { /* sem armazenamento: segue sem lembrar */ } }
 
+  function apagar(chave) { try { localStorage.removeItem(chave); } catch (e) { /* segue */ } }
+
+  // A TV entra sem login (19/11/2026): mostra um código, alguém libera pelo
+  // celular e a TV guarda a chave dela (tv_chave). O login do CRM, se existir
+  // neste navegador, também vale.
+  var CHAVE_TV = ler('tv_chave', null);
   var TOKEN = ler('crm_token', null);
   var est = {
     vista: ler('tv_vista', 'geral'),
@@ -89,10 +95,16 @@
 
   // ── Conversa com o CRM ──
   function api(caminho) {
-    return fetch(caminho, { headers: { Authorization: 'Bearer ' + TOKEN }, cache: 'no-store' }).then(function (r) {
+    if (!CHAVE_TV && !TOKEN) return Promise.reject(new Error('sem acesso'));
+    var cab = CHAVE_TV ? { 'X-TV-Chave': CHAVE_TV } : { Authorization: 'Bearer ' + TOKEN };
+    return fetch(caminho, { headers: cab, cache: 'no-store' }).then(function (r) {
       var novo = r.headers.get('X-Renew-Token');
       if (novo) { TOKEN = novo; gravar('crm_token', novo); }
-      if (r.status === 401) { mostrarEntrada(); throw new Error('sessao'); }
+      if (r.status === 401) {
+        // TV desligada no celular ou login vencido: volta a pedir código.
+        if (CHAVE_TV) { CHAVE_TV = null; apagar('tv_chave'); } else { TOKEN = null; }
+        mostrarPareamento(); throw new Error('sessao');
+      }
       if (r.status === 403) { var e = new Error('sem-acesso'); e.semAcesso = true; throw e; }
       if (!r.ok) throw new Error('HTTP ' + r.status);
       $('avisoRede').style.display = 'none';
@@ -101,7 +113,7 @@
   }
 
   function carregarEscritorio() {
-    return api('/api/escritorio').then(function (d) { est.dados.escritorio = d; marcarAtualizado(); }).catch(function () {});
+    return api('/api/tv/escritorio').then(function (d) { est.dados.escritorio = d; marcarAtualizado(); }).catch(function () {});
   }
   function carregarWhatsapp() {
     return api('/api/tv/whatsapp?discreto=' + (est.discreto ? '1' : '0')).then(function (d) {
@@ -113,7 +125,7 @@
       .catch(function (e) { if (e && e.semAcesso) est.dados.whatsapp = { semAcesso: true }; });
   }
   function carregarHoje() {
-    return api('/api/hoje').then(function (d) { est.dados.hoje = d; marcarAtualizado(); }).catch(function () {});
+    return api('/api/tv/hoje').then(function (d) { est.dados.hoje = d; marcarAtualizado(); }).catch(function () {});
   }
   function carregarAvisos() {
     return api('/api/tv/avisos' + (est.desdeAvisos ? '?desde=' + encodeURIComponent(est.desdeAvisos) : '')).then(function (d) {
@@ -445,7 +457,7 @@
       '<p class="sub">' + esc(a.descricao) + '</p>' +
       ((a.metricas || []).length ? '<div class="numeros">' + a.metricas.slice(0, 4).map(function (m) { return '<div class="numero"><b>' + esc(m.n) + '</b><span>' + esc(m.rotulo) + '</span></div>'; }).join('') + '</div>' : '');
     abrirDetalhe(topo + '<h3>O que fez por último</h3><div class="historico" id="historico">' + carregando() + '</div>');
-    api('/api/escritorio/agente/' + encodeURIComponent(id)).then(function (d) {
+    api('/api/tv/agente/' + encodeURIComponent(id)).then(function (d) {
       var el = $('historico');
       if (!el || est.camada !== 'detalhe') return;
       var h = (d.historico || []).slice(0, 9);
@@ -480,7 +492,7 @@
     if (item !== null) { detalheItemHoje(Number(item)); return; }
     if (acao === 'menu') abrirMenu();
     else if (acao === 'fechar') fecharCamadas();
-    else if (acao === 'login') { gravar('tv_voltar', '1'); location.href = '/'; }
+    else if (acao === 'novocodigo') { parear(); }
     else if (acao === 'rotacao') { est.rotacao = !est.rotacao; gravar('tv_rotacao', est.rotacao ? '1' : '0'); est.decorrido = 0; abrirMenu(); est.chaveFoco = 'm-rotacao'; restaurarFoco(); desenharEstado(); }
     else if (acao === 'discreto') { alternarDiscreto(); if (est.camada === 'menu') { abrirMenu(); est.chaveFoco = 'm-discreto'; restaurarFoco(); } }
     else if (acao === 'sons') { est.sons = !est.sons; gravar('tv_sons', est.sons ? '1' : '0'); if (est.sons) tocar('ping', true); abrirMenu(); est.chaveFoco = 'm-sons'; restaurarFoco(); }
@@ -569,10 +581,50 @@
     $('comecar').className = 'comecar';
   }
 
-  function mostrarEntrada() {
+  // ── Liberar esta TV por código (sem login na TV) ──
+  var pareando = null; // { segredo, timer }
+  function postar(caminho, corpo) {
+    return fetch(caminho, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(corpo || {}), cache: 'no-store' })
+      .then(function (r) { return r.json().then(function (d) { if (!r.ok) { var e = new Error(d.error || 'HTTP ' + r.status); e.status = r.status; throw e; } return d; }); });
+  }
+  function mostrarPareamento() {
+    if (pareando) return;
     $('entrada').className = 'entrada aberta';
-    est.chaveFoco = null;
-    restaurarFoco();
+    $('comecar').className = 'comecar';
+    pareando = { segredo: null, timer: null };
+    parear();
+  }
+  function parear() {
+    if (!pareando) pareando = { segredo: null, timer: null };
+    clearInterval(pareando.timer);
+    postar('/api/public/tv/parear').then(function (d) {
+      pareando.segredo = d.segredo;
+      var c = String(d.codigo);
+      $('pareamento').innerHTML = '<div class="qr"><img src="' + esc(d.qr) + '" alt="Código QR para liberar a TV" /></div>' +
+        '<div><h2>Liberar esta TV</h2><div class="codigo">' + esc(c.slice(0, 3) + ' ' + c.slice(3)) + '</div>' +
+        '<ol><li>No celular <b>já logado no CRM</b>, aponte a câmera para o código QR.</li>' +
+        '<li>Ou abra <b>' + esc(location.host) + '/tv/liberar</b> e digite o código.</li>' +
+        '<li>Toque em <b>Liberar a TV</b>. Pronto: não pede mais.</li></ol>' +
+        '<p class="vale">O código muda a cada 10 minutos. Ninguém precisa digitar senha na TV.</p></div>';
+      pareando.timer = setInterval(conferirPareamento, 3000);
+    }).catch(function () {
+      $('pareamento').innerHTML = '<div><h2>Liberar esta TV</h2><p>Não deu para gerar o código agora. Tentando de novo em 1 minuto…</p></div>';
+      pareando.timer = setTimeout(parear, 60000);
+    });
+  }
+  function conferirPareamento() {
+    if (!pareando || !pareando.segredo) return;
+    postar('/api/public/tv/situacao', { segredo: pareando.segredo }).then(function (d) {
+      if (!pareando) return;
+      if (d.situacao === 'liberada') {
+        clearInterval(pareando.timer);
+        CHAVE_TV = pareando.segredo; gravar('tv_chave', CHAVE_TV);
+        pareando = null;
+        $('entrada').className = 'entrada';
+        iniciar();
+        carregarTudo();
+      } else if (d.situacao !== 'aguardando') parear(); // venceu: código novo
+    }).catch(function () { /* sem rede: tenta no próximo ciclo */ });
   }
 
   // Tela acesa: pede ao navegador para não apagar a tela (quando a TV deixa).
@@ -582,12 +634,20 @@
   document.addEventListener('visibilitychange', function () { if (!document.hidden) { manterAcesa(); carregarTudo(); } });
 
   relogio();
-  if (!TOKEN) { mostrarEntrada(); return; }
-  desenhar();
-  $('comecar').className = 'comecar aberta';
-  carregarTudo();
-  carregarAvisos();
-  manterAcesa();
+  var iniciada = false;
+  function iniciar() {
+    desenhar();
+    if (!est.liberado) $('comecar').className = 'comecar aberta';
+    if (iniciada) return;
+    iniciada = true;
+    carregarTudo();
+    carregarAvisos();
+    manterAcesa();
+    rotinas();
+  }
+  if (CHAVE_TV || TOKEN) iniciar(); else mostrarPareamento();
+
+  function rotinas() {
   setInterval(tique, 1000);
   setInterval(carregarEscritorio, 30000);
   setInterval(carregarWhatsapp, 30000);
@@ -600,4 +660,5 @@
     var h = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'America/Sao_Paulo' }).slice(0, 2);
     if (h === '04' && Date.now() - est.abertaEm > 2 * 3600000) location.reload();
   }, 60000);
+  }
 })();
