@@ -98,3 +98,76 @@ test('tv.html carrega tv.js e usa o token do CRM', () => {
   assert.match(tvJs, /crm_token/);
   assert.match(tvJs, /X-Renew-Token/);
 });
+
+// ── Avisos com som (19/11/2026: "efeitos sonoros para coisas de atenção") ──
+import { montarAvisos } from '../dist/services/painelTv.js';
+
+const vazio = { protocolados: [], conversasEsperando: [], rascunhos: [], prazosNovos: 0, errosRotina: [], audiencias: [] };
+const nomesAgentes = { livia: 'Dra. Lívia', prazos: 'Dra. Paula', fabio: 'Dr. Fábio' };
+
+test('avisos: nada novo, nenhum aviso', () => {
+  assert.deepStrictEqual(montarAvisos(vazio, nomesAgentes), []);
+});
+
+test('avisos: processo protocolado comemora, com área e nome discreto', () => {
+  const [a] = montarAvisos({ ...vazio, protocolados: [{ nome: 'Maria da Silva', area: 'trabalhista' }] }, nomesAgentes);
+  assert.strictEqual(a.tipo, 'protocolo');
+  assert.strictEqual(a.som, 'festa');
+  assert.match(a.texto, /Maria S\./);
+  assert.match(a.texto, /trabalhista/i);
+  assert.ok(!a.texto.includes('Silva'));
+});
+
+test('avisos: mensagem urgente para aprovar chama a Dra. com o nome do agente', () => {
+  const av = montarAvisos({ ...vazio, rascunhos: [{ agente: 'livia', nome: 'João Pedro Reis', urgente: true }, { agente: 'livia', nome: 'Ana Lima', urgente: false }, { agente: 'livia', nome: 'Bia Melo', urgente: false }] }, nomesAgentes);
+  assert.strictEqual(av[0].tipo, 'urgente');
+  assert.strictEqual(av[0].som, 'chamado');
+  assert.match(av[0].texto, /Dra\. Lívia/);
+  assert.match(av[0].texto, /João R\./);
+  const comum = av.find((x) => x.tipo === 'aprovacao');
+  assert.match(comum.titulo, /Dra\. Lívia pede aprovação de 2 mensagens/);
+  assert.strictEqual(comum.som, 'chamado');
+});
+
+test('avisos: conversas que passaram de 30 min sem resposta, agrupadas', () => {
+  const um = montarAvisos({ ...vazio, conversasEsperando: [{ nome: 'Carla Souza' }] }, nomesAgentes);
+  assert.strictEqual(um[0].tipo, 'conversa');
+  assert.strictEqual(um[0].som, 'ping');
+  assert.match(um[0].titulo, /Carla S\. espera resposta há 30 min/);
+  const tres = montarAvisos({ ...vazio, conversasEsperando: [{ nome: 'A B' }, { nome: 'C D' }, { nome: null }] }, nomesAgentes);
+  assert.strictEqual(tres.length, 1);
+  assert.match(tres[0].titulo, /3 conversas esperando resposta há 30 min/);
+});
+
+test('avisos: prazos novos, erro de rotina (um por agente) e audiência em 30 min', () => {
+  const av = montarAvisos({
+    ...vazio, prazosNovos: 2,
+    errosRotina: [{ job: 'financeiro:vencidos' }, { job: 'financeiro:recorrentes' }, { job: 'rotina:desconhecida' }],
+    audiencias: [{ inicio: new Date('2026-11-19T17:00:00Z') }],
+  }, nomesAgentes, (job) => (job.startsWith('financeiro') ? 'fabio' : null));
+  const prazo = av.find((x) => x.tipo === 'prazo');
+  assert.match(prazo.titulo, /2 prazos novos para conferir/);
+  const erros = av.filter((x) => x.tipo === 'erro');
+  assert.strictEqual(erros.length, 2);
+  assert.match(erros[0].titulo, /Dr\. Fábio/);
+  assert.strictEqual(erros[0].som, 'alerta');
+  const aud = av.find((x) => x.tipo === 'audiencia');
+  assert.match(aud.titulo, /Audiência às 14:00/);
+  assert.ok(!/título|title/i.test(JSON.stringify(aud)));
+});
+
+test('avisos: ordem de importância (urgente, audiência, erro, protocolo, conversa, aprovação, prazo)', () => {
+  const av = montarAvisos({
+    protocolados: [{ nome: 'X Y', area: 'civel' }], conversasEsperando: [{ nome: 'Z W' }],
+    rascunhos: [{ agente: 'livia', nome: 'K L', urgente: true }, { agente: 'livia', nome: 'M N', urgente: false }],
+    prazosNovos: 1, errosRotina: [{ job: 'financeiro:vencidos' }], audiencias: [{ inicio: new Date('2026-11-19T17:00:00Z') }],
+  }, nomesAgentes, () => 'fabio');
+  assert.deepStrictEqual(av.map((x) => x.tipo), ['urgente', 'audiencia', 'erro', 'protocolo', 'conversa', 'aprovacao', 'prazo']);
+});
+
+test('tv.js: sons pelo próprio navegador, tela cheia no primeiro toque e liga/desliga dos sons', () => {
+  assert.match(tvJs, /AudioContext/);
+  assert.match(tvJs, /\/api\/tv\/avisos/);
+  assert.match(tvJs, /requestFullscreen/);
+  assert.match(tvJs, /data-acao="sons"/);
+});

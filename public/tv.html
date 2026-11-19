@@ -157,6 +157,22 @@
     .entrada img { height: 6rem; margin-bottom: 1rem; }
     .entrada p { color: var(--soft); font-size: 1.15rem; line-height: 1.5; }
     .entrada .botao { font-size: 1.2rem; padding: .8rem 1.6rem; margin-top: 1rem; }
+    /* ── Avisos com som (canto direito) ── */
+    .avisos { position: absolute; top: 6.6rem; right: 2.2rem; width: 34rem; z-index: 8; }
+    .aviso { display: flex; align-items: center; background: #2b2216; border: 1px solid var(--line); border-left: .45rem solid var(--gold); border-radius: .9rem; padding: 1rem 1.2rem; margin-bottom: .7rem; box-shadow: 0 1.2rem 3rem rgba(0,0,0,.6); animation: avisoEntra .45s cubic-bezier(.2,.9,.3,1.2); }
+    .aviso.sai { animation: avisoSai .4s ease-in forwards; }
+    .aviso .ic { font-size: 2.2rem; margin-right: 1rem; }
+    .aviso b { display: block; font-size: 1.3rem; line-height: 1.2; }
+    .aviso small { display: block; color: var(--soft); font-size: .95rem; margin-top: .2rem; }
+    .aviso.urgente, .aviso.erro { border-left-color: var(--red); } .aviso.audiencia, .aviso.aprovacao, .aviso.prazo { border-left-color: var(--amber); }
+    .aviso.protocolo { border-left-color: var(--green); background: #1d2a1f; } .aviso.conversa { border-left-color: #25d366; }
+    @keyframes avisoEntra { from { opacity: 0; transform: translateX(4rem) scale(.96); } to { opacity: 1; transform: none; } }
+    @keyframes avisoSai { to { opacity: 0; transform: translateX(3rem); } }
+    .comecar { position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: rgba(10,8,5,.86); display: none; align-items: center; justify-content: center; text-align: center; z-index: 15; }
+    .comecar.aberta { display: flex; }
+    .comecar b { display: inline-block; font-size: 2.6rem; color: var(--ink); background: var(--gold-bright); border-radius: 1rem; padding: 1rem 2.4rem; animation: respira 2s ease-in-out infinite; }
+    .comecar p { color: var(--soft); font-size: 1.2rem; margin-top: 1.4rem; }
+    @keyframes respira { 50% { transform: scale(1.05); box-shadow: 0 0 0 .6rem rgba(236,200,105,.15); } }
     .aviso-rede { position: absolute; right: 2.2rem; bottom: 3.2rem; background: var(--red); color: #fff; padding: .4rem .8rem; border-radius: .5rem; font-size: .85rem; display: none; z-index: 5; }
   </style>
 </head>
@@ -181,7 +197,10 @@
       <span class="estado" id="estado"></span>
     </footer>
     <div class="aviso-rede" id="avisoRede">Sem conexão com o CRM — tentando de novo</div>
+    <div class="avisos" id="avisos" aria-live="polite"></div>
   </div>
+
+  <div class="comecar" id="comecar"><div><b>Aperte OK para começar</b><p>Liga a tela cheia e os sons de aviso</p></div></div>
 
   <div class="camada" id="camadaMenu"><div class="janela menu" id="menu"></div></div>
   <div class="camada" id="camadaDetalhe"><div class="janela" id="detalhe"></div></div>

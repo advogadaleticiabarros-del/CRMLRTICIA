@@ -47,6 +47,13 @@
     dados: { escritorio: null, whatsapp: null, hoje: null },
     atualizadoEm: null,
     timerDiscreto: null,
+    sons: ler('tv_sons', '1') === '1',
+    liberado: false,        // o navegador só deixa tocar som e abrir tela cheia depois de uma tecla
+    desdeAvisos: null,      // "agora" do servidor na última pergunta de avisos
+    ultimosAvisos: [],      // para a lista do painel Hoje
+    filaAvisos: [],
+    whatsappConectado: null,
+    abertaEm: Date.now(),
   };
   if (!VISTAS.some(function (v) { return v.id === est.vista; })) est.vista = 'geral';
 
@@ -97,12 +104,80 @@
     return api('/api/escritorio').then(function (d) { est.dados.escritorio = d; marcarAtualizado(); }).catch(function () {});
   }
   function carregarWhatsapp() {
-    return api('/api/tv/whatsapp?discreto=' + (est.discreto ? '1' : '0')).then(function (d) { est.dados.whatsapp = d; marcarAtualizado(); })
+    return api('/api/tv/whatsapp?discreto=' + (est.discreto ? '1' : '0')).then(function (d) {
+      if (est.whatsappConectado === true && d.conectado === false) avisar({ tipo: 'erro', som: 'alerta', icone: '📵', titulo: 'O WhatsApp do escritório caiu', texto: 'Reconecte em WhatsApp → Conexão no CRM' });
+      if (est.whatsappConectado === false && d.conectado === true) avisar({ tipo: 'protocolo', som: 'ping', icone: '✅', titulo: 'WhatsApp conectado de novo', texto: '' });
+      est.whatsappConectado = d.conectado;
+      est.dados.whatsapp = d; marcarAtualizado();
+    })
       .catch(function (e) { if (e && e.semAcesso) est.dados.whatsapp = { semAcesso: true }; });
   }
   function carregarHoje() {
     return api('/api/hoje').then(function (d) { est.dados.hoje = d; marcarAtualizado(); }).catch(function () {});
   }
+  function carregarAvisos() {
+    return api('/api/tv/avisos' + (est.desdeAvisos ? '?desde=' + encodeURIComponent(est.desdeAvisos) : '')).then(function (d) {
+      est.desdeAvisos = d.agora;
+      (d.avisos || []).forEach(avisar);
+    }).catch(function () {});
+  }
+
+  // ── Sons de aviso: gerados aqui mesmo (sem arquivo), um para cada tipo ──
+  var audio = null;
+  function liberarSom() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (Ctx && !audio) audio = new Ctx();
+      if (audio && audio.resume) audio.resume();
+    } catch (e) { audio = null; }
+  }
+  function tom(freq, inicio, dur, forma, vol) {
+    var t = audio.currentTime + inicio, o = audio.createOscillator(), g = audio.createGain();
+    o.type = forma; o.frequency.value = freq;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g); g.connect(audio.destination);
+    o.start(t); o.stop(t + dur + 0.05);
+  }
+  var SONS = {
+    // processo protocolado: arpejo de comemoração
+    festa: function () { [523.25, 659.25, 783.99, 1046.5].forEach(function (f, i) { tom(f, i * 0.12, 0.5, 'triangle', 0.3); }); tom(1318.5, 0.5, 0.9, 'sine', 0.18); },
+    // agente chamando / aprovação / audiência: campainha de dois tons
+    chamado: function () { tom(880, 0, 0.9, 'sine', 0.3); tom(1760, 0, 0.5, 'sine', 0.06); tom(659.25, 0.35, 1.2, 'sine', 0.3); tom(1318.5, 0.35, 0.6, 'sine', 0.06); },
+    // conversa esperando: "plim-plim" curto
+    ping: function () { tom(1046.5, 0, 0.25, 'sine', 0.25); tom(1318.5, 0.15, 0.4, 'sine', 0.25); },
+    // erro / WhatsApp caiu: dois bipes graves, duas vezes
+    alerta: function () { tom(440, 0, 0.3, 'square', 0.1); tom(349.23, 0.35, 0.45, 'square', 0.1); tom(440, 0.9, 0.3, 'square', 0.1); tom(349.23, 1.25, 0.45, 'square', 0.1); },
+  };
+  function horaDeSom() {
+    var h = Number(new Date().toLocaleTimeString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'America/Sao_Paulo' }).slice(0, 2));
+    return h >= 7 && h < 21;
+  }
+  function tocar(som, forcar) {
+    if (!audio || !SONS[som] || (!forcar && (!est.sons || !horaDeSom()))) return;
+    try { SONS[som](); } catch (e) { /* som indisponível nesta TV */ }
+  }
+
+  // ── Avisos na tela: um por vez a cada 3s, cada um fica 15s ──
+  function avisar(a) {
+    est.ultimosAvisos.unshift({ a: a, em: new Date().toISOString() });
+    est.ultimosAvisos = est.ultimosAvisos.slice(0, 12);
+    est.filaAvisos.push(a);
+    if (est.vista === 'hoje') desenhar();
+  }
+  function proximoAviso() {
+    var a = est.filaAvisos.shift();
+    if (!a) return;
+    var caixa = $('avisos'), el = document.createElement('div');
+    el.className = 'aviso ' + a.tipo;
+    el.innerHTML = '<span class="ic">' + esc(a.icone) + '</span><div><b>' + esc(a.titulo) + '</b>' + (a.texto ? '<small>' + esc(a.texto) + '</small>' : '') + '</div>';
+    caixa.insertBefore(el, caixa.firstChild);
+    while (caixa.children.length > 3) caixa.removeChild(caixa.lastChild);
+    tocar(a.som);
+    setTimeout(function () { el.className += ' sai'; setTimeout(function () { if (el.parentNode) el.parentNode.removeChild(el); }, 450); }, 15000);
+  }
+
   function marcarAtualizado() { est.atualizadoEm = new Date().toISOString(); desenhar(); }
   function carregarTudo() { carregarEscritorio(); carregarWhatsapp(); carregarHoje(); }
 
@@ -232,7 +307,10 @@
       }).join('') + '</div>' +
       (saude.some(function (s) { return !s.ok; }) ? '<h3 style="margin-top:1rem">Como resolver</h3>' + saude.filter(function (s) { return !s.ok; }).map(function (s) {
         return '<div class="linha"><div class="t" style="white-space:normal"><b>' + esc(s.nome) + '</b><small style="white-space:normal">' + esc(s.comoResolver) + '</small></div></div>';
-      }).join('') : '<p class="vazio">Tudo funcionando.</p>') + '</div></div>';
+      }).join('') : '<p class="vazio">Tudo funcionando.</p>') +
+      '<h3 style="margin-top:1rem">Últimos avisos</h3>' + (est.ultimosAvisos.length ? est.ultimosAvisos.slice(0, 6).map(function (x) {
+        return '<div class="linha"><div class="t">' + esc(x.a.icone) + ' ' + esc(x.a.titulo) + (x.a.texto ? '<small>' + esc(x.a.texto) + '</small>' : '') + '</div><span class="q">' + hora(x.em) + '</span></div>';
+      }).join('') : '<p class="vazio">Nenhum aviso desde que a TV ligou.</p>') + '</div></div>';
   }
 
   var DESENHO = { geral: vistaGeral, escritorio: vistaEscritorio, whatsapp: vistaWhatsapp, hoje: vistaHoje };
@@ -331,6 +409,8 @@
       '<h3 style="margin-top:.8rem">Ajustes</h3>' +
       op('rotacao', '▶', 'Rotação automática dos painéis', est.rotacao ? 'ligada' : 'desligada', 'data-acao="rotacao"') +
       op('discreto', '🔒', 'Modo discreto do WhatsApp', est.discreto ? 'ligado' : 'desligado', 'data-acao="discreto"') +
+      op('sons', '🔔', 'Sons de aviso (7h às 21h)', est.sons ? 'ligados' : 'desligados', 'data-acao="sons"') +
+      op('testarsom', '♪', 'Testar os sons', '', 'data-acao="testarsom"') +
       op('atualizar', '↻', 'Atualizar agora', '', 'data-acao="atualizar"') +
       op('tela', '⛶', 'Tela cheia', '', 'data-acao="telacheia"') +
       op('fechar', '✕', 'Fechar o menu', 'Voltar', 'data-acao="fechar"');
@@ -403,6 +483,11 @@
     else if (acao === 'login') { gravar('tv_voltar', '1'); location.href = '/'; }
     else if (acao === 'rotacao') { est.rotacao = !est.rotacao; gravar('tv_rotacao', est.rotacao ? '1' : '0'); est.decorrido = 0; abrirMenu(); est.chaveFoco = 'm-rotacao'; restaurarFoco(); desenharEstado(); }
     else if (acao === 'discreto') { alternarDiscreto(); if (est.camada === 'menu') { abrirMenu(); est.chaveFoco = 'm-discreto'; restaurarFoco(); } }
+    else if (acao === 'sons') { est.sons = !est.sons; gravar('tv_sons', est.sons ? '1' : '0'); if (est.sons) tocar('ping', true); abrirMenu(); est.chaveFoco = 'm-sons'; restaurarFoco(); }
+    else if (acao === 'testarsom') {
+      liberarSom();
+      ['festa', 'chamado', 'ping', 'alerta'].forEach(function (s, i) { setTimeout(function () { tocar(s, true); }, i * 2200); });
+    }
     else if (acao === 'atualizar') { carregarTudo(); fecharCamadas(); }
     else if (acao === 'telacheia') { telaCheia(); fecharCamadas(); }
   }
@@ -437,6 +522,7 @@
     e.preventDefault();
     est.ultimoToque = Date.now();
     if ($('entrada').className.indexOf('aberta') > -1) { if (t === 'ok') ativar(focoAtual()); return; }
+    if (!est.liberado) { comecar(); return; }
     est.pausaAte = Date.now() + PAUSA_AO_USAR_MS;
     est.decorrido = 0;
     if (t === 'cima' || t === 'baixo' || t === 'esquerda' || t === 'direita') mover(t);
@@ -452,6 +538,7 @@
   // Mouse "mágico" (LG) e toque também funcionam.
   document.addEventListener('click', function (e) {
     var el = e.target.closest ? e.target.closest('.focavel') : null;
+    if (!est.liberado && $('entrada').className.indexOf('aberta') < 0) { comecar(); return; }
     if (!el) return;
     est.pausaAte = Date.now() + PAUSA_AO_USAR_MS;
     focar(el); ativar(el);
@@ -474,6 +561,14 @@
     desenharEstado();
   }
 
+  // Primeiro toque no controle: o navegador só libera som e tela cheia depois de uma tecla.
+  function comecar() {
+    est.liberado = true;
+    liberarSom();
+    telaCheia();
+    $('comecar').className = 'comecar';
+  }
+
   function mostrarEntrada() {
     $('entrada').className = 'entrada aberta';
     est.chaveFoco = null;
@@ -489,12 +584,20 @@
   relogio();
   if (!TOKEN) { mostrarEntrada(); return; }
   desenhar();
+  $('comecar').className = 'comecar aberta';
   carregarTudo();
+  carregarAvisos();
   manterAcesa();
   setInterval(tique, 1000);
   setInterval(carregarEscritorio, 30000);
   setInterval(carregarWhatsapp, 30000);
+  setInterval(carregarAvisos, 30000);
+  setInterval(proximoAviso, 3000);
   setInterval(carregarHoje, 120000);
-  // Recarrega a página a cada 6h: pega a versão nova do CRM e limpa a memória da TV.
-  setTimeout(function () { location.reload(); }, 6 * 3600000);
+  // Recarrega uma vez por dia, às 4h (ninguém olhando): pega a versão nova do CRM e
+  // limpa a memória da TV. Recarregar sai da tela cheia, por isso não durante o dia.
+  setInterval(function () {
+    var h = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', hour12: false, timeZone: 'America/Sao_Paulo' }).slice(0, 2);
+    if (h === '04' && Date.now() - est.abertaEm > 2 * 3600000) location.reload();
+  }, 60000);
 })();

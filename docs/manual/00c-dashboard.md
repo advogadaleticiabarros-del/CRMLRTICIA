@@ -84,11 +84,28 @@ Endereço: **crm.advogadaleticiabarros.com.br/tv**. Página à parte do CRM, fei
 
 **Controle remoto:** setas navegam; OK abre; Voltar (ou 0) abre e fecha o menu; canal +/− passa de painel; play/pausa liga ou desliga a rotação. O menu ("O que você quer ver?") escolhe o painel e tem os ajustes: rotação automática, modo discreto, atualizar agora e tela cheia. Funciona com as teclas de TVs LG (webOS) e Samsung (Tizen), com o mouse do controle e com teclado.
 
+**Tela cheia e sons (desde 19/11/2026):** ao ligar, a TV mostra "Aperte OK para começar"; esse primeiro toque liga a tela cheia e os sons (o navegador só permite os dois depois de uma tecla). Depois da recarga das 4h, é preciso apertar OK de novo.
+
+**Avisos com som:** a cada 30 segundos a TV pergunta ao CRM o que aconteceu (`GET /api/tv/avisos`) e mostra um aviso grande no canto direito por 15 segundos, com um som para cada tipo. Os sons são gerados pela própria página e só tocam das 7h às 21h; o menu tem "Sons de aviso" (liga/desliga) e "Testar os sons". Os últimos avisos ficam listados no painel Hoje. Nomes sempre discretos.
+
+| Aviso | Quando | Som |
+|---|---|---|
+| Mensagem urgente para aprovar | um agente deixou rascunho marcado como urgente | campainha |
+| Audiência às HH:MM | falta 30 minutos (sem o título do evento) | campainha |
+| Agente com erro | uma rotina do agente falhou (um aviso por agente) | bipe grave |
+| WhatsApp caiu / voltou | a conexão mudou | bipe grave / plim |
+| Processo protocolado! | evento "etapa_protocolado" no caso | comemoração |
+| Conversa esperando há 30 min | a última mensagem é do contato e completou 30 min sem resposta | plim-plim |
+| Agente pede aprovação | rascunhos novos em Mensagens para aprovar (agrupados por agente) | campainha |
+| Prazos novos para conferir | a Dra. Paula detectou prazo novo | campainha |
+
+Se a TV ficou desligada, ela só olha os últimos 10 minutos, para não tocar tudo de uma vez.
+
 **Rotação automática:** se ligada, troca de painel a cada 30 segundos. Ao mexer no controle, a rotação espera 3 minutos. Janela aberta sem uso fecha sozinha em 4 minutos.
 
 **Modo discreto do WhatsApp (padrão):** a TV fica à vista de clientes, então o painel mostra só o primeiro nome e a inicial do sobrenome, sem o texto das mensagens. OK no botão do painel mostra nomes completos e o começo da mensagem por 2 minutos e volta ao discreto sozinho. O telefone nunca vai para a TV.
 
-**Atualização:** agentes e WhatsApp a cada 30 segundos; "Hoje" a cada 2 minutos; a página recarrega sozinha a cada 6 horas (pega a versão nova do CRM). Sem internet, aparece o aviso "Sem conexão com o CRM" e os últimos dados continuam na tela.
+**Atualização:** agentes e WhatsApp a cada 30 segundos; "Hoje" a cada 2 minutos; a página recarrega sozinha uma vez por dia, às 4h (pega a versão nova do CRM; recarregar sai da tela cheia, por isso não durante o dia). Sem internet, aparece o aviso "Sem conexão com o CRM" e os últimos dados continuam na tela.
 
 **Código:** `public/tv.html` e `public/tv.js` (JavaScript sem recursos novos, para navegador de TV antigo); dados de `GET /api/escritorio`, `GET /api/escritorio/agente/:id`, `GET /api/hoje` e `GET /api/tv/whatsapp` (`src/routes/tv.ts`, regras em `src/services/painelTv.ts`, testes em `tests/painelTv.test.mjs`).
 
@@ -113,6 +130,7 @@ Endereço: **crm.advogadaleticiabarros.com.br/tv**. Página à parte do CRM, fei
 | 07/10/2026 | Claude | Novo painel **Resultados** ("Resultado por processo"): taxa de sucesso, % obtido, honorários por caso e provisão |
 | 19/11/2026 | Claude | Novo **Painel da TV** (`/tv`): painel geral, escritório virtual, WhatsApp (modo discreto) e hoje, usado pelo controle remoto, com menu e rotação automática |
 | 19/11/2026 | Claude | Link curto **is.gd/tvleticia** e volta automática para o painel depois de entrar no CRM pela TV |
+| 19/11/2026 | Claude | Tela cheia no primeiro toque e **avisos com som** (protocolado, aprovação, urgente, prazo, conversa esperando, erro de agente, audiência, WhatsApp caiu); recarga diária às 4h |
 
 ---
 ◀ [Fluxograma do sistema](00b-fluxograma.md) · [Visão geral](00-visao-geral.md) · Próximo: [Clientes e cadastro](01-clientes.md) ▶

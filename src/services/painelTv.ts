@@ -109,3 +109,90 @@ export function resumirWhatsapp(e: EntradaWhatsapp, agora: Date, opcoes: { discr
     recentes,
   };
 }
+
+// ── Avisos com som (19/11/2026, Jessica: "efeitos sonoros para coisas de
+// atenção, a cada novo processo protocolado, conversas que precisam de
+// atenção, algum agente chamando etc.") ─────────────────────────────────────
+// A TV pergunta "o que aconteceu desde a última vez?" a cada 30s; aqui vira
+// uma lista curta de avisos, já agrupados para não fazer barulho demais.
+// Sempre com nome discreto: o aviso aparece grande na tela.
+
+export type TipoAviso = 'urgente' | 'audiencia' | 'erro' | 'protocolo' | 'conversa' | 'aprovacao' | 'prazo';
+export type SomAviso = 'festa' | 'chamado' | 'ping' | 'alerta';
+export interface Aviso { tipo: TipoAviso; som: SomAviso; icone: string; titulo: string; texto: string }
+
+export interface EntradaAvisos {
+  protocolados: { nome: string | null; area: string | null }[];
+  conversasEsperando: { nome: string | null }[];
+  rascunhos: { agente: string | null; nome: string | null; urgente: boolean }[];
+  prazosNovos: number;
+  errosRotina: { job: string }[];
+  audiencias: { inicio: Date | string }[];
+}
+
+const ORDEM_AVISO: TipoAviso[] = ['urgente', 'audiencia', 'erro', 'protocolo', 'conversa', 'aprovacao', 'prazo'];
+const MAX_POR_TIPO = 3;
+const areaLegivel = (a: string | null) => {
+  const t = String(a || '').replace(/_/g, ' ').trim();
+  return t ? maiuscula(t) : '';
+};
+
+export function montarAvisos(
+  e: EntradaAvisos,
+  nomesAgentes: Record<string, string>,
+  agenteDaRotina: (job: string) => string | null = () => null,
+): Aviso[] {
+  const avisos: Aviso[] = [];
+  const nomeAgente = (id: string | null) => (id && nomesAgentes[id]) || 'Um agente';
+
+  e.rascunhos.filter((r) => r.urgente).slice(0, MAX_POR_TIPO).forEach((r) => avisos.push({
+    tipo: 'urgente', som: 'chamado', icone: '🔔', titulo: 'Mensagem urgente para aprovar',
+    texto: `${nomeAgente(r.agente)} chama: ${nomeDiscreto(r.nome)} precisa de resposta`,
+  }));
+
+  e.audiencias.slice(0, MAX_POR_TIPO).forEach((a) => avisos.push({
+    tipo: 'audiencia', som: 'chamado', icone: '⚖️',
+    titulo: `Audiência às ${new Date(a.inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' })}`,
+    texto: 'Começa em 30 minutos',
+  }));
+
+  const errosPorAgente = new Map<string, number>();
+  let errosSemDono = 0;
+  e.errosRotina.forEach((r) => {
+    const dono = agenteDaRotina(r.job);
+    if (dono) errosPorAgente.set(dono, (errosPorAgente.get(dono) || 0) + 1); else errosSemDono++;
+  });
+  [...errosPorAgente.keys()].slice(0, MAX_POR_TIPO).forEach((id) => avisos.push({
+    tipo: 'erro', som: 'alerta', icone: '⚠️', titulo: `${nomeAgente(id)} está com erro`, texto: 'Uma rotina dele falhou agora. Veja no Escritório virtual.',
+  }));
+  if (errosSemDono) avisos.push({ tipo: 'erro', som: 'alerta', icone: '⚠️', titulo: 'Uma rotina do sistema deu erro', texto: 'Veja no Escritório virtual.' });
+
+  e.protocolados.slice(0, MAX_POR_TIPO).forEach((p) => avisos.push({
+    tipo: 'protocolo', som: 'festa', icone: '🎉', titulo: 'Processo protocolado!',
+    texto: [areaLegivel(p.area), nomeDiscreto(p.nome)].filter(Boolean).join(' · '),
+  }));
+
+  const conversas = e.conversasEsperando.length;
+  if (conversas) avisos.push({
+    tipo: 'conversa', som: 'ping', icone: '💬',
+    titulo: conversas === 1 ? `${nomeDiscreto(e.conversasEsperando[0].nome)} espera resposta há 30 min` : `${conversas} conversas esperando resposta há 30 min`,
+    texto: 'No WhatsApp do escritório',
+  });
+
+  const comuns = new Map<string, number>();
+  e.rascunhos.filter((r) => !r.urgente).forEach((r) => comuns.set(r.agente || '', (comuns.get(r.agente || '') || 0) + 1));
+  [...comuns.entries()].slice(0, MAX_POR_TIPO).forEach(([id, n]) => avisos.push({
+    tipo: 'aprovacao', som: 'chamado', icone: '✋',
+    titulo: `${nomeAgente(id || null)} pede aprovação de ${n === 1 ? '1 mensagem' : `${n} mensagens`}`,
+    texto: 'Em Escritório virtual → Mensagens para aprovar',
+  }));
+
+  const prazos = Number(e.prazosNovos) || 0;
+  if (prazos) avisos.push({
+    tipo: 'prazo', som: 'chamado', icone: '📅',
+    titulo: `${nomeAgente('prazos')}: ${prazos === 1 ? '1 prazo novo' : `${prazos} prazos novos`} para conferir`,
+    texto: 'Em Prazos a confirmar',
+  });
+
+  return avisos.sort((a, b) => ORDEM_AVISO.indexOf(a.tipo) - ORDEM_AVISO.indexOf(b.tipo));
+}

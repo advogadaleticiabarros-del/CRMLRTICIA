@@ -4,7 +4,7 @@
 > Acesso: **público** (sem login), **logado** (qualquer usuário), **equipe** (admin, advogada, staff), **admin**.
 > Dentro de cada rota pode haver checagem extra (ex.: dono do registro, papel parceiro).
 
-**527 rotas em 85 grupos.**
+**528 rotas em 85 grupos.**
 
 ## `/api/access-logs` · admin · `src/routes/accessLogs.ts`
 
@@ -938,6 +938,7 @@
 | Método | Caminho |
 |---|---|
 | GET | `/api/tv/whatsapp` |
+| GET | `/api/tv/avisos` |
 
 ## `/api/users` · admin · `src/routes/users.ts`
 
