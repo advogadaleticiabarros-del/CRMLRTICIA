@@ -955,6 +955,16 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 **Como reconhecer de novo:** `curl -s -o /dev/null -w "%{http_code}" "https://pje.tjes.jus.br/pje/intercomunicacao?wsdl"` na VPS dá 403 e no computador do escritório dá 200. Se a tela disser "computador do escritório não está conectado": ligar o computador, abrir a sessão do Windows e conferir a tarefa (`Get-ScheduledTask 'CRM - ponte do TJES'`) e o log `%LOCALAPPDATA%\crm-ponte-escritorio\ponte.log`. "Servidor recusou a ponte (HTTP 401/503)" no log = chave diferente ou ausente em `MNI_PONTE_TOKEN`.
 
+## Incidente: a TV do escritório não pedia o código para entrar (19/11/2026)
+
+**Sintoma:** na TV Samsung (navegador Tizen), is.gd/tvleticia abria a tela antiga do painel, que pedia login, em vez de "Liberar esta TV" com o código e o QR. A Jessica: "não está entrando".
+
+**Causa raiz:** o navegador da TV continuou usando o `tv.js` antigo guardado no cache. O log do nginx mostrava `GET /tv` da TV sem nenhum `GET /tv.js` depois do deploy e nenhum `POST /api/public/tv/parear`, enquanto um computador Windows gerava o código normalmente. A página `/tv` chamava `/tv.js` sem versão.
+
+**Correção:** `/tv` e `/tv/liberar` passaram a sair com o script versionado pelo `BUILD_ID` (`/tv.js?v=...`), igual ao `index.html` (`src/app.ts`, `paginaTvVersionada`). Cada deploy vira um endereço novo de script e nenhum cache usa o antigo.
+
+**Como reconhecer de novo:** `grep "/tv" /var/log/nginx/access.log | grep Tizen` mostra `GET /tv` sem `GET /tv.js?v=` logo depois, ou sem `POST /api/public/tv/parear`. Se a página já sai versionada e ainda assim falhar: na TV, fechar o navegador e abrir de novo, ou apagar os dados de navegação nas configurações do navegador da TV.
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -1019,6 +1029,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 | 07/10/2026 | Claude | +1 incidente: fase sugerida errada por frases-padrão do despacho de perícia (DJEN) |
 | 30/09/2026 | Claude | +1 incidente: fechamento do dia ignorava o retrato da manhã |
 | 22/09/2026 | Claude | Resto da auditoria do Dashboard resolvido: Inadimplência unificada, Movimentações a verificar fecham de vez, Processual/Agenda exibem dado que já era calculado, consulta duplicada de "peças pendentes" compartilhada |
+| 19/11/2026 | Claude | +1 incidente: TV Samsung usava o tv.js antigo do cache e não pedia o código; páginas da TV agora com script versionado |
 
 ---
 ◀ [Onde tudo roda](13-infraestrutura.md) · [Visão geral](00-visao-geral.md) · Próximo: [Onboarding](15-onboarding.md) ▶

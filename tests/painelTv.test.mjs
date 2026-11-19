@@ -180,3 +180,13 @@ test('tv.js: sons pelo próprio navegador, tela cheia no primeiro toque e liga/d
   assert.match(tvJs, /requestFullscreen/);
   assert.match(tvJs, /data-acao="sons"/);
 });
+
+test('páginas da TV saem com o script versionado (TV não roda tv.js velho do cache)', async () => {
+  const app = fs.readFileSync(path.resolve('src/app.ts'), 'utf8');
+  assert.match(app, /paginaTvVersionada\('tv\.html'\)/);
+  assert.match(app, /paginaTvVersionada\('tv-liberar\.html'\)/);
+  const { versionarIndexHtml } = await import('../dist/utils/versionarIndexHtml.js');
+  assert.match(versionarIndexHtml(tvHtml, '123'), /src="\/tv\.js\?v=123"/);
+  const lib = fs.readFileSync(path.resolve('public/tv-liberar.html'), 'utf8');
+  assert.match(versionarIndexHtml(lib, '123'), /src="\/tv-liberar\.js\?v=123"/);
+});

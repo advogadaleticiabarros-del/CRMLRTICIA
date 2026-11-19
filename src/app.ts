@@ -307,16 +307,25 @@ pre{background:#f0ede4;padding:10px;border-radius:6px;font-size:12px;white-space
     res.type('html').send(indexHtmlVersionado());
   });
 
+  // Páginas da TV com o script versionado pelo BUILD_ID, igual ao index.html:
+  // a TV Samsung (Tizen) continuou rodando o tv.js antigo do cache depois do
+  // deploy (19/11/2026) e nunca mostrou o código para liberar.
+  const paginasTv = new Map<string, string>();
+  const paginaTvVersionada = (arquivo: string): string => {
+    if (!paginasTv.has(arquivo)) paginasTv.set(arquivo, versionarIndexHtml(fs.readFileSync(path.join(publicDir, arquivo), 'utf8'), BUILD_ID));
+    return paginasTv.get(arquivo)!;
+  };
+
   // Liberar a TV pelo celular (public/tv-liberar.html)
   app.get('/tv/liberar', (_req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-store');
-    res.sendFile(path.join(publicDir, 'tv-liberar.html'));
+    res.type('html').send(paginaTvVersionada('tv-liberar.html'));
   });
 
   // Tela da TV do escritório (public/tv.html): endereço curto /tv
   app.get('/tv', (_req: Request, res: Response) => {
     res.setHeader('Cache-Control', 'no-store');
-    res.sendFile(path.join(publicDir, 'tv.html'));
+    res.type('html').send(paginaTvVersionada('tv.html'));
   });
 
   // 404 apenas para rotas /api desconhecidas
