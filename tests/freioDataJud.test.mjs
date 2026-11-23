@@ -66,7 +66,7 @@ test('429: não repete a consulta, aciona o freio e explica em português', asyn
   assert.equal(n, 1, 'repetir em 429 só gasta mais limite');
   assert.equal(r.found, false);
   assert.equal(r.limitado, true);
-  assert.match(r.error, /DataJud \(CNJ\) está limitando as consultas/);
+  assert.match(r.error, /DataJud \(CNJ\) está sobrecarregado e recusando consultas/);
   assert.match(r.error, /429/);
   assert.match(r.error, /depois das \d{2}:\d{2}/);
   // a próxima automática nem chega ao CNJ

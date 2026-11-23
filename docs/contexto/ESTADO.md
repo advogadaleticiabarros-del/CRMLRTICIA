@@ -5,7 +5,7 @@
 **Última atualização:** 23/11/2026. Último commit: freio no DataJud (erro HTTP 429).
 
 ## Últimas entregas (mais recentes primeiro)
-- **23/11 (7):** **Erro "DataJud HTTP 429" ao sincronizar processo** (print do aviso vermelho). Causa: o monitoramento consultava os 136 processos toda hora, cada rodada levava 1h43 e se sobrepunha à seguinte, e o CNJ recusava de 400 a 650 consultas por dia desde 10/11.
+- **23/11 (7):** **Erro "DataJud HTTP 429" ao sincronizar processo** (print do aviso vermelho). Causa: o **DataJud do CNJ está sobrecarregado** (o 429 vem do Elasticsearch deles com a fila cheia, para todo mundo; deste computador também não responde). Do nosso lado piorava: o monitoramento consultava os 136 processos toda hora, cada rodada levava 1h43, se sobrepunha à seguinte e repetia em cima do erro (de 400 a 650 recusas por dia desde 10/11).
   - **Agora:** `freioDataJud.ts` deixa sair uma consulta por vez, com 2s entre elas, e pausa as automáticas por 15 min depois de um 429 ou timeout. O monitoramento faz lotes de 25 processos (os mais antigos primeiro), não sobrepõe rodadas e para no limite. "Sincronizar agora" tem prioridade e mostra uma mensagem clara.
   - **Conferir:** a queda dos 429 em `monitoring_logs` nos próximos dias. Ver `docs/contexto/relatorios/2026-11-23-datajud-429.md`.
 - **23/11 (6):** **Recebimentos da Dativa com a lista da Sefaz** (Dra.: "nessa parte de recebimentos deixar o que está na coluna"). O topo da aba Recebimentos mostra as demandas em "Na lista da Sefaz — disponível para saque", com total, Dar baixa e Abrir na linha; o histórico segue embaixo. Ver `docs/contexto/relatorios/2026-11-23-recebimentos-dativa-lista-sefaz.md`.

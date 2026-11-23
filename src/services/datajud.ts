@@ -13,9 +13,11 @@ export const freioDataJud = criarFreio();
 
 const horaBrasilia = (ms: number) =>
   new Date(ms).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
-/** Mensagem para a equipe quando o CNJ está limitando (mantém "429" para quem filtra pelo código). */
+/** Mensagem para a equipe quando o DataJud recusa por sobrecarga (mantém "429" para quem filtra pelo código).
+ *  O 429 do DataJud vem do Elasticsearch do CNJ com a fila de buscas cheia
+ *  (es_rejected_execution_exception): é sobrecarga do serviço, para todos. */
 function msgLimitado(ate: number, motivo = 'HTTP 429'): string {
-  return `O DataJud (CNJ) está limitando as consultas agora (${motivo}). Tente de novo depois das ${horaBrasilia(ate || Date.now())}. ` +
+  return `O DataJud (CNJ) está sobrecarregado e recusando consultas agora (${motivo}). Tente de novo depois das ${horaBrasilia(ate || Date.now())}. ` +
     'As movimentações também chegam pela ligação oficial com o tribunal e pelo DJEN.';
 }
 
