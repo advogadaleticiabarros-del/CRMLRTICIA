@@ -30,6 +30,7 @@ Consulte pra entender o que cada perfil de usuário pode ver/fazer, como funcion
 - **Política de senha (desde 23/11/2026)**: vale em todo lugar que grava senha (cadastro, troca, redefinição por e-mail, admin). Regras: de 10 a 128 caracteres; 3 dos 4 tipos (minúscula, maiúscula, número, símbolo), ou uma frase com 16 ou mais caracteres; nada de senha comum (nem "Senha@2026"); nada de sequência ou repetição ("1234", "aaaa"); nada do nome ou do e-mail da pessoa. A regra fica em `src/services/senhaForte.ts`. A senha temporária gerada pelo admin ou pelo portal do cliente tem 14 caracteres e sai de um gerador criptográfico (antes era `Math.random`). O hash é bcrypt com custo 12. Senhas antigas continuam valendo até a próxima troca.
 - **Sessão que cai na hora (desde 23/11/2026)**: o login dura 24 h e se renova com o uso. Agora, a cada pedido, o servidor confere se o usuário continua ativo e se a sessão não foi encerrada (`users.token_version`, `src/services/sessaoUsuario.ts`, com 30 s em memória). Trocar ou redefinir a senha, ser desativado ou mudar de papel derruba **todos os aparelhos**. Quem trocou a própria senha continua logado só no aparelho em que trocou. Também existe a rota `POST /api/auth/sair-de-todos`. Antes, um usuário desativado seguia entrando com o token antigo, para sempre, por causa da renovação automática.
 - **Passes temporários não valem como login**: o passe da 2ª etapa (2FA), o de Face ID e o das conexões Google usam o mesmo segredo do login. Desde 23/11/2026 o servidor recusa esses passes como sessão.
+- **Crédito na tela de login (desde 23/11/2026)**: abaixo do aviso dos Termos aparece "Desenvolvido por Orbit Desenvolvimento" (`public/index.html`, classe `.login-credito`).
 - **Termos de Uso e Política de Privacidade (desde 23/11/2026)**: todo usuário (equipe, cliente, parceiro) aceita a versão vigente no primeiro acesso. Até aceitar, o servidor recusa as rotas (403 `TERMOS_PENDENTES`) e a tela de aceite fica por cima de tudo, sem botão de fechar (só "Sair"). Cada aceite fica em `termos_aceites` (quem, versão, quando, IP, navegador). Textos em `/termos.html` e `/privacidade.html`. Para pedir novo aceite de todos, suba `TERMOS_VERSAO` em `src/services/termos.ts` e a versão escrita nas duas páginas (um teste confere se batem).
 
 ## Permissões de navegador
@@ -52,6 +53,7 @@ O sistema libera explicitamente, só para o próprio domínio: **microfone** (gr
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 23/11/2026 | Claude | Tela de login com o crédito "Desenvolvido por Orbit Desenvolvimento" |
 | 23/11/2026 | Claude | Política de senha, sessão derrubável, passes temporários recusados, aceite de Termos e Política de Privacidade |
 | 30/09/2026 | Claude | Perfil parceiro sem acesso ao WhatsApp |
 | 03/09/2026 | Claude | Criação do documento |
