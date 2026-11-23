@@ -5,6 +5,7 @@
 **Última atualização:** 23/11/2026. Último commit: revisão dos agentes de IA (tempo limite, vazio não é sucesso, mídia com legenda, pastas do Drive) e EOVERQUOTA.
 
 ## Últimas entregas (mais recentes primeiro)
+- **23/11 (4):** **Nova cobrança da Sandra, parcela 2/4** (autorizada: "Envie para a Sandra estruturado para que saia certinho"). 7 dias em aberto, R$ 579,51 pelo contrato nº 12, com as consequências da Cláusula Quinta e o Pix do escritório (texto + botão). Rascunho 199, enviado pelo fluxo de aprovação. Ver `docs/contexto/relatorios/2026-11-23-cobranca-sandra-parcela-2.md`.
 - **23/11 (3):** **Erro EOVERQUOTA e revisão dos agentes de IA** (Jessica: "E esse erro? Revise os agentes de IA [...] não deixe margem para erros").
   - O EOVERQUOTA era o MEGA lotado, antes da correção de hoje cedo. Virava "erro solto" porque o envio seguia depois do tempo limite; agora é cancelado e tratado.
   - Agentes:
