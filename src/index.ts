@@ -5,6 +5,8 @@ import { env } from './config/env';
 import { assertDatabaseConnection, closeDatabase } from './config/database';
 import { startCronJobs } from './crons';
 import { setIo } from './services/waSocket';
+import { WHATSAPP_ROLES } from './middleware/auth';
+import { sessoes } from './services/sessaoUsuario';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -110,9 +112,15 @@ async function bootstrap() {
   // API autentica o handshake (o front manda o token de `crm_token` em
   // `auth.token`); sem token válido, a conexão é recusada.
   const io = new SocketIOServer(server, { cors: { origin: env.CORS_ORIGIN, credentials: true } });
-  io.use((socket, next) => {
+  // Desde 23/11/2026: só a equipe com acesso ao WhatsApp (antes, qualquer login
+  // válido — até cliente do portal — ouvia os eventos das conversas), e com a
+  // sessão ativa (usuário desativado ou senha trocada não reconecta).
+  io.use(async (socket, next) => {
     try {
-      jwt.verify(String(socket.handshake.auth?.token || ''), env.JWT_SECRET);
+      const p = jwt.verify(String(socket.handshake.auth?.token || ''), env.JWT_SECRET, { algorithms: ['HS256'] }) as any;
+      if (p.purpose || !WHATSAPP_ROLES.includes(p.role)) return next(new Error('unauthorized'));
+      const s = await sessoes.verificar(p.id, p.tv);
+      if (!s.ok) return next(new Error('unauthorized'));
       next();
     } catch {
       next(new Error('unauthorized'));

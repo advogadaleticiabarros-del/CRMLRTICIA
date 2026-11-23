@@ -1,4 +1,5 @@
 import { Router, Request, Response } from 'express';
+import { createHash, timingSafeEqual } from 'crypto';
 import { db } from '../config/database';
 import { confirmarPagamento } from './payments';
 
@@ -14,7 +15,9 @@ router.post('/asaas-webhook', async (req: Request, res: Response) => {
   ) as any;
   const expected = cfg?.setting_value;
   const received = req.header('asaas-access-token');
-  if (!expected || received !== expected) { res.status(401).json({ error: 'Token inválido' }); return; }
+  // Comparação em tempo constante: `!==` vaza pelo tempo quantos caracteres bateram.
+  const h = (v: string) => createHash('sha256').update(v).digest();
+  if (!expected || !received || !timingSafeEqual(h(String(received)), h(String(expected)))) { res.status(401).json({ error: 'Token inválido' }); return; }
 
   const event = req.body?.event;
   const payment = req.body?.payment;

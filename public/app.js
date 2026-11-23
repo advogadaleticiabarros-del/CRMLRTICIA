@@ -19,6 +19,9 @@ async function api(path, opts = {}) {
   // inválidos") passar em vez de mascarar tudo como "Sessão expirada".
   if (res.status === 401 && tinhaToken) { logout(); throw new Error('Sessão expirada'); }
   const data = res.status === 204 ? null : await res.json();
+  // Termos de Uso / Política de Privacidade ainda não aceitos (23/11/2026):
+  // o servidor recusa tudo até o aceite; a tela abre o aceite por cima.
+  if (res.status === 403 && data && data.code === 'TERMOS_PENDENTES') mostrarAceiteTermos();
   if (!res.ok) {
     if (res.status >= 500 && !path.startsWith('/api/erros')) {
       const rota = path.split('?')[0].replace(/\/\d+(?=\/|$)/g, '/:id');
@@ -30,6 +33,45 @@ async function api(path, opts = {}) {
     throw err;
   }
   return data;
+}
+
+// ── Aceite dos Termos de Uso e da Política de Privacidade (23/11/2026) ──
+// Tela por cima de tudo, sem botão de fechar: ou aceita, ou sai. O aceite fica
+// registrado no servidor (quem, versão, quando, IP) — prova para a LGPD.
+let aceiteTermosAberto = false;
+async function mostrarAceiteTermos() {
+  if (aceiteTermosAberto) return;
+  aceiteTermosAberto = true;
+  let versao = '';
+  try { versao = (await api('/api/auth/termos')).versao; } catch { /* segue; o servidor recusa versão errada */ }
+  const fundo = document.createElement('div');
+  fundo.setAttribute('role', 'dialog'); fundo.setAttribute('aria-modal', 'true'); fundo.setAttribute('aria-labelledby', 'termos-titulo');
+  fundo.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(13,27,46,.72);display:flex;align-items:center;justify-content:center;padding:16px';
+  fundo.innerHTML = `<div style="background:var(--surface,#fff);color:var(--text,#1c2433);max-width:520px;width:100%;border-radius:12px;padding:24px;box-shadow:0 10px 40px rgba(0,0,0,.3)">
+    <h3 id="termos-titulo" style="margin:0 0 10px">Termos de Uso e Política de Privacidade</h3>
+    <p style="margin:0 0 12px;line-height:1.5">Para continuar usando o sistema, leia e aceite os documentos abaixo. Eles explicam as regras de uso, como tratamos os dados pessoais (LGPD) e as suas responsabilidades com a senha e o sigilo.</p>
+    <p style="margin:0 0 14px;line-height:1.8">📄 <a href="/termos.html" target="_blank" rel="noopener">Termos de Uso</a><br>🔒 <a href="/privacidade.html" target="_blank" rel="noopener">Política de Privacidade</a></p>
+    <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer;margin-bottom:14px;line-height:1.4">
+      <input type="checkbox" id="termos-ok" style="width:auto;margin-top:3px"> <span>Li e aceito os Termos de Uso e a Política de Privacidade.</span>
+    </label>
+    <p id="termos-erro" class="error-msg" style="margin:0 0 10px"></p>
+    <div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap">
+      <button type="button" id="termos-sair" class="btn-ghost">Sair</button>
+      <button type="button" id="termos-aceitar" class="btn-primary" disabled>Aceitar e continuar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(fundo);
+  const ok = fundo.querySelector('#termos-ok'), btn = fundo.querySelector('#termos-aceitar');
+  ok.onchange = () => { btn.disabled = !ok.checked; };
+  fundo.querySelector('#termos-sair').onclick = () => { fundo.remove(); aceiteTermosAberto = false; logout(); };
+  btn.onclick = async () => {
+    btn.disabled = true;
+    try {
+      await api('/api/auth/termos/aceitar', { method: 'POST', body: JSON.stringify({ versao, aceito: true }) });
+      location.reload();
+    } catch (err) { fundo.querySelector('#termos-erro').textContent = err.message; btn.disabled = false; }
+  };
+  setTimeout(() => ok.focus(), 30);
 }
 
 // ── Rastreador de erros da tela (16/10/2026) ──
@@ -9797,14 +9839,17 @@ async function userForm(onSave) {
 function changePasswordForm() {
   const form = el(`<form class="form-grid">
     ${field('Senha atual', 'current_password', { type: 'password' })}
-    ${field('Nova senha (mín. 8)', 'new_password', { type: 'password' })}
+    ${field('Nova senha', 'new_password', { type: 'password' })}
+    <p class="muted" style="grid-column:1/-1;margin:0;font-size:12px">Pelo menos 10 caracteres, misturando maiúsculas, minúsculas, números e símbolos (ou uma frase com 16+). Sem seu nome, e-mail ou senhas óbvias. Ao trocar, os outros aparelhos saem do sistema.</p>
     <button type="submit" class="btn-primary">Trocar senha</button>
   </form>`);
   form.onsubmit = async (e) => {
     e.preventDefault();
     try {
-      await api('/api/auth/password', { method: 'PATCH', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
-      closeModal(); toast('Senha alterada com sucesso');
+      const r = await api('/api/auth/password', { method: 'PATCH', body: JSON.stringify(Object.fromEntries(new FormData(form))) });
+      // A troca encerra as outras sessões; este aparelho recebe um token novo.
+      if (r && r.token) { TOKEN = r.token; localStorage.setItem('crm_token', r.token); }
+      closeModal(); toast('Senha alterada. Os outros aparelhos foram desconectados.');
     } catch (err) { toast(err.message, 'error'); }
   };
   openModal('Trocar minha senha', form);
@@ -11906,13 +11951,13 @@ if (forgotBtn) forgotBtn.onclick = async () => {
   localStorage.removeItem('crm_token'); localStorage.removeItem('crm_user');
   card.innerHTML = `
     <h2>Criar nova senha</h2>
-    <p class="login-hint">Escolha a sua nova senha de acesso (mínimo de 8 caracteres)</p>
+    <p class="login-hint">Escolha a sua nova senha de acesso (mínimo de 10 caracteres, misturando maiúsculas, minúsculas, números e símbolos)</p>
     <form id="reset-form">
       <label>Nova senha
-        <input type="password" id="reset-p1" required minlength="8" autocomplete="new-password" placeholder="••••••••" />
+        <input type="password" id="reset-p1" required minlength="10" autocomplete="new-password" placeholder="••••••••" />
       </label>
       <label>Repita a nova senha
-        <input type="password" id="reset-p2" required minlength="8" autocomplete="new-password" placeholder="••••••••" />
+        <input type="password" id="reset-p2" required minlength="10" autocomplete="new-password" placeholder="••••••••" />
       </label>
       <label style="display:flex;gap:8px;align-items:center;font-size:13px;font-weight:400;cursor:pointer">
         <input type="checkbox" id="reset-show" style="width:auto"> Mostrar senha

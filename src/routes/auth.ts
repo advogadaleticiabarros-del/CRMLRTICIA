@@ -17,7 +17,14 @@ import { db } from '../config/database';
 import { env } from '../config/env';
 import { WEBAUTHN_RP_ID, WEBAUTHN_RP_NAME, WEBAUTHN_ORIGIN } from '../config/webauthn';
 import { decrypt } from '../utils/crypto';
-import { signToken, authenticate, authorize, AuthPayload } from '../middleware/auth';
+import { emitirToken, signToken, authenticate, authorize, AuthPayload } from '../middleware/auth';
+import { problemaDaSenha, BCRYPT_CUSTO } from '../services/senhaForte';
+import { encerrarSessoes, sessoes } from '../services/sessaoUsuario';
+import { TERMOS_VERSAO, precisaAceitar } from '../services/termos';
+
+// Hash de uma senha qualquer: usado quando o e-mail não existe, para o login
+// demorar o mesmo tempo e não revelar quais e-mails têm conta.
+const HASH_FALSO = bcrypt.hashSync('senha-que-nao-existe-' + Date.now(), BCRYPT_CUSTO);
 
 const router = Router();
 
@@ -67,6 +74,7 @@ router.post('/login', async (req: Request, res: Response) => {
 
   const user = rows[0];
   if (!user || !user.active) {
+    await bcrypt.compare(String(password), HASH_FALSO); // mesmo tempo de resposta
     registerFail(req);
     res.status(401).json({ error: 'Credenciais inválidas' });
     return;
@@ -95,7 +103,7 @@ router.post('/login', async (req: Request, res: Response) => {
     role: user.role,
   };
 
-  res.json({ token: signToken(payload), user: payload });
+  res.json({ token: await emitirToken(payload), user: payload });
 });
 
 // ── POST /api/auth/login/2fa — 2ª etapa: código do autenticador ─────────────
@@ -128,7 +136,7 @@ router.post('/login/2fa', async (req: Request, res: Response) => {
   loginAttempts.delete(loginKey(req));
 
   const payload: AuthPayload = { id: user.id, email: user.email, name: user.name, role: user.role };
-  res.json({ token: signToken(payload), user: payload });
+  res.json({ token: await emitirToken(payload), user: payload });
 });
 
 // ── POST /api/auth/forgot — recuperação de senha (avisa os admins) ──────────
@@ -190,7 +198,6 @@ router.post('/reset', async (req: Request, res: Response) => {
   const token = String(req.body?.token || '').trim();
   const password = String(req.body?.password || '');
   if (!token || token.length < 32) { res.status(400).json({ error: 'Link inválido' }); return; }
-  if (password.length < 8) { res.status(400).json({ error: 'A nova senha deve ter pelo menos 8 caracteres' }); return; }
 
   const crypto = await import('crypto');
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
@@ -200,8 +207,13 @@ router.post('/reset', async (req: Request, res: Response) => {
   const pr = rows[0];
   if (!pr) { res.status(400).json({ error: 'Link expirado ou já utilizado. Peça um novo em "Esqueci minha senha".' }); return; }
 
-  const hash = await bcrypt.hash(password, 10);
+  const [[dono]] = await db.query('SELECT name, email FROM users WHERE id = ?', [pr.user_id]) as any;
+  const problema = problemaDaSenha(password, { nome: dono?.name, email: dono?.email });
+  if (problema) { res.status(400).json({ error: problema }); return; }
+
+  const hash = await bcrypt.hash(password, BCRYPT_CUSTO);
   await db.query('UPDATE users SET password = ? WHERE id = ?', [hash, pr.user_id]);
+  await encerrarSessoes(pr.user_id); // quem estava logado com a senha antiga sai
   // Invalida TODOS os links de redefinição pendentes deste usuário (não só o usado)
   await db.query('UPDATE password_resets SET used_at = NOW() WHERE user_id = ? AND used_at IS NULL', [pr.user_id]);
   await db.query("UPDATE password_reset_requests SET status = 'resolvido', resolved_at = NOW() WHERE user_id = ? AND status = 'aberto'", [pr.user_id]).catch(() => {});
@@ -230,7 +242,36 @@ router.get('/me', authenticate, async (req: Request, res: Response) => {
     return;
   }
 
-  res.json(rows[0]);
+  sessoes.esquecer(req.user!.id);
+  const estado = await sessoes.estado(req.user!.id);
+  res.json({ ...rows[0], termos_versao_atual: TERMOS_VERSAO, termos_pendentes: precisaAceitar(estado?.termosVersao) });
+});
+
+// ── Termos de Uso e Política de Privacidade (23/11/2026) ────────────────────
+// GET: versão vigente e se este usuário já aceitou. POST: registra o aceite
+// (quem, versão, quando, IP e navegador — prova para a LGPD).
+router.get('/termos', authenticate, async (req: Request, res: Response) => {
+  const estado = await sessoes.estado(req.user!.id);
+  res.json({ versao: TERMOS_VERSAO, pendente: precisaAceitar(estado?.termosVersao), termos: '/termos.html', privacidade: '/privacidade.html' });
+});
+
+router.post('/termos/aceitar', authenticate, async (req: Request, res: Response) => {
+  if (req.body?.versao !== TERMOS_VERSAO || req.body?.aceito !== true) {
+    res.status(400).json({ error: 'Marque que leu e aceita a versão atual dos Termos e da Política.' });
+    return;
+  }
+  await db.query('INSERT INTO termos_aceites (user_id, versao, ip, navegador) VALUES (?, ?, ?, ?)',
+    [req.user!.id, TERMOS_VERSAO, String(req.ip || '').slice(0, 64), String(req.headers['user-agent'] || '').slice(0, 255)]);
+  await db.query('UPDATE users SET termos_versao = ?, termos_aceitos_em = NOW() WHERE id = ?', [TERMOS_VERSAO, req.user!.id]);
+  sessoes.esquecer(req.user!.id);
+  res.json({ success: true, versao: TERMOS_VERSAO });
+});
+
+// ── POST /api/auth/sair-de-todos — encerra a sessão em todos os aparelhos ───
+// Devolve um token novo: quem pediu continua logado só neste aparelho.
+router.post('/sair-de-todos', authenticate, async (req: Request, res: Response) => {
+  const tv = await encerrarSessoes(req.user!.id);
+  res.json({ success: true, token: signToken({ ...req.user!, tv }) });
 });
 
 // ── POST /api/auth/register (somente admin cria novos usuários) ──────────────
@@ -242,8 +283,9 @@ router.post('/register', authenticate, authorize('admin'), async (req: Request, 
     return;
   }
 
-  if (String(password).length < 8) {
-    res.status(400).json({ error: 'A senha deve ter pelo menos 8 caracteres' });
+  const problema = problemaDaSenha(password, { nome: name, email });
+  if (problema) {
+    res.status(400).json({ error: problema });
     return;
   }
 
@@ -253,7 +295,7 @@ router.post('/register', authenticate, authorize('admin'), async (req: Request, 
     return;
   }
 
-  const hash = await bcrypt.hash(password, 10);
+  const hash = await bcrypt.hash(password, BCRYPT_CUSTO);
   const allowedRoles = ['admin', 'advogado', 'staff'];
   const finalRole = allowedRoles.includes(role) ? role : 'advogado';
 
@@ -273,21 +315,32 @@ router.patch('/password', authenticate, async (req: Request, res: Response) => {
     res.status(400).json({ error: 'current_password e new_password são obrigatórios' });
     return;
   }
-  if (String(new_password).length < 8) {
-    res.status(400).json({ error: 'A nova senha deve ter pelo menos 8 caracteres' });
+  const bloqueado = isBlocked(req);
+  if (bloqueado) { res.status(429).json({ error: `Muitas tentativas. Aguarde ${bloqueado} minuto(s).` }); return; }
+
+  const [rows] = await db.query('SELECT name, email, password FROM users WHERE id = ?', [req.user!.id]) as any;
+  const problema = problemaDaSenha(new_password, { nome: rows[0]?.name, email: rows[0]?.email });
+  if (problema) {
+    res.status(400).json({ error: problema });
     return;
   }
-
-  const [rows] = await db.query('SELECT password FROM users WHERE id = ?', [req.user!.id]) as any;
-  const ok = await bcrypt.compare(current_password, rows[0].password);
+  const ok = await bcrypt.compare(String(current_password), rows[0].password);
   if (!ok) {
-    res.status(401).json({ error: 'Senha atual incorreta' });
+    registerFail(req);
+    // 400 (não 401): a tela entende 401 como "sessão expirou" e desloga.
+    res.status(400).json({ error: 'Senha atual incorreta' });
+    return;
+  }
+  if (await bcrypt.compare(String(new_password), rows[0].password)) {
+    res.status(400).json({ error: 'A nova senha precisa ser diferente da atual.' });
     return;
   }
 
-  const hash = await bcrypt.hash(new_password, 10);
+  const hash = await bcrypt.hash(new_password, BCRYPT_CUSTO);
   await db.query('UPDATE users SET password = ? WHERE id = ?', [hash, req.user!.id]);
-  res.json({ success: true });
+  // Derruba os outros aparelhos; este recebe um token novo e continua logado.
+  const tv = await encerrarSessoes(req.user!.id);
+  res.json({ success: true, token: signToken({ ...req.user!, tv }) });
 });
 
 // ═════════════════════════════════════════════════════════════════════════
@@ -531,7 +584,7 @@ router.post('/passkey/login/verify', async (req: Request, res: Response) => {
   console.log(`[auth] Login por passkey (Face ID) — usuário #${row.user_id} (${row.email})`);
 
   const payload: AuthPayload = { id: row.user_id, email: row.email, name: row.name, role: row.role };
-  res.json({ token: signToken(payload), user: payload });
+  res.json({ token: await emitirToken(payload), user: payload });
 });
 
 export default router;

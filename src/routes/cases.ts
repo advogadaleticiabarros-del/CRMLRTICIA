@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
+import { gerarSenhaTemporaria, BCRYPT_CUSTO } from '../services/senhaForte';
 import { db } from '../config/database';
 import { logTimeline } from '../services/TimelineService';
 import { logActivity } from '../services/JourneyService';
@@ -824,8 +825,8 @@ router.patch('/:id/production-stage', async (req: Request, res: Response) => {
       let login = client?.email || `cliente${client.id}@crm.local`;
       const [taken] = await db.query('SELECT id FROM users WHERE email = ?', [login]) as any;
       if (taken.length) login = `cliente${client.id}.${Date.now()}@crm.local`;
-      const tempPass = Math.random().toString(36).slice(-4) + Math.random().toString(36).slice(-4).toUpperCase() + '@1';
-      const hash = await bcrypt.hash(tempPass, 10);
+      const tempPass = gerarSenhaTemporaria(); // gerador criptográfico (era Math.random)
+      const hash = await bcrypt.hash(tempPass, BCRYPT_CUSTO);
       const [u] = await db.query(
         "INSERT INTO users (name, email, password, role, client_id) VALUES (?, ?, ?, 'cliente', ?)",
         [client.name, login, hash, client.id]

@@ -46,6 +46,8 @@ jobs:
                 echo "${k}=${v}" >> .env
               fi
             done
+            # Chaves só o dono lê (23/11/2026): o mv acima recriava o .env legível por todos.
+            chmod 600 .env
             npm run build
             npm run migrate
             # Não reinicia no meio de um backup (07/10/2026): espera até 20 min
@@ -85,6 +87,8 @@ jobs:
                 echo "${k}=${v}" >> .env
               fi
             done
+            # Chaves só o dono lê (23/11/2026): o mv acima recriava o .env legível por todos.
+            chmod 600 .env
             npm run build
             npm run migrate
             # Não reinicia no meio de um backup (07/10/2026): espera até 20 min
@@ -126,6 +130,8 @@ jobs:
                 echo "${k}=${v}" >> .env
               fi
             done
+            # Chaves só o dono lê (23/11/2026): o mv acima recriava o .env legível por todos.
+            chmod 600 .env
             npm run build
             npm run migrate
             # Não reinicia no meio de um backup (07/10/2026): espera até 20 min

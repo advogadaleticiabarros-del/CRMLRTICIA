@@ -24,7 +24,32 @@ async function entrar(page) {
   await page.locator('#login-password').fill(SENHA);
   await page.locator('#login-form').evaluate((f) => f.requestSubmit());
   await expect(page.locator('#app-view')).toBeVisible({ timeout: 20_000 });
+  // Termos de Uso / Política de Privacidade (23/11/2026): no 1º acesso a tela de
+  // aceite cobre tudo e o servidor recusa as rotas (403) até aceitar.
+  const pendente = await page.evaluate(async () => {
+    const r = await fetch('/api/auth/termos', { headers: { Authorization: 'Bearer ' + localStorage.getItem('crm_token') } });
+    return (await r.json()).pendente;
+  });
+  if (pendente) {
+    await expect(page.locator('#termos-aceitar')).toBeDisabled({ timeout: 20_000 });
+    await page.locator('#termos-ok').check();
+    await page.locator('#termos-aceitar').click();
+    await expect(page.locator('#app-view')).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator('#termos-ok')).toHaveCount(0);
+  }
 }
+
+test('termos: depois do aceite, o servidor registra a versão e libera as rotas', async ({ page }) => {
+  await entrar(page);
+  const r = await page.evaluate(async () => {
+    const h = { Authorization: 'Bearer ' + localStorage.getItem('crm_token') };
+    const termos = await (await fetch('/api/auth/termos', { headers: h })).json();
+    const clientes = await fetch('/api/clients', { headers: h });
+    return { pendente: termos.pendente, status: clientes.status };
+  });
+  expect(r.pendente).toBe(false);
+  expect(r.status).toBe(200);
+});
 
 test('login: senha errada não entra; senha certa entra', async ({ page }) => {
   await page.goto('/');
