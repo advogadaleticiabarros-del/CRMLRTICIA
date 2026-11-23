@@ -2,9 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 23/11/2026. Último commit: crédito "Desenvolvido por Orbit Desenvolvimento" na tela de login.
+**Última atualização:** 23/11/2026. Último commit: aba Recebimentos da Dativa mostra a lista da Sefaz.
 
 ## Últimas entregas (mais recentes primeiro)
+- **23/11 (6):** **Recebimentos da Dativa com a lista da Sefaz** (Dra.: "nessa parte de recebimentos deixar o que está na coluna"). O topo da aba Recebimentos mostra as demandas em "Na lista da Sefaz — disponível para saque", com total, Dar baixa e Abrir na linha; o histórico segue embaixo. Ver `docs/contexto/relatorios/2026-11-23-recebimentos-dativa-lista-sefaz.md`.
 - **23/11 (5):** **Crédito na tela de login** (Jessica: "colocar de quem é o desenvolvimento do sistema - Orbit Desenvolvimento"). Linha discreta "Desenvolvido por Orbit Desenvolvimento" abaixo do aviso dos Termos (`public/index.html`, `.login-credito`). Conferido em print no computador e no celular. Ver `docs/contexto/relatorios/2026-11-23-credito-orbit-login.md`.
 - **23/11 (4):** **Nova cobrança da Sandra, parcela 2/4** (autorizada: "Envie para a Sandra estruturado para que saia certinho"). 7 dias em aberto, R$ 579,51 pelo contrato nº 12, com as consequências da Cláusula Quinta e o Pix do escritório (texto + botão). Rascunho 199, enviado pelo fluxo de aprovação. Ver `docs/contexto/relatorios/2026-11-23-cobranca-sandra-parcela-2.md`.
 - **23/11 (3):** **Erro EOVERQUOTA e revisão dos agentes de IA** (Jessica: "E esse erro? Revise os agentes de IA [...] não deixe margem para erros").

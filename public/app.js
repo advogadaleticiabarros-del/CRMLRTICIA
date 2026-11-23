@@ -10487,9 +10487,35 @@ async function datAudiencias(c) {
 }
 
 async function datRecebimentos(c) {
-  c.innerHTML = `<div class="toolbar"><button class="btn-gold" id="new-dpay">+ Registrar recebimento</button></div><div class="card"><div id="dpay-table"></div></div>`;
+  c.innerHTML = `<div class="toolbar"><button class="btn-gold" id="new-dpay">+ Registrar recebimento</button></div>
+    <div class="card" id="dpay-sefaz" style="margin-bottom:16px"></div>
+    <div class="card" id="dpay-card"><div id="dpay-table"></div></div>`;
+  // 23/11/2026 (Dra.): a coluna "Na lista da Sefaz — disponível para saque" do
+  // quadro de Demandas aparece aqui também, com a baixa direto na linha.
+  const valorDaDemanda = (d) => Number(d.arbitrated_value ?? d.estimated_value) || 0;
+  const loadSefaz = async () => {
+    const lista = await api('/api/dative/cases?status=a_receber');
+    const total = lista.reduce((s, d) => s + valorDaDemanda(d), 0);
+    $('#dpay-sefaz').innerHTML = `
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:6px">
+        <strong style="color:var(--navy)">Na lista da Sefaz — disponível para saque</strong>
+        <small style="color:var(--text-muted)">${lista.length} · ${money(total)} · Sacar no banco e dar baixa</small>
+      </div>
+      ${lista.length ? `<table><thead><tr><th>Assistido</th><th>Comarca</th><th>Protocolo</th><th>Valor</th><th></th></tr></thead>
+      <tbody>${lista.map((d) => `<tr>
+        <td><strong>${esc(d.assisted_name || d.process_number || 's/ nome')}</strong>${d.process_number && d.assisted_name ? `<br><small style="color:var(--text-muted)">${esc(d.process_number)}</small>` : ''}</td>
+        <td>${esc(d.comarca || '—')}</td><td>${d.eflow_protocolo ? esc(d.eflow_protocolo) : '—'}</td><td>${money(valorDaDemanda(d))}</td>
+        <td><div style="display:flex;gap:6px;flex-wrap:wrap"><button class="btn-gold btn-sm" data-sefaz-baixa="${d.id}">Dar baixa</button><button class="btn-sm" data-sefaz-abrir="${d.id}">Abrir</button></div></td></tr>`).join('')}</tbody></table>`
+      : '<div class="empty">Nenhuma demanda na lista da Sefaz agora</div>'}`;
+    const recarregar = () => { loadSefaz(); load(); };
+    $('#dpay-sefaz').querySelectorAll('[data-sefaz-baixa]').forEach((b) => {
+      const d = lista.find((x) => String(x.id) === b.dataset.sefazBaixa);
+      b.onclick = () => datDarBaixaModal(d, recarregar);
+    });
+    $('#dpay-sefaz').querySelectorAll('[data-sefaz-abrir]').forEach((b) => b.onclick = () => dativeCaseDetail(b.dataset.sefazAbrir, recarregar));
+  };
   let periodo = { de: '', ate: '' };
-  tableTools(c.querySelector('.card'), {
+  tableTools(c.querySelector('#dpay-card'), {
     onPeriod: (de, ate) => { periodo = { de, ate }; load(); },
     findTable: () => c.querySelector('#dpay-table table'), filename: 'dativo-recebimentos',
   });
@@ -10517,7 +10543,7 @@ async function datRecebimentos(c) {
     });
   };
   $('#new-dpay').onclick = () => dativePaymentForm(load);
-  await load();
+  await Promise.all([loadSefaz(), load()]);
 }
 
 function datDateInputValue(value) {
@@ -10611,24 +10637,28 @@ function datLigarFluxo(form, d, id, onSave) {
     catch { toast('Não deu para copiar: ' + d.eflow_protocolo, 'error'); }
   };
   const baixa = form.querySelector('#dat-baixa');
-  if (baixa) baixa.onclick = () => {
-    const sugerido = Number(d.arbitrated_value ?? d.estimated_value) || '';
-    const bf = el(`<form class="form-grid">
-      <p style="font-size:13px;color:var(--text-muted)">Registra o recebimento com a data de hoje e a demanda passa para <strong>Recebida</strong>.</p>
-      ${field('Valor recebido (R$)', 'valor', { type: 'number', value: sugerido })}
-      <button type="submit" class="btn-primary">Dar baixa</button>
-    </form>`);
-    bf.onsubmit = async (e) => {
-      e.preventDefault();
-      const valor = Number(bf.querySelector('[name=valor]').value);
-      if (!(valor > 0)) { toast('Informe o valor recebido', 'error'); return; }
-      try {
-        await api(`/api/dative/cases/${id}/receber`, { method: 'PATCH', body: JSON.stringify({ valor }) });
-        toast('Baixa registrada'); closeModal(); onSave();
-      } catch (err) { toast(err.message, 'error'); }
-    };
-    openModal('Recebi no banco', bf);
+  if (baixa) baixa.onclick = () => datDarBaixaModal({ ...d, id }, onSave);
+}
+
+// "Recebi no banco": registra o recebimento (hoje) e a demanda vira Recebida.
+// Usado na ficha da demanda e na lista da Sefaz da aba Recebimentos.
+function datDarBaixaModal(d, onSave) {
+  const sugerido = Number(d.arbitrated_value ?? d.estimated_value) || '';
+  const bf = el(`<form class="form-grid">
+    <p style="font-size:13px;color:var(--text-muted)">Registra o recebimento com a data de hoje e a demanda passa para <strong>Recebida</strong>.</p>
+    ${field('Valor recebido (R$)', 'valor', { type: 'number', value: sugerido })}
+    <button type="submit" class="btn-primary">Dar baixa</button>
+  </form>`);
+  bf.onsubmit = async (e) => {
+    e.preventDefault();
+    const valor = Number(bf.querySelector('[name=valor]').value);
+    if (!(valor > 0)) { toast('Informe o valor recebido', 'error'); return; }
+    try {
+      await api(`/api/dative/cases/${d.id}/receber`, { method: 'PATCH', body: JSON.stringify({ valor }) });
+      toast('Baixa registrada'); closeModal(); onSave();
+    } catch (err) { toast(err.message, 'error'); }
   };
+  openModal('Recebi no banco', bf);
 }
 
 async function dativeCaseDetail(id, onSave) {

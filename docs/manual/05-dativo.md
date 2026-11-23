@@ -29,6 +29,8 @@ Desde 13/11/2026 o status segue o caminho real do pagamento do Estado do ES:
 
 **Na tela:** os três sites ficam no topo da Advocacia Dativa. A ficha mostra a faixa com as 8 etapas, o próximo passo, há quantos dias está parada e o botão do site certo; na etapa 5 tem "Copiar protocolo" (para colar na busca do e-Docs) e na 7, "Recebi no banco — dar baixa" (valor arbitrado, senão o estimado). A aba Projeção tem o quadro **Caminho do pagamento**, com as demandas de cada etapa da certidão em diante (`GET /api/dative/fluxo-pagamento`).
 
+**Aba Recebimentos (desde 23/11/2026):** no topo, o bloco "Na lista da Sefaz — disponível para saque" mostra as mesmas demandas da coluna 7 do quadro (assistido, comarca, protocolo e valor arbitrado, ou o estimado), com total e os botões **Dar baixa** (mesmo "Recebi no banco" da ficha: cria o recebimento com a data de hoje e a demanda vira Recebida) e **Abrir**. Abaixo continua o histórico de recebimentos lançados.
+
 **Dinheiro:** `protocolada` e `deferida` contam no "Realizado (a faturar)" desta tela; `indeferida` sai do estimado e das demandas ativas até ser revertida. **No Financeiro (A Receber), desde 16/11/2026, só entra a demanda em `a_receber` (na lista da Sefaz)**: "disponível para recebimento", sem data, acumulada até a baixa (ver [Cobrança](08-cobranca.md)).
 
 **Demandas antigas:** `a_receber` antes significava "procedimento aberto, dinheiro não caiu"; agora é "saiu na lista". As demandas que já estavam em `a_receber` ou em `aguardando_liberacao_requerimento` continuam onde estavam e precisam ser conferidas à mão (registrar o protocolo leva para a etapa certa).
@@ -109,6 +111,7 @@ Desde 16/11/2026 o mesmo campo ("Buscar por assistido ou número do processo…"
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 23/11/2026 | Claude | Aba Recebimentos mostra no topo as demandas "Na lista da Sefaz — disponível para saque", com Dar baixa e Abrir na linha |
 | 16/11/2026 | Claude | Arrastar o card para mudar a etapa, no Kanban por fase e no Caminho do pagamento (`PATCH /api/dative/cases/:id/etapa`); coluna Indeferida sempre visível nos dois quadros |
 | 16/11/2026 | Claude | Aba Demandas: seletor Lista ou Kanban por fase (uma coluna por fase, mesmos filtros; a lista não mudou) |
 | 16/11/2026 | Claude | Campo "Buscar por protocolo" na lista de demandas (protocolo do e-Flow, sem diferenciar maiúscula nem hífen) |
