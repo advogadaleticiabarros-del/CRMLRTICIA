@@ -1033,6 +1033,13 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 **Segunda recaída ("não consigo mexer no menu, ele sai"):** o log mostrou a TV ainda na versão das 16:46 (sem a correção, que não se atualiza sozinha). Reforço: menu recém-aberto (menos de 1,5 s) não fecha com Voltar, para um aperto repetido atrasado. Diagnóstico: a TV manda as teclas que recebeu para `GET /api/tv/diagnostico` a cada 10 s e elas aparecem no log do servidor (`pm2 logs crm-juridico | grep tv-teclas`), com a versão do painel; o rodapé da TV mostra "versão HH:MM". Para ver qual versão a TV carregou: `grep Tizen /var/log/nginx/access.log | grep tv.js`. Se a TV ainda sair, ver se o controle manda outra tecla (mostrar `e.keyCode` na tela) e incluir em `teclaDe`.
 
+## Incidente: "DataJud HTTP 429" ao sincronizar processo (23/11/2026)
+
+- **Sintoma:** ao clicar em **Sincronizar agora** num processo, aparecia o aviso vermelho "DataJud HTTP 429". Em `monitoring_logs`, de 400 a 650 erros 429 por dia desde 10/11, e quase o mesmo tanto de "Timeout na consulta DataJud"; a classificação de processos marcava `dataJudLimitou: true`.
+- **Causa raiz:** `runMonitoringJob` consultava os 136 processos monitorados em sequência, toda hora das 7h às 20h. Com as repetições em 429 e os timeouts de 20s, cada rodada durava ~1h43 (`job_runs`: 6.214.966 ms), então as rodadas se sobrepunham e o CRM consultava o DataJud o dia inteiro. O CNJ passou a recusar, e o clique manual caía no mesmo bloqueio.
+- **Correção:** freio único em `src/services/freioDataJud.ts` (uma consulta por vez, 2s entre elas; depois de 429 ou timeout, as automáticas param 15 min; 429 não é repetido); monitoramento em lotes de 25 (os sincronizados há mais tempo), sem rodada por cima de rodada e parando no primeiro limite; o botão manual tem prioridade e mostra mensagem em português com o horário para tentar de novo.
+- **Como reconhecer de novo:** muitos `erro` com "limitando as consultas" ou "429" em `monitoring_logs` por hora; ou `monitoramento:processos` com `limitado: true` em `job_runs`. Se for constante, reduza o lote (`MONITOR_LOTE`) ou aumente o intervalo (`DATAJUD_INTERVALO_MS`) no `.env` da VPS. Rodada pulada com `pulado` = a anterior ainda estava em andamento (normal se uma rodada demorar).
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -1049,6 +1056,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 23/11/2026 | Claude | Incidente DataJud HTTP 429 (monitoramento sobreposto esgotando o limite do CNJ) |
 | 18/11/2026 | Claude | +1 incidente: TJES recusava o login com HTTP 403 (bloqueio do IP da VPS pelo CloudFront); consulta passa pelo computador do escritório |
 | 31/10/2026 | Claude | Demonstrativo do Itaú ainda com R$ 0,00: o Drive era lido com resumo, sem as colunas do HISCON; agora tudo é transcrito na íntegra e os resumos antigos de extrato são relidos. Banco com código na frente ("341 - BANCO ITAU SA") volta a bater com o réu. Extratos não vão mais cortados para a leitura. Descontos do histórico de créditos lidos em código (hiscre.ts) |
 | 31/10/2026 | Claude | Peça do Itaú com R$ 0,00: descontos do HISCRE sem banco eram descartados; Calculista liga cada desconto ao contrato. Revisão em toda versão nova |

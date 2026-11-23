@@ -3,6 +3,8 @@ import { consultarProcessoDataJud, NormalizedMovement } from './datajud';
 export interface ProcessQueryResult {
   found: boolean;
   error?: string;
+  /** Fonte limitou as consultas (DataJud 429/timeout) ou o freio barrou: não é "sem novidade". */
+  limitado?: boolean;
   movements: NormalizedMovement[];
   metadata?: any;
 }
@@ -10,7 +12,8 @@ export interface ProcessQueryResult {
 /** Contrato comum dos providers de monitoramento processual. */
 export interface ProcessProvider {
   name: string;
-  getMovements(processNumber: string, courtAlias: string): Promise<ProcessQueryResult>;
+  /** prioridade = pedido manual da equipe (passa à frente das rotinas automáticas). */
+  getMovements(processNumber: string, courtAlias: string, opts?: { prioridade?: boolean }): Promise<ProcessQueryResult>;
 }
 
 /** Mock — para testes locais sem API. */
@@ -38,8 +41,8 @@ export class ManualProvider implements ProcessProvider {
 /** DataJud/CNJ — gratuito e oficial. */
 export class DataJudProvider implements ProcessProvider {
   name = 'datajud';
-  async getMovements(processNumber: string, courtAlias: string): Promise<ProcessQueryResult> {
-    return consultarProcessoDataJud(processNumber, courtAlias);
+  async getMovements(processNumber: string, courtAlias: string, opts: { prioridade?: boolean } = {}): Promise<ProcessQueryResult> {
+    return consultarProcessoDataJud(processNumber, courtAlias, opts);
   }
 }
 

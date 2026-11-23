@@ -4,7 +4,20 @@
  * A chave (APIKey pública do CNJ) vem de DATAJUD_API_KEY no .env — nunca fixa no código.
  */
 
+import { criarFreio } from './freioDataJud';
+
 const BASE_URL = process.env.DATAJUD_BASE_URL || 'https://api-publica.datajud.cnj.jus.br';
+
+/** Um freio só para todas as consultas por número (monitoramento, classificação, botão). Ver freioDataJud.ts. */
+export const freioDataJud = criarFreio();
+
+const horaBrasilia = (ms: number) =>
+  new Date(ms).toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' });
+/** Mensagem para a equipe quando o CNJ está limitando (mantém "429" para quem filtra pelo código). */
+function msgLimitado(ate: number, motivo = 'HTTP 429'): string {
+  return `O DataJud (CNJ) está limitando as consultas agora (${motivo}). Tente de novo depois das ${horaBrasilia(ate || Date.now())}. ` +
+    'As movimentações também chegam pela ligação oficial com o tribunal e pelo DJEN.';
+}
 
 // Tribunais monitorados (ES e PR) + superiores
 export const TRIBUNAIS: Record<string, { sigla: string; estado: string; nome: string }> = {
@@ -85,8 +98,10 @@ const ALIAS_RE = /^api_publica_[a-z0-9]+$/;
 
 const MAX_TENTATIVAS = 3;
 
-/** POST ao DataJud com nova tentativa em instabilidade do CNJ (5xx, 429,
- *  timeout, erro de rede). 4xx de cliente volta na hora — repetir não ajuda.
+/** POST ao DataJud com nova tentativa em instabilidade do CNJ (5xx, timeout,
+ *  erro de rede). 4xx de cliente volta na hora — repetir não ajuda. 429 também
+ *  volta na hora desde 23/11/2026: repetir só gastava mais limite; quem trata é
+ *  o freio (pausa das consultas automáticas).
  *  Espera cresce a cada tentativa (DATAJUD_RETRY_DELAY_MS, padrão 1,5s). */
 async function postComRetry(url: string, apiKey: string, body: unknown): Promise<Response> {
   const base = Number(process.env.DATAJUD_RETRY_DELAY_MS || 1500);
@@ -101,7 +116,7 @@ async function postComRetry(url: string, apiKey: string, body: unknown): Promise
         body: JSON.stringify(body),
         signal: controller.signal,
       }).finally(() => clearTimeout(timer));
-      const transitorio = res.status >= 500 || res.status === 429;
+      const transitorio = res.status >= 500;
       if (!transitorio || tentativa === MAX_TENTATIVAS) return res;
     } catch (err) {
       ultimoErro = err;
@@ -121,6 +136,8 @@ export interface NormalizedMovement {
 export interface DataJudResult {
   found: boolean;
   error?: string;
+  /** O CNJ limitou (429/timeout) ou o freio barrou a consulta automática. */
+  limitado?: boolean;
   metadata?: any;
   movements: NormalizedMovement[];
 }
@@ -129,7 +146,8 @@ const cleanNumber = (n: string) => (n || '').replace(/[.\-\s/]/g, '');
 
 export async function consultarProcessoDataJud(
   numeroProcesso: string,
-  tribunalAlias?: string | null
+  tribunalAlias?: string | null,
+  opts: { prioridade?: boolean } = {},
 ): Promise<DataJudResult> {
   const apiKey = process.env.DATAJUD_API_KEY;
   if (!apiKey) return { found: false, error: 'DATAJUD_API_KEY não configurada', movements: [] };
@@ -144,7 +162,13 @@ export async function consultarProcessoDataJud(
   const url = `${BASE_URL}/${alias}/_search`;
 
   try {
-    const res = await postComRetry(url, apiKey, { query: { match: { numeroProcesso: numero } } });
+    const res = await freioDataJud.executar(
+      () => postComRetry(url, apiKey, { query: { match: { numeroProcesso: numero } } }), opts);
+    if (!res) return { found: false, limitado: true, error: msgLimitado(freioDataJud.pausadoAte(), 'pausa depois de um limite'), movements: [] };
+    if (res.status === 429) {
+      freioDataJud.registrarLimite();
+      return { found: false, limitado: true, error: msgLimitado(freioDataJud.pausadoAte()), movements: [] };
+    }
     if (!res.ok) return { found: false, error: `DataJud HTTP ${res.status}`, movements: [] };
 
     const data: any = await res.json();
@@ -197,8 +221,12 @@ export async function consultarProcessoDataJud(
       movements,
     };
   } catch (err: any) {
-    const msg = err.name === 'AbortError' ? 'Timeout na consulta DataJud' : (err.message || 'Erro na consulta');
-    return { found: false, error: msg, movements: [] };
+    if (err.name === 'AbortError') {
+      // Não respondeu em nenhuma das tentativas: costuma ser o CNJ segurando por excesso de consultas.
+      freioDataJud.registrarLimite();
+      return { found: false, limitado: true, error: `Timeout na consulta DataJud. ${msgLimitado(freioDataJud.pausadoAte(), 'sem resposta')}`, movements: [] };
+    }
+    return { found: false, error: err.message || 'Erro na consulta', movements: [] };
   }
 }
 

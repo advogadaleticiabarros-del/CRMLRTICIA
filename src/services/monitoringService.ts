@@ -503,10 +503,12 @@ interface SyncResult {
   status: 'sem_novidade' | 'nova_movimentacao' | 'nao_encontrado' | 'erro';
   newMovements: number;
   message?: string;
+  /** DataJud limitou ou o freio barrou: o monitoramento para a rodada. */
+  limitado?: boolean;
 }
 
 /** Sincroniza UM processo: consulta o provider, salva movimentações novas, notifica. */
-export async function syncProcess(processId: number): Promise<SyncResult> {
+export async function syncProcess(processId: number, opts: { manual?: boolean } = {}): Promise<SyncResult> {
   const [rows] = await db.query('SELECT * FROM legal_processes WHERE id = ?', [processId]) as any;
   if (!rows.length) return { processId, status: 'erro', newMovements: 0, message: 'Processo não encontrado' };
   const proc = rows[0];
@@ -516,10 +518,17 @@ export async function syncProcess(processId: number): Promise<SyncResult> {
 
   let result;
   try {
-    result = await provider.getMovements(proc.process_number, proc.court_alias);
+    result = await provider.getMovements(proc.process_number, proc.court_alias, { prioridade: !!opts.manual });
   } catch (err: any) {
     await logMonitor(processId, proc.lawyer_id, 'erro', provider.name, err.message);
     return { processId, status: 'erro', newMovements: 0, message: err.message };
+  }
+
+  if (!result.found && (result as any).limitado) {
+    // CNJ limitando: não conta como consulta feita (last_sync_at fica igual, o
+    // processo continua no começo da fila) e só registra o que veio do clique.
+    if (opts.manual) await logMonitor(processId, proc.lawyer_id, 'erro', provider.name, result.error);
+    return { processId, status: 'erro', newMovements: 0, message: result.error, limitado: true };
   }
 
   if (!result.found) {
@@ -984,19 +993,38 @@ export async function registrarMovimentacoesMni(
 }
 
 /** Roda o monitoramento de todos os processos ativos com monitoring_enabled. */
-export async function runMonitoringJob(): Promise<{ processed: number; withNews: number }> {
-  const [procs] = await db.query(
-    `SELECT lp.id FROM legal_processes lp
-     JOIN lawyers l ON l.id = lp.lawyer_id
-     WHERE lp.monitoring_enabled = 1 AND lp.status = 'ativo'
-       AND l.monitoring_enabled = 1 AND l.active = 1`
-  ) as any;
+// Incidente de 23/11/2026 (DataJud HTTP 429): antes cada rodada consultava os
+// 136 processos (1h43 por rodada, toda hora, uma por cima da outra) e o CNJ
+// recusava 400-650 consultas por dia. Agora cada rodada pega só os processos
+// sincronizados há mais tempo (lote, MONITOR_LOTE, padrão 25), não começa se a
+// anterior ainda estiver rodando e para no primeiro limite do CNJ.
+let monitorRodando = false;
+export async function runMonitoringJob(lote = Number(process.env.MONITOR_LOTE || 25)):
+  Promise<{ processed: number; withNews: number; pendentes?: number; limitado?: boolean; pulado?: string }> {
+  if (monitorRodando) return { processed: 0, withNews: 0, pulado: 'a rodada anterior ainda está em andamento' };
+  monitorRodando = true;
+  try {
+    const [procs] = await db.query(
+      `SELECT lp.id FROM legal_processes lp
+       JOIN lawyers l ON l.id = lp.lawyer_id
+       WHERE lp.monitoring_enabled = 1 AND lp.status = 'ativo'
+         AND l.monitoring_enabled = 1 AND l.active = 1
+       ORDER BY lp.last_sync_at IS NOT NULL, lp.last_sync_at, lp.id
+       LIMIT ?`, [Math.max(1, lote)]
+    ) as any;
 
-  let withNews = 0;
-  for (const p of procs) {
-    const r = await syncProcess(p.id);
-    if (r.status === 'nova_movimentacao') withNews++;
+    let withNews = 0;
+    let processed = 0;
+    let limitado = false;
+    for (const p of procs) {
+      const r = await syncProcess(p.id);
+      if (r.limitado) { limitado = true; break; }
+      processed++;
+      if (r.status === 'nova_movimentacao') withNews++;
+    }
+    await db.query('UPDATE lawyers SET last_sync_at = NOW() WHERE monitoring_enabled = 1');
+    return { processed, withNews, pendentes: procs.length - processed, ...(limitado ? { limitado } : {}) };
+  } finally {
+    monitorRodando = false;
   }
-  await db.query('UPDATE lawyers SET last_sync_at = NOW() WHERE monitoring_enabled = 1');
-  return { processed: procs.length, withNews };
 }

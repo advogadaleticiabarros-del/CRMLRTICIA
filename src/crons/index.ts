@@ -550,7 +550,9 @@ export function startCronJobs() {
   // judicial não costuma sair de madrugada, então concentra a frequência
   // maior no horário comercial em vez de rodar 24h contra a API pública.
   // (Fonte diferente do DJEN acima — DataJud documenta 120 req/min por chave,
-  // não é a API que preocupava aqui; mantido sem alteração.)
+  // mas na prática passou a devolver 429 com bem menos: desde 23/11/2026 cada
+  // rodada consulta só um lote dos processos mais antigos, não sobrepõe a
+  // anterior e para no primeiro limite. Ver runMonitoringJob e freioDataJud.ts.)
   cron.schedule('0 7-20 * * *', () => {
     runJob('monitoramento:processos', () => runMonitoringJob(), { critica: true });
   }, { timezone: 'America/Sao_Paulo' });

@@ -17,7 +17,7 @@ Consulte quando precisar saber COM QUE FREQUÊNCIA algo roda sozinho, o que faze
 | `monitoramento:descoberta-oab` | 7h, 13h, 19h | Varre o DJEN atrás de publicações endereçadas à OAB cadastrada |
 | `intimacoes:relatorio-diario` | 7h25 | **Novo (13/11/2026).** Relatório das publicações novas do DJEN: e-mail (PDF, CSV, recorte) e WhatsApp da equipe, com prazo, data limite e protocolar até. Ver [Processos](04-processos.md#relatório-diário-de-intimações-desde-13112026) |
 | `monitoramento:tribunais-mni` | 7h10, 11h10, 15h10 e 19h10 | **Novo (17/11/2026).** Ligação oficial com os tribunais (MNI): intimações pendentes e movimentações direto do PJe do TJES e do eproc da JFES, com o login da Dra. Ver [abaixo](#ligação-oficial-com-os-tribunais-mni-desde-17112026) |
-| `monitoramento:processos` | de hora em hora, 7h–20h | Sincroniza cada processo já cadastrado com sua fonte (DataJud/API do tribunal) |
+| `monitoramento:processos` | de hora em hora, 7h–20h | Sincroniza com o DataJud um **lote** de 25 processos, os sincronizados há mais tempo (a carteira inteira roda em ~6h); não começa se a anterior ainda estiver rodando e para no primeiro limite do CNJ |
 | `monitoramento:processos-email` | 8h, 12h, 16h, 19h | Varre a caixa de e-mail conectada atrás de movimentação de tribunal fora do DJEN, inclusive o **Push do TRT17** (desde 18/11/2026; antes 8h e 19h) |
 | `monitoramento:processos-pre-briefing` | 6h | Sincronização extra antes do briefing matinal, pra ele sair com dado fresco |
 | `whatsapp:reconectar` | uma vez, na subida do servidor | Rearma o auto-envio se a sessão da Uazapi já estiver conectada — só isso, não vigia a conexão depois |
@@ -188,7 +188,9 @@ Cada movimentação nova é analisada pela IA (Groq, com Gemini de reserva) em *
 
 ## Tribunais e instabilidade do DataJud
 
-A consulta por número de processo cobre TJES, TRT17, TRF2, TRE-ES (Espírito Santo), TJPR, TRT9, TRF4, TRE-PR (Paraná), STJ e TST. Quando o CNJ responde com instabilidade (erro 5xx, 429, timeout ou queda de rede), o sistema tenta de novo sozinho até 3 vezes, com espera crescente (1,5s, 3s). Erros de cliente (ex.: 401, 404) não são repetidos.
+A consulta por número de processo cobre TJES, TRT17, TRF2, TRE-ES (Espírito Santo), TJPR, TRT9, TRF4, TRE-PR (Paraná), STJ e TST. Quando o CNJ responde com instabilidade (erro 5xx, timeout ou queda de rede), o sistema tenta de novo sozinho até 3 vezes, com espera crescente (1,5s, 3s). Erros de cliente (ex.: 401, 404) não são repetidos.
+
+**Limite de consultas (429), desde 23/11/2026:** todas as consultas por número passam por um freio único (`src/services/freioDataJud.ts`): uma por vez, com 2s entre elas (`DATAJUD_INTERVALO_MS`). Se o CNJ responder 429, ou não responder em nenhuma tentativa, as consultas **automáticas** param por 15 minutos (`DATAJUD_PAUSA_MS`) e voltam sozinhas; 429 não é repetido (só gastava mais limite). O botão **Sincronizar agora** passa à frente e tenta mesmo durante a pausa; se o CNJ recusar, aparece "O DataJud (CNJ) está limitando as consultas agora… Tente de novo depois das HH:MM", em vez de "DataJud HTTP 429". Movimentações continuam chegando pela ligação oficial com o tribunal (MNI) e pelo DJEN.
 
 ## O que fazer se um robô parecer travado
 
@@ -196,7 +198,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 ## FAQ
 
-**Por que às vezes um processo demora até 1h pra sincronizar?** `monitoramento:processos` roda de hora em hora, não em tempo real — é o intervalo entre execuções.
+**Por que às vezes um processo demora para sincronizar pelo DataJud?** `monitoramento:processos` roda de hora em hora e, desde 23/11/2026, cada rodada pega 25 processos (os mais antigos primeiro): cada processo é consultado no DataJud mais ou menos a cada 6 horas. Para ver na hora, use **Sincronizar agora** na ficha do processo. Intimações e publicações chegam antes pelo MNI e pelo DJEN.
 
 **Os robôs rodam mesmo se ninguém estiver logado no sistema?** Sim — são rotinas de servidor, independentes de alguém estar com o CRM aberto.
 
@@ -212,6 +214,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 23/11/2026 | Claude | DataJud: freio único (uma consulta por vez, pausa de 15 min após 429/timeout, sem repetir 429), monitoramento em lotes de 25 sem rodada sobreposta, botão manual com prioridade e mensagem clara |
 | 19/11/2026 | Claude | Raio-x da carteira do Dr. Vítor (`carteira:raio-x`, 6h45): 10 tipos de pendência com gravidade e colega responsável, repasse que vira conversa, briefing, sino só para grave nova e pauta na ficha |
 | 18/11/2026 | Claude | TRT17 pelo site: o CRM gera o código do autenticador (2 fatores) pela chave cadastrada, criptografada (migration 186) |
 | 18/11/2026 | Claude | TRT17 pelo site do PJe-JT com o login da Dra. (robô pela ponte do escritório): intimações de "Meus Expedientes" e andamentos do acervo, só leitura |

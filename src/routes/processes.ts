@@ -159,7 +159,7 @@ router.put('/:id', async (req: Request, res: Response) => {
 
 // ── POST /api/processes/:id/sync — sincronizar agora (consulta o provider) ──
 router.post('/:id/sync', async (req: Request, res: Response) => {
-  const result = await syncProcess(Number(req.params.id));
+  const result = await syncProcess(Number(req.params.id), { manual: true });
   res.json(result);
 });
 

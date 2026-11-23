@@ -55,7 +55,7 @@ export async function classificarProcessos(opts: { datajud?: boolean; pausaMs?: 
     if (usarDataJud && cotaDataJud > 0 && Number(p.precisa_datajud)) {
       cotaDataJud--;
       const r = await consultarProcessoDataJud(p.process_number, p.court_alias).catch(() => null);
-      if (r?.error && /429|Timeout/i.test(r.error)) { usarDataJud = false; resumo.dataJudLimitou = true; }
+      if (r?.limitado || (r?.error && /429|Timeout/i.test(r.error))) { usarDataJud = false; resumo.dataJudLimitou = true; }
       consultou = !!r && (r.found || r.error === 'Processo não encontrado');
       if (r?.found && r.metadata) {
         resumo.consultadosDataJud++;

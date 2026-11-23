@@ -2,9 +2,12 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 23/11/2026. Último commit: aba Recebimentos da Dativa mostra a lista da Sefaz.
+**Última atualização:** 23/11/2026. Último commit: freio no DataJud (erro HTTP 429).
 
 ## Últimas entregas (mais recentes primeiro)
+- **23/11 (7):** **Erro "DataJud HTTP 429" ao sincronizar processo** (print do aviso vermelho). Causa: o monitoramento consultava os 136 processos toda hora, cada rodada levava 1h43 e se sobrepunha à seguinte, e o CNJ recusava de 400 a 650 consultas por dia desde 10/11.
+  - **Agora:** `freioDataJud.ts` deixa sair uma consulta por vez, com 2s entre elas, e pausa as automáticas por 15 min depois de um 429 ou timeout. O monitoramento faz lotes de 25 processos (os mais antigos primeiro), não sobrepõe rodadas e para no limite. "Sincronizar agora" tem prioridade e mostra uma mensagem clara.
+  - **Conferir:** a queda dos 429 em `monitoring_logs` nos próximos dias. Ver `docs/contexto/relatorios/2026-11-23-datajud-429.md`.
 - **23/11 (6):** **Recebimentos da Dativa com a lista da Sefaz** (Dra.: "nessa parte de recebimentos deixar o que está na coluna"). O topo da aba Recebimentos mostra as demandas em "Na lista da Sefaz — disponível para saque", com total, Dar baixa e Abrir na linha; o histórico segue embaixo. Ver `docs/contexto/relatorios/2026-11-23-recebimentos-dativa-lista-sefaz.md`.
 - **23/11 (5):** **Crédito na tela de login** (Jessica: "colocar de quem é o desenvolvimento do sistema - Orbit Desenvolvimento"). Logo da Orbit + "Desenvolvido por Orbit Desenvolvimento" abaixo do aviso dos Termos (`public/index.html`, `.login-credito`, `public/orbit-logo.webp`). Conferido em print no computador e no celular. Ver `docs/contexto/relatorios/2026-11-23-credito-orbit-login.md`.
 - **23/11 (4):** **Nova cobrança da Sandra, parcela 2/4** (autorizada: "Envie para a Sandra estruturado para que saia certinho"). 7 dias em aberto, R$ 579,51 pelo contrato nº 12, com as consequências da Cláusula Quinta e o Pix do escritório (texto + botão). Rascunho 199, enviado pelo fluxo de aprovação. Ver `docs/contexto/relatorios/2026-11-23-cobranca-sandra-parcela-2.md`.
