@@ -22,11 +22,25 @@ const PREFIX = 'crm-backup-';
 const LIMITE_DUMP_MS = 25 * 60_000;
 const LIMITE_MEGA_MS = 25 * 60_000;
 
-function comTempoLimite<T>(p: Promise<T>, ms: number, etapa: string): Promise<T> {
+/**
+ * Corre `p` contra o relógio. Se o tempo vence, chama `aoVencer` (ex.: cancelar
+ * o envio) e o erro tardio de `p` é só registrado. Antes, a promessa perdedora
+ * rejeitava depois sem ninguém tratar: o "EOVERQUOTA" do MEGA (21–23/11/2026)
+ * virava erro solto do servidor, e o envio seguia rodando por baixo.
+ */
+export function comTempoLimite<T>(p: Promise<T>, ms: number, etapa: string, aoVencer?: () => void): Promise<T> {
   let t: NodeJS.Timeout;
+  let venceu = false;
+  p.catch((e) => { if (venceu) console.warn(`[backup] ${etapa}: erro depois do tempo limite (ignorado):`, e?.message || e); });
   return Promise.race([
     p.finally(() => clearTimeout(t)),
-    new Promise<T>((_, rej) => { t = setTimeout(() => rej(new Error(`${etapa} passou de ${Math.round(ms / 60000)} min (travou)`)), ms); }),
+    new Promise<T>((_, rej) => {
+      t = setTimeout(() => {
+        venceu = true;
+        try { aoVencer?.(); } catch { /* cancelar é best-effort */ }
+        rej(new Error(`${etapa} passou de ${Math.round(ms / 60000) || 1} min (travou)`));
+      }, ms);
+    }),
   ]);
 }
 
@@ -185,8 +199,14 @@ async function enviarParaMega(caminho: string, filename: string): Promise<Destin
     }
 
     const upload = folder.upload({ name: filename, size: tamanho });
-    fs.createReadStream(caminho).on('error', (e) => upload.destroy(e)).pipe(upload);
-    const enviado: any = await comTempoLimite(upload.complete, LIMITE_MEGA_MS, 'Envio ao MEGA');
+    // Sem ouvinte de 'error', um erro do envio (ex.: MEGA cheio) derrubaria o processo.
+    upload.on?.('error', (e: any) => console.warn('[backup] envio ao MEGA:', e?.message || e));
+    const leitura = fs.createReadStream(caminho);
+    leitura.on('error', (e) => upload.destroy(e)).pipe(upload);
+    const enviado: any = await comTempoLimite(upload.complete, LIMITE_MEGA_MS, 'Envio ao MEGA', () => {
+      leitura.destroy();
+      upload.destroy?.(new Error('cancelado: tempo limite'));
+    });
     if (enviado && enviado.size != null && Number(enviado.size) !== tamanho) {
       return { ok: false, message: `Arquivo chegou ao MEGA com tamanho diferente (${enviado.size} de ${tamanho} bytes)` };
     }

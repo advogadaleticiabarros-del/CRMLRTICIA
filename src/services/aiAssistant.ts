@@ -3,6 +3,7 @@ import { parseMovimentacaoJson, PROMPT_MOVIMENTACAO_JSON } from './movimentacaoI
 import { registrarUsoIa, registrarAcaoAgente } from './usoIa';
 import { criarChamadaOpenAI } from './openaiModelos';
 import { PERGUNTAS_LEAD, lerQualificacaoLaya, perguntarLaya, depsLayaPadrao } from './laya';
+import { TEMPO_IA_MS, sinalIa, lerJsonIa, textoGemini, textoChat, mensagemErroIa } from './iaHttp';
 
 /**
  * Cliente de IA compartilhado (grátis se houver chave Gemini/Groq).
@@ -33,12 +34,14 @@ async function callGemini(prompt: string, json = false): Promise<{ ok: boolean; 
       contents: [{ parts: [{ text: prompt }] }],
       ...(json ? { generationConfig: { responseMimeType: 'application/json' } } : {}),
     }),
+    signal: sinalIa(TEMPO_IA_MS.longo), // também redige peças
   });
-  const d: any = await r.json();
-  if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro Gemini' };
+  const d: any = await lerJsonIa(r);
+  if (!r.ok) return { ok: false, message: d?.error?.message || `Erro Gemini (HTTP ${r.status})` };
   registrarUsoIa('gemini');
-  const text = d?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || '';
-  return { ok: true, text };
+  const { texto, motivo } = textoGemini(d);
+  if (!texto) return { ok: false, message: motivo };
+  return { ok: true, text: texto };
 }
 
 async function callGroq(prompt: string, json = false): Promise<{ ok: boolean; text?: string; message?: string }> {
@@ -54,11 +57,14 @@ async function callGroq(prompt: string, json = false): Promise<{ ok: boolean; te
       model, messages: [{ role: 'user', content: prompt }],
       ...(json ? { response_format: { type: 'json_object' } } : {}),
     }),
+    signal: sinalIa(TEMPO_IA_MS.normal),
   });
-  const d: any = await r.json();
-  if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro Groq' };
+  const d: any = await lerJsonIa(r);
+  if (!r.ok) return { ok: false, message: d?.error?.message || `Erro Groq (HTTP ${r.status})` };
   registrarUsoIa('groq');
-  return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
+  const { texto, motivo } = textoChat(d, 'Groq');
+  if (!texto) return { ok: false, message: motivo };
+  return { ok: true, text: texto };
 }
 
 // Modelos da OpenAI por nível (openaiModelos.ts, decisão de 31/10/2026): GPT-6 Luna barato
@@ -72,8 +78,9 @@ const chamarOpenAI = criarChamadaOpenAI({
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
       body: JSON.stringify(body),
+      signal: sinalIa(TEMPO_IA_MS.longo),
     });
-    return { ok: r.ok, status: r.status, dados: await r.json().catch(() => ({})) };
+    return { ok: r.ok, status: r.status, dados: await lerJsonIa(r) };
   },
   registrar: registrarUsoIa,
 });
@@ -102,7 +109,7 @@ export async function aiComplete(
       lastMsg = r.message || lastMsg;
       // 'sem_gemini'/'sem_groq' → só significa "não configurado", tenta o próximo.
     } catch (e: any) {
-      lastMsg = e.message;
+      lastMsg = mensagemErroIa(e, p === 'gemini' ? 'Gemini' : 'Groq');
     }
   }
   return { ok: false, message: lastMsg };
@@ -124,7 +131,7 @@ export async function aiCompleteJson(
       if (r.ok) return r;
       lastMsg = r.message || lastMsg;
     } catch (e: any) {
-      lastMsg = e.message;
+      lastMsg = mensagemErroIa(e, p === 'gemini' ? 'Gemini' : 'Groq');
     }
   }
   return { ok: false, message: lastMsg };
@@ -150,13 +157,15 @@ export async function aiExtractFromFile(
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ contents: [{ parts: [{ text: instruction }, { inline_data: { mime_type: mimeType, data: base64 } }] }] }),
+      signal: sinalIa(TEMPO_IA_MS.normal),
     });
-    const d: any = await r.json();
-    if (!r.ok) return { ok: false, message: d?.error?.message || 'Erro Gemini (visão)' };
+    const d: any = await lerJsonIa(r);
+    if (!r.ok) return { ok: false, message: d?.error?.message || `Erro Gemini (visão, HTTP ${r.status})` };
     registrarUsoIa('gemini');
-    const text = d?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || '';
-    return { ok: true, text };
-  } catch (e: any) { return { ok: false, message: e.message }; }
+    const { texto, motivo } = textoGemini(d);
+    if (!texto) return { ok: false, message: motivo };
+    return { ok: true, text: texto };
+  } catch (e: any) { return { ok: false, message: mensagemErroIa(e, 'Gemini') }; }
 }
 
 /**
@@ -178,12 +187,15 @@ export async function aiLerArquivo(
     const r = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-5.6-luna', messages: [{ role: 'user', content: [{ type: 'text', text: instruction }, anexo] }] }),
+      signal: sinalIa(TEMPO_IA_MS.normal),
     });
-    const d: any = await r.json();
+    const d: any = await lerJsonIa(r);
     if (!r.ok) return { ok: false, message: d?.error?.message || g.message || 'Erro OpenAI (visão)' };
     registrarUsoIa('openai');
-    return { ok: true, text: d?.choices?.[0]?.message?.content || '' };
-  } catch (e: any) { return { ok: false, message: e.message }; }
+    const { texto, motivo } = textoChat(d);
+    if (!texto) return { ok: false, message: motivo };
+    return { ok: true, text: texto };
+  } catch (e: any) { return { ok: false, message: mensagemErroIa(e, 'OpenAI') }; }
 }
 
 /** Tipos canônicos de peça usados para casar o modelo do escritório. */
@@ -249,8 +261,9 @@ export async function aiEmbed(text: string, dimensoes?: number): Promise<number[
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       // `dimensoes` encurta o vetor (o Cérebro usa 256 para caber na memória).
       body: JSON.stringify({ model, input: teor.slice(0, 8000), ...(dimensoes ? { dimensions: dimensoes } : {}) }),
+      signal: sinalIa(TEMPO_IA_MS.rapido),
     });
-    const d: any = await r.json();
+    const d: any = await lerJsonIa(r);
     if (!r.ok) return null;
     registrarUsoIa('openai');
     return d?.data?.[0]?.embedding || null;

@@ -96,6 +96,7 @@ Nunca no código-fonte nem no Git — só em variáveis de ambiente na VPS (`.en
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 23/11/2026 | Claude | Chamadas de IA (Gemini, Groq, OpenAI, transcrição) com tempo limite e resposta vazia tratada como falha, passando ao provedor reserva (`src/services/iaHttp.ts`) |
 | 18/11/2026 | Claude | Robô do site do PJe-JT do TRT17 pela ponte do escritório |
 | 18/11/2026 | Claude | Ponte do escritório para o TJES (tarefa do Windows + chave `MNI_PONTE_TOKEN`) |
 | 17/11/2026 | Claude | DJEN também pesquisado pelo nome do cliente (ação nova) |

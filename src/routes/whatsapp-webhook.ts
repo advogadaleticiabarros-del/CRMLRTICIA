@@ -10,6 +10,7 @@ import {
   msgPropostaMaisTempoJaUsada, concederExtensaoPrazo, dispararRecusaProposta,
 } from '../services/propostaFollowupService';
 import { logActivity } from '../services/JourneyService';
+import { corpoComFalhaDeMidia, corpoMidiaRecuperada } from '../services/corpoMidiaWhatsapp';
 import {
   findOpenPendingReply, interpretarResposta, resolvePendingReply, PendingReply,
 } from '../services/pendingWhatsappReplyService';
@@ -137,7 +138,7 @@ export async function reprocessarMensagemMidia(msg: { id: number; message_id: st
   let motivo = '';
   const media = await storeMedia(msg.message_id, msg.phone, msg.client_id, m[1], (x) => { motivo = x; }, { registrarDocumento: !msg.from_me });
   if (!media) return { ok: false, erro: motivo || 'falha ao baixar' };
-  await db.query('UPDATE whatsapp_messages SET media_id = ?, body = ? WHERE id = ?', [media.mediaId, `📎 ${media.label}`, msg.id]);
+  await db.query('UPDATE whatsapp_messages SET media_id = ?, body = ? WHERE id = ?', [media.mediaId, corpoMidiaRecuperada(msg.body, media.label), msg.id]);
   emitWaUpdate(msg.phone);
   return { ok: true, mediaId: media.mediaId, label: media.label };
 }
@@ -489,10 +490,9 @@ router.post('/uazapi-webhook', async (req: Request, res: Response) => {
         // a conversa perdia o registro de que algo chegou. Agora mantém um
         // corpo de aviso, pra pelo menos aparecer na conversa, e alerta os
         // admins (throttled) em vez de só logar no console.
-        console.error(`[whatsapp-webhook] mídia tipo "${msg.messageType}" não foi salva (storeMedia devolveu null).`);
-        body = body || (msg.fromMe
-          ? `⚠️ Mídia enviada por você, mas falhou ao baixar (tipo: ${msg.messageType})`
-          : `⚠️ Mídia recebida, mas falhou ao baixar (tipo: ${msg.messageType})`);
+        console.error(`[whatsapp-webhook] mídia tipo "${msg.messageType}" não foi salva: ${motivo}`);
+        // A marca vai SEMPRE (mesmo com legenda): é por ela que a varredura tenta de novo.
+        body = corpoComFalhaDeMidia(body, !!msg.fromMe, msg.messageType);
         await avisarFalhaMidia(msg.messageType, motivo).catch(() => {});
       }
     }

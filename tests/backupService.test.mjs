@@ -72,3 +72,26 @@ test('getLatestLocalBackupPath devolve null quando não há nenhum backup local'
   }
   assert.equal(getLatestLocalBackupPath(), null);
 });
+
+// 23/11/2026: o envio ao MEGA vencia o tempo, mas rejeitava depois (EOVERQUOTA)
+// sem ninguém tratar — virava "erro solto" do servidor 7 vezes.
+test('comTempoLimite: vence o tempo, cancela e o erro tardio não escapa', async () => {
+  const { comTempoLimite } = await import('../dist/services/backupService.js');
+  const soltos = [];
+  const ouvinte = (e) => soltos.push(e);
+  process.on('unhandledRejection', ouvinte);
+  let cancelou = false;
+  const lenta = new Promise((_, rej) => setTimeout(() => rej(new Error('EOVERQUOTA (-17)')), 60));
+  await assert.rejects(comTempoLimite(lenta, 20, 'Envio ao MEGA', () => { cancelou = true; }), /passou de/);
+  assert.equal(cancelou, true);
+  await new Promise((r) => setTimeout(r, 120));
+  process.off('unhandledRejection', ouvinte);
+  assert.deepEqual(soltos, []);
+});
+
+test('comTempoLimite: dentro do tempo devolve o resultado e não cancela', async () => {
+  const { comTempoLimite } = await import('../dist/services/backupService.js');
+  let cancelou = false;
+  assert.equal(await comTempoLimite(Promise.resolve(7), 1000, 'x', () => { cancelou = true; }), 7);
+  assert.equal(cancelou, false);
+});

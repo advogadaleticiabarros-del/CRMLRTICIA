@@ -2,9 +2,18 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 23/11/2026. Último commit: padrão de segurança SaaS (senha forte, sessão derrubável, aceite de termos, servidor endurecido).
+**Última atualização:** 23/11/2026. Último commit: revisão dos agentes de IA (tempo limite, vazio não é sucesso, mídia com legenda, pastas do Drive) e EOVERQUOTA.
 
 ## Últimas entregas (mais recentes primeiro)
+- **23/11 (3):** **Erro EOVERQUOTA e revisão dos agentes de IA** (Jessica: "E esse erro? Revise os agentes de IA [...] não deixe margem para erros").
+  - O EOVERQUOTA era o MEGA lotado, antes da correção de hoje cedo. Virava "erro solto" porque o envio seguia depois do tempo limite; agora é cancelado e tratado.
+  - Agentes:
+    - pastas do Drive falhavam caladas (72 rodadas "ok"); agora avisam;
+    - mídia de WhatsApp com legenda que falhava nunca era recuperada; corrigido;
+    - toda chamada de IA ganhou tempo limite;
+    - resposta vazia da IA deixou de contar como sucesso e passa ao provedor reserva;
+    - clima do briefing tenta de novo.
+  - **Pendente:** reconectar o Google (Parcerias e Monitoramento por e-mail; a Agenda já voltou). Ver `docs/contexto/relatorios/2026-11-23-eoverquota-revisao-agentes-ia.md`.
 - **23/11 (2):** **Padrão de segurança SaaS** (Jessica: "aceitar política, segurança de senha, manter as chaves escondidas, tudo! Não dar brecha").
   - 11 brechas fechadas. As principais: o passe do 2FA valia como login (dava para pular o código); usuário desativado seguia entrando para sempre; SSH aceitava senha; socket do WhatsApp aberto a cliente do portal; `.env` legível por todos.
   - Novo: política de senha (10+, mistura, sem óbvias); sessão que cai na hora (troca de senha, desativação); aceite obrigatório de Termos de Uso e Política de Privacidade (`/termos.html`, `/privacidade.html`, migration 189); HSTS e CSP mínima; SSH só por chave; `.env` 600; nginx sem versão e com TLS 1.2+.

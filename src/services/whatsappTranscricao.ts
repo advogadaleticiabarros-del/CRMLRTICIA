@@ -5,6 +5,7 @@
 import { db } from '../config/database';
 import { aiExtractFromFile } from './aiAssistant';
 import { registrarUsoIa } from './usoIa';
+import { TEMPO_IA_MS, sinalIa, lerJsonIa } from './iaHttp';
 
 export interface MediaRow {
   id: number;
@@ -29,8 +30,9 @@ export async function transcreverAudio(media: MediaRow): Promise<TranscricaoResu
     fd.append('language', 'pt');
     const r = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
       method: 'POST', headers: { Authorization: `Bearer ${key}` }, body: fd as any,
+      signal: sinalIa(TEMPO_IA_MS.normal),
     });
-    const d: any = await r.json();
+    const d: any = await lerJsonIa(r);
     if (!r.ok) return { ok: false, erro: d?.error?.message || 'Falha na transcrição' };
     registrarUsoIa('groq');
     const texto = String(d.text || '').trim();

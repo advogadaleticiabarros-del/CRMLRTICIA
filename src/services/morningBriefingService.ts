@@ -74,10 +74,11 @@ async function getWeather(): Promise<Weather | null> {
       if (loc) { lat = loc.latitude; lon = loc.longitude; cityName = loc.name; }
     } catch (e: any) { console.error('[briefing] geocoding falhou, usando coordenadas fixas de Vitória/ES:', e?.message || e); }
 
-    const f: any = await fetchWithTimeout(
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-      `&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=America%2FSao_Paulo&forecast_days=1`
-    );
+    const urlPrevisao = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+      `&daily=temperature_2m_max,temperature_2m_min,weather_code&timezone=America%2FSao_Paulo&forecast_days=1`;
+    let f: any = await fetchWithTimeout(urlPrevisao).catch(() => null);
+    // "The service is overloaded" (34 vezes até 11/2026) costuma passar em segundos: 1 nova tentativa.
+    if (!f?.daily) { await new Promise((r) => setTimeout(r, 4000)); f = await fetchWithTimeout(urlPrevisao).catch((e: any) => ({ erro: e?.message })); }
     const d = f?.daily;
     if (!d) { console.error('[briefing] previsão sem campo "daily" na resposta:', JSON.stringify(f).slice(0, 300)); return null; }
     return {

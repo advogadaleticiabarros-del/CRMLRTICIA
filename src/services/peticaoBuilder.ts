@@ -146,14 +146,24 @@ export async function sincronizarPastasEmProducao(): Promise<{ casos: number; no
       WHERE drive_folder_url IS NOT NULL AND drive_folder_url <> ''
         AND production_stage IS NOT NULL AND production_stage NOT IN ('protocolado', 'concluido', 'recusado')`
   ) as any;
-  let novos = 0, erros = 0;
+  let novos = 0, erros = 0, primeiroErro: string | null = null;
   for (const c of casos) {
     const r = await importDriveFolder(c.id, c.client_id ?? null, c.drive_folder_url, c.user_id || 1)
       .catch((e: any) => ({ novos: [] as string[], erro: String(e?.message || e) }));
     novos += r.novos.length;
-    if (r.erro) { erros++; console.warn('[pasta-drive] caso', c.id, r.erro); }
+    if (r.erro) { erros++; primeiroErro ??= r.erro; console.warn('[pasta-drive] caso', c.id, r.erro); }
   }
-  return { casos: casos.length, novos, erros };
+  return avaliarSincronizacaoPastas({ casos: casos.length, novos, erros, primeiroErro });
+}
+
+/**
+ * Falhou em TODOS os casos = a rotina parou (quase sempre a conexão Google):
+ * vira erro, para o runJob avisar e pedir a reconexão. Antes devolvia "ok" com
+ * {erros: 4} e ninguém via (72 rodadas na semana de 16–23/11/2026).
+ */
+export function avaliarSincronizacaoPastas(r: { casos: number; novos: number; erros: number; primeiroErro: string | null }) {
+  if (r.casos > 0 && r.erros === r.casos) throw new Error(`Pastas do Drive: nenhum caso sincronizou (${r.erros} de ${r.casos}). ${r.primeiroErro || ''}`.trim());
+  return r.erros ? r : { casos: r.casos, novos: r.novos, erros: 0 };
 }
 
 /**

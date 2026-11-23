@@ -12,6 +12,7 @@ import { db } from '../config/database';
 import { agruparAudiencias } from './audienciaUnica';
 import { registrarUsoIa } from './usoIa';
 import { ehAudienciaTrabalhista, selecionarDocumentos, montarInstrucao, dividirMensagem, janelaDeAmanha } from './briefingAudienciaRegras';
+import { TEMPO_IA_MS, sinalIa, lerJsonIa } from './iaHttp';
 
 const LIMITE_DOCS_BYTES = 14 * 1024 * 1024; // cabe num envio ao Gemini (base64 ≈ +33%)
 const fmtQuando = (d: Date) => new Date(d).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }).replace(',', ' às');
@@ -23,8 +24,9 @@ async function chamarGemini(instrucao: string, arquivos: { mime: string; data: B
   const parts: any[] = [{ text: instrucao }, ...arquivos.map((a) => ({ inline_data: { mime_type: a.mime, data: a.data.toString('base64') } }))];
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts }] }),
+    signal: sinalIa(TEMPO_IA_MS.longo),
   });
-  const d: any = await r.json();
+  const d: any = await lerJsonIa(r);
   if (!r.ok) throw new Error(d?.error?.message || 'Erro na IA (Gemini)');
   registrarUsoIa('gemini');
   const texto = d?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).join('') || '';
@@ -50,8 +52,9 @@ async function chamarOpenAI(instrucao: string, arquivos: { mime: string; data: B
   const r = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({ model: process.env.OPENAI_MODEL || 'gpt-5.6-luna', messages: [{ role: 'user', content }] }),
+    signal: sinalIa(TEMPO_IA_MS.longo),
   });
-  const d: any = await r.json();
+  const d: any = await lerJsonIa(r);
   if (!r.ok) throw new Error(d?.error?.message || 'Erro na IA (OpenAI)');
   registrarUsoIa('openai');
   const texto = d?.choices?.[0]?.message?.content || '';

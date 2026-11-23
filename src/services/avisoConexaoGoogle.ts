@@ -11,7 +11,7 @@
  * reconectar.
  */
 
-const QUEDA_RE = /invalid_grant|invalid_token|revoked|expired or revoked|unauthorized_client/i;
+const QUEDA_RE = /invalid_grant|invalid_token|revoked|expired or revoked|unauthorized_client|conex[aã]o do CRM com o Google expirou/i;
 const JANELA_HORAS = 24;
 
 export function ehQuedaDeAutorizacaoGoogle(msg: string | null | undefined): boolean {
@@ -27,6 +27,7 @@ const ROTINAS: Record<string, { parou: string; onde: string }> = {
   'agenda:sync-incremental': { parou: 'a Agenda do Google não está sincronizando', onde: 'Agenda → Reconectar Google' },
   'agenda:sync-completa': { parou: 'a Agenda do Google não está sincronizando', onde: 'Agenda → Reconectar Google' },
   'parceria:sync-gmail': { parou: 'os e-mails da parceira (indicações) não estão sendo lidos', onde: 'Parcerias → Reconectar' },
+  'producao:pastas-drive': { parou: 'os arquivos novos das pastas do Drive não estão entrando nos casos em produção', onde: 'Parcerias → Reconectar' },
 };
 
 export interface DepsAvisoGoogle {

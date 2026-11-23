@@ -16,6 +16,21 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: "EOVERQUOTA (-17): Request over quota" como erro solto, e revisão dos agentes de IA (23/11/2026)
+
+**Sintoma:** aviso "🐞 Erro no servidor do CRM — já aconteceu 7 vezes: EOVERQUOTA (-17)", sem local, só a pilha do `megajs`. Todas as 7 ocorrências caíram no horário do backup, de 21/11 a 23/11 às 02h04, ou seja, antes da correção do MEGA lotado (entrada abaixo).
+**Causa raiz:** o backup desistia do envio ao MEGA depois de 25 min (`comTempoLimite`), mas o envio continuava rodando por baixo. Quando o MEGA recusava por falta de espaço, essa rejeição tardia não tinha quem a tratasse e virava `unhandledRejection`, registrada como erro solto.
+**Correção:** `comTempoLimite` (`backupService.ts`) agora cancela o envio quando o tempo vence e registra o erro tardio. O envio ao MEGA ganhou um ouvinte de erro. Testes em `tests/backupService.test.mjs`. O erro 31 do rastreador foi marcado como resolvido.
+
+**Achados na revisão dos agentes, no mesmo dia:**
+1. **Pastas do Drive (`producao:pastas-drive`) falhando calada:** foram 72 rodadas na semana com `{"erros":4}` em 4 casos, todas registradas como "ok". O Google estava desconectado, e o aviso de reconexão não disparava por essa rotina. Agora, falha em todos os casos vira erro (`avaliarSincronizacaoPastas`), e a mensagem "conexão do CRM com o Google expirou" entra no aviso de queda do Google, com o texto do que parou.
+2. **Mídia do WhatsApp com legenda nunca era recuperada:** quando falhava, a mensagem guardava só a legenda, sem a marca "falhou ao baixar" que a varredura `whatsapp:midias-falhadas` procura. Agora a marca vai sempre junto, e na recuperação a legenda volta inteira (`corpoMidiaWhatsapp.ts`). As falhas de antes, com legenda, não são recuperáveis: não guardaram o tipo da mídia.
+3. **Chamadas de IA sem tempo limite e com resposta vazia contada como sucesso:** valia para Gemini, Groq, OpenAI, leitura de documentos, briefing da audiência e transcrição de áudio. Provedor travado deixava o agente esperando para sempre; texto vazio (bloqueio, limite de tamanho, raciocínio que gastou o limite) voltava como resposta "ok". Agora tudo passa por `src/services/iaHttp.ts`: tempo limite por tipo (45 s, 150 s, 330 s); vazio vira falha com o motivo e entra o provedor reserva; resposta de erro em HTML não quebra a leitura. Testes em `tests/iaHttp.test.mjs`.
+4. **Clima do briefing:** "The service is overloaded" (34 vezes) agora ganha uma nova tentativa depois de 4 s.
+
+**Já estava resolvido (só no log antigo):** "download sem base64" (o campo certo é `base64Data`, corrigido antes) e "[ficha] falhou … birth_date" (corrigido hoje cedo).
+**Como reconhecer de novo:** em `job_runs`, rotina "ok" com erro dentro do resumo: `SELECT job, message FROM job_runs WHERE status='ok' AND message LIKE '%"erros":%' AND message NOT LIKE '%"erros":0%' ORDER BY id DESC LIMIT 20`.
+
 ## Incidente: brechas de segurança achadas na revisão "padrão SaaS" (corrigidas em 23/11/2026)
 
 Nenhuma invasão foi encontrada. As brechas estavam abertas em produção e foram fechadas antes de serem usadas, até onde os registros mostram.

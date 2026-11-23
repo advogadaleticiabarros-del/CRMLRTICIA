@@ -53,3 +53,17 @@ test('rotina que não usa o Google não gera aviso', async () => {
   assert.equal(await avisarQuedaConexaoGoogle('backup:diario', d), 'nao_se_aplica');
   assert.equal(enviados.length, 0);
 });
+
+// 23/11/2026: pastas do Drive falhavam em todos os casos e a rotina dizia "ok".
+test('pastas do Drive: falha em todos os casos vira erro reconhecido como queda do Google', async () => {
+  const { avaliarSincronizacaoPastas } = await import('../dist/services/peticaoBuilder.js');
+  const { ehQuedaDeAutorizacaoGoogle, avisarQuedaConexaoGoogle } = await import('../dist/services/avisoConexaoGoogle.js');
+  const msg = 'A conexão do CRM com o Google expirou. Reconecte em Parcerias → Gmail da parceria.';
+  assert.throws(() => avaliarSincronizacaoPastas({ casos: 4, novos: 0, erros: 4, primeiroErro: msg }), (e) => ehQuedaDeAutorizacaoGoogle(e.message));
+  assert.deepEqual(avaliarSincronizacaoPastas({ casos: 4, novos: 2, erros: 1, primeiroErro: msg }), { casos: 4, novos: 2, erros: 1, primeiroErro: msg });
+  assert.deepEqual(avaliarSincronizacaoPastas({ casos: 0, novos: 0, erros: 0, primeiroErro: null }), { casos: 0, novos: 0, erros: 0 });
+  const enviados = [];
+  const d = { horasDesdeUltimoAviso: async () => null, enviarWhatsapp: async (t) => { enviados.push(t); return true; }, registrarAviso: async () => {} };
+  assert.equal(await avisarQuedaConexaoGoogle('producao:pastas-drive', d), 'avisado');
+  assert.match(enviados[0], /Drive/);
+});

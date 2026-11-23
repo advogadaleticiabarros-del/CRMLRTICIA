@@ -316,6 +316,7 @@ Código: regras em `negociador.ts`, banco e envio em `negociadorServico.ts`. A c
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 23/11/2026 | Claude | Mídia com legenda que falha ao baixar guarda a marca "falhou ao baixar" junto da legenda e é recuperada pela varredura (antes ficava perdida); na recuperação, a legenda volta |
 | 21/10/2026 | Claude | Assistente responde consulta de lei ("art 482 clt") com o texto oficial, sem IA |
 | 20/10/2026 | Claude | Auto-envios ao contato (acompanhamento, expiração e recusa de proposta, newsletter, aceite com PIX, e-book) passam por "Mensagens para aprovar", com botões e PIX preservados |
 | 16/10/2026 | Claude | Lívia faz as perguntas sutis da qualificação em %; webhook e envio manual acionam o copiloto da Dra. (Dr. Otávio) |

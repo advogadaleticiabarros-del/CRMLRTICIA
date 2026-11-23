@@ -29,8 +29,11 @@ test('mídia nossa não vira "documento recebido" do cliente', () => {
   assert.match(src, /registrarDocumento/);
 });
 
-test('falha ao baixar mídia nossa deixa aviso recuperável (mesma marca "falhou ao baixar")', () => {
-  assert.match(rota, /Mídia enviada por você, mas falhou ao baixar \(tipo:/);
+test('falha ao baixar mídia nossa deixa aviso recuperável (mesma marca "falhou ao baixar")', async () => {
+  // Desde 23/11/2026 o texto mora em corpoMidiaWhatsapp.ts (e vai junto da legenda).
+  const { corpoComFalhaDeMidia } = await import('../dist/services/corpoMidiaWhatsapp.js');
+  assert.match(corpoComFalhaDeMidia('', true, 'image'), /Mídia enviada por você, mas falhou ao baixar \(tipo:/);
+  assert.match(rota, /corpoComFalhaDeMidia\(body, !!msg\.fromMe, msg\.messageType\)/);
 });
 
 test('recuperação automática e manual cobrem mensagens nossas também', () => {

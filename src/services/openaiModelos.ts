@@ -84,12 +84,16 @@ export function criarChamadaOpenAI(deps: DepsOpenAI) {
         const r = await deps.enviar(body);
         if (r.ok) {
           deps.registrar(t.uso);
-          return { ok: true, text: r.dados?.choices?.[0]?.message?.content || '', modelo: t.modelo };
+          const texto = String(r.dados?.choices?.[0]?.message?.content || '');
+          // Vazio não é resposta (raciocínio gastou o limite, recusa): tenta o próximo modelo.
+          if (texto.trim()) return { ok: true, text: texto, modelo: t.modelo };
+          ultima = `OpenAI não devolveu texto (${r.dados?.choices?.[0]?.finish_reason || 'sem texto'})`;
+          continue;
         }
         ultima = r.dados?.error?.message || ultima;
         if (recusaDoModelo(r)) recusados.add(k);
       } catch (e: any) {
-        ultima = e?.message || ultima;
+        ultima = e?.name === 'TimeoutError' ? 'OpenAI não respondeu a tempo' : (e?.message || ultima);
       }
     }
     return { ok: false, message: ultima };
