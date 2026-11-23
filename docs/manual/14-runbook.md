@@ -16,6 +16,19 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: brechas de segurança achadas na revisão "padrão SaaS" (corrigidas em 23/11/2026)
+
+Nenhuma invasão foi encontrada. As brechas estavam abertas em produção e foram fechadas antes de serem usadas, até onde os registros mostram.
+
+1. **Pulo do 2FA:** o passe temporário da 2ª etapa (`{id, purpose:'2fa'}`, emitido logo depois da senha certa) passava pelo `authenticate`. Quem soubesse só a senha conseguia chamar rotas com login simples, como cadastrar um Face ID próprio, e depois entrar sem o código. **Correção:** o `authenticate` recusa token com `purpose` ou sem `role`, e aceita só HS256. Teste: `tests/segurancaSaas.test.mjs`.
+2. **Sessão eterna:** usuário desativado, ou com a senha trocada, seguia entrando com o token antigo, porque a renovação automática nunca deixava expirar. **Correção:** `users.token_version` conferido a cada pedido (`sessaoUsuario.ts`).
+3. **Socket do WhatsApp aberto a qualquer login:** cliente do portal podia se conectar e ouvir eventos das conversas. **Correção:** só `WHATSAPP_ROLES` com sessão ativa.
+4. **IP forjável no limite de login:** `trust proxy true` aceitava qualquer `X-Forwarded-For`. **Correção:** `trust proxy 1`.
+5. **Servidor:** SSH aceitava senha (inclusive do root); `.env` legível por todos (664); nginx mostrava a versão e aceitava TLS 1.0/1.1. **Correção:** ver [Onde tudo roda](13-infraestrutura.md) → Segurança e LGPD.
+
+**Como reconhecer de novo:** `curl -sI https://crm.advogadaleticiabarros.com.br/` precisa ter `Strict-Transport-Security` e `Content-Security-Policy`, e não pode ter `X-Powered-By` nem a versão do nginx; `stat -c %a /home/crmapp/app/.env` = 600; `sshd -T | grep passwordauthentication` = no.
+**Se alguém ficar sem conseguir entrar por SSH:** o acesso é só por chave. Use o console do painel da Hostinger e adicione a chave pública em `/root/.ssh/authorized_keys`. Nunca reative a senha.
+
 ## Incidente: MEGA lotado, backup só no servidor desde 21/11/2026 (corrigido em 23/11/2026)
 
 **Sintoma:** aviso diário do backup com "espaço do MEGA em 86%… 99%… 102%" (de 16/11 em diante) e, desde 21/11, "backup das 02h/09h/19h não chegou ao MEGA" e "Backup rodando em UM destino só — Envio ao MEGA passou de 25 min (travou)". No log, `EOVERQUOTA (-17): Request over quota`. A última cópia na nuvem era de 20/11, 22h. A cópia no servidor (`~/backups-crm`) continuou saindo normalmente.

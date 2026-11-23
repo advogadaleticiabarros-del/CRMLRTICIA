@@ -100,6 +100,23 @@ Até 21/08/2026, o sistema rodava no Railway. A migração pra VPS aconteceu dep
 
 Alguns dados sensíveis (tokens de integração) ficam cifrados no banco. Acessos à ficha completa de um cliente são registrados para auditoria (ver [Clientes e cadastro](01-clientes.md)).
 
+**Cabeçalhos de segurança (`src/app.ts`, desde 23/11/2026):**
+- `Strict-Transport-Security` (HTTPS obrigatório por 1 ano);
+- CSP mínima (`frame-ancestors 'self'; object-src 'none'; base-uri 'self'`). Os scripts ainda não são restritos, porque a tela usa `onclick` inline;
+- `Cross-Origin-Resource-Policy: same-site`, mais os que já existiam;
+- sem `X-Powered-By`;
+- `trust proxy 1`: só o nginx informa o IP.
+
+A página pública `/diagnostico` (sobra de 2026) foi removida.
+
+**Tempo real (Socket.IO):** só a equipe com acesso ao WhatsApp e com a sessão ativa se conecta. Antes, qualquer login válido se conectava, até de cliente do portal.
+
+**Servidor (endurecido em 23/11/2026):**
+- **SSH** só por chave (`/etc/ssh/sshd_config.d/05-seguranca.conf`): root só com chave, sem X11 e no máximo 3 tentativas. A exceção é o SFTP do site (`siteleticia`), que continua com senha, preso em `/home/siteleticia`, pela regra de `70-siteleticia-sftp.conf`.
+- **Chaves:** `.env` com permissão 600 (só o `crmapp` lê). O deploy aplica `chmod 600` a cada publicação, porque antes recriava o arquivo legível por todos. Os arquivos de `/root/segredos/` também estão em 600.
+- **nginx:** `server_tokens off` (não mostra a versão) e só TLS 1.2/1.3. Cópia de antes: `/root/backups/nginx.conf.antes-seguranca-20261123`.
+- **Já existia:** firewall ufw (entrada negada por padrão; abertas 22, 80, 443 e 3310/3311 dos outros projetos), fail2ban (sshd e mysqld), atualizações de segurança automáticas e o MySQL do CRM (3306) fechado para fora.
+
 ## Limite de envio no nginx (13/11/2026)
 
 O nginx da VPS (`/etc/nginx/sites-available/crm`) aceita envios de até **25 MB** em todo o CRM. Há uma exceção: o envio de recibo e vídeo-depoimento do fechamento de parceria (`/api/partners/cases/N/fechamento/arquivo`) aceita até **500 MB**, sem buffer no nginx (o arquivo vai em fluxo para o Drive) e com 20 min de tempo limite. O Node acompanha esse tempo (`server.requestTimeout`, em `src/index.ts`). Cópia de antes da mudança: `/root/nginx-crm.bak-20261113`. Para conferir: um POST de 30 MB nesse endereço, sem login, responde 401 (passou pelo nginx); em outra rota, responde 413.
@@ -122,6 +139,7 @@ O nginx da VPS (`/etc/nginx/sites-available/crm`) aceita envios de até **25 MB*
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 23/11/2026 | Claude | Cabeçalhos de segurança, socket só para a equipe, SSH só por chave, .env 600, nginx sem versão e com TLS 1.2+ |
 | 23/11/2026 | Claude | MEGA lotado: o backup abre espaço antes do envio (`planoEspacoMega`, uso final de até 80%); rotação dos logs do PM2 com logrotate |
 | 13/11/2026 | Claude | nginx: exceção de 500 MB (em fluxo) só para o envio do recibo e do vídeo do fechamento de parceria |
 | 26/10/2026 | Claude | O portão de vulnerabilidades barrou o deploy com 3 avisos novos: body-parser (alto) e nodemailer (moderado), resolvidos com `npm audit fix`; zod 3 → 4.6.7 (alto; sem correção na 3). O zod só valida o `.env` (`src/config/env.ts`), que funciona igual na 4 |

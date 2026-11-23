@@ -2,9 +2,13 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 23/11/2026. Último commit: backup abre espaço no MEGA antes de enviar; ficha com data vazia; rotação de logs.
+**Última atualização:** 23/11/2026. Último commit: padrão de segurança SaaS (senha forte, sessão derrubável, aceite de termos, servidor endurecido).
 
 ## Últimas entregas (mais recentes primeiro)
+- **23/11 (2):** **Padrão de segurança SaaS** (Jessica: "aceitar política, segurança de senha, manter as chaves escondidas, tudo! Não dar brecha").
+  - 11 brechas fechadas. As principais: o passe do 2FA valia como login (dava para pular o código); usuário desativado seguia entrando para sempre; SSH aceitava senha; socket do WhatsApp aberto a cliente do portal; `.env` legível por todos.
+  - Novo: política de senha (10+, mistura, sem óbvias); sessão que cai na hora (troca de senha, desativação); aceite obrigatório de Termos de Uso e Política de Privacidade (`/termos.html`, `/privacidade.html`, migration 189); HSTS e CSP mínima; SSH só por chave; `.env` 600; nginx sem versão e com TLS 1.2+.
+  - **Pendente:** a Dra. revisar o texto dos Termos e da Política; próximas etapas (cookie httpOnly, CSP de scripts, 2FA obrigatório para admin). Ver `docs/contexto/relatorios/2026-11-23-padrao-seguranca-saas.md`.
 - **23/11:** **Revisão de erros do sistema, do backup e do servidor** (Jessica: "backup e servidor estão dando alguns erros! Não deixe que isso aconteça").
   - **Backup:** o MEGA lotou (102%) e, desde 21/11, nenhuma cópia chegava à nuvem. A última lá era de 20/11, 22h; o servidor seguiu com as cópias em dia. A cópia tem 840 MB, com 662 MB de mídia do WhatsApp. Agora o backup abre espaço antes de enviar (`planoEspacoMega`, MEGA em no máximo 80%; as mensais saem por último; as 3 mais recentes nunca saem). **Conferido em produção:** backup manual às 05h35 enviado; MEGA de 102% para 70%.
   - **Ficha automática:** não gravava quando a data de nascimento estava vazia (`NULLIF` em coluna DATE). Corrigido.

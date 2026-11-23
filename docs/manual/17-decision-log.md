@@ -363,6 +363,16 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 **Motivo:** o robô precisa entrar sozinho 4 vezes por dia; pedir o código a uma pessoa a cada sessão vencida deixaria o TRT17 parado sempre que ninguém respondesse.
 **Alternativa considerada:** digitar o código na hora e manter a sessão aberta (oferecida como mais segura: o CRM nunca guardaria o segundo fator). A Dra. escolheu a automática sabendo que, com a chave e a senha juntas no CRM, quem invadir o CRM entra no PJe dela.
 
+### 23/11/2026 — Sessão conferida no banco a cada pedido (token_version), e não lista negra de tokens
+**Decisão:** cada JWT leva a versão da sessão; o servidor confere usuário ativo e versão em cada pedido, com 30 s de memória.
+**Motivo:** derruba todos os aparelhos de uma vez (troca de senha, desativação) sem guardar uma lista de tokens. O custo é uma consulta por usuário a cada 30 s. Se o banco cair, a resposta é 503 e ninguém passa sem conferência.
+**Alternativa considerada:** trocar o login para cookie httpOnly (protege melhor contra roubo de token por injeção de script). É a próxima etapa, mas exige proteção CSRF e mexe na tela inteira.
+
+### 23/11/2026 — CSP mínima (sem restringir scripts) e aceite de termos exigido pelo servidor
+**Decisão:** a CSP proíbe só embutir o CRM em outra página, plugins e troca de `<base>`. O aceite dos Termos é exigido no servidor (403 `TERMOS_PENDENTES`), não só na tela.
+**Motivo:** a tela tem `onclick` inline em centenas de pontos; uma CSP de scripts quebraria o sistema. Termo exigido só na tela seria contornável chamando a API direto.
+**Alternativa considerada:** CSP completa com `script-src 'self'` (fica para quando os `onclick` inline forem migrados).
+
 ## FAQ
 
 **Uma decisão registrada aqui pode ser revertida?** Sim — decisões de produto não são imutáveis. Só não edite a entrada antiga: adicione uma nova, datada, explicando a mudança.
@@ -379,6 +389,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 23/11/2026 | Claude | Sessão por token_version; CSP mínima e aceite de termos exigido no servidor |
 | 18/11/2026 | Claude | Temperatura por regra sobre as decisões; partes do tribunal em tabela própria; DataJud com cota por rodada |
 | 18/11/2026 | Claude | CRM gera o código do autenticador do TRT17 |
 | 18/11/2026 | Claude | TRT17 pelo site do PJe-JT com o login da Dra. (robô) |
