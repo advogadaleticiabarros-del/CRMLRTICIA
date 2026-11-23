@@ -4,7 +4,7 @@ import path from 'path';
 import mysqldump from 'mysqldump';
 import { env } from '../config/env';
 import { cifrarArquivoEmFluxo, abrirBackupEmFluxo } from '../utils/crypto';
-import { planoRetencao, RETENCAO_MEGA, RETENCAO_LOCAL } from './backupRegras';
+import { planoRetencao, planoEspacoMega, RETENCAO_MEGA, RETENCAO_LOCAL } from './backupRegras';
 
 // megajs publica os tipos só via "exports"; sob moduleResolution "node" o TS não
 // os resolve, então carregamos via require (tipado como any) para evitar TS7016.
@@ -166,6 +166,24 @@ async function enviarParaMega(caminho: string, filename: string): Promise<Destin
     const { folder } = session;
 
     const tamanho = fs.statSync(caminho).size;
+
+    // Abre espaço ANTES do envio (planoEspacoMega): com o MEGA cheio o envio
+    // trava, e a rotação de baixo nunca rodaria (MEGA lotou em 21/11/2026).
+    let liberadas = 0;
+    try {
+      const info = await session.storage.getAccountInfo();
+      if (info?.spaceTotal) {
+        const copias = (folder.children || [])
+          .filter((f: any) => f.name && String(f.name).startsWith(PREFIX))
+          .map((f: any) => ({ nome: String(f.name), bytes: Number(f.size) || 0 }));
+        const plano = planoEspacoMega(copias, new Date(), { total: info.spaceTotal, usado: info.spaceUsed }, tamanho);
+        for (const f of (folder.children || []).filter((x: any) => plano.apagar.includes(x.name))) { await f.delete(true); liberadas++; }
+        if (!plano.cabe) return { ok: false, message: `MEGA sem espaço: a cópia de ${Math.round(tamanho / 1048576)} MB não cabe nem apagando as antigas (o servidor continua guardando as cópias)` };
+      }
+    } catch (e: any) {
+      console.warn('[backup] não consegui conferir o espaço do MEGA antes do envio:', e?.message || e);
+    }
+
     const upload = folder.upload({ name: filename, size: tamanho });
     fs.createReadStream(caminho).on('error', (e) => upload.destroy(e)).pipe(upload);
     const enviado: any = await comTempoLimite(upload.complete, LIMITE_MEGA_MS, 'Envio ao MEGA');
@@ -180,7 +198,7 @@ async function enviarParaMega(caminho: string, filename: string): Promise<Destin
       for (const f of (folder.children || []).filter((x: any) => apagar.includes(x.name))) await f.delete(true);
     } catch { /* rotação é best-effort */ }
 
-    return { ok: true, file: filename, sizeKB: Math.round(tamanho / 1024) };
+    return { ok: true, file: filename, sizeKB: Math.round(tamanho / 1024), ...(liberadas ? { message: `${liberadas} cópia(s) antiga(s) apagada(s) no MEGA para abrir espaço` } : {}) };
   } catch (e: any) {
     return { ok: false, message: 'Falha ao enviar para o MEGA: ' + (e?.message || String(e)) };
   } finally {

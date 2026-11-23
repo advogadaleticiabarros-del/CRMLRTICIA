@@ -24,6 +24,15 @@ const COL_LEAD: Record<CampoFicha, string> = {
   cep: 'cep', street: 'street', number: 'number', neighborhood: 'neighborhood', city: 'city', state: 'state',
 };
 const CAMPOS_CLIENTE: CampoFicha[] = ['nome', 'cpf', 'email', 'data_nascimento'];
+/**
+ * SQL que só preenche a coluna se estiver vazia. birth_date é DATE: comparar com
+ * '' (NULLIF) dá "Incorrect date value: ''" no MySQL estrito e a ficha inteira
+ * deixava de gravar (visto em produção em 11/2026) — para ela, só COALESCE.
+ */
+export function preencherSeVazio(col: string): string {
+  return col === 'birth_date' ? `${col} = COALESCE(${col}, ?)` : `${col} = COALESCE(NULLIF(${col}, ''), ?)`;
+}
+
 const COL_CLIENTE: Partial<Record<CampoFicha, string>> = { nome: 'name', cpf: 'cpf_cnpj', email: 'email', data_nascimento: 'birth_date' };
 
 const espera = new Map<string, NodeJS.Timeout>();
@@ -176,7 +185,7 @@ export async function completarFicha(phone: string, opts: { forcar?: boolean; si
       const col = COL_LEAD[c];
       // Nome troca só se ainda for o mesmo de quando lemos; o resto só preenche vazio.
       if (c === 'nome') { sets.push('name = IF(name = ?, ?, name)'); params.push(lead.name, v); }
-      else { sets.push(`${col} = COALESCE(NULLIF(${col}, ''), ?)`); params.push(v); }
+      else { sets.push(preencherSeVazio(col)); params.push(v); }
       gravados.push(c);
     }
     if (sets.length) { params.push(lead.id); await db.query(`UPDATE leads SET ${sets.join(', ')} WHERE id = ?`, params); }
@@ -198,7 +207,7 @@ export async function completarFicha(phone: string, opts: { forcar?: boolean; si
     for (const [c, v] of Object.entries(gravar) as [CampoFicha, string][]) {
       const col = COL_CLIENTE[c]!;
       if (c === 'nome') { sets.push('name = IF(name = ?, ?, name)'); params.push(cliente.name, v); }
-      else { sets.push(`${col} = COALESCE(NULLIF(${col}, ''), ?)`); params.push(v); }
+      else { sets.push(preencherSeVazio(col)); params.push(v); }
       if (!gravados.includes(c)) gravados.push(c);
     }
     // Endereço do cliente é uma linha só: monta quando estiver vazio e a leitura for segura.

@@ -1,7 +1,7 @@
 // tests/backupRegras.test.mjs — retenção (30 diários + 12 mensais), backups perdidos e relatório diário
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { planoRetencao, slotsPerdidos, dataDoArquivo, textoRelatorioDiario } from '../dist/services/backupRegras.js';
+import { planoRetencao, slotsPerdidos, dataDoArquivo, textoRelatorioDiario, planoEspacoMega } from '../dist/services/backupRegras.js';
 
 const nome = (iso) => `crm-backup-${iso.replace(/:/g, '-').slice(0, 19)}.sql.gz.enc`;
 // horários reais dos backups em UTC: 05h, 12h e 22h (= 02h, 09h e 19h em Brasília)
@@ -93,4 +93,59 @@ test('textoRelatorioDiario: falta um horário e o MEGA está cheio → alerta', 
   assert.match(t, /09h/);
   assert.match(t, /MEGA/);
   assert.match(t, /91%/);
+});
+
+// ── planoEspacoMega (23/11/2026): o MEGA lotou (102%) e o envio travava; a rotação
+// só rodava DEPOIS de um envio bem-sucedido, então o MEGA nunca mais se esvaziava.
+const MB = 1024 * 1024;
+const GB = 1024 * MB;
+const nomeM = (iso) => `crm-backup-${iso.replace(/:/g, '-')}.sql.gz.enc`;
+// Retrato real de 23/11: 35 cópias, MEGA de 21,47 GB com 21,86 GB usados.
+const retrato = [
+  ['2026-09-30T22:00:00', 166], ['2026-10-22T22:00:00', 412], ['2026-10-23T23:30:00', 442], ['2026-10-24T22:45:00', 447],
+  ['2026-10-25T23:30:00', 446], ['2026-10-26T12:00:00', 447], ['2026-10-28T22:00:00', 478], ['2026-10-30T23:30:00', 485],
+  ['2026-10-31T22:00:00', 486], ['2026-11-01T22:00:00', 486], ['2026-11-02T22:00:00', 487], ['2026-11-03T22:00:00', 496],
+  ['2026-11-04T12:00:00', 508], ['2026-11-05T22:00:00', 529], ['2026-11-06T22:00:00', 541], ['2026-11-07T22:00:00', 542],
+  ['2026-11-08T22:00:00', 550], ['2026-11-09T22:00:00', 677], ['2026-11-10T22:00:00', 692], ['2026-11-11T22:00:00', 694],
+  ['2026-11-12T22:00:00', 708], ['2026-11-13T22:00:00', 738], ['2026-11-14T22:00:00', 739], ['2026-11-15T22:00:00', 740],
+  ['2026-11-16T22:00:00', 756], ['2026-11-17T22:00:00', 781], ['2026-11-18T05:00:00', 782], ['2026-11-18T12:00:00', 782],
+  ['2026-11-18T22:00:00', 818], ['2026-11-19T05:00:00', 819], ['2026-11-19T12:00:00', 821], ['2026-11-19T22:00:00', 840],
+  ['2026-11-20T05:00:00', 840], ['2026-11-20T12:00:00', 840], ['2026-11-20T22:00:00', 841],
+].map(([d, mb]) => ({ nome: nomeM(d), bytes: mb * MB }));
+const total = 21.47 * GB;
+const usado = retrato.reduce((a, b) => a + b.bytes, 0);
+
+test('planoEspacoMega: MEGA cheio → libera espaço até a nova cópia caber com folga (uso final ≤ 80%)', () => {
+  const p = planoEspacoMega(retrato, new Date('2026-11-23T12:00:00Z'), { total, usado }, 841 * MB);
+  assert.ok(p.cabe, 'precisa caber');
+  const liberado = retrato.filter((b) => p.apagar.includes(b.nome)).reduce((a, b) => a + b.bytes, 0);
+  assert.ok(usado - liberado + 841 * MB <= total * 0.8, 'depois do envio fica no máximo em 80%');
+  // as 3 mais recentes nunca saem
+  for (const b of retrato.slice(-3)) assert.ok(!p.apagar.includes(b.nome), `${b.nome} é recente`);
+});
+
+test('planoEspacoMega: apaga primeiro cópias extras do mesmo dia, depois diárias antigas; a mensal fica por último', () => {
+  const p = planoEspacoMega(retrato, new Date('2026-11-23T12:00:00Z'), { total, usado }, 841 * MB);
+  // 05h e 12h de 18/11 e 19/11 são extras do dia: saem antes de qualquer diária
+  for (const d of ['2026-11-18T05:00:00', '2026-11-18T12:00:00', '2026-11-19T05:00:00', '2026-11-19T12:00:00']) {
+    assert.ok(p.apagar.includes(nomeM(d)), `${d} deveria sair`);
+  }
+  // a última de setembro e a de outubro (mensais) continuam
+  assert.ok(!p.apagar.includes(nomeM('2026-09-30T22:00:00')), 'mensal de setembro fica');
+  assert.ok(!p.apagar.includes(nomeM('2026-10-31T22:00:00')), 'mensal de outubro fica');
+});
+
+test('planoEspacoMega: com espaço sobrando, só a rotação normal', () => {
+  const poucos = retrato.slice(-4);
+  const usadoPoucos = poucos.reduce((a, b) => a + b.bytes, 0);
+  const p = planoEspacoMega(poucos, new Date('2026-11-21T12:00:00Z'), { total, usado: usadoPoucos }, 841 * MB);
+  assert.deepStrictEqual(p.apagar, []);
+  assert.ok(p.cabe);
+});
+
+test('planoEspacoMega: se nem apagando tudo (menos as 3 recentes) cabe, avisa cabe=false sem apagar as recentes', () => {
+  const tres = retrato.slice(-3);
+  const p = planoEspacoMega(tres, new Date('2026-11-21T12:00:00Z'), { total: 2 * GB, usado: tres.reduce((a, b) => a + b.bytes, 0) }, 841 * MB);
+  assert.strictEqual(p.cabe, false);
+  assert.deepStrictEqual(p.apagar, []);
 });

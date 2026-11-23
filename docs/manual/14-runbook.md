@@ -16,6 +16,30 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 
 ---
 
+## Incidente: MEGA lotado, backup só no servidor desde 21/11/2026 (corrigido em 23/11/2026)
+
+**Sintoma:** aviso diário do backup com "espaço do MEGA em 86%… 99%… 102%" (de 16/11 em diante) e, desde 21/11, "backup das 02h/09h/19h não chegou ao MEGA" e "Backup rodando em UM destino só — Envio ao MEGA passou de 25 min (travou)". No log, `EOVERQUOTA (-17): Request over quota`. A última cópia na nuvem era de 20/11, 22h. A cópia no servidor (`~/backups-crm`) continuou saindo normalmente.
+
+**Causa raiz:** a cópia foi de 486 MB para 840 MB em três semanas (mídia do WhatsApp dentro do banco: `whatsapp_media` com 662 MB). A retenção do MEGA (3 dias + 30 diárias + 12 mensais) pedia cerca de 35 cópias, que não cabem nos 21,47 GB. A rotação só rodava **depois** de um envio bem-sucedido. Com o MEGA cheio, o envio falhava, a rotação nunca rodava e o MEGA não se esvaziava mais sozinho. O aviso de 85% chegou todo dia por uma semana, sem que ninguém agisse.
+
+**Correção:** `planoEspacoMega` (`src/services/backupRegras.ts`), chamado em `enviarParaMega` **antes** do envio, abre espaço até a cópia nova caber com o MEGA em no máximo 80%. Ordem do que sai: as cópias que a rotação já descartaria, as extras de um mesmo dia, as diárias mais antigas e, por último, as mensais. As 3 mais recentes nunca saem. Testes em `tests/backupRegras.test.mjs`, com o retrato real das 35 cópias.
+
+**Como reconhecer:** aviso diário com "MEGA em ≥ 85%" ou "não chegou ao MEGA"; `SELECT job, status, message FROM job_runs WHERE job LIKE 'backup%' ORDER BY id DESC LIMIT 10`. Para listar o MEGA, use um script com `megajs` e as credenciais do `.env`, rodando como `crmapp`.
+
+**Se voltar:** "MEGA sem espaço… não cabe nem apagando as antigas" quer dizer que uma cópia sozinha passa do que cabe com folga. Saídas: tirar `whatsapp_media` do banco, ou assinar um plano maior do MEGA (decisão da Dra.).
+
+## Incidente: ficha automática não gravava com data de nascimento vazia (corrigido em 23/11/2026)
+
+**Sintoma:** no log, `[ficha] falhou: Incorrect date value: '' for column 'birth_date' at row 1`. A ficha daquele contato não era completada, e nenhum campo era gravado.
+**Causa raiz:** `fichaServico.ts` montava `birth_date = COALESCE(NULLIF(birth_date, ''), ?)`. Comparar coluna DATE com `''` dá erro no MySQL estrito, e o UPDATE inteiro falha. O mesmo erro já tinha sido corrigido em `fichaUnica.ts`, mas não aqui.
+**Correção:** `preencherSeVazio(col)` usa só `COALESCE` para `birth_date`. Teste: `tests/fichaServicoSql.test.mjs`. Regra para SQL novo: nunca `NULLIF(coluna_de_data, '')`.
+
+## Incidente: logs do PM2 sem rotação (23/11/2026)
+
+**Sintoma:** `~/.pm2/logs/crm-juridico-error.log` com 486 MB (3,4 milhões de linhas), quase tudo repetição de `invalid_grant` do Google.
+**Correção:** `/etc/logrotate.d/pm2-crm-juridico` (diário ou ao passar de 50 MB, 14 cópias comprimidas, `copytruncate`). Rotação forçada uma vez em 23/11.
+**Como reconhecer:** `ls -la /home/crmapp/.pm2/logs/`; arquivo `.log` acima de 50 MB = rotação parada (`systemctl status logrotate.timer`).
+
 ## Incidente: conexões Google caídas sem ninguém ver, e-mails do TRT17 parados (29/10 a 18/11/2026)
 
 **Sintoma (achado 18/11/2026, ao ligar o TRT17 pelo Push):** a última leitura da caixa dos tribunais foi em 06/11. `job_runs` mostrava `invalid_grant` desde 29/10 em `monitoramento:processos-email`, `agenda:sync-incremental`, `agenda:sync-completa` e `parceria:sync-gmail`. Os e-mails Push do TRT17 desse período não entraram no CRM.
@@ -25,6 +49,8 @@ Consulte assim que algo parecer errado (mensagem duplicada, deploy que não "peg
 **Correção:** `src/services/avisoConexaoGoogle.ts`, chamado pelo `runJob`: falha de autorização Google manda aviso ao WhatsApp pessoal do escritório e ao sino, 1x a cada 24 h, dizendo o que parou e onde reconectar. Testes: `tests/avisoConexaoGoogle.test.mjs`.
 
 **Para resolver quando acontecer:** reconectar as três (Configurações → Monitoramento por e-mail → Reconectar; Agenda → Reconectar Google; Parcerias → Reconectar), com a conta do escritório. Depois, em Configurações → Monitoramento por e-mail, "Verificar agora". Os e-mails do período parado são lidos na volta (60 por rodada, do mais novo para o mais antigo, sem repetir os já lidos). **Para não voltar:** no Google Cloud Console → Tela de consentimento OAuth, conferir se o app está "Em produção" e não "Teste".
+
+**Voltou de novo (visto em 23/11/2026):** `invalid_grant` em `agenda:sync-incremental` (usuários 1 e 2) desde 16/11, em `parceria:sync-gmail` desde 20/11 e em `monitoramento:processos-email` desde 16/11. Foram três quedas em sete semanas, o que reforça a suspeita do modo **Teste** no Google Cloud. Reconectar não resolve de vez: é preciso publicar o app ("Em produção").
 
 **Como reconhecer:** `SELECT job, MIN(ran_at) FROM job_runs WHERE status='erro' AND message LIKE '%invalid_grant%' GROUP BY job`; `court_email_integration.last_check_at` parado.
 

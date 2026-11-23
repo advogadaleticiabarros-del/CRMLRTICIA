@@ -84,10 +84,13 @@ Regra da usuária (07/10/2026): **o backup não pode falhar nenhum dia** — sã
 **Histórico guardado** (`src/services/backupRegras.ts`, regra avô-pai-filho):
 - **MEGA:** todas as cópias dos últimos 3 dias + 1 por dia até 30 dias + 1 por mês até 12 meses (~48 arquivos);
 - **VPS:** todas dos últimos 3 dias + 1 por dia até 14 dias.
+- **Espaço no MEGA (desde 23/11/2026):** antes de cada envio, o backup confere o espaço livre (`planoEspacoMega`). Se a cópia nova não couber deixando o MEGA em no máximo 80%, ele apaga as antigas nesta ordem: as que a rotação já descartaria, as cópias extras de um mesmo dia, as diárias mais antigas e, por último, as mensais. As 3 mais recentes nunca saem. O histórico na nuvem passa a ser "o que couber", e não mais os 12 meses fixos. Se nem assim couber, o envio nem começa e o alerta diz "MEGA sem espaço".
 
 **Prova de restauração:** todo **domingo às 03h30** (era mensal até 07/10/2026) o sistema restaura a cópia mais recente num banco de teste e confere que os dados voltam. Falhou → alerta crítico. Desde 12/10/2026 a restauração lê o dump em fluxo, comando por comando (`restoreFluxo.ts`), sem limite de tamanho total. O limite que resta é de cerca de 32 MB por arquivo dentro do banco (`max_allowed_packet` de 64 MB, e o binário dobra de tamanho em hex).
 
-**Tamanho:** 321 MB por cópia em 12/10/2026 (656 MB de SQL descomprimido), dos quais ~80% são mídias do WhatsApp guardadas dentro do banco (`whatsapp_media`, 252 MB, crescendo ~130 MB/mês). No MEGA (conta de 20 GB), 5,3 GB em 21 cópias em 12/10. Com a retenção completa (~48 cópias) e esse crescimento, **a conta lota entre o fim de novembro e dezembro de 2026**; o aviso diário acusa a partir de 85%. Ver a análise em [Decisões](17-decision-log.md).
+**Tamanho:** 321 MB por cópia em 12/10/2026 (656 MB de SQL descomprimido), dos quais ~80% são mídias do WhatsApp guardadas dentro do banco (`whatsapp_media`, 252 MB, crescendo ~130 MB/mês). No MEGA (conta de 20 GB), 5,3 GB em 21 cópias em 12/10. Com a retenção completa (~48 cópias) e esse crescimento, **a conta lota entre o fim de novembro e dezembro de 2026**; o aviso diário acusa a partir de 85%. **Atualização 23/11/2026:** a cópia chegou a 840 MB (`whatsapp_media` com 662 MB) e o MEGA lotou em 21/11 (102%); o envio travava. Desde então o espaço é aberto automaticamente (acima). Com 840 MB por cópia, cabem cerca de 20 cópias (umas 2–3 semanas de histórico na nuvem). Para voltar a ter meses de histórico: tirar a mídia do WhatsApp do banco ou assinar um plano maior do MEGA.
+
+**Logs do PM2:** `/etc/logrotate.d/pm2-crm-juridico` (desde 23/11/2026) gira `crm-juridico-*.log` diariamente ou ao passar de 50 MB, e guarda 14 comprimidos. Antes não havia rotação, e o `error.log` chegou a 486 MB. Ver a análise em [Decisões](17-decision-log.md).
 
 ## Histórico: Railway
 
@@ -119,6 +122,7 @@ O nginx da VPS (`/etc/nginx/sites-available/crm`) aceita envios de até **25 MB*
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 23/11/2026 | Claude | MEGA lotado: o backup abre espaço antes do envio (`planoEspacoMega`, uso final de até 80%); rotação dos logs do PM2 com logrotate |
 | 13/11/2026 | Claude | nginx: exceção de 500 MB (em fluxo) só para o envio do recibo e do vídeo do fechamento de parceria |
 | 26/10/2026 | Claude | O portão de vulnerabilidades barrou o deploy com 3 avisos novos: body-parser (alto) e nodemailer (moderado), resolvidos com `npm audit fix`; zod 3 → 4.6.7 (alto; sem correção na 3). O zod só valida o `.env` (`src/config/env.ts`), que funciona igual na 4 |
 | 21/10/2026 | Claude | Acervo de leis na VPS (`/home/crmapp/leis`), fora do MySQL e do backup |

@@ -2,9 +2,15 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 19/11/2026. Último commit: Dr. Vítor com raio-x diário da carteira.
+**Última atualização:** 23/11/2026. Último commit: backup abre espaço no MEGA antes de enviar; ficha com data vazia; rotação de logs.
 
 ## Últimas entregas (mais recentes primeiro)
+- **23/11:** **Revisão de erros do sistema, do backup e do servidor** (Jessica: "backup e servidor estão dando alguns erros! Não deixe que isso aconteça").
+  - **Backup:** o MEGA lotou (102%) e, desde 21/11, nenhuma cópia chegava à nuvem. A última lá era de 20/11, 22h; o servidor seguiu com as cópias em dia. A cópia tem 840 MB, com 662 MB de mídia do WhatsApp. Agora o backup abre espaço antes de enviar (`planoEspacoMega`, MEGA em no máximo 80%; as mensais saem por último; as 3 mais recentes nunca saem).
+  - **Ficha automática:** não gravava quando a data de nascimento estava vazia (`NULLIF` em coluna DATE). Corrigido.
+  - **Servidor:** disco em 48%, memória ok, sem processo morto por falta de memória, WhatsApp conectado. O log de erros tinha 486 MB sem rotação; agora há logrotate diário (`/etc/logrotate.d/pm2-crm-juridico`).
+  - **Não resolvido (precisa de pessoa):** Google com `invalid_grant` de novo (Agenda desde 16/11, Gmail da parceria e e-mail dos tribunais desde 16–20/11). Reconectar as três conexões e pôr o app do Google Cloud "Em produção".
+  - Ver `docs/contexto/relatorios/2026-11-23-revisao-erros-backup-servidor.md`.
 - **19/11:** **Dr. Vítor (vigia da carteira) completo e conversando com a equipe** (Jessica: "melhore como o Dr Vitor trabalha e entrega os dados [...] com quem ele deve ter contato [...] escritório multi agêntico [...] interações humanizadas").
   - Rotina nova `carteira:raio-x` às 6h45: confere todo processo e caso ativo em 10 tipos de pendência, com gravidade, o que fazer e o colega que cuida (Tereza, Paula, Lucas, Enzo, Fábio, Clara). Detalhes em `docs/manual/10-monitoramento.md`.
   - O repasse vira conversa no mural (frases variadas); o resumo do dia vai à Dra. Clara; linha no briefing; sino só com grave nova e resumo às segundas; pauta com filtros na ficha do Vítor. Migration 188 (`carteira_raio_x`).
@@ -348,7 +354,7 @@
   3. ~~Pesquisador e Verificador~~ (feitos em 21/10 sobre o acervo de leis). Falta a jurisprudência dos TRTs, do TRF2 e do TJES, que o acervo não tem.
   4. Testador com casos reais anonimizados.
   - Observar as primeiras leituras reais de sentença e ajustar o prompt.
-- **Backup, antes de dezembro (prioridade):** o MEGA de 20 GB lota entre o fim de novembro e dezembro. Cada cópia tem 321 MB e cresce cerca de 130 MB por mês por causa da mídia do WhatsApp no banco. Saídas possíveis:
+- **Backup (prioridade):** o MEGA lotou em 21/11. Desde 23/11 o backup apaga as cópias antigas para caber, mas com 840 MB por cópia a nuvem guarda só umas 2–3 semanas. Para voltar a ter meses de histórico:
   - tirar `whatsapp_media` do banco (arquivos com backup próprio; cada cópia cairia para cerca de 60 MB);
   - ou ela assinar um plano pago do MEGA, que é decisão dela.
 - **Assistente:**
