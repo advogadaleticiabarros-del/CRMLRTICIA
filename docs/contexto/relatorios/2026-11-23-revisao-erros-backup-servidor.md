@@ -26,7 +26,7 @@ Servidor: disco em 48%, 3 GB de memória livre, nenhum processo morto por falta 
 ## Verificado
 - `npm run build` ok; `npm run lint`: 0 erros; `npm test`: 1.653 testes, 1.619 passaram, 0 falharam (os pulados precisam de banco e rodam no CI).
 - Listagem do MEGA (somente leitura): 35 cópias, 21,86 de 21,47 GB, todas de backup.
-- Funcionamento em produção: ver a seção "Depois do deploy" abaixo.
+- **Em produção, depois do deploy (fc4da7c, CI verde):** backup rodado à mão às 08h35 UTC. MEGA ok ("10 cópias antigas apagadas para abrir espaço"), local ok, verificação ok (138 tabelas, 1.598 MB de SQL). O MEGA foi de 21,86 GB (102%) para 15,14 GB (70%), com 24 cópias, mantidas as mensais de 30/09 e 31/10.
 
 ## Decisões
 - O histórico do MEGA vira "o que couber", em vez de 12 meses fixos. A alternativa (parar de enviar) deixaria os dados num lugar só. O servidor mantém 14 dias à parte.

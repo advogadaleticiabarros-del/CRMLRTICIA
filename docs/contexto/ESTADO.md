@@ -6,7 +6,7 @@
 
 ## Últimas entregas (mais recentes primeiro)
 - **23/11:** **Revisão de erros do sistema, do backup e do servidor** (Jessica: "backup e servidor estão dando alguns erros! Não deixe que isso aconteça").
-  - **Backup:** o MEGA lotou (102%) e, desde 21/11, nenhuma cópia chegava à nuvem. A última lá era de 20/11, 22h; o servidor seguiu com as cópias em dia. A cópia tem 840 MB, com 662 MB de mídia do WhatsApp. Agora o backup abre espaço antes de enviar (`planoEspacoMega`, MEGA em no máximo 80%; as mensais saem por último; as 3 mais recentes nunca saem).
+  - **Backup:** o MEGA lotou (102%) e, desde 21/11, nenhuma cópia chegava à nuvem. A última lá era de 20/11, 22h; o servidor seguiu com as cópias em dia. A cópia tem 840 MB, com 662 MB de mídia do WhatsApp. Agora o backup abre espaço antes de enviar (`planoEspacoMega`, MEGA em no máximo 80%; as mensais saem por último; as 3 mais recentes nunca saem). **Conferido em produção:** backup manual às 05h35 enviado; MEGA de 102% para 70%.
   - **Ficha automática:** não gravava quando a data de nascimento estava vazia (`NULLIF` em coluna DATE). Corrigido.
   - **Servidor:** disco em 48%, memória ok, sem processo morto por falta de memória, WhatsApp conectado. O log de erros tinha 486 MB sem rotação; agora há logrotate diário (`/etc/logrotate.d/pm2-crm-juridico`).
   - **Não resolvido (precisa de pessoa):** Google com `invalid_grant` de novo (Agenda desde 16/11, Gmail da parceria e e-mail dos tribunais desde 16–20/11). Reconectar as três conexões e pôr o app do Google Cloud "Em produção".
