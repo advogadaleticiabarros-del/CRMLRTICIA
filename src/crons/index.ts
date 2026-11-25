@@ -56,6 +56,12 @@ export function startCronJobs() {
     }, { silencioso: true });
   });
 
+  // ── Ponte do Obsidian: de hora em hora confere o sinal de vida do programa do
+  // computador do escritório; 24 h sem sinal vira erro do sistema (Dr. Bento avisa).
+  cron.schedule('35 * * * *', () => {
+    runJob('obsidian:ponte-vigia', async () => (await import('../services/obsidianPonteServico')).vigiarPonte(), { silencioso: true });
+  });
+
   // ── Pesquisa de Leis: acervo público (github.com/ctresb/leis) num processo
   // separado. No boot, baixa e indexa se ainda não existe (1ª vez); todo
   // domingo às 5h15, traz o que mudou na semana e reindexa só isso.

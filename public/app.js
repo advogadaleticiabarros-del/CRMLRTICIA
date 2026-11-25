@@ -1984,7 +1984,7 @@ const ROUTES = {
       <div class="card" style="padding:20px;margin-bottom:20px">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px">
           <div><h3 style="color:var(--navy);margin-bottom:2px">${svgIcon('file','ic-title')}Biblioteca de modelos de peça (IA)</h3>
-            <p class="sub" style="margin:0">Reimporte direto do cofre Obsidian quando adicionar ou editar um modelo — sem terminal</p></div>
+            <p class="sub" style="margin:0">Atualiza sozinha pela ponte do Obsidian (computador do escritório). O botão fica para importar à mão, se precisar.</p></div>
           <button class="btn-gold btn-sm" id="pm-importar">Importar do Obsidian…</button>
         </div>
         <div id="pm-resumo" style="margin-top:14px"><div class="spinner"></div></div>
@@ -2402,12 +2402,13 @@ const ROUTES = {
     const loadResumoPecas = async () => {
       const box = $('#pm-resumo'); if (!box) return;
       try {
-        const r = await api('/api/peca-modelos/resumo');
+        const [r, ponte] = await Promise.all([api('/api/peca-modelos/resumo'), api('/api/cerebro/ponte').catch(() => null)]);
         const porArea = (r.por_area || []).map((a) => `${a.area || 'sem área'} (${a.n})`).join(' · ');
         box.innerHTML = `<div class="kpi-grid" style="margin-bottom:6px">
             ${kpi('Modelos na biblioteca', r.total || 0)}${kpi('Última atualização', r.ultima_atualizacao ? fmtDate(r.ultima_atualizacao) : '—')}
           </div>
-          ${porArea ? `<small style="color:var(--text-muted)">${esc(porArea)}</small>` : ''}`;
+          ${porArea ? `<small style="color:var(--text-muted)">${esc(porArea)}</small>` : ''}
+          ${ponte ? `<div id="pm-ponte" style="margin-top:8px;font-size:13px">${textoPonteObsidian(ponte)}</div>` : ''}`;
       } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
     };
     loadResumoPecas();
@@ -9981,6 +9982,15 @@ function readFileAsDataUrl(file) {
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
   });
+}
+
+// Situação da ponte do Obsidian (programa do computador do escritório que mantém
+// o cofre e o CRM em dia sozinho; ver scripts/ponte-obsidian).
+function textoPonteObsidian(p) {
+  if (!p || p.estado === 'nunca') return '⚪ Ponte do Obsidian: ainda não se conectou. Ela roda no computador do escritório.';
+  const quando = p.minutos < 60 ? `há ${p.minutos} min` : p.minutos < 1440 ? `há ${Math.round(p.minutos / 60)} h` : `há ${Math.round(p.minutos / 1440)} dia(s)`;
+  if (p.estado === 'conectada') return `🟢 Ponte do Obsidian conectada (último sinal ${quando})${p.erro ? ` · último ciclo com erro: ${esc(p.erro)}` : ''}.`;
+  return `🔴 Ponte do Obsidian parada: último sinal ${quando}. Confira se o computador do escritório está ligado.`;
 }
 
 // ── Biblioteca de peças — reimportar direto do cofre Obsidian, sem terminal ──

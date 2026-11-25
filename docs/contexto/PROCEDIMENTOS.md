@@ -23,19 +23,19 @@ Os arquivos ficam em `C:\Users\prosy\Downloads`. Leia o PDF com a ferramenta Rea
    - peritos, MPF e outros também entram aqui.
 6. **`documents`:** `type='peticao_inicial'`, `folder='processos'`, `data`=buffer, `mime='application/pdf'`, `status='recebido'`, `created_by=1`.
 7. **Sem prazos, tarefas ou agenda.** Parceria Infinity: `cases.partner_id=1`. Se não souber se é parceria, pergunte.
-8. Regere o Obsidian (item 3) e responda à Dra. com o que foi cadastrado e o que falta (ex.: telefone).
+8. Responda à Dra. com o que foi cadastrado e o que falta (ex.: telefone).
 
-## 3. Regerar notas de clientes no Obsidian
-1. Gere no servidor: `$SCP scripts/exportarClientesObsidian.js root@<vps>:/home/crmapp/app/exp.js && $SSH "cd /home/crmapp/app && chmod 644 exp.js && rm -rf /tmp/obs && sudo -u crmapp node exp.js | tail -1; rm -f exp.js; cd /tmp/obs && tar czf /tmp/obs.tgz Clientes"`
-2. Traga o arquivo: `$SCP root@<vps>:/tmp/obs.tgz <scratch>/obs.tgz && $SSH "rm -rf /tmp/obs /tmp/obs.tgz"`
-3. Substitua as notas no cofre: em `C:\Users\prosy\Documents\CRM LETICIA\CRMLeticia`, rode `find Clientes -mindepth 1 -delete` e depois `tar xzf <scratch>/obs.tgz`. Rode **fora** da pasta `Clientes`; dentro dela, o `rm` falha.
-
-Só são exportados os casos com resultado ou com documento anexado.
+## 3. Notas de clientes no Obsidian (automático desde 25/11/2026)
+A **ponte do Obsidian** (tarefa do Windows "CRM - ponte do Obsidian") regrava `Clientes/` sozinha a cada 10 min: uma nota por cliente com caso encerrado ou com documento guardado, com os anexos. Não há nada a rodar depois de um cadastro.
+- **Conferir:** Configurações → Biblioteca de modelos de peça mostra "Ponte do Obsidian conectada (último sinal há X min)". Log em `%LOCALAPPDATA%\crm-ponte-obsidian\ponte.log` (só contagens).
+- **Parada:** `Get-ScheduledTask 'CRM - ponte do Obsidian'`. Para reinstalar: `powershell -ExecutionPolicy Bypass -File scripts\ponte-obsidian\instalar.ps1` (a chave já está em `%USERPROFILE%\.crm-ponte-obsidian.json`).
+- **Forçar um ciclo agora:** reinicie a tarefa (`Stop-ScheduledTask` e depois `Start-ScheduledTask`).
+- Não edite no cofre `Clientes/`, `Documentação Técnica/`, `Escritório Virtual.md` nem `Mapa do cofre.md`: a ponte reescreve. A ficha do Escritório Virtual se edita em `docs/escritorio-virtual/ficha-escritorio-virtual.md`.
 
 ## 4. Mudança de código (fluxo padrão)
 1. Escreva o teste, veja falhar e depois implemente.
 2. Rode `npm run build` e `npm test` (tudo verde).
-3. Atualize `docs/manual/` e copie para o Obsidian.
+3. Atualize `docs/manual/`. A ponte do Obsidian copia para o cofre depois do deploy (item 3).
 4. Commit seletivo, push e `gh run watch <id>`. Se o comportamento for crítico, confira em produção (item 1, só leitura).
 
 ## 5. Assistente do WhatsApp: diagnosticar "não respondeu / respondeu errado"

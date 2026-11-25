@@ -283,7 +283,9 @@ Além dos templates de preenchimento automático, existe um banco de modelos de 
 
 Os modelos são escritos e organizados no **cofre Obsidian** da Dra. Letícia (pasta "Modelos de Peças" — uma ficha `.md` por modelo, com o texto de verdade num `.docx` vinculado). **A IA nunca lê o Obsidian ao vivo** — ela lê uma cópia guardada no banco de dados, que só é atualizada quando alguém reimporta.
 
-Duas formas de reimportar depois de criar/editar um modelo no Obsidian:
+**Desde 25/11/2026 a reimportação é automática:** a **ponte do Obsidian** (programa no computador do escritório, ver [Visão geral](00-visao-geral.md)) envia cada ficha nova ou alterada (ou cujo `.docx` mudou) cerca de 30 s depois de salvar, pela mesma regra do botão (`importarFichaModelo`, em `src/services/pecaModelosImport.ts`). Ficha apagada no cofre continua na biblioteca, igual ao botão.
+
+Para importar à mão, se precisar:
 - **Pelo CRM (recomendado, sem terminal):** Configurações → card "Biblioteca de modelos de peça (IA)" → **Importar do Obsidian…** — escolhe a pasta "Modelos de Peças" no seletor do navegador, e o próprio CRM lê cada ficha, extrai o texto do `.docx` e recalcula o índice de significado, uma peça de cada vez (com barra de progresso).
 - **Por script (technical, se precisar de algo fora do normal):** `node scripts/import-pecas-obsidian.mjs "<caminho do cofre>" "<mysql-url>"`, rodando de onde o cofre e o banco estejam acessíveis.
 
@@ -444,6 +446,7 @@ API: `DELETE /api/propostas/:id`. Regra em `src/services/excluirProposta.ts` (te
 | 13/11/2026 | Claude | Toda petição inicial abre com "AO DOUTO JUÍZO" (todas as áreas); o cabeçalho trabalhista passa a "AO DOUTO JUÍZO DA ___ VARA DO TRABALHO DE (CIDADE) – (ESTADO)" (`enderecamentoPeca.ts`) |
 | 13/11/2026 | Claude | Contratação por ato: minuta curta só do ato + procuração, sem declaração; liga sozinha com proposta só de "Diligência / atos isolados" ou pela caixinha "Contratação por ato" no contrato |
 | 13/11/2026 | Claude | Contrato por ato refeito com as cláusulas do contrato geral, com o mesmo texto (só objeto e preço mudam; sai a vedação a acordos, ligada ao êxito). As cláusulas comuns ficam num lugar só (`CL_*`) |
+| 25/11/2026 | Claude | Reimportação automática dos modelos pela ponte do Obsidian; a regra de importar uma ficha passou para `pecaModelosImport.ts` (botão e ponte usam a mesma) |
 
 ---
 ◀ [Dativo](05-dativo.md) · [Visão geral](00-visao-geral.md) · Próximo: [Agenda e compromissos](07-agenda.md) ▶

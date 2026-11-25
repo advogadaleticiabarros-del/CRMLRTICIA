@@ -27,7 +27,7 @@
    - mudança de comportamento: bloco em `docs/manual/` + linha no Changelog;
    - bug real de produção: `14-runbook.md`;
    - decisão não óbvia: `17-decision-log.md`.
-   Depois copie os arquivos alterados para o espelho do Obsidian.
+   A ponte do Obsidian copia o manual para o cofre sozinha depois do deploy.
 5. **Segredos e dados pessoais:**
    - Senha do INSS do cliente fica **só no banco**, em `client_credentials`; nunca no git, em log ou em doc.
    - Não coloque CPF, telefone ou endereço reais em testes e docs: use dados fictícios.
@@ -45,7 +45,7 @@
 - **Uma pessoa, uma ficha:** nunca duplique (busque por CPF e por nome); processo novo vai na ficha existente. Parte contrária vai em `case_partes`, nunca vira cliente. Todo lançamento financeiro fica ligado ao caso, com o nº do processo.
 - **Ficha completa:** use tudo o que vier (CPF, endereço com CEP, telefone, e-mail, nascimento, profissão nas `notes`) e sempre o `valor_causa`.
 - **Repasses de processos arquivados** já foram feitos: marque como repassado, sem perguntar.
-- **Depois de cada cadastro**, regere as notas de clientes do Obsidian (ver PROCEDIMENTOS).
+- **Notas de clientes do Obsidian:** a ponte do Obsidian regrava sozinha (desde 25/11/2026; ver PROCEDIMENTOS, item 3).
 
 ## Assistente do WhatsApp (núcleo recente)
 - **Quem comanda:** Letícia (44) 99101-1402 e Jessica, escrevendo para o número do escritório.
@@ -74,7 +74,7 @@
 | Preciso de… | Arquivo |
 |---|---|
 | Onde paramos / pendências com a Dra. | [ESTADO.md](ESTADO.md) |
-| Como cadastrar processo de PDF/print, rodar script na VPS, regerar Obsidian | [PROCEDIMENTOS.md](PROCEDIMENTOS.md) |
+| Como cadastrar processo de PDF/print, rodar script na VPS, ponte do Obsidian | [PROCEDIMENTOS.md](PROCEDIMENTOS.md) |
 | Como um módulo funciona | `docs/manual/NN-*.md` (mapa em `00-visao-geral.md`) |
 | Incidentes e como resolver | `docs/manual/14-runbook.md` |
 | Por que foi feito assim | `docs/manual/17-decision-log.md` |

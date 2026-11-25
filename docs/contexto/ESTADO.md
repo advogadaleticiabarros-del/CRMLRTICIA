@@ -2,9 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 23/11/2026. Último commit: freio no DataJud (erro HTTP 429).
+**Última atualização:** 25/11/2026. Último commit: ponte do Obsidian.
 
 ## Últimas entregas (mais recentes primeiro)
+- **25/11:** **Ponte do Obsidian: cofre e CRM em dia sozinhos** (Jessica: "deixar tudo automático sem depender de comando"). Programa no computador do escritório (tarefa do Windows "CRM - ponte do Obsidian") leva notas ao Cérebro e fichas à biblioteca de modelos, e traz `Clientes/`, o manual, a ficha do Escritório Virtual e o Mapa do cofre. Nada mais de script depois de cadastro nem cópia do manual à mão. Migration 190; situação em Configurações → Biblioteca de modelos; 24 h sem sinal vira erro do sistema. Ficha do Escritório Virtual agora em `docs/escritorio-virtual/ficha-escritorio-virtual.md`. Ver `docs/contexto/relatorios/2026-11-25-ponte-do-obsidian.md`.
 - **23/11 (7):** **Erro "DataJud HTTP 429" ao sincronizar processo** (print do aviso vermelho). Causa: o **DataJud do CNJ está sobrecarregado** (o 429 vem do Elasticsearch deles com a fila cheia, para todo mundo; deste computador também não responde). Do nosso lado piorava: o monitoramento consultava os 136 processos toda hora, cada rodada levava 1h43, se sobrepunha à seguinte e repetia em cima do erro (de 400 a 650 recusas por dia desde 10/11).
   - **Agora:** `freioDataJud.ts` deixa sair uma consulta por vez, com 2s entre elas, e pausa as automáticas por 15 min depois de um 429 ou timeout. O monitoramento faz lotes de 25 processos (os mais antigos primeiro), não sobrepõe rodadas e para no limite. "Sincronizar agora" tem prioridade e mostra uma mensagem clara.
   - **Conferir:** a queda dos 429 em `monitoring_logs` nos próximos dias. Ver `docs/contexto/relatorios/2026-11-23-datajud-429.md`.
@@ -365,7 +366,7 @@
   - acompanhar as primeiras peças reais pelo "Dossiê da peça" (fontes lidas, conferência dos valores);
   - buscar sozinho a taxa média do Bacen da data do contrato (API SGS do Bacen; confirmar o código da série antes);
   - definir com a Dra. o valor padrão do dano moral por tipo de caso (hoje fica [colchete]);
-  - reimportar o cofre (Configurações → Importar do Obsidian) para gravar as teses em `peca_modelos`;
+  - ~~reimportar o cofre~~: a ponte do Obsidian (25/11) faz sozinha;
   - cadastrar a parte contrária nos casos em produção: sem ela, a peça conjunta não é detectada.
 - **Escritório virtual, Fase 1 (em andamento).** Próximos passos:
   1. Secretária com aprovação por resposta no WhatsApp ("recorrer" / "não recorrer" vira tarefa e prazo).

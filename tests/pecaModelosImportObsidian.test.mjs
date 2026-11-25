@@ -75,16 +75,30 @@ test('rota /resumo vem ANTES de /:id (senão "resumo" seria lido como id)', () =
   assert.ok(idxResumo < idxId, "'/resumo' precisa ser registrada antes de '/:id' no Express");
 });
 
-test('import-ficha usa stripDataUrlPrefix (mesmo padrão de documents.ts/acordos.ts), não regex própria', () => {
+// Desde 25/11/2026 a importação de uma ficha mora em services/pecaModelosImport.ts,
+// usada pelo botão (import-ficha) e pela ponte do Obsidian (/api/obsidian-ponte/modelos).
+const importSrc = fs.readFileSync(path.resolve('src/services/pecaModelosImport.ts'), 'utf8');
+
+test('import-ficha delega para importarFichaModelo (mesma regra do botão e da ponte)', () => {
   const fn = routeSrc.match(/router\.post\('\/import-ficha'[\s\S]*?\n\}\);/);
   assert.ok(fn, 'rota /import-ficha não encontrada');
-  assert.match(fn[0], /stripDataUrlPrefix\(docx_base64\)/);
-  assert.doesNotMatch(fn[0], /replace\(\/\^data:/, 'não deve reimplementar a extração de data URL na mão');
+  assert.match(fn[0], /importarFichaModelo\(req\.body/);
 });
 
-test('import-ficha calcula embedding com aiEmbed (mesma função de findPecaModelo)', () => {
-  assert.match(routeSrc, /import \{ aiEmbed \} from '\.\.\/services\/aiAssistant'/);
-  assert.match(routeSrc, /await aiEmbed\(embTexto\)/);
+test('importarFichaModelo usa stripDataUrlPrefix (mesmo padrão de documents.ts/acordos.ts), não regex própria', () => {
+  assert.match(importSrc, /stripDataUrlPrefix\(f\.docx_base64\)/);
+  assert.doesNotMatch(importSrc, /replace\(\/\^data:/, 'não deve reimplementar a extração de data URL na mão');
+});
+
+test('importarFichaModelo calcula embedding com aiEmbed (mesma função de findPecaModelo)', () => {
+  assert.match(importSrc, /import \{ aiEmbed \} from '\.\/aiAssistant'/);
+  assert.match(importSrc, /await aiEmbed\(/);
+});
+
+test('SQL de pecaModelosImport.ts não referencia tabela/coluna inexistente', () => {
+  const { tabelasInexistentes, colunasInexistentes } = auditarArquivos([path.resolve('src/services/pecaModelosImport.ts'), path.resolve('src/services/obsidianPonteServico.ts')]);
+  assert.deepEqual(tabelasInexistentes, []);
+  assert.deepEqual(colunasInexistentes, []);
 });
 
 test('Configurações expõe o botão de importar e o seletor de pasta', () => {

@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
  *   POST /api/cerebro/perguntar  { pergunta, cliente?, processo?, area? }
  *   GET  /api/cerebro/organizacao                                  → o que arrumar no cofre
  *   GET  /api/cerebro/resumo
+ *   GET  /api/cerebro/ponte                                       → situação da ponte do Obsidian
  */
 const router = Router();
 const svc = () => import('../services/cerebroServico');
@@ -41,6 +42,10 @@ router.get('/organizacao', async (_req: Request, res: Response) => {
 
 router.get('/resumo', async (_req: Request, res: Response) => {
   try { res.json(await (await svc()).resumoCerebro()); } catch (e: any) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/ponte', async (_req: Request, res: Response) => {
+  try { res.json(await (await import('../services/obsidianPonteServico')).situacao()); } catch (e: any) { res.status(500).json({ error: e.message }); }
 });
 
 export default router;

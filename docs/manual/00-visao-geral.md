@@ -110,8 +110,14 @@ Clicar no cartão abre o histórico do agente. Os números vêm de `metricasDosA
 
 **Cérebro** (desde 14/10/2026): a biblioteca do escritório. Fica numa mesa dentro da biblioteca, com um 🧠 em cima. Clicar nele abre três abas:
 - **Perguntar:** responde com base nas notas do Obsidian, citando a nota usada; se não achar, diz "não encontrei".
-- **Atualizar do Obsidian:** você escolhe a pasta do cofre e ele lê as notas `.md` (só o que mudou; nota apagada no cofre sai da biblioteca).
+- **Atualizar do Obsidian:** você escolhe a pasta do cofre e ele lê as notas `.md` (só o que mudou; nota apagada no cofre sai da biblioteca). Desde 25/11/2026 isso acontece sozinho pela **ponte do Obsidian** (ver abaixo); a aba fica para atualizar à mão.
 - **Organizar o cofre:** links quebrados, títulos repetidos, notas soltas, sem etiqueta ou vazias, e o "Mapa do cofre.md" para baixar e colocar no Obsidian.
+
+**Ponte do Obsidian** (desde 25/11/2026): um programa no computador do escritório (tarefa do Windows "CRM - ponte do Obsidian", `scripts/ponte-obsidian/ponte.mjs`) mantém o cofre e o CRM em dia sem botão nem comando: ao ligar, 30 s depois de qualquer mudança no cofre e a cada 10 min.
+- **cofre → CRM:** toda nota `.md` vai para o Cérebro; toda ficha em `.../Fichas/` vai para a biblioteca de modelos de peça (com o texto do `.docx`);
+- **CRM → cofre:** `Clientes/` (uma nota por cliente, com todos os casos e os anexos), `Documentação Técnica/` (o manual publicado no servidor), `Escritório Virtual.md` (de `docs/escritorio-virtual/ficha-escritorio-virtual.md`) e `Mapa do cofre.md`.
+
+Cada pasta tem um único dono: o CRM só escreve nessas pastas e arquivos; o resto do cofre é da Dra. A situação aparece em Configurações → Biblioteca de modelos de peça; 24 h sem sinal vira erro do sistema (rotina `obsidian:ponte-vigia`). Rotas em `/api/obsidian-ponte` (chave `OBSIDIAN_PONTE_TOKEN`); regras em `obsidianPonte.ts`.
 
 Ele também repassa as teses da casa ao **Enzo** antes de cada minuta. A rotina `cerebro:indexar` (a cada 10 min) calcula o sentido de cada trecho para a busca. Código em `cerebro.ts` (regras), `cerebroServico.ts` e `routes/cerebro.ts`; tabelas `cerebro_notas` e `cerebro_trechos` (migration 157).
 
@@ -280,6 +286,7 @@ Pedido da Dra. Letícia: revisar como otimizar listas com muitos botões. **Inve
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 25/11/2026 | Claude | Ponte do Obsidian: cofre e CRM em dia sozinhos (Cérebro, modelos de peça, Clientes/, manual, ficha do Escritório Virtual, Mapa do cofre) |
 | 19/11/2026 | Claude | Dr. Vítor com raio-x diário da carteira e repasse aos colegas, que vira conversa no mural |
 | 13/11/2026 | Claude | Escritório virtual: cada setor numa sala separada (divisórias, porta e corredores) e a CEO negra de cabelo black |
 | 13/11/2026 | Claude | Escritório virtual: setores com área própria na sala, a CEO (Dra. Letícia) com a Mesa da Chefe, temas festivos automáticos e conserto das mesas que sumiam |

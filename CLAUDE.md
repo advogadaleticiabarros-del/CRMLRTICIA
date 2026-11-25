@@ -140,6 +140,8 @@ Isso não é uma skill a mais pra ativar — é parte de terminar a tarefa, igua
 
 A pasta `docs/manual/` **continua sendo a fonte oficial** (git, deploy, regra acima) — mas existe uma cópia de leitura no cofre Obsidian da Dra. Letícia, em `C:\Users\prosy\Documents\CRM LETICIA\CRMLeticia\Documentação Técnica\`, com os mesmos 18 arquivos (mesmo nome, mesmo conteúdo). É só pra ela navegar com mais conforto — nunca edite esse espelho como se fosse a fonte, e nunca leia dele para tomar decisão técnica (leia sempre `docs/manual/` no repositório).
 
+**Desde 25/11/2026 a cópia é automática:** a ponte do Obsidian (tarefa do Windows no computador do escritório) copia o manual publicado no servidor para o espelho depois de cada deploy. Só copie à mão se a ponte estiver parada (Configurações → Biblioteca de modelos de peça mostra a situação).
+
 Sempre que um arquivo de `docs/manual/` for criado ou alterado nesta sessão (regra acima), **copie a mesma alteração pro arquivo correspondente no espelho** (mesmo nome de arquivo) antes de considerar a tarefa concluída — é o mesmo conteúdo, só em dois lugares. Se o caminho do Obsidian não existir nesta máquina/sessão (ambiente diferente do computador da Dra. Letícia), pule esse passo silenciosamente — a fonte em `docs/manual/` já está correta e é o que importa.
 
 Antes de começar a mexer num módulo a pedido da usuária, ela pode esperar que você já tenha lido o contexto — não é preciso pedir pra ela reexplicar o que o módulo faz; leia o arquivo correspondente em `docs/manual/` (ou o espelho, se for mais conveniente na sessão) primeiro.

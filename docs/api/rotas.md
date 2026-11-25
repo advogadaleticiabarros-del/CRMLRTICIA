@@ -4,7 +4,7 @@
 > Acesso: **público** (sem login), **logado** (qualquer usuário), **equipe** (admin, advogada, staff), **admin**.
 > Dentro de cada rota pode haver checagem extra (ex.: dono do registro, papel parceiro).
 
-**536 rotas em 85 grupos.**
+**544 rotas em 86 grupos.**
 
 ## `/api/access-logs` · admin · `src/routes/accessLogs.ts`
 
@@ -241,6 +241,7 @@
 | POST | `/api/cerebro/perguntar` |
 | GET | `/api/cerebro/organizacao` |
 | GET | `/api/cerebro/resumo` |
+| GET | `/api/cerebro/ponte` |
 
 ## `/api/clients` · equipe · `src/routes/clients.ts`
 
@@ -678,6 +679,18 @@
 | GET | `/api/notifications/whatsapp` |
 | PUT | `/api/notifications/whatsapp` |
 | POST | `/api/notifications/telegram/test` |
+
+## `/api/obsidian-ponte` · público · `src/routes/obsidianPonte.ts`
+
+| Método | Caminho |
+|---|---|
+| GET | `/api/obsidian-ponte/clientes` |
+| GET | `/api/obsidian-ponte/anexos/:id` |
+| GET | `/api/obsidian-ponte/espelho` |
+| POST | `/api/obsidian-ponte/notas` |
+| POST | `/api/obsidian-ponte/notas/concluir` |
+| POST | `/api/obsidian-ponte/modelos` |
+| POST | `/api/obsidian-ponte/sinal` |
 
 ## `/api/office-settings` · admin · `src/routes/office-settings.ts`
 

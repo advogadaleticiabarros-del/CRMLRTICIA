@@ -16,6 +16,16 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 
 ## Registro
 
+### 25/11/2026 — Cofre e CRM em dia por um programa no computador do escritório, não por sincronização de arquivos na nuvem
+**Decisão:** a "ponte do Obsidian" (`scripts/ponte-obsidian/ponte.mjs`, tarefa do Windows) vigia o cofre e conversa com o CRM por HTTPS com uma chave própria (`OBSIDIAN_PONTE_TOKEN`). Substitui a decisão de 23/09/2026 (escolher a pasta no navegador a cada vez), que continua como reserva nos botões.
+**Por quê:**
+- Pedido da Jessica (25/11/2026): "deixar tudo automático sem depender de comando". O espelho feito à mão já estava defasado (2 arquivos do manual diferentes no cofre).
+- Não cria serviço novo na VPS (o motivo para descartar a sincronização em 23/09): quem chama é o computador, como na ponte do TJES. As gravações já existiam (`importarNotas`, `removerAusentes`, `importarFichaModelo`).
+- Cada pasta tem um único dono (CRM: `Clientes/`, `Documentação Técnica/`, `Escritório Virtual.md`, `Mapa do cofre.md`; Dra.: o resto), então não há conflito de edição. O programa recusa escrever fora dessas pastas e fora do cofre.
+- O manual vem do servidor (o que está publicado), não da pasta de código deste computador, que pode estar em outro branch ou com mudança sem commit.
+- Travas: não apaga notas do Cérebro se o cofre "encolher" mais de 50% de uma vez; não apaga `Clientes/` se o CRM devolver lista vazia.
+**Alternativas descartadas:** Syncthing, rclone ou Drive nos dois lados (serviço a mais na VPS e cópia do cofre inteiro no servidor); plugin do Obsidian (só roda com o Obsidian aberto); manter os botões (era o problema).
+
 ### 18/11/2026 — Temperatura do processo por regra sobre o nome das decisões; partes do tribunal em tabela própria
 **Decisão:** a temperatura (quente/morno/frio) sai de regra fixa sobre o nome oficial das movimentações (TPU), em `classificacaoProcesso.ts`, não da IA. As partes vindas do tribunal ficam em `process_parties`; só as contrárias que faltam são copiadas para `case_partes`. O DataJud é consultado no máximo 30 vezes por rodada.
 **Por quê:**
@@ -441,6 +451,7 @@ Nunca editar uma entrada antiga pra "consertar" — se uma decisão mudou, adici
 | 19/11/2026 | Claude | TV **sem login** ("não quero precisar fazer o login"), revendo a decisão acima de usar só o login. A Jessica escolheu entre duas opções: **código na TV** (escolhido) ou link secreto. O código é como em TV de streaming: a TV mostra 6 números/QR, alguém logado libera pelo celular e a TV guarda uma chave só dela (no banco, só o hash). Descartado o link secreto, porque quem copiar o link vê o painel, e o link curto público (is.gd/tvleticia) é fácil de adivinhar. A chave da TV só faz GET em `/api/tv` (as leituras do escritório e do Hoje são repassadas ali, nunca as ações), herda o acesso de quem liberou (desativou = TV para) e pode ser desligada em `/tv/liberar`. O pedido de código é público e limitado a 30 por 10 minutos. |
 | 19/11/2026 | Claude | Dr. Vítor: **um raio-x diário consolidado** em vez de mais avisos soltos. O sino já recebia um aviso por processo (fase divergente a cada 14 dias, parado por marco), e a Dra. via "divergentes: 54" sem saber quais. Agora cada pendência tem gravidade, o que fazer e um colega responsável; o sino só recebe o que é grave e novo (ou o resumo de segunda) e o resto fica na ficha do Vítor e no briefing. O repasse a colegas usa o mecanismo que já existia (ação registrada → conversa no mural), sem criar tarefa nem prazo sozinho (regra: monitoramento não cria trabalho sem a Dra.). As rotinas antigas ficaram, para não mexer em avisos que a Dra. já conhece. |
 | 23/11/2026 | Claude | DataJud com freio único e pausa, em vez de só repetir: o 429 é sobrecarga do Elasticsearch do CNJ (fila cheia), repetir só piorava e o monitoramento de hora em hora consultava a carteira inteira (rodadas de 1h43 sobrepostas). Lote de 25 por rodada, dos mais antigos, cobre os 136 processos em ~6h, o que basta porque intimações e publicações chegam antes pelo MNI e pelo DJEN; o clique manual tem prioridade porque é a equipe pedindo agora. Busca por OAB no DataJud ficou fora do freio (a descoberta automática usa o DJEN) |
+| 25/11/2026 | Claude | Ponte do Obsidian (programa no computador, chave própria, um dono por pasta) no lugar do seletor de pasta |
 
 ---
 ◀ [Ferramentas e acessos](16-ferramentas-acessos.md) · [Visão geral](00-visao-geral.md) · Próximo: [Pesquisa de Leis](18-pesquisa-de-leis.md) ▶

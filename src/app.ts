@@ -95,6 +95,7 @@ import whatsappInstanceRoutes, { mediaHandler } from './routes/whatsapp-instance
 import courtEmailMonitorRoutes from './routes/courtEmailMonitor';
 import mniRoutes from './routes/mni';
 import mniPonteRoutes from './routes/mniPonte';
+import obsidianPonteRoutes from './routes/obsidianPonte';
 import andamentosRoutes from './routes/andamentos';
 import { googleOAuthCallback } from './routes/google-callback';
 
@@ -146,6 +147,8 @@ export function createApp() {
   // Assinatura eletrônica — PÚBLICO (signatário acessa por link, sem login)
   // Ponte do escritório → TJES — chave própria (MNI_PONTE_TOKEN), sem login de usuário
   app.use('/api/mni-ponte', mniPonteRoutes);
+  // Ponte do Obsidian (cofre ↔ CRM) — chave própria (OBSIDIAN_PONTE_TOKEN), sem login de usuário
+  app.use('/api/obsidian-ponte', obsidianPonteRoutes);
 
   app.use('/api/public/tv', tvPublicoRoutes);   // TV pede o código para ser liberada
   app.use('/api/public', signPublicRoutes);
