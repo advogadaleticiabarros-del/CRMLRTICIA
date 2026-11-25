@@ -22,7 +22,7 @@ A Jessica pediu um fluxograma de como o Obsidian funciona hoje junto do CRM; a p
 - Deploy do `760b6d4`: CI e publicação com sucesso. Rota sem chave ou com chave errada: 401 (chave carregada no servidor).
 - Tarefa instalada. A 1ª rodada (09:36) caiu com "fetch failed": a internet do escritório oscilou (a ponte do TJES perdeu o CRM às 09:24, 09:34 e 09:40). Corrigido na 1.0.1: cada pedido tenta de novo até 3 vezes, e a rodada que falha repete em 1 min; erro solto encerra com código 1 para a tarefa reiniciar.
 - Carga completa às 09:44: 46 notas de clientes, 44 anexos, 11 arquivos do espelho, 284 notas no Cérebro, 177 modelos, 0 falhas. Rodada seguinte (1.0.1): nada a mudar. No banco: 177 modelos e 284 notas atualizados na hora; sinal da ponte registrado (versão 1.0.1, sem erro).
-- Comparado com a cópia de antes (`Documents\CRM LETICIAackup-cofre-antes-ponte-20261125.tgz`): nenhuma nota de cliente saiu; entraram 3 que faltavam (Dinalva Mees Braga, Joel Xavier de Siqueira, Valmirio Pinto). Os 3 itens apagados eram anexos com nome antigo, baixados de novo com o nome corrigido.
+- Comparado com a cópia de antes (`Documents\CRM LETICIA\backup-cofre-antes-ponte-20261125.tgz`): nenhuma nota de cliente saiu; entraram 3 que faltavam (Dinalva Mees Braga, Joel Xavier de Siqueira, Valmirio Pinto). Os 3 itens apagados eram anexos com nome antigo, baixados de novo com o nome corrigido.
 - **Não verificado:** a linha "Ponte do Obsidian conectada" na tela de Configurações (só a rota que a alimenta, `GET /api/cerebro/ponte`); o aviso de 24 h sem sinal (só pelo teste da regra).
 
 ## Decisões e porquês
