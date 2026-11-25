@@ -30,7 +30,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
-export const VERSAO = '1.0.0';
+export const VERSAO = '1.0.1';
 
 // ── Regras (testadas em tests/obsidianPonte.test.mjs) ───────────────────────
 
@@ -150,15 +150,25 @@ function gravarJson(arq, v) { fs.mkdirSync(path.dirname(arq), { recursive: true 
 
 function criarApi(cfg) {
   const base = String(cfg.servidor).replace(/\/+$/, '') + '/api/obsidian-ponte';
+  // A internet do escritório oscila: falha de rede (ou 502/503/504 do servidor
+  // reiniciando) tenta de novo até 3 vezes, com 5 s, 15 s e 45 s de espera.
   return async function api(rota, { metodo = 'GET', corpo, binario = false } = {}) {
-    const r = await fetch(base + rota, {
-      method: metodo,
-      headers: { Authorization: `Bearer ${cfg.token}`, ...(corpo ? { 'Content-Type': 'application/json' } : {}) },
-      body: corpo ? JSON.stringify(corpo) : undefined,
-      signal: AbortSignal.timeout(120_000),
-    });
-    if (!r.ok) throw new Error(`CRM respondeu ${r.status} em ${rota}`);
-    return binario ? Buffer.from(await r.arrayBuffer()) : r.json();
+    for (let tentativa = 0; ; tentativa++) {
+      try {
+        const r = await fetch(base + rota, {
+          method: metodo,
+          headers: { Authorization: `Bearer ${cfg.token}`, ...(corpo ? { 'Content-Type': 'application/json' } : {}) },
+          body: corpo ? JSON.stringify(corpo) : undefined,
+          signal: AbortSignal.timeout(120_000),
+        });
+        if ([502, 503, 504].includes(r.status) && tentativa < 3) throw Object.assign(new Error(`CRM respondeu ${r.status}`), { repetir: true });
+        if (!r.ok) throw Object.assign(new Error(`CRM respondeu ${r.status} em ${rota}`), { repetir: false });
+        return binario ? Buffer.from(await r.arrayBuffer()) : await r.json();
+      } catch (e) {
+        if (e.repetir === false || tentativa >= 3) throw e;
+        await new Promise((ok) => setTimeout(ok, 5000 * 3 ** tentativa));
+      }
+    }
   };
 }
 
@@ -301,21 +311,29 @@ async function principal() {
       log(`${motivo}: ${JSON.stringify(ultimo)}`);
     } catch (e) {
       ultimoErro = String(e.message || e).slice(0, 300);
-      log(`${motivo}: falhou (${ultimoErro}); tenta de novo no próximo ciclo`);
+      log(`${motivo}: falhou (${ultimoErro}); tenta de novo em 1 min`);
+      deNovo = false;
+      setTimeout(() => ciclo('nova tentativa'), 60_000);
     }
     try { await api('/sinal', { metodo: 'POST', corpo: { versao: VERSAO, resumo: ultimo, erro: ultimoErro } }); } catch { /* sem conexão */ }
     rodando = false;
     if (deNovo) { deNovo = false; setTimeout(() => ciclo('mudança no cofre'), 1000); }
   }
 
+  // Erro solto não pode matar a ponte em silêncio: registra e sai com código 1,
+  // e a tarefa do Windows reinicia em 1 min.
+  process.on('uncaughtException', (e) => { log(`erro inesperado: ${e?.message || e}`); process.exit(1); });
+  process.on('unhandledRejection', (e) => { log(`erro inesperado: ${e?.message || e}`); process.exit(1); });
+
   let espera = null;
   try {
-    fs.watch(cfg.cofre, { recursive: true }, (_ev, nome) => {
+    const vigia = fs.watch(cfg.cofre, { recursive: true }, (_ev, nome) => {
       const rel = String(nome || '').replace(/\\/g, '/');
       if (!rel || rel.split('/').some((p) => p.startsWith('.')) || rel.endsWith('.ponte-tmp')) return;
       clearTimeout(espera);
       espera = setTimeout(() => ciclo('mudança no cofre'), 30_000);
     });
+    vigia.on('error', (e) => log(`vigia do cofre parou (${e.message}); sigo só com o ciclo de 10 min`));
   } catch (e) { log(`não consegui vigiar o cofre (${e.message}); sigo só com o ciclo de 10 min`); }
 
   await ciclo('início');
