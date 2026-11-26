@@ -31,7 +31,11 @@ Jessica: verificar no TJES se alguma ação em produção já tinha sido protoco
 ## Pendente
 - Conferir `valor_causa` depois das 15h10.
 - #111 tem dois réus e um deles também está no #115: a Dra. conferir.
-- #45 (parceria, protocolado em 23/09) sem entrada lançada.
+- 9 clientes do acervo antigo da parceria sem entrada no CRM: a Jessica dizer se algum ainda deve.
+- Qualquer caminho que marque Protocolado sem o botão (edição/cadastro direto) pula a entrada da parceria. Avaliar levar a regra para esses caminhos.
 
 ## Próxima sessão
 `SELECT id, valor_causa FROM cases WHERE id IN (110,111,112,113,114,115,131,134,135)`.
+
+## Adendo: entradas que faltavam (mesmo dia)
+Jessica: "coloque no financeiro então". Os casos #45 e #55 (parceria) estavam como protocolados desde 23/09 sem passar pelo botão Protocolar: sem nota de etapa, sem linha do tempo, data à meia-noite. Por isso a entrada nunca foi lançada. Lançado por `ajustarEntradaParceria`: R$ 100 a receber em cada (lançamentos 110 e 111, vencimento 03/12), com registro na linha do tempo. Os 9 clientes do acervo antigo não foram mexidos (aguardam confirmação).
