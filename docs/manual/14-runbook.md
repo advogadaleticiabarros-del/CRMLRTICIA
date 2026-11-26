@@ -1040,6 +1040,13 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 - **Correção:** freio único em `src/services/freioDataJud.ts` (uma consulta por vez, 2s entre elas; depois de 429 ou timeout, as automáticas param 15 min; 429 não é repetido); monitoramento em lotes de 25 (os sincronizados há mais tempo), sem rodada por cima de rodada e parando no primeiro limite; o botão manual tem prioridade e mostra mensagem em português com o horário para tentar de novo.
 - **Como reconhecer de novo:** muitos `erro` com "sobrecarregado e recusando" ou "429" em `monitoring_logs` por hora; ou `monitoramento:processos` com `limitado: true` em `job_runs`. Para saber se é o CNJ: uma consulta com `curl` devolvendo `es_rejected_execution_exception` = sobrecarga do lado deles; não há o que corrigir no CRM além de esperar (o freio já faz isso). Se for constante mesmo com o CNJ normal, reduza o lote (`MONITOR_LOTE`) ou aumente o intervalo (`DATAJUD_INTERVALO_MS`) no `.env` da VPS. Rodada pulada com `pulado` = a anterior ainda estava em andamento (normal se uma rodada demorar).
 
+## Incidente: processo do TJES chegava sem valor da causa (26/11/2026)
+
+- **Sintoma:** processos lidos pela ligação com o TJES (MNI) tinham as partes completas, mas `legal_processes.valor_causa` ficava vazio em todos, e o valor também não passava para o caso.
+- **Causa raiz:** no padrão MNI 2.2, o valor da causa vem como **elemento** `<valorCausa>` dentro de `dadosBasicos`. O leitor (`lerProcesso`, em `src/services/mni/cliente.ts`) só procurava um **atributo** `valorCausa="..."`. O teste usava um XML de exemplo no formato errado e por isso passava.
+- **Correção:** o leitor aceita os dois formatos e ignora valor zero. Teste novo em `tests/mniPartes.test.mjs`. Na rodada seguinte, `guardarDadosDoProcesso` grava o valor no processo e no caso ligado, se o caso estiver sem valor.
+- **Como reconhecer de novo:** `SELECT COUNT(*) FROM legal_processes WHERE source='mni' AND valor_causa IS NULL AND partes_json IS NOT NULL` alto depois de uma rodada do MNI.
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -1056,6 +1063,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 26/11/2026 | Claude | Incidente: valor da causa do TJES (MNI) lido como atributo, vinha sempre vazio |
 | 23/11/2026 | Claude | Incidente DataJud HTTP 429 (monitoramento sobreposto esgotando o limite do CNJ) |
 | 18/11/2026 | Claude | +1 incidente: TJES recusava o login com HTTP 403 (bloqueio do IP da VPS pelo CloudFront); consulta passa pelo computador do escritório |
 | 31/10/2026 | Claude | Demonstrativo do Itaú ainda com R$ 0,00: o Drive era lido com resumo, sem as colunas do HISCON; agora tudo é transcrito na íntegra e os resumos antigos de extrato são relidos. Banco com código na frente ("341 - BANCO ITAU SA") volta a bater com o réu. Extratos não vão mais cortados para a leitura. Descontos do histórico de créditos lidos em código (hiscre.ts) |

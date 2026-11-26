@@ -277,13 +277,17 @@ export function lerProcesso(xml: string): ProcessoMni {
       complementos,
     };
   });
-  const valor = Number(dba.valorCausa);
+  // MNI 2.2: <valorCausa> é elemento filho de dadosBasicos (o atributo fica
+  // por compatibilidade). Lido como atributo apenas, vinha sempre vazio.
+  const vcElemento = db ? blocos(db.conteudo, 'valorCausa')[0] : undefined;
+  const vcTexto = (dba.valorCausa || (vcElemento ? vcElemento.conteudo.replace(/<[^>]+>/g, '') : '')).trim();
+  const valor = Number(vcTexto);
   return {
     numero: (dba.numero || '').replace(/\D/g, '') || null,
     orgaoJulgador: orgao ? (atributos(orgao.abertura).nomeOrgao || null) : null,
     movimentos,
     partes: db ? lerPartes(db.conteudo) : [],
-    valorCausa: dba.valorCausa && Number.isFinite(valor) ? valor : null,
+    valorCausa: vcTexto && Number.isFinite(valor) && valor > 0 ? valor : null,
   };
 }
 

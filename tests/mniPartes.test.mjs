@@ -45,6 +45,17 @@ test('lerProcesso: partes com polo, CPF, nascimento e endereço (sem pegar o do 
   assert.equal(p.valorCausa, 12345.67);
 });
 
+// No padrão oficial do MNI 2.2 (tipoCabecalhoProcesso) o valor da causa é um
+// ELEMENTO filho de dadosBasicos, não atributo. Era assim que o TJES mandava e
+// o CRM lia vazio (26/11/2026: 8 processos com partes, todos sem valor).
+test('lerProcesso: valor da causa como elemento <valorCausa> (padrão MNI 2.2)', () => {
+  const xml = XML.replace(' valorCausa="12345.67"', '')
+    .replace('<orgaoJulgador', '<ns3:valorCausa xmlns:ns3="x">22618.3</ns3:valorCausa>\n  <orgaoJulgador');
+  assert.equal(lerProcesso(xml).valorCausa, 22618.3);
+  const semValor = XML.replace(' valorCausa="12345.67"', '');
+  assert.equal(lerProcesso(semValor).valorCausa, null);
+});
+
 const partes = lerProcesso(XML).partes;
 
 test('completar ficha: só campo vazio e só quando o nome bate com uma parte', () => {
