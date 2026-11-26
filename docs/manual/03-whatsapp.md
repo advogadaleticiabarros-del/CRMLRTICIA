@@ -47,9 +47,10 @@ Botão **Organizar sem cadastro** no topo da Central de Atendimento. Lista os n�
 
 ## Enviar proposta pela conversa e "analisando proposta" (desde 01/10/2026)
 
-- **Enviar proposta** (ficha da conversa): busca a proposta mais recente deste contato (pelo telefone da proposta ou do lead; ignora recusadas/expiradas), mostra título, valor, status e se o cliente já abriu o link, e traz uma mensagem pronta com o link público — editável, mas o link precisa ficar. Ao enviar: a proposta vira *Enviada* (começa o follow-up 48h/5d/7d) e o lead vai para *Proposta Enviada* se ainda estava antes disso.
+- **Enviar proposta** (ficha da conversa): busca a proposta mais recente deste contato (pelo telefone da proposta, do lead ou da ficha do cliente; ignora recusadas/expiradas), mostra título, valor, status e se o cliente já abriu o link, e traz uma mensagem pronta com o link público — editável, mas o link precisa ficar. Ao enviar: a proposta vira *Enviada* (começa o follow-up 48h/5d/7d) e o lead vai para *Proposta Enviada* se ainda estava antes disso.
 - **Bolinha verde piscando**: aparece no card do **quadro (Kanban)** — "Analisando proposta · abriu o link" ou "Proposta enviada · ainda não abriu" — e ao lado do nome na lista de conversas e como selo "Analisando proposta" na ficha enquanto a proposta estiver *Enviada* ou *Em negociação*. O selo diz quando o cliente abriu o link pela última vez, ou "ainda não abriu o link". Sai sozinha quando a proposta é aceita, recusada ou expira.
 - **Monitoramento do link (desde 01/10/2026):** cada abertura do link vira uma visita (`proposta_visitas`). Enquanto a página está aberta e visível, ela manda um sinal a cada 15s com o tempo e até onde a pessoa rolou; ao sair/trocar de aba manda o último. O servidor nunca credita mais tempo que o realmente decorrido desde o sinal anterior. Não guarda IP nem localização — só tempo, % lido e tipo de aparelho (celular/tablet/computador).
+- **Quem já é cliente (desde 26/11/2026):** o botão *Enviar proposta* e o selo "analisando proposta" também funcionam (antes ficavam desligados para cliente). Em **Vínculos no CRM**, além dos processos, aparecem as propostas ligadas à ficha: "Proposta nº N — título · status · valor" (últimas 5, de qualquer status).
 - Na ficha, abaixo do selo verde: "N aberturas · X lendo · leu até o fim / leu Y%" — clique para ver tempo total, maior leitura, primeira/última abertura e a lista das últimas 10 visitas. O mesmo resumo aparece na janela *Enviar proposta*.
 - **Aviso no sino** a cada abertura: "👀 Fulana abriu a proposta" / "reabriu a proposta (3ª vez)".
 - "Ver a proposta como o cliente vê" abre com `&preview=1` — a sua visualização não conta como visita.
@@ -316,6 +317,7 @@ Código: regras em `negociador.ts`, banco e envio em `negociadorServico.ts`. A c
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 26/11/2026 | Claude | Conversa de quem já é cliente: Vínculos no CRM mostra as propostas (nº e status); Enviar proposta e selo de leitura liberados; proposta achada também pela ficha do cliente |
 | 23/11/2026 | Claude | Mídia com legenda que falha ao baixar guarda a marca "falhou ao baixar" junto da legenda e é recuperada pela varredura (antes ficava perdida); na recuperação, a legenda volta |
 | 21/10/2026 | Claude | Assistente responde consulta de lei ("art 482 clt") com o texto oficial, sem IA |
 | 20/10/2026 | Claude | Auto-envios ao contato (acompanhamento, expiração e recusa de proposta, newsletter, aceite com PIX, e-book) passam por "Mensagens para aprovar", com botões e PIX preservados |

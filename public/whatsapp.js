@@ -877,15 +877,19 @@ Object.assign(ROUTES, {
           <button type="button" class="btn-sm" id="wa-ctx-notas-salvar" style="margin-top:6px">Salvar nota</button>`);
 
         // ── Vínculos no CRM — todos os processos do cliente (o card
-        // "Processo" acima só destaca o mais recente).
-        html += bloco('Vínculos no CRM', (cx.cases || []).length ? `
+        // "Processo" acima só destaca o mais recente) e as propostas ligadas
+        // à ficha, com nº e status (proposta nova para quem já é cliente).
+        const ROT_PROP = { rascunho: 'Rascunho', enviada: 'Enviada', em_negociacao: 'Em negociação', aceita: 'Aceita', recusada: 'Recusada', expirada: 'Expirada' };
+        const vincCasos = (cx.cases || []).map((k) => `<div style="font-size:12.5px;color:var(--navy-deep)">${svgIcon('briefcase', 'ic-xs')} ${esc(k.title || 'Processo')}${k.case_number ? ' · nº ' + esc(k.case_number) : ''}</div>`);
+        const vincProps = (cx.propostas || []).map((pp) => `<div style="font-size:12.5px;color:var(--navy-deep)">${svgIcon('file', 'ic-xs')} Proposta nº ${pp.id}${pp.title ? ' — ' + esc(pp.title) : ''} · <strong>${esc(ROT_PROP[pp.status] || pp.status || '—')}</strong>${Number(pp.valor) ? ' · ' + money(pp.valor) : ''}</div>`);
+        html += bloco('Vínculos no CRM', vincCasos.length || vincProps.length ? `
           <div style="display:flex;flex-direction:column;gap:5px">
-            ${cx.cases.map((k) => `<div style="font-size:12.5px;color:var(--navy-deep)">${svgIcon('briefcase', 'ic-xs')} ${esc(k.title || 'Processo')}${k.case_number ? ' · nº ' + esc(k.case_number) : ''}</div>`).join('')}
+            ${vincCasos.join('')}${vincProps.join('')}
           </div>` : '<small style="color:var(--text-muted)">Nenhum processo vinculado ainda</small>');
 
         html += `<div style="padding:12px 14px;display:flex;flex-direction:column;gap:6px">
           <button type="button" class="btn-gold btn-sm" id="wa-ctx-gerar-proposta" ${cx.client ? 'disabled title="Já é cliente — gere a proposta pela ficha do cliente"' : (cx.lead ? '' : 'title="Cadastra o lead com os dados que o contato mandou e abre a proposta"')}>${svgIcon('file', 'ic-xs')}Gerar proposta</button>
-          <button type="button" class="btn-gold btn-sm" id="wa-ctx-enviar-proposta" ${cx.client ? 'disabled title="Já é cliente"' : ''}>${svgIcon('send', 'ic-xs')}Enviar proposta</button>
+          <button type="button" class="btn-gold btn-sm" id="wa-ctx-enviar-proposta">${svgIcon('send', 'ic-xs')}Enviar proposta</button>
           <div id="wa-ctx-prop-status"></div>
           <button type="button" class="btn-sm" id="wa-ctx-abrir-cadastro" ${(cx.client || cx.lead) ? '' : 'disabled title="Ainda não é cliente nem lead"'}>${svgIcon('file', 'ic-xs')}Abrir cadastro</button>
           <button type="button" class="btn-sm" id="wa-ctx-extrair" ${(cx.client || cx.lead) ? '' : 'disabled title="Cadastre como lead ou vincule a um cliente primeiro"'}>${svgIcon('ia', 'ic-xs')}Ler dados dos documentos</button>
@@ -1035,9 +1039,9 @@ Object.assign(ROUTES, {
           const bl = statusProp.querySelector('#wa-prop-leitura');
           if (bl) bl.onclick = () => openModal('Leitura da proposta', el(`<div>${leituraHtml(pr.leitura, pr.visitas)}</div>`));
         };
-        if (!cx.client) api(`/api/whatsapp-instance/chats/${ativo.phone}/proposta`).then(pintarStatusProp).catch(() => {});
+        api(`/api/whatsapp-instance/chats/${ativo.phone}/proposta`).then(pintarStatusProp).catch(() => {});
         const ep = box.querySelector('#wa-ctx-enviar-proposta');
-        if (ep && !cx.client) ep.onclick = async () => {
+        if (ep) ep.onclick = async () => {
           ep.disabled = true;
           try {
             const pr = await api(`/api/whatsapp-instance/chats/${ativo.phone}/proposta`);

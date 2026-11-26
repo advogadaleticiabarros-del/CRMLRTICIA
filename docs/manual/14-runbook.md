@@ -1047,6 +1047,13 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 - **Correção:** o leitor aceita os dois formatos e ignora valor zero. Teste novo em `tests/mniPartes.test.mjs`. Na rodada seguinte, `guardarDadosDoProcesso` grava o valor no processo e no caso ligado, se o caso estiver sem valor.
 - **Como reconhecer de novo:** `SELECT COUNT(*) FROM legal_processes WHERE source='mni' AND valor_causa IS NULL AND partes_json IS NOT NULL` alto depois de uma rodada do MNI.
 
+## Incidente: proposta nova de quem já é cliente não aparecia na conversa (26/11/2026)
+
+- **Sintoma:** a cliente tinha processo e ganhou uma proposta nova, mas a ficha da conversa no WhatsApp não mostrava a proposta (nem nº nem status), e *Enviar proposta* ficava desligado.
+- **Causa raiz:** o painel (`public/whatsapp.js`) só buscava proposta quando o contato **não** era cliente, e a busca (`GET /chats/:phone/proposta`) só olhava o telefone da proposta ou do lead, nunca o `client_id`.
+- **Correção:** busca única `propostaDoContato` em `src/routes/whatsapp-instance.ts` (telefone da proposta, do lead ou do cliente); `/context` devolve `propostas` do cliente; a tela lista "Proposta nº N · status" em Vínculos no CRM e libera Enviar proposta para cliente.
+- **Como reconhecer de novo:** conversa de cliente com proposta ativa em Propostas e "Vínculos no CRM" só com processos.
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -1063,6 +1070,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 26/11/2026 | Claude | Incidente: proposta de quem já é cliente não aparecia na conversa |
 | 26/11/2026 | Claude | Incidente: valor da causa do TJES (MNI) lido como atributo, vinha sempre vazio |
 | 23/11/2026 | Claude | Incidente DataJud HTTP 429 (monitoramento sobreposto esgotando o limite do CNJ) |
 | 18/11/2026 | Claude | +1 incidente: TJES recusava o login com HTTP 403 (bloqueio do IP da VPS pelo CloudFront); consulta passa pelo computador do escritório |

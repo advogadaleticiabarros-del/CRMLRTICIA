@@ -543,15 +543,26 @@ ${texto}`, 'groq').catch(() => ({ ok: false } as any));
   res.status(201).json({ id: ins.insertId, criado: true, dados_lidos: Object.values(dados).some((v) => s(v)) });
 });
 
+// Proposta mais recente (ainda viva) de quem está na conversa. Acha pelo
+// telefone da proposta/lead OU pela ficha do cliente: proposta nova para quem
+// já é cliente fica ligada ao client_id e pode não ter telefone próprio.
+async function propostaDoContato(tail: string): Promise<any> {
+  const [[p]] = await db.query(`SELECT p.id, p.title, p.valor, p.status, p.public_token, p.enviada_em, p.visualizada_em, p.ultima_visualizacao_em,
+            COALESCE(p.contact_name, c.name, l.name) AS nome
+       FROM propostas p
+       LEFT JOIN leads l ON l.id = p.lead_id
+       LEFT JOIN clients c ON c.id = p.client_id
+      WHERE (RIGHT(REGEXP_REPLACE(COALESCE(NULLIF(p.phone,''), l.phone, ''), '[^0-9]', ''), 8) = ?
+             OR RIGHT(REGEXP_REPLACE(COALESCE(c.phone, ''), '[^0-9]', ''), 8) = ?)
+        AND p.status NOT IN ('recusada','expirada')
+      ORDER BY p.id DESC LIMIT 1`, [tail, tail]) as any;
+  return p || null;
+}
+
 // ── GET /chats/:phone/proposta — proposta mais recente deste contato ────────
 router.get('/chats/:phone/proposta', async (req: Request, res: Response) => {
   const tail = String(req.params.phone).replace(/\D/g, '').slice(-8);
-  const [[p]] = await db.query(`SELECT p.id, p.title, p.valor, p.status, p.public_token, p.enviada_em, p.visualizada_em, p.ultima_visualizacao_em,
-            COALESCE(p.contact_name, l.name) AS nome
-       FROM propostas p LEFT JOIN leads l ON l.id = p.lead_id
-      WHERE RIGHT(REGEXP_REPLACE(COALESCE(NULLIF(p.phone,''), l.phone, ''), '[^0-9]', ''), 8) = ?
-        AND p.status NOT IN ('recusada','expirada')
-      ORDER BY p.id DESC LIMIT 1`, [tail]) as any;
+  const p = await propostaDoContato(tail);
   if (!p) { res.json(null); return; }
   // Garante o link público (gerar token não muda status nem dispara follow-up).
   if (!p.public_token) {
@@ -572,12 +583,7 @@ router.get('/chats/:phone/proposta', async (req: Request, res: Response) => {
 // ── POST /chats/:phone/enviar-proposta — manda o link da proposta por WhatsApp ─
 router.post('/chats/:phone/enviar-proposta', async (req: Request, res: Response) => {
   const phone = String(req.params.phone).replace(/\D/g, '');
-  const [[p]] = await db.query(`SELECT p.id, p.title, p.valor, p.status, p.public_token, p.enviada_em, p.visualizada_em, p.ultima_visualizacao_em,
-            COALESCE(p.contact_name, l.name) AS nome
-       FROM propostas p LEFT JOIN leads l ON l.id = p.lead_id
-      WHERE RIGHT(REGEXP_REPLACE(COALESCE(NULLIF(p.phone,''), l.phone, ''), '[^0-9]', ''), 8) = ?
-        AND p.status NOT IN ('recusada','expirada')
-      ORDER BY p.id DESC LIMIT 1`, [phone.slice(-8)]) as any;
+  const p = await propostaDoContato(phone.slice(-8));
   if (!p) { res.status(404).json({ error: 'Nenhuma proposta encontrada para este contato — gere a proposta primeiro.' }); return; }
   const { linkProposta, textoEnvioProposta } = await import('../services/propostaWhatsapp');
   let token = p.public_token;
@@ -784,6 +790,7 @@ router.get('/chats/:phone/context', async (req: Request, res: Response) => {
   let cases: any[] = [];
   let audiencia: any = null;
   let financeiro: any = null;
+  let propostas: any[] = [];
   if (client) {
     const [cs] = await db.query(
       `SELECT id, title, case_number, legal_area, production_stage, status FROM cases
@@ -801,6 +808,10 @@ router.get('/chats/:phone/context', async (req: Request, res: Response) => {
               SUM(CASE WHEN due_date < CURDATE() THEN 1 ELSE 0 END) AS vencidas
          FROM installments WHERE client_id = ? AND status IN ('pendente', 'em_processamento')`, [client.id]) as any;
     financeiro = fin;
+    const [ps] = await db.query(
+      `SELECT id, title, status, valor, enviada_em, visualizada_em FROM propostas
+        WHERE client_id = ? ORDER BY id DESC LIMIT 5`, [client.id]).catch(() => [[]]) as any;
+    propostas = ps;
   }
 
   const [[metaCaso]] = await db.query('SELECT case_id FROM whatsapp_chat_meta WHERE phone = ?', [phone]).catch(() => [[]]) as any;
@@ -816,7 +827,7 @@ router.get('/chats/:phone/context', async (req: Request, res: Response) => {
     if (meta?.lead_summary) leadSugerido = { resumo: meta.lead_summary, area: meta.lead_area, nome: meta.lead_nome };
   }
 
-  res.json({ case_id: caseIdVinculado, client, lead, cases, audiencia, financeiro, ultima_resposta: ultima?.t || null, lead_sugerido: leadSugerido });
+  res.json({ case_id: caseIdVinculado, client, lead, cases, propostas, audiencia, financeiro, ultima_resposta: ultima?.t || null, lead_sugerido: leadSugerido });
 });
 
 // ── POST /api/whatsapp-instance/chats/:phone/send — responder pela instância ─
