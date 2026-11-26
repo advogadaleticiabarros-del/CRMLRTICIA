@@ -1,6 +1,6 @@
 import { db } from '../config/database';
 import { montarAReceber } from './aReceberMontar';
-import { relacoes, resumoFinanceiro, alertas, linhaDoTempo, termoDeBusca } from './visaoCliente';
+import { relacoes, resumoFinanceiro, alertas, linhaDoTempo, termoDeBusca, processosDaBase } from './visaoCliente';
 
 /**
  * Visão completa do cliente com banco (regras em visaoCliente.ts).
@@ -39,6 +39,23 @@ export async function buscarClientes(entrada: string) {
   }
   add(await q(`SELECT cl.id, cl.name, cl.cpf_cnpj, cl.phone FROM dative_cases dc JOIN clients cl ON cl.id = dc.client_id WHERE dc.assisted_name LIKE ? LIMIT 5`, [contem]), () => 'assistido (dativo)');
   return [...achados.values()].slice(0, 15);
+}
+
+/**
+ * Resumo para a nova proposta: contatos da ficha + processos que o cliente já tem
+ * (cliente da base que quer entrar com outra ação). null se o cliente não existe.
+ */
+export async function resumoClienteParaProposta(clientId: number) {
+  const [c] = await q('SELECT id, name, cpf_cnpj, phone, email FROM clients WHERE id = ?', [clientId]);
+  if (!c) return null;
+  const [casos, dativos] = await Promise.all([
+    q('SELECT id, title, case_number, legal_area, status FROM cases WHERE client_id = ? ORDER BY created_at DESC', [clientId]),
+    q('SELECT id, case_id, legal_process_id, process_number, area, assunto, comarca, status FROM dative_cases WHERE client_id = ? ORDER BY nomeacao_date DESC', [clientId]),
+  ]);
+  const processos = await q(
+    `SELECT id, case_id, process_number, court, court_alias, judicial_area, status FROM legal_processes
+      WHERE client_id = ? OR case_id IN (${lista(casos.map((x: any) => Number(x.id)))}) ORDER BY last_movement_at DESC`, [clientId]);
+  return { id: c.id, name: c.name, cpf_cnpj: c.cpf_cnpj, phone: c.phone, email: c.email, processos: processosDaBase({ casos, processos, dativos }) };
 }
 
 export async function montarVisao(clientId: number) {

@@ -8481,7 +8481,6 @@ const HON_PRESETS = [
 ];
 
 async function propostaForm(onSave, lead = null, existing = null) {
-  const clients = await api('/api/clients?limit=2000');
   const sec = (t) => `<div class="prop-sec">${t}</div>`;
   const honRows = HON_MODS.map((m) => `
     <label class="hon-mod"><input type="checkbox" data-hon="${m.k}"> <span>${m.label}</span></label>
@@ -8492,6 +8491,14 @@ async function propostaForm(onSave, lead = null, existing = null) {
 
   const form = el(`<form class="form-grid prop-form">
     ${sec('Cliente / Contato')}
+    <div class="prop-base">
+      <label>Já é cliente? Buscar na base <small style="color:var(--text-muted)">— nome, CPF, telefone ou nº do processo</small>
+        <input type="search" id="prop-base-q" autocomplete="off" placeholder="Ex.: Maria, 123.456, 0001234…"></label>
+      <div id="prop-base-res" class="prop-base-res" role="listbox" hidden></div>
+      <div id="prop-base-dica" class="prop-base-dica" hidden></div>
+      <div id="prop-base-card" class="prop-base-card" hidden></div>
+      <input type="hidden" name="client_id" value="">
+    </div>
     ${field('Nome completo *', 'contact_name', { value: existing?.contact_name || lead?.name || '' })}
     <div class="form-row">${field('CPF', 'cpf', { value: existing?.cpf || lead?.cpf_cnpj || '' })}${field('Telefone / WhatsApp', 'phone', { value: existing?.phone || lead?.phone || '' })}</div>
     ${field('E-mail', 'email', { type: 'email', value: existing?.email || lead?.email || '' })}
@@ -8500,7 +8507,6 @@ async function propostaForm(onSave, lead = null, existing = null) {
       ${[lead.marital_status ? MARITAL_PT[lead.marital_status] || lead.marital_status : '', lead.profession].filter(Boolean).map(esc).join(' · ')}
       ${(lead.street || lead.city) ? `<br>${esc([lead.street, lead.number, lead.neighborhood, lead.city, lead.state].filter(Boolean).join(', '))}${lead.cep ? ' · CEP ' + esc(lead.cep) : ''}` : ''}
     </div>` : ''}
-    ${field('Vincular a cliente existente (opcional)', 'client_id', { options: [{ v: '', t: '—' }].concat(clients.data.map((c) => ({ v: c.id, t: c.name }))) })}
     ${field('Em parceria com (opcional)', 'partner_lawyers', { value: existing?.partner_lawyers || '', placeholder: 'Ex.: Dra. Ana Paula Ribeiro, OAB/ES 12.345' })}
 
     ${sec('Causa')}
@@ -8566,6 +8572,81 @@ async function propostaForm(onSave, lead = null, existing = null) {
 
     <button type="submit" class="btn-primary">${existing ? 'Salvar alterações' : 'Criar proposta'}</button>
   </form>`);
+
+  // Cliente da base (26/11/2026): quem já tem processo conosco e quer entrar com
+  // outra ação. Busca tolerante (nome, CPF, telefone, nº do processo); ao escolher,
+  // preenche os contatos vazios, vincula a ficha e mostra os processos que já tem.
+  const baseQ = form.querySelector('#prop-base-q');
+  const baseRes = form.querySelector('#prop-base-res');
+  const baseDica = form.querySelector('#prop-base-dica');
+  const baseCard = form.querySelector('#prop-base-card');
+  const clientIdInp = form.querySelector('[name=client_id]');
+  const buscarBase = async (termo) => {
+    try { return await api(`/api/clients/busca-360?q=${encodeURIComponent(termo)}`); } catch { return []; }
+  };
+  const linhaAchado = (c) => `${esc(c.name)} <small>${esc([c.cpf_cnpj, c.phone].filter(Boolean).join(' · '))}${c.motivo ? ` · achado por ${esc(c.motivo)}` : ''}</small>`;
+  const desvincular = () => { clientIdInp.value = ''; baseCard.hidden = true; baseCard.innerHTML = ''; };
+  const vincular = async (id, preencher = true) => {
+    baseRes.hidden = true; baseDica.hidden = true;
+    let r;
+    try { r = await api(`/api/clients/${id}/resumo-proposta`); } catch (err) { toast(err.message, 'error'); return; }
+    clientIdInp.value = String(r.id);
+    if (preencher) {
+      const por = (nome, v) => { const i = form.querySelector(`[name=${nome}]`); if (i && v && !i.value.trim()) i.value = v; };
+      const nomeInp = form.querySelector('[name=contact_name]');
+      if (r.name) nomeInp.value = r.name;
+      por('cpf', r.cpf_cnpj); por('phone', r.phone); por('email', r.email);
+    }
+    const procs = r.processos || [];
+    baseCard.innerHTML = `<div class="prop-base-topo"><strong>✓ Cliente da base: ${esc(r.name)}</strong>
+        <button type="button" class="btn-sm" data-desvincular>Desvincular</button></div>
+      ${procs.length
+        ? `<small>Já tem ${procs.length} processo(s) conosco. Esta proposta é para uma ação nova, na mesma ficha:</small>
+           <ul>${procs.slice(0, 6).map((p) => `<li>${esc(p.titulo)}${p.numero ? ` · <code>${esc(p.numero)}</code>` : ''}${p.situacao ? ` <span class="badge">${esc(p.situacao)}</span>` : ''}</li>`).join('')}</ul>
+           ${procs.length > 6 ? `<small>e mais ${procs.length - 6}.</small>` : ''}`
+        : '<small>Ficha cadastrada, ainda sem processo conosco.</small>'}`;
+    baseCard.querySelector('[data-desvincular]').onclick = desvincular;
+    baseCard.hidden = false;
+  };
+  let tBusca;
+  baseQ.addEventListener('input', () => {
+    clearTimeout(tBusca);
+    const termo = baseQ.value.trim();
+    if (termo.length < 2) { baseRes.hidden = true; return; }
+    tBusca = setTimeout(async () => {
+      const achados = await buscarBase(termo);
+      if (baseQ.value.trim() !== termo) return;
+      baseRes.innerHTML = achados.length
+        ? achados.map((c) => `<button type="button" role="option" data-cli="${c.id}">${linhaAchado(c)}</button>`).join('')
+        : '<div class="prop-base-vazio">Ninguém na base com esse dado. Preencha abaixo como cliente novo.</div>';
+      baseRes.querySelectorAll('[data-cli]').forEach((b) => b.onclick = () => { baseQ.value = ''; vincular(b.dataset.cli); });
+      baseRes.hidden = false;
+    }, 300);
+  });
+  // Aviso automático: digitou nome ou CPF de quem já é cliente → oferece usar a ficha.
+  let tDica;
+  const conferirDica = () => {
+    clearTimeout(tDica);
+    if (clientIdInp.value) { baseDica.hidden = true; return; }
+    const nome = form.querySelector('[name=contact_name]').value.trim();
+    const cpf = form.querySelector('[name=cpf]').value.replace(/\D/g, '');
+    const termo = cpf.length >= 11 ? cpf : nome;
+    if (termo.length < 4) { baseDica.hidden = true; return; }
+    tDica = setTimeout(async () => {
+      const achados = (await buscarBase(termo)).slice(0, 3);
+      if (clientIdInp.value || !achados.length) { baseDica.hidden = true; return; }
+      baseDica.innerHTML = `<strong>Parece que já é cliente:</strong>${achados.map((c) =>
+        `<div class="prop-base-dica-l"><span>${linhaAchado(c)}</span><button type="button" class="btn-sm btn-gold" data-cli="${c.id}">Usar esta ficha</button></div>`).join('')}`;
+      baseDica.querySelectorAll('[data-cli]').forEach((b) => b.onclick = () => vincular(b.dataset.cli));
+      baseDica.hidden = false;
+    }, 500);
+  };
+  form.querySelector('[name=contact_name]').addEventListener('input', conferirDica);
+  form.querySelector('[name=cpf]').addEventListener('input', conferirDica);
+  // Proposta já vinculada (edição) ou lead que já virou cliente: mostra a ficha sem sobrescrever o que está no formulário.
+  const clienteInicial = existing?.client_id || lead?.client_id;
+  if (clienteInicial) vincular(clienteInicial, false);
+  else if (lead && (lead.cpf_cnpj || lead.name)) conferirDica();
 
   // Troca o padrão de "Observações e cláusulas" pro modelo de Pensão
   // Alimentícia quando esse é o tipo de causa — só se o campo ainda estiver
@@ -8779,7 +8860,7 @@ async function propostaForm(onSave, lead = null, existing = null) {
     const body = {
       contact_name: fd.contact_name, cpf: fd.cpf, phone: fd.phone, email: fd.email,
       partner_lawyers: String(fd.partner_lawyers || '').trim() || null,
-      client_id: fd.client_id || undefined, lead_id: lead?.id,
+      client_id: fd.client_id || (existing?.client_id ? null : undefined), lead_id: lead?.id,
       legal_area: fd.legal_area, tipo_causa: fd.tipo_causa, description: fd.description,
       validade: fd.validade || undefined, observacoes: fd.observacoes,
       dependentes, honorarios, valor,
@@ -8787,7 +8868,11 @@ async function propostaForm(onSave, lead = null, existing = null) {
       payment_consent: fd.payment_consent ? true : undefined,
       title: `Proposta — ${fd.contact_name || fd.tipo_causa || 'cliente'}`,
     };
-    if (!body.client_id) delete body.client_id;
+    if (body.client_id === undefined || (!existing && !body.client_id)) delete body.client_id;
+    if (!existing && !body.client_id && !lead) {
+      toast('Escolha o cliente na busca "Já é cliente?" acima. Cliente novo entra primeiro como lead.', 'error');
+      baseQ.focus(); return;
+    }
     try {
       if (existing) {
         await api(`/api/propostas/${existing.id}`, { method: 'PUT', body: JSON.stringify(body) });

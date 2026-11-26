@@ -1,7 +1,7 @@
 // tests/visaoCliente.test.mjs — visão completa do cliente (busca na página inicial)
 import { test } from 'node:test';
 import assert from 'node:assert';
-import { relacoes, resumoFinanceiro, alertas, linhaDoTempo, termoDeBusca } from '../dist/services/visaoCliente.js';
+import { relacoes, resumoFinanceiro, alertas, linhaDoTempo, termoDeBusca, processosDaBase } from '../dist/services/visaoCliente.js';
 
 test('relacoes: dativo, parceria e próprio ao mesmo tempo; dativo recusado não conta', () => {
   const r = relacoes({
@@ -94,4 +94,31 @@ test('linhaDoTempo: junta tudo e ordena do mais novo para o mais antigo', () => 
 test('termoDeBusca: separa os dígitos para CPF, telefone e número de processo', () => {
   assert.deepStrictEqual(termoDeBusca(' 0001234-56.2026 '), { texto: '0001234-56.2026', digitos: '0001234562026' });
   assert.strictEqual(termoDeBusca('Maria').digitos, '');
+});
+
+test('processosDaBase: um item por processo, sem repetir caso e processo do mesmo número', () => {
+  const r = processosDaBase({
+    casos: [
+      { id: 10, title: 'Reclamação trabalhista', case_number: '0001234-56.2026.5.17.0001', legal_area: 'trabalhista', status: 'ativo' },
+      { id: 11, title: 'BPC/LOAS', case_number: null, legal_area: 'previdenciario', status: 'ativo' },
+    ],
+    processos: [
+      { id: 1, case_id: 10, process_number: '0001234-56.2026.5.17.0001', court_alias: 'TRT17', judicial_area: 'trabalhista', status: 'ativo' },
+      { id: 2, case_id: 11, process_number: '5000001-11.2026.4.02.5001', court_alias: 'TRF2', judicial_area: 'previdenciario', status: 'ativo' },
+      { id: 3, case_id: null, process_number: '00012345620265170001', court_alias: 'TRT17', status: 'ativo' },
+      { id: 4, case_id: null, process_number: '0700000-00.2025.8.08.0024', court_alias: 'TJES', judicial_area: 'civel', status: 'arquivado' },
+    ],
+    dativos: [
+      { id: 7, case_id: null, legal_process_id: null, process_number: '0009999-00.2026.8.08.0024', area: 'familia', assunto: 'Alimentos', comarca: 'Vitória', status: 'em_andamento' },
+      { id: 8, case_id: null, legal_process_id: 4, process_number: '0700000-00.2025.8.08.0024', area: 'civel', comarca: 'Vitória', status: 'em_andamento' },
+    ],
+  });
+  assert.deepStrictEqual(r.map((x) => x.numero), [
+    '0001234-56.2026.5.17.0001', '5000001-11.2026.4.02.5001', '0700000-00.2025.8.08.0024', '0009999-00.2026.8.08.0024',
+  ]);
+  assert.strictEqual(r[0].titulo, 'Reclamação trabalhista');
+  assert.strictEqual(r[1].titulo, 'BPC/LOAS', 'o caso sem número herda o número do processo ligado a ele');
+  assert.strictEqual(r[3].origem, 'dativo');
+  assert.match(r[3].titulo, /Dativo.*Alimentos/);
+  assert.deepStrictEqual(processosDaBase({ casos: [], processos: [], dativos: [] }), []);
 });

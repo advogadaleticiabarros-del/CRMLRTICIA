@@ -142,6 +142,17 @@ router.get('/busca-360', async (req: Request, res: Response) => {
   res.json(await buscarClientes(String(req.query.q || '')));
 });
 
+// Nova proposta (26/11/2026): ao escolher um cliente da base, preenche os contatos
+// e mostra os processos que ele já tem conosco.
+router.get('/:id/resumo-proposta', async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) { res.status(400).json({ error: 'Cliente inválido' }); return; }
+  const { resumoClienteParaProposta } = await import('../services/visaoClienteServico');
+  const r = await resumoClienteParaProposta(id);
+  if (!r) { res.status(404).json({ error: 'Cliente não encontrado' }); return; }
+  res.json(r);
+});
+
 // Tudo do cliente num lugar só: dativo/parceria/próprio, processos, financeiro,
 // acordos, repasses, movimentações, prazos, audiências, propostas, contratos.
 router.get('/:id/visao', async (req: Request, res: Response) => {

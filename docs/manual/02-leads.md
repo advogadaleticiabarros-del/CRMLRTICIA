@@ -89,6 +89,15 @@ Converter um lead em cliente cria um cadastro em Clientes (PF ou PJ) já com nom
 
 Cada lead pode ter propostas comerciais vinculadas (enviada, em negociação, aceita, recusada) — ver módulo de Documentos e peças para como uma proposta é gerada.
 
+### Cliente da base na nova proposta (desde 26/11/2026)
+
+Quem já tem processo conosco às vezes quer entrar com outra ação. No formulário **Produção da Proposta**, a seção "Cliente / Contato" começa com **"Já é cliente? Buscar na base"**: aceita nome, CPF, telefone ou nº do processo (a mesma busca da página inicial).
+- Ao escolher a pessoa, a proposta fica **vinculada à ficha dela**, os contatos vazios (CPF, telefone, e-mail) são preenchidos e aparece a lista dos processos que ela já tem (caso, processo monitorado e dativo do mesmo número contam uma vez só). "Desvincular" desfaz.
+- Se alguém digitar no nome ou no CPF uma pessoa que já está na base, aparece o aviso **"Parece que já é cliente"** com o botão **"Usar esta ficha"**. Abrir a proposta a partir de um lead que já virou cliente mostra a ficha sozinho.
+- Pela tela de Propostas, sem lead, é preciso escolher o cliente na busca (cliente novo entra primeiro como lead).
+- Editar a proposta agora também salva o vínculo com o cliente (antes ele se perdia ao editar).
+- Na aceitação, o processo novo vai para a mesma ficha (regra "uma pessoa, uma ficha").
+
 ## FAQ
 
 **Se eu mover um lead pra "Perdido" duas vezes, manda a mensagem duas vezes?** Não deveria — a mensagem dispara na transição pra "Perdido"/"Proposta Recusada". Mover pra fora e de volta manualmente pode disparar de novo (é best-effort, não há trava contra isso).
@@ -106,6 +115,7 @@ Cada lead pode ter propostas comerciais vinculadas (enviada, em negociação, ac
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 26/11/2026 | Claude | Nova proposta busca o cliente da base (nome, CPF, telefone, processo), vincula a ficha e mostra os processos que ele já tem; edição passa a salvar o vínculo |
 | 20/10/2026 | Claude | Despedida ao recusar ou perder o lead vai para "Mensagens para aprovar" (não sai mais sozinha) |
 | 16/10/2026 | Claude | Ficha automática: texto, fotos e PDFs de lead e cliente viram cadastro sozinhos (só o vazio; o resto vira pendência na Dra. Camila). Substitui a detecção que só rodava em "documentação pendente" e nunca disparou |
 | 03/09/2026 | Claude | Criação do documento |

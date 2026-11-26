@@ -167,3 +167,45 @@ export function termoDeBusca(q: string): { texto: string; digitos: string } {
   const texto = String(q || '').trim().slice(0, 80);
   return { texto, digitos: texto.replace(/\D/g, '') };
 }
+
+export interface ProcessoDaBase { numero: string | null; titulo: string; area: string | null; situacao: string | null; origem: 'caso' | 'processo' | 'dativo' }
+
+/**
+ * Processos que o cliente já tem conosco, um por linha (usado na nova proposta,
+ * para a equipe ver na hora que é cliente da base). Caso, processo monitorado e
+ * dativo do mesmo número viram um item só; o caso sem número herda o do processo ligado.
+ */
+export function processosDaBase(d: {
+  casos: { id: number; title?: string | null; case_number?: string | null; legal_area?: string | null; status?: string | null }[];
+  processos: { id: number; case_id?: number | null; process_number?: string | null; court_alias?: string | null; court?: string | null; judicial_area?: string | null; status?: string | null }[];
+  dativos: { id: number; case_id?: number | null; legal_process_id?: number | null; process_number?: string | null; area?: string | null; assunto?: string | null; comarca?: string | null; status?: string | null }[];
+}): ProcessoDaBase[] {
+  const out: ProcessoDaBase[] = [];
+  const vistos = new Set<string>();
+  const dig = (n?: string | null) => String(n || '').replace(/\D/g, '');
+  const marcar = (n?: string | null) => { const k = dig(n); if (k) vistos.add(k); };
+  const jaVisto = (n?: string | null) => { const k = dig(n); return !!k && vistos.has(k); };
+
+  for (const c of d.casos) {
+    const ligado = d.processos.find((p) => p.case_id === c.id && p.process_number);
+    const numero = c.case_number || ligado?.process_number || null;
+    if (jaVisto(numero)) continue;
+    marcar(numero);
+    d.processos.filter((p) => p.case_id === c.id).forEach((p) => marcar(p.process_number));
+    out.push({ numero, titulo: c.title || 'Caso', area: c.legal_area || null, situacao: c.status || null, origem: 'caso' });
+  }
+  const idsCasos = new Set(d.casos.map((c) => c.id));
+  for (const p of d.processos) {
+    if ((p.case_id && idsCasos.has(p.case_id)) || jaVisto(p.process_number)) continue;
+    marcar(p.process_number);
+    out.push({ numero: p.process_number || null, titulo: p.court_alias || p.court || 'Processo', area: p.judicial_area || null, situacao: p.status || null, origem: 'processo' });
+  }
+  for (const dc of d.dativos) {
+    if ((dc.case_id && idsCasos.has(dc.case_id)) || jaVisto(dc.process_number)) continue;
+    if (dc.legal_process_id && d.processos.some((p) => p.id === dc.legal_process_id)) continue;
+    marcar(dc.process_number);
+    const assunto = dc.assunto || dc.area || '';
+    out.push({ numero: dc.process_number || null, titulo: `Dativo${assunto ? ` — ${assunto}` : ''}${dc.comarca ? ` (${dc.comarca})` : ''}`, area: dc.area || null, situacao: dc.status || null, origem: 'dativo' });
+  }
+  return out;
+}

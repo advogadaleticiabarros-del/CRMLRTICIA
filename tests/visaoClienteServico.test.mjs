@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'x'.repeat(32);
 const { db } = await import('../dist/config/database.js');
-const { montarVisao, buscarClientes } = await import('../dist/services/visaoClienteServico.js');
+const { montarVisao, buscarClientes, resumoClienteParaProposta } = await import('../dist/services/visaoClienteServico.js');
 
 async function bancoDisponivel() {
   try { await db.query('SELECT 1'); return true; } catch { return false; }
@@ -68,6 +68,13 @@ test('visão completa: dativo + parceria + próprio, processos, acordo, repasse,
     assert.ok(porProcesso.some((c) => c.id === ids.client && /processo/.test(c.motivo)));
     const porCpf = await buscarClientes('52998224725');
     assert.ok(porCpf.some((c) => c.id === ids.client));
+
+    const resumo = await resumoClienteParaProposta(ids.client);
+    assert.equal(resumo.name, nome);
+    assert.equal(resumo.cpf_cnpj, '529.982.247-25');
+    assert.ok(resumo.processos.some((p) => p.numero === numProc && p.titulo === 'Caso próprio'));
+    assert.ok(resumo.processos.some((p) => p.origem === 'dativo'));
+    assert.equal(await resumoClienteParaProposta(999999999), null);
 
     assert.equal(await montarVisao(999999999), null);
     assert.deepEqual(errosSql, [], `consultas com erro de SQL:\n${errosSql.join('\n')}`);

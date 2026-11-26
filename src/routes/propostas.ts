@@ -158,6 +158,11 @@ router.put('/:id', async (req: Request, res: Response) => {
   setIf('validade', req.body.validade);
   setIf('description', req.body.description);
   setIf('case_id', req.body.case_id);
+  // Vincular (ou trocar) o cliente da base ao editar — antes o vínculo se perdia.
+  if (req.body.client_id !== undefined) {
+    const cid = req.body.client_id === null || req.body.client_id === '' ? null : Number(req.body.client_id);
+    setIf('client_id', cid, cid === null || (Number.isInteger(cid) && cid > 0));
+  }
   setIf('status', req.body.status, STATUSES.includes(req.body.status));
   setIf('legal_area', req.body.legal_area, LEGAL_AREAS.includes(req.body.legal_area));
   setIf('tipo_causa', req.body.tipo_causa);
