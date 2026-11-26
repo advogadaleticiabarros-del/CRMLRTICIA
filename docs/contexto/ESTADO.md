@@ -2,9 +2,10 @@
 
 > Atualize ao fim de **cada** tarefa: data, o que entrou e o que mudou nas pendências. Mantenha curto, com no máximo uma tela por seção, e apague o que foi resolvido.
 
-**Última atualização:** 26/11/2026. Último commit: proposta de quem já é cliente aparece na conversa do WhatsApp.
+**Última atualização:** 26/11/2026. Último commit: link de consulta do protocolo na demanda dativa.
 
 ## Últimas entregas (mais recentes primeiro)
+- **26/11 (4):** **Link de consulta do protocolo no Dativo** (Jessica: "um local para colocar o link para consulta direto, que sai junto com o código do protocolo"). Campo abaixo do código do e-Flow, botão "Consultar protocolo ↗" na ficha; colar o link preenche o código. Migration 191. Ver `docs/contexto/relatorios/2026-11-26-link-consulta-protocolo-dativo.md`.
 - **26/11 (3):** **Proposta de quem já é cliente aparece na conversa** (Jessica: "montei uma nova proposta, quero ver o status ali"). Em "Vínculos no CRM", além dos processos: "Proposta nº N · status · valor". Selo de leitura e *Enviar proposta* liberados para cliente; a busca acha a proposta também pela ficha do cliente. Ver `docs/contexto/relatorios/2026-11-26-proposta-de-cliente-na-conversa.md`.
 - **26/11 (2):** **9 ações que estavam "em produção" já tinham sido protocoladas** (Jessica: "verifique se algum caso mais foi protocolado... cadastre... lance a cobrança da parceria"). Conferido pelo CRM (MNI) e pelo DJEN (OAB da Dra., TJES, 25/10 a 26/11), sem processo a mais. Casos #110–#115, #134, #135 (Juizados Cíveis de Cariacica) e #131 (JEF) agora estão como Protocolado, ligados ao processo, com a data real da distribuição e as etiquetas. Entradas da parceria lançadas: 3 clientes (R$ 130, R$ 130 e +R$ 30). Parceiro avisado; **nenhum WhatsApp ao cliente**. Backup na VPS: `/root/backups/protocolar-lote-antes-20261126.sql`. **Bug corrigido:** o valor da causa do TJES (MNI) nunca era lido.
   - **Conferir depois das 15h10:** `cases.valor_causa` desses 9 preenchido pela rodada do MNI.

@@ -10704,6 +10704,8 @@ function datFluxoHtml(d) {
     : '<span><strong>Pagamento recebido.</strong></span>';
   const botoes = [
     fl.proximo && fl.proximo.link ? `<a class="btn-sm" href="${fl.proximo.link}" target="_blank" rel="noopener">Abrir ${datNomeDoLink(fl.proximo.link)} ↗</a>` : '',
+    // Link de consulta direta do protocolo (Jessica, 26/11/2026); só http/https.
+    d.eflow_link && /^https?:\/\//i.test(d.eflow_link) ? `<a class="btn-sm" id="dat-abrir-consulta" href="${esc(d.eflow_link)}" target="_blank" rel="noopener noreferrer" title="${esc(d.eflow_link)}">Consultar protocolo ↗</a>` : '',
     d.eflow_protocolo && ['protocolada', 'deferida', 'indeferida'].includes(d.status) ? `<button type="button" class="btn-sm" id="dat-copiar-protocolo" title="Copia o código para colar na busca do e-Docs">Copiar protocolo ${esc(d.eflow_protocolo)}</button>` : '',
     d.status === 'a_receber' ? '<button type="button" class="btn-gold btn-sm" id="dat-baixa">Recebi no banco — dar baixa</button>' : '',
   ].filter(Boolean).join('');
@@ -10723,6 +10725,12 @@ function datLigarFluxo(form, d, id, onSave) {
   };
   dataJunto('eflow_protocolo', 'eflow_protocolo_date');
   dataJunto('decisao_pagamento', 'decisao_pagamento_date');
+  // Colou o link de consulta (…/e/2026-509JVP) com o código vazio: o código vem do link.
+  const link = form.querySelector('[name=eflow_link]'); const cod = form.querySelector('[name=eflow_protocolo]');
+  if (link && cod) link.addEventListener('change', () => {
+    const m = link.value.trim().match(/\/e\/([A-Za-z0-9-]{4,80})\/?$/);
+    if (m && !cod.value.trim()) { cod.value = m[1]; cod.dispatchEvent(new Event('change')); }
+  });
   const decisao = form.querySelector('[name=decisao_pagamento]');
   const motivo = form.querySelector('#dat-motivo-wrap');
   if (decisao && motivo) decisao.addEventListener('change', () => { motivo.hidden = decisao.value !== 'indeferido'; });
@@ -10795,6 +10803,7 @@ async function dativeCaseDetail(id, onSave) {
     <small style="color:var(--text-muted)">Ao preencher um passo e salvar, a etapa avança sozinha.</small>
     <div class="form-row">${field('Data do aceite', 'aceite_date', { type: 'date', value: datDateInputValue(d.aceite_date) })}${field('Data da certidão', 'certidao_date', { type: 'date', value: datDateInputValue(d.certidao_date) })}</div>
     <div class="form-row">${field('Protocolo do e-Flow (código)', 'eflow_protocolo', { value: esc(d.eflow_protocolo || ''), maxlength: 80 })}${field('Data do protocolo', 'eflow_protocolo_date', { type: 'date', value: datDateInputValue(d.eflow_protocolo_date) })}</div>
+    ${field('Link de consulta (sai junto com o protocolo)', 'eflow_link', { type: 'url', value: esc(d.eflow_link || ''), maxlength: 500 })}
     <div class="form-row">${field('Decisão no e-Docs', 'decisao_pagamento', { value: d.decisao_pagamento || '', options: [{ v: '', t: '— aguardando —' }, { v: 'deferido', t: 'Deferido' }, { v: 'indeferido', t: 'Indeferido' }] })}${field('Data da decisão', 'decisao_pagamento_date', { type: 'date', value: datDateInputValue(d.decisao_pagamento_date) })}</div>
     <div id="dat-motivo-wrap"${d.decisao_pagamento === 'indeferido' ? '' : ' hidden'}>${field('Motivo do indeferimento', 'decisao_pagamento_motivo', { value: esc(d.decisao_pagamento_motivo || ''), maxlength: 500 })}</div>
     <div class="form-row">${field('Saiu na lista da Sefaz em', 'sefaz_lista_date', { type: 'date', value: datDateInputValue(d.sefaz_lista_date) })}${field('Lista (nº ou referência)', 'sefaz_lista_ref', { value: esc(d.sefaz_lista_ref || ''), maxlength: 120 })}</div>`}
@@ -10822,7 +10831,7 @@ async function dativeCaseDetail(id, onSave) {
       assisted_name: g('assisted_name'), area: g('area'), nomeacao_date: g('nomeacao_date') || null,
       assunto: g('assunto'), estimated_value: g('estimated_value'), status: g('status'), notes: g('notes'),
     };
-    for (const n of ['aceite_date', 'certidao_date', 'eflow_protocolo', 'eflow_protocolo_date', 'decisao_pagamento',
+    for (const n of ['aceite_date', 'certidao_date', 'eflow_protocolo', 'eflow_link', 'eflow_protocolo_date', 'decisao_pagamento',
       'decisao_pagamento_date', 'decisao_pagamento_motivo', 'sefaz_lista_date', 'sefaz_lista_ref']) {
       if (form.querySelector(`[name=${n}]`)) body[n] = g(n);
     }

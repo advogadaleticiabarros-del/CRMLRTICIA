@@ -86,6 +86,12 @@ Desde 16/11/2026, no **Kanban por fase** (aba Demandas) e no quadro **Caminho do
 - **Cuidado ao voltar uma etapa:** se a ficha tiver, por exemplo, o protocolo preenchido e você arrastar o card para antes de "Protocolada", na próxima vez que **salvar a ficha** ela volta sozinha para "Protocolada" (regra do "só avança" ao preencher). Para voltar de vez, apague o campo na ficha.
 - Rota: `PATCH /api/dative/cases/:id/etapa` (`{ status }`); regra em `validarMovimentoNoQuadro` (`src/services/fluxoPagamentoDativo.ts`). Arrastar funciona com mouse; no celular, mude a etapa pela ficha (Editar).
 
+### Link de consulta do protocolo (desde 26/11/2026)
+- Logo abaixo de "Protocolo do e-Flow (código)" fica o campo **Link de consulta (sai junto com o protocolo)**: cole ali o endereço de consulta direta que o e-Flow devolve com o código (ex.: `https://e-docs.es.gov.br/e/2026-XXXXXX`).
+- Com o link salvo, a faixa do caminho do pagamento mostra o botão **Consultar protocolo ↗**, que abre a consulta numa aba nova.
+- Colou o link com o código vazio: o código é tirado do final do link sozinho (e, como o protocolo foi preenchido, a data do protocolo vira hoje se estiver vazia).
+- Só aceita endereço completo começando com `http://` ou `https://`, até 500 caracteres; vazio apaga. Coluna `dative_cases.eflow_link` (migration 191); regra em `validarCamposFluxo` (`src/services/fluxoPagamentoDativo.ts`). O link sozinho não muda a etapa: quem avança para "Protocolada" é o código.
+
 ## Buscar e filtrar demandas
 
 Desde 16/11/2026 a lista tem também o campo **Buscar por protocolo**: acha pelo protocolo do e-Flow, inteiro ou só um pedaço, em maiúscula ou minúscula, com ou sem hífen ("2026-c35xph", "C35XPH"). A regra fica em `filtroProtocoloDativo` (`src/services/buscaDativo.ts`), parâmetro `protocolo` em `GET /api/dative/cases`.
@@ -111,6 +117,7 @@ Desde 16/11/2026 o mesmo campo ("Buscar por assistido ou número do processo…"
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 26/11/2026 | Claude | Campo "Link de consulta" do protocolo na ficha (migration 191) e botão "Consultar protocolo ↗" no caminho do pagamento |
 | 23/11/2026 | Claude | Aba Recebimentos mostra no topo as demandas "Na lista da Sefaz — disponível para saque", com Dar baixa e Abrir na linha |
 | 16/11/2026 | Claude | Arrastar o card para mudar a etapa, no Kanban por fase e no Caminho do pagamento (`PATCH /api/dative/cases/:id/etapa`); coluna Indeferida sempre visível nos dois quadros |
 | 16/11/2026 | Claude | Aba Demandas: seletor Lista ou Kanban por fase (uma coluna por fase, mesmos filtros; a lista não mudou) |

@@ -72,6 +72,7 @@ export interface CamposFluxo {
   aceite_date?: string | null;
   certidao_date?: string | null;
   eflow_protocolo?: string | null;
+  eflow_link?: string | null;
   eflow_protocolo_date?: string | null;
   decisao_pagamento?: string | null;
   decisao_pagamento_date?: string | null;
@@ -164,6 +165,14 @@ export function validarCamposFluxo(body: Record<string, any>):
     const v = String(body[k] ?? '').trim();
     if (v.length > max) return { ok: false, erro: `${ROTULO_CAMPO[k]}: no máximo ${max} caracteres` };
     campos[k] = v || null;
+  }
+  // Link de consulta que sai junto com o protocolo (Jessica, 26/11/2026). Só
+  // http/https: o link vira um botão na ficha, então nada de javascript: etc.
+  if (body.eflow_link !== undefined) {
+    const v = String(body.eflow_link ?? '').trim();
+    if (v.length > 500) return { ok: false, erro: 'Link de consulta: no máximo 500 caracteres' };
+    if (v && !/^https?:\/\/[^\s]+$/i.test(v)) return { ok: false, erro: 'Link de consulta: cole o endereço completo, começando com https://' };
+    campos.eflow_link = v || null;
   }
   if (body.decisao_pagamento !== undefined) {
     const v = String(body.decisao_pagamento ?? '').trim();

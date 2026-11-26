@@ -121,3 +121,26 @@ test('tela: links do e-Flow, e-Docs e Sefaz no topo do Dativo, caminho na ficha 
   const proj = app.slice(app.indexOf('async function datProjecao('), app.indexOf('async function datDemandas('));
   assert.match(proj, /\/api\/dative\/fluxo-pagamento/);
 });
+
+// Pedido da Jessica (26/11/2026): "um local para colocar o link para consulta
+// direto, que sai junto com o código do protocolo" (ex.: e-docs.es.gov.br/e/CÓDIGO).
+test('link de consulta do protocolo: só http/https, até 500 caracteres, vazio apaga', () => {
+  const url = 'https://e-docs.es.gov.br/e/2026-509JVP';
+  assert.deepStrictEqual(validarCamposFluxo({ eflow_link: `  ${url} ` }), { ok: true, campos: { eflow_link: url } });
+  assert.deepStrictEqual(validarCamposFluxo({ eflow_link: '' }).campos, { eflow_link: null });
+  assert.strictEqual(validarCamposFluxo({ eflow_link: 'javascript:alert(1)' }).ok, false);
+  assert.strictEqual(validarCamposFluxo({ eflow_link: 'e-docs.es.gov.br/e/2026-509JVP' }).ok, false);
+  assert.strictEqual(validarCamposFluxo({ eflow_link: 'https://x.br/' + 'a'.repeat(500) }).ok, false);
+});
+
+test('link de consulta: coluna própria, campo na ficha e botão de abrir no caminho do pagamento', () => {
+  const mig = fs.readdirSync('migrations').find((f) => /eflow_link/i.test(f));
+  assert.ok(mig, 'migration do eflow_link ausente');
+  assert.match(fs.readFileSync(path.join('migrations', mig), 'utf8'), /ADD COLUMN eflow_link VARCHAR\(500\) NULL/);
+  const app = fs.readFileSync('public/app.js', 'utf8');
+  const ficha = app.slice(app.indexOf('async function dativeCaseDetail('), app.indexOf('async function dativeHearingForm('));
+  assert.match(ficha, /'eflow_link'/);
+  const caminho = app.slice(app.indexOf('function datFluxoHtml('), app.indexOf('async function dativeCaseDetail('));
+  assert.match(caminho, /dat-abrir-consulta/);
+  assert.match(caminho, /\^https\?:/);
+});
