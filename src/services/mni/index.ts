@@ -155,6 +155,33 @@ function depsDeProducao(): DepsMonitorMni {
       }
       await gravarPartesEVincular(processId, partesParaGravar(partes, await oabsDoEscritorio()));
     },
+    async documentosLidosAte(processId) {
+      const [[r]] = await db.query('SELECT mni_documentos_ate FROM legal_processes WHERE id = ?', [processId]) as any;
+      const v = r?.mni_documentos_ate;
+      if (!v) return null;
+      // DATETIME do tribunal (horário local, sem fuso) volta como Date: monta o ISO local de novo.
+      const d = v instanceof Date ? v : new Date(v);
+      const p = (n: number) => String(n).padStart(2, '0');
+      return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+    },
+    async guardarDocumentos(processId, sistema, docs, lidosAte) {
+      let n = 0;
+      for (const d of docs) {
+        if (!d.idDocumento) continue;
+        const [r] = await db.query(
+          `INSERT INTO mni_documentos (process_id, sistema, id_documento, id_vinculado_a, id_movimento, data_hora, tipo, tipo_local, descricao, mimetype, assinado_pelo_login, dados_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           ON DUPLICATE KEY UPDATE descricao = VALUES(descricao), tipo_local = VALUES(tipo_local),
+             assinado_pelo_login = VALUES(assinado_pelo_login), dados_json = VALUES(dados_json), lido_em = NOW()`,
+          [processId, sistema, d.idDocumento.slice(0, 64), d.idVinculadoA?.slice(0, 64) ?? null, d.idMovimento?.slice(0, 64) ?? null,
+            paraDataSql(d.dataHora), d.tipo?.slice(0, 40) ?? null, d.tipoLocal?.slice(0, 120) ?? null, d.descricao, d.mimetype?.slice(0, 80) ?? null,
+            d.assinadoPeloLogin ? 1 : 0, JSON.stringify({ assinantes: d.assinantes, parametros: d.parametros })]
+        ) as any;
+        if (r.affectedRows === 1) n++; // 1 = novo, 2 = já existia
+      }
+      await db.query('UPDATE legal_processes SET mni_documentos_ate = ? WHERE id = ?', [paraDataSql(lidosAte), processId]);
+      return n;
+    },
     pausa: (ms) => new Promise((r) => setTimeout(r, ms)),
   };
 }
@@ -259,6 +286,7 @@ export async function rodarMonitoramentoMniAgora() {
     avisos_novos: r.sistemas.reduce((a, s) => a + s.avisosNovos, 0),
     movimentacoes_novas: r.sistemas.reduce((a, s) => a + s.movimentacoesNovas, 0),
     campos_de_ficha_completados: r.sistemas.reduce((a, s) => a + s.camposDeFichaCompletados, 0),
+    documentos_lidos: r.sistemas.reduce((a, s) => a + s.documentosLidos, 0),
     falhas: falhas.map((s) => `${s.sistema}: ${s.mensagem || s.status}`).join(' | ') || null,
   };
 }

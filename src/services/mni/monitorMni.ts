@@ -13,7 +13,7 @@
  *
  * Todas as dependências (banco, tribunal, CNJ, avisos) entram por `deps`.
  */
-import { AvisoMni, ClienteMni, CredencialMni, ErroLoginMni, MovimentoMni, ParteMni } from './cliente';
+import { AvisoMni, ClienteMni, CredencialMni, DocumentoMni, ErroLoginMni, MovimentoMni, ParteMni } from './cliente';
 import { SISTEMAS_MNI, SistemaMni, cienciaAutomaticaEm, fonteMni } from './sistemas';
 
 export interface MovimentacaoParaGravar { movement_date: string | null; title: string; description: string }
@@ -35,7 +35,37 @@ export interface DepsMonitorMni {
   completarFicha?(processId: number, partes: ParteMni[]): Promise<number>;
   /** Guarda no processo o valor da causa e a lista de partes que o tribunal devolveu. */
   guardarDadosDoProcesso?(processId: number, dados: { valorCausa: number | null; partes: ParteMni[] }): Promise<void>;
+  /** Data (do tribunal) da petição mais nova cujos documentos já foram lidos. */
+  documentosLidosAte?(processId: number, sistema: string): Promise<string | null>;
+  /** Guarda a lista de documentos e marca até qual petição foi lida. Devolve quantos guardou. */
+  guardarDocumentos?(processId: number, sistema: string, docs: DocumentoMni[], lidosAte: string): Promise<number>;
+  /** Hoje (AAAA-MM-DD), para a janela de petições recentes. */
+  hoje?(): string;
   pausa?(ms: number): Promise<void>;
+}
+
+/** Código nacional (TPU) do movimento "Petição" (juntada de petição). */
+export const MOVIMENTO_PETICAO = 85;
+/** Só olha os documentos de petições juntadas nos últimos N dias. */
+export const JANELA_DOCUMENTOS_DIAS = 30;
+/** Máximo de processos com lista de documentos por rodada (cada um é uma consulta a mais ao tribunal). */
+export const LIMITE_DOCUMENTOS_POR_RODADA = 15;
+
+/**
+ * Se há petição juntada nos últimos 30 dias mais nova que a última leitura,
+ * devolve a data dela (a mais nova); senão, null.
+ */
+export function precisaLerDocumentos(movimentos: MovimentoMni[], lidosAte: string | null, hoje: string): string | null {
+  const d = new Date(`${hoje}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() - JANELA_DOCUMENTOS_DIAS);
+  const desde = d.toISOString().slice(0, 10);
+  const datas = movimentos
+    .filter((m) => m.codigoNacional === MOVIMENTO_PETICAO && m.dataHora && m.dataHora.slice(0, 10) >= desde)
+    .map((m) => m.dataHora as string)
+    .sort();
+  const maisNova = datas[datas.length - 1];
+  if (!maisNova) return null;
+  return !lidosAte || maisNova > lidosAte ? maisNova : null;
 }
 
 export interface ResumoSistema {
@@ -47,6 +77,8 @@ export interface ResumoSistema {
   movimentacoesNovas: number;
   processosNovos: number;
   camposDeFichaCompletados: number;
+  /** Documentos (só os dados) guardados nesta rodada. */
+  documentosLidos: number;
   mensagem?: string;
 }
 
@@ -73,9 +105,11 @@ export async function converterMovimento(m: MovimentoMni, nome: (c: number | nul
 }
 
 async function rodarSistema(sistema: SistemaMni, cred: CredencialMni, processos: Array<{ id: number; process_number: string }>, deps: DepsMonitorMni): Promise<ResumoSistema> {
-  const resumo: ResumoSistema = { sistema: sistema.id, status: 'ok', avisosPendentes: 0, avisosNovos: 0, processosConsultados: 0, movimentacoesNovas: 0, processosNovos: 0, camposDeFichaCompletados: 0 };
+  const resumo: ResumoSistema = { sistema: sistema.id, status: 'ok', avisosPendentes: 0, avisosNovos: 0, processosConsultados: 0, movimentacoesNovas: 0, processosNovos: 0, camposDeFichaCompletados: 0, documentosLidos: 0 };
   const cli = deps.cliente(sistema);
   const pausa = deps.pausa ?? (() => Promise.resolve());
+  const hoje = deps.hoje ? deps.hoje() : new Date().toISOString().slice(0, 10);
+  let consultasDeDocumentos = 0;
 
   try {
     // 1) Intimações pendentes
@@ -125,6 +159,21 @@ async function rodarSistema(sistema: SistemaMni, cred: CredencialMni, processos:
       }
       if (deps.completarFicha && proc.partes?.length) {
         resumo.camposDeFichaCompletados += await deps.completarFicha(p.id, proc.partes).catch(() => 0);
+      }
+      // Petição nova: lê a LISTA de documentos (quem juntou, que tipo), base da baixa automática de prazos.
+      if (cli.documentosDoProcesso && deps.guardarDocumentos && deps.documentosLidosAte && consultasDeDocumentos < LIMITE_DOCUMENTOS_POR_RODADA) {
+        const ate = precisaLerDocumentos(proc.movimentos, await deps.documentosLidosAte(p.id, sistema.id).catch(() => null), hoje);
+        if (ate) {
+          consultasDeDocumentos++;
+          try {
+            await pausa(800);
+            const docs = await cli.documentosDoProcesso(cred, p.process_number);
+            resumo.documentosLidos += await deps.guardarDocumentos(p.id, sistema.id, docs, ate);
+          } catch (e) {
+            if (e instanceof ErroLoginMni) throw e;
+            // tribunal lento ou recusou a lista: tenta de novo na próxima rodada
+          }
+        }
       }
       await pausa(800);
     }

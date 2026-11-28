@@ -4,7 +4,10 @@
  *
  * SÓ LEITURA, por construção. Este módulo conhece apenas duas operações:
  *  - consultarAvisosPendentes: lista as intimações ainda não abertas;
- *  - consultarProcesso: dados básicos e movimentações (SEM documentos).
+ *  - consultarProcesso: dados básicos e movimentações (SEM documentos) e,
+ *    em outra chamada (documentosDoProcesso, desde 28/11/2026), só a LISTA dos
+ *    documentos juntados: tipo, data, movimento e quem assinou. O conteúdo
+ *    nunca é pedido nem guardado (a resposta é lida e o <conteudo> descartado).
  * Ele NÃO tem (e não deve ganhar) consultarTeorComunicacao nem
  * confirmarRecebimento — abrir a intimação pelo sistema pode registrar a
  * ciência e começar a contar o prazo — nem entregarManifestacaoProcessual
@@ -68,6 +71,30 @@ export interface ProcessoMni {
   /** Partes (dos dados básicos, com incluirCabecalho). Sem os advogados. */
   partes: ParteMni[];
   valorCausa: number | null;
+}
+
+/**
+ * Dados de um documento juntado ao processo (sem o conteúdo, sem a assinatura
+ * digital). CPFs ficam mascarados; `assinadoPeloLogin` diz se quem assinou foi
+ * o dono do login usado na consulta (a Dra.).
+ */
+export interface DocumentoMni {
+  idDocumento: string | null;
+  /** Documento principal, quando este é um anexo (documentoVinculado). */
+  idVinculadoA: string | null;
+  /** identificadorMovimento do movimento que juntou o documento. */
+  idMovimento: string | null;
+  dataHora: string | null;
+  /** Código do tipo de documento (tabela do tribunal). */
+  tipo: string | null;
+  tipoLocal: string | null;
+  descricao: string | null;
+  mimetype: string | null;
+  /** Identificadores de quem assinou, mascarados. */
+  assinantes: string[];
+  assinadoPeloLogin: boolean;
+  /** Demais parâmetros que o tribunal manda (outroParametro), com CPFs mascarados. */
+  parametros: Array<{ nome: string; valor: string }>;
 }
 
 /** Login recusado pelo tribunal. Quem chama deve PARAR de tentar (risco de bloquear a senha). */
@@ -291,11 +318,54 @@ export function lerProcesso(xml: string): ProcessoMni {
   };
 }
 
+const soDigitos = (s: string | null | undefined) => String(s ?? '').replace(/\D/g, '');
+
+/**
+ * Lista de documentos de uma resposta do consultarProcesso com
+ * incluirDocumentos=true. Descarta <conteudo> e a assinatura digital.
+ */
+export function lerDocumentos(xml: string, cpfDoLogin: string): DocumentoMni[] {
+  const proc = blocos(xml, 'processo')[0];
+  if (!proc) return [];
+  const login = soDigitos(cpfDoLogin);
+  const out: DocumentoMni[] = [];
+  const ler = (b: { abertura: string; conteudo: string }, vinculadoA: string | null) => {
+    const a = atributos(b.abertura);
+    // Tira os anexos e o conteúdo antes de ler assinaturas e parâmetros deste documento.
+    const vinculados = blocos(b.conteudo, 'documentoVinculado');
+    let proprio = b.conteudo;
+    for (const v of vinculados) proprio = proprio.replace(v.conteudo, '');
+    proprio = proprio.replace(/<((?:[\w-]+:)?conteudo)(\s[^>]*)?>[\s\S]*?<\/\1>/g, '');
+    const ids = blocos(proprio, 'signatarioLogin').map((s) => soDigitos(atributos(s.abertura).identificador)).filter(Boolean);
+    out.push({
+      idDocumento: a.idDocumento || null,
+      idVinculadoA: vinculadoA,
+      idMovimento: a.movimento || null,
+      dataHora: dataMni(a.dataHora),
+      tipo: a.tipoDocumento || null,
+      tipoLocal: a.tipoDocumentoLocal || null,
+      descricao: a.descricao ? a.descricao.trim().slice(0, 500) : null,
+      mimetype: a.mimetype || null,
+      assinantes: ids.map((d) => mascararCpf(d)),
+      assinadoPeloLogin: !!login && ids.includes(login),
+      parametros: blocos(proprio, 'outroParametro').map((p) => {
+        const pa = atributos(p.abertura);
+        return { nome: (pa.nome || '').slice(0, 100), valor: mascararCpf(pa.valor || '').slice(0, 500) };
+      }).filter((p) => p.nome),
+    });
+    for (const v of vinculados) ler(v, a.idDocumento || null);
+  };
+  for (const d of blocos(proc.conteudo, 'documento')) ler(d, null);
+  return out;
+}
+
 // ── Cliente ─────────────────────────────────────────────────────────────────
 
 export interface ClienteMni {
   avisosPendentes(cred: CredencialMni): Promise<AvisoMni[]>;
   consultarProcesso(cred: CredencialMni, numeroProcesso: string): Promise<ProcessoMni>;
+  /** Só a lista dos documentos (sem conteúdo). Opcional: o robô do PJe-JT não tem. */
+  documentosDoProcesso?(cred: CredencialMni, numeroProcesso: string): Promise<DocumentoMni[]>;
 }
 
 export function criarClienteMni(opts: { url: string; fetch?: Fetch; timeoutMs?: number }): ClienteMni {
@@ -332,6 +402,17 @@ export function criarClienteMni(opts: { url: string; fetch?: Fetch; timeoutMs?: 
       const { sucesso, mensagem } = verificarResposta(xml);
       if (!sucesso) throw new ErroRespostaMni(mensagem || 'Consulta do processo sem sucesso');
       return lerProcesso(xml);
+    },
+    async documentosDoProcesso(cred, numeroProcesso) {
+      const numero = numeroProcesso.replace(/\D/g, '');
+      const extra = `<tip:numeroProcesso>${numero}</tip:numeroProcesso>`
+        + '<tip:movimentos>false</tip:movimentos>'
+        + '<tip:incluirCabecalho>false</tip:incluirCabecalho>'
+        + '<tip:incluirDocumentos>true</tip:incluirDocumentos>';
+      const xml = await chamar(montarEnvelope('consultarProcesso', cred, extra));
+      const { sucesso, mensagem } = verificarResposta(xml);
+      if (!sucesso) throw new ErroRespostaMni(mensagem || 'Consulta dos documentos sem sucesso');
+      return lerDocumentos(xml, cred.cpf);
     },
   };
 }

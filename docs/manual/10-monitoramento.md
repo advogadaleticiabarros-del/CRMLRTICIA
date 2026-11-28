@@ -72,6 +72,18 @@ Por isso o TJES (1º e 2º grau, `viaEscritorio: true` em `sistemas.ts`) é cons
 
 Para incluir outro sistema: acrescente em `SISTEMAS_MNI` (`src/services/mni/sistemas.ts`) com o endereço e a regra do número CNJ.
 
+### Lista de documentos das petições (desde 28/11/2026)
+
+Pedido da Jessica: o CRM dizer sozinho se o prazo foi cumprido lendo o TJES. O problema: no PJe, a movimentação vem só como **"Petição"**, sem o tipo e sem quem juntou, então a Dra. Paula não tinha como saber se foi a nossa parte.
+
+- **O que faz:** na mesma rodada do MNI, quando um processo tem "Petição" (código 85) juntada nos **últimos 30 dias** e ainda não lida, o CRM pede ao tribunal a **lista de documentos** do processo (`documentosDoProcesso`, em `cliente.ts`). No máximo 15 processos por rodada.
+- **O que guarda** (`mni_documentos`, migration 192): o tipo, a descrição ("Réplica", "Contestação"…), a data, o movimento que juntou, se é anexo de outro documento e **se foi assinado pelo login da Dra.** (`assinado_pelo_login`). CPF de quem assinou fica mascarado.
+- **O que nunca faz:** pedir ou guardar o **conteúdo** dos documentos (o `<conteudo>` que vier é descartado) e abrir intimação (continua bloqueado; ver "Só leitura", acima).
+- **Não repete:** `legal_processes.mni_documentos_ate` guarda até qual petição já leu.
+- **Falha:** se o tribunal recusar ou demorar, tenta de novo na próxima rodada. Login recusado para o sistema, como nas outras consultas.
+- **Para que serve:** é a base da baixa automática de prazos. A regra da Dra. Paula ainda **não** usa esses dados; ela passa a usar depois de conferirmos o formato real que o TJES devolve.
+- Código: `src/services/mni/cliente.ts` (`lerDocumentos`), `monitorMni.ts` (`precisaLerDocumentos`) e `index.ts` (gravação). Testes: `tests/mniDocumentos.test.mjs`.
+
 ### TRT17 pelo site do PJe-JT, com o login da Dra. (desde 18/11/2026)
 
 O MNI do TRT17 só atende credenciados. A pedido da Dra. ("quero fazer o login direto exatamente igual fizemos TJES"), o CRM entra no **site** do PJe-JT com o CPF e a senha dela, como ela entraria, e lê o que ela veria. Aparece na mesma tela (Configurações → Ligação com os tribunais) como **TRT17 — PJe-JT 1º grau (site)** e **2º grau (site)**; a rodada, os avisos de intimação, a gravação dos andamentos e o desligamento por login recusado são os mesmos do TJES.
@@ -214,6 +226,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/11/2026 | Claude | MNI: lista de documentos das petições recentes (tipo, descrição, se assinou a Dra.; nunca o conteúdo), em `mni_documentos`, base da baixa automática de prazos |
 | 23/11/2026 | Claude | DataJud: freio único (uma consulta por vez, pausa de 15 min após 429/timeout, sem repetir 429), monitoramento em lotes de 25 sem rodada sobreposta, botão manual com prioridade e mensagem clara |
 | 19/11/2026 | Claude | Raio-x da carteira do Dr. Vítor (`carteira:raio-x`, 6h45): 10 tipos de pendência com gravidade e colega responsável, repasse que vira conversa, briefing, sino só para grave nova e pauta na ficha |
 | 18/11/2026 | Claude | TRT17 pelo site: o CRM gera o código do autenticador (2 fatores) pela chave cadastrada, criptografada (migration 186) |
