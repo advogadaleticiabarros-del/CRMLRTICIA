@@ -17,7 +17,9 @@ Contexto da mesma conversa, só planejamento, sem código: a extensão do CRM pa
 ## Verificado
 - `npx tsc --noEmit`: sem erros. `npm run lint`: 0 erros (os avisos já existiam).
 - `npm test`: 1714 testes, 1680 passaram, 0 falhas. Os que precisam de banco rodam no CI.
-- **Não verificado ainda:** o formato real que o TJES devolve, ou seja, se vem a descrição ("Réplica") e o `signatarioLogin`. Isso só aparece depois da primeira rodada do MNI em produção com o computador do escritório ligado.
+- Deploy de `c7a819d` aprovado no CI.
+- **Rodada das 7h10 em produção:** 850 documentos de 15 processos. **Formato real do TJES:** não vem `<assinatura>`. Quem juntou vem nos parâmetros `usuarioJuntadaArquivo` (nome) e `...usuarioJuntadaArquivo:documentoIdentificacao` (CPF). A descrição é quase sempre genérica ("Petição (outras)"). A Dra. juntou 5 documentos em 30 dias, mas a primeira versão não a reconheceu, porque só olhava a assinatura.
+- Segundo commit: reconhecimento pelo CPF de quem juntou e coluna `juntado_por` (migration 193). 22 testes do MNI e a suíte completa (1681, 0 falhas) passaram.
 
 ## Decisões e porquês
 - **Primeira tentativa bloqueada:** abrir a senha do MNI na VPS e enviar o pedido deste computador foi barrado pelo filtro de permissões (risco de vazamento de credencial). A Jessica escolheu o caminho pelo próprio CRM, pela ponte. A senha não sai do servidor e o resultado já serve de base para a baixa automática.
@@ -25,7 +27,11 @@ Contexto da mesma conversa, só planejamento, sem código: a extensão do CRM pa
 - **Lista, nunca conteúdo:** pedir a lista de documentos não dá ciência (isso só acontece com `consultarTeorComunicacao`, que continua proibido pelo teste em `mniTribunais.test.mjs`).
 - **A regra da Dra. Paula ainda não usa os dados:** baixar errado esconde um prazo aberto, então primeiro é preciso conferir o formato real.
 
+- **A ponte não travou, quem parou foi o computador:** os eventos do Windows mostram a tampa fechada em 26/11 às 20h46 e a bateria acabando em 27/11. A Jessica confirmou que o computador ficou desligado. O log da ponte não tem nenhuma linha nesse período, e as quedas de madrugada são reconexões de cerca de 30 s.
+
 ## Pendente
+- **Ponte (Jessica decide):** configurar a tampa para não suspender na tomada, avisar quando a rodada do TJES falhar pela ponte e rodar a recuperação quando o computador voltar.
+- **Reler os 15 processos já lidos** para preencher `juntado_por`: zerar `legal_processes.mni_documentos_ate` desses processos depois do deploy.
 - **Conferir depois da próxima rodada do MNI** (com o computador do escritório ligado): ler `mni_documentos` dos processos 5023912-32.2025.8.08.0012, 5016872-62.2026.8.08.0012 e 5029177-15.2025.8.08.0012.
 - Se vierem a descrição e quem assinou: incluir na regra da Dra. Paula "petição de tipo compatível, juntada depois da intimação e assinada pela Dra. → cumprido". Ligar a conferência de prazos ao fim da rodada do MNI.
 - Advogados do escritório que não são a Dra.: hoje só o CPF do login é reconhecido. Decidir como reconhecer os outros (Jessica).

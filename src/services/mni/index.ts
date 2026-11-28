@@ -169,13 +169,13 @@ function depsDeProducao(): DepsMonitorMni {
       for (const d of docs) {
         if (!d.idDocumento) continue;
         const [r] = await db.query(
-          `INSERT INTO mni_documentos (process_id, sistema, id_documento, id_vinculado_a, id_movimento, data_hora, tipo, tipo_local, descricao, mimetype, assinado_pelo_login, dados_json)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `INSERT INTO mni_documentos (process_id, sistema, id_documento, id_vinculado_a, id_movimento, data_hora, tipo, tipo_local, descricao, mimetype, assinado_pelo_login, juntado_por, dados_json)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            ON DUPLICATE KEY UPDATE descricao = VALUES(descricao), tipo_local = VALUES(tipo_local),
-             assinado_pelo_login = VALUES(assinado_pelo_login), dados_json = VALUES(dados_json), lido_em = NOW()`,
+             assinado_pelo_login = VALUES(assinado_pelo_login), juntado_por = VALUES(juntado_por), dados_json = VALUES(dados_json), lido_em = NOW()`,
           [processId, sistema, d.idDocumento.slice(0, 64), d.idVinculadoA?.slice(0, 64) ?? null, d.idMovimento?.slice(0, 64) ?? null,
             paraDataSql(d.dataHora), d.tipo?.slice(0, 40) ?? null, d.tipoLocal?.slice(0, 120) ?? null, d.descricao, d.mimetype?.slice(0, 80) ?? null,
-            d.assinadoPeloLogin ? 1 : 0, JSON.stringify({ assinantes: d.assinantes, parametros: d.parametros })]
+            d.assinadoPeloLogin ? 1 : 0, d.juntadoPor, JSON.stringify({ assinantes: d.assinantes, parametros: d.parametros })]
         ) as any;
         if (r.affectedRows === 1) n++; // 1 = novo, 2 = já existia
       }

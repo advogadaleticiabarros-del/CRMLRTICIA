@@ -77,7 +77,8 @@ Para incluir outro sistema: acrescente em `SISTEMAS_MNI` (`src/services/mni/sist
 Pedido da Jessica: o CRM dizer sozinho se o prazo foi cumprido lendo o TJES. O problema: no PJe, a movimentação vem só como **"Petição"**, sem o tipo e sem quem juntou, então a Dra. Paula não tinha como saber se foi a nossa parte.
 
 - **O que faz:** na mesma rodada do MNI, quando um processo tem "Petição" (código 85) juntada nos **últimos 30 dias** e ainda não lida, o CRM pede ao tribunal a **lista de documentos** do processo (`documentosDoProcesso`, em `cliente.ts`). No máximo 15 processos por rodada.
-- **O que guarda** (`mni_documentos`, migration 192): o tipo, a descrição ("Réplica", "Contestação"…), a data, o movimento que juntou, se é anexo de outro documento e **se foi assinado pelo login da Dra.** (`assinado_pelo_login`). CPF de quem assinou fica mascarado.
+- **O que guarda** (`mni_documentos`, migrations 192 e 193): o tipo, a descrição ("Petição (outras)", "Despacho"…), a data, o movimento que juntou, se é anexo de outro documento, **quem juntou** (`juntado_por`, nome) e **se foi juntado ou assinado com o CPF do login da Dra.** (`assinado_pelo_login`). CPFs ficam mascarados.
+- **Formato real do PJe do TJES (conferido em 28/11/2026, 850 documentos de 15 processos):** não vem a assinatura digital. Quem juntou vem nos parâmetros `usuarioJuntadaArquivo` (nome) e `mni:pje:documento:usuarioJuntadaArquivo:documentoIdentificacao` (CPF), e também `criadorArquivo`. A descrição costuma ser genérica ("Petição (outras)"), então o tipo da peça nem sempre aparece; o que decide é **quem juntou**.
 - **O que nunca faz:** pedir ou guardar o **conteúdo** dos documentos (o `<conteudo>` que vier é descartado) e abrir intimação (continua bloqueado; ver "Só leitura", acima).
 - **Não repete:** `legal_processes.mni_documentos_ate` guarda até qual petição já leu.
 - **Falha:** se o tribunal recusar ou demorar, tenta de novo na próxima rodada. Login recusado para o sistema, como nas outras consultas.
@@ -226,6 +227,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/11/2026 | Claude | MNI: guarda quem juntou cada documento (`juntado_por`) e reconhece a Dra. pelo CPF de quem juntou (o TJES não manda assinatura) |
 | 28/11/2026 | Claude | MNI: lista de documentos das petições recentes (tipo, descrição, se assinou a Dra.; nunca o conteúdo), em `mni_documentos`, base da baixa automática de prazos |
 | 23/11/2026 | Claude | DataJud: freio único (uma consulta por vez, pausa de 15 min após 429/timeout, sem repetir 429), monitoramento em lotes de 25 sem rodada sobreposta, botão manual com prioridade e mensagem clara |
 | 19/11/2026 | Claude | Raio-x da carteira do Dr. Vítor (`carteira:raio-x`, 6h45): 10 tipos de pendência com gravidade e colega responsável, repasse que vira conversa, briefing, sino só para grave nova e pauta na ficha |

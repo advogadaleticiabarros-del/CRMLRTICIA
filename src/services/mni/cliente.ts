@@ -92,7 +92,10 @@ export interface DocumentoMni {
   mimetype: string | null;
   /** Identificadores de quem assinou, mascarados. */
   assinantes: string[];
+  /** Assinado OU juntado com o CPF do login da consulta (a Dra.). */
   assinadoPeloLogin: boolean;
+  /** Nome de quem juntou o documento (PJe: parâmetro usuarioJuntadaArquivo). */
+  juntadoPor: string | null;
   /** Demais parâmetros que o tribunal manda (outroParametro), com CPFs mascarados. */
   parametros: Array<{ nome: string; valor: string }>;
 }
@@ -337,6 +340,11 @@ export function lerDocumentos(xml: string, cpfDoLogin: string): DocumentoMni[] {
     for (const v of vinculados) proprio = proprio.replace(v.conteudo, '');
     proprio = proprio.replace(/<((?:[\w-]+:)?conteudo)(\s[^>]*)?>[\s\S]*?<\/\1>/g, '');
     const ids = blocos(proprio, 'signatarioLogin').map((s) => soDigitos(atributos(s.abertura).identificador)).filter(Boolean);
+    const params = blocos(proprio, 'outroParametro').map((p) => atributos(p.abertura));
+    const param = (nome: string) => params.find((p) => p.nome === nome)?.valor?.trim() || null;
+    // PJe do TJES (28/11/2026): não manda <assinatura>; quem juntou vem nos parâmetros, com o CPF.
+    const cpfsJuntada = ['mni:pje:documento:usuarioJuntadaArquivo:documentoIdentificacao', 'mni:pje:documento:criadorArquivo:documentoIdentificacao']
+      .map((n) => soDigitos(param(n))).filter(Boolean);
     out.push({
       idDocumento: a.idDocumento || null,
       idVinculadoA: vinculadoA,
@@ -347,11 +355,10 @@ export function lerDocumentos(xml: string, cpfDoLogin: string): DocumentoMni[] {
       descricao: a.descricao ? a.descricao.trim().slice(0, 500) : null,
       mimetype: a.mimetype || null,
       assinantes: ids.map((d) => mascararCpf(d)),
-      assinadoPeloLogin: !!login && ids.includes(login),
-      parametros: blocos(proprio, 'outroParametro').map((p) => {
-        const pa = atributos(p.abertura);
-        return { nome: (pa.nome || '').slice(0, 100), valor: mascararCpf(pa.valor || '').slice(0, 500) };
-      }).filter((p) => p.nome),
+      assinadoPeloLogin: !!login && (ids.includes(login) || cpfsJuntada.includes(login)),
+      juntadoPor: (param('usuarioJuntadaArquivo') || param('criadorArquivo'))?.slice(0, 200) ?? null,
+      parametros: params.map((pa) => ({ nome: (pa.nome || '').slice(0, 100), valor: mascararCpf(pa.valor || '').slice(0, 500) }))
+        .filter((p) => p.nome),
     });
     for (const v of vinculados) ler(v, a.idDocumento || null);
   };

@@ -62,6 +62,30 @@ test('lerDocumentos: dados de cada documento, sem conteúdo nem assinatura digit
   assert.ok(replica.parametros.some((p) => p.nome === 'nomeUsuario' && p.valor === 'ADVOGADA FICTICIA'));
 });
 
+// Formato real do PJe do TJES (conferido em 28/11/2026): sem <assinatura>; quem
+// juntou vem em outroParametro (usuarioJuntadaArquivo + CPF).
+const XML_DOCS_PJE = envelope(`<r><sucesso>true</sucesso><processo><dadosBasicos numero="50000000020268080012"/>
+  <documento idDocumento="700001" tipoDocumento="8170024" dataHora="20261124091400" descricao="Petição (outras)" movimento="1">
+    <outroParametro nome="mni:pje:documento:usuarioJuntadaArquivo:documentoIdentificacao" valor="11122233344"/>
+    <outroParametro nome="mni:pje:documento:usuarioJuntadaArquivo:tipoDocumentoIdentificacao" valor="CPF"/>
+    <outroParametro nome="usuarioJuntadaArquivo" valor="ADVOGADA FICTICIA"/>
+    <outroParametro nome="criadorArquivo" valor="ADVOGADA FICTICIA"/>
+  </documento>
+  <documento idDocumento="700002" tipoDocumento="8170024" dataHora="20261125110700" descricao="Petição (outras)">
+    <outroParametro nome="mni:pje:documento:usuarioJuntadaArquivo:documentoIdentificacao" valor="99988877766"/>
+    <outroParametro nome="usuarioJuntadaArquivo" valor="ADVOGADO DO BANCO"/>
+  </documento>
+</processo></r>`);
+
+test('PJe do TJES: quem juntou vem nos parâmetros; reconhece a Dra. pelo CPF do login', () => {
+  const [nossa, deles] = cli.lerDocumentos(XML_DOCS_PJE, '111.222.333-44');
+  assert.equal(nossa.juntadoPor, 'ADVOGADA FICTICIA');
+  assert.equal(nossa.assinadoPeloLogin, true, 'juntado com o CPF do login');
+  assert.equal(deles.juntadoPor, 'ADVOGADO DO BANCO');
+  assert.equal(deles.assinadoPeloLogin, false);
+  assert.ok(!/11122233344|99988877766/.test(JSON.stringify([nossa, deles])), 'CPFs continuam mascarados');
+});
+
 test('documentosDoProcesso pede só a lista (incluirDocumentos=true), sem movimentos e sem pedir conteúdo', async () => {
   const enviados = [];
   const fakeFetch = async (_u, init) => { enviados.push(init.body); return { status: 200, text: async () => XML_DOCS }; };
