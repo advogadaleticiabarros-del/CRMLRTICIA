@@ -14,7 +14,9 @@ A Jessica quer um MCP do CRM "para que cada usuário possa usar dentro do Claude
 - Testes novos: `tests/chavesClaude.test.mjs` (5) e `tests/extensaoClaude.test.mjs` (5). Suíte completa: 1699 passaram, 0 falhas. Tipos e lint sem erros.
 - `mcpb validate`: manifesto válido. `mcpb pack`: `crm-juridico.mcpb` com 3,1 MB, gerado no scratchpad (não vai para o git).
 - Servidor MCP aberto por stdio: inicializa, envia as instruções e lista as 4 ferramentas. A chamada ao CRM de produção deu "Rota não encontrada", o esperado porque a API ainda não está publicada.
-- **Não verificado:** instalação no Claude Desktop da Dra. e as consultas reais. Isso depende de publicar a API em produção.
+- **Publicado** com autorização da Jessica (merge rápido, commit `2b0f8e4`, CI e deploy aprovados).
+- **Teste em produção** com chave temporária criada dentro do servidor e revogada e apagada no fim: sem chave ou com chave falsa → 401; `/eu` 200 (admin); `/semana` 200 (11 prazos, 60 tarefas, que é o limite, e 87 intimações a confirmar); `/identificar` pelo nº 5023912-32.2025 → certeza "certo", 1 caso; `/casos/:id` → 3 processos, 1 prazo, 10 movimentações, nenhum CPF; depois de revogar → 401.
+- **Não verificado:** a instalação no Claude Desktop da Dra.
 
 ## Decisões e porquês
 - **Chave, e não OAuth:** os advogados usam o Claude Desktop no Windows com Pro individual. A extensão local vai precisar ler as pastas do computador nas próximas fases. OAuth fica para o conector web e o celular.
@@ -22,14 +24,12 @@ A Jessica quer um MCP do CRM "para que cada usuário possa usar dentro do Claude
 - **Admin vê os prazos do escritório todo; os outros veem os seus** (`deadlines.user_id`).
 
 ## Pendente
-- **Publicar a API para o teste (Jessica autoriza):** para a Dra. testar, a API precisa estar em produção. É uma adição: não muda nada do que existe e não faz nada sem uma chave gerada.
 - Depois: a Dra. gera a chave, instala o `.mcpb` e desliga o treino no Claude Pro.
 - Fase 1: escrita com identificação automática e "desfazer"; resumo diário à Jessica do que o Claude registrou.
 - Mover o cartão das chaves para o perfil de cada usuário quando houver outros advogados (hoje está em Configurações).
 
 ## Próxima sessão
-1. Com a autorização: merge do branch na `main` e conferir o deploy. Gerar uma chave de teste, chamar `/api/claude/semana` e revogar a chave.
-2. Instalar com a Dra. e testar com 2 ou 3 casos reais.
-3. Fase 1: `POST /api/claude/protocolo`, com TDD.
+1. Instalar com a Dra. e testar com 2 ou 3 casos reais.
+2. Fase 1: `POST /api/claude/protocolo`, com TDD.
 
 Skills: `codebase-design`, `tdd`, `security-threat-model`, `verification-before-completion`.
