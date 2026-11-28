@@ -23,6 +23,9 @@ Contexto da mesma conversa, só planejamento, sem código: a extensão do CRM pa
 
 - **Terceiro commit:** vigia da ponte (`src/services/mni/vigiaPonte.ts`, rotina `mni:vigia-ponte`, migration 194) e a regra da Dra. Paula com a prova "juntada pela Dra." (`avaliarCumprimento`, `juntadasPelaDra` em `agentePrazosMysql.ts`). Suíte completa: 1689 passaram, 0 falhas. Runbook: incidente de 27/11.
 
+- Vigia em produção: rodou às 7h55 com `{"acao":"nada"}` (TJES em dia), como esperado.
+- Levantamento do SaaS, só leitura: `docs/pesquisas/2026-11-28-levantamento-saas.md`.
+
 ## Decisões e porquês
 - **Regra conservadora na baixa:** juntada pela Dra. no **mesmo dia** do movimento e IA dizendo que a nossa parte cumpriu → cumprido. IA em dúvida, ou dizendo que foi a outra parte, com juntada da Dra. → só "provável". Baixar errado esconde um prazo aberto.
 - **Aviso uma vez por queda**, para não encher o WhatsApp a cada 10 minutos. A recuperação roda sozinha.
