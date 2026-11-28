@@ -4,7 +4,7 @@
 > Acesso: **público** (sem login), **logado** (qualquer usuário), **equipe** (admin, advogada, staff), **admin**.
 > Dentro de cada rota pode haver checagem extra (ex.: dono do registro, papel parceiro).
 
-**545 rotas em 86 grupos.**
+**552 rotas em 88 grupos.**
 
 ## `/api/access-logs` · admin · `src/routes/accessLogs.ts`
 
@@ -242,6 +242,23 @@
 | GET | `/api/cerebro/organizacao` |
 | GET | `/api/cerebro/resumo` |
 | GET | `/api/cerebro/ponte` |
+
+## `/api/claude` · público · `src/routes/claude.ts`
+
+| Método | Caminho |
+|---|---|
+| GET | `/api/claude/eu` |
+| GET | `/api/claude/semana` |
+| GET | `/api/claude/identificar` |
+| GET | `/api/claude/casos/:id` |
+
+## `/api/claude-chaves` · equipe · `src/routes/claudeChaves.ts`
+
+| Método | Caminho |
+|---|---|
+| GET | `/api/claude-chaves` |
+| POST | `/api/claude-chaves` |
+| DELETE | `/api/claude-chaves/:id` |
 
 ## `/api/clients` · equipe · `src/routes/clients.ts`
 

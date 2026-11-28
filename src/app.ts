@@ -95,6 +95,8 @@ import whatsappInstanceRoutes, { mediaHandler } from './routes/whatsapp-instance
 import courtEmailMonitorRoutes from './routes/courtEmailMonitor';
 import mniRoutes from './routes/mni';
 import mniPonteRoutes from './routes/mniPonte';
+import claudeRoutes from './routes/claude';
+import claudeChavesRoutes from './routes/claudeChaves';
 import obsidianPonteRoutes from './routes/obsidianPonte';
 import andamentosRoutes from './routes/andamentos';
 import { googleOAuthCallback } from './routes/google-callback';
@@ -175,6 +177,8 @@ export function createApp() {
   app.use('/api/escritorio',            authenticate, requireStaff, escritorioRoutes);
   app.use('/api/tv',                    autenticarTvOuEquipe, tvRoutes); // chave da TV (só GET) ou equipe
   app.use('/api/tv-aparelhos',          authenticate, requireStaff, requireWhatsappAccess, tvAparelhosRoutes);
+  app.use('/api/claude',                claudeRoutes); // extensão do Claude Desktop: chave própria (routes/claude.ts)
+  app.use('/api/claude-chaves',         authenticate, requireStaff, claudeChavesRoutes);
   app.use('/api/erros',                 authenticate, errosRoutes);
   app.use('/api/cerebro',               authenticate, requireStaff, cerebroRoutes);
   app.use('/api/leis',                  authenticate, requireStaff, leisRoutes);

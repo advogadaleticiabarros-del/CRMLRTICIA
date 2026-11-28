@@ -1,0 +1,16 @@
+{
+  "name": "crm-juridico-extensao-claude",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Extensão do CRM jurídico para o Claude Desktop (servidor MCP local).",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "pack": "npx -y @anthropic-ai/mcpb@2.1.2 pack . crm-juridico.mcpb",
+    "validate": "npx -y @anthropic-ai/mcpb@2.1.2 validate manifest.json"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "3.25.76"
+  }
+}

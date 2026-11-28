@@ -2041,6 +2041,11 @@ const ROUTES = {
         <div id="mni-panel"><div class="spinner"></div></div>
       </div>
       <div class="card" style="padding:20px;margin-bottom:20px">
+        <h3 style="color:var(--navy);margin-bottom:2px">🤖 Claude (extensão)</h3>
+        <p class="sub" style="margin:0 0 12px">Liga o Claude Desktop ao CRM: o Claude reconhece o caso pelo número do processo ou pelo nome do cliente, traz os prazos e as movimentações antes de redigir e responde "o que tenho esta semana". Gere uma chave, instale a extensão no Claude Desktop e cole a chave nas configurações dela. A chave age em seu nome, com as suas permissões; revogue se trocar de computador. <strong>Versão de teste: só leitura.</strong></p>
+        <div id="claude-panel"><div class="spinner"></div></div>
+      </div>
+      <div class="card" style="padding:20px;margin-bottom:20px">
         <h3 style="color:var(--navy);margin-bottom:2px">📧 Monitoramento processual por e-mail (plano B)</h3>
         <p class="sub" style="margin:0 0 12px">Além do monitoramento normal (DJEN, de hora em hora), o CRM pode conferir 2x por dia se alguma movimentação chegou por e-mail de tribunal/PJe — útil quando o DJEN não pega. <strong>Experimental:</strong> os critérios de "isso parece e-mail de tribunal" são uma heurística e vão precisar de ajuste com o tempo. Conecte a conta de e-mail que RECEBE notificação de tribunal (a sua ou uma dedicada — a escolha é sua).</p>
         <div id="court-email-panel"><div class="spinner"></div></div>
@@ -2474,6 +2479,7 @@ const ROUTES = {
     await loadAutomations();
     await loadBackups();
     await loadMniPanel();
+    await loadClaudePanel();
     await loadCourtEmailPanel();
     await asaasConfigSection(page);
   },
@@ -5000,6 +5006,45 @@ async function andamentosProcessos(box) {
 
 // Ligação oficial com os tribunais (MNI). CPF e senha só vão para o servidor
 // (que testa o login uma vez e guarda criptografado); nada disso volta para a tela.
+// Chaves do Claude (extensão do Claude Desktop, 28/11/2026). A chave completa só aparece ao criar.
+async function loadClaudePanel() {
+  const box = $('#claude-panel');
+  if (!box) return;
+  const chaves = await api('/api/claude-chaves').catch(() => []);
+  const dt = (v) => (v ? new Date(v).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca');
+  box.innerHTML = `
+    ${chaves.length ? chaves.map((c) => `
+      <div style="display:flex;align-items:center;gap:10px;border:1px solid var(--border, #e3e3e3);border-radius:8px;padding:10px 12px;margin-bottom:8px">
+        <div style="flex:1"><strong>${esc(c.nome)}</strong> <span class="sub" style="font-family:monospace">${esc(c.prefixo)}…</span>
+          <div class="sub" style="font-size:12px">Criada em ${dt(c.criada_em)} · último uso: ${dt(c.ultimo_uso)} · ${c.usos} consulta(s)</div></div>
+        <button class="btn-ghost btn-sm claude-revogar" data-id="${c.id}" type="button">Revogar</button>
+      </div>`).join('') : '<p class="sub" style="margin:0 0 10px">Nenhuma chave ativa.</p>'}
+    <div class="form-row" style="margin-top:6px;align-items:flex-end">
+      <label>Nome da chave<input id="claude-nome" placeholder="ex.: Claude do notebook" maxlength="80" /></label>
+      <button class="btn-gold btn-sm" id="claude-criar" type="button">Gerar chave</button>
+    </div>
+    <div id="claude-nova" style="display:none;margin-top:10px;border:1px solid var(--gold, #c9a227);border-radius:8px;padding:12px">
+      <strong>Copie agora: a chave não aparece de novo.</strong>
+      <div style="display:flex;gap:8px;margin-top:8px"><input id="claude-chave" readonly style="flex:1;font-family:monospace" aria-label="Chave gerada" />
+      <button class="btn-gold btn-sm" id="claude-copiar" type="button">Copiar</button></div>
+    </div>`;
+  box.querySelectorAll('.claude-revogar').forEach((b) => b.onclick = async () => {
+    if (!confirm('Revogar esta chave? O Claude que usa ela deixa de acessar o CRM na hora.')) return;
+    try { await api(`/api/claude-chaves/${b.dataset.id}`, { method: 'DELETE' }); toast('Chave revogada'); loadClaudePanel(); } catch (e) { toast(e.message, 'error'); }
+  });
+  $('#claude-criar').onclick = async () => {
+    const nome = $('#claude-nome').value.trim();
+    if (!nome) { toast('Dê um nome para a chave', 'error'); return; }
+    try {
+      const r = await api('/api/claude-chaves', { method: 'POST', body: JSON.stringify({ nome }) });
+      await loadClaudePanel();
+      $('#claude-nova').style.display = 'block';
+      $('#claude-chave').value = r.chave;
+      $('#claude-copiar').onclick = async () => { try { await navigator.clipboard.writeText(r.chave); toast('Chave copiada'); } catch { $('#claude-chave').select(); } };
+    } catch (e) { toast(e.message, 'error'); }
+  };
+}
+
 async function loadMniPanel() {
   const box = $('#mni-panel');
   if (!box) return;

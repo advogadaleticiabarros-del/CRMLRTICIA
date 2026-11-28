@@ -1,0 +1,50 @@
+{
+  "manifest_version": "0.2",
+  "name": "crm-juridico",
+  "display_name": "CRM Jurídico",
+  "version": "0.1.0",
+  "description": "Liga o Claude ao CRM jurídico do escritório: prazos da semana, identificação do caso pelo número do processo ou pelo nome do cliente e resumo do caso.",
+  "long_description": "Com a extensão ligada, o Claude consulta o CRM sozinho enquanto você trabalha: reconhece o caso pelo número do processo ou pelo nome do cliente, traz os prazos abertos e as últimas movimentações antes de redigir e responde \"o que tenho esta semana\". Versão 0.1: só leitura. Para usar, gere uma chave no CRM (Configurações → Claude) e cole aqui.",
+  "author": {
+    "name": "Orbit Desenvolvimento"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.js"],
+      "env": {
+        "CRM_URL": "${user_config.crm_url}",
+        "CRM_CHAVE": "${user_config.chave}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "crm_quem_sou", "description": "Confere a ligação com o CRM e em nome de quem o Claude age." },
+    { "name": "crm_minha_semana", "description": "Prazos e tarefas da pessoa até daqui a 7 dias, e os atrasados." },
+    { "name": "crm_identificar_caso", "description": "Acha o caso pelo número do processo, CPF ou nome do cliente." },
+    { "name": "crm_resumo_caso", "description": "Resumo do caso: processos, prazos abertos e últimas movimentações." }
+  ],
+  "user_config": {
+    "chave": {
+      "type": "string",
+      "title": "Chave do CRM",
+      "description": "Gere no CRM em Configurações → Claude e cole aqui. Começa com crm_.",
+      "sensitive": true,
+      "required": true
+    },
+    "crm_url": {
+      "type": "string",
+      "title": "Endereço do CRM",
+      "description": "Endereço do CRM do escritório.",
+      "default": "https://crm.advogadaleticiabarros.com.br",
+      "required": true
+    }
+  },
+  "compatibility": {
+    "platforms": ["win32", "darwin"],
+    "runtimes": { "node": ">=18.0.0" }
+  },
+  "license": "UNLICENSED"
+}

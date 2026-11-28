@@ -29,6 +29,7 @@ Consulte antes de mexer em qualquer integração externa, pra saber o que depend
 | **Groq** | IA rápida — resumo de movimentação, qualificação de lead | Resumos automáticos de movimentação no briefing; qualificação automática de lead |
 | **Gemini** | IA de visão — leitura de documento/imagem | Classificação automática de documento por foto (Dativo) |
 | **OpenAI** | IA usada em extrações específicas (ex.: parte/CPF em e-mail de tribunal) | Scripts de extração que dependem especificamente dela |
+| **Claude Desktop (extensão do CRM)** | Advogados consultam o CRM de dentro do Claude: identificar o caso, prazos da semana, resumo do caso (fase 0, só leitura) | Configurações → Claude (extensão) gera a chave de cada pessoa (`claude_chaves`, migration 195); API `/api/claude/*`; extensão em `extensao-claude/` (ver o README dela) |
 | **DataJud API Key** | Autenticação da consulta pública do CNJ | — (chave própria, ver variável `DATAJUD_API_KEY`) |
 | **Resend / SMTP (Gmail)** | Envio de e-mail (briefing, notificações) | Todo e-mail automático do sistema |
 | **GitHub** | Código-fonte + deploy automático (GitHub Actions) | Nenhum push novo chega em produção sem isso |
@@ -97,6 +98,7 @@ Nunca no código-fonte nem no Git — só em variáveis de ambiente na VPS (`.en
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/11/2026 | Claude | Extensão do CRM para o Claude Desktop (fase 0): chaves por pessoa e API `/api/claude/*` |
 | 23/11/2026 | Claude | Chamadas de IA (Gemini, Groq, OpenAI, transcrição) com tempo limite e resposta vazia tratada como falha, passando ao provedor reserva (`src/services/iaHttp.ts`) |
 | 18/11/2026 | Claude | Robô do site do PJe-JT do TRT17 pela ponte do escritório |
 | 18/11/2026 | Claude | Ponte do escritório para o TJES (tarefa do Windows + chave `MNI_PONTE_TOKEN`) |
