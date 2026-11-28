@@ -94,20 +94,36 @@ export function parseJulgamento(texto: string | null | undefined): Julgamento | 
 
 const norm = (s: string) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\s+/g, ' ');
 
+/**
+ * `juntadasPelaDra` (desde 28/11/2026): dias (AAAA-MM-DD) em que o tribunal
+ * registrou documento juntado com o CPF do login da Dra. (mni_documentos). No
+ * PJe o movimento vem só como "Petição", sem citar ninguém: a juntada pela
+ * Dra. no mesmo dia do movimento é a prova de que foi a nossa parte.
+ */
 export function avaliarCumprimento(
-  j: Julgamento | null, movs: MovimentoPosterior[], ctx: { cliente: string | null; desde: string; termos: string[] },
+  j: Julgamento | null, movs: MovimentoPosterior[],
+  ctx: { cliente: string | null; desde: string; termos: string[]; juntadasPelaDra?: string[] },
 ): { resultado: 'cumprido' | 'provavel' | 'nao'; movimentoId: number | null; motivo: string } {
   const nao = { resultado: 'nao' as const, movimentoId: null, motivo: '' };
-  if (!j || j.cumprido === 'nao' || j.quem === 'outra_parte') return nao;
+  if (!j || j.cumprido === 'nao') return nao;
   const mov = j.movimento_id != null ? movs.find((m) => m.id === j.movimento_id) : undefined;
   if (j.movimento_id != null && !mov) return nao; // movimento que não existe: a IA inventou
   if (mov && mov.data.slice(0, 10) < ctx.desde.slice(0, 10)) return nao;
+  const dia = mov?.data.slice(0, 10);
+  const juntadaDaDra = !!dia && (ctx.juntadasPelaDra ?? []).includes(dia);
+  const notaJuntada = juntadaDaDra && dia ? ` (petição juntada pela Dra. no tribunal em ${dia.slice(8, 10)}/${dia.slice(5, 7)})` : '';
+  if (j.quem === 'outra_parte') {
+    // A IA só viu "Petição": se o tribunal diz que foi a Dra. que juntou, pede confirmação.
+    return juntadaDaDra && mov ? { resultado: 'provavel', movimentoId: mov.id, motivo: `${j.motivo}${notaJuntada}` } : nao;
+  }
   if (!mov) return { resultado: 'provavel', movimentoId: null, motivo: j.motivo };
   const texto = norm(`${mov.titulo} ${mov.texto}`);
   const termos = [...ctx.termos, ...(ctx.cliente ? [ctx.cliente] : [])].map(norm).filter((t) => t.length >= 4);
   const citaNos = termos.some((t) => texto.includes(t));
-  if (j.cumprido === 'sim' && j.quem === 'nosso_cliente' && citaNos) return { resultado: 'cumprido', movimentoId: mov.id, motivo: j.motivo };
-  return { resultado: 'provavel', movimentoId: mov.id, motivo: j.motivo };
+  if (j.cumprido === 'sim' && j.quem === 'nosso_cliente' && (citaNos || juntadaDaDra)) {
+    return { resultado: 'cumprido', movimentoId: mov.id, motivo: citaNos ? j.motivo : `${j.motivo}${notaJuntada}` };
+  }
+  return { resultado: 'provavel', movimentoId: mov.id, motivo: `${j.motivo}${notaJuntada}` };
 }
 
 // ── Rodada ──────────────────────────────────────────────────────────────────
@@ -131,6 +147,8 @@ export interface DepsAgentePrazos {
   marcarAndamentoTratado(movementId: number): Promise<void>;
   prazosPendentes(): Promise<PrazoPendente[]>;
   movimentosDepois(processId: number, desde: string, depoisDoId: number | null): Promise<MovimentoPosterior[]>;
+  /** Dias (AAAA-MM-DD) com documento juntado pela Dra. no tribunal desde `desde` (mni_documentos). Opcional. */
+  juntadasPelaDra?(processId: number, desde: string): Promise<string[]>;
   julgar(p: PrazoPendente, movs: MovimentoPosterior[]): Promise<Julgamento | null>;
   marcarCumprido(id: number, evidencia: string): Promise<void>;
   registrarVerificacao(id: number, ultimoMovId: number): Promise<void>;
@@ -217,7 +235,8 @@ export async function rodarAgentePrazos(deps: DepsAgentePrazos) {
       if (movs.length) {
         const j = await deps.julgar(p, movs).catch(() => null);
         if (!j) r.iaFalhou++;
-        const av = avaliarCumprimento(j, movs, { cliente: p.cliente, desde: p.desde, termos });
+        const juntadasPelaDra = deps.juntadasPelaDra ? await deps.juntadasPelaDra(p.processId, p.desde).catch(() => []) : [];
+        const av = avaliarCumprimento(j, movs, { cliente: p.cliente, desde: p.desde, termos, juntadasPelaDra });
         const mov = movs.find((m) => m.id === av.movimentoId);
         const prova = mov ? `${mov.titulo} (${br(mov.data)})` : 'sem movimento citado';
         if (av.resultado === 'cumprido') {

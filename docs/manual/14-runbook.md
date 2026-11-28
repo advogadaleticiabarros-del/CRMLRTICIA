@@ -1054,6 +1054,13 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 - **Correção:** busca única `propostaDoContato` em `src/routes/whatsapp-instance.ts` (telefone da proposta, do lead ou do cliente); `/context` devolve `propostas` do cliente; a tela lista "Proposta nº N · status" em Vínculos no CRM e libera Enviar proposta para cliente.
 - **Como reconhecer de novo:** conversa de cliente com proposta ativa em Propostas e "Vínculos no CRM" só com processos.
 
+## Incidente: TJES sem leitura por um dia inteiro, sem aviso (27/11/2026)
+
+- **Sintoma:** de 26/11 às 19h14 até 28/11 de manhã, nenhuma intimação ou movimentação do TJES entrou pelo MNI. Em Configurações → Ligação com os tribunais, o TJES mostrava "O computador do escritório não está conectado". Ninguém foi avisado.
+- **Causa raiz:** o TJES só é lido pelo computador do escritório (a ponte), porque o tribunal bloqueia o servidor. Os eventos do Windows mostraram a tampa do notebook fechada às 20h46 de 26/11, o notebook fora da tomada e a bateria acabando em 27/11. Ele voltou às 20h48 de 27/11 (Jessica confirmou: "o computador ficou desligado"). A ponte estava saudável: o registro dela simplesmente não tem linhas nesse período. A falha da rodada só era gravada em `mni_credenciais.ultimo_erro`, sem aviso.
+- **Correção:** rotina `mni:vigia-ponte` (a cada 10 min, 7h–21h). Avisa a equipe uma vez por queda e roda a rodada de novo quando o computador volta (ver [Monitoramento](10-monitoramento.md#vigia-da-ponte-do-tjes-desde-28112026)). No notebook: deixar na tomada e configurar a tampa para "Nada a fazer" na tomada.
+- **Como reconhecer de novo:** WhatsApp "O CRM não está conseguindo ler o TJES". Ou: `SELECT ultimo_ok_em, ultimo_erro, ultimo_erro_em FROM mni_credenciais WHERE sistema='tjes_pje1g'`, com `ultimo_erro_em` mais novo que `ultimo_ok_em`. No computador: `%LOCALAPPDATA%\crm-ponte-escritorio\ponte.log` sem linhas no período e eventos 506/42 (Kernel-Power) no log de Sistema do Windows.
+
 ## FAQ
 
 **Como sei se um problema é "conhecido" ou preciso investigar do zero?** Procure o sintoma nesta página primeiro (Ctrl+F). Se não achar, siga a disciplina do CLAUDE.md (comportamento esperado → encontrado → causa provável → arquivos → risco → verificação) e, ao corrigir, **volte aqui e adicione a entrada**.
@@ -1070,6 +1077,7 @@ Testes em `tests/assistenteAcordos.test.mjs`. Verificado repetindo as frases rea
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/11/2026 | Claude | Incidente: TJES sem leitura por um dia inteiro (computador do escritório desligado), sem aviso |
 | 26/11/2026 | Claude | Incidente: proposta de quem já é cliente não aparecia na conversa |
 | 26/11/2026 | Claude | Incidente: valor da causa do TJES (MNI) lido como atributo, vinha sempre vazio |
 | 23/11/2026 | Claude | Incidente DataJud HTTP 429 (monitoramento sobreposto esgotando o limite do CNJ) |

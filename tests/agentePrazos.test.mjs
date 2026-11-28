@@ -49,6 +49,21 @@ test('cumprido só com prova: IA diz sim, nosso cliente, movimento existe, é po
   assert.equal(avaliarCumprimento(null, MOVS, CTX).resultado, 'nao');
 });
 
+test('TJES informa quem juntou: petição juntada pela Dra. no dia do movimento vira prova (28/11/2026)', () => {
+  // No PJe, pelo MNI, o movimento vem só como "Petição", sem citar ninguém.
+  const j = parseJulgamento('{"cumprido":"sim","movimento_id":11,"quem":"nosso_cliente","motivo":"Manifestação juntada."}');
+  const comJuntada = { ...CTX, juntadasPelaDra: ['2026-11-21'] };
+  const r = avaliarCumprimento(j, MOVS, comJuntada);
+  assert.equal(r.resultado, 'cumprido');
+  assert.equal(r.movimentoId, 11);
+  assert.match(r.motivo, /juntada pela Dra\. no tribunal em 21\/11/);
+  assert.equal(avaliarCumprimento(j, MOVS, { ...CTX, juntadasPelaDra: ['2026-11-22'] }).resultado, 'provavel', 'juntada em outro dia não prova');
+  assert.equal(avaliarCumprimento({ ...j, cumprido: 'incerto' }, MOVS, comJuntada).resultado, 'provavel', 'IA em dúvida: só provável');
+  assert.equal(avaliarCumprimento({ ...j, quem: 'outra_parte' }, MOVS, comJuntada).resultado, 'provavel', 'IA disse outra parte, mas a Dra. juntou: confirmar');
+  assert.equal(avaliarCumprimento({ ...j, quem: 'outra_parte' }, MOVS, CTX).resultado, 'nao', 'sem juntada da Dra., segue como antes');
+  assert.equal(avaliarCumprimento({ ...j, cumprido: 'nao' }, MOVS, comJuntada).resultado, 'nao', 'IA leu que não cumpriu');
+});
+
 function depsFalsas(over = {}) {
   const log = { definidos: [], leitura: [], cumpridos: [], tratadas: [], marcados: [], mensagens: [] };
   const deps = {

@@ -17,6 +17,7 @@ Consulte quando precisar saber COM QUE FREQUÊNCIA algo roda sozinho, o que faze
 | `monitoramento:descoberta-oab` | 7h, 13h, 19h | Varre o DJEN atrás de publicações endereçadas à OAB cadastrada |
 | `intimacoes:relatorio-diario` | 7h25 | **Novo (13/11/2026).** Relatório das publicações novas do DJEN: e-mail (PDF, CSV, recorte) e WhatsApp da equipe, com prazo, data limite e protocolar até. Ver [Processos](04-processos.md#relatório-diário-de-intimações-desde-13112026) |
 | `monitoramento:tribunais-mni` | 7h10, 11h10, 15h10 e 19h10 | **Novo (17/11/2026).** Ligação oficial com os tribunais (MNI): intimações pendentes e movimentações direto do PJe do TJES e do eproc da JFES, com o login da Dra. Ver [abaixo](#ligação-oficial-com-os-tribunais-mni-desde-17112026) |
+| `mni:vigia-ponte` | a cada 10 min, 7h–21h | **Novo (28/11/2026).** Se a rodada do TJES falhou porque o computador do escritório (a ponte) estava desligado, avisa a equipe uma vez (WhatsApp e sino) e roda a rodada de novo assim que ele volta. Ver [Vigia da ponte](#vigia-da-ponte-do-tjes-desde-28112026) |
 | `monitoramento:processos` | de hora em hora, 7h–20h | Sincroniza com o DataJud um **lote** de 25 processos, os sincronizados há mais tempo (a carteira inteira roda em ~6h); não começa se a anterior ainda estiver rodando e para no primeiro limite do CNJ |
 | `monitoramento:processos-email` | 8h, 12h, 16h, 19h | Varre a caixa de e-mail conectada atrás de movimentação de tribunal fora do DJEN, inclusive o **Push do TRT17** (desde 18/11/2026; antes 8h e 19h) |
 | `monitoramento:processos-pre-briefing` | 6h | Sincronização extra antes do briefing matinal, pra ele sair com dado fresco |
@@ -72,6 +73,18 @@ Por isso o TJES (1º e 2º grau, `viaEscritorio: true` em `sistemas.ts`) é cons
 
 Para incluir outro sistema: acrescente em `SISTEMAS_MNI` (`src/services/mni/sistemas.ts`) com o endereço e a regra do número CNJ.
 
+### Vigia da ponte do TJES (desde 28/11/2026)
+
+Em 27/11/2026 o notebook do escritório ficou desligado o dia todo (tampa fechada, fora da tomada, bateria acabou) e **nenhuma rodada do TJES rodou**, sem ninguém saber: o erro ficava só gravado em `mni_credenciais.ultimo_erro`.
+
+- **Rotina `mni:vigia-ponte`** (a cada 10 min, 7h–21h; regra em `src/services/mni/vigiaPonte.ts`, ligação em `index.ts` → `vigiarPonteTjesAgora`):
+  - a última rodada do TJES falhou com "computador do escritório não está conectado" e a ponte **continua desligada** → avisa a equipe **uma vez por queda** (WhatsApp da equipe + sino dos admins) e grava `mni_credenciais.ponte_aviso_em` (migration 194);
+  - a ponte **voltou** → roda a rodada do MNI na hora (recuperação). Se tinha avisado, manda "o TJES foi lido de novo";
+  - qualquer outro caso (rodada boa, erro de outro tipo) → nada.
+- **Uma rodada por vez:** `rodarMonitoramentoMniAgora` não começa se outra estiver rodando (a do horário e a do vigia). O botão "Consultar agora" avisa quando já há uma em andamento.
+- **No computador do escritório:** deixe o notebook na tomada. Para ele não suspender ao fechar a tampa: Painel de Controle → Opções de Energia → "Escolher a função de fechamento da tampa" → **Na tomada: Nada a fazer**. (A suspensão por tempo já está desligada.)
+- Testes: `tests/mniVigiaPonte.test.mjs`.
+
 ### Lista de documentos das petições (desde 28/11/2026)
 
 Pedido da Jessica: o CRM dizer sozinho se o prazo foi cumprido lendo o TJES. O problema: no PJe, a movimentação vem só como **"Petição"**, sem o tipo e sem quem juntou, então a Dra. Paula não tinha como saber se foi a nossa parte.
@@ -82,7 +95,7 @@ Pedido da Jessica: o CRM dizer sozinho se o prazo foi cumprido lendo o TJES. O p
 - **O que nunca faz:** pedir ou guardar o **conteúdo** dos documentos (o `<conteudo>` que vier é descartado) e abrir intimação (continua bloqueado; ver "Só leitura", acima).
 - **Não repete:** `legal_processes.mni_documentos_ate` guarda até qual petição já leu.
 - **Falha:** se o tribunal recusar ou demorar, tenta de novo na próxima rodada. Login recusado para o sistema, como nas outras consultas.
-- **Para que serve:** é a base da baixa automática de prazos. A regra da Dra. Paula ainda **não** usa esses dados; ela passa a usar depois de conferirmos o formato real que o TJES devolve.
+- **Para que serve:** baixa automática de prazos. A Dra. Paula usa os dias com documento juntado pela Dra. (`assinado_pelo_login = 1`) como prova de que a petição foi da nossa parte (ver [Processos](04-processos.md)).
 - Código: `src/services/mni/cliente.ts` (`lerDocumentos`), `monitorMni.ts` (`precisaLerDocumentos`) e `index.ts` (gravação). Testes: `tests/mniDocumentos.test.mjs`.
 
 ### TRT17 pelo site do PJe-JT, com o login da Dra. (desde 18/11/2026)
@@ -227,6 +240,7 @@ Cada execução é registrada com sucesso ou falha (visível nos logs do servido
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/11/2026 | Claude | Rotina `mni:vigia-ponte`: avisa quando o TJES não pôde ser lido porque o computador do escritório estava desligado e roda a recuperação quando ele volta; uma rodada do MNI por vez |
 | 28/11/2026 | Claude | MNI: guarda quem juntou cada documento (`juntado_por`) e reconhece a Dra. pelo CPF de quem juntou (o TJES não manda assinatura) |
 | 28/11/2026 | Claude | MNI: lista de documentos das petições recentes (tipo, descrição, se assinou a Dra.; nunca o conteúdo), em `mni_documentos`, base da baixa automática de prazos |
 | 23/11/2026 | Claude | DataJud: freio único (uma consulta por vez, pausa de 15 min após 429/timeout, sem repetir 429), monitoramento em lotes de 25 sem rodada sobreposta, botão manual com prioridade e mensagem clara |

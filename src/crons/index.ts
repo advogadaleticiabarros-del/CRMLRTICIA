@@ -568,6 +568,13 @@ export function startCronJobs() {
   // PJe do TJES e do eproc da JFES, com o login da Dra. cadastrado em
   // Configurações. Sem login cadastrado, não faz nada. Login recusado desliga
   // a credencial na hora (não insiste, para não bloquear a senha).
+  // Vigia da ponte do TJES (28/11/2026): a cada 10 min, das 7h às 21h. Se a
+  // rodada do TJES falhou porque o computador do escritório estava desligado,
+  // avisa a equipe uma vez e roda de novo assim que ele voltar (vigiaPonte.ts).
+  cron.schedule('5,15,25,35,45,55 7-21 * * *', () => {
+    runJob('mni:vigia-ponte', async () => (await import('../services/mni')).vigiarPonteTjesAgora(), { silencioso: true });
+  }, { timezone: 'America/Sao_Paulo' });
+
   cron.schedule('10 7,11,15,19 * * *', () => {
     runJob('monitoramento:tribunais-mni', async () => {
       const { rodarMonitoramentoMniAgora } = await import('../services/mni');

@@ -21,7 +21,11 @@ Contexto da mesma conversa, só planejamento, sem código: a extensão do CRM pa
 - **Rodada das 7h10 em produção:** 850 documentos de 15 processos. **Formato real do TJES:** não vem `<assinatura>`. Quem juntou vem nos parâmetros `usuarioJuntadaArquivo` (nome) e `...usuarioJuntadaArquivo:documentoIdentificacao` (CPF). A descrição é quase sempre genérica ("Petição (outras)"). A Dra. juntou 5 documentos em 30 dias, mas a primeira versão não a reconheceu, porque só olhava a assinatura.
 - Segundo commit: reconhecimento pelo CPF de quem juntou e coluna `juntado_por` (migration 193). 22 testes do MNI e a suíte completa (1681, 0 falhas) passaram.
 
+- **Terceiro commit:** vigia da ponte (`src/services/mni/vigiaPonte.ts`, rotina `mni:vigia-ponte`, migration 194) e a regra da Dra. Paula com a prova "juntada pela Dra." (`avaliarCumprimento`, `juntadasPelaDra` em `agentePrazosMysql.ts`). Suíte completa: 1689 passaram, 0 falhas. Runbook: incidente de 27/11.
+
 ## Decisões e porquês
+- **Regra conservadora na baixa:** juntada pela Dra. no **mesmo dia** do movimento e IA dizendo que a nossa parte cumpriu → cumprido. IA em dúvida, ou dizendo que foi a outra parte, com juntada da Dra. → só "provável". Baixar errado esconde um prazo aberto.
+- **Aviso uma vez por queda**, para não encher o WhatsApp a cada 10 minutos. A recuperação roda sozinha.
 - **Primeira tentativa bloqueada:** abrir a senha do MNI na VPS e enviar o pedido deste computador foi barrado pelo filtro de permissões (risco de vazamento de credencial). A Jessica escolheu o caminho pelo próprio CRM, pela ponte. A senha não sai do servidor e o resultado já serve de base para a baixa automática.
 - **Por que dentro da rodada, e não numa rota de teste:** uma rota exigiria forjar uma sessão de administrador para chamá-la. Dentro da rodada não há tela nova nem token.
 - **Lista, nunca conteúdo:** pedir a lista de documentos não dá ciência (isso só acontece com `consultarTeorComunicacao`, que continua proibido pelo teste em `mniTribunais.test.mjs`).
@@ -30,7 +34,8 @@ Contexto da mesma conversa, só planejamento, sem código: a extensão do CRM pa
 - **A ponte não travou, quem parou foi o computador:** os eventos do Windows mostram a tampa fechada em 26/11 às 20h46 e a bateria acabando em 27/11. A Jessica confirmou que o computador ficou desligado. O log da ponte não tem nenhuma linha nesse período, e as quedas de madrugada são reconexões de cerca de 30 s.
 
 ## Pendente
-- **Ponte (Jessica decide):** configurar a tampa para não suspender na tomada, avisar quando a rodada do TJES falhar pela ponte e rodar a recuperação quando o computador voltar.
+- **Tampa do notebook (Jessica):** Opções de Energia → "Escolher a função de fechamento da tampa" → Na tomada: Nada a fazer. A mudança feita por mim foi bloqueada pelo sistema de permissões.
+- **Limite conhecido:** se a lista de documentos de um processo for lida numa rodada depois daquela em que a Dra. Paula já julgou o movimento (limite de 15 por rodada), aquele movimento não é julgado de novo com a prova nova.
 - **Reler os 15 processos já lidos** para preencher `juntado_por`: zerar `legal_processes.mni_documentos_ate` desses processos depois do deploy.
 - **Conferir depois da próxima rodada do MNI** (com o computador do escritório ligado): ler `mni_documentos` dos processos 5023912-32.2025.8.08.0012, 5016872-62.2026.8.08.0012 e 5029177-15.2025.8.08.0012.
 - Se vierem a descrição e quem assinou: incluir na regra da Dra. Paula "petição de tipo compatível, juntada depois da intimação e assinada pela Dra. → cumprido". Ligar a conferência de prazos ao fim da rodada do MNI.

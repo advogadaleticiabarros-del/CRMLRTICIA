@@ -11,7 +11,7 @@ import {
 } from './agentePrazos';
 
 /** Mesmos números que recebem os avisos de prazo (monitoringService). */
-const EQUIPE_WHATSAPP = ['5544991011402', '5527988798093'];
+export const EQUIPE_WHATSAPP = ['5544991011402', '5527988798093'];
 /** Teto por rodada: o acúmulo antigo é lido aos poucos, sem estourar a IA. */
 const MAX_INTIMACOES_POR_RODADA = 40;
 const MAX_PRAZOS_POR_RODADA = 60;
@@ -177,6 +177,16 @@ function deps(opts: { lembrarVencendo: boolean; termos: string[]; admin: { id: n
         depoisDoId ? [processId, desde, depoisDoId] : [processId, desde]
       ) as any;
       return rows.map((r: any) => ({ id: r.id, data: iso(r.movement_date) || desde, titulo: String(r.title || ''), texto: String(r.texto || '') }));
+    },
+
+    async juntadasPelaDra(processId, desde) {
+      // Mesma conversão de data dos movimentos (iso), para os dias baterem.
+      const [rows] = await db.query(
+        `SELECT data_hora FROM mni_documentos
+          WHERE process_id = ? AND assinado_pelo_login = 1 AND id_vinculado_a IS NULL AND DATE(data_hora) >= ?`,
+        [processId, desde]
+      ) as any;
+      return [...new Set<string>(rows.map((r: any) => iso(r.data_hora)).filter(Boolean))];
     },
 
     async julgar(p, movs) {

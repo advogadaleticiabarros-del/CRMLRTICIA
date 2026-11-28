@@ -5106,6 +5106,7 @@ async function loadMniPanel() {
     rodar.disabled = true; rodar.textContent = 'Consultando os tribunais...';
     try {
       const r = await api('/api/mni/rodar', { method: 'POST', body: '{}' });
+      if (r.pulado) { toast('Já há uma consulta aos tribunais em andamento. Aguarde alguns minutos e confira de novo.'); loadMniPanel(); return; }
       toast(`Consulta concluída · ${r.avisos_pendentes} intimação(ões) pendente(s) · ${r.movimentacoes_novas} movimentação(ões) nova(s)${r.falhas ? ' · atenção: ' + r.falhas : ''}`, r.falhas ? 'error' : undefined);
       loadMniPanel();
     } catch (e) { toast(e.message, 'error'); rodar.disabled = false; rodar.textContent = 'Consultar agora'; }

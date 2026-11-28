@@ -276,7 +276,66 @@ async function copiarContrariasParaOCaso(processId: number, partes: import('./fi
   }
 }
 
+/** Uma rodada por vez (a do horário e a de recuperação do vigia não se sobrepõem). */
+let mniRodando = false;
+
 export async function rodarMonitoramentoMniAgora() {
+  if (mniRodando) return { pulado: 'a rodada anterior ainda está em andamento' };
+  mniRodando = true;
+  try {
+    return await rodarMonitoramentoMniUmaVez();
+  } finally {
+    mniRodando = false;
+  }
+}
+
+/**
+ * Rotina mni:vigia-ponte (ver vigiaPonte.ts): avisa a equipe quando o TJES não
+ * pôde ser lido porque o computador do escritório está desligado, e roda a
+ * rodada de novo assim que ele volta.
+ */
+export async function vigiarPonteTjesAgora() {
+  const { vigiarPonteTjes } = await import('./vigiaPonte');
+  const ids = SISTEMAS_MNI.filter((s) => s.viaEscritorio).map((s) => s.id);
+  const lerLinha = async () => {
+    const [rows] = await db.query(
+      `SELECT sistema, ultimo_ok_em, ultimo_erro, ultimo_erro_em, ponte_aviso_em FROM mni_credenciais
+        WHERE ativo = 1 AND sistema IN (?) ORDER BY sistema LIMIT 1`, [ids]
+    ) as any;
+    return rows[0] || null;
+  };
+  return vigiarPonteTjes({
+    async estado() {
+      const r = await lerLinha();
+      if (!r) return null;
+      return {
+        ultimoOkEm: r.ultimo_ok_em ? new Date(r.ultimo_ok_em) : null,
+        ultimoErro: r.ultimo_erro || null,
+        ultimoErroEm: r.ultimo_erro_em ? new Date(r.ultimo_erro_em) : null,
+        avisoEm: r.ponte_aviso_em ? new Date(r.ponte_aviso_em) : null,
+        ponteConectada: ponteEscritorio.situacao().conectada,
+      };
+    },
+    async recuperar() {
+      const antes = await lerLinha();
+      await rodarMonitoramentoMniAgora();
+      const depois = await lerLinha();
+      const ok = (d: any) => (d?.ultimo_ok_em ? new Date(d.ultimo_ok_em).getTime() : 0);
+      return ok(depois) > ok(antes);
+    },
+    async avisar(texto) {
+      await avisarAdmins('Leitura do TJES', texto);
+      const { sendText } = await import('../uazapiInstance');
+      const { EQUIPE_WHATSAPP } = await import('../agentePrazosMysql');
+      for (const n of EQUIPE_WHATSAPP) await sendText(n, texto, 'Automático — vigia da ponte do TJES').catch(() => false);
+    },
+    async marcarAviso() {
+      await db.query('UPDATE mni_credenciais SET ponte_aviso_em = NOW() WHERE sistema IN (?)', [ids]);
+    },
+  });
+}
+
+async function rodarMonitoramentoMniUmaVez() {
   const r = await rodarMonitoramentoMni(depsDeProducao());
   const falhas = r.sistemas.filter((s) => s.status !== 'ok');
   // Erro de rede/tribunal fora do ar não derruba a rotina; login recusado já avisou a equipe.

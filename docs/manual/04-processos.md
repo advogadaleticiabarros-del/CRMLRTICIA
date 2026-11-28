@@ -139,6 +139,7 @@ Pedido da Jessica: "um agente que lê, avisa a advogada, define os prazos e colo
    - prazo que já venceu sem registro → não vira prazo; vai para a Dra. conferir se foi cumprido.
    O exame fica gravado (`detected_deadlines.agente_em/agente_nota`) e não se repete.
 2. **Prazos pendentes:** a IA lê as movimentações do processo depois da intimação e diz se a nossa parte já cumpriu. Só marca **cumprido** com prova: a movimentação existe, é posterior, a IA diz que foi a nossa parte **e** o texto cita a Dra., a OAB ou o cliente (`deadlines.cumprido_em/cumprido_evidencia`). Sem isso, pergunta à Dra. ("parece cumprido, confirme"). A IA só é chamada quando há movimentação nova (`deadlines.agente_ultimo_mov`).
+   - **Prova pelo tribunal (desde 28/11/2026):** no PJe do TJES o movimento vem só como "Petição", sem citar ninguém. O CRM lê a lista de documentos pelo MNI e sabe **quem juntou** (`mni_documentos`, ver [Monitoramento](10-monitoramento.md#lista-de-documentos-das-petições-desde-28112026)). Se a IA diz que a nossa parte cumpriu **e** há documento juntado pela Dra. no **mesmo dia** do movimento, vira **cumprido** ("petição juntada pela Dra. no tribunal em dd/mm"). Se a IA ficou em dúvida ou atribuiu à outra parte, mas a Dra. juntou naquele dia, vira "parece cumprido, confirme". Regra em `avaliarCumprimento` (`agentePrazos.ts`).
 3. **WhatsApp à Dra. e à Jessica** só quando há novidade: prazos definidos, cumpridos, os que parecem cumpridos, os para ler e os vencidos sem registro. Na rodada da manhã, também os que vencem em até 2 dias.
 
 Regras puras em `src/services/agentePrazos.ts` (testes em `tests/agentePrazos.test.mjs`); banco, IA (GPT Luna, Groq de reserva) e WhatsApp em `agentePrazosMysql.ts`. Migration 182. Para conferir sem gravar nem enviar: `rodarAgentePrazosAgora({ simular: console.log })`.
@@ -225,6 +226,7 @@ Em *Prazos & Tarefas*, o botão **Aguardando terceiro** marca a tarefa como trav
 
 | Data | Autor | Mudança |
 |---|---|---|
+| 28/11/2026 | Claude | Dra. Paula: petição juntada pela Dra. no TJES (pelo MNI) no dia do movimento passa a ser prova de cumprimento |
 | 18/11/2026 | Claude | Classificação (justiça, instância, classe, assuntos, área se vazia) e temperatura pelas decisões (quente/morno/frio); partes do tribunal em `process_parties`, cliente vinculado ou cadastrado pela OAB e partes contrárias no caso |
 | 18/11/2026 | Claude | Agente de prazos (Dra. Paula): 3 rodadas ao dia definem o prazo das intimações (data pela regra; a IA só interpreta), marcam cumprido só com prova e avisam a Dra. e a Jessica no WhatsApp |
 | 17/11/2026 | Claude | Processo também entra pela confirmação de "Ação nova de cliente" (source `acao_nova`); ver [Monitoramento](10-monitoramento.md#ação-nova-envolvendo-cliente-desde-17112026) |
